@@ -5,8 +5,8 @@ import { Search, Settings, User, BluetoothSearching, ListFilter, ArrowUpDown, Ch
 
 const MobileListView = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [expandedMenus, setExpandedMenus] = useState({});
-  const [activeSubMenuItem, setActiveSubMenuItem] = useState(null);
+  const [expandedMenus, setExpandedMenus] = useState<any>({});
+  const [activeSubMenuItem, setActiveSubMenuItem] = useState<any>(null);
   
   const items = [
     {
@@ -86,14 +86,14 @@ const MobileListView = () => {
     }
   };
 
-  const toggleSubmenu = (menuId) => {
-    setExpandedMenus(prev => ({
+  const toggleSubmenu = (menuId: any) => {
+    setExpandedMenus((prev:any) => ({
       ...prev,
       [menuId]: !prev[menuId]
     }));
   };
 
-  const handleSubMenuItemClick = (menuId, itemId) => {
+  const handleSubMenuItemClick = (menuId:any, itemId:any) => {
     setActiveSubMenuItem(`${menuId}-${itemId}`);
     // You could add navigation logic here in a real app
   };
