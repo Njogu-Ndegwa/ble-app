@@ -161,7 +161,6 @@ const MobileListView = () => {
         {/* Content Area */}
         <div className="p-4">
           {/* Header */}
-          <div className="sticky top-0 z-10  pb-4">
             <div className="flex justify-between items-center mb-4">
               <User
                 className="w-6 h-6 text-gray-400 cursor-pointer"
@@ -205,7 +204,6 @@ const MobileListView = () => {
                 </span>
               </button>
             </div>
-          </div>
 
           {/* List Items */}
           <div className="space-y-3">
