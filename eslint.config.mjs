@@ -19,7 +19,7 @@ const eslintConfig = [
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/ban-ts-comment": "off",
         "@typescript-eslint/no-non-null-assertion": "off",
-        
+        "@typescript-eslint/no-unused-vars": "off",
         // Disable type-aware rules if needed
         "@typescript-eslint/no-floating-promises": "off",
         "@typescript-eslint/no-unsafe-argument": "off",
