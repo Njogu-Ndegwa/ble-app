@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { ArrowLeft, Battery, Download, Bluetooth, Share2 } from 'lucide-react';
+import { ArrowLeft, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface DeviceDetailProps {
