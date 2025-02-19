@@ -105,7 +105,7 @@ const MobileListView = () => {
         className={`w-full transition-all duration-300 ${isMenuOpen ? `translate-x-[${sidebarWidth}]` : 'translate-x-0'}`}
         style={{ 
           transform: isMenuOpen ? `translateX(${sidebarWidth})` : 'translateX(0)',
-          opacity: isMenuOpen ? 0.6 : 1,
+          opacity: isMenuOpen ? 0.1 : 1,
         }}
         onClick={handleContentClick}
       >
