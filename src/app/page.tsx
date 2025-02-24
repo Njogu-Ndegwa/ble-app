@@ -75,7 +75,7 @@ const deviceData = [
 ];
 
 
-const AppContainer: React.FC<{ state: AppState; dispatch: (action: AppAction) => void }>  = () => {
+const AppContainer = () => {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [bridgeInitialized, setBrideInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false)
