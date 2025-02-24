@@ -7,7 +7,7 @@ import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 // Sample data structure for devices
-
+let bridgeHasBeenInitialized = false;
 // Define interfaces and types
 interface BleDevice {
   macAddress: string;
@@ -131,7 +131,8 @@ const AppContainer = () => {
     };
 
     const setupBridge = (bridge: WebViewJavascriptBridge) => {
-      if (!bridgeInitialized) {
+      if (!bridgeHasBeenInitialized) {
+        bridgeHasBeenInitialized = true;
         bridge.init((message: any, responseCallback: (response: any) => void) => {
           responseCallback("js success!");
         });
@@ -244,12 +245,21 @@ const AppContainer = () => {
     };
 
     connectWebViewJavascriptBridge(setupBridge);
-    startBleScan();
 
     return () => {
-      stopBleScan();
+      console.log("-------250------")
     };
-  }, []); // Empty dependency array to run only once on mount
+  }, [bridgeInitialized]); // Empty dependency array to run only once on mount
+
+  
+  useEffect(() => {
+    if (bridgeInitialized) {
+      startBleScan();
+      return () => {
+        stopBleScan();
+      };
+    }
+  }, [bridgeInitialized]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
