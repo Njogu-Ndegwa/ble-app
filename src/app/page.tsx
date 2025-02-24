@@ -142,7 +142,8 @@ const AppContainer = () => {
             const parsedData = JSON.parse(data);
             console.log(parsedData, "Parsed Data")
             if (parsedData && parsedData.data) {
-              responseCallback(parsedData.data);
+              // responseCallback(parsedData.data);
+              console.log("Response Callback")
             } else {
               throw new Error("Parsed data is not in the expected format.");
             }
