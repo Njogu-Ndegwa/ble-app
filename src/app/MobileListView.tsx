@@ -2,19 +2,18 @@
 
 import React, { useState } from 'react';
 import { Search, Settings, User, BluetoothSearching, ListFilter, ArrowUpDown, ChevronDown, ChevronUp, Home, Battery, BarChart4, Settings2, HelpCircle } from 'lucide-react';
-
+import { BleDevice } from './page';
 interface DeviceItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  info: string;
+  name: string;
+  macAddress: string;
+  rssi: string;
   imageUrl: string;
   firmwareVersion?: string;
   deviceId?: string;
 }
 
 interface MobileListViewProps {
-  items: DeviceItem[];
+  items: BleDevice[];
   onDeviceSelect: (deviceId: string) => void;
 }
 
@@ -165,19 +164,19 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect }
           <div className="space-y-3">
             {items.map((item) => (
               <div
-                key={item.id}
+                key={item.macAddress}
                 className="flex items-start p-3 rounded-lg bg-[#2A2F33] cursor-pointer hover:bg-[#343a40] transition-colors"
-                onClick={() => handleDeviceClick(item.id)}
+                onClick={() => handleDeviceClick(item.macAddress)}
               >
                 <img
                   src={item.imageUrl}
-                  alt={item.title}
+                  alt={item.name}
                   className="w-12 h-12 rounded-full mr-3"
                 />
                 <div className="flex-1">
-                  <h3 className="text-[14px] font-medium text-white">{item.title}</h3>
-                  <p className="text-[10px] text-gray-400">{item.subtitle}</p>
-                  <p className="text-[10px] text-gray-500 mt-1">{item.info}</p>
+                  <h3 className="text-[14px] font-medium text-white">{item.name}</h3>
+                  <p className="text-[10px] text-gray-400">{item.macAddress}</p>
+                  <p className="text-[10px] text-gray-500 mt-1">{item.rssi}</p>
                 </div>
                 <span className="text-gray-400 text-lg">
                   <BluetoothSearching />

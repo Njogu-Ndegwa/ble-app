@@ -9,10 +9,13 @@ import dynamic from 'next/dynamic';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
-interface BleDevice {
+ export interface BleDevice {
   macAddress: string;
   name: string;
   rssi: string;
+  imageUrl? : string;
+  firmwareVersion?: string;
+  deviceId?: string;
 }
 
 interface AppState {
@@ -52,6 +55,7 @@ declare global {
     WebViewJavascriptBridge?: WebViewJavascriptBridge;
   }
 }
+const imageUrl = "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png"
 const deviceData = [
   {
     id: '1',
@@ -168,7 +172,7 @@ const AppContainer = () => {
               console.log({"MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi})
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
                 parsedData.rssi = convertRssiToFormattedString(Number(parsedData.rssi));
-
+                parsedData.imageUrl = imageUrl
                 setDetectedDevices(prevDevices => {
                   // Check if this device already exists in our array
                   const deviceExists = prevDevices.some(
@@ -342,7 +346,7 @@ const AppContainer = () => {
     <>
       {!selectedDevice ? (
         <MobileListView 
-          items={deviceData}
+          items={detectedDevices}
           onDeviceSelect={handleDeviceSelect}
         />
       ) : (
