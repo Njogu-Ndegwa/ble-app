@@ -77,7 +77,7 @@ const deviceData = [
 
 const AppContainer = () => {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  const [bridgeInitialized, setBrideInitialized] = useState<boolean>(false);
+  const [bridgeInitialized, setBridgeInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false)
   // Find the selected device data
   const deviceDetails = selectedDevice 
@@ -101,49 +101,32 @@ const AppContainer = () => {
 
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     const connectWebViewJavascriptBridge = (callback: (bridge: WebViewJavascriptBridge) => void) => {
       if (window.WebViewJavascriptBridge) {
         callback(window.WebViewJavascriptBridge);
-        const mqttConfig: MqttConfig = {
-          username: "Admin",
-          password: "7xzUV@MT",
-          clientId: "123",
-          hostname: "mqtt.omnivoltaic.com",
-          port: 1883,
-        };
-        window.WebViewJavascriptBridge.callHandler(
-          "connectMqtt",
-          mqttConfig,
-          (responseData: string) => {
-            try {
-              const parsedResponse = JSON.parse(responseData);
-              if (parsedResponse.error) {
-                console.error("MQTT connection error:", parsedResponse.error.message);
-              }
-            } catch (error) {
-              console.error("Error parsing MQTT response:", error);
-            }
-          }
-        );
       } else {
-        document.addEventListener(
-          "WebViewJavascriptBridgeReady",
-          () => {
-            if (window.WebViewJavascriptBridge) {
-              callback(window.WebViewJavascriptBridge);
-            }
-          },
-          false
-        );
-
-        const timeout = setTimeout(() => {
+        const handleBridgeReady = () => {
           if (window.WebViewJavascriptBridge) {
             callback(window.WebViewJavascriptBridge);
-            // clearTimeout(timeout) is unnecessary as setTimeout runs once
-          } else {
+          }
+        };
+        document.addEventListener("WebViewJavascriptBridgeReady", handleBridgeReady, false);
+
+        timeoutId = setTimeout(() => {
+          if (!window.WebViewJavascriptBridge) {
             console.error("WebViewJavascriptBridge is not initialized within the timeout period.");
+          } else {
+            callback(window.WebViewJavascriptBridge);
           }
         }, 3000);
+
+        // Cleanup event listener and timeout on unmount
+        return () => {
+          document.removeEventListener("WebViewJavascriptBridgeReady", handleBridgeReady, false);
+          clearTimeout(timeoutId);
+        };
       }
     };
 
@@ -158,8 +141,6 @@ const AppContainer = () => {
             console.log("Raw data received from 'print':", data);
             const parsedData = JSON.parse(data);
             if (parsedData && parsedData.data) {
-              // Uncomment to dispatch BLE data
-              // dispatch({ type: "SET_BLE_DATA", payload: parsedData.data });
               responseCallback(parsedData.data);
             } else {
               throw new Error("Parsed data is not in the expected format.");
@@ -175,8 +156,6 @@ const AppContainer = () => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
-                // Uncomment to dispatch detected device
-                // dispatch({ type: "ADD_DETECTED_DEVICE", payload: parsedData });
                 responseCallback({ success: true });
               } else {
                 console.warn("Invalid device data format:", parsedData);
@@ -201,8 +180,6 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: any) => void) => {
             try {
               const parsedData = JSON.parse(data);
-              // Uncomment to dispatch initial BLE data
-              // dispatch({ type: "SET_INIT_BLE_DATA", payload: parsedData });
               responseCallback(parsedData);
             } catch (error) {
               console.error("Error parsing JSON data from 'bleInitDataCallBack' handler:", error);
@@ -210,14 +187,11 @@ const AppContainer = () => {
           }
         );
 
-        // MQTT handlers
         bridge.registerHandler(
           "mqttMessageReceived",
           (data: string, responseCallback: (response: any) => void) => {
             try {
               const parsedMessage = JSON.parse(data);
-              // Uncomment to dispatch MQTT message
-              // dispatch({ type: "SET_MQTT_MESSAGE", payload: parsedMessage });
               responseCallback(parsedMessage);
             } catch (error) {
               console.error("Error parsing MQTT message:", error);
@@ -246,20 +220,36 @@ const AppContainer = () => {
           }
         );
 
-        // Corrected typo: setBrideInitialized -> dispatch
-        // dispatch({ type: "SET_BRIDGE_INITIALIZED", payload: true });
+        const mqttConfig: MqttConfig = {
+          username: "Admin",
+          password: "7xzUV@MT",
+          clientId: "123",
+          hostname: "mqtt.omnivoltaic.com",
+          port: 1883,
+        };
+        bridge.callHandler("connectMqtt", mqttConfig, (responseData: string) => {
+          try {
+            const parsedResponse = JSON.parse(responseData);
+            if (parsedResponse.error) {
+              console.error("MQTT connection error:", parsedResponse.error.message);
+            }
+          } catch (error) {
+            console.error("Error parsing MQTT response:", error);
+          }
+        });
+
+        setBridgeInitialized(true); // Update state to prevent re-initialization
         console.log("WebViewJavascriptBridge initialized.");
       }
     };
 
     connectWebViewJavascriptBridge(setupBridge);
-
-    // Start BLE scan on mount
     startBleScan();
 
-    // Cleanup on unmount
-    return () => stopBleScan();
-  }, [bridgeInitialized]); // Dependency on state.bridgeInitialized
+    return () => {
+      stopBleScan();
+    };
+  }, []); // Empty dependency array to run only once on mount
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
@@ -269,15 +259,13 @@ const AppContainer = () => {
         (responseData: string) => {
           try {
             const jsonData = JSON.parse(responseData);
-            // dispatch({ type: "SET_BLE_DATA", payload: jsonData });
             console.log("BLE Data:", jsonData);
           } catch (error) {
             console.error("Error parsing JSON data from 'startBleScan' response:", error);
           }
         }
       );
-      setIsScanning(true)
-      // dispatch({ type: "SET_IS_SCANNING", payload: true });
+      setIsScanning(true);
     } else {
       console.error("WebViewJavascriptBridge is not initialized.");
     }
@@ -288,7 +276,7 @@ const AppContainer = () => {
       window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {
         console.log("Scanning stopped");
       });
-      // dispatch({ type: "SET_IS_SCANNING", payload: false });
+      setIsScanning(false);
     } else {
       console.error("WebViewJavascriptBridge is not initialized or scanning is not active.");
     }
