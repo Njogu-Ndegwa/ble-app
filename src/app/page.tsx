@@ -139,8 +139,8 @@ const AppContainer = () => {
 
         bridge.registerHandler("print", (data: string, responseCallback: (response: any) => void) => {
           try {
-            console.log("Raw data received from 'print':", data);
             const parsedData = JSON.parse(data);
+            console.log(parsedData, "Parsed Data")
             if (parsedData && parsedData.data) {
               responseCallback(parsedData.data);
             } else {
@@ -156,7 +156,6 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
-              console.log(parsedData, "Parsed Data------2121----")
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
                 responseCallback({ success: true });
               } else {
@@ -182,6 +181,7 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: any) => void) => {
             try {
               const parsedData = JSON.parse(data);
+              console.log(parsedData, "BleInitDataCallBack")
               responseCallback(parsedData);
             } catch (error) {
               console.error("Error parsing JSON data from 'bleInitDataCallBack' handler:", error);
