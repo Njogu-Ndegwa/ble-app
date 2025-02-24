@@ -329,7 +329,7 @@ const AppContainer = () => {
     }
   };
 
-  console.log(selectedDevice, "The Selected Device------331-----")
+  console.log(detectedDevices, "Detechted Device------331-----")
   // Render the list view or detail view based on selection
   return (
     <>
