@@ -159,8 +159,9 @@ const AppContainer = () => {
             console.log("--------157--------")
             try {
               const parsedData: BleDevice = JSON.parse(data);
+              console.log({"MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi})
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
-
+                console.log("-------163------")
                 setDetectedDevices(prevDevices => {
                   // Check if this device already exists in our array
                   const deviceExists = prevDevices.some(
