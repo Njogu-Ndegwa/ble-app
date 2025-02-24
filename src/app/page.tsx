@@ -79,6 +79,7 @@ const AppContainer = () => {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [bridgeInitialized, setBridgeInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false)
+  const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
   // Find the selected device data
   const deviceDetails = selectedDevice 
     ? deviceData.find(device => device.id === selectedDevice) 
@@ -159,6 +160,33 @@ const AppContainer = () => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
+
+                setDetectedDevices(prevDevices => {
+                  // Check if this device already exists in our array
+                  const deviceExists = prevDevices.some(
+                    device => device.macAddress === parsedData.macAddress
+                  );
+                  
+                  // If device doesn't exist, add it to the array
+                  if (!deviceExists) {
+                    console.log("Adding new device:", parsedData.name);
+                    return [...prevDevices, parsedData];
+                  }
+                  
+                  // If the device exists but we want to update RSSI or other properties
+                  // This is optional - implement if you want to update existing devices
+                  if (deviceExists) {
+                    return prevDevices.map(device => 
+                      device.macAddress === parsedData.macAddress 
+                        ? { ...device, rssi: parsedData.rssi } // Update RSSI
+                        : device
+                    );
+                  }
+                  
+                  // Otherwise return unchanged array
+                  return prevDevices;
+                });
+
                 responseCallback({ success: true });
               } else {
                 console.warn("Invalid device data format:", parsedData);
@@ -300,6 +328,7 @@ const AppContainer = () => {
     }
   };
 
+  console.log(selectedDevice, "The Selected Device------331-----")
   // Render the list view or detail view based on selection
   return (
     <>
