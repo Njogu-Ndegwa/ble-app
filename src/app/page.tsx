@@ -156,6 +156,7 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
+              console.log(parsedData, "Parsed Data------2121----")
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
                 responseCallback({ success: true });
               } else {
@@ -251,7 +252,7 @@ const AppContainer = () => {
     };
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
 
-  
+
   useEffect(() => {
     if (bridgeInitialized) {
       startBleScan();
