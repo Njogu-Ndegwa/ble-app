@@ -7,6 +7,7 @@ import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import ProgressiveLoading from './loader';
+import {connBleByMacAddress, initBleData} from "./utils"
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -218,6 +219,20 @@ const AppContainer = () => {
             responseCallback(data);
           }
         );
+
+        bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
+          sessionStorage.setItem('connectedDeviceMac', macAddress);
+          setIsScanning(false);
+          initBleData(macAddress);
+          responseCallback(macAddress);
+        });
+      
+        // BLE service data initialization callback
+        bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
+          const resp = JSON.parse(data);
+          // setServiceAttrList(resp.dataList.map((service, index) => ({ ...service, index })));
+          responseCallback(data);
+        });
 
         bridge.registerHandler(
           "bleInitDataCallBack",
