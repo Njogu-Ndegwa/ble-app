@@ -12,7 +12,7 @@ let bridgeHasBeenInitialized = false;
 interface BleDevice {
   macAddress: string;
   name: string;
-  rssi: number;
+  rssi: string;
 }
 
 interface AppState {
@@ -100,6 +100,12 @@ const AppContainer = () => {
     });
   }, []);
 
+  function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
+    // Calculate distance using the logarithmic path-loss model
+    const distance = Math.pow(10, (txPower - rssi) / (10 * n));
+    return `${rssi}db ~ ${distance.toFixed(0)}m`;
+  }
+
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -161,7 +167,8 @@ const AppContainer = () => {
               const parsedData: BleDevice = JSON.parse(data);
               console.log({"MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi})
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
-                console.log("-------163------")
+                parsedData.rssi = convertRssiToFormattedString(Number(parsedData.rssi));
+
                 setDetectedDevices(prevDevices => {
                   // Check if this device already exists in our array
                   const deviceExists = prevDevices.some(
