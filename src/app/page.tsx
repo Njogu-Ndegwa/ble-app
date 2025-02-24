@@ -6,6 +6,7 @@ import MobileListView from './MobileListView';
 import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import ProgressiveLoading from './loader';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -355,6 +356,7 @@ const AppContainer = () => {
           onBack={handleBackToList}
         />
       )}
+
     </>
   );
 };
