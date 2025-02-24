@@ -138,11 +138,11 @@ const AppContainer = () => {
         });
 
         bridge.registerHandler("print", (data: string, responseCallback: (response: any) => void) => {
+          console.log("--------141--------")
           try {
             const parsedData = JSON.parse(data);
-            console.log(parsedData, "Parsed Data")
             if (parsedData && parsedData.data) {
-              // responseCallback(parsedData.data);
+              responseCallback(parsedData.data);
               console.log("Response Callback")
             } else {
               throw new Error("Parsed data is not in the expected format.");
@@ -155,6 +155,7 @@ const AppContainer = () => {
         bridge.registerHandler(
           "findBleDeviceCallBack",
           (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
+            console.log("--------157--------")
             try {
               const parsedData: BleDevice = JSON.parse(data);
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
@@ -180,6 +181,7 @@ const AppContainer = () => {
         bridge.registerHandler(
           "bleInitDataCallBack",
           (data: string, responseCallback: (response: any) => void) => {
+            console.log("--------182--------")
             try {
               const parsedData = JSON.parse(data);
               console.log(parsedData, "BleInitDataCallBack")
@@ -193,6 +195,7 @@ const AppContainer = () => {
         bridge.registerHandler(
           "mqttMessageReceived",
           (data: string, responseCallback: (response: any) => void) => {
+            console.log("--------196--------")
             try {
               const parsedMessage = JSON.parse(data);
               responseCallback(parsedMessage);
@@ -205,6 +208,7 @@ const AppContainer = () => {
         bridge.registerHandler(
           "connectMqttCallBack",
           (data: string, responseCallback: (response: any) => void) => {
+            console.log("--------209--------")
             try {
               const parsedMessage = JSON.parse(data);
               console.info("MQTT Connection Callback:", parsedMessage);
@@ -218,6 +222,7 @@ const AppContainer = () => {
         bridge.registerHandler(
           "mqttMsgArrivedCallBack",
           (data: string, responseCallback: (response: any) => void) => {
+            console.log("--------223--------")
             console.info("MQTT Message Arrived Callback:", data);
             responseCallback("Received MQTT Message");
           }
@@ -231,6 +236,7 @@ const AppContainer = () => {
           port: 1883,
         };
         bridge.callHandler("connectMqtt", mqttConfig, (responseData: string) => {
+          console.log("--------237--------")
           try {
             const parsedResponse = JSON.parse(responseData);
             if (parsedResponse.error) {
