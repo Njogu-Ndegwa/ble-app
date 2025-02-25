@@ -222,6 +222,7 @@ const AppContainer = () => {
 
         bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
           sessionStorage.setItem('connectedDeviceMac', macAddress);
+          console.log("Ble successfully connected----225---")
           setIsScanning(false);
           initBleData(macAddress);
           responseCallback(macAddress);
@@ -230,6 +231,7 @@ const AppContainer = () => {
         // BLE service data initialization callback
         bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
           const resp = JSON.parse(data);
+          console.log(resp, "Ble Init Successfully----234-----")
           // setServiceAttrList(resp.dataList.map((service, index) => ({ ...service, index })));
           responseCallback(data);
         });
@@ -237,7 +239,6 @@ const AppContainer = () => {
         bridge.registerHandler(
           "bleInitDataCallBack",
           (data: string, responseCallback: (response: any) => void) => {
-            console.log("--------182--------")
             try {
               const parsedData = JSON.parse(data);
               console.log(parsedData, "BleInitDataCallBack")
@@ -251,7 +252,6 @@ const AppContainer = () => {
         bridge.registerHandler(
           "mqttMessageReceived",
           (data: string, responseCallback: (response: any) => void) => {
-            console.log("--------196--------")
             try {
               const parsedMessage = JSON.parse(data);
               responseCallback(parsedMessage);
