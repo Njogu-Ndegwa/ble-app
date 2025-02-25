@@ -188,21 +188,21 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   const router = useRouter();
 
   // Dynamically generate tabs from attributeList
-  const tabs = attributeList.map((service, index) => {
-    const tabId = (() => {
-      switch (service.serviceNameEnum) {
-        case 'ATT_SERVICE': return 'ATT';
-        case 'CMD_SERVICE': return 'CMD';
-        case 'STS_SERVICE': return 'SVC'; // Mapping STS_SERVICE to SVC
-        case 'DTA_SERVICE': return 'DTA';
-        case 'DIA_SERVICE': return 'DIA';
-        default: return `TAB_${index}`; // Fallback for unknown services
-      }
-    })();
-    return { id: tabId, label: tabId, serviceNameEnum: service.serviceNameEnum };
-  });
+  const fixedTabs = [
+    { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
+    { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
+    { id: 'SVC', label: 'SVC', serviceNameEnum: 'STS_SERVICE' }, // SVC maps to STS_SERVICE
+    { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
+    { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
+  ];
 
-  const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'ATT');
+  // Filter tabs to only include those with matching services in attributeList
+  const availableTabs = fixedTabs.filter((tab) =>
+    attributeList.some((service) => service.serviceNameEnum === tab.serviceNameEnum)
+  );
+
+  // Set the initial active tab to the first available tab, or 'ATT' if none are available
+  const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'ATT');
   const [characteristicValues, setCharacteristicValues] = useState<Record<string, string>>({});
 
   // Function to derive a display name from the characteristic UUID
@@ -241,7 +241,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
 
   // Find the active service based on the active tab
   const activeService = attributeList.find((service) =>
-    tabs.some((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
+    fixedTabs.some((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
   );
 
   return (
@@ -272,7 +272,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       {/* Tabs */}
       <div className="border-b border-gray-800">
         <div className="flex justify-between px-4">
-          {tabs.map((tab) => (
+          {fixedTabs.map((tab) => (
             <button
               key={tab.id}
               className={`py-3 px-4 text-sm font-medium relative ${
