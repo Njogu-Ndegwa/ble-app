@@ -90,6 +90,7 @@ const AppContainer = () => {
   const [progress, setProgress] = useState(0)
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
+  const [attrList, setAtrrList] = useState([])
   // Find the selected device data
   const deviceDetails = selectedDevice 
     ? detectedDevices.find(device => device.macAddress === selectedDevice) 
@@ -347,6 +348,7 @@ useEffect(() => {
   if(progress === 100) {
     setIsConnecting(false); // Connection process complete
     setSelectedDevice(connectingDeviceId);
+    setAtrrList(attributeList)
   }
 },[progress])
 
@@ -416,7 +418,7 @@ useEffect(() => {
         <DeviceDetailView 
         // @ts-ignore
           device={deviceDetails}
-          attributeList={attributeList}
+          attributeList={attrList}
           onBack={handleBackToList}
         />
       )}

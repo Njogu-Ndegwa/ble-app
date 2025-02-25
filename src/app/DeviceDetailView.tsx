@@ -1,3 +1,5 @@
+
+
 // 'use client'
 
 // import React, { useState } from 'react';
@@ -5,7 +7,7 @@
 // import { useRouter } from 'next/navigation';
 
 // interface DeviceDetailProps {
-//   device?: {
+//   device: {
 //     macAddress: string;
 //     name: string;
 //     rssi: string;
@@ -13,31 +15,56 @@
 //     firmwareVersion?: string;
 //     deviceId?: string;
 //   };
+//   attributeList: any[];
 //   onBack?: () => void;
 // }
 
-// const DeviceDetailView: React.FC<DeviceDetailProps> = ({ 
-//   device = {
-//     id: '1',
-//     name: 'HESS-Bat242004',
-//     macAddress: '82:05:10:00:A9:48',
-//     rssi: "~90db - 5m",
-//     imageUrl: 'https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png',
-//     firmwareVersion: '1.4.7',
-//     deviceId: 'VCUA2404:0019'
-//   }, 
-//   onBack 
-// }) => {
+// const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
 //   const router = useRouter();
-//   const [activeTab, setActiveTab] = useState('ATT');
-  
-//   const tabs = [
-//     { id: 'ATT', label: 'ATT' },
-//     { id: 'CMD', label: 'CMD' },
-//     { id: 'SVC', label: 'SVC' },
-//     { id: 'DTA', label: 'DTA' },
-//     { id: 'DIA', label: 'DIA' },
+
+//   // Dynamically generate tabs from attributeList
+//   const fixedTabs = [
+//     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
+//     { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
+//     { id: 'SVC', label: 'SVC', serviceNameEnum: 'STS_SERVICE' }, // SVC maps to STS_SERVICE
+//     { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
+//     { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
 //   ];
+
+//   // Filter tabs to only include those with matching services in attributeList
+//   const availableTabs = fixedTabs.filter((tab) =>
+//     attributeList.some((service) => service.serviceNameEnum === tab.serviceNameEnum)
+//   );
+
+//   // Set the initial active tab to the first available tab, or 'ATT' if none are available
+//   const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'ATT');
+//   const [characteristicValues, setCharacteristicValues] = useState<Record<string, string>>({});
+
+//   // Function to derive a display name from the characteristic UUID
+//   const getCharacteristicName = (uuid: string) => {
+//     const id = uuid.slice(4, 8); // Extracts the unique part (e.g., '1001' from '9b071001-...')
+//     return `Characteristic ${id}`;
+//   };
+
+//   // Mock function to simulate reading characteristic value
+//   const readCharacteristic = async (serviceUuid: string, characteristicUuid: string) => {
+//     return new Promise<string>((resolve) => {
+//       setTimeout(() => {
+//         resolve(`Value for ${characteristicUuid}`);
+//       }, 1000); // Simulate delay
+//     });
+//   };
+
+//   // Handle reading the characteristic value
+//   const handleRead = async (serviceUuid: string, characteristicUuid: string) => {
+//     try {
+//       const value = await readCharacteristic(serviceUuid, characteristicUuid);
+//       setCharacteristicValues((prev) => ({ ...prev, [characteristicUuid]: value }));
+//     } catch (error) {
+//       console.error(`Failed to read characteristic ${characteristicUuid}:`, error);
+//       setCharacteristicValues((prev) => ({ ...prev, [characteristicUuid]: 'Error reading value' }));
+//     }
+//   };
 
 //   const handleBack = () => {
 //     if (onBack) {
@@ -46,6 +73,11 @@
 //       router.back();
 //     }
 //   };
+
+//   // Find the active service based on the active tab
+//   const activeService = attributeList.find((service) =>
+//     fixedTabs.some((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
+//   );
 
 //   return (
 //     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
@@ -61,21 +93,21 @@
 //       {/* Device Image and Basic Info */}
 //       <div className="flex flex-col items-center p-6 pb-2">
 //         <div className="relative mb-4">
-//           <img 
-//             src={device.imageUrl} 
+//           <img
+//             src={device.imageUrl}
 //             alt={device.name}
 //             className="w-40 h-40 object-contain"
 //           />
 //         </div>
 //         <h2 className="text-xl font-semibold">{device.name}</h2>
 //         <p className="text-sm text-gray-400 mt-1">{device.macAddress}</p>
-
+//         <p className="text-sm text-gray-400 mt-1">{device.rssi}</p>
 //       </div>
 
 //       {/* Tabs */}
 //       <div className="border-b border-gray-800">
 //         <div className="flex justify-between px-4">
-//           {tabs.map(tab => (
+//           {fixedTabs.map((tab) => (
 //             <button
 //               key={tab.id}
 //               className={`py-3 px-4 text-sm font-medium relative ${
@@ -94,71 +126,42 @@
 
 //       {/* Content based on active tab */}
 //       <div className="p-4">
-//         {activeTab === 'ATT' && (
+//         {activeService ? (
 //           <div className="space-y-4">
-//             {/* FRMV Section */}
-//             <div className="border border-gray-700 rounded-lg overflow-hidden">
-//               <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-//                 <span className="text-sm font-medium">FRMV</span>
-//                 <button className="text-xs bg-gray-700 px-3 py-1 rounded">Read</button>
-//               </div>
-//               <div className="p-4 space-y-2">
-//                 <div>
-//                   <p className="text-xs text-gray-400">Value</p>
-//                   <p className="text-sm">{device.firmwareVersion}</p>
+//             {activeService.characteristicList.map((char: any) => {
+//               const name = getCharacteristicName(char.uuid);
+//               const value = characteristicValues[char.uuid];
+//               return (
+//                 <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
+//                   <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
+//                     <span className="text-sm font-medium">{name}</span>
+//                     <button
+//                       className="text-xs bg-gray-700 px-3 py-1 rounded"
+//                       onClick={() => handleRead(activeService.uuid, char.uuid)}
+//                     >
+//                       Read
+//                     </button>
+//                   </div>
+//                   <div className="p-4 space-y-2">
+//                     <div>
+//                       <p className="text-xs text-gray-400">Value</p>
+//                       <p className="text-sm">{value || 'Not read yet'}</p>
+//                     </div>
+//                     <div>
+//                       <p className="text-xs text-gray-400">UUID</p>
+//                       <p className="text-sm">{char.uuid}</p>
+//                     </div>
+//                   </div>
 //                 </div>
-//                 <div>
-//                   <p className="text-xs text-gray-400">Firmware Version</p>
-//                   <p className="text-sm">{device.firmwareVersion}</p>
-//                 </div>
-//               </div>
-//             </div>
-
-//             {/* OEM Device ID Section */}
-//             <div className="border border-gray-700 rounded-lg overflow-hidden">
-//               <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-//                 <span className="text-sm font-medium">OPID</span>
-//                 <button className="text-xs bg-gray-700 px-3 py-1 rounded">Read</button>
-//               </div>
-//               <div className="p-4 space-y-2">
-//                 <div>
-//                   <p className="text-xs text-gray-400">Value</p>
-//                   <p className="text-sm">{device.deviceId}</p>
-//                 </div>
-//                 <div>
-//                   <p className="text-xs text-gray-400">OEM Device ID, Factory Set</p>
-//                   <p className="text-sm">{device.deviceId}</p>
-//                 </div>
-//               </div>
-//             </div>
+//               );
+//             })}
 //           </div>
-//         )}
-
-//         {activeTab === 'CMD' && (
+//         ) : (
 //           <div className="p-6 text-center text-gray-400">
-//             <p>Command interface will be displayed here</p>
-//           </div>
-//         )}
-
-//         {activeTab === 'SVC' && (
-//           <div className="p-6 text-center text-gray-400">
-//             <p>Service information will be displayed here</p>
-//           </div>
-//         )}
-
-//         {activeTab === 'DTA' && (
-//           <div className="p-6 text-center text-gray-400">
-//             <p>Data metrics will be displayed here</p>
-//           </div>
-//         )}
-
-//         {activeTab === 'DIA' && (
-//           <div className="p-6 text-center text-gray-400">
-//             <p>Diagnostics will be displayed here</p>
+//             <p>No data available for this tab</p>
 //           </div>
 //         )}
 //       </div>
-
 //     </div>
 //   );
 // };
@@ -176,9 +179,7 @@ interface DeviceDetailProps {
     macAddress: string;
     name: string;
     rssi: string;
-    imageUrl? : string;
-    firmwareVersion?: string;
-    deviceId?: string;
+    imageUrl?: string;
   };
   attributeList: any[];
   onBack?: () => void;
@@ -187,62 +188,43 @@ interface DeviceDetailProps {
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
   const router = useRouter();
 
-  // Dynamically generate tabs from attributeList
-  const fixedTabs = [
-    { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
-    { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
-    { id: 'SVC', label: 'SVC', serviceNameEnum: 'STS_SERVICE' }, // SVC maps to STS_SERVICE
-    { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
-    { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
-  ];
+  // Service mapping configuration
+  const serviceConfig = {
+    ATT_SERVICE: { id: 'ATT', label: 'ATT' },
+    CMD_SERVICE: { id: 'CMD', label: 'CMD' },
+    STS_SERVICE: { id: 'SVC', label: 'SVC' },
+    DTA_SERVICE: { id: 'DTA', label: 'DTA' },
+    DIA_SERVICE: { id: 'DIA', label: 'DIA' },
+  };
 
-  // Filter tabs to only include those with matching services in attributeList
-  const availableTabs = fixedTabs.filter((tab) =>
-    attributeList.some((service) => service.serviceNameEnum === tab.serviceNameEnum)
-  );
+  // Get available tabs from attributeList
+  const availableTabs = attributeList
+    .map(service => serviceConfig[service.serviceNameEnum as keyof typeof serviceConfig])
+    .filter(Boolean);
 
-  // Set the initial active tab to the first available tab, or 'ATT' if none are available
+  // State management
   const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'ATT');
-  const [characteristicValues, setCharacteristicValues] = useState<Record<string, string>>({});
 
-  // Function to derive a display name from the characteristic UUID
-  const getCharacteristicName = (uuid: string) => {
-    const id = uuid.slice(4, 8); // Extracts the unique part (e.g., '1001' from '9b071001-...')
-    return `Characteristic ${id}`;
-  };
-
-  // Mock function to simulate reading characteristic value
-  const readCharacteristic = async (serviceUuid: string, characteristicUuid: string) => {
-    return new Promise<string>((resolve) => {
-      setTimeout(() => {
-        resolve(`Value for ${characteristicUuid}`);
-      }, 1000); // Simulate delay
-    });
-  };
-
-  // Handle reading the characteristic value
-  const handleRead = async (serviceUuid: string, characteristicUuid: string) => {
-    try {
-      const value = await readCharacteristic(serviceUuid, characteristicUuid);
-      setCharacteristicValues((prev) => ({ ...prev, [characteristicUuid]: value }));
-    } catch (error) {
-      console.error(`Failed to read characteristic ${characteristicUuid}:`, error);
-      setCharacteristicValues((prev) => ({ ...prev, [characteristicUuid]: 'Error reading value' }));
-    }
-  };
-
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      router.back();
-    }
-  };
-
-  // Find the active service based on the active tab
-  const activeService = attributeList.find((service) =>
-    fixedTabs.some((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
+  // Get active service data
+  const activeService = attributeList.find(service => 
+    serviceConfig[service.serviceNameEnum as keyof typeof serviceConfig]?.id === activeTab
   );
+
+  // Handle back navigation
+  const handleBack = () => onBack ? onBack() : router.back();
+
+  // Format characteristic value based on type
+  const formatValue = (characteristic: any) => {
+    if (typeof characteristic.realVal === 'number') {
+      switch (characteristic.valType) {
+        case 0: return characteristic.realVal;
+        case 1: return `${characteristic.realVal} mA`;
+        case 2: return `${characteristic.realVal} mV`;
+        default: return characteristic.realVal;
+      }
+    }
+    return characteristic.realVal || 'N/A';
+  };
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
@@ -255,15 +237,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
         <Share2 className="w-5 h-5 text-gray-400" />
       </div>
 
-      {/* Device Image and Basic Info */}
+      {/* Device Image and Info */}
       <div className="flex flex-col items-center p-6 pb-2">
-        <div className="relative mb-4">
-          <img
-            src={device.imageUrl}
-            alt={device.name}
-            className="w-40 h-40 object-contain"
-          />
-        </div>
+        <img 
+          src={device.imageUrl} 
+          alt={device.name}
+          className="w-40 h-40 object-contain mb-4"
+        />
         <h2 className="text-xl font-semibold">{device.name}</h2>
         <p className="text-sm text-gray-400 mt-1">{device.macAddress}</p>
         <p className="text-sm text-gray-400 mt-1">{device.rssi}</p>
@@ -272,7 +252,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       {/* Tabs */}
       <div className="border-b border-gray-800">
         <div className="flex justify-between px-4">
-          {fixedTabs.map((tab) => (
+          {availableTabs.map(tab => (
             <button
               key={tab.id}
               className={`py-3 px-4 text-sm font-medium relative ${
@@ -282,48 +262,47 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
             >
               {tab.label}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></div>
+                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
               )}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Content based on active tab */}
+      {/* Service Content */}
       <div className="p-4">
         {activeService ? (
           <div className="space-y-4">
-            {activeService.characteristicList.map((char: any) => {
-              const name = getCharacteristicName(char.uuid);
-              const value = characteristicValues[char.uuid];
-              return (
-                <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
-                  <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-                    <span className="text-sm font-medium">{name}</span>
-                    <button
-                      className="text-xs bg-gray-700 px-3 py-1 rounded"
-                      onClick={() => handleRead(activeService.uuid, char.uuid)}
-                    >
-                      Read
-                    </button>
-                  </div>
-                  <div className="p-4 space-y-2">
-                    <div>
-                      <p className="text-xs text-gray-400">Value</p>
-                      <p className="text-sm">{value || 'Not read yet'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">UUID</p>
-                      <p className="text-sm">{char.uuid}</p>
-                    </div>
-                  </div>
+            {activeService.characteristicList.map((char: any) => (
+              <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
+                <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
+                  <span className="text-sm font-medium">{char.name}</span>
+                  <span className="text-xs text-gray-400">{char.uuid}</span>
                 </div>
-              );
-            })}
+                <div className="p-4 space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-400">Description</p>
+                    <p className="text-sm">{char.desc}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Current Value</p>
+                    <p className="text-sm font-mono">{formatValue(char)}</p>
+                  </div>
+                  {char.descriptors?.map((desc: any, index: number) => (
+                    desc.desc && (
+                      <div key={index}>
+                        <p className="text-xs text-gray-400">Descriptor {index + 1}</p>
+                        <p className="text-sm">{desc.desc}</p>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="p-6 text-center text-gray-400">
-            <p>No data available for this tab</p>
+            <p>No data available for this service</p>
           </div>
         )}
       </div>
