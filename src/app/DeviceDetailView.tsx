@@ -189,31 +189,28 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   const router = useRouter();
 
   // Service mapping configuration
-  const serviceConfig = {
-    ATT_SERVICE: { id: 'ATT', label: 'ATT' },
-    CMD_SERVICE: { id: 'CMD', label: 'CMD' },
-    STS_SERVICE: { id: 'SVC', label: 'SVC' },
-    DTA_SERVICE: { id: 'DTA', label: 'DTA' },
-    DIA_SERVICE: { id: 'DIA', label: 'DIA' },
-  };
-
-  // Get available tabs from attributeList
-  const availableTabs = attributeList
-    .map(service => serviceConfig[service.serviceNameEnum as keyof typeof serviceConfig])
-    .filter(Boolean);
+  const fixedTabs = [
+    { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
+    { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
+    { id: 'SVC', label: 'SVC', serviceNameEnum: 'STS_SERVICE' },
+    { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
+    { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
+  ];
 
   // State management
-  const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'ATT');
+  const [activeTab, setActiveTab] = useState(fixedTabs[0].id);
 
   // Get active service data
   const activeService = attributeList.find(service => 
-    serviceConfig[service.serviceNameEnum as keyof typeof serviceConfig]?.id === activeTab
+    fixedTabs.find(tab => 
+      tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum
+    )
   );
 
   // Handle back navigation
   const handleBack = () => onBack ? onBack() : router.back();
 
-  // Format characteristic value based on type
+  // Format values based on type
   const formatValue = (characteristic: any) => {
     if (typeof characteristic.realVal === 'number') {
       switch (characteristic.valType) {
@@ -225,6 +222,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     }
     return characteristic.realVal || 'N/A';
   };
+
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
@@ -252,20 +250,24 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       {/* Tabs */}
       <div className="border-b border-gray-800">
         <div className="flex justify-between px-4">
-          {availableTabs.map(tab => (
-            <button
-              key={tab.id}
-              className={`py-3 px-4 text-sm font-medium relative ${
-                activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-              }`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-              {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
-              )}
-            </button>
-          ))}
+          {fixedTabs.map(tab => {
+            const serviceExists = attributeList.some(s => s.serviceNameEnum === tab.serviceNameEnum);
+            return (
+              <button
+                key={tab.id}
+                className={`py-3 px-4 text-sm font-medium relative ${
+                  activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+                } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => serviceExists && setActiveTab(tab.id)}
+                disabled={!serviceExists}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -288,14 +290,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                     <p className="text-xs text-gray-400">Current Value</p>
                     <p className="text-sm font-mono">{formatValue(char)}</p>
                   </div>
-                  {char.descriptors?.map((desc: any, index: number) => (
-                    desc.desc && (
-                      <div key={index}>
-                        <p className="text-xs text-gray-400">Descriptor {index + 1}</p>
-                        <p className="text-sm">{desc.desc}</p>
-                      </div>
-                    )
-                  ))}
                 </div>
               </div>
             ))}
