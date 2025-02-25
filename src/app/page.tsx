@@ -414,7 +414,9 @@ useEffect(() => {
         />
       ) : (
         <DeviceDetailView 
+        // @ts-ignore
           device={deviceDetails}
+          attributeList={attributeList}
           onBack={handleBackToList}
         />
       )}
