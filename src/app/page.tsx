@@ -400,6 +400,7 @@ const AppContainer = () => {
     { percentComplete: 75, message: "Verifying firmware version..." },
     { percentComplete: 90, message: "Preparing device interface..." }
   ];
+  console.log(selectedDevice, "Selected Device")
   return (
     <>
       {!selectedDevice ? (
