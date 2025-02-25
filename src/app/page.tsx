@@ -264,7 +264,7 @@ const AppContainer = () => {
 
         bridge.registerHandler(
           "connectMqttCallBack",
-          (data: string, responseCallback: (response: any) => void) => {k
+          (data: string, responseCallback: (response: any) => void) => {
             console.log("--------209--------")
             try {
               const parsedMessage = JSON.parse(data);
