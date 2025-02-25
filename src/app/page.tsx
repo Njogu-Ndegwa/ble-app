@@ -392,10 +392,8 @@ useEffect(() => {
     }
   };
 
-  console.log(attributeList, "-----Attribute List")
   // Render the list view or detail view based on selection
 
-  console.log(progress, "Progress")
   const bleLoadingSteps = [
     { percentComplete: 10, message: "Initializing Bluetooth connection..." },
     { percentComplete: 25, message: "Connecting to device..." },
@@ -404,8 +402,7 @@ useEffect(() => {
     { percentComplete: 75, message: "Verifying firmware version..." },
     { percentComplete: 90, message: "Preparing device interface..." }
   ];
-  console.log(selectedDevice, "Selected Device")
-  console.log(connectingDeviceId, "Connecting Device Id")
+
   return (
     <>
       {!selectedDevice ? (

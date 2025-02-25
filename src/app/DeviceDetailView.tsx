@@ -223,6 +223,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     return characteristic.realVal || 'N/A';
   };
 
+  console.log(attributeList, "Attribute List")
+
+  console.log(activeService, "Attribute Service")
+
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
