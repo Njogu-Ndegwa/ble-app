@@ -86,6 +86,7 @@ const AppContainer = () => {
   const [bridgeInitialized, setBridgeInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false)
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
+  const [attributeList, setServiceAttrList] = useState<any>()
   // Find the selected device data
   const deviceDetails = selectedDevice 
     ? deviceData.find(device => device.id === selectedDevice) 
@@ -232,7 +233,7 @@ const AppContainer = () => {
         bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
           const resp = JSON.parse(data);
           console.log(resp, "Ble Init Successfully----234-----")
-          // setServiceAttrList(resp.dataList.map((service, index) => ({ ...service, index })));
+          setServiceAttrList(resp.dataList.map((service:any, index:any) => ({ ...service, index })));
           responseCallback(data);
         });
 
@@ -263,7 +264,7 @@ const AppContainer = () => {
 
         bridge.registerHandler(
           "connectMqttCallBack",
-          (data: string, responseCallback: (response: any) => void) => {
+          (data: string, responseCallback: (response: any) => void) => {k
             console.log("--------209--------")
             try {
               const parsedMessage = JSON.parse(data);
@@ -356,7 +357,7 @@ const AppContainer = () => {
     }
   };
 
-  console.log(detectedDevices, "Detechted Device------331-----")
+  console.log(attributeList, "-----Attribute List")
   // Render the list view or detail view based on selection
   return (
     <>
