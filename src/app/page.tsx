@@ -88,6 +88,8 @@ const AppContainer = () => {
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
   const [attributeList, setServiceAttrList] = useState<any>()
   const [progress, setProgress] = useState(0)
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
   // Find the selected device data
   const deviceDetails = selectedDevice 
     ? deviceData.find(device => device.id === selectedDevice) 
@@ -101,6 +103,12 @@ const AppContainer = () => {
     setSelectedDevice(null);
   };
 
+  const startConnection = (macAddress: string) => {
+    setIsConnecting(true);
+    setConnectingDeviceId(macAddress);
+    setProgress(0); // Reset progress at the start
+    connBleByMacAddress(macAddress);
+  };
   useEffect(() => {
     import('vconsole').then((module) => {
       const VConsole = module.default;
@@ -218,6 +226,8 @@ const AppContainer = () => {
           "bleConnectFailCallBack",
           (data: string, responseCallback: (response: any) => void) => {
             console.log("Bluetooth connection failed:", data);
+            setIsConnecting(false); // Reset connection state on failure
+            setProgress(0);
             responseCallback(data);
           }
         );
@@ -272,6 +282,10 @@ const AppContainer = () => {
                 (parsedData.progress / parsedData.total) * 100
               );
               setProgress(progressPercentage);
+              if(progressPercentage === 100) {
+                setIsConnecting(false); // Connection process complete
+                setSelectedDevice(connectingDeviceId);
+              }
 
             } catch (error) {
               console.error("Progress callback error:", error);
@@ -378,18 +392,41 @@ const AppContainer = () => {
   // Render the list view or detail view based on selection
 
   console.log(progress, "Progress")
+  const bleLoadingSteps = [
+    { percentComplete: 10, message: "Initializing Bluetooth connection..." },
+    { percentComplete: 25, message: "Connecting to device..." },
+    { percentComplete: 45, message: "Authenticating connection..." },
+    { percentComplete: 60, message: "Reading device information..." },
+    { percentComplete: 75, message: "Verifying firmware version..." },
+    { percentComplete: 90, message: "Preparing device interface..." }
+  ];
   return (
     <>
       {!selectedDevice ? (
         <MobileListView 
           items={detectedDevices}
           onDeviceSelect={handleDeviceSelect}
+          onStartConnection={startConnection}
         />
       ) : (
         <DeviceDetailView 
           device={deviceDetails}
           onBack={handleBackToList}
         />
+      )}
+      {isConnecting && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="w-full max-w-md">
+            <ProgressiveLoading
+              initialMessage="Preparing to connect..."
+              completionMessage="Connection established!"
+              loadingSteps={bleLoadingSteps}
+              onLoadingComplete={() => {}} // Handled in callback
+              autoProgress={false} // Use real progress
+              progress={progress} // Pass real progress
+            />
+          </div>
+        </div>
       )}
 
     </>

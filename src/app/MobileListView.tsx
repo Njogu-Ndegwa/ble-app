@@ -289,9 +289,10 @@ interface DeviceItem {
 interface MobileListViewProps {
   items: BleDevice[];
   onDeviceSelect: (deviceId: string) => void;
+  onStartConnection: (macAddress: string) => void; // New prop
 }
 
-const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect }) => {
+const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect, onStartConnection }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const [activeSubMenuItem, setActiveSubMenuItem] = useState<string | null>(null);
@@ -404,119 +405,37 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect }
 
 
 // Custom loading steps for BLE device connection
-const bleLoadingSteps = [
-  { percentComplete: 10, message: "Initializing Bluetooth connection..." },
-  { percentComplete: 25, message: "Connecting to device..." },
-  { percentComplete: 45, message: "Authenticating connection..." },
-  { percentComplete: 60, message: "Reading device information..." },
-  { percentComplete: 75, message: "Verifying firmware version..." },
-  { percentComplete: 90, message: "Preparing device interface..." }
-];
-
-const connectToBluetoothDevice = (macAddress:any) => {
-  return new Promise((resolve, reject) => {
-    if (!window.WebViewJavascriptBridge) {
-      reject(new Error("WebViewJavascriptBridge not initialized"));
-      return;
-    }
-
-    console.log("Attempting to connect to device:", macAddress);
-
-    window.WebViewJavascriptBridge.callHandler(
-      "connBleByMacAddress",
-      macAddress,
-      (responseData) => {
-        try {
-          console.log("Raw connection response:", responseData);
-          const parsedData = JSON.parse(responseData);
-          console.log("Parsed connection response:", parsedData);
-
-          if (parsedData.respCode === "200") {
-            resolve(parsedData);
-          } else {
-            reject(
-              new Error(
-                `Connection failed: ${parsedData.respMsg || "Try again"}`
-              )
-            );
-          }
-        } catch (error) {
-          console.error("Error parsing connection response:", error);
-          reject(
-            new Error(`Failed to parse connection response: ${error}`)
-          );
-        }
-      }
-    );
-  });
-};
-
-const initBleData = (macAddress:string) => {
-  return new Promise((resolve, reject) => {
-    if (!window.WebViewJavascriptBridge) {
-      reject(new Error("WebViewJavascriptBridge not initialized"));
-      return;
-    }
-
-    window.WebViewJavascriptBridge.callHandler(
-      "initBleData",
-      macAddress,
-      async (responseData) => {
-        try {
-          const parsedData = JSON.parse(responseData);
-          const dataList = parsedData.dataList || [];
 
 
-          resolve(parsedData);
-        } catch (error) {
-          console.error("Error parsing init response:", error);
-          reject(error);
-        }
-      }
-    );
-  });
-};
 
 const handleDeviceClick = async (macAddress:string) => {
+  if (isMenuOpen) return;
   // e.preventDefault();
   // e.stopPropagation();
+  onStartConnection(macAddress);
 
 
-  try {
+  // try {
 
-    await connectToBluetoothDevice(macAddress);
+  //   await connectToBluetoothDevice(macAddress);
 
-    await new Promise((resolve) => setTimeout(resolve, 9000));
+  //   await new Promise((resolve) => setTimeout(resolve, 9000));
 
-    const response = await initBleData(macAddress);
+  //   const response = await initBleData(macAddress);
 
-    console.log(response, "-----Response")
-    // setProgress(100);
-  } catch (error) {
+  //   console.log(response, "-----Response")
+  //   // setProgress(100);
+  // } catch (error) {
 
-  } finally {
-    // Reset progress bar and loading state after connection process finishes
+  // } finally {
+  //   // Reset progress bar and loading state after connection process finishes
 
-  }
+  // }
 };
 
 return (
   <div className="relative max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen overflow-hidden">
     {/* Loading overlay */}
-    {isLoading && (
-      <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-        <div className="w-full max-w-md">
-          <ProgressiveLoading
-            initialMessage="Preparing to connect..."
-            completionMessage="Connection established!"
-            loadingSteps={bleLoadingSteps}
-            onLoadingComplete={handleLoadingComplete}
-            autoProgress={true}
-            duration={4000}
-          />
-        </div>
-      </div>
-    )}
 
     {/* Fixed width wrapper to maintain content size */}
     <div
