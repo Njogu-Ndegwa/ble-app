@@ -87,6 +87,7 @@ const AppContainer = () => {
   const [isScanning, setIsScanning] = useState<boolean>(false)
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
   const [attributeList, setServiceAttrList] = useState<any>()
+  const [progress, setProgress] = useState(0)
   // Find the selected device data
   const deviceDetails = selectedDevice 
     ? deviceData.find(device => device.id === selectedDevice) 
@@ -263,6 +264,22 @@ const AppContainer = () => {
         );
 
         bridge.registerHandler(
+          "bleInitDataOnProgressCallBack",
+          (data) => {
+            try {
+              const parsedData = JSON.parse(data);
+              const progressPercentage = Math.round(
+                (parsedData.progress / parsedData.total) * 100
+              );
+              setProgress(progressPercentage);
+
+            } catch (error) {
+              console.error("Progress callback error:", error);
+            }
+          }
+        );
+
+        bridge.registerHandler(
           "connectMqttCallBack",
           (data: string, responseCallback: (response: any) => void) => {
             console.log("--------209--------")
@@ -359,6 +376,8 @@ const AppContainer = () => {
 
   console.log(attributeList, "-----Attribute List")
   // Render the list view or detail view based on selection
+
+  console.log(progress, "Progress")
   return (
     <>
       {!selectedDevice ? (
