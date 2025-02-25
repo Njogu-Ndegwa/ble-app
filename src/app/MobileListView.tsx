@@ -373,15 +373,16 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect }
     // You could add navigation logic here in a real app
   };
 
-  const handleDeviceClick = (deviceId: string) => {
-    // if (isMenuOpen) return; // Don't navigate if menu is open
+  // const handleDeviceClick = (deviceId: string) => {
+  //   console.log(deviceId)
+  //   // if (isMenuOpen) return; // Don't navigate if menu is open
 
-    // // Set selected device and show loader
-    // setSelectedDeviceId(deviceId);
-    // setIsLoading(true);
-    connBleByMacAddress(deviceId)
-    // We'll navigate after loading completes
-  };
+  //   // // Set selected device and show loader
+  //   // setSelectedDeviceId(deviceId);
+  //   // setIsLoading(true);
+  //   connBleByMacAddress(deviceId)
+  //   // We'll navigate after loading completes
+  // };
 
   const handleLoadingComplete = () => {
     // After loading is complete, call the navigation handler
@@ -411,6 +412,93 @@ const bleLoadingSteps = [
   { percentComplete: 75, message: "Verifying firmware version..." },
   { percentComplete: 90, message: "Preparing device interface..." }
 ];
+
+const connectToBluetoothDevice = (macAddress:any) => {
+  return new Promise((resolve, reject) => {
+    if (!window.WebViewJavascriptBridge) {
+      reject(new Error("WebViewJavascriptBridge not initialized"));
+      return;
+    }
+
+    console.log("Attempting to connect to device:", macAddress);
+
+    window.WebViewJavascriptBridge.callHandler(
+      "connBleByMacAddress",
+      macAddress,
+      (responseData) => {
+        try {
+          console.log("Raw connection response:", responseData);
+          const parsedData = JSON.parse(responseData);
+          console.log("Parsed connection response:", parsedData);
+
+          if (parsedData.respCode === "200") {
+            resolve(parsedData);
+          } else {
+            reject(
+              new Error(
+                `Connection failed: ${parsedData.respMsg || "Try again"}`
+              )
+            );
+          }
+        } catch (error) {
+          console.error("Error parsing connection response:", error);
+          reject(
+            new Error(`Failed to parse connection response: ${error}`)
+          );
+        }
+      }
+    );
+  });
+};
+
+const initBleData = (macAddress:string) => {
+  return new Promise((resolve, reject) => {
+    if (!window.WebViewJavascriptBridge) {
+      reject(new Error("WebViewJavascriptBridge not initialized"));
+      return;
+    }
+
+    window.WebViewJavascriptBridge.callHandler(
+      "initBleData",
+      macAddress,
+      async (responseData) => {
+        try {
+          const parsedData = JSON.parse(responseData);
+          const dataList = parsedData.dataList || [];
+
+
+          resolve(parsedData);
+        } catch (error) {
+          console.error("Error parsing init response:", error);
+          reject(error);
+        }
+      }
+    );
+  });
+};
+
+const handleDeviceClick = async (macAddress:string) => {
+  // e.preventDefault();
+  // e.stopPropagation();
+
+
+  try {
+
+    await connectToBluetoothDevice(macAddress);
+
+    await new Promise((resolve) => setTimeout(resolve, 9000));
+
+    const response = await initBleData(macAddress);
+
+    console.log(response, "-----Response")
+    // setProgress(100);
+  } catch (error) {
+
+  } finally {
+    // Reset progress bar and loading state after connection process finishes
+
+  }
+};
 
 return (
   <div className="relative max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen overflow-hidden">
