@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation';
 
 interface DeviceDetailProps {
   device?: {
-    id: string;
-    title: string;
-    subtitle: string;
-    imageUrl: string;
-    firmwareVersion: string;
-    deviceId: string;
+    macAddress: string;
+    name: string;
+    rssi: string;
+    imageUrl? : string;
+    firmwareVersion?: string;
+    deviceId?: string;
   };
   onBack?: () => void;
 }
@@ -19,8 +19,9 @@ interface DeviceDetailProps {
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ 
   device = {
     id: '1',
-    title: 'HESS-Bat242004',
-    subtitle: '82:05:10:00:A9:48',
+    name: 'HESS-Bat242004',
+    macAddress: '82:05:10:00:A9:48',
+    rssi: "~90db - 5m",
     imageUrl: 'https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png',
     firmwareVersion: '1.4.7',
     deviceId: 'VCUA2404:0019'
@@ -62,12 +63,12 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         <div className="relative mb-4">
           <img 
             src={device.imageUrl} 
-            alt={device.title}
+            alt={device.name}
             className="w-40 h-40 object-contain"
           />
         </div>
-        <h2 className="text-xl font-semibold">{device.title}</h2>
-        <p className="text-sm text-gray-400 mt-1">{device.subtitle}</p>
+        <h2 className="text-xl font-semibold">{device.name}</h2>
+        <p className="text-sm text-gray-400 mt-1">{device.macAddress}</p>
 
       </div>
 
