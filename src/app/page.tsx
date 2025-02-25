@@ -92,7 +92,7 @@ const AppContainer = () => {
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
   // Find the selected device data
   const deviceDetails = selectedDevice 
-    ? deviceData.find(device => device.id === selectedDevice) 
+    ? detectedDevices.find(device => device.macAddress === selectedDevice) 
     : undefined;
 
   const handleDeviceSelect = (deviceId: string) => {
