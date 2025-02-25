@@ -282,10 +282,6 @@ const AppContainer = () => {
                 (parsedData.progress / parsedData.total) * 100
               );
               setProgress(progressPercentage);
-              if(progressPercentage === 100) {
-                setIsConnecting(false); // Connection process complete
-                setSelectedDevice(connectingDeviceId);
-              }
 
             } catch (error) {
               console.error("Progress callback error:", error);
@@ -347,6 +343,12 @@ const AppContainer = () => {
     };
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
 
+useEffect(() => {
+  if(progress === 100) {
+    setIsConnecting(false); // Connection process complete
+    setSelectedDevice(connectingDeviceId);
+  }
+},[progress])
 
   useEffect(() => {
     if (bridgeInitialized) {
@@ -401,6 +403,7 @@ const AppContainer = () => {
     { percentComplete: 90, message: "Preparing device interface..." }
   ];
   console.log(selectedDevice, "Selected Device")
+  console.log(connectingDeviceId, "Connecting Device Id")
   return (
     <>
       {!selectedDevice ? (
