@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { readBleCharacteristic } from './utils';
 
 interface DeviceDetailProps {
   device: {
@@ -59,20 +60,31 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   // console.log(activeService, "Attribute Service")
 
     // Handle read operation
-    const handleRead = (uuid: string) => {
+    const handleRead = (serviceUuid: string, characteristicUuid: string) => {
+
+      readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data:any, error:any) => {
+        if (data) {
+          console.info(data, "tHE dATA")
+        } else {
+          console.error("Error Reading Characteristics")
+        }
+        // After 2 seconds, revert back to idle
+      });
       console.info({
         action: 'read',
-        uuid,
+        serviceUuid,
+        characteristicUuid,
         macAddress: device.macAddress,
         name: device.name
       });
     };
   
     // Handle write operation
-    const handleWrite = (uuid: string) => {
+    const handleWrite = (serviceUuid: string, characteristicUuid: string) => {
       console.info({
         action: 'write',
-        uuid,
+        serviceUuid,
+        characteristicUuid,
         macAddress: device.macAddress,
         name: device.name
       });
@@ -137,14 +149,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                   <div className="flex space-x-2">
                     <button 
                       className="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 transition-colors"
-                      onClick={() => handleRead(char.uuid)}
+                      onClick={() => handleRead(activeService.uuid, char.uuid)}
                     >
                       Read
                     </button>
                     {activeTab === 'CMD' && (
                       <button 
                         className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
-                        onClick={() => handleWrite(char.uuid)}
+                        onClick={() => handleWrite(activeService.uuid, char.uuid)}
                       >
                         Write
                       </button>
