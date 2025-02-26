@@ -223,9 +223,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     return characteristic.realVal || 'N/A';
   };
 
-  console.log(attributeList, "Attribute List")
+  // console.log(attributeList, "Attribute List")
 
-  console.log(activeService, "Attribute Service")
+  // console.log(activeService, "Attribute Service")
 
 
   return (

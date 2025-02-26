@@ -244,8 +244,6 @@ const AppContainer = () => {
         // BLE service data initialization callback
         bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
           const resp = JSON.parse(data);
-          const dataa = resp.dataList.map((service:any, index:any) => ({ ...service, index }));
-          console.log(dataa, "bleInitDataonCompleteCallBack")
           setServiceAttrList(resp.dataList.map((service:any, index:any) => ({ ...service, index })));
           responseCallback(data);
         });
@@ -351,7 +349,7 @@ useEffect(() => {
     setSelectedDevice(connectingDeviceId);
     setAtrrList(attributeList)
   }
-},[progress])
+},[progress, attributeList])
 
   useEffect(() => {
     if (bridgeInitialized) {
@@ -404,6 +402,9 @@ useEffect(() => {
     { percentComplete: 90, message: "Preparing device interface..." }
   ];
 
+  useEffect(() => {
+    console.error(attributeList, "attributeList")
+  },[attributeList])
   return (
     <>
       {!selectedDevice ? (
