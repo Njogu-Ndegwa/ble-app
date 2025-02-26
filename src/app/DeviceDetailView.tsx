@@ -224,8 +224,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
   
   // Modal states
-  const [asciiModalOpen, setAsciiModalOpen] = useState(true);
-  const [numericModalOpen, setNumericModalOpen] = useState(false);
+  const [asciiModalOpen, setAsciiModalOpen] = useState(false);
+  const [numericModalOpen, setNumericModalOpen] = useState(true);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
 
   // Service mapping configuration

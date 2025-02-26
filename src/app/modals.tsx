@@ -72,7 +72,7 @@ export const AsciiStringModal = ({
             onClick={handleSubmit}
             className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 transition-colors"
           >
-            STRING
+            SUBMIT
           </button>
         </div>
       </div>
