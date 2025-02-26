@@ -192,7 +192,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   const fixedTabs = [
     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
     { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
-    { id: 'SVC', label: 'SVC', serviceNameEnum: 'STS_SERVICE' },
+    { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
     { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
     { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
   ];
