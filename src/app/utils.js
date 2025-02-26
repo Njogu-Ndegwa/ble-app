@@ -37,7 +37,7 @@ export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddres
           // Parse the response
           const response = JSON.parse(responseData);
           console.info(response, "Response Data readBleCharacteristic")
-          if (response.success) {
+          if (response.dataData) {
             // Call the callback with the retrieved data
             callback(response.dataData);
             console.info(response.dataData, "Response Data readBleCharacteristic")
