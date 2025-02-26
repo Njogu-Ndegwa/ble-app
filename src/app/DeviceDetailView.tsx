@@ -58,6 +58,25 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
 
   // console.log(activeService, "Attribute Service")
 
+    // Handle read operation
+    const handleRead = (uuid: string) => {
+      console.log({
+        action: 'read',
+        uuid,
+        macAddress: device.macAddress,
+        name: device.name
+      });
+    };
+  
+    // Handle write operation
+    const handleWrite = (uuid: string) => {
+      console.log({
+        action: 'write',
+        uuid,
+        macAddress: device.macAddress,
+        name: device.name
+      });
+    };
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
@@ -107,6 +126,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       </div>
 
       {/* Service Content */}
+      {/* Service Content */}
       <div className="p-4">
         {activeService ? (
           <div className="space-y-4">
@@ -114,7 +134,22 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
               <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
                 <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
                   <span className="text-sm font-medium">{char.name}</span>
-                  <span className="text-xs text-gray-400">{char.uuid}</span>
+                  <div className="flex space-x-2">
+                    <button 
+                      className="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 transition-colors"
+                      onClick={() => handleRead(char.uuid)}
+                    >
+                      Read
+                    </button>
+                    {activeTab === 'CMD' && (
+                      <button 
+                        className="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 transition-colors"
+                        onClick={() => handleWrite(char.uuid)}
+                      >
+                        Write
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="p-4 space-y-2">
                   <div>
