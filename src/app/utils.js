@@ -39,8 +39,8 @@ export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddres
           console.info(response, "Response Data readBleCharacteristic")
           if (response.success) {
             // Call the callback with the retrieved data
-            callback(response.data);
-            console.info(response.data, "Response Data readBleCharacteristic")
+            callback(response.dataData);
+            console.info(response.dataData, "Response Data readBleCharacteristic")
           } else {
             // Handle failure in reading the characteristic
             console.error("Read failed:", response.respDesc);
