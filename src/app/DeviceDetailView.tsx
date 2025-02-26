@@ -143,7 +143,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                     </button>
                     {activeTab === 'CMD' && (
                       <button 
-                        className="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 transition-colors"
+                        className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
                         onClick={() => handleWrite(char.uuid)}
                       >
                         Write
