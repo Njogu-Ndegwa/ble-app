@@ -93,6 +93,7 @@ const AppContainer = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
   const [attrList, setAtrrList] = useState([])
+  const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
@@ -107,10 +108,20 @@ const AppContainer = () => {
   };
 
   const startConnection = (macAddress: string) => {
-    setIsConnecting(true);
-    setConnectingDeviceId(macAddress);
-    setProgress(0); // Reset progress at the start
-    connBleByMacAddress(macAddress);
+    // setIsConnecting(true);
+    // setConnectingDeviceId(macAddress);
+    // setProgress(0); // Reset progress at the start
+    // connBleByMacAddress(macAddress);
+    if (macAddress === connectedDevice && attributeList.length > 0) {
+      // Already connected, skip connection and go to details
+      setSelectedDevice(macAddress);
+    } else {
+      // Start new connection
+      setIsConnecting(true);
+      setConnectingDeviceId(macAddress);
+      setProgress(0);
+      connBleByMacAddress(macAddress);
+    }
   };
   useEffect(() => {
     import('vconsole').then((module) => {
@@ -245,6 +256,7 @@ const AppContainer = () => {
 
         bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
           sessionStorage.setItem('connectedDeviceMac', macAddress);
+          setConnectedDevice(macAddress); // Set the connected device
           setIsScanning(false);
           initBleData(macAddress);
           responseCallback(macAddress);
@@ -439,8 +451,8 @@ const AppContainer = () => {
       {!selectedDevice ? (
         <MobileListView
           items={detectedDevices}
-          onDeviceSelect={handleDeviceSelect}
           onStartConnection={startConnection}
+          connectedDevice={connectedDevice}
         />
       ) : (
         <DeviceDetailView

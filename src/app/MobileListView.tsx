@@ -273,7 +273,21 @@
 'use client'
 
 import React, { useEffect, useState } from 'react';
-import { Search, Settings, User, BluetoothSearching, ListFilter, ArrowUpDown, ChevronDown, ChevronUp, Home, Battery, BarChart4, Settings2, HelpCircle } from 'lucide-react';
+import { Search, 
+  Settings, 
+  User, 
+  BluetoothSearching, 
+  ListFilter, 
+  ArrowUpDown, 
+  ChevronDown, 
+  ChevronUp, 
+  Home, 
+  Battery, 
+  BarChart4, 
+  Settings2, 
+  HelpCircle,
+  BluetoothConnected
+ } from 'lucide-react';
 import { BleDevice } from './page';
 import ProgressiveLoading from './loader';
 import {connBleByMacAddress} from "./utils"
@@ -288,11 +302,11 @@ interface DeviceItem {
 
 interface MobileListViewProps {
   items: BleDevice[];
-  onDeviceSelect: (deviceId: string) => void;
   onStartConnection: (macAddress: string) => void; // New prop
+  connectedDevice: string | null;
 }
 
-const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect, onStartConnection }) => {
+const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnection, connectedDevice }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const [activeSubMenuItem, setActiveSubMenuItem] = useState<string | null>(null);
@@ -374,34 +388,13 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onDeviceSelect, 
     // You could add navigation logic here in a real app
   };
 
-  // const handleDeviceClick = (deviceId: string) => {
-  //   console.log(deviceId)
-  //   // if (isMenuOpen) return; // Don't navigate if menu is open
 
-  //   // // Set selected device and show loader
-  //   // setSelectedDeviceId(deviceId);
-  //   // setIsLoading(true);
-  //   connBleByMacAddress(deviceId)
-  //   // We'll navigate after loading completes
-  // };
 
-  const handleLoadingComplete = () => {
-    // After loading is complete, call the navigation handler
-    setTimeout(() => {
-      setIsLoading(false);
-      if (selectedDeviceId) {
-        onDeviceSelect(selectedDeviceId);
-      }
-    }, 500); // Small delay for visual completion
-  };
+
 
   useEffect(() => {
 
   },[])
-
-  const connectToDevice = (device:any) => {
-    connBleByMacAddress(device.macAddress);
-  };
 
 
 // Custom loading steps for BLE device connection
@@ -414,23 +407,6 @@ const handleDeviceClick = async (macAddress:string) => {
   // e.stopPropagation();
   onStartConnection(macAddress);
 
-
-  // try {
-
-  //   await connectToBluetoothDevice(macAddress);
-
-  //   await new Promise((resolve) => setTimeout(resolve, 9000));
-
-  //   const response = await initBleData(macAddress);
-
-  //   console.log(response, "-----Response")
-  //   // setProgress(100);
-  // } catch (error) {
-
-  // } finally {
-  //   // Reset progress bar and loading state after connection process finishes
-
-  // }
 };
 
 return (
@@ -511,8 +487,12 @@ return (
                 <p className="text-[10px] text-gray-400">{item.macAddress}</p>
                 <p className="text-[10px] text-gray-500 mt-1">{item.rssi}</p>
               </div>
-              <span className="text-gray-400 text-lg">
-                <BluetoothSearching />
+              <span className="text-lg">
+              {item.macAddress === connectedDevice ? (
+                    <BluetoothConnected className="text-blue-500" />
+                  ) : (
+                    <BluetoothSearching className="text-gray-400" />
+                  )}
               </span>
             </div>
           ))}
