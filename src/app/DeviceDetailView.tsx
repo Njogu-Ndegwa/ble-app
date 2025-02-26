@@ -63,20 +63,22 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     const handleRead = (serviceUuid: string, characteristicUuid: string) => {
 
       readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data:any, error:any) => {
-        if (data) {
-          console.info(data, "tHE dATA")
-        } else {
-          console.error("Error Reading Characteristics")
-        }
+        console.info(data, "Dataaa")
+        console.info(error, "Error")
+        // if (data) {
+        //   console.info(data, "tHE dATA")
+        // } else {
+        //   console.error("Error Reading Characteristics")
+        // }
         // After 2 seconds, revert back to idle
       });
-      console.info({
-        action: 'read',
-        serviceUuid,
-        characteristicUuid,
-        macAddress: device.macAddress,
-        name: device.name
-      });
+      // console.info({
+      //   action: 'read',
+      //   serviceUuid,
+      //   characteristicUuid,
+      //   macAddress: device.macAddress,
+      //   name: device.name
+      // });
     };
   
     // Handle write operation
