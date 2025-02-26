@@ -391,11 +391,11 @@ const AppContainer = () => {
 
   const bleLoadingSteps = [
     { percentComplete: 10, message: "Initializing Bluetooth connection..." },
-    { percentComplete: 25, message: "Connecting to device..." },
-    { percentComplete: 45, message: "Authenticating connection..." },
-    { percentComplete: 60, message: "Reading device information..." },
-    { percentComplete: 75, message: "Verifying firmware version..." },
-    { percentComplete: 90, message: "Preparing device interface..." }
+    { percentComplete: 25, message: "Reading ATT Service..." },
+    { percentComplete: 45, message: "Reading CMD Service..." },
+    { percentComplete: 60, message: "Reading STS Service..." },
+    { percentComplete: 75, message: "Reading DTA Service..." },
+    { percentComplete: 90, message: "Reading DIA Service.." }
   ];
 
   return (
