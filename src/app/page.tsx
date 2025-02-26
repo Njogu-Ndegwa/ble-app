@@ -243,8 +243,8 @@ const AppContainer = () => {
       
         // BLE service data initialization callback
         bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
-          let resp = JSON.parse(data);
-          let dataa = resp.dataList.map((service:any, index:any) => ({ ...service, index }));
+          const resp = JSON.parse(data);
+          const dataa = resp.dataList.map((service:any, index:any) => ({ ...service, index }));
           console.log(dataa, "bleInitDataonCompleteCallBack")
           setServiceAttrList(resp.dataList.map((service:any, index:any) => ({ ...service, index })));
           responseCallback(data);
