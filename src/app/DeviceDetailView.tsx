@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic } from './utils';
-
+import { Toaster, toast } from 'react-hot-toast';
 interface DeviceDetailProps {
   device: {
     macAddress: string;
@@ -22,7 +22,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   const [updatedValues, setUpdatedValues] = useState<{[key: string]: any}>({});
   // Loading state for read operations
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
-  
+
   // Service mapping configuration
   const fixedTabs = [
     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
@@ -63,7 +63,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   // console.log(activeService, "Attribute Service")
 
     // Handle read operation
-    const handleRead = (serviceUuid: string, characteristicUuid: string) => {
+    const handleRead = (serviceUuid: string, characteristicUuid: string, name:string) => {
       // Set loading state for this characteristic
       setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
   
@@ -73,6 +73,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
         
         if (data) {
           console.info(data.realVal, "Value of Field");
+          toast.success(`${name} read successfully`);
           // Update the value in our state
           setUpdatedValues(prev => ({
             ...prev,
@@ -154,7 +155,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                   <div className="flex space-x-2">
                     <button 
                       className={`text-xs ${loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'} px-3 py-1 rounded transition-colors`}
-                      onClick={() => handleRead(activeService.uuid, char.uuid)}
+                      onClick={() => handleRead(activeService.uuid, char.uuid, char.name)}
                       disabled={loadingStates[char.uuid]}
                     >
                       {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
@@ -178,9 +179,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                     <p className="text-xs text-gray-400">Current Value</p>
                     <p className="text-sm font-mono">
                       {formatValue(char)}
-                      {updatedValues[char.uuid] !== undefined && 
-                        <span className="ml-2 text-xs text-green-400">(Updated)</span>
-                      }
                     </p>
                   </div>
                 </div>
