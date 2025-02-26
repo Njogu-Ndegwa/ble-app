@@ -7,15 +7,16 @@ import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import ProgressiveLoading from './loader';
-import {connBleByMacAddress, initBleData} from "./utils"
+import { connBleByMacAddress, initBleData } from "./utils"
+import { Toaster, toast } from 'react-hot-toast';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
- export interface BleDevice {
+export interface BleDevice {
   macAddress: string;
   name: string;
   rssi: string;
-  imageUrl? : string;
+  imageUrl?: string;
   firmwareVersion?: string;
   deviceId?: string;
 }
@@ -92,8 +93,8 @@ const AppContainer = () => {
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
   const [attrList, setAtrrList] = useState([])
   // Find the selected device data
-  const deviceDetails = selectedDevice 
-    ? detectedDevices.find(device => device.macAddress === selectedDevice) 
+  const deviceDetails = selectedDevice
+    ? detectedDevices.find(device => device.macAddress === selectedDevice)
     : undefined;
 
   const handleDeviceSelect = (deviceId: string) => {
@@ -162,7 +163,6 @@ const AppContainer = () => {
         });
 
         bridge.registerHandler("print", (data: string, responseCallback: (response: any) => void) => {
-          console.log("--------141--------")
           try {
             const parsedData = JSON.parse(data);
             if (parsedData && parsedData.data) {
@@ -179,10 +179,9 @@ const AppContainer = () => {
         bridge.registerHandler(
           "findBleDeviceCallBack",
           (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
-            console.log("--------157--------")
             try {
               const parsedData: BleDevice = JSON.parse(data);
-              console.log({"MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi})
+              console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi })
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
                 parsedData.rssi = convertRssiToFormattedString(Number(parsedData.rssi));
                 parsedData.imageUrl = imageUrl
@@ -191,23 +190,23 @@ const AppContainer = () => {
                   const deviceExists = prevDevices.some(
                     device => device.macAddress === parsedData.macAddress
                   );
-                  
+
                   // If device doesn't exist, add it to the array
                   if (!deviceExists) {
                     console.log("Adding new device:", parsedData.name);
                     return [...prevDevices, parsedData];
                   }
-                  
+
                   // If the device exists but we want to update RSSI or other properties
                   // This is optional - implement if you want to update existing devices
                   if (deviceExists) {
-                    return prevDevices.map(device => 
-                      device.macAddress === parsedData.macAddress 
+                    return prevDevices.map(device =>
+                      device.macAddress === parsedData.macAddress
                         ? { ...device, rssi: parsedData.rssi } // Update RSSI
                         : device
                     );
                   }
-                  
+
                   // Otherwise return unchanged array
                   return prevDevices;
                 });
@@ -229,22 +228,22 @@ const AppContainer = () => {
             console.log("Bluetooth connection failed:", data);
             setIsConnecting(false); // Reset connection state on failure
             setProgress(0);
+            toast.error('Connection failed!', { id: 'connect-toast' });
             responseCallback(data);
           }
         );
 
         bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
           sessionStorage.setItem('connectedDeviceMac', macAddress);
-          console.log("Ble successfully connected----225---")
           setIsScanning(false);
           initBleData(macAddress);
           responseCallback(macAddress);
         });
-      
+
         // BLE service data initialization callback
         bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
           const resp = JSON.parse(data);
-          setServiceAttrList(resp.dataList.map((service:any, index:any) => ({ ...service, index })));
+          setServiceAttrList(resp.dataList.map((service: any, index: any) => ({ ...service, index })));
           responseCallback(data);
         });
 
@@ -292,7 +291,6 @@ const AppContainer = () => {
         bridge.registerHandler(
           "connectMqttCallBack",
           (data: string, responseCallback: (response: any) => void) => {
-            console.log("--------209--------")
             try {
               const parsedMessage = JSON.parse(data);
               console.info("MQTT Connection Callback:", parsedMessage);
@@ -306,7 +304,6 @@ const AppContainer = () => {
         bridge.registerHandler(
           "mqttMsgArrivedCallBack",
           (data: string, responseCallback: (response: any) => void) => {
-            console.log("--------223--------")
             console.info("MQTT Message Arrived Callback:", data);
             responseCallback("Received MQTT Message");
           }
@@ -320,7 +317,6 @@ const AppContainer = () => {
           port: 1883,
         };
         bridge.callHandler("connectMqtt", mqttConfig, (responseData: string) => {
-          console.log("--------237--------")
           try {
             const parsedResponse = JSON.parse(responseData);
             if (parsedResponse.error) {
@@ -343,13 +339,13 @@ const AppContainer = () => {
     };
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
 
-useEffect(() => {
-  if(progress === 100) {
-    setIsConnecting(false); // Connection process complete
-    setSelectedDevice(connectingDeviceId);
-    setAtrrList(attributeList)
-  }
-},[progress, attributeList])
+  useEffect(() => {
+    if (progress === 100) {
+      setIsConnecting(false); // Connection process complete
+      setSelectedDevice(connectingDeviceId);
+      setAtrrList(attributeList)
+    }
+  }, [progress, attributeList])
 
   useEffect(() => {
     if (bridgeInitialized) {
@@ -402,20 +398,43 @@ useEffect(() => {
     { percentComplete: 90, message: "Preparing device interface..." }
   ];
 
-  useEffect(() => {
-    console.error(attributeList, "attributeList")
-  },[attributeList])
   return (
     <>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          // Customize default toast options
+          duration: 3000,
+          style: {
+            background: '#333',
+            color: '#fff',
+            padding: '16px',
+            borderRadius: '8px',
+          },
+          // Configure different types of toasts
+          success: {
+            iconTheme: {
+              primary: '#10B981',
+              secondary: 'white',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: 'white',
+            },
+          },
+        }}
+      />
       {!selectedDevice ? (
-        <MobileListView 
+        <MobileListView
           items={detectedDevices}
           onDeviceSelect={handleDeviceSelect}
           onStartConnection={startConnection}
         />
       ) : (
-        <DeviceDetailView 
-        // @ts-ignore
+        <DeviceDetailView
+          // @ts-ignore
           device={deviceDetails}
           attributeList={attrList}
           onBack={handleBackToList}
@@ -428,7 +447,7 @@ useEffect(() => {
               initialMessage="Preparing to connect..."
               completionMessage="Connection established!"
               loadingSteps={bleLoadingSteps}
-              onLoadingComplete={() => {}} // Handled in callback
+              onLoadingComplete={() => { }} // Handled in callback
               autoProgress={false} // Use real progress
               progress={progress} // Pass real progress
             />
