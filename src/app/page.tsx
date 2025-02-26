@@ -448,20 +448,20 @@ const AppContainer = () => {
           },
         }}
       />
-      {!selectedDevice ? (
+      {/* {!selectedDevice ? (
         <MobileListView
           items={detectedDevices}
           onStartConnection={startConnection}
           connectedDevice={connectedDevice}
         />
-      ) : (
+      ) : ( */}
         <DeviceDetailView
           // @ts-ignore
           device={deviceDetails}
           attributeList={attrList}
           onBack={handleBackToList}
         />
-      )}
+      {/* )} */}
       {isConnecting && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="w-full max-w-md">

@@ -200,11 +200,12 @@
 'use client'
 
 import React, { useState } from 'react';
-import { ArrowLeft, Share2, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { readBleCharacteristic } from './utils';
-import { Toaster, toast } from 'react-hot-toast';
 
+import { useRouter } from 'next/navigation';
+import { readBleCharacteristic, writeBleCharacteristic } from './utils';
+import { Toaster, toast } from 'react-hot-toast';
+import { ArrowLeft, Share2 } from 'lucide-react';
+import { AsciiStringModal, NumericModal } from './modals';
 interface DeviceDetailProps {
   device: {
     macAddress: string;
@@ -215,138 +216,6 @@ interface DeviceDetailProps {
   attributeList: any[];
   onBack?: () => void;
 }
-
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}
-
-// Modal Component
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gradient-to-b from-[#24272C] to-[#0C0C0E] rounded-lg max-w-md w-full">
-        <div className="flex justify-end p-2">
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-};
-
-// ASCII String Input Modal
-const AsciiStringModal = ({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  title 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  onSubmit: (value: string) => void; 
-  title: string;
-}) => {
-  const [value, setValue] = useState('');
-
-  const handleSubmit = () => {
-    onSubmit(value);
-    setValue('');
-    onClose();
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="p-4">
-        <h3 className="text-lg font-medium text-white mb-4">{title}</h3>
-        <div className="border border-gray-700 rounded-lg p-2 mb-4">
-          <p className="text-sm text-white mb-1">Please enter an ASCII string</p>
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white"
-          />
-        </div>
-        <div className="flex justify-end space-x-2">
-          <button 
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400"
-          >
-            CANCEL
-          </button>
-          <button 
-            onClick={handleSubmit}
-            className="px-4 py-2 text-sm text-blue-500"
-          >
-            STRING
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-// Numeric Input Modal
-const NumericModal = ({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  title,
-  maxValue = 65535
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  onSubmit: (value: number) => void; 
-  title: string;
-  maxValue?: number;
-}) => {
-  const [value, setValue] = useState('');
-
-  const handleSubmit = () => {
-    onSubmit(Number(value));
-    setValue('');
-    onClose();
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="p-4">
-        <h3 className="text-lg font-medium text-white mb-4">{title}</h3>
-        <div className="border border-gray-700 rounded-lg p-2 mb-4">
-          <p className="text-sm text-white mb-1">{`Please enter a number between 0 & ${maxValue}`}</p>
-          <input
-            type="number"
-            min="0"
-            max={maxValue}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white"
-          />
-        </div>
-        <div className="flex justify-end space-x-2">
-          <button 
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400"
-          >
-            CANCEL
-          </button>
-          <button 
-            onClick={handleSubmit}
-            className="px-4 py-2 text-sm text-blue-500"
-          >
-            SUBMIT
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-};
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
   const router = useRouter();
@@ -442,7 +311,21 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       name: device.name,
       value: value
     });
-    
+    writeBleCharacteristic(
+      activeService.uuid,
+      activeCharacteristic.uuid,
+      value,
+      device.macAddress,
+      (data: any, error: any) => {
+        if(data) {
+          handleRead(    
+            activeService.uuid,
+            activeCharacteristic.uuid,
+            device.name
+          )
+        }
+      }
+    );
     // Here you would implement the actual BLE write operation
     // For now, we'll just show a success message
     toast.success(`Value written to ${activeCharacteristic.name}`);
@@ -460,7 +343,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       
       {/* ASCII String Modal */}
       <AsciiStringModal
-        isOpen={asciiModalOpen}
+        isOpen={true}
         onClose={() => setAsciiModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || "Public Key / Last Code"}
@@ -468,7 +351,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       
       {/* Numeric Modal */}
       <NumericModal
-        isOpen={numericModalOpen}
+        isOpen={true}
         onClose={() => setNumericModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || "Read"}

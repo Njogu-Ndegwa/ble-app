@@ -54,3 +54,36 @@ export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddres
       }
     );
   };
+
+
+  // Common Bridge Functions
+export const writeBleCharacteristic = (serviceUUID, characteristicUUID, value, macAddress, callback) => {
+    // if (!macAddress) {
+    //   console.error("No MAC address provided. Attempting to retrieve from sessionStorage.");
+    //   macAddress = sessionStorage.getItem('connectedDeviceMac');
+      
+    //   if (!macAddress) {
+    //     console.error("Failed to get MAC address from sessionStorage. Cannot write to characteristic.");
+    //     return;
+    //   }
+    // }
+  
+    const data = {
+      serviceUUID: serviceUUID,
+      characteristicUUID: characteristicUUID,
+      value: value,
+      macAddress: macAddress,
+    };
+  
+  
+  
+    window.WebViewJavascriptBridge.callHandler(
+      'writeBleCharacteristic', data,
+      (responseData) => {
+        console.info("Write response:", responseData);
+        if (callback) {
+          callback(responseData);
+        }
+      }
+    );
+  };
