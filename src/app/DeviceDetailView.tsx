@@ -19,7 +19,10 @@ interface DeviceDetailProps {
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
   const router = useRouter();
-
+  const [updatedValues, setUpdatedValues] = useState<{[key: string]: any}>({});
+  // Loading state for read operations
+  const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
+  
   // Service mapping configuration
   const fixedTabs = [
     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
@@ -61,18 +64,24 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
 
     // Handle read operation
     const handleRead = (serviceUuid: string, characteristicUuid: string) => {
-
-      readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data:any, error:any) => {
-        console.info(data, "Dataaa")
-        console.info(error, "Error")
+      // Set loading state for this characteristic
+      setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
+  
+      readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
+        // Clear loading state
+        setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
+        
         if (data) {
-          console.info(data, "tHE dATA")
+          console.info(data.realVal, "Value of Field");
+          // Update the value in our state
+          setUpdatedValues(prev => ({
+            ...prev,
+            [characteristicUuid]: data.realVal
+          }));
         } else {
-          console.error("Error Reading Characteristics")
+          console.error("Error Reading Characteristics");
         }
-        // After 2 seconds, revert back to idle
       });
-
     };
   
     // Handle write operation
@@ -144,10 +153,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                   <span className="text-sm font-medium">{char.name}</span>
                   <div className="flex space-x-2">
                     <button 
-                      className="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 transition-colors"
+                      className={`text-xs ${loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'} px-3 py-1 rounded transition-colors`}
                       onClick={() => handleRead(activeService.uuid, char.uuid)}
+                      disabled={loadingStates[char.uuid]}
                     >
-                      Read
+                      {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
                     </button>
                     {activeTab === 'CMD' && (
                       <button 
@@ -166,7 +176,12 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">Current Value</p>
-                    <p className="text-sm font-mono">{formatValue(char)}</p>
+                    <p className="text-sm font-mono">
+                      {formatValue(char)}
+                      {updatedValues[char.uuid] !== undefined && 
+                        <span className="ml-2 text-xs text-green-400">(Updated)</span>
+                      }
+                    </p>
                   </div>
                 </div>
               </div>
