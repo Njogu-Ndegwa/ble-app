@@ -225,7 +225,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   
   // Modal states
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
-  const [numericModalOpen, setNumericModalOpen] = useState(true);
+  const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
 
   // Service mapping configuration
@@ -369,13 +369,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       {/* Device Image and Info */}
       <div className="flex flex-col items-center p-6 pb-2">
         <img 
-          src={ "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png"} 
-          alt={device?.name || "dsdsf"}
+          src={device.imageUrl} 
+          alt={device.name || "dsdsf"}
           className="w-40 h-40 object-contain mb-4"
         />
-        <h2 className="text-xl font-semibold">{device?.name || "sfd"}</h2>
-        <p className="text-sm text-gray-400 mt-1">{device?.macAddress || "sfd"}</p>
-        <p className="text-sm text-gray-400 mt-1">{device?.rssi || "sfd"}</p>
+        <h2 className="text-xl font-semibold">{device.name || "sfd"}</h2>
+        <p className="text-sm text-gray-400 mt-1">{device.macAddress || "sfd"}</p>
+        <p className="text-sm text-gray-400 mt-1">{device.rssi || "sfd"}</p>
       </div>
 
       {/* Tabs */}
