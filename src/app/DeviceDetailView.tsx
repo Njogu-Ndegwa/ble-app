@@ -60,7 +60,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
 
     // Handle read operation
     const handleRead = (uuid: string) => {
-      console.log({
+      console.info({
         action: 'read',
         uuid,
         macAddress: device.macAddress,
@@ -70,7 +70,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   
     // Handle write operation
     const handleWrite = (uuid: string) => {
-      console.log({
+      console.info({
         action: 'write',
         uuid,
         macAddress: device.macAddress,
