@@ -16,6 +16,7 @@ export interface BleDevice {
   macAddress: string;
   name: string;
   rssi: string;
+  rawRssi: number;
   imageUrl?: string;
   firmwareVersion?: string;
   deviceId?: string;
@@ -181,36 +182,44 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
-              console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi })
+              console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
+        
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
-                parsedData.rssi = convertRssiToFormattedString(Number(parsedData.rssi));
-                parsedData.imageUrl = imageUrl
+                // Store the raw rssi value for sorting, and use the formatted version for display
+                const rawRssi = Number(parsedData.rssi);
+                const formattedRssi = convertRssiToFormattedString(rawRssi);
+        
+                // Update the device data
+                parsedData.rssi = formattedRssi; // Use formatted RSSI for display
+                parsedData.rawRssi = rawRssi; // Store raw RSSI for sorting
+                parsedData.imageUrl = imageUrl;
+        
                 setDetectedDevices(prevDevices => {
                   // Check if this device already exists in our array
                   const deviceExists = prevDevices.some(
                     device => device.macAddress === parsedData.macAddress
                   );
-
+        
                   // If device doesn't exist, add it to the array
                   if (!deviceExists) {
                     console.log("Adding new device:", parsedData.name);
                     return [...prevDevices, parsedData];
                   }
-
-                  // If the device exists but we want to update RSSI or other properties
-                  // This is optional - implement if you want to update existing devices
-                  if (deviceExists) {
-                    return prevDevices.map(device =>
-                      device.macAddress === parsedData.macAddress
-                        ? { ...device, rssi: parsedData.rssi } // Update RSSI
-                        : device
-                    );
-                  }
-
-                  // Otherwise return unchanged array
-                  return prevDevices;
+        
+                  // If the device exists, update RSSI or other properties
+                  return prevDevices.map(device =>
+                    device.macAddress === parsedData.macAddress
+                      ? { ...device, rssi: parsedData.rssi, rawRssi: parsedData.rawRssi } // Update both formatted and raw RSSI
+                      : device
+                  );
                 });
-
+        
+                // Sort the devices by raw RSSI, so the closest ones appear first
+                setDetectedDevices(prevDevices => {
+                  return prevDevices
+                    .sort((a, b) => b.rawRssi - a.rawRssi); // Sort by raw RSSI in descending order
+                });
+        
                 responseCallback({ success: true });
               } else {
                 console.warn("Invalid device data format:", parsedData);
@@ -221,6 +230,7 @@ const AppContainer = () => {
             }
           }
         );
+        
 
         bridge.registerHandler(
           "bleConnectFailCallBack",
