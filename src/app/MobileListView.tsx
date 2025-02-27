@@ -43,12 +43,12 @@ const DeviceItemSkeleton = () => (
   </div>
 );
 
-const MobileListView: React.FC<MobileListViewProps> = ({ 
-  items, 
-  onStartConnection, 
-  connectedDevice, 
-  onScanQrCode, 
-  onRescanBleItems, 
+const MobileListView: React.FC<MobileListViewProps> = ({
+  items,
+  onStartConnection,
+  connectedDevice,
+  onScanQrCode,
+  onRescanBleItems,
   isScanning }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
@@ -174,16 +174,16 @@ const MobileListView: React.FC<MobileListViewProps> = ({
               }}
             />
             <div className="relative">
-              <RefreshCcw 
-                onClick={handleRescan} 
-                className={`w-6 h-6 text-gray-400 ${items.length === 0 && isScanning ? 'animate-spin' : ''}`} 
+              <RefreshCcw
+                onClick={handleRescan}
+                className={`w-6 h-6 text-gray-400 ${items.length === 0 && isScanning ? 'animate-spin' : ''}`}
               />
             </div>
           </div>
 
           {/* Search Bar */}
           <div className="relative mb-4">
-          <input
+            <input
               type="text"
               className="w-full px-4 py-2 border border-gray-700 bg-gray-800 rounded-lg pr-20 focus:outline-none text-white"
               placeholder="Search devices..."
@@ -231,8 +231,8 @@ const MobileListView: React.FC<MobileListViewProps> = ({
           <div className="space-y-3">
             {items.length === 0 && isScanning ? (
               renderSkeletons()
-            ) : items.length > 0 ? (
-              items.map((item) => (
+            ) : filteredItems.length > 0 ? (
+              filteredItems.map((item) => (
                 <div
                   key={item.macAddress}
                   className="flex items-start p-3 rounded-lg bg-[#2A2F33] cursor-pointer hover:bg-[#343a40] transition-colors"
@@ -259,7 +259,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
               ))
             ) : (
               <div className="text-center py-6 text-gray-400">
-                No devices found. Try scanning again.
+                {searchQuery ? "No devices match your search." : "No devices found. Try scanning again."}
               </div>
             )}
           </div>
