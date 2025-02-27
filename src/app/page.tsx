@@ -1,7 +1,7 @@
 
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import MobileListView from './MobileListView';
 import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
@@ -99,6 +99,13 @@ const AppContainer = () => {
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
     : undefined;
+
+  const detectedDevicesRef = useRef(detectedDevices);
+
+// Update the ref whenever detectedDevices changes
+useEffect(() => {
+  detectedDevicesRef.current = detectedDevices;
+}, [detectedDevices]);
 
   const handleDeviceSelect = (deviceId: string) => {
     setSelectedDevice(deviceId);
@@ -440,22 +447,8 @@ const AppContainer = () => {
 
   const handleQrCode = (code:string) => {
     console.info(code, "452")
-    if(detectedDevices.length>0){
-      console.info(detectedDevices, "Detechted Devices")
-
-      
-    const matches = detectedDevices.filter((device) => {
-      console.info(device, "Device")
-      const name = (device.name || "").toLowerCase();
-      console.info(name, "Device")
-      const last6FromName = name.slice(-6);
-      console.info(code, "last6FromBarcode")
-      console.info(last6FromName, code, "Codes---302")
-      return last6FromName === code
-    });
-
-    console.log(matches, "Matches")
-    }
+    const currentDevices = detectedDevicesRef.current;
+    console.info(currentDevices, "Current devices via ref");
 
     
 
@@ -482,7 +475,6 @@ const AppContainer = () => {
     { percentComplete: 90, message: "Reading DIA Service.." }
   ];
 
-  console.info(detectedDevices, "Detected Devices")
   return (
     <>
       <Toaster
