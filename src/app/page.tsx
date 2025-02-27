@@ -290,8 +290,10 @@ const AppContainer = () => {
                     const parsedData = JSON.parse(data);
                     console.info(parsedData, "Parsed Data")
                     const qrValue = parsedData.respData.value || "";
+                    console.info(qrValue, "QrValue")
                     const last6FromBarcode = qrValue.slice(-6).toLowerCase();
 
+                    console.info(last6FromBarcode, "Last 6 from Bar Code")
                     const matches = detectedDevices.filter((device) => {
                       const name = (device.name || "").toLowerCase();
                       const last6FromName = name.slice(-6);
