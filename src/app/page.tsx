@@ -460,6 +460,11 @@ useEffect(() => {
     });
     
     console.info(matches[0], "Matches----462----")
+    if (matches.length === 1) {
+    startConnection(matches[0].macAddress)
+    } else {
+      toast.error("There was a problem connecting with device. Try doing it manually.")
+    }
     // const matches = detectedDevices.filter((device) => {
     //   console.info(device, "Device")
     //   const name = (device.name || "").toLowerCase();
