@@ -292,7 +292,7 @@ const AppContainer = () => {
                     const qrValue = parsedData.respData.value || "";
                     console.info(qrValue, "QrValue")
                     const last6FromBarcode = qrValue.slice(-6).toLowerCase();
-                    
+                    handleQrCode(last6FromBarcode)
                     console.info(detectedDevices, "Detected devices")
                     const matches = detectedDevices.filter((device) => {
                       console.info(device, "Device")
@@ -448,6 +448,10 @@ const AppContainer = () => {
     }
   };
 
+  const handleQrCode = (code:string) => {
+    console.info(code, "452")
+    console.info(detectedDevices, "Detected Devices")
+  }
   // Render the list view or detail view based on selection
 
   const bleLoadingSteps = [
@@ -459,6 +463,7 @@ const AppContainer = () => {
     { percentComplete: 90, message: "Reading DIA Service.." }
   ];
 
+  console.info(detectedDevices, "Detected Devices")
   return (
     <>
       <Toaster
