@@ -442,7 +442,22 @@ const AppContainer = () => {
     console.info(code, "452")
     if(detectedDevices.length>0){
       console.info(detectedDevices, "Detechted Devices")
+
+      
+    const matches = detectedDevices.filter((device) => {
+      console.info(device, "Device")
+      const name = (device.name || "").toLowerCase();
+      console.info(name, "Device")
+      const last6FromName = name.slice(-6);
+      console.info(code, "last6FromBarcode")
+      console.info(last6FromName, code, "Codes---302")
+      return last6FromName === code
+    });
+
+    console.log(matches, "Matches")
     }
+
+    
 
     // const matches = detectedDevices.filter((device) => {
     //   console.info(device, "Device")
