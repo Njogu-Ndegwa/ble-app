@@ -293,12 +293,14 @@ const AppContainer = () => {
                     console.info(qrValue, "QrValue")
                     const last6FromBarcode = qrValue.slice(-6).toLowerCase();
 
-                    console.info(last6FromBarcode, "Last 6 from Bar Code")
                     const matches = detectedDevices.filter((device) => {
+                      console.info(device, "Device")
                       const name = (device.name || "").toLowerCase();
+                      console.info(name, "Device")
                       const last6FromName = name.slice(-6);
-                      const mac = (device.macAddress || "").toLowerCase();
-                      return last6FromName === last6FromBarcode || mac.includes(last6FromBarcode);
+                      console.info(last6FromBarcode, "last6FromBarcode")
+                      console.info(last6FromName, last6FromBarcode, "Codes---302")
+                      return last6FromName === last6FromBarcode
                     });
 
                     console.info(matches, "Matches 302---")
