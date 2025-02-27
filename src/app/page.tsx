@@ -257,7 +257,7 @@ useEffect(() => {
             console.log("Bluetooth connection failed:", data);
             setIsConnecting(false); // Reset connection state on failure
             setProgress(0);
-            toast.error('Connection failed!', { id: 'connect-toast' });
+            toast.error('Connection failed! Please try reconnecting again.', { id: 'connect-toast' });
             responseCallback(data);
           }
         );
