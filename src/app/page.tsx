@@ -440,9 +440,9 @@ const AppContainer = () => {
 
   const handleQrCode = (code:string) => {
     console.info(code, "452")
-    setTimeout(() => {
-      console.info(detectedDevices, "Detected Devices")
-    },1000)
+    if(detectedDevices.length>0){
+      console.info(detectedDevices, "Detechted Devices")
+    }
 
     // const matches = detectedDevices.filter((device) => {
     //   console.info(device, "Device")
