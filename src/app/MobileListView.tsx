@@ -504,7 +504,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnectio
             <div className="relative">
               <RefreshCcw 
                 onClick={handleRescan} 
-                className={`w-6 h-6 text-gray-400 ${isScanning ? 'animate-spin' : ''}`} 
+                className={`w-6 h-6 text-gray-400 ${items.length === 0 && isScanning ? 'animate-spin' : ''}`} 
               />
             </div>
           </div>
@@ -555,7 +555,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnectio
 
           {/* List Items or Skeleton Loaders */}
           <div className="space-y-3">
-            {isScanning ? (
+            {items.length === 0 && isScanning ? (
               renderSkeletons()
             ) : items.length > 0 ? (
               items.map((item) => (
