@@ -529,7 +529,7 @@ useEffect(() => {
           onStartConnection={startConnection}
           connectedDevice={connectedDevice}
           onScanQrCode={startQrCodeScan}
-          onRescanBleItems={startBleScan}
+          onRescanBleItems={handleBLERescan}
         />
       ) : (
         <DeviceDetailView
