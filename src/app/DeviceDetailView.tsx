@@ -7,6 +7,7 @@ import { readBleCharacteristic, writeBleCharacteristic } from './utils';
 import { Toaster, toast } from 'react-hot-toast';
 import { ArrowLeft, Share2 } from 'lucide-react';
 import { AsciiStringModal, NumericModal } from './modals';
+import { Clipboard } from "lucide-react";
 interface DeviceDetailProps {
   device: {
     macAddress: string;
@@ -20,10 +21,10 @@ interface DeviceDetailProps {
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
   const router = useRouter();
-  const [updatedValues, setUpdatedValues] = useState<{[key: string]: any}>({});
+  const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
   // Loading state for read operations
-  const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
-  
+  const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
+
   // Modal states
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
@@ -42,8 +43,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   const [activeTab, setActiveTab] = useState(fixedTabs[0].id);
 
   // Get active service data
-  const activeService = attributeList.find(service => 
-    fixedTabs.find(tab => 
+  const activeService = attributeList.find(service =>
+    fixedTabs.find(tab =>
       tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum
     )
   );
@@ -72,7 +73,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
       // Clear loading state
       setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
-      
+
       if (data) {
         console.info(data.realVal, "Value of Field");
         toast.success(`${name} read successfully`);
@@ -91,7 +92,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   // Handle opening the appropriate modal
   const handleWriteClick = (characteristic: any) => {
     setActiveCharacteristic(characteristic);
-    
+
     // Determine which modal to open based on characteristic name
     if (characteristic.name.toLowerCase().includes('pubk')) {
       setAsciiModalOpen(true);
@@ -103,7 +104,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   // Handle write operation
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !activeService) return;
-    
+
     console.info({
       action: 'write',
       serviceUuid: activeService.uuid,
@@ -118,8 +119,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       value,
       device.macAddress,
       (data: any, error: any) => {
-        if(data) {
-          handleRead(    
+        if (data) {
+          handleRead(
             activeService.uuid,
             activeCharacteristic.uuid,
             device.name
@@ -130,7 +131,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     // Here you would implement the actual BLE write operation
     // For now, we'll just show a success message
     toast.success(`Value written to ${activeCharacteristic.name}`);
-    
+
     // Update the value in our state
     setUpdatedValues(prev => ({
       ...prev,
@@ -141,7 +142,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
       <Toaster />
-      
+
       {/* ASCII String Modal */}
       <AsciiStringModal
         isOpen={asciiModalOpen}
@@ -149,7 +150,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || "Public Key / Last Code"}
       />
-      
+
       {/* Numeric Modal */}
       <NumericModal
         isOpen={numericModalOpen}
@@ -169,8 +170,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
 
       {/* Device Image and Info */}
       <div className="flex flex-col items-center p-6 pb-2">
-        <img 
-          src={device.imageUrl} 
+        <img
+          src={device.imageUrl}
           alt={device.name || "dsdsf"}
           className="w-40 h-40 object-contain mb-4"
         />
@@ -187,9 +188,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
             return (
               <button
                 key={tab.id}
-                className={`py-3 px-4 text-sm font-medium relative ${
-                  activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-                } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`py-3 px-4 text-sm font-medium relative ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+                  } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={() => serviceExists && setActiveTab(tab.id)}
                 disabled={!serviceExists}
               >
@@ -212,7 +212,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                 <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
                   <span className="text-sm font-medium">{char.name}</span>
                   <div className="flex space-x-2">
-                    <button 
+                    <button
                       className={`text-xs ${loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'} px-3 py-1 rounded transition-colors`}
                       onClick={() => handleRead(activeService.uuid, char.uuid, char.name)}
                       disabled={loadingStates[char.uuid]}
@@ -220,7 +220,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                       {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
                     </button>
                     {activeTab === 'CMD' && (
-                      <button 
+                      <button
                         className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
                         onClick={() => handleWriteClick(char)}
                       >
@@ -234,13 +234,28 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
                     <p className="text-xs text-gray-400">Description</p>
                     <p className="text-sm">{char.desc}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Current Value</p>
-                    <p className="text-sm font-mono">
-                      {updatedValues[char.uuid] !== undefined 
-                        ? updatedValues[char.uuid] 
-                        : formatValue(char)}
-                    </p>
+                  <div className="flex items-center justify-between group">
+                    <div className="flex-grow">
+                      <p className="text-xs text-gray-400">Current Value</p>
+                      <p className="text-sm font-mono">
+                        {updatedValues[char.uuid] !== undefined
+                          ? updatedValues[char.uuid]
+                          : formatValue(char)}
+                      </p>
+                    </div>
+                    <button
+                      className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
+                      onClick={() => {
+                        const valueToCopy = updatedValues[char.uuid] !== undefined
+                          ? updatedValues[char.uuid]
+                          : formatValue(char);
+                        navigator.clipboard.writeText(valueToCopy);
+                        toast.success('Value copied to clipboard');
+                      }}
+                      aria-label="Copy to clipboard"
+                    >
+                      <Clipboard size={16} />
+                    </button>
                   </div>
                 </div>
               </div>
