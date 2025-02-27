@@ -9,6 +9,7 @@ import dynamic from 'next/dynamic';
 import ProgressiveLoading from './loader';
 import { connBleByMacAddress, initBleData } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
+import { ScanQrCode } from 'lucide-react';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -194,29 +195,29 @@ const AppContainer = () => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
               console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
-        
+
               if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
                 // Store the raw rssi value for sorting, and use the formatted version for display
                 const rawRssi = Number(parsedData.rssi);
                 const formattedRssi = convertRssiToFormattedString(rawRssi);
-        
+
                 // Update the device data
                 parsedData.rssi = formattedRssi; // Use formatted RSSI for display
                 parsedData.rawRssi = rawRssi; // Store raw RSSI for sorting
                 parsedData.imageUrl = imageUrl;
-        
+
                 setDetectedDevices(prevDevices => {
                   // Check if this device already exists in our array
                   const deviceExists = prevDevices.some(
                     device => device.macAddress === parsedData.macAddress
                   );
-        
+
                   // If device doesn't exist, add it to the array
                   if (!deviceExists) {
                     console.log("Adding new device:", parsedData.name);
                     return [...prevDevices, parsedData];
                   }
-        
+
                   // If the device exists, update RSSI or other properties
                   return prevDevices.map(device =>
                     device.macAddress === parsedData.macAddress
@@ -224,13 +225,13 @@ const AppContainer = () => {
                       : device
                   );
                 });
-        
+
                 // Sort the devices by raw RSSI, so the closest ones appear first
                 setDetectedDevices(prevDevices => {
                   return prevDevices
                     .sort((a, b) => b.rawRssi - a.rawRssi); // Sort by raw RSSI in descending order
                 });
-        
+
                 responseCallback({ success: true });
               } else {
                 console.warn("Invalid device data format:", parsedData);
@@ -241,7 +242,7 @@ const AppContainer = () => {
             }
           }
         );
-        
+
 
         bridge.registerHandler(
           "bleConnectFailCallBack",
@@ -281,6 +282,19 @@ const AppContainer = () => {
             }
           }
         );
+
+                // QR Scan callback using the latest device list via ref
+                bridge.registerHandler("scanQrcodeResultCallBack", (data, responseCallback) => {
+                  console.info("Debug: Received data from scanQrcodeResultCallBack:", data);
+                  try {
+                    const parsedData = JSON.parse(data);
+                    console.info(parsedData, "Parsed Data")
+                  } catch (error) {
+                    console.error("Error processing QR code data:", error);
+           
+                  }
+                  responseCallback(data);
+                });     
 
         bridge.registerHandler(
           "mqttMessageReceived",
@@ -360,6 +374,15 @@ const AppContainer = () => {
       console.log("-------250------")
     };
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
+
+  const startQrCodeScan = () => {
+    console.info("Start QR Code Scan")
+    if (window.WebViewJavascriptBridge) {
+      window.WebViewJavascriptBridge.callHandler('startQrCodeScan', 999, (responseData) => {
+        console.info(responseData);
+      });
+    }
+  };
 
   useEffect(() => {
     if (progress === 100) {
@@ -453,6 +476,7 @@ const AppContainer = () => {
           items={detectedDevices}
           onStartConnection={startConnection}
           connectedDevice={connectedDevice}
+          onScanQrCode={startQrCodeScan}
         />
       ) : (
         <DeviceDetailView
