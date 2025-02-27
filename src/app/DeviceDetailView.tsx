@@ -119,7 +119,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       value,
       device.macAddress,
       (data: any, error: any) => {
+        console.info({"data": data, "error": error})
         if (data) {
+          console.info(data, "Is Data 123")
           handleRead(
             activeService.uuid,
             activeCharacteristic.uuid,
@@ -132,11 +134,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     // For now, we'll just show a success message
     toast.success(`Value written to ${activeCharacteristic.name}`);
 
-    // Update the value in our state
-    setUpdatedValues(prev => ({
-      ...prev,
-      [activeCharacteristic.uuid]: value
-    }));
+    // // Update the value in our state
+    // setUpdatedValues(prev => ({
+    //   ...prev,
+    //   [activeCharacteristic.uuid]: value
+    // }));
   };
 
   return (
