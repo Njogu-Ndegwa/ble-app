@@ -80,6 +80,7 @@ export const writeBleCharacteristic = (serviceUUID, characteristicUUID, value, m
     window.WebViewJavascriptBridge.callHandler(
       'writeBleCharacteristic', data,
       (responseData) => {
+        console.warn(responseData, "ResponseData")
         console.info("Write response:", responseData);
         if (callback) {
           callback(responseData);

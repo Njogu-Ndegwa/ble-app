@@ -118,16 +118,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       activeCharacteristic.uuid,
       value,
       device.macAddress,
-      (data: any, error: any) => {
-        console.info({"data": data, "error": error})
-        if (data) {
-          console.info(data, "Is Data 123")
-          handleRead(
-            activeService.uuid,
-            activeCharacteristic.uuid,
-            device.name
-          )
-        }
+      (data:any) => {
+        console.warn(data, "See Data")
       }
     );
     // Here you would implement the actual BLE write operation
