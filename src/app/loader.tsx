@@ -96,40 +96,7 @@ interface ProgressiveLoadingProps {
         </div>
         
         {/* Step indicators */}
-        {/* <div className="flex justify-between mt-4 px-1">
-          {loadingSteps.map((step, index) => (
-            <div 
-              key={index}
-              className="flex flex-col items-center"
-            >
-              <div 
-                className={`w-2 h-2 rounded-full mb-1 ${
-                  progress >= step.percentComplete 
-                    ? 'bg-gray-400' 
-                    : 'bg-[#52545c]'
-                }`}
-              ></div>
-              {index < loadingSteps.length - 1 && (
-                <div className="w-8 h-0.5 bg-[#52545c]"></div>
-              )}
-            </div>
-          ))}
-        </div> */}
-        
-        {/* Cancel button */}
-        <div className="mt-6 text-center">
-          <button 
-            className="text-gray-400 text-xs border border-gray-700 rounded-lg px-4 py-2 hover:bg-gray-800"
-            onClick={() => {
-              if (!isComplete) {
-                setInternalProgress(0);
-                setCurrentMessage(initialMessage);
-              }
-            }}
-          >
-            {isComplete ? "Close" : "Cancel"}
-          </button>
-        </div>
+
       </div>
     </div>
   );
