@@ -487,6 +487,13 @@ useEffect(() => {
     { percentComplete: 75, message: "Reading DTA Service..." },
     { percentComplete: 90, message: "Reading DIA Service.." }
   ];
+  const handleBLERescan = () => {
+    setConnectedDevice(null)
+    setDetectedDevices([])
+    setSelectedDevice(null)
+    setConnectingDeviceId(null)
+    startBleScan()
+  }
 
   return (
     <>
