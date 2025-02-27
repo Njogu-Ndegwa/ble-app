@@ -292,7 +292,8 @@ const AppContainer = () => {
                     const qrValue = parsedData.respData.value || "";
                     console.info(qrValue, "QrValue")
                     const last6FromBarcode = qrValue.slice(-6).toLowerCase();
-
+                    
+                    console.info(detectedDevices, "Detected devices")
                     const matches = detectedDevices.filter((device) => {
                       console.info(device, "Device")
                       const name = (device.name || "").toLowerCase();
