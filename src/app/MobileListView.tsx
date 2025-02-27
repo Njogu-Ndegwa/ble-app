@@ -18,7 +18,8 @@ import {
   Settings2,
   HelpCircle,
   BluetoothConnected,
-  Camera
+  Camera,
+  RefreshCcw
 } from 'lucide-react';
 import { BleDevice } from './page';
 interface DeviceItem {
@@ -35,9 +36,10 @@ interface MobileListViewProps {
   onStartConnection: (macAddress: string) => void; // New prop
   connectedDevice: string | null;
   onScanQrCode: () => void;
+  onRescanBleItems: () => void;
 }
 
-const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnection, connectedDevice, onScanQrCode }) => {
+const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnection, connectedDevice, onScanQrCode, onRescanBleItems }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const [activeSubMenuItem, setActiveSubMenuItem] = useState<string | null>(null);
@@ -164,7 +166,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnectio
                 setIsMenuOpen(true);
               }}
             />
-            <Settings className="w-6 h-6 text-gray-400" />
+            <RefreshCcw onClick={onRescanBleItems} className="w-6 h-6 text-gray-400" />
           </div>
 
           {/* Search Bar */}
