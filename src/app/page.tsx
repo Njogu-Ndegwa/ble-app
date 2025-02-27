@@ -289,6 +289,17 @@ const AppContainer = () => {
                   try {
                     const parsedData = JSON.parse(data);
                     console.info(parsedData, "Parsed Data")
+                    const qrValue = parsedData.respData.value || "";
+                    const last6FromBarcode = qrValue.slice(-6).toLowerCase();
+
+                    const matches = detectedDevices.filter((device) => {
+                      const name = (device.name || "").toLowerCase();
+                      const last6FromName = name.slice(-6);
+                      const mac = (device.macAddress || "").toLowerCase();
+                      return last6FromName === last6FromBarcode || mac.includes(last6FromBarcode);
+                    });
+
+                    console.info(matches, "Matches 302---")
                   } catch (error) {
                     console.error("Error processing QR code data:", error);
            
