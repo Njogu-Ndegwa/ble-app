@@ -475,7 +475,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({ items, onStartConnectio
 
   // Generate skeleton loaders
   const renderSkeletons = () => {
-    return Array(3).fill(0).map((_, index) => (
+    return Array(5).fill(0).map((_, index) => (
       <DeviceItemSkeleton key={`skeleton-${index}`} />
     ));
   };
