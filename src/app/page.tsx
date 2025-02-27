@@ -449,9 +449,17 @@ useEffect(() => {
     console.info(code, "452")
     const currentDevices = detectedDevicesRef.current;
     console.info(currentDevices, "Current devices via ref");
-
+   const matches = currentDevices.filter((device) => {
+      console.info(device, "Device")
+      const name = (device.name || "").toLowerCase();
+      console.info(name, "Device")
+      const last6FromName = name.slice(-6);
+      console.info(code, "last6FromBarcode")
+      console.info(last6FromName, code, "Codes---302")
+      return last6FromName === code
+    });
     
-
+    console.info(matches[0], "Matches----462----")
     // const matches = detectedDevices.filter((device) => {
     //   console.info(device, "Device")
     //   const name = (device.name || "").toLowerCase();
