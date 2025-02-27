@@ -293,18 +293,8 @@ const AppContainer = () => {
                     console.info(qrValue, "QrValue")
                     const last6FromBarcode = qrValue.slice(-6).toLowerCase();
                     handleQrCode(last6FromBarcode)
-                    console.info(detectedDevices, "Detected devices")
-                    const matches = detectedDevices.filter((device) => {
-                      console.info(device, "Device")
-                      const name = (device.name || "").toLowerCase();
-                      console.info(name, "Device")
-                      const last6FromName = name.slice(-6);
-                      console.info(last6FromBarcode, "last6FromBarcode")
-                      console.info(last6FromName, last6FromBarcode, "Codes---302")
-                      return last6FromName === last6FromBarcode
-                    });
 
-                    console.info(matches, "Matches 302---")
+   
                   } catch (error) {
                     console.error("Error processing QR code data:", error);
            
@@ -451,6 +441,17 @@ const AppContainer = () => {
   const handleQrCode = (code:string) => {
     console.info(code, "452")
     console.info(detectedDevices, "Detected Devices")
+    // const matches = detectedDevices.filter((device) => {
+    //   console.info(device, "Device")
+    //   const name = (device.name || "").toLowerCase();
+    //   console.info(name, "Device")
+    //   const last6FromName = name.slice(-6);
+    //   console.info(last6FromBarcode, "last6FromBarcode")
+    //   console.info(last6FromName, last6FromBarcode, "Codes---302")
+    //   return last6FromName === last6FromBarcode
+    // });
+
+    // console.info(matches, "Matches 302---")
   }
   // Render the list view or detail view based on selection
 
