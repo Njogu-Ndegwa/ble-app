@@ -489,12 +489,22 @@ useEffect(() => {
       return;
     }
 
-    const stsData = attributeList.map((char:any) => ({
-      name: char.name,
-      desc: char.desc,
-      realVal: char.realVal
-    }));
-    
+// Find the STS_SERVICE from the attributeList
+const stsService = attributeList.find((service:any) => service.serviceNameEnum === "STS_SERVICE");
+
+if (!stsService) {
+    console.error("STS_SERVICE not found in attributeList.");
+    toast.error("Error: STS_SERVICE not found.");
+    return;
+}
+
+// Extract name, desc, and realVal from the characteristicList of STS_SERVICE
+const stsData = stsService.characteristicList.map((char:any) => ({
+    name: char.name,
+    desc: char.desc,
+    realVal: char.realVal
+}));
+    console.info(stsData, "STS Data")
     const dataToPublish = {
       topic: "emit/content/bleData/sts",
       qos: 0,
