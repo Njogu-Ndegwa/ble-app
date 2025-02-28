@@ -139,6 +139,7 @@ const AppContainer = () => {
     });
   }, []);
 
+
   function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
     // Calculate distance using the logarithmic path-loss model
     const distance = Math.pow(10, (txPower - rssi) / (10 * n));
