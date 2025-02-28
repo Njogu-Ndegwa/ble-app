@@ -526,12 +526,10 @@ const AppContainer = () => {
 
     // Define the data to publish in the new format
     const dataToPublish = {
-        topic: "dt/androidphone/devicename/payload",
+        topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
         qos: 0,
         content: {
-            [opidRealVal]: {
-                sts: stsData
-            },
+            sts: stsData,
             timestamp: Date.now(),
             deviceInfo: "mac_address"
         }
