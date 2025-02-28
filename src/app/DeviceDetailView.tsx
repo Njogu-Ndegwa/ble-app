@@ -49,6 +49,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     )
   );
 
+  console.warn(activeService)
+
   // Handle back navigation
   const handleBack = () => onBack ? onBack() : router.back();
 
