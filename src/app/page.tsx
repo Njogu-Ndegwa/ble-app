@@ -497,29 +497,24 @@ if (!stsService) {
     toast.error("Error: STS_SERVICE not found.");
     return;
 }
+const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
+  acc[char.name] = char.realVal;
+  return acc;
+}, {});
 
-// Extract name, desc, and realVal from the characteristicList of STS_SERVICE
-const stsData = stsService.characteristicList.map((char:any) => ({
-    name: char.name,
-    desc: char.desc,
-    realVal: char.realVal
-}));
-    console.info(stsData, "STS Data")
-    const dataToPublish = {
-      topic: "dt/emit/content/bleData/sts",
-      qos: 0,
-      content: {
-        content: {
-          category: "STS",
-          data: stsData ,
-          timestamp: Date.now(),
-          deviceInfo: "mac_address",
-        },
-      },
-    };
-    
-    console.info(dataToPublish, "Data to Publish")
-      // Publish with enhanced error handling
+console.info(stsData, "STS Data");
+
+// Define the data to publish in the new format
+const dataToPublish = {
+  topic: "dt/emit/content/bleData/sts",
+  qos: 0,
+  sts: stsData,
+  timestamp: Date.now(),
+  deviceInfo: "mac_address",
+};
+
+console.info(dataToPublish, "Data to Publish");
+
       try {
         window.WebViewJavascriptBridge.callHandler(
           "mqttPublishMsg",
