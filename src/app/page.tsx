@@ -506,7 +506,7 @@ const stsData = stsService.characteristicList.map((char:any) => ({
 }));
     console.info(stsData, "STS Data")
     const dataToPublish = {
-      topic: "emit/content/bleData/sts",
+      topic: "dt/emit/content/bleData/sts",
       qos: 0,
       content: {
         content: {
