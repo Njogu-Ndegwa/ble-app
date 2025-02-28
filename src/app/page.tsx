@@ -402,6 +402,7 @@ useEffect(() => {
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
+      handlePublish(attributeList)
     }
   }, [progress, attributeList])
 
@@ -478,6 +479,55 @@ useEffect(() => {
     // console.info(matches, "Matches 302---")
   }
   // Render the list view or detail view based on selection
+
+  const handlePublish = (attributeList:any) => {
+
+    if (!window.WebViewJavascriptBridge) {
+      console.error("WebViewJavascriptBridge is not initialized.");
+      toast.error("Error: WebViewJavascriptBridge is not initialized.");
+    
+      return;
+    }
+
+    const stsData = attributeList.map((char:any) => ({
+      name: char.name,
+      desc: char.desc,
+      realVal: char.realVal
+    }));
+    
+    const dataToPublish = {
+      topic: "emit/content/bleData/sts",
+      qos: 0,
+      content: {
+        content: {
+          category: "STS",
+          data: stsData ,
+          timestamp: Date.now(),
+          deviceInfo: "mac_address",
+        },
+      },
+    };
+    
+    console.info(dataToPublish, "Data to Publish")
+      // Publish with enhanced error handling
+      try {
+        window.WebViewJavascriptBridge.callHandler(
+          "mqttPublishMsg",
+          JSON.stringify(dataToPublish), // Try stringifying the data
+          (response) => {
+            console.info(`MQTT Response for`, response);
+    
+          }
+        );
+      } catch (error) {
+        console.error(
+          `Error calling WebViewJavascriptBridge`,
+          error
+        );
+        toast.error(`Error publishing `);
+      }
+
+    };
 
   const bleLoadingSteps = [
     { percentComplete: 10, message: "Initializing Bluetooth connection..." },
