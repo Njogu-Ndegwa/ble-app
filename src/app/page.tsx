@@ -95,6 +95,7 @@ const AppContainer = () => {
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
   const [attrList, setAtrrList] = useState([])
   const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
+  const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
@@ -342,9 +343,11 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: any) => void) => {
             try {
               const parsedMessage = JSON.parse(data);
+              setIsMqttConnected(true)
               console.info("MQTT Connection Callback:", parsedMessage);
               responseCallback("Received MQTT Connection Callback");
             } catch (error) {
+              setIsMqttConnected(false)
               console.error("Error parsing MQTT connection callback:", error);
             }
           }
@@ -396,7 +399,7 @@ const AppContainer = () => {
       });
     }
   };
-
+console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100) {
       setIsConnecting(false); // Connection process complete
@@ -489,6 +492,7 @@ const AppContainer = () => {
       return;
     }
 
+
     // Find the STS_SERVICE from the attributeList
     const stsService = attributeList.find((service: any) => service.serviceNameEnum === "STS_SERVICE");
 
@@ -535,7 +539,7 @@ const AppContainer = () => {
         }
     };
 
-    
+
 
     console.info(dataToPublish, "Data to Publish");
 
