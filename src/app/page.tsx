@@ -102,10 +102,10 @@ const AppContainer = () => {
 
   const detectedDevicesRef = useRef(detectedDevices);
 
-// Update the ref whenever detectedDevices changes
-useEffect(() => {
-  detectedDevicesRef.current = detectedDevices;
-}, [detectedDevices]);
+  // Update the ref whenever detectedDevices changes
+  useEffect(() => {
+    detectedDevicesRef.current = detectedDevices;
+  }, [detectedDevices]);
 
   const handleDeviceSelect = (deviceId: string) => {
     setSelectedDevice(deviceId);
@@ -290,24 +290,24 @@ useEffect(() => {
           }
         );
 
-                // QR Scan callback using the latest device list via ref
-                bridge.registerHandler("scanQrcodeResultCallBack", (data, responseCallback) => {
-                  console.info("Debug: Received data from scanQrcodeResultCallBack:", data);
-                  try {
-                    const parsedData = JSON.parse(data);
-                    console.info(parsedData, "Parsed Data")
-                    const qrValue = parsedData.respData.value || "";
-                    console.info(qrValue, "QrValue")
-                    const last6FromBarcode = qrValue.slice(-6).toLowerCase();
-                    handleQrCode(last6FromBarcode)
+        // QR Scan callback using the latest device list via ref
+        bridge.registerHandler("scanQrcodeResultCallBack", (data, responseCallback) => {
+          console.info("Debug: Received data from scanQrcodeResultCallBack:", data);
+          try {
+            const parsedData = JSON.parse(data);
+            console.info(parsedData, "Parsed Data")
+            const qrValue = parsedData.respData.value || "";
+            console.info(qrValue, "QrValue")
+            const last6FromBarcode = qrValue.slice(-6).toLowerCase();
+            handleQrCode(last6FromBarcode)
 
-   
-                  } catch (error) {
-                    console.error("Error processing QR code data:", error);
-           
-                  }
-                  responseCallback(data);
-                });     
+
+          } catch (error) {
+            console.error("Error processing QR code data:", error);
+
+          }
+          responseCallback(data);
+        });
 
         bridge.registerHandler(
           "mqttMessageReceived",
@@ -446,11 +446,11 @@ useEffect(() => {
     }
   };
 
-  const handleQrCode = (code:string) => {
+  const handleQrCode = (code: string) => {
     console.info(code, "452")
     const currentDevices = detectedDevicesRef.current;
     console.info(currentDevices, "Current devices via ref");
-   const matches = currentDevices.filter((device) => {
+    const matches = currentDevices.filter((device) => {
       console.info(device, "Device")
       const name = (device.name || "").toLowerCase();
       console.info(name, "Device")
@@ -459,10 +459,10 @@ useEffect(() => {
       console.info(last6FromName, code, "Codes---302")
       return last6FromName === code
     });
-    
+
     console.info(matches[0], "Matches----462----")
     if (matches.length === 1) {
-    startConnection(matches[0].macAddress)
+      startConnection(matches[0].macAddress)
     } else {
       toast.error("There was a problem connecting with device. Try doing it manually.")
     }
@@ -480,61 +480,84 @@ useEffect(() => {
   }
   // Render the list view or detail view based on selection
 
-  const handlePublish = (attributeList:any) => {
+  const handlePublish = (attributeList: any) => {
 
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
       toast.error("Error: WebViewJavascriptBridge is not initialized.");
-    
+
       return;
     }
 
-// Find the STS_SERVICE from the attributeList
-const stsService = attributeList.find((service:any) => service.serviceNameEnum === "STS_SERVICE");
+    // Find the STS_SERVICE from the attributeList
+    const stsService = attributeList.find((service: any) => service.serviceNameEnum === "STS_SERVICE");
 
-if (!stsService) {
-    console.error("STS_SERVICE not found in attributeList.");
-    toast.error("Error: STS_SERVICE not found.");
-    return;
-}
-const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
-  acc[char.name] = char.realVal;
-  return acc;
-}, {});
+    if (!stsService) {
+      console.error("STS_SERVICE not found in attributeList.");
+      toast.error("Error: STS_SERVICE not found.");
+      return;
+    }
+    const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
+      acc[char.name] = char.realVal;
+      return acc;
+    }, {});
 
-console.info(stsData, "STS Data");
+    console.info(stsData, "STS Data");
 
-// Define the data to publish in the new format
-const dataToPublish = {
-  topic: "dt/androidphone/devicename/payload",
-  qos: 0,
-  content: {
-    sts: stsData,
-    timestamp: Date.now(),
-    deviceInfo: "mac_address"
-  }
-};
+    const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
 
-console.info(dataToPublish, "Data to Publish");
+    if (!attService) {
+        console.error("ATT_SERVICE not found in attributeList.");
+        toast.error("Error: ATT_SERVICE not found.");
+        return;
+    }
 
-      try {
-        window.WebViewJavascriptBridge.callHandler(
-          "mqttPublishMsg",
-          JSON.stringify(dataToPublish), // Try stringifying the data
-          (response) => {
-            console.info(`MQTT Response for`, response);
-    
-          }
-        );
-      } catch (error) {
-        console.error(
-          `Error calling WebViewJavascriptBridge`,
-          error
-        );
-        toast.error(`Error publishing `);
-      }
+    // Find the opid characteristic and get its realVal
+    const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
 
+    console.info(opidChar, "opid")
+    if (!opidChar) {
+        console.error("opid characteristic not found in ATT_SERVICE.");
+        toast.error("Error: opid not found in ATT_SERVICE.");
+        return;
+    }
+
+    const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
+
+    // Define the data to publish in the new format
+    const dataToPublish = {
+        topic: "dt/androidphone/devicename/payload",
+        qos: 0,
+        content: {
+            [opidRealVal]: {
+                sts: stsData
+            },
+            timestamp: Date.now(),
+            deviceInfo: "mac_address"
+        }
     };
+
+
+    console.info(dataToPublish, "Data to Publish");
+
+    try {
+      window.WebViewJavascriptBridge.callHandler(
+        "mqttPublishMsg",
+        JSON.stringify(dataToPublish), // Try stringifying the data
+        (response) => {
+          console.info(`MQTT Response for`, response);
+
+        }
+      );
+    } catch (error) {
+      console.error(
+        `Error calling WebViewJavascriptBridge`,
+        error
+      );
+      toast.error(`Error publishing `);
+    }
+
+  };
 
   const bleLoadingSteps = [
     { percentComplete: 10, message: "Initializing Bluetooth connection..." },
@@ -545,15 +568,15 @@ console.info(dataToPublish, "Data to Publish");
     { percentComplete: 90, message: "Reading DIA Service.." }
   ];
   const handleBLERescan = () => {
-    if(isScanning && detectedDevices.length === 0) {
+    if (isScanning && detectedDevices.length === 0) {
       stopBleScan()
     }
     else {
-    setConnectedDevice(null)
-    setDetectedDevices([])
-    setSelectedDevice(null)
-    setConnectingDeviceId(null)
-    startBleScan()
+      setConnectedDevice(null)
+      setDetectedDevices([])
+      setSelectedDevice(null)
+      setConnectingDeviceId(null)
+      startBleScan()
     }
   }
 
