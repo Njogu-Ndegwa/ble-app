@@ -508,9 +508,11 @@ console.info(stsData, "STS Data");
 const dataToPublish = {
   topic: "dt/emit/content/bleData/sts",
   qos: 0,
-  sts: stsData,
-  timestamp: Date.now(),
-  deviceInfo: "mac_address",
+  content: {
+    sts: stsData,
+    timestamp: Date.now(),
+    deviceInfo: "mac_address"
+  }
 };
 
 console.info(dataToPublish, "Data to Publish");
