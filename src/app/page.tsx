@@ -506,7 +506,7 @@ console.info(stsData, "STS Data");
 
 // Define the data to publish in the new format
 const dataToPublish = {
-  topic: "dt/emit/content/bleData/sts",
+  topic: "dt/androidphone/devicename/payload",
   qos: 0,
   content: {
     sts: stsData,
