@@ -10,6 +10,7 @@ env:
   REGISTRY_NAME: ghcr.io
   REGISTRY_USER: ${{github.repository_owner}}
   REGISTRY_PASSWORD: ${{secrets.G_TOKEN}}
+  RELEASE_NAME: "BLE App Dev"
   IMAGE_NAME: ble-app-dev
   VERSION_NUMBER: ${{github.run_number}}
   BRANCH_NAME: dev
