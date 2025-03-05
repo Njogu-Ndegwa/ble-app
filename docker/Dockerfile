@@ -15,7 +15,6 @@ COPY ../package*.json ./
 RUN npm i --omit=dev
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/package.json ./
 ENV NODE_ENV production
 ENV PORT 3000

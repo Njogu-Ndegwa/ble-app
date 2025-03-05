@@ -51,7 +51,7 @@ jobs:
             ${{env.REGISTRY_NAME}}/${{env.REGISTRY_USER}}/${{env.IMAGE_NAME}}:${{env.GH_VERSION}}
           labels: ${{steps.metadata.outputs.labels}}
           platforms: linux/amd64
-          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=CMS BLE App Dev
+          outputs: type=image,name=target,annotation-index.org.opencontainers.image.description=BLE App Dev
       - name: Output Image name
         run: |
           echo "Image pushed to ${{env.REGISTRY_NAME}}/${{env.REGISTRY_USER}}/${{env.IMAGE_NAME}}:${{env.GH_VERSION}}"
