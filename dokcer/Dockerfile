@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY ../package.json ./
-RUN npm ci
+RUN npm i
 COPY .. .
 RUN npm run build
 
@@ -12,7 +12,7 @@ FROM node:20-alpine AS production
 RUN apk add --no-cache tini
 WORKDIR /app
 COPY ../package*.json ./
-RUN npm ci --omit=dev
+RUN npm i --omit=dev
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./
