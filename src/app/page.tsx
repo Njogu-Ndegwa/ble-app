@@ -60,28 +60,7 @@ declare global {
     WebViewJavascriptBridge?: WebViewJavascriptBridge;
   }
 }
-const imageUrl = "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png"
-const deviceData = [
-  {
-    id: '1',
-    title: "HESS-Bat242004",
-    subtitle: "82:05:10:00:A9:48",
-    info: "-90db ~ 10m",
-    imageUrl: "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png",
-    firmwareVersion: "1.4.7",
-    deviceId: "VCUA2404:0019"
-  },
-  {
-    id: '2',
-    title: "HESS-Bat241008",
-    subtitle: "82:05:10:00:B7:32",
-    info: "-78db ~ 5m",
-    imageUrl: "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png",
-    firmwareVersion: "1.5.2",
-    deviceId: "VCUA2404:0022"
-  }
-  // Add more devices as needed
-];
+const defaultImageUrl = "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png"
 
 
 const AppContainer = () => {
@@ -131,6 +110,36 @@ const AppContainer = () => {
       setProgress(0);
       connBleByMacAddress(macAddress);
     }
+  };
+
+  const itemImageMap: { [key: string]: string } = {
+    "PPSP": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1739505681/OVES-PRODUCTS/CROSS-GRID/Integrated%20Home%20Energy%20Systems%20-%20Oasis%E2%84%A2%20Series/ovT20-2400W/T20-2400W_efw5mh.png",
+    "STOV": "https://res.cloudinary.com/oves/image/upload/t_BLE app 500x500 no background/v1738897820/OVES-PRODUCTS/CROSS-GRID/AC-Productive%20Appliances/E-STOVE-BLE-AF/E-STOVE-BLE-AF_Left_side_cvs2wl.png",
+    "INVE": "https://res.cloudinary.com/oves/image/upload/t_BLE app 500x500 no background/v1731914963/OVES-PRODUCTS/CROSS-GRID/xGrid_Inverter_Charger/INVP-48V-6.2KW-HF/INVP-48V-6.2KW-HP_Left_Side_2024-1118_fo0hpr.png",
+    "E-3P": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1733295976/OVES-PRODUCTS/E-MOBILITY/Electric%20Two-Wheelers/E-3%20Plus/E-3_L_wspsx8.png",
+    "S-6": "https://res.cloudinary.com/oves/image/upload/t_BLE app 500x500 no background/v1726639186/OVES-PRODUCTS/E-MOBILITY/Electric%20Two-Wheelers/S-6/F_el4vpq.png",
+    "E-3": "https://res.cloudinary.com/oves/image/upload/t_BLE app 500x500 no background/v1690366674/OVES-PRODUCTS/E-MOBILITY/Electric%20Two-Wheelers/E-3/ovego-e-3-e-3_v2023114_c7mb0q.png",
+    "BATP": "https://res.cloudinary.com/oves/image/upload/t_BLE app 500x500 no background/v1731935040/OVES-PRODUCTS/CROSS-GRID/HOME%20BATTERY%20SYSTEMS/Bat24100P/Bat24100TP_Right_Side_kbqym1.png",
+    "CAMP": "https://res.cloudinary.com/oves/image/upload/v1627881710/OVES-PRODUCTS/OFF-GRID/ovCAMP%20SERIES/ovCAMP%20SERIES%20APPLIANCES/ovCamp%20Battery%20Hubs/6Ah%20ovCamp%20Hub%20Battery/6AH_W600_NB_uhlc3f.png",
+    "HOME": "https://res.cloudinary.com/oves/image/upload/v1724910821/OVES-PRODUCTS/OFF-GRID/LUMN-HOME%20SERIES/LUMN-HOME%20SHARED%20COMPONENTS/LumnHome%20battery%20hub/lumn-home-battery-hub_front_NBG_HDR.png",
+    "BATT": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1731146523/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_bxwpf9.png",
+    "Batt": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1731146523/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_bxwpf9.png",
+    "UBP1": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1738909134/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-1K/UBP1000-250_AC_Output_250W_dlt63n.png"
+  }
+
+  const getImageUrl = (name: string): string => {
+    const parts = name.split(" ");
+    if (parts.length >= 2) {
+      const keyword = parts[1];
+      const mapKey = Object.keys(itemImageMap).find(
+        (k) => k.toLowerCase() === keyword.toLowerCase()
+      );
+      if (mapKey) {
+        const url = itemImageMap[mapKey];
+        return url || defaultImageUrl;
+      }
+    }
+    return defaultImageUrl;
   };
   // useEffect(() => {
   //   import('vconsole').then((module) => {
@@ -213,7 +222,7 @@ const AppContainer = () => {
                 // Update the device data
                 parsedData.rssi = formattedRssi; // Use formatted RSSI for display
                 parsedData.rawRssi = rawRssi; // Store raw RSSI for sorting
-                parsedData.imageUrl = imageUrl;
+                parsedData.imageUrl = getImageUrl(parsedData.name);
 
                 setDetectedDevices(prevDevices => {
                   // Check if this device already exists in our array
@@ -583,6 +592,7 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       startBleScan()
     }
   }
+
 
   return (
     <>
