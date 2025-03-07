@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { useEffect, useState } from 'react';
@@ -16,7 +17,13 @@ import {
   HelpCircle,
   BluetoothConnected,
   Camera,
-  RefreshCcw
+  RefreshCcw,
+  Users,
+  Building2,
+  UserCircle,
+  BugPlay,
+  LogOut,
+  MessageSquare
 } from 'lucide-react';
 import { BleDevice } from './page';
 
@@ -27,10 +34,11 @@ interface MobileListViewProps {
   onScanQrCode: () => void;
   onRescanBleItems: () => void;
   isScanning: boolean;
+  onLogout?: () => void; // Added logout handler prop
 }
 
 // Define page types for navigation
-type PageType = 'devices' | 'dashboard' | 'analytics' | 'settings' | 'help';
+type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company'  | 'myaccount' | 'settings' | 'debug';
 type SubPageType = string;
 
 // Skeleton loader component for device items
@@ -52,7 +60,8 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   connectedDevice,
   onScanQrCode,
   onRescanBleItems,
-  isScanning }) => {
+  isScanning,
+  onLogout = () => console.log('Logout clicked') }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     // Set devices menu expanded by default
@@ -60,58 +69,102 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   });
   
   // Set active page to 'devices' and subpage to 'all' by default
-  const [activePage, setActivePage] = useState<PageType>('devices');
-  const [activeSubPage, setActiveSubPage] = useState<SubPageType>('all');
+  const [activePage, setActivePage] = useState<PageType>('assets');
+  const [activeSubPage, setActiveSubPage] = useState<SubPageType>('bledevices');
   
   const [searchQuery, setSearchQuery] = useState<string>('');
   
-  // Sidebar menu data structure
+  // Updated sidebar menu data structure with different icons and dividers
   const menuItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <Home size={18} />,
       subItems: [
-        { id: 'overview', label: 'Overview' }
+        { id: 'overview', label: 'My Dash 1' },
+        { id: 'overview1', label: 'My Dash 2' }
       ]
     },
     {
-      id: 'devices',
-      label: 'Devices',
+      id: 'assets',
+      label: 'Assets',
       icon: <Battery size={18} />,
       subItems: [
-        { id: 'all', label: 'All Devices' }
+        { id: 'bledevices', label: 'BLE Devices' },
+        { id: 'fleetview', label: 'Fleet View' },
+        { id: 'devicelocator', label: 'Device Locator' },
       ]
     },
     {
-      id: 'analytics',
-      label: 'Analytics',
+      id: 'customers',
+      label: 'Customers',
       icon: <BarChart4 size={18} />,
       subItems: [
-        { id: 'performance', label: 'Performance' },
-        { id: 'efficiency', label: 'Efficiency' },
-        { id: 'usage', label: 'Usage Patterns' }
+        { id: 'myportfolio', label: 'My Portfolio' },
+        { id: 'payments', label: 'Payments' }
+      ]
+    },
+    {
+      id: 'team',
+      label: 'Team',
+      icon: <Users size={18} />,
+      subItems: [
+        { id: 'members', label: 'Members' },
+        { id: 'Chat', label: 'Chat' }
+      ]
+    },
+    {
+      id: 'company',
+      label: 'Company',
+      icon: <Building2 size={18} />,
+      subItems: [
+        { id: 'request', label: 'Request' },
+        { id: 'updates', label: 'Updates' }
+      ]
+    },
+    {
+      id: 'divider1',
+      type: 'divider'
+    },
+    {
+      id: 'myaccount',
+      label: 'My Account',
+      icon: <UserCircle size={18} />,
+      subItems: [
+        { id: 'resetpassword', label: 'Reset Password' }
       ]
     },
     {
       id: 'settings',
-      label: 'Settings',
+      label: 'My Settings',
       icon: <Settings2 size={18} />,
       subItems: [
-        { id: 'account', label: 'Account' },
-        { id: 'preferences', label: 'Preferences' },
-        { id: 'notifications', label: 'Notifications' }
+        { id: 'settings', label: 'My Settings' }
       ]
     },
     {
-      id: 'help',
-      label: 'Help & Support',
-      icon: <HelpCircle size={18} />,
+      id: 'divider2',
+      type: 'divider'
+    },
+    {
+      id: 'debug',
+      label: 'Debug',
+      icon: <BugPlay size={18} />,
       subItems: [
-        { id: 'faq', label: 'FAQ' },
-        { id: 'contact', label: 'Contact Support' },
-        { id: 'docs', label: 'Documentation' }
+        { id: 'console', label: 'Console' },
+        { id: 'reportissue', label: 'Report Issue' },
       ]
+    },
+    {
+      id: 'divider3',
+      type: 'divider'
+    },
+    {
+      id: 'logout',
+      label: 'Logout',
+      icon: <LogOut size={18} />,
+      type: 'button', // Mark this as a button, not a menu item
+      onClick: () => onLogout()
     }
   ];
 
@@ -163,7 +216,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   // Render content based on active page
   const renderPageContent = () => {
     // Only show devices list when on the devices/all page
-    if (activePage === 'devices' && activeSubPage === 'all') {
+    if (activePage === 'assets' && activeSubPage === 'bledevices') {
       return (
         <>
           {/* Search Bar */}
@@ -288,12 +341,12 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             />
             <div className="text-center flex-1">
               <h2 className="text-white font-medium">
-                {activePage === 'devices' && activeSubPage === 'all' 
+                {activePage === 'assets' && activeSubPage === 'bledevices' 
                   ? 'All Devices' 
                   : `${activePage.charAt(0).toUpperCase() + activePage.slice(1)} - ${activeSubPage.charAt(0).toUpperCase() + activeSubPage.slice(1)}`}
               </h2>
             </div>
-            {activePage === 'devices' && activeSubPage === 'all' && (
+            {activePage === 'assets' && activeSubPage === 'bledevices' && (
               <div className="relative">
                 <RefreshCcw
                   onClick={handleRescan}
@@ -301,7 +354,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
                 />
               </div>
             )}
-            {activePage !== 'devices' || activeSubPage !== 'all' && (
+            {activePage !== 'assets' || activeSubPage !== 'bledevices' && (
               <div className="w-6 h-6"></div> // Spacer for alignment
             )}
           </div>
@@ -311,7 +364,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         </div>
       </div>
 
-      {/* Sidebar Menu with expandable menu items */}
+      {/* Sidebar Menu with expandable menu items and proper scrolling */}
       <div
         className="fixed top-0 left-0 bg-[#1c1f22] min-h-screen transition-transform duration-300 transform"
         style={{
@@ -334,51 +387,80 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             </div>
           </div>
 
-          {/* Menu Items */}
+          {/* Menu Items with overflow scrolling */}
           <div className="flex-1 overflow-y-auto">
-            {menuItems.map((menuItem) => (
-              <div key={menuItem.id} className="mb-1">
-                {/* Menu Item Header */}
-                <div
-                  className={`flex items-center justify-between px-6 py-3 cursor-pointer ${
-                    activePage === menuItem.id ? 'bg-[#2a2d31]' : 'hover:bg-[#2a2d31]'
-                  }`}
-                  onClick={() => toggleSubmenu(menuItem.id)}
-                >
-                  <div className="flex items-center">
-                    <span className={`mr-3 ${activePage === menuItem.id ? 'text-blue-500' : 'text-gray-400'}`}>
-                      {menuItem.icon}
-                    </span>
-                    <span className={activePage === menuItem.id ? 'text-white' : 'text-gray-200'}>
+            {menuItems.map((menuItem) => {
+              // Handle dividers
+              if (menuItem.type === 'divider') {
+                return (
+                  <div key={menuItem.id} className="px-6 py-2">
+                    <div className="border-t border-gray-700"></div>
+                  </div>
+                );
+              }
+              
+              // Handle logout button
+              if (menuItem.type === 'button') {
+                return (
+                  <div key={menuItem.id} className="px-6 py-2">
+                    <button
+                      className="flex items-center w-full px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                      onClick={() => (menuItem as any).onClick?.()}
+                    >
+                      <span className="mr-3 text-white">
+                        {menuItem.icon}
+                      </span>
                       {menuItem.label}
+                    </button>
+                  </div>
+                );
+              }
+              
+              // Regular menu items
+              return (
+                <div key={menuItem.id} className="mb-1">
+                  {/* Menu Item Header */}
+                  <div
+                    className={`flex items-center justify-between px-6 py-3 cursor-pointer ${
+                      activePage === menuItem.id ? 'bg-[#2a2d31]' : 'hover:bg-[#2a2d31]'
+                    }`}
+                    onClick={() => toggleSubmenu(menuItem.id)}
+                  >
+                    <div className="flex items-center">
+                      <span className={`mr-3 ${activePage === menuItem.id ? 'text-blue-500' : 'text-gray-400'}`}>
+                        {menuItem.icon}
+                      </span>
+                      <span className={activePage === menuItem.id ? 'text-white' : 'text-gray-200'}>
+                        {menuItem.label}
+                      </span>
+                    </div>
+                    <span className="text-gray-400">
+                      {expandedMenus[menuItem.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </span>
                   </div>
-                  <span className="text-gray-400">
-                    {expandedMenus[menuItem.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </span>
-                </div>
 
-                {/* Submenu Items */}
-                {expandedMenus[menuItem.id] && (
-                  <div className="bg-[#161a1d] overflow-hidden transition-all">
-                    {menuItem.subItems.map((subItem) => {
-                      const isActive = activePage === menuItem.id && activeSubPage === subItem.id;
-                      return (
-                        <div
-                          key={subItem.id}
-                          className={`pl-12 pr-6 py-2 cursor-pointer ${
-                            isActive ? 'bg-[#2d4c6d] text-white' : 'hover:bg-[#252a2e] text-gray-400'
-                          }`}
-                          onClick={() => handleSubMenuItemClick(menuItem.id as PageType, subItem.id)}
-                        >
-                          {subItem.label}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
+                  {/* Submenu Items */}
+                  {expandedMenus[menuItem.id] && menuItem.subItems && (
+                    <div className="bg-[#161a1d] overflow-hidden transition-all">
+                      {menuItem.subItems.map((subItem) => {
+                        const isActive = activePage === menuItem.id && activeSubPage === subItem.id;
+                        return (
+                          <div
+                            key={subItem.id}
+                            className={`pl-12 pr-6 py-2 cursor-pointer ${
+                              isActive ? 'bg-[#2d4c6d] text-white' : 'hover:bg-[#252a2e] text-gray-400'
+                            }`}
+                            onClick={() => handleSubMenuItemClick(menuItem.id as PageType, subItem.id)}
+                          >
+                            {subItem.label}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Menu Footer */}
