@@ -214,7 +214,7 @@ const AppContainer = () => {
               const parsedData: BleDevice = JSON.parse(data);
               console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
 
-              if (parsedData.macAddress && parsedData.name && parsedData.rssi) {
+              if (parsedData.macAddress && parsedData.name && parsedData.rssi && parsedData.name.includes("OVES")) {
                 // Store the raw rssi value for sorting, and use the formatted version for display
                 const rawRssi = Number(parsedData.rssi);
                 const formattedRssi = convertRssiToFormattedString(rawRssi);
