@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Battery, Download, Bluetooth, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import DeviceHeader from '@/app/DeviceHeader';
+import DeviceHeader from '@/components/DeviceHeader';
 
 interface DeviceDetailProps {
   device?: {
