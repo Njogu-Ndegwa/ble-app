@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { ArrowLeft, Battery, Download, Bluetooth, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DeviceHeader from '@/components/DeviceHeader';
-import DeviceInfo from '@/components/DeviceInfo';
 
 interface DeviceDetailProps {
   device?: {
@@ -44,7 +43,21 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
         <DeviceHeader onBack={onBack || router.back} />
-        <DeviceInfo device={device} />
+        
+
+      {/* Device Image and Basic Info */}
+      <div className="flex flex-col items-center p-6 pb-2">
+        <div className="relative mb-4">
+          <img 
+            src={device.imageUrl} 
+            alt={device.title}
+            className="w-40 h-40 object-contain"
+          />
+        </div>
+        <h2 className="text-xl font-semibold">{device.title}</h2>
+        <p className="text-sm text-gray-400 mt-1">{device.subtitle}</p>
+
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-800">
