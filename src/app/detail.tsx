@@ -38,11 +38,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     { id: 'DTA', label: 'DTA' },
     { id: 'DIA', label: 'DIA' },
   ];
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.back();
+    }
+  };
 
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
-        <DeviceHeader onBack={onBack || router.back} />
+      <DeviceHeader onBack={handleBack} />
         
 
       {/* Device Image and Basic Info */}

@@ -8,6 +8,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import { ArrowLeft, Share2 } from 'lucide-react';
 import { AsciiStringModal, NumericModal } from './modals';
 import { Clipboard } from "lucide-react";
+import DeviceHeader from '@/components/DeviceHeader';
+
 interface DeviceDetailProps {
   device: {
     macAddress: string;
@@ -167,13 +169,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
       />
 
       {/* Header */}
-      <div className="p-4 flex items-center">
-        <button onClick={handleBack} className="mr-4">
-          <ArrowLeft className="w-6 h-6 text-gray-400" />
-        </button>
-        <h1 className="text-lg font-semibold flex-1">Device Details</h1>
-        <Share2 className="w-5 h-5 text-gray-400" />
-      </div>
+      <DeviceHeader onBack={handleBack} />
 
       {/* Device Image and Info */}
       <div className="flex flex-col items-center p-6 pb-2">
