@@ -1,17 +1,12 @@
 'use client'
 
 import React, { useState } from 'react';
-import {
-  User,
-  BluetoothSearching,
-  ListFilter,
-  ArrowUpDown,
-  RefreshCcw,
-  BluetoothConnected
-} from 'lucide-react';
 import { BleDevice } from './page';
 import Sidebar from '@/components/Sidebar';
 import SearchBar from '@/components/SearchBar';
+import DeviceList from '@/components/DeviceList';
+import SortFilterBar from '@/components/SortFilterBar';
+import Header from '@/components/Header';
 
 interface MobileListViewProps {
   items: BleDevice[];
@@ -26,19 +21,6 @@ interface MobileListViewProps {
 // Define page types for navigation
 type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company' | 'myaccount' | 'settings' | 'debug';
 type SubPageType = string;
-
-// Skeleton loader component for device items
-const DeviceItemSkeleton = () => (
-  <div className="flex items-start p-3 rounded-lg bg-[#2A2F33] animate-pulse">
-    <div className="w-12 h-12 rounded-full mr-3 bg-[#3A3F43]"></div>
-    <div className="flex-1">
-      <div className="h-4 bg-[#3A3F43] rounded w-2/3 mb-2"></div>
-      <div className="h-3 bg-[#3A3F43] rounded w-1/2 mb-2"></div>
-      <div className="h-3 bg-[#3A3F43] rounded w-1/3"></div>
-    </div>
-    <div className="w-5 h-5 rounded-full bg-[#3A3F43]"></div>
-  </div>
-);
 
 const MobileListView: React.FC<MobileListViewProps> = ({
   items,
@@ -78,21 +60,8 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     setIsMenuOpen(false); // Close menu after selection
   };
 
-  // Handle rescan with loading state
-  const handleRescan = () => {
-    onRescanBleItems();
-  };
-
-  const handleDeviceClick = async (macAddress: string) => {
-    if (isMenuOpen) return;
-    onStartConnection(macAddress);
-  };
-
-  // Generate skeleton loaders
-  const renderSkeletons = () => {
-    return Array(5).fill(0).map((_, index) => (
-      <DeviceItemSkeleton key={`skeleton-${index}`} />
-    ));
+  const handleMenuOpen = () => {
+    setIsMenuOpen(true);
   };
 
   // Render content based on active page
@@ -101,7 +70,6 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     if (activePage === 'assets' && activeSubPage === 'bledevices') {
       return (
         <>
-          {/* Search Bar Component */}
           <SearchBar 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
@@ -109,64 +77,16 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             isMenuOpen={isMenuOpen}
           />
 
-          {/* Sort and Filter */}
-          <div className="flex gap-2 mb-4">
-            <button
-              className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
-              onClick={(e) => isMenuOpen && e.stopPropagation()}
-            >
-              Sort by...
-              <span className="text-xs">
-                <ArrowUpDown />
-              </span>
-            </button>
-            <button
-              className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
-              onClick={(e) => isMenuOpen && e.stopPropagation()}
-            >
-              Filter
-              <span className="text-lg">
-                <ListFilter />
-              </span>
-            </button>
-          </div>
+          <SortFilterBar isMenuOpen={isMenuOpen} />
 
-          {/* List Items or Skeleton Loaders */}
-          <div className="space-y-3">
-          {items.length === 0 && isScanning ? (
-              renderSkeletons()
-            ) : filteredItems.length > 0 ? (
-              filteredItems.map((item) => (
-                <div
-                  key={item.macAddress}
-                  className="flex items-start p-3 rounded-lg bg-[#2A2F33] cursor-pointer hover:bg-[#343a40] transition-colors"
-                  onClick={() => handleDeviceClick(item.macAddress)}
-                >
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="w-12 h-12 rounded-full mr-3"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-[14px] font-medium text-white">{item.name}</h3>
-                    <p className="text-[10px] text-gray-400">{item.macAddress}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">{item.rssi}</p>
-                  </div>
-                  <span className="text-lg">
-                    {item.macAddress === connectedDevice ? (
-                      <BluetoothConnected className="text-blue-500" />
-                    ) : (
-                      <BluetoothSearching className="text-gray-400" />
-                    )}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-6 text-gray-400">
-                {searchQuery ? "No devices match your search." : "No devices found. Try scanning again."}
-              </div>
-            )}
-          </div>
+          <DeviceList
+            items={items}
+            filteredItems={filteredItems}
+            connectedDevice={connectedDevice}
+            onDeviceClick={onStartConnection}
+            isScanning={isScanning}
+            searchQuery={searchQuery}
+          />
         </>
       );
     } else {
@@ -184,6 +104,14 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     }
   };
 
+  // Determine the title based on active page and subpage
+  const getPageTitle = () => {
+    if (activePage === 'assets' && activeSubPage === 'bledevices') {
+      return 'All Devices';
+    }
+    return `${activePage.charAt(0).toUpperCase() + activePage.slice(1)} - ${activeSubPage.charAt(0).toUpperCase() + activeSubPage.slice(1)}`;
+  };
+
   return (
     <div className="relative max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen overflow-hidden">
       <div
@@ -196,41 +124,21 @@ const MobileListView: React.FC<MobileListViewProps> = ({
       >
         {/* Content Area */}
         <div className="p-4">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-4">
-            <User
-              className="w-6 h-6 text-gray-400 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(true);
-              }}
-            />
-            <div className="text-center flex-1">
-              <h2 className="text-white font-medium">
-                {activePage === 'assets' && activeSubPage === 'bledevices' 
-                  ? 'All Devices' 
-                  : `${activePage.charAt(0).toUpperCase() + activePage.slice(1)} - ${activeSubPage.charAt(0).toUpperCase() + activeSubPage.slice(1)}`}
-              </h2>
-            </div>
-            {activePage === 'assets' && activeSubPage === 'bledevices' && (
-              <div className="relative">
-                <RefreshCcw
-                  onClick={handleRescan}
-                  className={`w-6 h-6 text-gray-400 ${items.length === 0 && isScanning ? 'animate-spin' : ''}`}
-                />
-              </div>
-            )}
-            {activePage !== 'assets' || activeSubPage !== 'bledevices' && (
-              <div className="w-6 h-6"></div> // Spacer for alignment
-            )}
-          </div>
+          <Header 
+            title={getPageTitle()}
+            showRefresh={activePage === 'assets' && activeSubPage === 'bledevices'}
+            isScanning={isScanning}
+            itemsLength={items.length}
+            onMenuOpen={handleMenuOpen}
+            onRefresh={onRescanBleItems}
+          />
 
           {/* Page Content */}
           {renderPageContent()}
         </div>
       </div>
 
-      {/* Sidebar Menu - Now extracted as a component */}
+      {/* Sidebar Menu */}
       <Sidebar
         isMenuOpen={isMenuOpen}
         sidebarWidth={sidebarWidth}
