@@ -2,17 +2,16 @@
 
 import React, { useState } from 'react';
 import {
-  Search,
   User,
   BluetoothSearching,
   ListFilter,
   ArrowUpDown,
-  Camera,
   RefreshCcw,
   BluetoothConnected
 } from 'lucide-react';
 import { BleDevice } from './page';
 import Sidebar from '@/components/Sidebar';
+import SearchBar from '@/components/SearchBar';
 
 interface MobileListViewProps {
   items: BleDevice[];
@@ -102,29 +101,13 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     if (activePage === 'assets' && activeSubPage === 'bledevices') {
       return (
         <>
-          {/* Search Bar */}
-          <div className="relative mb-4">
-            <input
-              type="text"
-              className="w-full px-4 py-2 border border-gray-700 bg-gray-800 rounded-lg pr-20 focus:outline-none text-white"
-              placeholder="Search devices..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onClick={(e) => isMenuOpen && e.stopPropagation()}
-            />
-            <div className="absolute right-3 top-2.5 flex items-center space-x-3">
-              <div
-                className="cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onScanQrCode();
-                }}
-              >
-                <Camera size={18} className="text-gray-400 hover:text-white transition-colors" />
-              </div>
-              <Search className="w-5 h-5 text-gray-400" />
-            </div>
-          </div>
+          {/* Search Bar Component */}
+          <SearchBar 
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onScanQrCode={onScanQrCode}
+            isMenuOpen={isMenuOpen}
+          />
 
           {/* Sort and Filter */}
           <div className="flex gap-2 mb-4">
