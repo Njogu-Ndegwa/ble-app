@@ -1,14 +1,15 @@
+// DeviceDetailView.tsx
 'use client'
 
 import React, { useState } from 'react';
-
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from './utils';
 import { Toaster, toast } from 'react-hot-toast';
-import { ArrowLeft, Share2 } from 'lucide-react';
 import { AsciiStringModal, NumericModal } from './modals';
 import { Clipboard } from "lucide-react";
 import DeviceHeader from '@/components/DeviceHeader';
+import ServiceTabs from '@/components/ServiceTabs';
+import CharacteristicCard from '@/components/CharacteristicCard';
 
 interface DeviceDetailProps {
   device: {
@@ -24,15 +25,11 @@ interface DeviceDetailProps {
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
   const router = useRouter();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
-  // Loading state for read operations
   const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
-
-  // Modal states
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-
-  // Service mapping configuration
+  
   const fixedTabs = [
     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
     { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
@@ -41,22 +38,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
   ];
 
-  // State management
   const [activeTab, setActiveTab] = useState(fixedTabs[0].id);
 
-  // Get active service data
   const activeService = attributeList.find(service =>
-    fixedTabs.find(tab =>
-      tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum
-    )
+    fixedTabs.find(tab => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
   );
 
-  console.warn(activeService)
-
-  // Handle back navigation
   const handleBack = () => onBack ? onBack() : router.back();
 
-  // Format values based on type
   const formatValue = (characteristic: any) => {
     if (typeof characteristic.realVal === 'number') {
       switch (characteristic.valType) {
@@ -69,35 +58,26 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     return characteristic.realVal || 'N/A';
   };
 
-  // Handle read operation
   const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
-    // Set loading state for this characteristic
     setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
 
     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
-      // Clear loading state
       setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
 
       if (data) {
-        console.info(data.realVal, "Value of Field");
         toast.success(`${name} read successfully`);
-        // Update the value in our state
         setUpdatedValues(prev => ({
           ...prev,
           [characteristicUuid]: data.realVal
         }));
       } else {
-        console.error("Error Reading Characteristics");
         toast.error(`Failed to read ${name}`);
       }
     });
   };
 
-  // Handle opening the appropriate modal
   const handleWriteClick = (characteristic: any) => {
     setActiveCharacteristic(characteristic);
-
-    // Determine which modal to open based on characteristic name
     if (characteristic.name.toLowerCase().includes('pubk')) {
       setAsciiModalOpen(true);
     } else {
@@ -105,163 +85,69 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, 
     }
   };
 
-  // Handle write operation
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !activeService) return;
 
-    console.info({
-      action: 'write',
-      serviceUuid: activeService.uuid,
-      characteristicUuid: activeCharacteristic.uuid,
-      macAddress: device.macAddress,
-      name: device.name,
-      value: value
-    });
     writeBleCharacteristic(
       activeService.uuid,
       activeCharacteristic.uuid,
       value,
       device.macAddress,
       (data: any, error: any) => {
-        console.info({"data": data, "error": error})
         if (data) {
-          console.info(data, "Is Data 123")
-
+          toast.success(`Value written to ${activeCharacteristic.name}`);
+          setTimeout(() => {
+            handleRead(activeService.uuid, activeCharacteristic.uuid, device.name);
+          }, 1000);
         }
       }
     );
-    // Here you would implement the actual BLE write operation
-    // For now, we'll just show a success message
-    toast.success(`Value written to ${activeCharacteristic.name}`);
-
-    setTimeout(() => {
-      handleRead(
-        activeService.uuid,
-        activeCharacteristic.uuid,
-        device.name
-      )
-    }, 1000)
-    // // Update the value in our state
-    // setUpdatedValues(prev => ({
-    //   ...prev,
-    //   [activeCharacteristic.uuid]: value
-    // }));
   };
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
       <Toaster />
-
-      {/* ASCII String Modal */}
       <AsciiStringModal
         isOpen={asciiModalOpen}
         onClose={() => setAsciiModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || "Public Key / Last Code"}
       />
-
-      {/* Numeric Modal */}
       <NumericModal
         isOpen={numericModalOpen}
         onClose={() => setNumericModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || "Read"}
       />
-
-      {/* Header */}
       <DeviceHeader onBack={handleBack} />
-
-      {/* Device Image and Info */}
       <div className="flex flex-col items-center p-6 pb-2">
         <img
           src={device.imageUrl}
-          alt={device.name || "dsdsf"}
+          alt={device.name || "Device Image"}
           className="w-40 h-40 object-contain mb-4"
         />
-        <h2 className="text-xl font-semibold">{device.name || "sfd"}</h2>
-        <p className="text-sm text-gray-400 mt-1">{device.macAddress || "sfd"}</p>
-        <p className="text-sm text-gray-400 mt-1">{device.rssi || "sfd"}</p>
+        <h2 className="text-xl font-semibold">{device.name || "Device Name"}</h2>
+        <p className="text-sm text-gray-400 mt-1">{device.macAddress || "MAC Address"}</p>
+        <p className="text-sm text-gray-400 mt-1">{device.rssi || "RSSI"}</p>
       </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-800">
-        <div className="flex justify-between px-4">
-          {fixedTabs.map(tab => {
-            const serviceExists = attributeList.some(s => s.serviceNameEnum === tab.serviceNameEnum);
-            return (
-              <button
-                key={tab.id}
-                className={`py-3 px-4 text-sm font-medium relative ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-                  } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={() => serviceExists && setActiveTab(tab.id)}
-                disabled={!serviceExists}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Service Content */}
+      <ServiceTabs
+        tabs={fixedTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        attributeList={attributeList}
+      />
       <div className="p-4">
         {activeService ? (
           <div className="space-y-4">
             {activeService.characteristicList.map((char: any) => (
-              <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
-                <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-                  <span className="text-sm font-medium">{char.name}</span>
-                  <div className="flex space-x-2">
-                    <button
-                      className={`text-xs ${loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'} px-3 py-1 rounded transition-colors`}
-                      onClick={() => handleRead(activeService.uuid, char.uuid, char.name)}
-                      disabled={loadingStates[char.uuid]}
-                    >
-                      {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
-                    </button>
-                    {activeTab === 'CMD' && (
-                      <button
-                        className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
-                        onClick={() => handleWriteClick(char)}
-                      >
-                        Write
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="p-4 space-y-2">
-                  <div>
-                    <p className="text-xs text-gray-400">Description</p>
-                    <p className="text-sm">{char.desc}</p>
-                  </div>
-                  <div className="flex items-center justify-between group">
-                    <div className="flex-grow">
-                      <p className="text-xs text-gray-400">Current Value</p>
-                      <p className="text-sm font-mono">
-                        {updatedValues[char.uuid] !== undefined
-                          ? updatedValues[char.uuid]
-                          : formatValue(char)}
-                      </p>
-                    </div>
-                    <button
-                      className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
-                      onClick={() => {
-                        const valueToCopy = updatedValues[char.uuid] !== undefined
-                          ? updatedValues[char.uuid]
-                          : formatValue(char);
-                        navigator.clipboard.writeText(valueToCopy);
-                        toast.success('Value copied to clipboard');
-                      }}
-                      aria-label="Copy to clipboard"
-                    >
-                      <Clipboard size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <CharacteristicCard
+                key={char.uuid}
+                characteristic={char}
+                onRead={() => handleRead(activeService.uuid, char.uuid, char.name)}
+                onWrite={() => handleWriteClick(char)}
+                isLoading={loadingStates[char.uuid]}
+                formattedValue={updatedValues[char.uuid] !== undefined ? updatedValues[char.uuid] : formatValue(char)}
+              />
             ))}
           </div>
         ) : (
