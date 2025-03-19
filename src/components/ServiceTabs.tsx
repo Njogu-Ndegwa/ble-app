@@ -1,21 +1,24 @@
-'use client'
-
 import React from 'react';
 
-interface Tab {
+interface ServiceTab {
   id: string;
   label: string;
   serviceNameEnum: string;
 }
 
 interface ServiceTabsProps {
-  tabs: Tab[];
+  tabs: ServiceTab[];
   activeTab: string;
-  onTabChange: (tabId: string) => void;
+  setActiveTab: (id: string) => void;
   attributeList: any[];
 }
 
-const ServiceTabs: React.FC<ServiceTabsProps> = ({ tabs, activeTab, onTabChange, attributeList }) => {
+export const ServiceTabs: React.FC<ServiceTabsProps> = ({ 
+  tabs, 
+  activeTab, 
+  setActiveTab, 
+  attributeList 
+}) => {
   return (
     <div className="border-b border-gray-800">
       <div className="flex justify-between px-4">
@@ -24,9 +27,10 @@ const ServiceTabs: React.FC<ServiceTabsProps> = ({ tabs, activeTab, onTabChange,
           return (
             <button
               key={tab.id}
-              className={`py-3 px-4 text-sm font-medium relative ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-                } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={() => serviceExists && onTabChange(tab.id)}
+              className={`py-3 px-4 text-sm font-medium relative ${
+                activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+              } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => serviceExists && setActiveTab(tab.id)}
               disabled={!serviceExists}
             >
               {tab.label}
