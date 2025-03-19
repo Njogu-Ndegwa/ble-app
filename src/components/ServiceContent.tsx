@@ -1,5 +1,5 @@
 import React from 'react';
-import { CharacteristicCard } from './CharacteristicCard';
+import { CharacteristicCard } from '@/components/CharacteristicCard';
 
 interface ServiceContentProps {
   activeService: any;
