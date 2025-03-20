@@ -12,6 +12,18 @@ export const initBleData = (macAddress, callback) => {
     });
 };
 
+export const initSingleBleDataService = (data, callback) => {
+  console.info("------16-----Init Single BLe Dta Service.")
+  window.WebViewJavascriptBridge.callHandler(
+      'initServiceBleData', 
+      data,
+      (responseData) => {
+          console.info("initServiceBleData:" + responseData);
+          if (callback) callback(responseData);
+      }
+  );
+};
+
 export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddress, callback) => {
     // if (!macAddress) {
     //   console.error("No MAC address provided. Retrieving from sessionStorage...");

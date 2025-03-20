@@ -7,7 +7,7 @@ import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import ProgressiveLoading from './loader';
-import { connBleByMacAddress, initBleData } from "./utils"
+import { connBleByMacAddress, initBleData, initSingleBleDataService } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { ScanQrCode } from 'lucide-react';
 // Sample data structure for devices
@@ -274,10 +274,14 @@ const AppContainer = () => {
         );
 
         bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
-          sessionStorage.setItem('connectedDeviceMac', macAddress);
+          // sessionStorage.setItem('connectedDeviceMac', macAddress);
           setConnectedDevice(macAddress); // Set the connected device
           setIsScanning(false);
-          initBleData(macAddress);
+          let data: any = {}
+          data.serviceName="ATT";//ATT/STS/DIA/CMD
+          data.macAddress= macAddress
+          initSingleBleDataService(data)
+          // initBleData(macAddress);
           responseCallback(macAddress);
         });
 
@@ -336,6 +340,7 @@ const AppContainer = () => {
           "bleInitDataOnProgressCallBack",
           (data) => {
             try {
+              console.info(data, "Data----343---")
               const parsedData = JSON.parse(data);
               const progressPercentage = Math.round(
                 (parsedData.progress / parsedData.total) * 100

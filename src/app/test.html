@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title></title>
+		<!-- <script src="https://unpkg.com/vue@next"></script> -->
+		<script src="js/v3.2.8/vue.global.prod.js" type="text/javascript" charset="utf-8"></script>
+		<script type="text/javascript" src="js/vconsole.min.js"></script>
+
+	<body style="width: 100%;height:100%;background-color: #000000;">
+		<div id="app"
+			style="flex: 1;height: 80%; display: flex;flex-direction: column;flex-wrap: wrap;justify-content: center;align-items: center;justify-items: center;">
+
+
+			<div
+				style="width: 100%;height: 50px;display: flex; flex-direction: row;justify-content: center;align-items: center;margin-top: 10px;">
+				<input v-model="keyword" style="width: 200px;height: 50px;" placeholder="please input macAddress" />
+				<button style="width: 200px;height: 50px;" @click="this.startBleScan">startBleScan</button>
+			</div>
+
+
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.stopBleScan">stopBleScan</button>
+
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.toastMsg">toastMsg</button>
+
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.startQrCode">startQrCode</button>
+
+			<button style="width: 200px;height: 50px;margin-top: 10px;"
+				@click="this.jump2MainActivity">jump2MainActivity</button>
+
+			<div
+				style="width: 100%;height: 50px;display: flex; flex-direction: row;justify-content: center;align-items: center;margin-top: 10px;">
+				<input v-model="macAddress" style="width: 200px;height: 50px;" placeholder="please input macAddress" />
+				<button style="width: 200px;height: 50px;"
+					@click="this.connBleByMacAddress">connBleByMacAddress</button>
+			</div>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"
+				@click="this.choosePicture">choosePicture</button>
+
+			<div
+				style="width: 100%;height: 50px;display: flex; flex-direction: row;justify-content: center;align-items: center;margin-top: 10px;">
+				<input v-model="phone" style="width: 200px;height: 50px;" placeholder="please input phone" />
+				<button style="width: 200px;height: 50px;" @click="this.callPhone">callPhone</button>
+			</div>
+
+			<div
+				style="width: 100%;height: 50px;display: flex; flex-direction: row;justify-content: center;align-items: center;margin-top: 10px;">
+				<input v-model="sms.phone" style="width: 200px;height: 50px;" placeholder="please input phone" />
+				<input v-model="sms.content" style="width: 200px;height: 50px;" placeholder="please input phone" />
+				<button style="width: 200px;height: 50px;" @click="this.sendSms">sendSms</button>
+			</div>
+
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.connectMqtt">connectMqtt</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.mqttSubTopic">mqttSubTopic</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"
+				@click="this.mqttUnSubTopic">mqttUnSubTopic</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"
+				@click="this.mqttPublishMsg">mqttPublishMsg</button>
+
+
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.saveParam">saveParam</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;" @click="this.getParam">getParam</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"
+				@click="this.removeParam">removeParam</button>
+				
+			<button style="width: 200px;height: 50px;margin-top: 10px;"@click="this.fingerprintVerification">fingerprintVerification</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"@click="this.openOcr">openOcr</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"@click="this.saveImg">saveImg</button>
+			
+			<button style="width: 200px;height: 50px;margin-top: 10px;"@click="this.startLocationListener">startLocationListener</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"@click="this.stopLocationListener">stopLocationListener</button>
+			<button style="width: 200px;height: 50px;margin-top: 10px;"@click="this.getLastLocation">getLastLocation</button>
+			
+
+		</div>
+	</body>
+	<script>
+		const App = {
+			data() {
+				return {
+					macAddress: "FF:23:12:07:00:01",
+					keyword: "OVES",
+					base64Img: "",
+					phone: "123456789",
+					imgBase64Str:"iVBORw0KGgoAAAANSUhEUgAAASsAAACACAYAAABTCE8tAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAzgSURBVHhe7Z29ztzGFUDzOCkEAylUOQEiFRYM24HcBCqsSoVcqRFsII1h4CsC9TKcRoVLQ06TIioNxw+gZ9CTMOT8cGeGd2YuySV3h3uKA1vk5cyQnHv2kvhI/uGP9+53s3n6unv7n18NP758LMd88l33o4n5uXvxibAeAGAGy2QFALAzyAoAmgBZAUATICsAaAJkBQBNgKwAoAmQFQA0AbICgCbYSFaPuxdvfu3evnourIOQhy9/tn9gu8Ox2rOvLXjyaoexB3/wfPdUWA8XA1mluL+832uieoFknwTQoBzz2r6MLPrtQ1aNeyaby2rncw/zQFYpLU7YncZsZPHmu+6hX+aqkL2O1dayMjIP9w+uCmSVgqyyTGR173l31/e713lGVrfNKlmZyTNMVkP4wPJJVuN9kgFhIkTrB9LJOPx6m+1cYjjSxKy248iNebJ9xOvuSdhOcF/DsGTMtTZyccFY1GPW9tWTP6czZKXoT3W+Jvsux/3pm393f//v/7q/fbPuktSMCVldLQtl5SZpdGJ7Qb30E8nJKoqx20T3OPrJGN/zkGP8RPXJbid6nIzVdqpjdtSqFDOeUF6u3TCJNGMeKVSh2opJXVkV+lIcn1RWdp+St2ooj4/uvAuyRFY3yyJZ5RPP45IiOfG5yRYyiXGJHyWiSc4kSRLSdupjdhQT3+5XnGhC27PGXBCIkLAiZ5CV5viYY9r3cyKNVx4fgfh8ye1o5s9y5D7helgkq/qkkZNC2m6aAEmMSdi6ZGrtqCd6MfFdlSCSyqo+ZkteIOM6035BWmeQleb4mBj/A+SEHCe38vj0FM9XZn/U53AW/hgrfhTgoiyQVSm5PHJMOtnshBUmcbidIvHr7WjG7FDIqiqFs8nK4xNqQEiq1bLSHR9zTINqeXrcdcener52lZVnxhyBi7C8siomo3zi48nmfoWLMT3VxNe1Ux+zo5j4ygl9dll5MrGrZaU7PiYmvLSfVFeafdGcLxsjVm3FttdhLle5Z3W1LLvB7pIjnjj9RE1vsBcnpIuZ/FIn21UTX9lOdcyeclLY+y8VMWwmKymJT8vrbRT6UhyfiayEY18/PtNtpPMV9+X2L7OP3GC/DZbJyhBMIEN4eSInhZmA4TKfII4hCc2ECWM0ia9px1Aac0DSXtq/T8iImWMW2zCcxiTFTEXlKIxZ05elfHymsupx1VUop+rxUZ0vN4dczND+NMaCrG6DFbICOBbI6rpBVgAeV/HV7/3BJUBWACHustZfeooxcBGQFQA0AbICgCZAVgDQBMgKAJpgkaz+/NdPxeUAAFtBZQUATUBlBQBNQGUFAE1AZbUh4zNywvNsUOHTJ90/f/9H969fnnR/ufewe/ZL//+/v+iefTozBg4DldWGeFllHz5eS+7xEPNX2O4hZE1M/+/xzQcpXrSTB6UH0gehz8kX3bcTET3rvpwdA0eByqplziirEROfWx63s62MnYh++ML8+8sfCrIqxsBRoLJqmQvLasAKS/vurjm4SqkoIk0MHIXjVFYm+cJLFCGB0pj0XtKw3rwiJH6v05igxQQPKoxaPwHx5ZfQdqmtK5BVbvm53jEF4DlGZZVLpBCTnKHAnJDC5A/E4NuKKwdhm0lMiPwSQotrK3p/Uh8fvrm0NmaNiDQx4XITP19W6aUgsoJzc4zKKpd4I1YaaUJNJONkFSVkkrxTMZWElF9Xv3xSjFkjIk1MuDzZ33i50I4T6Db3rQBOHOSelZNCnzSytFxFIpLKqiSQnjRpc8ltyMtq8ornCYoxa0SkiQmX5/Yn145bjqxga45zz8qQk5ZN/GlVkKCRVU8oGlPpZF+Fm5NVXmInFGO+BlmZdhTHFmAlB6msUlIZaOTQo5TVKc62m0/UfL/2xnqpL73Qype3mpiAmbIy+8F7y2EHDlZZeaYJapOzUgFoZeWrnpdDAi8Ujkv+eF0fH9xg14x5Kr3pvmtiRmbIyrYrxPZc2w12O9bMPkMTHKKy8kkdIk1KKS6ShVpWp7bU/RjSxLbSyK9XjLnHJ6JHGlMtJl0/4vvycg0pVFTXJqvTcdSdX7g+DlpZAaS4HwYuWZvloPesAGJ8ZVW8DQBXDZUVHJvx8lW+twbtQGUFAE1AZQUATUBlBQBNQGUFAE1AZQUATUBlBQBNQGUFAE1AZQUATXAjlZXmDQYwMD5Dt8Ox2rOvpuAzZCI3Ulk1LCvhbQdb4gWy6u0EyjGv6ivXh3kY3f21uiam//eih7g3/Yt4PkMmQWV17ewsq7Owx5jPKKsRE59bHrdzFqln4TNkElRW184eiX9u9hizRkSamHC5idfJasAKa4tXzmg+MaaJORaHqqzicj6cdCdZjfdJBoTXhUTrB1LBDRPdbBe/i0qeyIV2HLkxT7aPSBLEJF+wfsmYa23k4oKxqMes7asne06vQFa55XzZZxsOUllJ7yrqBTW+ddPJKoqx20RlfD+J47JejvHJ4yepTdI4GavtVMfsyCWKx4wnlJdrNxSAZswjhSq0NhaPNq7UV+345Pow+7qvrOLziqy24hCVVT7xPC4poonvfrULv+oDkxiX+NHEzU3ygLSd+pgduUQx2P1Kk0WSp37MBYHkkjylOOaQfF/V45PrY09ZiT9CsBWHqKzq0pGTQtrOLOsnYEQYYyZ6XTK1dupjdhQT31UfIqmsFGI0FGTl15n2C9Iqjjkk31f1+GhEpIkJl5v4GbJyy5HVPhygsioll0cnKyuYOKknSaNI/Ho7mjE7colisLKqSuFssvK4mL7vfNIrxpXtSzGGXB97ysq0o9lPOAfHqayKyShP/lggwr2eSUxPNfF17dTH7CgmvkYsPWeXlScTWxxzSL6v+vGRL8Hiy0dNTMBMWZkxJrcWYDsOcc/KT6Z40veJkN5gT5IiFoiLCSafTZhku2riK9upjtkjy89jE68ihs1kJcugNuYThb4Ux2cqtOl4NDEjM2Rl2xVie/gM2TYcorKyuAQZCSeSnBTmJIbLfII4hpNrZBDGaBJf046hNOaApL20fy+siJljFtswnMYkxWQToDBmTV+W+vHxieiRxlOLSdeP+GM42ZeeQkXFZ8i24RiVFQAUcNJv/JL1QJUVAEj4yqp+D/G6obICOCrj5Wvm9kJjUFkBQBNQWQFAE1BZAUATUFkBQBNQWQFAE1BZAUATUFkBQBNQWQFAE1BZ7cT9N133+ZvvxXUeTcwh4FNTsAAqq4V8dPeh+/x9L5d3P3UfCetTkFUIn5qC+VBZLeKr7uN3Xffg7qfu0fsP3cefSTExyCqET03BfKislvCZl5SV1qO7r+S4AGQVovmMlCYGbon2K6uvf7OXYsN//WWZkUn//+9/6+4HseOlmycjBiONMW5aOZl23OVf+P9hjBlX2NdA2l8txu/bve+7B0HMg6+DNqR2pP2a9BUfG3VMD19vgUvQfmXlE2yU1Ifu0bs+yZywxsTu4+IKyApAWhbLp6+e7sLkT6qpscry63vMmOJlk6pJHTNI47QfVriBRExMKBW3D2E76bGQ0MQ4kBVcgmNUVj7JXMJZkdikLSVfKoeJCCQmckqlJ18axn1pYnrCffPLov7ldmShJUJN0cQAXJCDVFYuyaLqYCorI4N+WUQgh4ksBCShme18NZapUKK2NTEDZt9K8nRVlEi4nZWaXZ4TkiYG4HIcpLKqy8qKSpDMKAeXrEVZhQmdIo3hxJayStvJg7SgXW6ksnIVSCKiVA6S0CIykvHth5ef8aVZ2r8mpqcqK41gJWaIeXbbANtwI5WVS7zgxrkVU5KMbvs4Qftt/Q32rDzi9k3bY19OQkm7mpi6rPxlqSTQEpIsU/IxfGoKLsHt3LPyInIMSWgSfVI5BOIwnC6FYsHEWGn4WCcv18YwhmlfihiFrAa8sCKCdqT1qYQ0MR4+NQWXoP3KCuAgn5qCMs1XVmk1ANsgHftr4SifmoIyVFbQLgf71BSUaf+eFQDcBFRWANAEVFYA0ATICgCaAFkBQBMgKwBoAmQFAE2ArACgCZbJ6ulr9ywWfzUMAPuwrrIy0uKvhwFge1ZeBj7uXrzh1RwAsD3ICgCaAFkBQBMgKwBogpWycu8S4qVnALAxq2Vl8O8VQloAsBGrZWVe1o+kAGBjuGcFAE2wuaz4TBIAnIPNZcVnkgDgHOxwGchnkgBgPetk5R5oLj3MzGeSAOAcLJNV8NaFbFXFZ5IA4IysvAwEANgHZAUATYCsAKAJkBUANAGyAoAmQFYA0ATICgCaAFkBQBNsJCv7GM7bV8+FdRAyPju5w7Hasy8N1zYeNXyK7iIgqxT3l/d7TUKfsKveSqEc85q+Su8tM+sWnOvqeHY+FyqucUw3ArJKaXEy7jBmI5Yzy6rKFZ6L0nGAbUFWKchKJJ+kmjdvLARZwcj97v9sqFEOXDf1LwAAAABJRU5ErkJggg==",
+					sms: {
+						phone: "1233",
+						content: "hello"
+					},
+					characteristicRead: {
+						serviceUUID: "",
+						characteristicUUID: "",
+						macAddress: "",
+					},
+					characteristicWrite: {
+						serviceUUID: "",
+						characteristicUUID: "",
+						value: "",
+						macAddress: "",
+					},
+					mainConfig: {
+						//"barBackgroundColor": "#A3A6A1",
+						"itemBackgroundColor": "#ffffff",
+						"itemSelBackgroundColor": "#000000",
+						"itemSelTextColor": "#202ED1",
+						"itemTextColor": "#000000",
+						"items": [{
+								"contentUrl": "https://www.baidu.com/",
+								"iconSelUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"iconUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"itemText": "baidu",
+								"sortIndex": 0
+							},
+							{
+								"contentUrl": "https://www.sougou.com/",
+								"iconSelUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"iconUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"itemText": "sougou",
+								"sortIndex": 3
+							},
+							{
+								"contentUrl": "https://cn.bing.com/",
+								"iconSelUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"iconUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"itemText": "bing",
+								"sortIndex": 1
+							},
+							{
+								"contentUrl": "https://www.google.com/",
+								"iconSelUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"iconUrl": "https://tse4-mm.cn.bing.net/th/id/OIP-C.MD5FdM4LTeNRm9dUmRasVgHaHa?rs=1&pid=ImgDetMain",
+								"itemText": "google",
+								"sortIndex": 2
+							}
+						]
+					},
+				}
+			},
+			mounted() {},
+			created() {
+
+				this.connectWebViewJavascriptBridge(function(bridge) {
+					//
+					bridge.init(function(message, responseCallback) {
+						responseCallback("js success!");
+					});
+
+					/////////////////////////////////Android Call JS: Registering JavaScript methods for Android to call, while you can also declare more methods.//////////////////////////////////
+
+					bridge.registerHandler("print", function(data, responseCallback) {
+						console.info(data);
+						responseCallback(data);
+					});
+
+					bridge.registerHandler("findBleDeviceCallBack", function(data, responseCallback) {
+						console.info(data);
+						responseCallback(data);
+
+					});
+
+					bridge.registerHandler("scanQrcodeResultCallBack", function(data, responseCallback) {
+						console.info(data);
+						responseCallback(data);
+					});
+
+					bridge.registerHandler("bleConnectSuccessCallBack", function(macAddress, responseCallback) {
+						console.info(macAddress);
+						responseCallback(macAddress);
+
+						
+						let data={};
+						data.serviceName="ATT";//ATT/STS/DIA/CMD
+						data.macAddress="AB-SS-CC-AA-XX";
+						window.WebViewJavascriptBridge.callHandler(
+							'initServiceBleData', data,
+							function(responseData) {
+								console.info("initServiceBleData:" + responseData);
+							}
+						);
+						
+					});
+					
+					
+					/*↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓*/
+					bridge.registerHandler("bleInitDataOnProgressCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					bridge.registerHandler("bleInitDataOnCompleteCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					bridge.registerHandler("bleInitDataFailureCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					/*↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑*/
+					
+					/*↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓*/
+					bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data, responseCallback) {
+						console.info(data);
+						let obj = JSON.parse(data);
+						that.loadingTotal = obj.total;
+						that.loadingCurrent = obj.progress;
+					});
+					bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data, responseCallback) {
+						console.info(data);
+						that.loadingDialog.close();
+					});
+					bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
+						console.info(data);
+						that.loadingDialog.close();
+					});
+					/*↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑*/
+					
+
+					bridge.registerHandler("choosePictureCallBack", function(data, responseCallback) {
+						console.info(data);
+
+					});
+
+					bridge.registerHandler("connectMqttCallBack", function(data, responseCallback) {
+						console.info(data);
+
+					});
+
+					bridge.registerHandler("mqttMsgArrivedCallBack", function(data, responseCallback) {
+						console.info(data);
+
+					});
+					
+					bridge.registerHandler("fingerprintVerificationCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					bridge.registerHandler("openOcrCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					bridge.registerHandler("saveImgCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					bridge.registerHandler("locationCallBack", function(data, responseCallback) {
+						console.info(data);
+					});
+					
+					/////////////////////////////////Android Call JS: Registering JavaScript methods for Android to call, while you can also declare more methods.//////////////////////////////////
+
+
+
+				})
+
+				//If calling Android’s method immediately after initialization, it needs a delay of about 500ms
+
+				// setTimeout(function() {
+				// 	toastMsg();
+				// }, 500); 
+
+
+
+			},
+			methods: {
+				/////////////////////////////////JS Call Android////////////////////////////////
+				startBleScan() {
+					window.WebViewJavascriptBridge.callHandler(
+						'startBleScan', this.keyword,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				stopBleScan() {
+					window.WebViewJavascriptBridge.callHandler(
+						'stopBleScan', "",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				connBleByMacAddress() {
+					window.WebViewJavascriptBridge.callHandler(
+						'connBleByMacAddress', this.macAddress,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				initBleData() {
+					window.WebViewJavascriptBridge.callHandler(
+						'initBleData', this.macAddress,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				initServiceBleData(serviceName) {
+					let data={};
+					data.serviceName=serviceName;//ATT/STS/DIA/CMD
+					data.macAddress="AB-SS-CC-AA-XX";
+					window.WebViewJavascriptBridge.callHandler(
+						'initServiceBleData', data,
+						function(responseData) {
+							console.info("initServiceBleData:" + responseData);
+						}
+					);
+				},
+
+				readBleCharacteristic() {
+					window.WebViewJavascriptBridge.callHandler(
+						'readBleCharacteristic', this.characteristicRead,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				writeBleCharacteristic() {
+					window.WebViewJavascriptBridge.callHandler(
+						'writeBleCharacteristic', this.characteristicWrite,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+				getScannedDevices() {
+					window.WebViewJavascriptBridge.callHandler(
+						'getScannedDevices', "",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				toastMsg() {
+					window.WebViewJavascriptBridge.callHandler(
+						'toastMsg', "toastMsg",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+				startQrCode() {
+					window.WebViewJavascriptBridge.callHandler(
+						'startQrCodeScan', 999,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				jump2MainActivity() {
+					window.WebViewJavascriptBridge.callHandler(
+						'jump2MainActivity', JSON.stringify(this.mainConfig),
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				choosePicture() {
+					window.WebViewJavascriptBridge.callHandler(
+						'choosePicture', 1,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				callPhone() {
+					window.WebViewJavascriptBridge.callHandler(
+						'callPhone', this.phone,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				sendSms() {
+					window.WebViewJavascriptBridge.callHandler(
+						'sendSms', this.sms,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+				/**
+				 * If this method is called again, the previous connection will be disconnected
+				 */
+				connectMqtt() {
+					let data = {
+						username: "Admin",
+						password: "7xzUV@MT",
+						clientId: "123",
+						hostname: "mqtt.omnivoltaic.com",
+						port: 1883
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'connectMqtt', data,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+
+				mqttSubTopic() {
+					let data = {
+						topic: "/a/b/c",
+						qos: 0
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'mqttSubTopic', data,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+
+				mqttUnSubTopic() {
+					let data = {
+						topic: "/a/b/c"
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'mqttUnSubTopic', data,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+				mqttPublishMsg() {
+					let data = {
+						topic: "/a/b/c",
+						qos: 0,
+						content: "this is content!"
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'mqttPublishMsg', data,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+
+				/**
+				 * Duplicate key values will overwrite the previous values. The data will not disappear when the program exits; it will only be lost if the application is uninstalled.
+				 */
+				saveParam() {
+					let data = {
+						key: "this is unique key",
+						value: "json data"
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'saveParam', data,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+
+				getParam() {
+					let data = {
+						key: "this is unique key"
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'getParam', data,
+						function(responseData) {
+							console.info(responseData);
+							
+							window.WebViewJavascriptBridge.callHandler(
+								'toastMsg', responseData,
+								
+							);
+						}
+					);
+				},
+				removeParam() {
+					let data = {
+						key: "this is unique key"
+					}
+					window.WebViewJavascriptBridge.callHandler(
+						'removeParam', data,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				
+				fingerprintVerification() {
+					window.WebViewJavascriptBridge.callHandler(
+						'fingerprintVerification', "",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				openOcr() {
+					window.WebViewJavascriptBridge.callHandler(
+						'openOcr', this.imgBase64Str,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				saveImg() {
+					window.WebViewJavascriptBridge.callHandler(
+						'saveImg', this.imgBase64Str,
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				startLocationListener() {
+					window.WebViewJavascriptBridge.callHandler(
+						'startLocationListener', "",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				stopLocationListener() {
+					window.WebViewJavascriptBridge.callHandler(
+						'stopLocationListener', "",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+				getLastLocation() {
+					window.WebViewJavascriptBridge.callHandler(
+						'getLastLocation', "",
+						function(responseData) {
+							console.info(responseData);
+						}
+					);
+				},
+
+				/////////////////////////////////JS Call Android:  end
+
+				//JS注册事件监听
+				connectWebViewJavascriptBridge(callback) {
+					if (window.WebViewJavascriptBridge) {
+						callback(WebViewJavascriptBridge)
+					} else {
+						document.addEventListener(
+							'WebViewJavascriptBridgeReady',
+							function() {
+								callback(WebViewJavascriptBridge)
+							},
+							false
+						);
+					}
+				}
+
+			}
+
+		};
+		Vue.createApp(App).mount('#app');
+	</script>
+	</body>
+</html>
