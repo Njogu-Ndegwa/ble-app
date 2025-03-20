@@ -287,16 +287,21 @@ const AppContainer = () => {
           responseCallback(macAddress);
         });
 
-        bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data, responseCallback) {
-          console.info(data);
+        bridge.registerHandler("bleInitServiceDataOnProgressCallBack", (data, responseCallback) => {
+          console.info(data, "Dataaa-----291----");
+          responseCallback(data)
 
         });
-        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data, responseCallback) {
-          console.info(data);
+
+        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", (data, responseCallback) =>  {
+          console.info(data, "Dattaaa-----295----");
+          responseCallback(data)
 
         });
-        bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
-          console.info(data);
+
+        bridge.registerHandler("bleInitServiceDataFailureCallBack", (data, responseCallback) =>  {
+          console.info(data, "Dataaa-----295----");
+          responseCallback(data)
         });
 
         // BLE service data initialization callback
