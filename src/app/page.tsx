@@ -289,7 +289,6 @@ const AppContainer = () => {
 
         bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data, responseCallback) {
           console.info(data);
-          let obj = JSON.parse(data);
 
         });
         bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data, responseCallback) {
