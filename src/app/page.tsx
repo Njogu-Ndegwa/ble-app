@@ -158,6 +158,7 @@ const AppContainer = () => {
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
+    //This function checks if the bridge is already available. If not, it sets up an event listener and timeout to handle the initialization.
 
     const connectWebViewJavascriptBridge = (callback: (bridge: WebViewJavascriptBridge) => void) => {
       if (window.WebViewJavascriptBridge) {
@@ -186,6 +187,7 @@ const AppContainer = () => {
       }
     };
 
+    //The setupBridge function initializes the bridge and registers multiple handlers to communicate with the native side:
     const setupBridge = (bridge: WebViewJavascriptBridge) => {
       if (!bridgeHasBeenInitialized) {
         bridgeHasBeenInitialized = true;
