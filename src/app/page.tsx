@@ -277,9 +277,11 @@ const AppContainer = () => {
           // sessionStorage.setItem('connectedDeviceMac', macAddress);
           setConnectedDevice(macAddress); // Set the connected device
           setIsScanning(false);
-          let data: any = {}
-          data.serviceName="ATT";//ATT/STS/DIA/CMD
-          data.macAddress= macAddress
+          const data: any = {
+            serviceName: "ATT", //ATT/STS/DIA/CMD
+            macAddress: macAddress
+          };
+          
           initSingleBleDataService(data)
           // initBleData(macAddress);
           responseCallback(macAddress);
