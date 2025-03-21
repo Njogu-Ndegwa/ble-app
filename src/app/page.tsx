@@ -283,9 +283,9 @@ const AppContainer = () => {
             serviceName: "ATT", //ATT/STS/DIA/CMD
             macAddress: macAddress
           };
-
-          initSingleBleDataService(data)
-          // initBleData(macAddress);
+          console.log(data, "----286---")
+          // initSingleBleDataService(data)
+          initBleData(macAddress);
           responseCallback(macAddress);
         });
 
