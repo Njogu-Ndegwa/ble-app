@@ -191,9 +191,7 @@
 					bridge.registerHandler("bleInitDataFailureCallBack", function(data, responseCallback) {
 						console.info(data);
 					});
-					/*↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑*/
-					
-					/*↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓*/
+
 					bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data, responseCallback) {
 						console.info(data);
 						let obj = JSON.parse(data);
@@ -208,7 +206,6 @@
 						console.info(data);
 						that.loadingDialog.close();
 					});
-					/*↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑*/
 					
 
 					bridge.registerHandler("choosePictureCallBack", function(data, responseCallback) {

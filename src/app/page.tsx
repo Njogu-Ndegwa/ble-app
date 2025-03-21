@@ -10,6 +10,7 @@ import ProgressiveLoading from './loader';
 import { connBleByMacAddress, initBleData, initSingleBleDataService } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { ScanQrCode } from 'lucide-react';
+import ProtectedRoute from './components/protectedRoute';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -281,7 +282,7 @@ const AppContainer = () => {
             serviceName: "ATT", //ATT/STS/DIA/CMD
             macAddress: macAddress
           };
-          
+
           initSingleBleDataService(data)
           // initBleData(macAddress);
           responseCallback(macAddress);
@@ -293,13 +294,13 @@ const AppContainer = () => {
 
         });
 
-        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", (data, responseCallback) =>  {
+        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", (data, responseCallback) => {
           console.info(data, "Dattaaa-----295----");
           responseCallback(data)
 
         });
 
-        bridge.registerHandler("bleInitServiceDataFailureCallBack", (data, responseCallback) =>  {
+        bridge.registerHandler("bleInitServiceDataFailureCallBack", (data, responseCallback) => {
           console.info(data, "Dataaa-----295----");
           responseCallback(data)
         });
@@ -434,7 +435,7 @@ const AppContainer = () => {
       });
     }
   };
-console.info(isMqttConnected, "Is Mqtt Connected")
+  console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100) {
       setIsConnecting(false); // Connection process complete
@@ -546,9 +547,9 @@ console.info(isMqttConnected, "Is Mqtt Connected")
     const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
 
     if (!attService) {
-        console.error("ATT_SERVICE not found in attributeList.");
-        toast.error("Error: ATT_SERVICE not found.");
-        return;
+      console.error("ATT_SERVICE not found in attributeList.");
+      toast.error("Error: ATT_SERVICE not found.");
+      return;
     }
 
     // Find the opid characteristic and get its realVal
@@ -556,22 +557,22 @@ console.info(isMqttConnected, "Is Mqtt Connected")
 
     console.info(opidChar, "opid")
     if (!opidChar) {
-        console.error("opid characteristic not found in ATT_SERVICE.");
-        toast.error("Error: opid not found in ATT_SERVICE.");
-        return;
+      console.error("opid characteristic not found in ATT_SERVICE.");
+      toast.error("Error: opid not found in ATT_SERVICE.");
+      return;
     }
 
     const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
 
     // Define the data to publish in the new format
     const dataToPublish = {
-        topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
-        qos: 0,
-        content: {
-            sts: stsData,
-            timestamp: Date.now(),
-            deviceInfo: "mac_address"
-        }
+      topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
+      qos: 0,
+      content: {
+        sts: stsData,
+        timestamp: Date.now(),
+        deviceInfo: "mac_address"
+      }
     };
 
 
@@ -620,66 +621,67 @@ console.info(isMqttConnected, "Is Mqtt Connected")
 
 
   return (
-    <>
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          // Customize default toast options
-          duration: 3000,
-          style: {
-            background: '#333',
-            color: '#fff',
-            padding: '16px',
-            borderRadius: '8px',
-          },
-          // Configure different types of toasts
-          success: {
-            iconTheme: {
-              primary: '#10B981',
-              secondary: 'white',
+    // <>
+      <ProtectedRoute>
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            // Customize default toast options
+            duration: 3000,
+            style: {
+              background: '#333',
+              color: '#fff',
+              padding: '16px',
+              borderRadius: '8px',
             },
-          },
-          error: {
-            iconTheme: {
-              primary: '#EF4444',
-              secondary: 'white',
+            // Configure different types of toasts
+            success: {
+              iconTheme: {
+                primary: '#10B981',
+                secondary: 'white',
+              },
             },
-          },
-        }}
-      />
-      {!selectedDevice ? (
-        <MobileListView
-          items={detectedDevices}
-          onStartConnection={startConnection}
-          connectedDevice={connectedDevice}
-          onScanQrCode={startQrCodeScan}
-          onRescanBleItems={handleBLERescan}
-          isScanning={isScanning}
+            error: {
+              iconTheme: {
+                primary: '#EF4444',
+                secondary: 'white',
+              },
+            },
+          }}
         />
-      ) : (
-        <DeviceDetailView
-          // @ts-ignore
-          device={deviceDetails}
-          attributeList={attrList}
-          onBack={handleBackToList}
-        />
-      )}
-      {isConnecting && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="w-full max-w-md">
-            <ProgressiveLoading
-              initialMessage="Preparing to connect..."
-              completionMessage="Connection established!"
-              loadingSteps={bleLoadingSteps}
-              onLoadingComplete={() => { }} // Handled in callback
-              autoProgress={false} // Use real progress
-              progress={progress} // Pass real progress
-            />
+        {!selectedDevice ? (
+          <MobileListView
+            items={detectedDevices}
+            onStartConnection={startConnection}
+            connectedDevice={connectedDevice}
+            onScanQrCode={startQrCodeScan}
+            onRescanBleItems={handleBLERescan}
+            isScanning={isScanning}
+          />
+        ) : (
+          <DeviceDetailView
+            // @ts-ignore
+            device={deviceDetails}
+            attributeList={attrList}
+            onBack={handleBackToList}
+          />
+        )}
+        {isConnecting && (
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="w-full max-w-md">
+              <ProgressiveLoading
+                initialMessage="Preparing to connect..."
+                completionMessage="Connection established!"
+                loadingSteps={bleLoadingSteps}
+                onLoadingComplete={() => { }} // Handled in callback
+                autoProgress={false} // Use real progress
+                progress={progress} // Pass real progress
+              />
+            </div>
           </div>
-        </div>
-      )}
-
-    </>
+        )}
+      </ProtectedRoute>
+    // </>
   );
 };
 
