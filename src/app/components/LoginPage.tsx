@@ -371,7 +371,7 @@ const LoginPage = () => {
           {/* Remember Me & Forgot Password */}
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <input
+              {/* <input
                 id="remember-me"
                 type="checkbox"
                 className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
@@ -380,7 +380,7 @@ const LoginPage = () => {
               />
               <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-400">
                 Remember me
-              </label>
+              </label> */}
             </div>
             <div className="text-sm">
               <a href="#" className="text-blue-500 hover:text-blue-400">
