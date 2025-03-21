@@ -245,18 +245,18 @@ const LoginPage = () => {
     }
   }, [router]);
 
-  const handleLogin = async (e:any) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
       toast.error('Please enter both email and password');
       return;
     }
-
+    
     setIsLoading(true);
     
     try {
-      // Use the GraphQL login function
+      // Use GraphQL login mutation
       const result = await loginWithGraphQL(email, password);
       
       if (result.success) {
@@ -269,11 +269,6 @@ const LoginPage = () => {
         
         // Store user data if needed
         localStorage.setItem('user_data', JSON.stringify(authData));
-        
-        // If remember me is checked, set longer expiry (optional)
-        if (rememberMe) {
-          // Your logic for extended session
-        }
         
         toast.success('Login successful!');
         
@@ -421,7 +416,7 @@ const LoginPage = () => {
         {/* Create Account Link */}
         <div className="mt-8 text-center">
           <p className="text-gray-400 text-sm">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <a href="#" className="text-blue-500 hover:text-blue-400">
               Contact support
             </a>
