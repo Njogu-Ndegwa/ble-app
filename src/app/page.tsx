@@ -619,7 +619,7 @@ const AppContainer = () => {
     }
   }
 
-
+ console.info(detectedDevices, "Detected Devices ------ 622----")
   return (
     // <>
       <ProtectedRoute>
