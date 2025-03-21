@@ -96,10 +96,7 @@ const AppContainer = () => {
   };
 
   const startConnection = (macAddress: string) => {
-    // setIsConnecting(true);
-    // setConnectingDeviceId(macAddress);
-    // setProgress(0); // Reset progress at the start
-    // connBleByMacAddress(macAddress);
+   
     if (macAddress === connectedDevice && attributeList.length > 0) {
       // Already connected, skip connection and go to details
       setSelectedDevice(macAddress);
@@ -141,13 +138,6 @@ const AppContainer = () => {
     }
     return defaultImageUrl;
   };
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole(); // Initialize VConsole
-  //   });
-  // }, []);
-
 
   function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
     // Calculate distance using the logarithmic path-loss model
@@ -481,17 +471,6 @@ console.info(isMqttConnected, "Is Mqtt Connected")
     } else {
       toast.error("There was a problem connecting with device. Try doing it manually.")
     }
-    // const matches = detectedDevices.filter((device) => {
-    //   console.info(device, "Device")
-    //   const name = (device.name || "").toLowerCase();
-    //   console.info(name, "Device")
-    //   const last6FromName = name.slice(-6);
-    //   console.info(last6FromBarcode, "last6FromBarcode")
-    //   console.info(last6FromName, last6FromBarcode, "Codes---302")
-    //   return last6FromName === last6FromBarcode
-    // });
-
-    // console.info(matches, "Matches 302---")
   }
   // Render the list view or detail view based on selection
 
