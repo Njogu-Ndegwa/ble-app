@@ -19,6 +19,7 @@ const SortFilterBar: React.FC<SortFilterBarProps> = ({
       <button
         className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
         onClick={(e) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
           isMenuOpen && e.stopPropagation();
           onSort();
         }}
@@ -31,6 +32,7 @@ const SortFilterBar: React.FC<SortFilterBarProps> = ({
       <button
         className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
         onClick={(e) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
           isMenuOpen && e.stopPropagation();
           onFilter();
         }}
