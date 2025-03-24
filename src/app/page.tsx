@@ -212,7 +212,7 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
             try {
               const parsedData: BleDevice = JSON.parse(data);
-              console.info(parsedData, "Parsed Info")
+              // console.info(parsedData, "Parsed Info")
               console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
 
               if (parsedData.macAddress && parsedData.name && parsedData.rssi && parsedData.name.includes("OVES")) {
