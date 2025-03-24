@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Battery, Download, Bluetooth, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import DeviceHeader from '@/components/DeviceHeader';
 
 interface DeviceDetailProps {
   device?: {
@@ -37,7 +38,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     { id: 'DTA', label: 'DTA' },
     { id: 'DIA', label: 'DIA' },
   ];
-
   const handleBack = () => {
     if (onBack) {
       onBack();
@@ -46,16 +46,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     }
   };
 
+
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
-      {/* Header */}
-      <div className="p-4 flex items-center">
-        <button onClick={handleBack} className="mr-4">
-          <ArrowLeft className="w-6 h-6 text-gray-400" />
-        </button>
-        <h1 className="text-lg font-semibold flex-1">Device Details</h1>
-        <Share2 className="w-5 h-5 text-gray-400" />
-      </div>
+      <DeviceHeader onBack={handleBack} />
+        
 
       {/* Device Image and Basic Info */}
       <div className="flex flex-col items-center p-6 pb-2">
