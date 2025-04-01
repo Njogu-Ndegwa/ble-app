@@ -278,12 +278,12 @@ const AppContainer = () => {
           sessionStorage.setItem('connectedDeviceMac', macAddress);
           setConnectedDevice(macAddress); // Set the connected device
           setIsScanning(false);
-          // initBleData(macAddress);
+          initBleData(macAddress);
           const data = {
             serviceName: "ATT", // ATT/STS/DIA/CMD/xx
             macAddress: macAddress
         };
-          initServiceBleData(data)
+          // initServiceBleData(data)
           responseCallback(macAddress);
         });
 
@@ -438,6 +438,7 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
+      console.info(attributeList, "Attribute List -----441----")
       handlePublish(attributeList)
     }
   }, [progress, attributeList])
