@@ -7,7 +7,7 @@ import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import ProgressiveLoading from './loader';
-import { connBleByMacAddress, initBleData } from "./utils"
+import { connBleByMacAddress, initBleData, initServiceBleData } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { ScanQrCode } from 'lucide-react';
 // Sample data structure for devices
@@ -278,6 +278,11 @@ const AppContainer = () => {
           setConnectedDevice(macAddress); // Set the connected device
           setIsScanning(false);
           initBleData(macAddress);
+          const data = {
+            serviceName: "ATT", // ATT/STS/DIA/CMD/xx
+            macAddress: macAddress
+        };
+          initServiceBleData(data)
           responseCallback(macAddress);
         });
 
@@ -362,6 +367,12 @@ const AppContainer = () => {
             }
           }
         );
+
+        bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data,
+          responseCallback) {
+          console.info(data);
+          let obj = JSON.parse(data);
+        });
 
         bridge.registerHandler(
           "mqttMsgArrivedCallBack",
