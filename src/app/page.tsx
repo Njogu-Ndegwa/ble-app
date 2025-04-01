@@ -372,7 +372,18 @@ const AppContainer = () => {
         bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data,
           responseCallback) {
           console.info(data);
+          const obj = JSON.parse(data);
+          console.log(obj.total, "Total------376----");
+          console.log(obj.progress, "Progress --------377------");
+        });
 
+        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data,
+          responseCallback) {
+          console.info(data, "On Complete----382---");
+
+        });
+        bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
+          console.info(data);
         });
 
         bridge.registerHandler(
