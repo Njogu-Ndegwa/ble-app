@@ -141,12 +141,13 @@ const AppContainer = () => {
     }
     return defaultImageUrl;
   };
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole(); // Initialize VConsole
-  //   });
-  // }, []);
+
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole(); 
+    });
+  }, []);
 
 
   function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
@@ -371,7 +372,7 @@ const AppContainer = () => {
         bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data,
           responseCallback) {
           console.info(data);
-          let obj = JSON.parse(data);
+
         });
 
         bridge.registerHandler(
