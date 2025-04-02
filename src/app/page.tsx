@@ -10,6 +10,7 @@ import ProgressiveLoading from './loader';
 import { connBleByMacAddress, initBleData, initServiceBleData } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { ScanQrCode } from 'lucide-react';
+import { AnyARecord } from 'dns';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -373,13 +374,41 @@ const AppContainer = () => {
           responseCallback) {
           console.info(data);
           const obj = JSON.parse(data);
-          console.log(obj.total, "Total------376----");
-          console.log(obj.progress, "Progress --------377------");
+          // console.log(obj.total, "Total------376----");
+          // console.log(obj.progress, "Progress --------377------");
+          const parsedData = JSON.parse(data);
+          const progressPercentage = Math.round(
+            (parsedData.progress / parsedData.total) * 100
+          );
+          setProgress(progressPercentage);
         });
 
         bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data,
           responseCallback) {
-          console.info(data, "On Complete----382---");
+
+          const parsedData = JSON.parse(data);
+          console.info(parsedData, "On Complete----382---");
+          setServiceAttrList((prevList:any) => {
+            // If the list is empty, start a new array
+            if (!prevList || prevList.length === 0) {
+              return [parsedData];
+            }
+            
+            // Find if service with same UUID already exists
+            const existingServiceIndex = prevList.findIndex(
+              (service:any) => service.uuid === parsedData.uuid
+            );
+            
+            if (existingServiceIndex >= 0) {
+              // Service exists, replace it
+              const updatedList = [...prevList];
+              updatedList[existingServiceIndex] = parsedData;
+              return updatedList;
+            } else {
+              // Service doesn't exist, add it
+              return [...prevList, parsedData];
+            }
+          });
 
         });
         bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
@@ -435,10 +464,11 @@ const AppContainer = () => {
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100) {
+      console.warn(attributeList, "Atrribute List-------467-----")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
-      console.info(attributeList, "Attribute List -----441----")
+      // console.info(attributeList, "Attribute List -----441----")
       handlePublish(attributeList)
     }
   }, [progress, attributeList])
