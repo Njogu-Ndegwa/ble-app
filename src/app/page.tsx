@@ -467,7 +467,7 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       console.warn(attributeList, "Atrribute List-------467-----")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
-      setAtrrList(attributeList)
+      // setAtrrList(attributeList)
       // console.info(attributeList, "Attribute List -----441----")
       handlePublish(attributeList)
     }
