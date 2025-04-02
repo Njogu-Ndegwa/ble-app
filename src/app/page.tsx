@@ -69,7 +69,7 @@ const AppContainer = () => {
   const [bridgeInitialized, setBridgeInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false)
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
-  const [attributeList, setServiceAttrList] = useState<any>()
+  const [attributeList, setServiceAttrList] = useState<any>([])
   const [progress, setProgress] = useState(0)
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
@@ -464,14 +464,14 @@ const AppContainer = () => {
   };
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
-    if (progress === 100) {
+    if (progress === 100 && attributeList) {
       console.warn(attributeList, "Atrribute List-------467-----")
       console.info(connectingDeviceId, "-----469----")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
-      // setAtrrList(attributeList)
+      setAtrrList(attributeList)
       // console.info(attributeList, "Attribute List -----441----")
-      // handlePublish(attributeList)
+      handlePublish(attributeList)
     }
   }, [progress, attributeList])
 
