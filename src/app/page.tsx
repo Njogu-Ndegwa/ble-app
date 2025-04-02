@@ -381,7 +381,7 @@ const AppContainer = () => {
             (parsedData.progress / parsedData.total) * 100
           );
           console.info(progressPercentage, "Progress Percentage----383----")
-          // setProgress(progressPercentage);
+          setProgress(progressPercentage);
         });
 
         bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data,
@@ -687,12 +687,13 @@ console.info(isMqttConnected, "Is Mqtt Connected")
           isScanning={isScanning}
         />
       ) : (
-        <DeviceDetailView
-          // @ts-ignore
-          device={deviceDetails}
-          attributeList={attrList}
-          onBack={handleBackToList}
-        />
+        // <DeviceDetailView
+        //   // @ts-ignore
+        //   device={deviceDetails}
+        //   attributeList={attrList}
+        //   onBack={handleBackToList}
+        // />
+        <p>Hello World</p>
       )}
       {isConnecting && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
