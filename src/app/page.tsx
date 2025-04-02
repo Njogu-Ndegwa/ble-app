@@ -687,25 +687,25 @@ console.info(isMqttConnected, "Is Mqtt Connected")
           isScanning={isScanning}
         />
       ) : (
-        // <DeviceDetailView
-        //   // @ts-ignore
-        //   device={deviceDetails}
-        //   attributeList={attrList}
-        //   onBack={handleBackToList}
-        // />
-        <p>Hello World</p>
+        <DeviceDetailView
+          // @ts-ignore
+          device={deviceDetails}
+          attributeList={attrList}
+          onBack={handleBackToList}
+        />
       )}
       {isConnecting && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="w-full max-w-md">
-            <ProgressiveLoading
+            {/* <ProgressiveLoading
               initialMessage="Preparing to connect..."
               completionMessage="Connection established!"
               loadingSteps={bleLoadingSteps}
               onLoadingComplete={() => { }} // Handled in callback
               autoProgress={false} // Use real progress
               progress={progress} // Pass real progress
-            />
+            /> */}
+            <p>{progress}</p>
           </div>
         </div>
       )}
