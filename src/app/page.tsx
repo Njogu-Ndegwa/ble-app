@@ -281,7 +281,7 @@ const AppContainer = () => {
           setIsScanning(false);
           // initBleData(macAddress);
           const data = {
-            serviceName: "ATT", // ATT/STS/DIA/CMD/xx
+            serviceName: "STS", // ATT/STS/DIA/CMD/xx
             macAddress: macAddress
         };
           initServiceBleData(data)
