@@ -380,7 +380,8 @@ const AppContainer = () => {
           const progressPercentage = Math.round(
             (parsedData.progress / parsedData.total) * 100
           );
-          setProgress(progressPercentage);
+          console.info(progressPercentage, "Progress Percentage----383----")
+          // setProgress(progressPercentage);
         });
 
         bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data,
