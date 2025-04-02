@@ -463,16 +463,16 @@ const AppContainer = () => {
     }
   };
 console.info(isMqttConnected, "Is Mqtt Connected")
-  useEffect(() => {
-    if (progress === 100) {
-      console.warn(attributeList, "Atrribute List-------467-----")
-      setIsConnecting(false); // Connection process complete
-      setSelectedDevice(connectingDeviceId);
-      // setAtrrList(attributeList)
-      // console.info(attributeList, "Attribute List -----441----")
-      handlePublish(attributeList)
-    }
-  }, [progress, attributeList])
+  // useEffect(() => {
+  //   if (progress === 100) {
+  //     console.warn(attributeList, "Atrribute List-------467-----")
+  //     setIsConnecting(false); // Connection process complete
+  //     setSelectedDevice(connectingDeviceId);
+  //     // setAtrrList(attributeList)
+  //     // console.info(attributeList, "Attribute List -----441----")
+  //     handlePublish(attributeList)
+  //   }
+  // }, [progress, attributeList])
 
   useEffect(() => {
     if (bridgeInitialized) {
