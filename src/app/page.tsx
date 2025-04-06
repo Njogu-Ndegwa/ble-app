@@ -411,7 +411,10 @@ const AppContainer = () => {
               return [...prevList, parsedData];
             }
           });
-          setLoadingService(null);
+          setTimeout(() => {
+            setLoadingService(null);
+          }, 100)
+
         });
         bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
           console.info(data);
