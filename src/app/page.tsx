@@ -144,12 +144,12 @@ const AppContainer = () => {
     return defaultImageUrl;
   };
 
-  useEffect(() => {
-    import('vconsole').then((module) => {
-      const VConsole = module.default;
-      new VConsole(); 
-    });
-  }, []);
+  // useEffect(() => {
+  //   import('vconsole').then((module) => {
+  //     const VConsole = module.default;
+  //     new VConsole(); 
+  //   });
+  // }, []);
 
 
   function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
