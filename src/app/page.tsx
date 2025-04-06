@@ -334,6 +334,7 @@ const AppContainer = () => {
           (data: string, responseCallback: (response: any) => void) => {
             try {
               const parsedMessage = JSON.parse(data);
+              console.warn("Mqtt Message Recieved --337")
               responseCallback(parsedMessage);
             } catch (error) {
               console.error("Error parsing MQTT message:", error);
@@ -425,6 +426,7 @@ const AppContainer = () => {
           "mqttMsgArrivedCallBack",
           (data: string, responseCallback: (response: any) => void) => {
             // console.info("MQTT Message Arrived Callback:", data);
+            console.warn("Mqtt Message Recieved --429")
             responseCallback("Received MQTT Message");
           }
         );
@@ -486,17 +488,13 @@ const AppContainer = () => {
 
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
-    console.warn(progress, "Progress---489---")
     if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
       // console.info(attributeList, "Attribute List -----441----")
-      console.warn(attributeList, "Attribute List-495-")
-      console.warn("New Service Called--496")
-      console.warn(progress, "Progress--497--")
-      console.warn(loadingService, "Loading Service")
-      // handlePublish(attributeList)
+
+      handlePublish(attributeList, loadingService)
     }
   }, [progress, attributeList])
 
@@ -567,83 +565,227 @@ console.info(isMqttConnected, "Is Mqtt Connected")
   }
   // Render the list view or detail view based on selection
 
-  const handlePublish = (attributeList: any) => {
+  // const handlePublish = (attributeList: any) => {
 
+  //   if (!window.WebViewJavascriptBridge) {
+  //     console.error("WebViewJavascriptBridge is not initialized.");
+  //     toast.error("Error: WebViewJavascriptBridge is not initialized.");
+
+  //     return;
+  //   }
+
+
+  //   // Find the STS_SERVICE from the attributeList
+  //   const stsService = attributeList.find((service: any) => service.serviceNameEnum === "STS_SERVICE");
+
+  //   if (!stsService) {
+  //     console.error("STS_SERVICE not found in attributeList.");
+  //     toast.error("Error: STS_SERVICE not found.");
+  //     return;
+  //   }
+  //   const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
+  //     acc[char.name] = char.realVal;
+  //     return acc;
+  //   }, {});
+
+  //   console.info(stsData, "STS Data");
+
+  //   const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
+
+  //   if (!attService) {
+  //       console.error("ATT_SERVICE not found in attributeList.");
+  //       toast.error("Error: ATT_SERVICE not found.");
+  //       return;
+  //   }
+
+  //   // Find the opid characteristic and get its realVal
+  //   const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
+
+  //   console.info(opidChar, "opid")
+  //   if (!opidChar) {
+  //       console.error("opid characteristic not found in ATT_SERVICE.");
+  //       toast.error("Error: opid not found in ATT_SERVICE.");
+  //       return;
+  //   }
+
+  //   const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
+
+  //   // Define the data to publish in the new format
+  //   const dataToPublish = {
+  //       topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
+  //       qos: 0,
+  //       content: {
+  //           sts: stsData,
+  //           timestamp: Date.now(),
+  //           deviceInfo: "mac_address"
+  //       }
+  //   };
+
+
+
+  //   console.info(dataToPublish, "Data to Publish");
+
+  //   try {
+  //     window.WebViewJavascriptBridge.callHandler(
+  //       "mqttPublishMsg",
+  //       JSON.stringify(dataToPublish), // Try stringifying the data
+  //       (response) => {
+  //         console.info(`MQTT Response for`, response);
+
+  //       }
+  //     );
+  //   } catch (error) {
+  //     console.error(
+  //       `Error calling WebViewJavascriptBridge`,
+  //       error
+  //     );
+  //     toast.error(`Error publishing `);
+  //   }
+
+  // };
+
+  const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
       toast.error("Error: WebViewJavascriptBridge is not initialized.");
-
       return;
     }
-
-
-    // Find the STS_SERVICE from the attributeList
-    const stsService = attributeList.find((service: any) => service.serviceNameEnum === "STS_SERVICE");
-
-    if (!stsService) {
-      console.error("STS_SERVICE not found in attributeList.");
-      toast.error("Error: STS_SERVICE not found.");
+    
+    // First, ensure we have attributeList and it's an array
+    if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
+      console.error("AttributeList is empty or invalid");
+      toast.error("Error: Device data not available yet");
       return;
     }
-    const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
-      acc[char.name] = char.realVal;
+  
+    // Find the ATT_SERVICE from the attributeList - this is required for all publish operations
+    const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
+    
+    if (!attService) {
+      console.error("ATT_SERVICE not found in attributeList.");
+      toast.error("ATT service data is required but not available yet");
+      // Queue this publish for retry after ATT service is loaded
+      return;
+    }
+    
+    // Get the opid from ATT_SERVICE
+    const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
+    
+    if (!opidChar || !opidChar.realVal) {
+      console.error("opid characteristic not found or has no value in ATT_SERVICE.");
+      toast.error("Device ID not available");
+      return;
+    }
+    
+    const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
+    
+    // Map service enum to match attributeList format
+    const serviceTypeMap: {[key: string]: string} = {
+      'ATT': 'ATT_SERVICE',
+      'CMD': 'CMD_SERVICE',
+      'STS': 'STS_SERVICE',
+      'DTA': 'DTA_SERVICE',
+      'DIA': 'DIA_SERVICE'
+    };
+    
+    const serviceNameEnum = serviceTypeMap[serviceType] || serviceType;
+    
+    // Find the requested service from the attributeList
+    const requestedService = attributeList.find((service: any) => 
+      service.serviceNameEnum === serviceNameEnum
+    );
+    
+    if (!requestedService) {
+      console.error(`${serviceNameEnum} not found in attributeList.`);
+      // toast.error(`${serviceType} service data not available yet`);
+      return;
+    }
+    
+    // Convert service data to key-value format
+    const serviceData = requestedService.characteristicList.reduce((acc: any, char: any) => {
+      // Skip null or undefined values
+      if (char.realVal !== null && char.realVal !== undefined) {
+        acc[char.name] = char.realVal;
+      }
       return acc;
     }, {});
-
-    console.info(stsData, "STS Data");
-
-    const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
-
-    if (!attService) {
-        console.error("ATT_SERVICE not found in attributeList.");
-        toast.error("Error: ATT_SERVICE not found.");
-        return;
+    
+    // Check if we have data to publish
+    if (Object.keys(serviceData).length === 0) {
+      console.error(`No valid data found in ${serviceType} service.`);
+      toast.error(`No data available to publish for ${serviceType}`);
+      return;
     }
-
-    // Find the opid characteristic and get its realVal
-    const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
-
-    console.info(opidChar, "opid")
-    if (!opidChar) {
-        console.error("opid characteristic not found in ATT_SERVICE.");
-        toast.error("Error: opid not found in ATT_SERVICE.");
-        return;
-    }
-
-    const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
-
-    // Define the data to publish in the new format
+    
+    // Define the data to publish
     const dataToPublish = {
-        topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
-        qos: 0,
-        content: {
-            sts: stsData,
-            timestamp: Date.now(),
-            deviceInfo: "mac_address"
-        }
+      topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
+      qos: 0,
+      content: {
+        // Use the service name as the key for the data object
+        [serviceType.toLowerCase()]: serviceData,
+        timestamp: Date.now(),
+        deviceInfo: "mac_address"
+      }
     };
-
-
-
-    console.info(dataToPublish, "Data to Publish");
-
+    
+    console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
+    
+    // Try to publish via MQTT
     try {
       window.WebViewJavascriptBridge.callHandler(
         "mqttPublishMsg",
-        JSON.stringify(dataToPublish), // Try stringifying the data
+        JSON.stringify(dataToPublish),
         (response) => {
-          console.info(`MQTT Response for`, response);
-
+          console.info(`MQTT Response for ${serviceType}:`, response);
+          toast.success(`${serviceType} data published successfully`);
         }
       );
     } catch (error) {
-      console.error(
-        `Error calling WebViewJavascriptBridge`,
-        error
-      );
-      toast.error(`Error publishing `);
+      console.error(`Error publishing ${serviceType} data:`, error);
+      toast.error(`Error publishing ${serviceType} data`);
     }
-
+  };
+  
+  // Optional: Helper function to publish all available services
+  const publishAllAvailableServices = (attributeList: any) => {
+    if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
+      console.error("AttributeList is empty or invalid");
+      toast.error("Error: Device data not available yet");
+      return;
+    }
+    
+    // Check if ATT service is available (required for all publishes)
+    const hasAttService = attributeList.some(service => service.serviceNameEnum === "ATT_SERVICE");
+    
+    if (!hasAttService) {
+      console.error("ATT_SERVICE not found - required for publishing");
+      toast.error("Cannot publish: ATT service data not available");
+      return;
+    }
+    
+    // Map of service types to publish
+    const serviceTypes = ['ATT', 'CMD', 'STS', 'DTA', 'DIA'];
+    
+    // Determine which services are available
+    const availableServices = serviceTypes.filter(type => {
+      const serviceNameEnum = `${type}_SERVICE`;
+      return attributeList.some(service => service.serviceNameEnum === serviceNameEnum);
+    });
+    
+    if (availableServices.length === 0) {
+      toast.error("No service data available to publish");
+      return;
+    }
+    
+    // Publish each available service with a slight delay between them
+    availableServices.forEach((serviceType, index) => {
+      setTimeout(() => {
+        handlePublish(attributeList, serviceType);
+      }, index * 500); // 500ms delay between each publish
+    });
+    
+    console.info("Publishing services:", availableServices);
   };
 
   const bleLoadingSteps = [
