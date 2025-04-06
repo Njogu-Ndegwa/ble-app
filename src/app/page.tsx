@@ -455,11 +455,11 @@ const AppContainer = () => {
     };
 
     connectWebViewJavascriptBridge(setupBridge);
-
+    readDeviceInfo()
     return () => {
       console.log("-------250------")
     };
-    readDeviceInfo()
+
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
 
   const startQrCodeScan = () => {
