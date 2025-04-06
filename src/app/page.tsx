@@ -285,6 +285,7 @@ const AppContainer = () => {
             serviceName: "ATT", // ATT/STS/DIA/CMD/xx
             macAddress: macAddress
           };
+          setLoadingService("ATT")
           initServiceBleData(data)
           responseCallback(macAddress);
         });
