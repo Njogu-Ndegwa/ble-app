@@ -484,6 +484,7 @@ console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100 && attributeList) {
       console.warn("New Service Called--486")
+      console.warn(loadingService, "Loading Service")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
