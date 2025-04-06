@@ -76,6 +76,7 @@ const AppContainer = () => {
   const [attrList, setAtrrList] = useState([])
   const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
+  const [loadingService, setLoadingService] = useState<string | null>(null);
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
@@ -281,9 +282,9 @@ const AppContainer = () => {
           setIsScanning(false);
           // initBleData(macAddress);
           const data = {
-            serviceName: "STS", // ATT/STS/DIA/CMD/xx
+            serviceName: "ATT", // ATT/STS/DIA/CMD/xx
             macAddress: macAddress
-        };
+          };
           initServiceBleData(data)
           responseCallback(macAddress);
         });
@@ -361,7 +362,7 @@ const AppContainer = () => {
             try {
               const parsedMessage = JSON.parse(data);
               setIsMqttConnected(true)
-              console.info("MQTT Connection Callback:", parsedMessage);
+              // console.info("MQTT Connection Callback:", parsedMessage);
               responseCallback("Received MQTT Connection Callback");
             } catch (error) {
               setIsMqttConnected(false)
@@ -380,7 +381,6 @@ const AppContainer = () => {
           const progressPercentage = Math.round(
             (parsedData.progress / parsedData.total) * 100
           );
-          console.info(progressPercentage, "Progress Percentage----383----")
           setProgress(progressPercentage);
         });
 
@@ -388,7 +388,7 @@ const AppContainer = () => {
           responseCallback) {
 
           const parsedData = JSON.parse(data);
-          console.info(parsedData, "On Complete----382---");
+          // console.info(parsedData, "On Complete----382---");
           setServiceAttrList((prevList:any) => {
             // If the list is empty, start a new array
             if (!prevList || prevList.length === 0) {
@@ -419,7 +419,7 @@ const AppContainer = () => {
         bridge.registerHandler(
           "mqttMsgArrivedCallBack",
           (data: string, responseCallback: (response: any) => void) => {
-            console.info("MQTT Message Arrived Callback:", data);
+            // console.info("MQTT Message Arrived Callback:", data);
             responseCallback("Received MQTT Message");
           }
         );
@@ -462,16 +462,31 @@ const AppContainer = () => {
       });
     }
   };
+
+  const handleServiceDataRequest = (serviceName: string) => {
+    if (!selectedDevice) return;
+    
+    setLoadingService(serviceName);
+    setProgress(0);
+    
+    const data = {
+      serviceName: serviceName, // ATT/STS/DIA/CMD/DTA
+      macAddress: selectedDevice
+    };
+    
+    initServiceBleData(data);
+  };
+
+
+
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100 && attributeList) {
-      console.warn(attributeList, "Atrribute List-------467-----")
-      console.info(connectingDeviceId, "-----469----")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
       // console.info(attributeList, "Attribute List -----441----")
-      handlePublish(attributeList)
+      // handlePublish(attributeList)
     }
   }, [progress, attributeList])
 
@@ -516,20 +531,13 @@ console.info(isMqttConnected, "Is Mqtt Connected")
   };
 
   const handleQrCode = (code: string) => {
-    console.info(code, "452")
     const currentDevices = detectedDevicesRef.current;
-    console.info(currentDevices, "Current devices via ref");
     const matches = currentDevices.filter((device) => {
-      console.info(device, "Device")
       const name = (device.name || "").toLowerCase();
-      console.info(name, "Device")
       const last6FromName = name.slice(-6);
-      console.info(code, "last6FromBarcode")
-      console.info(last6FromName, code, "Codes---302")
       return last6FromName === code
     });
 
-    console.info(matches[0], "Matches----462----")
     if (matches.length === 1) {
       startConnection(matches[0].macAddress)
     } else {
@@ -693,6 +701,9 @@ console.info(isMqttConnected, "Is Mqtt Connected")
           device={deviceDetails}
           attributeList={attrList}
           onBack={handleBackToList}
+          onRequestServiceData={handleServiceDataRequest}
+          isLoadingService={loadingService}
+          serviceLoadingProgress={progress}
         />
       )}
       {isConnecting && (
