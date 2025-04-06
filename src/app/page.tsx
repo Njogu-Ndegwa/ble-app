@@ -349,7 +349,7 @@ const AppContainer = () => {
               const progressPercentage = Math.round(
                 (parsedData.progress / parsedData.total) * 100
               );
-              setProgress(progressPercentage);
+              // setProgress(progressPercentage);
 
             } catch (error) {
               console.error("Progress callback error:", error);
@@ -486,6 +486,7 @@ const AppContainer = () => {
 
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
+    console.warn(progress, "Progress---489---")
     if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
