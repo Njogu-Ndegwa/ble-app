@@ -492,7 +492,8 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       if(loadingService) {
         service = loadingService
       }
-      console.warn("New Service Called--486")
+      console.warn("New Service Called--495")
+      console.warn(progress, "Progress--496--")
       console.warn(service, "Loading Service")
       // handlePublish(attributeList)
     }
