@@ -410,10 +410,11 @@ const AppContainer = () => {
               return [...prevList, parsedData];
             }
           });
-
+          setLoadingService(null);
         });
         bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
           console.info(data);
+          setLoadingService(null);
         });
 
         bridge.registerHandler(
