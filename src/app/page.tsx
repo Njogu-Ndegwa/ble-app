@@ -484,12 +484,16 @@ const AppContainer = () => {
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100 && attributeList) {
-      console.warn("New Service Called--486")
-      console.warn(loadingService, "Loading Service")
+      let service = ""
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
       // console.info(attributeList, "Attribute List -----441----")
+      if(loadingService) {
+        service = loadingService
+      }
+      console.warn("New Service Called--486")
+      console.warn(service, "Loading Service")
       // handlePublish(attributeList)
     }
   }, [progress, attributeList])
