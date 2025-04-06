@@ -144,12 +144,12 @@ const AppContainer = () => {
     return defaultImageUrl;
   };
 
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole(); 
-  //   });
-  // }, []);
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole(); 
+    });
+  }, []);
 
 
   function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
@@ -483,6 +483,7 @@ const AppContainer = () => {
 console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100 && attributeList) {
+      console.warn("New Service Called--486")
       setIsConnecting(false); // Connection process complete
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList)
