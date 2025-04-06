@@ -147,7 +147,7 @@ const AppContainer = () => {
   useEffect(() => {
     import('vconsole').then((module) => {
       const VConsole = module.default;
-      new VConsole(); 
+      new VConsole();
     });
   }, []);
 
@@ -373,7 +373,7 @@ const AppContainer = () => {
           }
         );
 
-        bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function(data,
+        bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function (data,
           responseCallback) {
           console.info(data);
           const obj = JSON.parse(data);
@@ -386,22 +386,22 @@ const AppContainer = () => {
           setProgress(progressPercentage);
         });
 
-        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function(data,
+        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function (data,
           responseCallback) {
 
           const parsedData = JSON.parse(data);
           // console.info(parsedData, "On Complete----382---");
-          setServiceAttrList((prevList:any) => {
+          setServiceAttrList((prevList: any) => {
             // If the list is empty, start a new array
             if (!prevList || prevList.length === 0) {
               return [parsedData];
             }
-            
+
             // Find if service with same UUID already exists
             const existingServiceIndex = prevList.findIndex(
-              (service:any) => service.uuid === parsedData.uuid
+              (service: any) => service.uuid === parsedData.uuid
             );
-            
+
             if (existingServiceIndex >= 0) {
               // Service exists, replace it
               const updatedList = [...prevList];
@@ -417,7 +417,7 @@ const AppContainer = () => {
           }, 100)
 
         });
-        bridge.registerHandler("bleInitServiceDataFailureCallBack", function(data, responseCallback) {
+        bridge.registerHandler("bleInitServiceDataFailureCallBack", function (data, responseCallback) {
           console.info(data);
           setLoadingService(null);
         });
@@ -459,6 +459,7 @@ const AppContainer = () => {
     return () => {
       console.log("-------250------")
     };
+    readDeviceInfo()
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
 
   const startQrCodeScan = () => {
@@ -472,21 +473,21 @@ const AppContainer = () => {
 
   const handleServiceDataRequest = (serviceName: string) => {
     if (!selectedDevice) return;
-    
+
     setLoadingService(serviceName);
     setProgress(0);
-    
+
     const data = {
       serviceName: serviceName, // ATT/STS/DIA/CMD/DTA
       macAddress: selectedDevice
     };
-    
+
     initServiceBleData(data);
   };
 
 
 
-console.info(isMqttConnected, "Is Mqtt Connected")
+  console.info(isMqttConnected, "Is Mqtt Connected")
   useEffect(() => {
     if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false); // Connection process complete
@@ -650,57 +651,57 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
-    
+
     // First, ensure we have attributeList and it's an array
     if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
       console.error("AttributeList is empty or invalid");
       toast.error("Error: Device data not available yet");
       return;
     }
-  
+
     // Find the ATT_SERVICE from the attributeList - this is required for all publish operations
     const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
-    
+
     if (!attService) {
       console.error("ATT_SERVICE not found in attributeList.");
       toast.error("ATT service data is required but not available yet");
       // Queue this publish for retry after ATT service is loaded
       return;
     }
-    
+
     // Get the opid from ATT_SERVICE
     const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
-    
+
     if (!opidChar || !opidChar.realVal) {
       console.error("opid characteristic not found or has no value in ATT_SERVICE.");
       toast.error("Device ID not available");
       return;
     }
-    
+
     const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
-    
+
     // Map service enum to match attributeList format
-    const serviceTypeMap: {[key: string]: string} = {
+    const serviceTypeMap: { [key: string]: string } = {
       'ATT': 'ATT_SERVICE',
       'CMD': 'CMD_SERVICE',
       'STS': 'STS_SERVICE',
       'DTA': 'DTA_SERVICE',
       'DIA': 'DIA_SERVICE'
     };
-    
+
     const serviceNameEnum = serviceTypeMap[serviceType] || serviceType;
-    
+
     // Find the requested service from the attributeList
-    const requestedService = attributeList.find((service: any) => 
+    const requestedService = attributeList.find((service: any) =>
       service.serviceNameEnum === serviceNameEnum
     );
-    
+
     if (!requestedService) {
       console.error(`${serviceNameEnum} not found in attributeList.`);
       // toast.error(`${serviceType} service data not available yet`);
       return;
     }
-    
+
     // Convert service data to key-value format
     const serviceData = requestedService.characteristicList.reduce((acc: any, char: any) => {
       // Skip null or undefined values
@@ -709,14 +710,14 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       }
       return acc;
     }, {});
-    
+
     // Check if we have data to publish
     if (Object.keys(serviceData).length === 0) {
       console.error(`No valid data found in ${serviceType} service.`);
       toast.error(`No data available to publish for ${serviceType}`);
       return;
     }
-    
+
     // Define the data to publish
     const dataToPublish = {
       topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
@@ -728,9 +729,9 @@ console.info(isMqttConnected, "Is Mqtt Connected")
         deviceInfo: "mac_address"
       }
     };
-    
+
     console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
-    
+
     // Try to publish via MQTT
     try {
       window.WebViewJavascriptBridge.callHandler(
@@ -746,7 +747,26 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       toast.error(`Error publishing ${serviceType} data`);
     }
   };
-  
+
+  const readDeviceInfo = () => {
+    if (!window.WebViewJavascriptBridge) {
+      console.error("WebViewJavascriptBridge is not initialized.");
+      toast.error("Error: WebViewJavascriptBridge is not initialized.");
+      return;
+    }
+    try {
+      window.WebViewJavascriptBridge.callHandler(
+        'readDeviceInfo', "",
+        (response) => {
+          console.warn(response, "Response");
+        }
+      );
+    } catch (error) {
+      console.error(`Error :`, error);
+      toast.error(`Error reding device info data`);
+    }
+  }
+
   // Optional: Helper function to publish all available services
   const publishAllAvailableServices = (attributeList: any) => {
     if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
@@ -754,37 +774,37 @@ console.info(isMqttConnected, "Is Mqtt Connected")
       toast.error("Error: Device data not available yet");
       return;
     }
-    
+
     // Check if ATT service is available (required for all publishes)
     const hasAttService = attributeList.some(service => service.serviceNameEnum === "ATT_SERVICE");
-    
+
     if (!hasAttService) {
       console.error("ATT_SERVICE not found - required for publishing");
       toast.error("Cannot publish: ATT service data not available");
       return;
     }
-    
+
     // Map of service types to publish
     const serviceTypes = ['ATT', 'CMD', 'STS', 'DTA', 'DIA'];
-    
+
     // Determine which services are available
     const availableServices = serviceTypes.filter(type => {
       const serviceNameEnum = `${type}_SERVICE`;
       return attributeList.some(service => service.serviceNameEnum === serviceNameEnum);
     });
-    
+
     if (availableServices.length === 0) {
       toast.error("No service data available to publish");
       return;
     }
-    
+
     // Publish each available service with a slight delay between them
     availableServices.forEach((serviceType, index) => {
       setTimeout(() => {
         handlePublish(attributeList, serviceType);
       }, index * 500); // 500ms delay between each publish
     });
-    
+
     console.info("Publishing services:", availableServices);
   };
 
