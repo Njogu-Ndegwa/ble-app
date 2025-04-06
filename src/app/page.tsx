@@ -77,6 +77,7 @@ const AppContainer = () => {
   const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   const [loadingService, setLoadingService] = useState<string | null>(null);
+  const [androidId, setAndroidId] = useState<any>("")
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
@@ -726,7 +727,7 @@ const AppContainer = () => {
         // Use the service name as the key for the data object
         [serviceType.toLowerCase()]: serviceData,
         timestamp: Date.now(),
-        deviceInfo: "mac_address"
+        deviceInfo: androidId || ""
       }
     };
 
@@ -759,6 +760,12 @@ const AppContainer = () => {
         'readDeviceInfo', "",
         (response) => {
           console.warn(response, "Response");
+          const jsonData = JSON.parse(response);
+          if (jsonData.respCode === "200" && jsonData.respData && jsonData.respData.ANDROID_ID) {
+            const androidId = jsonData.respData.ANDROID_ID;
+            setAndroidId(androidId)
+            console.warn(androidId, "765---")
+          }
         }
       );
     } catch (error) {
