@@ -89,8 +89,8 @@ import { Serwist, NetworkFirst } from "serwist";
 const serwist = new Serwist({
   precacheEntries: [
     ...self.__SW_MANIFEST,
-    // Explicitly precache the root page
-    { url: "/", revision: "CACHE_ROOT_HACK" },
+    // Precache root page with proper revision
+    { url: "/", revision: process.env.SOURCE_VERSION || "CACHE_ROOT_HACK" },
   ],
   skipWaiting: true,
   clientsClaim: true,
@@ -117,10 +117,28 @@ const serwist = new Serwist({
   },
 });
 
-// Force-cache root page during installation
+// Modified install handler with proper error handling
 serwist.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open("pages-cache").then(cache => cache.add("/"))
+    caches.open("pages-cache")
+      .then(cache => {
+        return fetch("/")
+          .then(response => {
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return cache.put("/", response);
+          })
+          .catch(() => {
+            // If network fails, check if we have a fallback
+            return cache.match("/").then(existing => {
+              if (!existing) return cache.add("/offline.html");
+            });
+          });
+      })
+      .catch(error => {
+        console.error("Cache installation failed:", error);
+        // Still allow service worker to install
+        return Promise.resolve();
+      })
   );
 });
 
