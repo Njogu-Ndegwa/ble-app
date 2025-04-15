@@ -153,6 +153,22 @@ const AppContainer = () => {
   }, []);
 
 
+ useEffect(() => {
+    // Check if we've already reloaded
+    const hasReloaded = sessionStorage.getItem('hasReloaded');
+    
+    if (!hasReloaded) {
+      sessionStorage.setItem('hasReloaded', 'true');
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    }
+
+    return () => {
+      sessionStorage.removeItem('hasReloaded');
+    };
+  }, []);
+
   function convertRssiToFormattedString(rssi: number, txPower: number = -59, n: number = 2): string {
     // Calculate distance using the logarithmic path-loss model
     const distance = Math.pow(10, (txPower - rssi) / (10 * n));
