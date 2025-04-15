@@ -6,15 +6,7 @@ const serwist = new Serwist({
   skipWaiting: true, // Takes control immediately upon installation
   clientsClaim: true, // Claims clients immediately
   navigationPreload: true, // Enables navigation preloading if supported
-  runtimeCaching: [
-    {
-      urlPattern: "/", // Cache the root URL with a cache-first strategy
-      handler: new CacheFirst({
-        cacheName: "app-shell",
-      }),
-    },
-    ...defaultCache, // Preserve other default caching strategies
-  ],
+  runtimeCaching: defaultCache, // Uses default caching strategies
   fallbacks: {
     entries: [
       {
