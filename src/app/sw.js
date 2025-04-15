@@ -49,11 +49,49 @@
 // serwist.addEventListeners();
 
 
+// import { defaultCache } from "@serwist/next/worker";
+// import { Serwist, NetworkFirst } from "serwist"; // Import NetworkFirst
+
+// const serwist = new Serwist({
+//   precacheEntries: self.__SW_MANIFEST,
+//   skipWaiting: true,
+//   clientsClaim: true,
+//   navigationPreload: true,
+//   runtimeCaching: [
+//     ...defaultCache,
+//     {
+//       matcher: ({ request }) => request.destination === "document",
+//       handler: new NetworkFirst({
+//         cacheName: "pages-cache",
+//         networkTimeoutSeconds: 3,
+//       }),
+//     },
+//   ],
+//   fallbacks: {
+//     entries: [
+//       {
+//         url: "/offline.html",
+//         matcher({ request }) {
+//           return request.destination === "document";
+//         },
+//       },
+//     ],
+//   },
+// });
+
+// serwist.addEventListeners();
+
+
+
 import { defaultCache } from "@serwist/next/worker";
-import { Serwist, NetworkFirst } from "serwist"; // Import NetworkFirst
+import { Serwist, NetworkFirst } from "serwist";
 
 const serwist = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
+  precacheEntries: [
+    ...self.__SW_MANIFEST,
+    // Explicitly precache the root page
+    { url: "/", revision: "CACHE_ROOT_HACK" },
+  ],
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
@@ -77,6 +115,13 @@ const serwist = new Serwist({
       },
     ],
   },
+});
+
+// Force-cache root page during installation
+serwist.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open("pages-cache").then(cache => cache.add("/"))
+  );
 });
 
 serwist.addEventListeners();
