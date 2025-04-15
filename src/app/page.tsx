@@ -161,7 +161,7 @@ const AppContainer = () => {
       sessionStorage.setItem('hasReloaded', 'true');
       setTimeout(() => {
         window.location.reload();
-      }, 2000);
+      }, 5000);
     }
 
     return () => {
