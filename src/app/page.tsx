@@ -145,12 +145,12 @@ const AppContainer = () => {
     return defaultImageUrl;
   };
 
-  useEffect(() => {
-    import('vconsole').then((module) => {
-      const VConsole = module.default;
-      new VConsole();
-    });
-  }, []);
+  // useEffect(() => {
+  //   import('vconsole').then((module) => {
+  //     const VConsole = module.default;
+  //     new VConsole();
+  //   });
+  // }, []);
 
 
  useEffect(() => {
