@@ -668,57 +668,57 @@ const AppContainer = () => {
       toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
-
+ 
     // First, ensure we have attributeList and it's an array
     if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
       console.error("AttributeList is empty or invalid");
       toast.error("Error: Device data not available yet");
       return;
     }
-
+ 
     // Find the ATT_SERVICE from the attributeList - this is required for all publish operations
     const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
-
+ 
     if (!attService) {
       console.error("ATT_SERVICE not found in attributeList.");
       toast.error("ATT service data is required but not available yet");
       // Queue this publish for retry after ATT service is loaded
       return;
     }
-
+ 
     // Get the opid from ATT_SERVICE
     const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
-
+ 
     if (!opidChar || !opidChar.realVal) {
       console.error("opid characteristic not found or has no value in ATT_SERVICE.");
       toast.error("Device ID not available");
       return;
     }
-
+ 
     const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
-
+ 
     // Map service enum to match attributeList format
     const serviceTypeMap: { [key: string]: string } = {
       'ATT': 'ATT_SERVICE',
       'CMD': 'CMD_SERVICE',
       'STS': 'STS_SERVICE',
       'DTA': 'DTA_SERVICE',
-      'DIA': 'DIA_SERVICE'
+      'DIA': 'DIA_SERVICE',
     };
-
+ 
     const serviceNameEnum = serviceTypeMap[serviceType] || serviceType;
-
+ 
     // Find the requested service from the attributeList
     const requestedService = attributeList.find((service: any) =>
       service.serviceNameEnum === serviceNameEnum
     );
-
+ 
     if (!requestedService) {
       console.error(`${serviceNameEnum} not found in attributeList.`);
       // toast.error(`${serviceType} service data not available yet`);
       return;
     }
-
+ 
     // Convert service data to key-value format
     const serviceData = requestedService.characteristicList.reduce((acc: any, char: any) => {
       // Skip null or undefined values
@@ -727,14 +727,14 @@ const AppContainer = () => {
       }
       return acc;
     }, {});
-
+ 
     // Check if we have data to publish
     if (Object.keys(serviceData).length === 0) {
       console.error(`No valid data found in ${serviceType} service.`);
       toast.error(`No data available to publish for ${serviceType}`);
       return;
     }
-
+ 
     // Define the data to publish
     const dataToPublish = {
       topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
@@ -746,9 +746,11 @@ const AppContainer = () => {
         deviceInfo: androidId || ""
       }
     };
-
+ 
     console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
-
+    // toast(`Preparing to publish ${serviceType} data`, {
+    //   duration: 2000, // Show for 2 seconds
+    // }); 
     // Try to publish via MQTT
     try {
       window.WebViewJavascriptBridge.callHandler(
@@ -764,7 +766,6 @@ const AppContainer = () => {
       toast.error(`Error publishing ${serviceType} data`);
     }
   };
-
   const readDeviceInfo = () => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
@@ -899,6 +900,7 @@ const AppContainer = () => {
           onRequestServiceData={handleServiceDataRequest}
           isLoadingService={loadingService}
           serviceLoadingProgress={progress}
+          handlePublish={handlePublish} // Pass handlePublish to DeviceDetailView
         />
       )}
       {isConnecting && (
