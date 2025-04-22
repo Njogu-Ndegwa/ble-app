@@ -11,6 +11,7 @@ import { connBleByMacAddress, initBleData, initServiceBleData } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { ScanQrCode } from 'lucide-react';
 import { AnyARecord } from 'dns';
+const [preloadedServices, setPreloadedServices] = useState(false);
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -831,6 +832,21 @@ const AppContainer = () => {
     console.info("Publishing services:", availableServices);
   };
 
+  // New-Code
+
+    useEffect(() => {
+       if (
+       connectedDevice &&
+      !preloadedServices &&
+      attributeList.some((s:any) => s.serviceNameEnum === "ATT_SERVICE")
+       ) {
+         ["STS", "CMD"].forEach(serviceName =>
+         initServiceBleData({ serviceName, macAddress: connectedDevice })
+        );
+         setPreloadedServices(true);
+      }
+     }, [connectedDevice, attributeList, preloadedServices]);
+// New- COde
   const bleLoadingSteps = [
     { percentComplete: 10, message: "Initializing Bluetooth connection..." },
     { percentComplete: 25, message: "Reading ATT Service..." },
