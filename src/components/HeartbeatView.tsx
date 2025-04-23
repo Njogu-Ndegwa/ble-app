@@ -16,8 +16,6 @@ interface Metric {
   name: string;
   description: string;
   value: any;
-  icon: JSX.Element;
-  status: 'healthy' | 'warning' | 'critical';
 }
 
 const HeartbeatView: React.FC<HeartbeatViewProps> = ({
@@ -30,12 +28,6 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [heartbeatSent, setHeartbeatSent] = useState<boolean>(false);
 
-  const THRESHOLDS = {
-    hbfq: { warning: 2, critical: 5 },
-    trhd: { warning: 1000, critical: 2000 },
-    rsoc: { warning: 50, critical: 20 },
-    ctmp: { warning: 40, critical: 60 },
-  };
 
   const extractMetrics = (): Metric[] => {
     const metrics: Metric[] = [];
@@ -46,124 +38,68 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       return service.characteristicList.find((c: any) => c.name === charName);
     };
 
-    // ATT: Operator ID
     const opid = findChar('ATT_SERVICE', 'opid');
     if (opid) {
       metrics.push({
         service: 'ATT',
-        name: 'Operator ID',
+        name: 'opid',
         description: opid.desc || 'Unique operator identifier',
         value: opid.realVal ?? 'N/A',
-        icon: <Cpu size={18} />,
-        status: 'healthy',
       });
     }
 
-    // CMD: Heartbeat Frequency
-    const hbfq = findChar('CMD_SERVICE', 'hbfq');
-    if (hbfq) {
-      const value = hbfq.realVal ?? null;
+    const ppid = findChar('ATT_SERVICE', 'ppid');
+    if (ppid) {
+      metrics.push({
+        service: 'ATT',
+        name: 'ppid',
+        description: ppid.desc || 'Product model identifier',
+        value: ppid.realVal ?? 'N/A',
+      });
+    }
+
+    // CMD: Public Key
+    const pubk = findChar('CMD_SERVICE', 'pubk');
+    if (pubk) {
       metrics.push({
         service: 'CMD',
-        name: 'Heartbeat Frequency',
-        description: hbfq.desc || 'Frequency of heartbeat signals',
-        value: value !== null ? `${value} s` : 'N/A',
-        icon: <Heart size={18} />,
-        status:
-          value === null
-            ? 'critical'
-            : value >= THRESHOLDS.hbfq.critical
-            ? 'critical'
-            : value >= THRESHOLDS.hbfq.warning
-            ? 'warning'
-            : 'healthy',
+        name: 'pubk',
+        description: pubk.desc || 'Public key for secure communication',
+        value: pubk.realVal ?? 'N/A',
       });
     }
 
-    // STS: Threshold, System State Code
-    const trhd = findChar('STS_SERVICE', 'trhd');
-    if (trhd) {
-      const value = trhd.realVal ?? null;
+    // STS: Record, Power Grid Status, Top Guard
+    const rcrd = findChar('STS_SERVICE', 'rcrd');
+    if (rcrd) {
+      const value = rcrd.realVal ?? null;
       metrics.push({
         service: 'STS',
-        name: 'Threshold',
-        description: trhd.desc || 'System threshold value',
+        name: 'rcrd',
+        description: rcrd.desc || 'Device record or log status',
         value: value !== null ? value : 'N/A',
-        icon: <Gauge size={18} />,
-        status:
-          value === null
-            ? 'critical'
-            : value >= THRESHOLDS.trhd.critical
-            ? 'critical'
-            : value >= THRESHOLDS.trhd.warning
-            ? 'warning'
-            : 'healthy',
       });
     }
 
-    const sstc = findChar('STS_SERVICE', 'sstc');
-    if (sstc) {
-      const value = sstc.realVal ?? null;
+    const pgst = findChar('STS_SERVICE', 'pgst');
+    if (pgst) {
+      const value = pgst.realVal ?? null;
       metrics.push({
         service: 'STS',
-        name: 'System State',
-        description: sstc.desc || 'System health status code',
+        name: 'pgst',
+        description: pgst.desc || 'Grid connection status',
         value: value !== null ? value : 'N/A',
-        icon: <AlertCircle size={18} />,
-        status: value === null ? 'critical' : value === 'normal' ? 'healthy' : 'critical',
       });
     }
 
-    // DTA: Output, State of Charge, Temperature
-    const outp = findChar('DTA_SERVICE', 'outp');
-    if (outp) {
+    const tpgd = findChar('STS_SERVICE', 'tpgd');
+    if (tpgd) {
+      const value = tpgd.realVal ?? null;
       metrics.push({
-        service: 'DTA',
-        name: 'Output',
-        description: outp.desc || 'System output value',
-        value: outp.realVal ?? 'N/A',
-        icon: <Zap size={18} />,
-        status: outp.realVal === 'active' ? 'healthy' : 'critical',
-      });
-    }
-
-    const rsoc = findChar('DTA_SERVICE', 'rsoc');
-    if (rsoc) {
-      const value = rsoc.realVal ?? null;
-      metrics.push({
-        service: 'DTA',
-        name: 'State of Charge',
-        description: rsoc.desc || 'Battery state of charge',
-        value: value !== null ? `${value}%` : 'N/A',
-        icon: <Battery size={18} />,
-        status:
-          value === null
-            ? 'critical'
-            : value < THRESHOLDS.rsoc.critical
-            ? 'critical'
-            : value < THRESHOLDS.rsoc.warning
-            ? 'warning'
-            : 'healthy',
-      });
-    }
-
-    const ctmp = findChar('DTA_SERVICE', 'ctmp');
-    if (ctmp) {
-      const value = ctmp.realVal ?? null;
-      metrics.push({
-        service: 'DTA',
-        name: 'Temperature',
-        description: ctmp.desc || 'Device temperature',
-        value: value !== null ? `${value}°C` : 'N/A',
-        icon: <Thermometer size={18} />,
-        status:
-          value === null
-            ? 'critical'
-            : value > THRESHOLDS.ctmp.critical
-            ? 'critical'
-            : value > THRESHOLDS.ctmp.warning
-            ? 'warning'
-            : 'healthy',
+        service: 'STS',
+        name: 'tpgd',
+        description: tpgd.desc || 'Safety or limit indicator',
+        value: value !== null ? value : 'N/A',
       });
     }
 
@@ -214,6 +150,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     }
   }, [metrics.length, heartbeatSent]);
 
+
   const refreshAllServices = async () => {
     try {
       setError(null);
@@ -221,8 +158,6 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
         onRequestServiceData('ATT'),
         onRequestServiceData('CMD'),
         onRequestServiceData('STS'),
-        onRequestServiceData('DTA'),
-        onRequestServiceData('DIA'),
         onRequestServiceData('HEARTBEAT'),
       ]);
       setLastUpdated(new Date());
@@ -233,6 +168,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   };
 
   const handleManualRefresh = () => {
+    // Reset the heartbeatSent flag to allow re-publishing heartbeat data
+    setHeartbeatSent(false);
     refreshAllServices();
   };
 
@@ -245,16 +182,10 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   //   return lastUpdated.toLocaleTimeString();
   // };
 
-  const requiredServices = ['ATT_SERVICE', 'CMD_SERVICE', 'STS_SERVICE', 'DTA_SERVICE'];
+  const requiredServices = ['ATT_SERVICE', 'CMD_SERVICE', 'STS_SERVICE'];
   const missingServices = requiredServices.filter(
     (serviceEnum) => !attributeList.some((s) => s.serviceNameEnum === serviceEnum)
   );
-
-  const statusColors = {
-    healthy: 'bg-green-600',
-    warning: 'bg-yellow-600',
-    critical: 'bg-red-600',
-  };
 
   if (missingServices.length > 0) {
     return (
@@ -324,15 +255,11 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
             {/* Header area similar to the example code */}
             <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
               <div className="flex items-center space-x-2">
-                {metric.icon}
+                
                 <span className="text-sm font-medium">{metric.name}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs text-gray-400">{metric.service}</span>
-                <span
-                  className={`w-3 h-3 rounded-full ${statusColors[metric.status]}`}
-                  aria-label={`${metric.name} status: ${metric.status}`}
-                />
               </div>
             </div>
             {/* Content area */}
