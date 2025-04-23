@@ -11,7 +11,7 @@ import { connBleByMacAddress, initBleData, initServiceBleData } from "./utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { ScanQrCode } from 'lucide-react';
 import { AnyARecord } from 'dns';
-const [preloadedServices, setPreloadedServices] = useState(false);
+
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -78,7 +78,8 @@ const AppContainer = () => {
   const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   const [loadingService, setLoadingService] = useState<string | null>(null);
-  const [androidId, setAndroidId] = useState<any>("")
+  const [androidId, setAndroidId] = useState<any>("");
+  const [preloadedServices, setPreloadedServices] = useState(false);
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
