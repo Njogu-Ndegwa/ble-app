@@ -27,8 +27,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   handlePublish,
 }) => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState<number>(30);
   const [error, setError] = useState<string | null>(null);
+  const [heartbeatSent, setHeartbeatSent] = useState<boolean>(false);
 
   const THRESHOLDS = {
     hbfq: { warning: 2, critical: 5 },
@@ -173,7 +173,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   const metrics = extractMetrics();
 
   const handlePublishHeartbeat = () => {
-    if (!handlePublish) {
+    if (!handlePublish || heartbeatSent) {
       return;
     }
 
@@ -198,27 +198,21 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     ];
 
     handlePublish(formattedAttributeList, 'HEARTBEAT');
+    setHeartbeatSent(true);
+    // toast.success('Heartbeat data sent');
   };
 
   useEffect(() => {
     // Initial refresh when component mounts
     refreshAllServices();
-    
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          refreshAllServices();
-          setLastUpdated(new Date());
-          // Publish on auto-refresh if handlePublish exists
-          if (handlePublish) handlePublishHeartbeat();
-          return 30;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
   }, []);
+
+  // Effect to send heartbeat once when data is first loaded
+  useEffect(() => {
+    if (metrics.length > 0 && !heartbeatSent && handlePublish) {
+      handlePublishHeartbeat();
+    }
+  }, [metrics.length, heartbeatSent]);
 
   const refreshAllServices = async () => {
     try {
@@ -240,17 +234,16 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
 
   const handleManualRefresh = () => {
     refreshAllServices();
-    setCountdown(30);
   };
 
-  const formatLastUpdated = () => {
-    if (!lastUpdated) return 'Never updated';
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
-    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    return lastUpdated.toLocaleTimeString();
-  };
+  // const formatLastUpdated = () => {
+  //   if (!lastUpdated) return 'Never updated';
+  //   const now = new Date();
+  //   const diffInSeconds = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
+  //   if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
+  //   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  //   return lastUpdated.toLocaleTimeString();
+  // };
 
   const requiredServices = ['ATT_SERVICE', 'CMD_SERVICE', 'STS_SERVICE', 'DTA_SERVICE'];
   const missingServices = requiredServices.filter(
@@ -284,21 +277,34 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-medium text-white">Device Heartbeat</h3>
-          <p className="text-xs text-gray-400">
+          {/* <p className="text-xs text-gray-400">
             Last updated: {formatLastUpdated()}
-            {` (auto-refresh in ${countdown}s)`}
-          </p>
+          </p> */}
+          {/* {heartbeatSent && (
+            <p className="text-xs text-green-400">Heartbeat data already sent</p>
+          )} */}
         </div>
         <div className="flex space-x-2">
           <button
             onClick={handleManualRefresh}
-            className="flex items-center space-x-1 bg-blue-700 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-sm transition-colors disabled:bg-gray-600"
+            className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors disabled:bg-gray-600"
             disabled={isLoading}
             aria-label="Refresh heartbeat data"
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
+          {!heartbeatSent && handlePublish && (
+            <button
+              onClick={handlePublishHeartbeat}
+              className="flex items-center space-x-1 bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm transition-colors disabled:bg-gray-600"
+              disabled={isLoading || metrics.length === 0}
+              aria-label="Send heartbeat data"
+            >
+              <Heart size={14} />
+              <span>Send Heartbeat</span>
+            </button>
+          )}
         </div>
       </div>
       {error && (
