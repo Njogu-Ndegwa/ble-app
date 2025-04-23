@@ -282,7 +282,7 @@
 
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from './utils';
 import { Toaster, toast } from 'react-hot-toast';
@@ -303,7 +303,7 @@ interface DeviceDetailProps {
   onRequestServiceData?: (serviceName: string) => void;
   isLoadingService?: string | null;
   serviceLoadingProgress?: number;
-  handlePublish?: (attributeList: any, serviceType: string) => void; // Add handlePublish prop
+  handlePublish?: (attributeList: any, serviceType: string) => void;
 }
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({
@@ -313,7 +313,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   onRequestServiceData,
   isLoadingService,
   serviceLoadingProgress = 0,
-  handlePublish, // Destructure handlePublish
+  handlePublish,
 }) => {
   const router = useRouter();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
@@ -321,6 +321,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('ATT');
+
+  // Persist initial data load and heartbeat sent state across HeartbeatView mounts
+  const initialDataLoadedRef = useRef<boolean>(false);
+  const heartbeatSentRef = useRef<boolean>(false);
 
   const fixedTabs = [
     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
@@ -330,8 +335,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
     { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
   ];
-
-  const [activeTab, setActiveTab] = useState(fixedTabs[0].id);
 
   const activeService = attributeList.find((service) =>
     fixedTabs.find((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
@@ -362,14 +365,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
     const tab = fixedTabs.find((t) => t.id === tabId);
-    if (!tab || !tab.serviceNameEnum) return;
+    if (!tab || !tab.serviceNameEnum || tabId === 'HEARTBEAT') return;
     const serviceNameEnum = tab.serviceNameEnum;
     if (!isServiceLoaded(serviceNameEnum) && onRequestServiceData) {
       onRequestServiceData(tabId);
-    }
-    if (tabId === 'HEARTBEAT' && onRequestServiceData) {
-      if (!isServiceLoaded('ATT_SERVICE')) onRequestServiceData('ATT');
-      if (!isServiceLoaded('STS_SERVICE')) onRequestServiceData('STS');
     }
   };
 
@@ -503,7 +502,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             attributeList={attributeList}
             onRequestServiceData={onRequestServiceData || (() => {})}
             isLoading={isLoadingService !== null}
-            handlePublish={handlePublish} // Pass handlePublish to HeartbeatView
+            handlePublish={handlePublish}
+            initialDataLoadedRef={initialDataLoadedRef}
+            heartbeatSentRef={heartbeatSentRef} // Pass heartbeatSentRef
           />
         ) : (
           <>
