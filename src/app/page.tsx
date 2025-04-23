@@ -62,6 +62,7 @@ declare global {
     WebViewJavascriptBridge?: WebViewJavascriptBridge;
   }
 }
+
 const defaultImageUrl = "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png"
 
 
