@@ -611,15 +611,15 @@
 
 'use client'
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from './utils';
 import { Toaster, toast } from 'react-hot-toast';
-import { ArrowLeft, Share2, RefreshCw, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Share2, RefreshCw } from 'lucide-react';
 import { AsciiStringModal, NumericModal } from './modals';
 import { Clipboard } from 'lucide-react';
 import HeartbeatView from '@/components/HeartbeatView';
-import CmdServiceView from './CmdServiceView'; // Import the CmdServiceView component
+import CmdServiceView from './CmdServiceView';
 
 interface DeviceDetailProps {
   device: {
@@ -634,6 +634,7 @@ interface DeviceDetailProps {
   isLoadingService?: string | null;
   serviceLoadingProgress?: number;
   handlePublish?: (attributeList: any, serviceType: string) => void;
+  activeSubPage?: string;
 }
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({
@@ -644,6 +645,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   isLoadingService,
   serviceLoadingProgress = 0,
   handlePublish,
+  activeSubPage,
 }) => {
   const router = useRouter();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
@@ -651,21 +653,21 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('ATT');
-  const [showCmdFullView, setShowCmdFullView] = useState(false); // New state to control CMD full view
+  const [activeTab, setActiveTab] = useState(activeSubPage === 'cmd' ? 'CMD' : 'ATT');
 
-  // Persist initial data load and heartbeat sent state across HeartbeatView mounts
   const initialDataLoadedRef = useRef<boolean>(false);
   const heartbeatSentRef = useRef<boolean>(false);
 
-  const fixedTabs = [
-    { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
-    { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
-    { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
-    { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
-    { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
-    { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
-  ];
+  const fixedTabs = activeSubPage === 'cmd'
+    ? [{ id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' }]
+    : [
+        { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
+        { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
+        { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
+        { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
+        { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
+        { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
+      ];
 
   const activeService = attributeList.find((service) =>
     fixedTabs.find((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
@@ -676,14 +678,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleBack = () => {
-    if (showCmdFullView) {
-      setShowCmdFullView(false);
-    } else if (onBack) {
+    if (onBack) {
       onBack();
     } else {
       router.back();
     }
   };
+
   const formatValue = (characteristic: any) => {
     if (typeof characteristic.realVal === 'number') {
       switch (characteristic.valType) {
@@ -702,11 +703,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    // If we're coming from CMD full view, reset it
-    if (showCmdFullView) {
-      setShowCmdFullView(false);
-    }
-    
     const tab = fixedTabs.find((t) => t.id === tabId);
     if (!tab || !tab.serviceNameEnum || tabId === 'HEARTBEAT') return;
     const serviceNameEnum = tab.serviceNameEnum;
@@ -775,18 +771,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     onRequestServiceData(activeTab);
   };
 
-  const handleCmdViewClick = () => {
-    // Make sure CMD tab is active and loaded
-    if (activeTab !== 'CMD') {
-      setActiveTab('CMD');
-      const cmdServiceEnum = 'CMD_SERVICE';
-      if (!isServiceLoaded(cmdServiceEnum) && onRequestServiceData) {
-        onRequestServiceData('CMD');
-      }
+  useEffect(() => {
+    if (activeSubPage === 'cmd' && !isServiceLoaded('CMD_SERVICE') && onRequestServiceData) {
+      onRequestServiceData('CMD');
     }
-    // Show the full CMD view
-    setShowCmdFullView(true);
-  };
+  }, [activeSubPage, onRequestServiceData]);
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
@@ -803,17 +792,17 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || 'Read'}
       />
-      <div className="p-4 flex items-center">
-        <button onClick={handleBack} className="mr-4">
-          <ArrowLeft className="w-6 h-6 text-gray-400" />
-        </button>
-        <h1 className="text-lg font-semibold flex-1">
-          {showCmdFullView ? "CMD Service" : "Device Details"}
-        </h1>
-        <Share2 className="w-5 h-5 text-gray-400" />
-      </div>
+      {activeSubPage !== 'cmd' && (
+        <div className="p-4 flex items-center">
+          <button onClick={handleBack} className="mr-4">
+            <ArrowLeft className="w-6 h-6 text-gray-400" />
+          </button>
+          <h1 className="text-lg font-semibold flex-1">Device Details</h1>
+          <Share2 className="w-5 h-5 text-gray-400" />
+        </div>
+      )}
 
-      {!showCmdFullView && (
+      {activeSubPage !== 'cmd' && (
         <>
           <div className="flex flex-col items-center p-6 pb-2">
             <img
@@ -853,7 +842,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       )}
 
       <div className="p-4">
-        {isLoadingService === activeTab && !showCmdFullView && (
+        {isLoadingService === activeTab && activeSubPage !== 'cmd' && (
           <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
             <div
               className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
@@ -862,13 +851,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           </div>
         )}
 
-        {showCmdFullView && activeService && activeTab === 'CMD' ? (
+        {activeSubPage === 'cmd' && activeService && activeTab === 'CMD' ? (
           <CmdServiceView
             serviceData={activeService}
             deviceMacAddress={device.macAddress}
             deviceName={device.name}
             onRefresh={handleRefreshService}
             isLoading={isLoadingService !== null}
+            onBack={handleBack}
           />
         ) : activeTab === 'HEARTBEAT' ? (
           <HeartbeatView
@@ -883,15 +873,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           <>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-white">{activeTab} Service</h3>
-              {activeTab === 'CMD' && (
-                <button
-                  onClick={handleCmdViewClick}
-                  className="flex items-center space-x-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm transition-colors mr-2"
-                >
-                  <ExternalLink size={14} />
-                  <span>CMD View</span>
-                </button>
-              )}
               <button
                 onClick={handleRefreshService}
                 className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"

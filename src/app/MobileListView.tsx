@@ -1,7 +1,6 @@
-
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { BleDevice } from './page';
 import SearchBar from '@/components/SearchBar';
 import SortFilterBar from '@/components/SortFilterBar';
@@ -16,10 +15,10 @@ interface MobileListViewProps {
   onScanQrCode: () => void;
   onRescanBleItems: () => void;
   isScanning: boolean;
-  onLogout?: () => void; // Added logout handler prop
+  onLogout?: () => void;
+  onSubPageChange?: (subPage: string) => void;
 }
 
-// Define page types for navigation
 type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company' | 'maplocation' | 'settings' | 'location' | 'debug';
 
 const MobileListView: React.FC<MobileListViewProps> = ({
@@ -29,52 +28,48 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   onScanQrCode,
   onRescanBleItems,
   isScanning,
-  onLogout = () => console.log('Logout clicked') }) => {
-
+  onLogout = () => console.log('Logout clicked'),
+  onSubPageChange,
+}) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // Set active page to 'devices' and subpage to 'all' by default
   const [activePage, setActivePage] = useState<PageType>('assets');
   const [activeSubPage, setActiveSubPage] = useState<string>('bledevices');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Calculate sidebar width (80%)
-  const sidebarWidth = "80%";
+  const sidebarWidth = '80%';
 
-  // Filter items based on search query
-  const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.macAddress.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredItems = items.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.macAddress.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleContentClick = () => {
     if (isMenuOpen) setIsMenuOpen(false);
   };
 
-
   const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
     setActivePage(menuId);
     setActiveSubPage(itemId);
     setIsMenuOpen(false);
-  }
+    if (onSubPageChange) {
+      onSubPageChange(itemId);
+    }
+  };
+
   const handleMenuOpen = () => setIsMenuOpen(true);
 
-  // Render content based on active page
   const renderPageContent = () => {
-    // Only show devices list when on the devices/all page
-    if (activePage === 'assets' && activeSubPage === 'bledevices') {
+    if (activePage === 'assets' && (activeSubPage === 'bledevices' || activeSubPage === 'cmd')) {
       return (
         <>
-          {/* Search Bar */}
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             onScanQrCode={onScanQrCode}
             isMenuOpen={isMenuOpen}
           />
-
-          {/* Sort and Filter */}
           <SortFilterBar isMenuOpen={isMenuOpen} />
-          {/* List Items or Skeleton Loaders */}
           <DeviceList
             items={items}
             filteredItems={filteredItems}
@@ -83,16 +78,15 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             isScanning={isScanning}
             searchQuery={searchQuery}
           />
-
         </>
       );
     } else {
-      // Display a simple page for other menu items
       return (
         <div className="flex items-center justify-center h-64">
           <div className="text-center p-6 bg-[#2A2F33] rounded-lg">
             <h3 className="text-xl font-medium text-white mb-2">
-              {activePage.charAt(0).toUpperCase() + activePage.slice(1)} - {activeSubPage.charAt(0).toUpperCase() + activeSubPage.slice(1)}
+              {activePage.charAt(0).toUpperCase() + activePage.slice(1)} -{' '}
+              {activeSubPage.charAt(0).toUpperCase() + activeSubPage.slice(1)}
             </h3>
             <p className="text-gray-400">Hello World</p>
           </div>
@@ -100,6 +94,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
       );
     }
   };
+
   const getPageTitle = () => {
     if (activePage === 'assets' && activeSubPage === 'bledevices') return 'All Devices';
     if (activePage === 'settings') return 'Settings';
@@ -116,9 +111,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         }}
         onClick={handleContentClick}
       >
-        {/* Content Area */}
         <div className="p-4">
-          {/* Header */}
           <Header
             title={getPageTitle()}
             showRefresh={activePage === 'assets' && activeSubPage === 'bledevices'}
@@ -127,13 +120,10 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             onMenuOpen={handleMenuOpen}
             onRefresh={onRescanBleItems}
           />
-
-          {/* Page Content */}
           {renderPageContent()}
         </div>
       </div>
 
-      {/* Sidebar Menu with expandable menu items and proper scrolling */}
       <Sidebar
         isMenuOpen={isMenuOpen}
         sidebarWidth={sidebarWidth}
@@ -143,7 +133,6 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         onSubMenuItemClick={handleSubMenuItemClick}
         onLogout={onLogout}
       />
-
 
       {isMenuOpen && (
         <div

@@ -1,9 +1,9 @@
 'use client'
 
 import React from 'react';
-import { BleDevice } from '@/app/page'; // Adjust this import based on your file structure
+import { BleDevice } from '@/app/page'; 
 import DeviceItem from './DeviceItem';
-import DeviceItemSkeleton from '@/components/DeviceItemSkeleton'; // We'll assume this is moved to its own file
+import DeviceItemSkeleton from '@/components/DeviceItemSkeleton';
 
 interface DeviceListProps {
   items: BleDevice[];
@@ -20,13 +20,12 @@ const DeviceList: React.FC<DeviceListProps> = ({
   connectedDevice,
   onDeviceClick,
   isScanning,
-  searchQuery
+  searchQuery,
 }) => {
-  // Generate skeleton loaders
   const renderSkeletons = () => {
-    return Array(5).fill(0).map((_, index) => (
-      <DeviceItemSkeleton key={`skeleton-${index}`} />
-    ));
+    return Array(5)
+      .fill(0)
+      .map((_, index) => <DeviceItemSkeleton key={`skeleton-${index}`} />);
   };
 
   return (
@@ -44,7 +43,7 @@ const DeviceList: React.FC<DeviceListProps> = ({
         ))
       ) : (
         <div className="text-center py-6 text-gray-400">
-          {searchQuery ? "No devices match your search." : "No devices found. Try scanning again."}
+          {searchQuery ? 'No devices match your search.' : 'No devices found. Try scanning again.'}
         </div>
       )}
     </div>

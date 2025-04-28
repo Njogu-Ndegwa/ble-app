@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { writeBleCharacteristic, readBleCharacteristic } from './utils';
-import { Clipboard, RefreshCw } from 'lucide-react';
+import { Clipboard, RefreshCw, ArrowLeft } from 'lucide-react';
 import { AsciiStringModal, NumericModal } from './modals';
 
 interface CmdServiceViewProps {
@@ -12,6 +12,7 @@ interface CmdServiceViewProps {
   deviceName: string;
   onRefresh: () => void;
   isLoading?: boolean;
+  onBack?: () => void;
 }
 
 const CmdServiceView: React.FC<CmdServiceViewProps> = ({
@@ -19,7 +20,8 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
   deviceMacAddress,
   deviceName,
   onRefresh,
-  isLoading = false
+  isLoading = false,
+  onBack,
 }) => {
   const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
@@ -27,7 +29,6 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
 
-  // Read a characteristic value
   const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     
@@ -104,8 +105,13 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
         title={activeCharacteristic?.name || 'Read'}
       />
       
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-white">CMD Service</h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center">
+          <button onClick={onBack} className="mr-4">
+            <ArrowLeft className="w-6 h-6 text-gray-400" />
+          </button>
+          <h3 className="text-lg font-medium text-white">CMD Service</h3>
+        </div>
         <button
           onClick={onRefresh}
           className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
@@ -116,7 +122,6 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
         </button>
       </div>
       
-      {/* Command list */}
       {serviceData?.characteristicList.map((char: any) => (
         <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
           <div className="flex justify-between items-center bg-gray-800 px-4 py-3">
