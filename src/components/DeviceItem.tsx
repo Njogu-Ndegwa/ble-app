@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { BluetoothSearching, BluetoothConnected } from 'lucide-react';
-import { BleDevice } from '@/app/page'; // Adjust this import based on your file structure
+import { BleDevice } from '@/app/page'; 
 
 interface DeviceItemProps {
   device: BleDevice;
@@ -16,11 +16,7 @@ const DeviceItem: React.FC<DeviceItemProps> = ({ device, isConnected, onClick })
       className="flex items-start p-3 rounded-lg bg-[#2A2F33] cursor-pointer hover:bg-[#343a40] transition-colors"
       onClick={() => onClick(device.macAddress)}
     >
-      <img
-        src={device.imageUrl}
-        alt={device.name}
-        className="w-12 h-12 rounded-full mr-3"
-      />
+      <img src={device.imageUrl} alt={device.name} className="w-12 h-12 rounded-full mr-3" />
       <div className="flex-1">
         <h3 className="text-[14px] font-medium text-white">{device.name}</h3>
         <p className="text-[10px] text-gray-400">{device.macAddress}</p>
