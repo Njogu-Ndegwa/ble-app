@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, JSX } from 'react';
-import { RefreshCw, AlertTriangle, Cpu, Heart, Gauge, Zap, Battery, Thermometer, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface HeartbeatViewProps {
@@ -9,6 +9,8 @@ interface HeartbeatViewProps {
   onRequestServiceData: (serviceName: string) => void;
   isLoading: boolean;
   handlePublish?: (attributeList: any, serviceType: string) => void;
+  initialDataLoadedRef: React.MutableRefObject<boolean>;
+  heartbeatSentRef: React.MutableRefObject<boolean>; // Receive ref from parent
 }
 
 interface Metric {
@@ -23,15 +25,15 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   onRequestServiceData,
   isLoading,
   handlePublish,
+  initialDataLoadedRef,
+  heartbeatSentRef,
 }) => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [heartbeatSent, setHeartbeatSent] = useState<boolean>(false);
-
+  const [manualRefresh, setManualRefresh] = useState<number>(0);
 
   const extractMetrics = (): Metric[] => {
     const metrics: Metric[] = [];
-
     const findChar = (serviceEnum: string, charName: string) => {
       const service = attributeList.find((s) => s.serviceNameEnum === serviceEnum);
       if (!service) return null;
@@ -58,7 +60,6 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       });
     }
 
-    // CMD: Public Key
     const pubk = findChar('CMD_SERVICE', 'pubk');
     if (pubk) {
       metrics.push({
@@ -69,37 +70,33 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       });
     }
 
-    // STS: Record, Power Grid Status, Top Guard
     const rcrd = findChar('STS_SERVICE', 'rcrd');
     if (rcrd) {
-      const value = rcrd.realVal ?? null;
       metrics.push({
         service: 'STS',
         name: 'rcrd',
         description: rcrd.desc || 'Device record or log status',
-        value: value !== null ? value : 'N/A',
+        value: rcrd.realVal ?? 'N/A',
       });
     }
 
     const pgst = findChar('STS_SERVICE', 'pgst');
     if (pgst) {
-      const value = pgst.realVal ?? null;
       metrics.push({
         service: 'STS',
         name: 'pgst',
         description: pgst.desc || 'Grid connection status',
-        value: value !== null ? value : 'N/A',
+        value: pgst.realVal ?? 'N/A',
       });
     }
 
     const tpgd = findChar('STS_SERVICE', 'tpgd');
     if (tpgd) {
-      const value = tpgd.realVal ?? null;
       metrics.push({
         service: 'STS',
         name: 'tpgd',
         description: tpgd.desc || 'Safety or limit indicator',
-        value: value !== null ? value : 'N/A',
+        value: tpgd.realVal ?? 'N/A',
       });
     }
 
@@ -109,7 +106,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   const metrics = extractMetrics();
 
   const handlePublishHeartbeat = () => {
-    if (!handlePublish || heartbeatSent) {
+    if (!handlePublish || heartbeatSentRef.current) {
       return;
     }
 
@@ -134,22 +131,30 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     ];
 
     handlePublish(formattedAttributeList, 'HEARTBEAT');
-    setHeartbeatSent(true);
+    heartbeatSentRef.current = true;
     // toast.success('Heartbeat data sent');
   };
 
+  // Initial data load or manual refresh effect
   useEffect(() => {
-    // Initial refresh when component mounts
-    refreshAllServices();
-  }, []);
+    if (!initialDataLoadedRef.current || manualRefresh > 0) {
+      refreshAllServices();
+      initialDataLoadedRef.current = true;
+    }
+  }, [manualRefresh]);
 
-  // Effect to send heartbeat once when data is first loaded
+  // Publish heartbeat after data is fetched
   useEffect(() => {
-    if (metrics.length > 0 && !heartbeatSent && handlePublish) {
+    if (
+      attributeList.length > 0 &&
+      !isLoading &&
+      !heartbeatSentRef.current &&
+      handlePublish &&
+      initialDataLoadedRef.current
+    ) {
       handlePublishHeartbeat();
     }
-  }, [metrics.length, heartbeatSent]);
-
+  }, [isLoading, manualRefresh]); // Removed attributeList from dependencies
 
   const refreshAllServices = async () => {
     try {
@@ -168,23 +173,13 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   };
 
   const handleManualRefresh = () => {
-    // Reset the heartbeatSent flag to allow re-publishing heartbeat data
-    setHeartbeatSent(false);
-    refreshAllServices();
+    heartbeatSentRef.current = false; // Allow re-publishing
+    setManualRefresh((prev) => prev + 1); // Trigger refresh
   };
-
-  // const formatLastUpdated = () => {
-  //   if (!lastUpdated) return 'Never updated';
-  //   const now = new Date();
-  //   const diffInSeconds = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
-  //   if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-  //   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-  //   return lastUpdated.toLocaleTimeString();
-  // };
 
   const requiredServices = ['ATT_SERVICE', 'CMD_SERVICE', 'STS_SERVICE'];
   const missingServices = requiredServices.filter(
-    (serviceEnum) => !attributeList.some((s) => s.serviceNameEnum === serviceEnum)
+    (s) => !attributeList.some((a) => a.serviceNameEnum === s)
   );
 
   if (missingServices.length > 0) {
@@ -192,7 +187,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       <div className="p-6 text-center text-gray-400">
         <p className="mb-4">Required services ({missingServices.join(', ')}) not loaded</p>
         <button
-          onClick={refreshAllServices}
+          onClick={handleManualRefresh}
           className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors disabled:bg-gray-600"
           disabled={isLoading}
           aria-label="Load required services"
@@ -208,12 +203,6 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-medium text-white">Device Heartbeat</h3>
-          {/* <p className="text-xs text-gray-400">
-            Last updated: {formatLastUpdated()}
-          </p> */}
-          {/* {heartbeatSent && (
-            <p className="text-xs text-green-400">Heartbeat data already sent</p>
-          )} */}
         </div>
         <div className="flex space-x-2">
           <button
@@ -225,17 +214,6 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
             <span>Refresh</span>
           </button>
-          {!heartbeatSent && handlePublish && (
-            <button
-              onClick={handlePublishHeartbeat}
-              className="flex items-center space-x-1 bg-green-700 hover:bg-green-600 text-white px-3 py-1 rounded-md text-sm transition-colors disabled:bg-gray-600"
-              disabled={isLoading || metrics.length === 0}
-              aria-label="Send heartbeat data"
-            >
-              <Heart size={14} />
-              <span>Send Heartbeat</span>
-            </button>
-          )}
         </div>
       </div>
       {error && (
@@ -252,17 +230,14 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
             role="region"
             aria-label={`${metric.name} metric`}
           >
-            {/* Header area similar to the example code */}
             <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
               <div className="flex items-center space-x-2">
-                
                 <span className="text-sm font-medium">{metric.name}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs text-gray-400">{metric.service}</span>
               </div>
             </div>
-            {/* Content area */}
             <div className="px-4 py-3 space-y-3">
               <div>
                 <p className="text-xs text-gray-400">Description</p>

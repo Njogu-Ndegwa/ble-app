@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, CheckCircle } from 'lucide-react';
+import { defaultLoadingSteps } from '@/app/constants/loadingConfig';
 
 interface ProgressiveLoadingProps {
   initialMessage?: string;
@@ -11,16 +12,10 @@ interface ProgressiveLoadingProps {
   progress?: number;
 }
 
- const ProgressiveLoading: React.FC<ProgressiveLoadingProps> = ({
+const ProgressiveLoading: React.FC<ProgressiveLoadingProps> = ({
   initialMessage = "Initializing...",
   completionMessage = "Loading complete!",
-  loadingSteps = [
-    { percentComplete: 10, message: "Scanning for devices..." },
-    { percentComplete: 30, message: "Connecting to device..." },
-    { percentComplete: 50, message: "Retrieving device information..." },
-    { percentComplete: 70, message: "Synchronizing data..." },
-    { percentComplete: 90, message: "Finalizing connection..." }
-  ],
+  loadingSteps = defaultLoadingSteps, 
   onLoadingComplete = () => {},
   autoProgress = true,
   duration = 5000,
