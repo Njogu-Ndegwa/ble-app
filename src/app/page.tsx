@@ -633,7 +633,7 @@ const AppContainer = () => {
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
-      toast.error("Error: WebViewJavascriptBridge is not initialized.");
+      // toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
  
@@ -737,7 +737,7 @@ const AppContainer = () => {
   const readDeviceInfo = () => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
-      toast.error("Error: WebViewJavascriptBridge is not initialized.");
+      // toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
     try {
