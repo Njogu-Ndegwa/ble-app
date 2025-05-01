@@ -7,7 +7,7 @@ import SortFilterBar from '@/components/SortFilterBar';
 import DeviceList from '@/components/DeviceList';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-
+// import CustomKeypadPage from './CustomKeypadPage';
 interface MobileListViewProps {
   items: BleDevice[];
   onStartConnection: (macAddress: string) => void;
@@ -80,7 +80,11 @@ const MobileListView: React.FC<MobileListViewProps> = ({
           />
         </>
       );
-    } else {
+    } 
+    // if (activePage === 'team' && activeSubPage === 'members') {
+    //   return <CustomKeypadPage />;
+    // }
+    else {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="text-center p-6 bg-[#2A2F33] rounded-lg">
@@ -97,7 +101,9 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
   const getPageTitle = () => {
     if (activePage === 'assets' && activeSubPage === 'bledevices') return 'All Devices';
+    // if (activePage === 'team' && activeSubPage === 'members') return 'Customer Access';
     if (activePage === 'settings') return 'Settings';
+
     return activePage.charAt(0).toUpperCase() + activePage.slice(1);
   };
 
