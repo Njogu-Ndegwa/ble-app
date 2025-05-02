@@ -882,6 +882,7 @@
 // export default AppContainer;
 
 
+
 'use client'
 
 import React, { useState, useRef } from 'react';
@@ -1713,6 +1714,7 @@ const AppContainer = () => {
               onScanQrCode={startQrCodeScan}
               onRescanBleItems={handleBLERescan}
               isScanning={isScanning}
+              userRole={userRole} // Pass userRole
             />
           ) : (
             <DeviceDetailView
@@ -1738,6 +1740,7 @@ const AppContainer = () => {
               onScanQrCode={startQrCodeScan}
               onRescanBleItems={handleBLERescan}
               isScanning={isScanning}
+              userRole={userRole} // Pass userRole
             />
           ) : (
             <DeviceDetailView
