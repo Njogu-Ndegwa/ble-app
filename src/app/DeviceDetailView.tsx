@@ -1,291 +1,6 @@
 // 'use client'
 
-// import React, { useState } from 'react';
-
-// import { useRouter } from 'next/navigation';
-// import { readBleCharacteristic, writeBleCharacteristic } from './utils';
-// import { Toaster, toast } from 'react-hot-toast';
-// import { ArrowLeft, Share2 } from 'lucide-react';
-// import { AsciiStringModal, NumericModal } from './modals';
-// import { Clipboard } from "lucide-react";
-// interface DeviceDetailProps {
-//   device: {
-//     macAddress: string;
-//     name: string;
-//     rssi: string;
-//     imageUrl?: string;
-//   };
-//   attributeList: any[];
-//   onBack?: () => void;
-// }
-
-// const DeviceDetailView: React.FC<DeviceDetailProps> = ({ device, attributeList, onBack }) => {
-//   const router = useRouter();
-//   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
-//   // Loading state for read operations
-//   const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
-
-//   // Modal states
-//   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
-//   const [numericModalOpen, setNumericModalOpen] = useState(false);
-//   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-
-//   // Service mapping configuration
-//   const fixedTabs = [
-//     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
-//     { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
-//     { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
-//     { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
-//     { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
-//   ];
-
-//   // State management
-//   const [activeTab, setActiveTab] = useState(fixedTabs[0].id);
-
-//   // Get active service data
-//   const activeService = attributeList.find(service =>
-//     fixedTabs.find(tab =>
-//       tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum
-//     )
-//   );
-
-//   console.warn(activeService)
-
-//   // Handle back navigation
-//   const handleBack = () => onBack ? onBack() : router.back();
-
-//   // Format values based on type
-//   const formatValue = (characteristic: any) => {
-//     if (typeof characteristic.realVal === 'number') {
-//       switch (characteristic.valType) {
-//         case 0: return characteristic.realVal;
-//         case 1: return `${characteristic.realVal} mA`;
-//         case 2: return `${characteristic.realVal} mV`;
-//         default: return characteristic.realVal;
-//       }
-//     }
-//     return characteristic.realVal || 'N/A';
-//   };
-
-//   // Handle read operation
-//   const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
-//     // Set loading state for this characteristic
-//     setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
-
-//     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
-//       // Clear loading state
-//       setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
-
-//       if (data) {
-//         console.info(data.realVal, "Value of Field");
-//         toast.success(`${name} read successfully`);
-//         // Update the value in our state
-//         setUpdatedValues(prev => ({
-//           ...prev,
-//           [characteristicUuid]: data.realVal
-//         }));
-//       } else {
-//         console.error("Error Reading Characteristics");
-//         toast.error(`Failed to read ${name}`);
-//       }
-//     });
-//   };
-
-//   // Handle opening the appropriate modal
-//   const handleWriteClick = (characteristic: any) => {
-//     setActiveCharacteristic(characteristic);
-
-//     // Determine which modal to open based on characteristic name
-//     if (characteristic.name.toLowerCase().includes('pubk')) {
-//       setAsciiModalOpen(true);
-//     } else {
-//       setNumericModalOpen(true);
-//     }
-//   };
-
-//   // Handle write operation
-//   const handleWrite = (value: string | number) => {
-//     if (!activeCharacteristic || !activeService) return;
-
-//     console.info({
-//       action: 'write',
-//       serviceUuid: activeService.uuid,
-//       characteristicUuid: activeCharacteristic.uuid,
-//       macAddress: device.macAddress,
-//       name: device.name,
-//       value: value
-//     });
-//     writeBleCharacteristic(
-//       activeService.uuid,
-//       activeCharacteristic.uuid,
-//       value,
-//       device.macAddress,
-//       (data: any, error: any) => {
-//         console.info({"data": data, "error": error})
-//         if (data) {
-//           console.info(data, "Is Data 123")
-
-//         }
-//       }
-//     );
-//     // Here you would implement the actual BLE write operation
-//     // For now, we'll just show a success message
-//     toast.success(`Value written to ${activeCharacteristic.name}`);
-
-//     setTimeout(() => {
-//       handleRead(
-//         activeService.uuid,
-//         activeCharacteristic.uuid,
-//         device.name
-//       )
-//     }, 1000)
-//     // // Update the value in our state
-//     // setUpdatedValues(prev => ({
-//     //   ...prev,
-//     //   [activeCharacteristic.uuid]: value
-//     // }));
-//   };
-
-//   return (
-//     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
-//       <Toaster />
-
-//       {/* ASCII String Modal */}
-//       <AsciiStringModal
-//         isOpen={asciiModalOpen}
-//         onClose={() => setAsciiModalOpen(false)}
-//         onSubmit={(value) => handleWrite(value)}
-//         title={activeCharacteristic?.name || "Public Key / Last Code"}
-//       />
-
-//       {/* Numeric Modal */}
-//       <NumericModal
-//         isOpen={numericModalOpen}
-//         onClose={() => setNumericModalOpen(false)}
-//         onSubmit={(value) => handleWrite(value)}
-//         title={activeCharacteristic?.name || "Read"}
-//       />
-
-//       {/* Header */}
-//       <div className="p-4 flex items-center">
-//         <button onClick={handleBack} className="mr-4">
-//           <ArrowLeft className="w-6 h-6 text-gray-400" />
-//         </button>
-//         <h1 className="text-lg font-semibold flex-1">Device Details</h1>
-//         <Share2 className="w-5 h-5 text-gray-400" />
-//       </div>
-
-//       {/* Device Image and Info */}
-//       <div className="flex flex-col items-center p-6 pb-2">
-//         <img
-//           src={device.imageUrl}
-//           alt={device.name || "dsdsf"}
-//           className="w-40 h-40 object-contain mb-4"
-//         />
-//         <h2 className="text-xl font-semibold">{device.name || "sfd"}</h2>
-//         <p className="text-sm text-gray-400 mt-1">{device.macAddress || "sfd"}</p>
-//         <p className="text-sm text-gray-400 mt-1">{device.rssi || "sfd"}</p>
-//       </div>
-
-//       {/* Tabs */}
-//       <div className="border-b border-gray-800">
-//         <div className="flex justify-between px-4">
-//           {fixedTabs.map(tab => {
-//             const serviceExists = attributeList.some(s => s.serviceNameEnum === tab.serviceNameEnum);
-//             return (
-//               <button
-//                 key={tab.id}
-//                 className={`py-3 px-4 text-sm font-medium relative ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-//                   } ${!serviceExists ? 'opacity-50 cursor-not-allowed' : ''}`}
-//                 onClick={() => serviceExists && setActiveTab(tab.id)}
-//                 disabled={!serviceExists}
-//               >
-//                 {tab.label}
-//                 {activeTab === tab.id && (
-//                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
-//                 )}
-//               </button>
-//             );
-//           })}
-//         </div>
-//       </div>
-
-//       {/* Service Content */}
-//       <div className="p-4">
-//         {activeService ? (
-//           <div className="space-y-4">
-//             {activeService.characteristicList.map((char: any) => (
-//               <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
-//                 <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-//                   <span className="text-sm font-medium">{char.name}</span>
-//                   <div className="flex space-x-2">
-//                     <button
-//                       className={`text-xs ${loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'} px-3 py-1 rounded transition-colors`}
-//                       onClick={() => handleRead(activeService.uuid, char.uuid, char.name)}
-//                       disabled={loadingStates[char.uuid]}
-//                     >
-//                       {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
-//                     </button>
-//                     {activeTab === 'CMD' && (
-//                       <button
-//                         className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
-//                         onClick={() => handleWriteClick(char)}
-//                       >
-//                         Write
-//                       </button>
-//                     )}
-//                   </div>
-//                 </div>
-//                 <div className="p-4 space-y-2">
-//                   <div>
-//                     <p className="text-xs text-gray-400">Description</p>
-//                     <p className="text-sm">{char.desc}</p>
-//                   </div>
-//                   <div className="flex items-center justify-between group">
-//                     <div className="flex-grow">
-//                       <p className="text-xs text-gray-400">Current Value</p>
-//                       <p className="text-sm font-mono">
-//                         {updatedValues[char.uuid] !== undefined
-//                           ? updatedValues[char.uuid]
-//                           : formatValue(char)}
-//                       </p>
-//                     </div>
-//                     <button
-//                       className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
-//                       onClick={() => {
-//                         const valueToCopy = updatedValues[char.uuid] !== undefined
-//                           ? updatedValues[char.uuid]
-//                           : formatValue(char);
-//                         navigator.clipboard.writeText(valueToCopy);
-//                         toast.success('Value copied to clipboard');
-//                       }}
-//                       aria-label="Copy to clipboard"
-//                     >
-//                       <Clipboard size={16} />
-//                     </button>
-//                   </div>
-//                 </div>
-//               </div>
-//             ))}
-//           </div>
-//         ) : (
-//           <div className="p-6 text-center text-gray-400">
-//             <p>No data available for this service</p>
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default DeviceDetailView;
-
-
-
-//Previously working code
-// 'use client'
-
-// import React, { useState, useRef } from 'react';
+// import React, { useState, useRef, useEffect } from 'react';
 // import { useRouter } from 'next/navigation';
 // import { readBleCharacteristic, writeBleCharacteristic } from './utils';
 // import { Toaster, toast } from 'react-hot-toast';
@@ -293,6 +8,7 @@
 // import { AsciiStringModal, NumericModal } from './modals';
 // import { Clipboard } from 'lucide-react';
 // import HeartbeatView from '@/components/HeartbeatView';
+// import CmdServiceView from './CmdServiceView';
 
 // interface DeviceDetailProps {
 //   device: {
@@ -307,6 +23,7 @@
 //   isLoadingService?: string | null;
 //   serviceLoadingProgress?: number;
 //   handlePublish?: (attributeList: any, serviceType: string) => void;
+//   activeSubPage?: string;
 // }
 
 // const DeviceDetailView: React.FC<DeviceDetailProps> = ({
@@ -317,6 +34,7 @@
 //   isLoadingService,
 //   serviceLoadingProgress = 0,
 //   handlePublish,
+//   activeSubPage,
 // }) => {
 //   const router = useRouter();
 //   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
@@ -324,20 +42,21 @@
 //   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
 //   const [numericModalOpen, setNumericModalOpen] = useState(false);
 //   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-//   const [activeTab, setActiveTab] = useState('ATT');
+//   const [activeTab, setActiveTab] = useState(activeSubPage === 'cmd' ? 'CMD' : 'ATT');
 
-//   // Persist initial data load and heartbeat sent state across HeartbeatView mounts
 //   const initialDataLoadedRef = useRef<boolean>(false);
 //   const heartbeatSentRef = useRef<boolean>(false);
 
-//   const fixedTabs = [
-//     { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
-//     { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
-//     { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
-//     { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
-//     { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
-//     { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
-//   ];
+//   const fixedTabs = activeSubPage === 'cmd'
+//     ? [{ id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' }]
+//     : [
+//         { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
+//         { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
+//         { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
+//         { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
+//         { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
+//         { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
+//       ];
 
 //   const activeService = attributeList.find((service) =>
 //     fixedTabs.find((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
@@ -347,7 +66,13 @@
 //     return attributeList.some((service) => service.serviceNameEnum === serviceNameEnum);
 //   };
 
-//   const handleBack = () => (onBack ? onBack() : router.back());
+//   const handleBack = () => {
+//     if (onBack) {
+//       onBack();
+//     } else {
+//       router.back();
+//     }
+//   };
 
 //   const formatValue = (characteristic: any) => {
 //     if (typeof characteristic.realVal === 'number') {
@@ -435,6 +160,12 @@
 //     onRequestServiceData(activeTab);
 //   };
 
+//   useEffect(() => {
+//     if (activeSubPage === 'cmd' && !isServiceLoaded('CMD_SERVICE') && onRequestServiceData) {
+//       onRequestServiceData('CMD');
+//     }
+//   }, [activeSubPage, onRequestServiceData]);
+
 //   return (
 //     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
 //       <Toaster />
@@ -450,49 +181,57 @@
 //         onSubmit={(value) => handleWrite(value)}
 //         title={activeCharacteristic?.name || 'Read'}
 //       />
-//       <div className="p-4 flex items-center">
-//         <button onClick={handleBack} className="mr-4">
-//           <ArrowLeft className="w-6 h-6 text-gray-400" />
-//         </button>
-//         <h1 className="text-lg font-semibold flex-1">Device Details</h1>
-//         <Share2 className="w-5 h-5 text-gray-400" />
-//       </div>
-//       <div className="flex flex-col items-center p-6 pb-2">
-//         <img
-//           src={device.imageUrl}
-//           alt={device.name || 'Device'}
-//           className="w-40 h-40 object-contain mb-4"
-//         />
-//         <h2 className="text-xl font-semibold">{device.name || 'Unknown Device'}</h2>
-//         <p className="text-sm text-gray-400 mt-1">{device.macAddress || 'Unknown MAC'}</p>
-//         <p className="text-sm text-gray-400 mt-1">{device.rssi || 'Unknown RSSI'}</p>
-//       </div>
-//       <div className="border-b border-gray-800">
-//         <div className="flex justify-between px-1">
-//           {fixedTabs.map((tab) => {
-//             const serviceLoaded = tab.serviceNameEnum ? isServiceLoaded(tab.serviceNameEnum) : true;
-//             return (
-//               <button
-//                 key={tab.id}
-//                 className={`py-3 px-3 text-sm font-medium relative ${
-//                   activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-//                 } ${isLoadingService === tab.id ? 'animate-pulse' : ''}`}
-//                 onClick={() => handleTabChange(tab.id)}
-//               >
-//                 {tab.label}
-//                 {activeTab === tab.id && (
-//                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
-//                 )}
-//                 {!serviceLoaded && tab.id === activeTab && tab.id !== 'HEARTBEAT' && (
-//                   <div className="absolute top-1 right-0 w-2 h-2 bg-yellow-500 rounded-full"></div>
-//                 )}
-//               </button>
-//             );
-//           })}
+//       {activeSubPage !== 'cmd' && (
+//         <div className="p-4 flex items-center">
+//           <button onClick={handleBack} className="mr-4">
+//             <ArrowLeft className="w-6 h-6 text-gray-400" />
+//           </button>
+//           <h1 className="text-lg font-semibold flex-1">Device Details</h1>
+//           <Share2 className="w-5 h-5 text-gray-400" />
 //         </div>
-//       </div>
+//       )}
+
+//       {activeSubPage !== 'cmd' && (
+//         <>
+//           <div className="flex flex-col items-center p-6 pb-2">
+//             <img
+//               src={device.imageUrl}
+//               alt={device.name || 'Device'}
+//               className="w-40 h-40 object-contain mb-4"
+//             />
+//             <h2 className="text-xl font-semibold">{device.name || 'Unknown Device'}</h2>
+//             <p className="text-sm text-gray-400 mt-1">{device.macAddress || 'Unknown MAC'}</p>
+//             <p className="text-sm text-gray-400 mt-1">{device.rssi || 'Unknown RSSI'}</p>
+//           </div>
+//           <div className="border-b border-gray-800">
+//             <div className="flex justify-between px-1">
+//               {fixedTabs.map((tab) => {
+//                 const serviceLoaded = tab.serviceNameEnum ? isServiceLoaded(tab.serviceNameEnum) : true;
+//                 return (
+//                   <button
+//                     key={tab.id}
+//                     className={`py-3 px-3 text-sm font-medium relative ${
+//                       activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+//                     } ${isLoadingService === tab.id ? 'animate-pulse' : ''}`}
+//                     onClick={() => handleTabChange(tab.id)}
+//                   >
+//                     {tab.label}
+//                     {activeTab === tab.id && (
+//                       <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
+//                     )}
+//                     {!serviceLoaded && tab.id === activeTab && tab.id !== 'HEARTBEAT' && (
+//                       <div className="absolute top-1 right-0 w-2 h-2 bg-yellow-500 rounded-full"></div>
+//                     )}
+//                   </button>
+//                 );
+//               })}
+//             </div>
+//           </div>
+//         </>
+//       )}
+
 //       <div className="p-4">
-//         {isLoadingService === activeTab && (
+//         {isLoadingService === activeTab && activeSubPage !== 'cmd' && (
 //           <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
 //             <div
 //               className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
@@ -500,14 +239,24 @@
 //             ></div>
 //           </div>
 //         )}
-//         {activeTab === 'HEARTBEAT' ? (
+
+//         {activeSubPage === 'cmd' && activeService && activeTab === 'CMD' ? (
+//           <CmdServiceView
+//             serviceData={activeService}
+//             deviceMacAddress={device.macAddress}
+//             deviceName={device.name}
+//             onRefresh={handleRefreshService}
+//             isLoading={isLoadingService !== null}
+//             onBack={handleBack}
+//           />
+//         ) : activeTab === 'HEARTBEAT' ? (
 //           <HeartbeatView
 //             attributeList={attributeList}
 //             onRequestServiceData={onRequestServiceData || (() => {})}
 //             isLoading={isLoadingService !== null}
 //             handlePublish={handlePublish}
 //             initialDataLoadedRef={initialDataLoadedRef}
-//             heartbeatSentRef={heartbeatSentRef} // Pass heartbeatSentRef
+//             heartbeatSentRef={heartbeatSentRef}
 //           />
 //         ) : (
 //           <>
@@ -617,9 +366,9 @@ import { readBleCharacteristic, writeBleCharacteristic } from './utils';
 import { Toaster, toast } from 'react-hot-toast';
 import { ArrowLeft, Share2, RefreshCw } from 'lucide-react';
 import { AsciiStringModal, NumericModal } from './modals';
+import { CustomKeypadModal } from './CustomKeypadModal';
 import { Clipboard } from 'lucide-react';
 import HeartbeatView from '@/components/HeartbeatView';
-import CmdServiceView from './CmdServiceView';
 
 interface DeviceDetailProps {
   device: {
@@ -634,7 +383,7 @@ interface DeviceDetailProps {
   isLoadingService?: string | null;
   serviceLoadingProgress?: number;
   handlePublish?: (attributeList: any, serviceType: string) => void;
-  activeSubPage?: string;
+  userRole: string;
 }
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({
@@ -645,45 +394,47 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   isLoadingService,
   serviceLoadingProgress = 0,
   handlePublish,
-  activeSubPage,
+  userRole
 }) => {
   const router = useRouter();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
   const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
+  const [customKeypadModalOpen, setCustomKeypadModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState(activeSubPage === 'cmd' ? 'CMD' : 'ATT');
-
+  const [activeTab, setActiveTab] = useState(userRole === 'Distributor' ? 'ATT' : 'CMD');
   const initialDataLoadedRef = useRef<boolean>(false);
   const heartbeatSentRef = useRef<boolean>(false);
 
-  const fixedTabs = activeSubPage === 'cmd'
-    ? [{ id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' }]
-    : [
-        { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
-        { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
-        { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
-        { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
-        { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
-        { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
-      ];
+  const fixedTabs = userRole === 'Distributor'
+    ? [
+      { id: 'ATT', label: 'ATT', serviceNameEnum: 'ATT_SERVICE' },
+      { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
+      { id: 'STS', label: 'STS', serviceNameEnum: 'STS_SERVICE' },
+      { id: 'DTA', label: 'DTA', serviceNameEnum: 'DTA_SERVICE' },
+      { id: 'DIA', label: 'DIA', serviceNameEnum: 'DIA_SERVICE' },
+      { id: 'HEARTBEAT', label: 'HB', serviceNameEnum: null },
+    ]
+    : [];
 
-  const activeService = attributeList.find((service) =>
-    fixedTabs.find((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
-  );
+  const cmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
+  const stsService = attributeList.find((service) => service.serviceNameEnum === 'STS_SERVICE');
+  const activeService = userRole === 'Distributor'
+    ? attributeList.find((service) =>
+      fixedTabs.find((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
+    )
+    : null;
 
   const isServiceLoaded = (serviceNameEnum: string) => {
-    return attributeList.some((service) => service.serviceNameEnum === serviceNameEnum);
+    const loaded = attributeList.some((service) => service.serviceNameEnum === serviceNameEnum);
+    console.log(`Is ${serviceNameEnum} loaded?`, loaded);
+    return loaded;
   };
 
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      router.back();
-    }
-  };
+ 
+
+  const handleBack = () => (onBack ? onBack() : router.back());
 
   const formatValue = (characteristic: any) => {
     if (typeof characteristic.realVal === 'number') {
@@ -707,6 +458,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     if (!tab || !tab.serviceNameEnum || tabId === 'HEARTBEAT') return;
     const serviceNameEnum = tab.serviceNameEnum;
     if (!isServiceLoaded(serviceNameEnum) && onRequestServiceData) {
+      console.log(`Loading ${tabId} service due to tab change`);
       onRequestServiceData(tabId);
     }
   };
@@ -716,14 +468,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
       setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
       if (data) {
-        console.info(data.realVal, 'Value of Field');
+        console.log(`${name} read successfully:`, data.realVal);
         toast.success(`${name} read successfully`);
         setUpdatedValues((prev) => ({
           ...prev,
           [characteristicUuid]: data.realVal,
         }));
       } else {
-        console.error('Error Reading Characteristics');
+        console.error('Error reading characteristic:', name, error);
         toast.error(`Failed to read ${name}`);
       }
     });
@@ -731,25 +483,34 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWriteClick = (characteristic: any) => {
     setActiveCharacteristic(characteristic);
+
+    // Determine which modal to show based on user role and characteristic name
     if (characteristic.name.toLowerCase().includes('pubk')) {
-      setAsciiModalOpen(true);
+      // For PUBK characteristics, show different modals based on user role
+      if (userRole === 'Distributor') {
+        setAsciiModalOpen(true);
+      } else {
+        // For non-distributors, show custom keypad modal for PUBK
+        setCustomKeypadModalOpen(true);
+      }
     } else {
+      // For other characteristics, show the numeric modal
       setNumericModalOpen(true);
     }
   };
 
   const handleWrite = (value: string | number) => {
-    if (!activeCharacteristic || !activeService) return;
+    if (!activeCharacteristic || !cmdService) return;
     console.info({
       action: 'write',
-      serviceUuid: activeService.uuid,
+      serviceUuid: cmdService.uuid,
       characteristicUuid: activeCharacteristic.uuid,
       macAddress: device.macAddress,
       name: device.name,
       value: value,
     });
     writeBleCharacteristic(
-      activeService.uuid,
+      cmdService.uuid,
       activeCharacteristic.uuid,
       value,
       device.macAddress,
@@ -762,205 +523,286 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     );
     toast.success(`Value written to ${activeCharacteristic.name}`);
     setTimeout(() => {
-      handleRead(activeService.uuid, activeCharacteristic.uuid, device.name);
+      handleRead(cmdService.uuid, activeCharacteristic.uuid, device.name);
     }, 1000);
   };
 
-  const handleRefreshService = () => {
-    if (!activeTab || !onRequestServiceData) return;
-    onRequestServiceData(activeTab);
+  const handleRefreshService = (serviceName: string) => {
+    if (!onRequestServiceData) return;
+    console.log(`Refreshing service: ${serviceName}`);
+    onRequestServiceData(serviceName);
   };
 
-  useEffect(() => {
-    if (activeSubPage === 'cmd' && !isServiceLoaded('CMD_SERVICE') && onRequestServiceData) {
-      onRequestServiceData('CMD');
-    }
-  }, [activeSubPage, onRequestServiceData]);
+  const renderCharacteristicCard = (service: any, char: any, showWriteButton: boolean) => (
+    <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
+      <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
+        <span className="text-sm font-medium">{char.name}</span>
+        <div className="flex space-x-2">
+          <button
+            className={`text-xs ${loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'
+              } px-3 py-1 rounded transition-colors`}
+            onClick={() => handleRead(service.uuid, char.uuid, char.name)}
+            disabled={loadingStates[char.uuid]}
+          >
+            {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
+          </button>
+          {showWriteButton && (
+            <button
+              className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+              onClick={() => handleWriteClick(char)}
+            >
+              Write
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="p-4 space-y-2">
+        <div>
+          <p className="text-xs text-gray-400">Description</p>
+          <p className="text-sm">{char.desc}</p>
+        </div>
+        <div className="flex items-center justify-between group">
+          <div className="flex-grow">
+            <p className="text-xs text-gray-400">Current Value</p>
+            <p className="text-sm font-mono">
+              {updatedValues[char.uuid] !== undefined
+                ? updatedValues[char.uuid]
+                : formatValue(char)}
+            </p>
+          </div>
+          <button
+            className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
+            onClick={() => {
+              const valueToCopy =
+                updatedValues[char.uuid] !== undefined
+                  ? updatedValues[char.uuid]
+                  : formatValue(char);
+              navigator.clipboard.writeText(String(valueToCopy));
+              toast.success('Value copied to clipboard');
+            }}
+            aria-label="Copy to clipboard"
+          >
+            <Clipboard size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
       <Toaster />
+      {/* ASCII Modal for distributors */}
       <AsciiStringModal
         isOpen={asciiModalOpen}
         onClose={() => setAsciiModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || 'Public Key / Last Code'}
       />
+      {/* Numeric Modal for non-PUBK characteristics */}
       <NumericModal
         isOpen={numericModalOpen}
         onClose={() => setNumericModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || 'Read'}
       />
-      {activeSubPage !== 'cmd' && (
-        <div className="p-4 flex items-center">
-          <button onClick={handleBack} className="mr-4">
-            <ArrowLeft className="w-6 h-6 text-gray-400" />
-          </button>
-          <h1 className="text-lg font-semibold flex-1">Device Details</h1>
-          <Share2 className="w-5 h-5 text-gray-400" />
+      {/* Custom Keypad Modal for non-distributors with PUBK */}
+      <CustomKeypadModal
+        isOpen={customKeypadModalOpen}
+        onClose={() => setCustomKeypadModalOpen(false)}
+        onSubmit={(value) => handleWrite(value)}
+        title={activeCharacteristic?.name || 'Access Code'}
+      />
+      <div className="p-4 flex items-center">
+        <button onClick={handleBack} className="mr-4">
+          <ArrowLeft className="w-6 h-6 text-gray-400" />
+        </button>
+        <h1 className="text-lg font-semibold flex-1">Device Details</h1>
+        <Share2 className="w-5 h-5 text-gray-400" />
+      </div>
+      <div className="flex flex-col items-center p-6 pb-2">
+        <img
+          src={device.imageUrl}
+          alt={device.name || 'Device'}
+          className="w-40 h-40 object-contain mb-4"
+        />
+        <h2 className="text-xl font-semibold">{device.name || 'Unknown Device'}</h2>
+        <p className="text-sm text-gray-400 mt-1">{device.macAddress || 'Unknown MAC'}</p>
+        <p className="text-sm text-gray-400 mt-1">{device.rssi || 'Unknown RSSI'}</p>
+      </div>
+      {userRole === 'Distributor' && (
+        <div className="border-b border-gray-800">
+          <div className="flex justify-between px-1">
+            {fixedTabs.map((tab) => {
+              const serviceLoaded = tab.serviceNameEnum ? isServiceLoaded(tab.serviceNameEnum) : true;
+              return (
+                <button
+                  key={tab.id}
+                  className={`py-3 px-3 text-sm font-medium relative ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+                    } ${isLoadingService === tab.id ? 'animate-pulse' : ''}`}
+                  onClick={() => handleTabChange(tab.id)}
+                >
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
+                  )}
+                  {!serviceLoaded && tab.id === activeTab && tab.id !== 'HEARTBEAT' && (
+                    <div className="absolute top-1 right-0 w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
-
-      {activeSubPage !== 'cmd' && (
-        <>
-          <div className="flex flex-col items-center p-6 pb-2">
-            <img
-              src={device.imageUrl}
-              alt={device.name || 'Device'}
-              className="w-40 h-40 object-contain mb-4"
-            />
-            <h2 className="text-xl font-semibold">{device.name || 'Unknown Device'}</h2>
-            <p className="text-sm text-gray-400 mt-1">{device.macAddress || 'Unknown MAC'}</p>
-            <p className="text-sm text-gray-400 mt-1">{device.rssi || 'Unknown RSSI'}</p>
-          </div>
-          <div className="border-b border-gray-800">
-            <div className="flex justify-between px-1">
-              {fixedTabs.map((tab) => {
-                const serviceLoaded = tab.serviceNameEnum ? isServiceLoaded(tab.serviceNameEnum) : true;
-                return (
-                  <button
-                    key={tab.id}
-                    className={`py-3 px-3 text-sm font-medium relative ${
-                      activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
-                    } ${isLoadingService === tab.id ? 'animate-pulse' : ''}`}
-                    onClick={() => handleTabChange(tab.id)}
-                  >
-                    {tab.label}
-                    {activeTab === tab.id && (
-                      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500" />
-                    )}
-                    {!serviceLoaded && tab.id === activeTab && tab.id !== 'HEARTBEAT' && (
-                      <div className="absolute top-1 right-0 w-2 h-2 bg-yellow-500 rounded-full"></div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
-
       <div className="p-4">
-        {isLoadingService === activeTab && activeSubPage !== 'cmd' && (
-          <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
-            <div
-              className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
-              style={{ width: `${serviceLoadingProgress}%` }}
-            ></div>
-          </div>
-        )}
-
-        {activeSubPage === 'cmd' && activeService && activeTab === 'CMD' ? (
-          <CmdServiceView
-            serviceData={activeService}
-            deviceMacAddress={device.macAddress}
-            deviceName={device.name}
-            onRefresh={handleRefreshService}
-            isLoading={isLoadingService !== null}
-            onBack={handleBack}
-          />
-        ) : activeTab === 'HEARTBEAT' ? (
-          <HeartbeatView
-            attributeList={attributeList}
-            onRequestServiceData={onRequestServiceData || (() => {})}
-            isLoading={isLoadingService !== null}
-            handlePublish={handlePublish}
-            initialDataLoadedRef={initialDataLoadedRef}
-            heartbeatSentRef={heartbeatSentRef}
-          />
-        ) : (
+        {userRole === 'Distributor' ? (
           <>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-white">{activeTab} Service</h3>
-              <button
-                onClick={handleRefreshService}
-                className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
-                disabled={isLoadingService !== null}
-              >
-                <RefreshCw size={14} className={isLoadingService ? 'animate-spin' : ''} />
-                <span>Refresh</span>
-              </button>
-            </div>
-            {activeService ? (
-              <div className="space-y-4">
-                {activeService.characteristicList.map((char: any) => (
-                  <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
-                    <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-                      <span className="text-sm font-medium">{char.name}</span>
-                      <div className="flex space-x-2">
-                        <button
-                          className={`text-xs ${
-                            loadingStates[char.uuid] ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'
-                          } px-3 py-1 rounded transition-colors`}
-                          onClick={() => handleRead(activeService.uuid, char.uuid, char.name)}
-                          disabled={loadingStates[char.uuid]}
-                        >
-                          {loadingStates[char.uuid] ? 'Reading...' : 'Read'}
-                        </button>
-                        {activeTab === 'CMD' && (
+            {isLoadingService === activeTab && (
+              <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
+                  style={{ width: `${serviceLoadingProgress}%` }}
+                ></div>
+              </div>
+            )}
+            {activeTab === 'HEARTBEAT' ? (
+              <HeartbeatView
+                attributeList={attributeList}
+                onRequestServiceData={onRequestServiceData || (() => { })}
+                isLoading={isLoadingService !== null}
+                handlePublish={handlePublish}
+                initialDataLoadedRef={initialDataLoadedRef}
+                heartbeatSentRef={heartbeatSentRef}
+              />
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium text-white">{activeTab} Service</h3>
+                  <button
+                    onClick={() => handleRefreshService(activeTab)}
+                    className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
+                    disabled={isLoadingService !== null}
+                  >
+                    <RefreshCw size={14} className={isLoadingService ? 'animate-spin' : ''} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+                {activeService ? (
+                  <div className="space-y-4">
+                    {activeService.characteristicList.map((char: any) => (
+                      renderCharacteristicCard(activeService, char, activeTab === 'CMD')
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-gray-400">
+                    {isLoadingService === activeTab ? (
+                      <p>Loading {activeTab} service data...</p>
+                    ) : (
+                      <div>
+                        <p>No data available for this service</p>
+                        {onRequestServiceData && (
                           <button
-                            className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
-                            onClick={() => handleWriteClick(char)}
+                            onClick={() => onRequestServiceData(activeTab)}
+                            className="mt-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors"
                           >
-                            Write
+                            Load {activeTab} Service Data
                           </button>
                         )}
                       </div>
-                    </div>
-                    <div className="p-4 space-y-2">
-                      <div>
-                        <p className="text-xs text-gray-400">Description</p>
-                        <p className="text-sm">{char.desc}</p>
-                      </div>
-                      <div className="flex items-center justify-between group">
-                        <div className="flex-grow">
-                          <p className="text-xs text-gray-400">Current Value</p>
-                          <p className="text-sm font-mono">
-                            {updatedValues[char.uuid] !== undefined
-                              ? updatedValues[char.uuid]
-                              : formatValue(char)}
-                          </p>
-                        </div>
-                        <button
-                          className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
-                          onClick={() => {
-                            const valueToCopy =
-                              updatedValues[char.uuid] !== undefined
-                                ? updatedValues[char.uuid]
-                                : formatValue(char);
-                            navigator.clipboard.writeText(String(valueToCopy));
-                            toast.success('Value copied to clipboard');
-                          }}
-                          aria-label="Copy to clipboard"
-                        >
-                          <Clipboard size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-6 text-center text-gray-400">
-                {isLoadingService === activeTab ? (
-                  <p>Loading {activeTab} service data...</p>
-                ) : (
-                  <div>
-                    <p>No data available for this service</p>
-                    {onRequestServiceData && (
-                      <button
-                        onClick={() => onRequestServiceData(activeTab)}
-                        className="mt-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors"
-                      >
-                        Load {activeTab} Service Data
-                      </button>
                     )}
                   </div>
                 )}
-              </div>
+              </>
             )}
           </>
+        ) : (
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-white">CMD</h3>
+                <button
+                  onClick={() => handleRefreshService('CMD')}
+                  className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
+                  disabled={isLoadingService === 'CMD'}
+                >
+                  <RefreshCw size={14} className={isLoadingService === 'CMD' ? 'animate-spin' : ''} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+              {isLoadingService === 'CMD' && (
+                <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
+                    style={{ width: `${serviceLoadingProgress}%` }}
+                  ></div>
+                </div>
+              )}
+              {isLoadingService === 'CMD' ? (
+                <div className="p-6 text-center text-gray-400">
+                  <p>Loading CMD service data...</p>
+                </div>
+              ) : cmdService ? (
+                cmdService.characteristicList
+                  .filter((char: any) => char.name.toLowerCase() === 'pubk')
+                  .map((char: any) => renderCharacteristicCard(cmdService, char, true))
+              ) : (
+                <div className="p-6 text-center text-gray-400">
+                  {/* <p>No data available for CMD service</p> */}
+                  {onRequestServiceData && (
+                    <button
+                      onClick={() => onRequestServiceData('CMD')}
+                      className="mt-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors"
+                    >
+                      Load CMD Service Data
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-white">STS</h3>
+                <button
+                  onClick={() => handleRefreshService('STS')}
+                  className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
+                  disabled={isLoadingService === 'STS'}
+                >
+                  <RefreshCw size={14} className={isLoadingService === 'STS' ? 'animate-spin' : ''} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+              {isLoadingService === 'STS' && (
+                <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
+                    style={{ width: `${serviceLoadingProgress}%` }}
+                  ></div>
+                </div>
+              )}
+              {isLoadingService === 'STS' ? (
+                <div className="p-6 text-center text-gray-400">
+                  <p>Loading STS service data...</p>
+                </div>
+              ) : stsService ? (
+                stsService.characteristicList
+                  .filter((char: any) => char.name.toLowerCase() === 'rcrd')
+                  .map((char: any) => renderCharacteristicCard(stsService, char, false))
+              ) : (
+                <div className="p-6 text-center text-gray-400">
+                  {/* <p>No data available for STS service</p> */}
+                  {onRequestServiceData && (
+                    <button
+                      onClick={() => onRequestServiceData('STS')}
+                      className="mt-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors"
+                    >
+                      Load STS Service Data
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
