@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BleDevice } from './page';
 import SearchBar from '@/components/SearchBar';
@@ -8,7 +8,22 @@ import SortFilterBar from '@/components/SortFilterBar';
 import DeviceList from '@/components/DeviceList';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-// import CustomKeypadPage from './CustomKeypadPage';
+import LocationView from '@/components/LocationView';
+import MapLocationFinder from '@/components/MapLocationFinder';
+import SettingsView from '@/components/SettingsView';
+
+interface Contact {
+  name: string;
+  phoneNumber: string;
+}
+
+interface LocationData {
+  latitude: number;
+  longitude: number;
+  timestamp?: number;
+  [key: string]: any;
+}
+
 
 interface MobileListViewProps {
   items: BleDevice[];
@@ -17,7 +32,23 @@ interface MobileListViewProps {
   onScanQrCode: () => void;
   onRescanBleItems: () => void;
   isScanning: boolean;
+  selectedImage: string | null;
+  setSelectedImage: (image: string | null) => void;
+  onChooseImage: () => void;
   onLogout?: () => void;
+  onFingerprintVerification: () => void;
+  onTextRecognition: () => void;
+  onReadContacts: () => void;
+  contacts: Contact[];
+  setContacts: (contacts: Contact[]) => void;
+  isLocationActive: boolean;
+  lastKnownLocation: LocationData | null;
+  onStartLocation: () => void;
+  onStopLocation: () => void;
+  onGetLocation: () => void;
+  onCallPhone: (phoneNumber: string) => void;
+  onSendSms: (phoneNumber: string, message: string) => void;
+  onNetworkType: () => Promise<string>; // Update to return Promise<string>
   onSubPageChange?: (subPage: string) => void;
   userRole: 'Distributor' | 'Customer';
 }
@@ -34,17 +65,102 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   onScanQrCode,
   onRescanBleItems,
   isScanning,
-  onLogout = () => console.log('Logout clicked'),
+  onChooseImage,
+  selectedImage,
+  setSelectedImage,
+  onLogout = () => { },
+  onReadContacts,
+  onFingerprintVerification,
+  onTextRecognition,
+  contacts,
+  setContacts,
+  isLocationActive,
+  lastKnownLocation,
+  onStartLocation,
+  onStopLocation,
+  onGetLocation,
+  onCallPhone,
+  onSendSms,
+  onNetworkType,
   onSubPageChange,
   userRole,
 }) => {
+  useEffect(() => {
+    console.info(`MobileListView - contacts prop: ${contacts.length ? 'Yes, length ' + contacts.length : 'No'}`);
+  }, [contacts]);
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false); // Sidebar closed by default
   const [activePage, setActivePage] = useState<PageType>('assets');
   const [activeSubPage, setActiveSubPage] = useState<string>('bledevices');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const initialized = useRef(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [networkType, setNetworkType] = useState<string | null>(null);
+ 
 
   const sidebarWidth = '80%';
+   // Auto-start location tracking on component mount (only once)
+   useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+
+      if (!isLocationActive) {
+        onStartLocation();
+      }
+
+      // Set up periodic location checks (every 5 minutes)
+      if (!intervalRef.current) {
+        const interval = setInterval(() => {
+          if (isLocationActive) {
+            onGetLocation();
+          }
+        }, 5 * 60 * 1000); // 5 minutes
+
+        intervalRef.current = interval;
+
+        // Initial location fetch (after a short delay)
+        setTimeout(() => {
+          if (isLocationActive) {
+            onGetLocation();
+          }
+        }, 1000);
+      }
+    }
+
+    // Clean up interval when component unmounts
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
+
+  // Manage interval based on active status
+  useEffect(() => {
+    // If location becomes inactive and we have an interval, clear it
+    if (!isLocationActive && intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // If location becomes active and we don't have an interval, create one
+    if (isLocationActive && !intervalRef.current) {
+      const interval = setInterval(() => {
+        onGetLocation();
+      }, 5 * 60 * 1000);
+
+      intervalRef.current = interval;
+
+      // Get location immediately when activated
+      onGetLocation();
+    }
+  }, [isLocationActive]);
+
+  // Debug networkType changes
+  useEffect(() => {
+    console.info(`MobileListView networkType: ${networkType || 'Not set'}`);
+  }, [networkType]);
 
   const filteredItems = items.filter(
     (item) =>
@@ -95,18 +211,62 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         </>
       );
     } 
-    // if (activePage === 'team' && activeSubPage === 'members') {
-    //   return <CustomKeypadPage />;
-    // }
-    else {
+    else if (activePage === 'settings') {
+      return (
+        <SettingsView
+          onChooseImage={onChooseImage}
+          onReadContacts={onReadContacts}
+          onFingerprintVerification={onFingerprintVerification}
+          onTextRecognition={onTextRecognition}
+          selectedImage={selectedImage}
+          setSelectedImage={setSelectedImage}
+          contacts={contacts}
+          setContacts={setContacts}
+          onCallPhone={onCallPhone}
+          onSendSms={onSendSms}
+          onNetworkType={async () => {
+            try {
+              const type = await onNetworkType();
+              setNetworkType(type); // Update local state
+              console.info("SettingsView: Network type set to", type);
+            } catch (error) {
+              console.error("SettingsView: Failed to get network type:", error);
+              // toast.error("Failed to get network type");
+            }
+          }}
+          networkType={networkType}
+          setNetworkType={setNetworkType}
+        />
+      );
+    } 
+    else if (activePage === 'maplocation') {
+      return <MapLocationFinder />;
+    } 
+    else if (activePage === 'location') {
+      return (
+        <LocationView
+          isLocationActive={isLocationActive}
+          handleStartLocationListener={onStartLocation}
+          handleStopLocationListener={onStopLocation}
+          handleGetLastLocation={onGetLocation}
+          lastKnownLocation={
+            lastKnownLocation
+              ? {
+                  ...lastKnownLocation,
+                  timestamp: Date.now(),
+                }
+              : null
+          }
+        />
+      );
+    } else {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="text-center p-6 bg-[#2A2F33] rounded-lg">
             <h3 className="text-xl font-medium text-white mb-2">
-              {activePage.charAt(0).toUpperCase() + activePage.slice(1)} -{' '}
-              {activeSubPage.charAt(0).toUpperCase() + activeSubPage.slice(1)}
+              {activePage.charAt(0).toUpperCase() + activePage.slice(1)}
             </h3>
-            <p className="text-gray-400">Hello World</p>
+            <p className="text-gray-400">Content coming soon</p>
           </div>
         </div>
       );
@@ -115,11 +275,11 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
   const getPageTitle = () => {
     if (activePage === 'assets' && activeSubPage === 'bledevices') return 'All Devices';
-    if (activePage === 'team' && activeSubPage === 'members') return 'Customer Access';
     if (activePage === 'settings') return 'Settings';
-
+    if (activePage === 'location') return 'Location Tracking';
     return activePage.charAt(0).toUpperCase() + activePage.slice(1);
   };
+
 
   return (
     <div className="relative max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen overflow-hidden">
