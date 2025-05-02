@@ -118,7 +118,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: <Settings2 size={18} />,
       subItems: [
         { id: 'settings', label: 'My Settings' },
-      ]
+      ],
+      protected: true // Mark as protected
+
     },
     {
       id: 'location',
@@ -126,7 +128,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       icon: <Settings2 size={18} />,
       subItems: [
         { id: 'location', label: 'Location History' }
-      ]
+      ],
+      protected: true // Mark as protected
+
     },
     {
       id: 'divider2',
@@ -139,7 +143,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       subItems: [
         { id: 'console', label: 'Console' },
         { id: 'reportissue', label: 'Report Issue' },
-      ]
+      ],
+      protected: true // Mark as protected
     },
     {
       id: 'divider3',
