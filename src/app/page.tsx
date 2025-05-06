@@ -13,7 +13,7 @@ import { defaultImageUrl, itemImageMap } from '@/app/constants/imageUrls';
 import { bleLoadingSteps } from './constants/loadingStepsConfig';
 import NonDeviceDetailView from './NonDeviceDetailView';
 import { useRouter } from 'next/navigation';
-
+import { useAuth } from './context/AuthProvider';
 
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
@@ -99,13 +99,20 @@ const AppContainer = () => {
   const [isToggled, setIsToggled] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
   // const [activePage, setActivePage] = useState<PageType>('assets');
-  const [activeSubPage, setActiveSubPage] = useState<string>('cmd'); // Default to 'cmd'
+  // const [activeSubPage, setActiveSubPage] = useState<string>('cmd'); // Default to 'cmd'
   // const [activeSubPage, setActiveSubPage] = useState<string>('cmd');
   // const [activeSubPage, setActiveSubPage] = useState<string>(isAuthenticated ? 'bledevices' : 'cmd'); // Conditional default
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const [activeSubPage, setActiveSubPage] = useState<string>(
+    isAuthenticated ? 'bledevices' : 'cmd'
+  );
   
   
-
+  useEffect(() => {
+    // This will only run on the client side
+    setActiveSubPage(isAuthenticated ? 'bledevices' : 'cmd');
+  }, [isAuthenticated]);
 
   // Find the selected device data
   const deviceDetails = selectedDevice
@@ -144,61 +151,28 @@ const AppContainer = () => {
     }
   };
   // Handler for updating activePage and activeSubPage with restrictions
-  const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
-    // Restrict access to 'settings' when activePage is 'assets' and activeSubPage is 'cmd'
-    if (menuId === 'settings'  && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'dashboard' && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'customer' && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'team'  && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'company' && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'maplocation'  && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'location' && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
-    if (menuId === 'debug' && activeSubPage === 'cmd') {
-      router.push('/login');
-      // toast.error('Access to Settings is restricted in CMD mode.');
-      return;
-    }
+const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
+  // List of restricted pages when not authenticated
+  const restrictedPages = [
+    'settings',
+    'dashboard',
+    'customer',
+    'team',
+    'company',
+    'maplocation',
+    'location',
+    'debug'
+  ];
 
-    // Update page and subpage if not restricted
-    // setActivePage(menuId);
-    setActiveSubPage(itemId);
+  if (!isAuthenticated && restrictedPages.includes(menuId)) {
+    router.push('/login');
+    return;
+  }
 
-    // Handle specific actions
-    if (itemId === 'myfingers' || itemId === 'fingerprintverification') {
-      handleFingerprintVerification();
-    } else if (itemId === 'textrecognition') {
-      handleOpenOcr();
-    }
-  };
-
+  // Continue with normal navigation if authenticated or page isn't restricted
+  setActiveSubPage(itemId);
+};
+ 
 
   const getImageUrl = (name: string): string => {
     const parts = name.split(" ");
