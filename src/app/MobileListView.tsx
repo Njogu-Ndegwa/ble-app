@@ -1,8 +1,6 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { BleDevice } from './page';
 import SearchBar from '@/components/SearchBar';
 import SortFilterBar from '@/components/SortFilterBar';
 import DeviceList from '@/components/DeviceList';
@@ -11,6 +9,7 @@ import Sidebar from '@/components/Sidebar';
 import LocationView from '@/components/LocationView';
 import MapLocationFinder from '@/components/MapLocationFinder';
 import SettingsView from '@/components/SettingsView';
+import { BleDevice } from './page';
 
 interface Contact {
   name: string;
@@ -24,6 +23,7 @@ interface LocationData {
   [key: string]: any;
 }
 
+type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company' | 'maplocation' | 'settings' | 'location' | 'debug';
 
 interface MobileListViewProps {
   items: BleDevice[];
@@ -32,31 +32,11 @@ interface MobileListViewProps {
   onScanQrCode: () => void;
   onRescanBleItems: () => void;
   isScanning: boolean;
-  selectedImage: string | null;
-  setSelectedImage: (image: string | null) => void;
-  onChooseImage: () => void;
   onLogout?: () => void;
-  onFingerprintVerification: () => void;
-  onTextRecognition: () => void;
-  onReadContacts: () => void;
-  contacts: Contact[];
-  setContacts: (contacts: Contact[]) => void;
-  isLocationActive: boolean;
-  lastKnownLocation: LocationData | null;
-  onStartLocation: () => void;
-  onStopLocation: () => void;
-  onGetLocation: () => void;
-  onCallPhone: (phoneNumber: string) => void;
-  onSendSms: (phoneNumber: string, message: string) => void;
-  onNetworkType: () => Promise<string>; // Update to return Promise<string>
-  onSubPageChange?: (subPage: string) => void;
-  userRole: 'Distributor' | 'Customer';
+  activePage: PageType;
+  activeSubPage: string;
+  onSubMenuItemClick: (menuId: PageType, itemId: string) => void;
 }
-
-type PageType = 'assets' | 'dashboard' | 'customers' | 'team' | 'company' | 'maplocation' | 'settings' | 'location' | 'debug';
-
-// Protected menu items for non-distributors
-const protectedPages: PageType[] = ['dashboard', 'customers', 'team', 'company', 'maplocation', 'settings', 'location', 'debug'];
 
 const MobileListView: React.FC<MobileListViewProps> = ({
   items,
@@ -65,102 +45,16 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   onScanQrCode,
   onRescanBleItems,
   isScanning,
-  onChooseImage,
-  selectedImage,
-  setSelectedImage,
-  onLogout = () => { },
-  onReadContacts,
-  onFingerprintVerification,
-  onTextRecognition,
-  contacts,
-  setContacts,
-  isLocationActive,
-  lastKnownLocation,
-  onStartLocation,
-  onStopLocation,
-  onGetLocation,
-  onCallPhone,
-  onSendSms,
-  onNetworkType,
-  onSubPageChange,
-  userRole,
+  onLogout = () => {},
+  activePage,
+  activeSubPage,
+  onSubMenuItemClick,
 }) => {
-  useEffect(() => {
-    console.info(`MobileListView - contacts prop: ${contacts.length ? 'Yes, length ' + contacts.length : 'No'}`);
-  }, [contacts]);
-  const router = useRouter();
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // Sidebar closed by default
-  const [activePage, setActivePage] = useState<PageType>('assets');
-  const [activeSubPage, setActiveSubPage] = useState<string>('bledevices');
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const initialized = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [networkType, setNetworkType] = useState<string | null>(null);
- 
 
   const sidebarWidth = '80%';
-   // Auto-start location tracking on component mount (only once)
-   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-
-      if (!isLocationActive) {
-        onStartLocation();
-      }
-
-      // Set up periodic location checks (every 5 minutes)
-      if (!intervalRef.current) {
-        const interval = setInterval(() => {
-          if (isLocationActive) {
-            onGetLocation();
-          }
-        }, 5 * 60 * 1000); // 5 minutes
-
-        intervalRef.current = interval;
-
-        // Initial location fetch (after a short delay)
-        setTimeout(() => {
-          if (isLocationActive) {
-            onGetLocation();
-          }
-        }, 1000);
-      }
-    }
-
-    // Clean up interval when component unmounts
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, []);
-
-  // Manage interval based on active status
-  useEffect(() => {
-    // If location becomes inactive and we have an interval, clear it
-    if (!isLocationActive && intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    // If location becomes active and we don't have an interval, create one
-    if (isLocationActive && !intervalRef.current) {
-      const interval = setInterval(() => {
-        onGetLocation();
-      }, 5 * 60 * 1000);
-
-      intervalRef.current = interval;
-
-      // Get location immediately when activated
-      onGetLocation();
-    }
-  }, [isLocationActive]);
-
-  // Debug networkType changes
-  useEffect(() => {
-    console.info(`MobileListView networkType: ${networkType || 'Not set'}`);
-  }, [networkType]);
 
   const filteredItems = items.filter(
     (item) =>
@@ -170,21 +64,6 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
   const handleContentClick = () => {
     if (isMenuOpen) setIsMenuOpen(false);
-  };
-
-  const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
-    // Redirect non-distributor users to login for protected pages
-    if (userRole !== 'Distributor' && protectedPages.includes(menuId)) {
-      router.push('/login');
-      return;
-    }
-
-    setActivePage(menuId);
-    setActiveSubPage(itemId);
-    setIsMenuOpen(false);
-    if (onSubPageChange) {
-      onSubPageChange(itemId);
-    }
   };
 
   const handleMenuOpen = () => setIsMenuOpen(true);
@@ -211,55 +90,10 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         </>
       );
     } 
-    else if (activePage === 'settings') {
-      return (
-        <SettingsView
-          onChooseImage={onChooseImage}
-          onReadContacts={onReadContacts}
-          onFingerprintVerification={onFingerprintVerification}
-          onTextRecognition={onTextRecognition}
-          selectedImage={selectedImage}
-          setSelectedImage={setSelectedImage}
-          contacts={contacts}
-          setContacts={setContacts}
-          onCallPhone={onCallPhone}
-          onSendSms={onSendSms}
-          onNetworkType={async () => {
-            try {
-              const type = await onNetworkType();
-              setNetworkType(type); // Update local state
-              console.info("SettingsView: Network type set to", type);
-            } catch (error) {
-              console.error("SettingsView: Failed to get network type:", error);
-              // toast.error("Failed to get network type");
-            }
-          }}
-          networkType={networkType}
-          setNetworkType={setNetworkType}
-        />
-      );
-    } 
     else if (activePage === 'maplocation') {
       return <MapLocationFinder />;
     } 
-    else if (activePage === 'location') {
-      return (
-        <LocationView
-          isLocationActive={isLocationActive}
-          handleStartLocationListener={onStartLocation}
-          handleStopLocationListener={onStopLocation}
-          handleGetLastLocation={onGetLocation}
-          lastKnownLocation={
-            lastKnownLocation
-              ? {
-                  ...lastKnownLocation,
-                  timestamp: Date.now(),
-                }
-              : null
-          }
-        />
-      );
-    } else {
+     else {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="text-center p-6 bg-[#2A2F33] rounded-lg">
@@ -279,7 +113,6 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     if (activePage === 'location') return 'Location Tracking';
     return activePage.charAt(0).toUpperCase() + activePage.slice(1);
   };
-
 
   return (
     <div className="relative max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen overflow-hidden">
@@ -303,18 +136,15 @@ const MobileListView: React.FC<MobileListViewProps> = ({
           {renderPageContent()}
         </div>
       </div>
-
       <Sidebar
         isMenuOpen={isMenuOpen}
         sidebarWidth={sidebarWidth}
         onClose={() => setIsMenuOpen(false)}
         activePage={activePage}
         activeSubPage={activeSubPage}
-        onSubMenuItemClick={handleSubMenuItemClick}
+        onSubMenuItemClick={onSubMenuItemClick}
         onLogout={onLogout}
-        userRole={userRole}
       />
-
       {isMenuOpen && (
         <div
           className="fixed inset-0 bg-black transition-opacity duration-300"

@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { useState, useRef } from 'react';
@@ -11,8 +10,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import ProtectedRoute from '@/app/components/protectedRoute';
 import { defaultImageUrl, itemImageMap } from '@/app/constants/imageUrls';
 import { bleLoadingSteps } from './constants/loadingStepsConfig';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, View } from 'lucide-react';
+import NonDeviceDetailView from './NonDeviceDetailView';
+
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
@@ -69,6 +68,7 @@ declare global {
     WebViewJavascriptBridge?: WebViewJavascriptBridge;
   }
 }
+type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company' | 'maplocation' | 'settings' | 'location' | 'debug';
 
 
 const AppContainer = () => {
@@ -88,42 +88,17 @@ const AppContainer = () => {
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
-const [contactsLoaded, setContactsLoaded] = useState(false);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
   const [networkType, setNetworkType] = useState<NetworkType>('unknown');
   const [loadingService, setLoadingService] = useState<string | null>(null);
   const [androidId, setAndroidId] = useState<any>("")
-  const [userRole, setUserRole] = useState<'Distributor' | 'Customer'>('Customer'); // Default to Distributor
+  // const [userRole, setUserRole] = useState<'Distributor' | 'Customer'>('Customer'); // Default to Distributor
   const [isToggled, setIsToggled] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
+  const [activePage, setActivePage] = useState<PageType>('assets');
+  const [activeSubPage, setActiveSubPage] = useState<string>('cmd');
 
 
-
-  // Load userRole from AsyncStorage on startup
-  useEffect(() => {
-    const loadUserRole = async () => {
-      try {
-        const storedRole = await AsyncStorage.getItem('userRole');
-        if (storedRole) {
-          setUserRole(storedRole as 'Customer' | 'Distributor');
-        }
-      } catch (error) {
-        console.error('Error loading user role from AsyncStorage:', error);
-      }
-    };
-    loadUserRole();
-  }, []);
-
-  // Function to toggle the role and save to AsyncStorage
-  const toggleRole = async () => {
-    const newRole = userRole === 'Distributor' ? 'Customer' : 'Distributor';
-    try {
-      await AsyncStorage.setItem('userRole', newRole);
-      setUserRole(newRole);
-      setIsToggled(!isToggled);
-    } catch (error) {
-      console.error('Error saving user role to AsyncStorage:', error);
-    }
-  };
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find(device => device.macAddress === selectedDevice)
@@ -160,6 +135,26 @@ const [contactsLoaded, setContactsLoaded] = useState(false);
       connBleByMacAddress(macAddress);
     }
   };
+  // Handler for updating activePage and activeSubPage with restrictions
+  const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
+    // Restrict access to 'settings' when activePage is 'assets' and activeSubPage is 'cmd'
+    if (menuId === 'settings' && activePage === 'assets' && activeSubPage === 'cmd') {
+      toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+
+    // Update page and subpage if not restricted
+    setActivePage(menuId);
+    setActiveSubPage(itemId);
+
+    // Handle specific actions
+    if (itemId === 'myfingers' || itemId === 'fingerprintverification') {
+      handleFingerprintVerification();
+    } else if (itemId === 'textrecognition') {
+      handleOpenOcr();
+    }
+  };
+
 
   const getImageUrl = (name: string): string => {
     const parts = name.split(" ");
@@ -184,20 +179,20 @@ const [contactsLoaded, setContactsLoaded] = useState(false);
   useEffect(() => {
     // Check if we've already reloaded
     const hasReloaded = sessionStorage.getItem('hasReloaded');
-  
+
     if (!hasReloaded) {
       // Set reloading state to true to show the loading indicator
       setIsReloading(true);
-      
+
       // Store that we're going to reload
       sessionStorage.setItem('hasReloaded', 'true');
-      
+
       // Set a timeout for the reload
       setTimeout(() => {
         window.location.reload();
       }, 5000);
     }
-  
+
     return () => {
       sessionStorage.removeItem('hasReloaded');
     };
@@ -562,42 +557,42 @@ const [contactsLoaded, setContactsLoaded] = useState(false);
           }
         );
         // Handles reading contacts callback
-      // In page.tsx - modify your readContactsCallBack handler
-bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: (response: any) => void) => {
-  try {
-    const rawContactsData = typeof data === 'string' ? JSON.parse(data) : data;
-    // toast.dismiss('contacts-loading');
-    
-    console.log("Raw contacts data received:", rawContactsData);
-    
-    if (!Array.isArray(rawContactsData)) {
-      toast.error("Invalid contacts data format");
-      responseCallback({ success: false, error: "Invalid format" });
-      return;
-    }
-    
-    const formattedContacts = rawContactsData.map((contact, index) => ({
-      name: contact.name || `Unknown Contact ${index}`,
-      phoneNumber: contact.phoneNumber || 'No Phone Number'
-    }));
-    
-    // Create a completely new array to ensure React detects the change
-    setContacts([...formattedContacts]);
-    
-    // Add a second state update to force re-render
-    setTimeout(() => {
-      setContacts(prev => [...prev]);
-    }, 100);
-    
-    toast.success(`Contacts updated successfully: ${formattedContacts.length} contacts`);
-    responseCallback({ success: true, count: formattedContacts.length });
-  } catch (error) {
-    // toast.dismiss('contacts-loading');
-    toast.error("Failed to process contacts");
-    toast.error(`Error details: ${String(error)}`);
-    responseCallback({ success: false, error: String(error) });
-  }
-});
+        // In page.tsx - modify your readContactsCallBack handler
+        bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: (response: any) => void) => {
+          try {
+            const rawContactsData = typeof data === 'string' ? JSON.parse(data) : data;
+            toast.dismiss('contacts-loading');
+
+            console.log("Raw contacts data received:", rawContactsData);
+
+            if (!Array.isArray(rawContactsData)) {
+              toast.error("Invalid contacts data format");
+              responseCallback({ success: false, error: "Invalid format" });
+              return;
+            }
+
+            const formattedContacts = rawContactsData.map((contact, index) => ({
+              name: contact.name || `Unknown Contact ${index}`,
+              phoneNumber: contact.phoneNumber || 'No Phone Number'
+            }));
+
+            // Create a completely new array to ensure React detects the change
+            setContacts([...formattedContacts]);
+
+            // Add a second state update to force re-render
+            setTimeout(() => {
+              setContacts(prev => [...prev]);
+            }, 100);
+
+            toast.success(`Contacts updated successfully: ${formattedContacts.length} contacts`);
+            responseCallback({ success: true, count: formattedContacts.length });
+          } catch (error) {
+            toast.dismiss('contacts-loading');
+            toast.error("Failed to process contacts");
+            toast.error(`Error details: ${String(error)}`);
+            responseCallback({ success: false, error: String(error) });
+          }
+        });
         // Handles fingerprint verification callback
         bridge.registerHandler(
           "fingerprintVerificationCallBack",
@@ -610,7 +605,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               // Toast the raw fingerprint data immediately
               const dataString = JSON.stringify(rawFingerprintData, null, 2);
               // toast(`Raw Fingerprint Data:\n${dataString}`, { duration: 10000 });
-              // toast.dismiss('fingerprint-loading');
+              toast.dismiss('fingerprint-loading');
 
               // Validate data
               if (!rawFingerprintData || typeof rawFingerprintData !== 'object') {
@@ -648,7 +643,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               console.info("Parsed phone data:", phoneData);
               toast(`Parsed callback response: ${JSON.stringify(phoneData, null, 2)}`, { duration: 5000 });
 
-              // toast.dismiss('phone-call-loading');
+              toast.dismiss('phone-call-loading');
 
               if (!phoneData || typeof phoneData !== 'object') {
                 toast.error("Invalid phone data received");
@@ -700,7 +695,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               console.info("Parsed SMS data:", smsData);
               // toast(`Parsed SMS data: ${JSON.stringify(smsData, null, 2)}`, { duration: 5000 });
 
-              // toast.dismiss('sms-loading');
+              toast.dismiss('sms-loading');
 
               if (!smsData || typeof smsData !== 'object') {
                 toast.error("Invalid SMS data received");
@@ -766,7 +761,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               // Toast the raw OCR data
               const dataString = JSON.stringify(rawOcrData, null, 2);
               // toast(`Raw OCR Data:\n${dataString}`, { duration: 10000 });
-              // toast.dismiss('ocr-loading');
+              toast.dismiss('ocr-loading');
 
               // Validate data
               if (!rawOcrData || typeof rawOcrData !== 'object') {
@@ -801,7 +796,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
             try {
               const rawLocationData = typeof data === 'string' ? JSON.parse(data) : data;
 
-              // toast.dismiss('location-loading');
+              toast.dismiss('location-loading');
               const dataPreview = JSON.stringify(rawLocationData, null, 2);
               // toast(`Location: ${dataPreview}`, { duration: 3000 });
 
@@ -850,7 +845,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               console.info("Parsed network data:", networkData);
               toast(`Parsed network data: ${JSON.stringify(networkData, null, 2)}`, { duration: 5000 });
 
-              // toast.dismiss('network-loading');
+              toast.dismiss('network-loading');
 
               if (!networkData || typeof networkData !== 'object') {
                 console.error("Invalid network data received:", networkData);
@@ -1159,7 +1154,7 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
             setLastKnownLocation(locationData);
             // Only set active if the listener is actually running
             setIsLocationListenerActive(prev => prev); // Preserve current state
-            // toast.dismiss('location-loading');
+            toast.dismiss('location-loading');
             // toast.success(`Location retrieved: Lat ${locationData.latitude.toFixed(4)}, Lon ${locationData.longitude.toFixed(4)}`);
           } else {
             toast.dismiss('location-loading');
@@ -1561,32 +1556,8 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
           },
         }}
       />
-      
-      {/* Role Switcher Section - Only visible when no device is selected */}
-      {!selectedDevice && (
-        <div className="p-4 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
-          <div className="flex items-center text-white gap-2">
-            {/* <View size={20} /> */}
-            <span className="font-semibold">{userRole} View</span>
-          </div>
-          
-          <button
-            onClick={toggleRole}
-            className="relative inline-flex items-center h-6 rounded-full w-12 transition-colors focus:outline-none"
-          >
-            <span 
-              className={`${isToggled ? 'bg-blue-500' : 'bg-gray-600'} 
-                absolute left-0 inline-block h-6 w-12 rounded-full transition-colors`}
-            />
-            <span 
-              className={`${isToggled ? 'translate-x-6' : 'translate-x-1'} 
-                inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-            />
-          </button>
-        </div>
-      )}
 
-      {userRole === 'Distributor' ? (
+      {activePage === 'assets' && activeSubPage === 'bledevices' ? (
         <ProtectedRoute>
           {!selectedDevice ? (
             <MobileListView
@@ -1596,27 +1567,13 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               onScanQrCode={startQrCodeScan}
               onRescanBleItems={handleBLERescan}
               isScanning={isScanning}
-              userRole={userRole} // Pass userRole
-              selectedImage={selectedImage}
-              setSelectedImage={setSelectedImage}
-              onChooseImage={handleChooseImage}
-              onFingerprintVerification={handleFingerprintVerification}
-              onTextRecognition={handleOpenOcr}
-              onReadContacts={handleReadContacts}
-              contacts={contacts}
-              setContacts={setContacts}
-              isLocationActive={isLocationListenerActive}
-              lastKnownLocation={lastKnownLocation}
-              onStartLocation={handleStartLocationListener}
-              onStopLocation={handleStopLocationListener}
-              onGetLocation={handleGetLastLocation}
-              onCallPhone={handleCallPhone}
-              onSendSms={handleSendSms}
-              onNetworkType={handleGetNetworkType}
+              activePage={activePage}
+              activeSubPage={activeSubPage}
+              onSubMenuItemClick={handleSubMenuItemClick}
             />
           ) : (
             <DeviceDetailView
-              // @ts-ignore
+              //@ts-ignore
               device={deviceDetails}
               attributeList={attrList}
               onBack={handleBackToList}
@@ -1624,54 +1581,50 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
               isLoadingService={loadingService}
               serviceLoadingProgress={progress}
               handlePublish={handlePublish}
-              userRole={userRole} // Pass userRole
             />
           )}
         </ProtectedRoute>
+      ) : 
+      activePage === 'assets' && activeSubPage === 'cmd' ? (
+        !selectedDevice ? (
+          <MobileListView
+            items={detectedDevices}
+            onStartConnection={startConnection}
+            connectedDevice={connectedDevice}
+            onScanQrCode={startQrCodeScan}
+            onRescanBleItems={handleBLERescan}
+            isScanning={isScanning}
+            activePage={activePage}
+            activeSubPage={activeSubPage}
+            onSubMenuItemClick={handleSubMenuItemClick}
+          />
+        ) : (
+          <NonDeviceDetailView
+            //@ts-ignore
+            device={deviceDetails}
+            attributeList={attrList}
+            onBack={handleBackToList}
+            onRequestServiceData={handleServiceDataRequest}
+            isLoadingService={loadingService}
+            serviceLoadingProgress={progress}
+            handlePublish={handlePublish}
+
+          />
+        )
       ) : (
-        <>
-          {!selectedDevice ? (
-            <MobileListView
-              items={detectedDevices}
-              onStartConnection={startConnection}
-              connectedDevice={connectedDevice}
-              onScanQrCode={startQrCodeScan}
-              onRescanBleItems={handleBLERescan}
-              isScanning={isScanning}
-              userRole={userRole} // Pass userRole
-              selectedImage={selectedImage}
-              setSelectedImage={setSelectedImage}
-              onChooseImage={handleChooseImage}
-              onFingerprintVerification={handleFingerprintVerification}
-              onTextRecognition={handleOpenOcr}
-              onReadContacts={handleReadContacts}
-              contacts={contacts}
-              setContacts={setContacts}
-              isLocationActive={isLocationListenerActive}
-              lastKnownLocation={lastKnownLocation}
-              onStartLocation={handleStartLocationListener}
-              onStopLocation={handleStopLocationListener}
-              onGetLocation={handleGetLastLocation}
-              onCallPhone={handleCallPhone}
-              onSendSms={handleSendSms}
-              onNetworkType={handleGetNetworkType}
-            />
-          ) : (
-            <DeviceDetailView
-              // @ts-ignore
-              device={deviceDetails}
-              attributeList={attrList}
-              onBack={handleBackToList}
-              onRequestServiceData={handleServiceDataRequest}
-              isLoadingService={loadingService}
-              serviceLoadingProgress={progress}
-              handlePublish={handlePublish}
-              userRole={userRole} // Pass userRole
-            />
-          )}
-        </>
+        <MobileListView
+          items={detectedDevices}
+          onStartConnection={startConnection}
+          connectedDevice={connectedDevice}
+          onScanQrCode={startQrCodeScan}
+          onRescanBleItems={handleBLERescan}
+          isScanning={isScanning}
+          activePage={activePage}
+          activeSubPage={activeSubPage}
+          onSubMenuItemClick={handleSubMenuItemClick}
+        />
       )}
-          {isReloading && <LoadingOverlay />}
+      {isReloading && <LoadingOverlay />}
 
       {isConnecting && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
@@ -1689,10 +1642,9 @@ bridge.registerHandler("readContactsCallBack", (data: string, responseCallback: 
       )}
     </>
   );
-};
+}
 
 export default AppContainer;
-
 
 
 // 'use client'
