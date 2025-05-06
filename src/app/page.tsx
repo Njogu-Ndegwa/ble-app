@@ -98,7 +98,7 @@ const AppContainer = () => {
   // const [userRole, setUserRole] = useState<'Distributor' | 'Customer'>('Customer'); // Default to Distributor
   const [isToggled, setIsToggled] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
-  // const [activePage, setActivePage] = useState<PageType>('assets');
+  const [activePage, setActivePage] = useState<PageType>('assets');
   // const [activeSubPage, setActiveSubPage] = useState<string>('cmd'); // Default to 'cmd'
   // const [activeSubPage, setActiveSubPage] = useState<string>('cmd');
   // const [activeSubPage, setActiveSubPage] = useState<string>(isAuthenticated ? 'bledevices' : 'cmd'); // Conditional default
@@ -169,7 +169,7 @@ const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
     return;
   }
 
-  // Continue with normal navigation if authenticated or page isn't restricted
+  setActivePage(menuId);
   setActiveSubPage(itemId);
 };
  

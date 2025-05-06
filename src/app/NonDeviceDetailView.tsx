@@ -79,21 +79,57 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
     });
   };
  
+  // const handleWrite = (value: string | number) => {
+  //   if (!activeCharacteristic || !cmdService) return;
+  //    // Collect all the write info
+  //    const writeInfo = {
+  //       action: 'write',
+  //       serviceUuid: cmdService.uuid,
+  //       characteristicUuid: activeCharacteristic.uuid,
+  //       macAddress: device.macAddress,
+  //       name: device.name,
+  //       value: value,
+  //     };
+      
+  //     // Log to console
+  //     console.info(writeInfo);
+
+  //   writeBleCharacteristic(
+  //     cmdService.uuid,
+  //     activeCharacteristic.uuid,
+  //     value,
+  //     device.macAddress,
+  //     (data: any, error: any) => {
+  //       console.info({ data: data, error: error });
+  //       if (data) {
+  //         console.info(data, 'Is Data 123');
+  //         toast.success(`Value written to ${activeCharacteristic.name}`);
+  //         setTimeout(() => {
+  //           handleRead(cmdService.uuid, activeCharacteristic.uuid, device.name);
+  //         }, 1000);
+  //       } else {
+  //         toast.error(`Failed to write to ${activeCharacteristic.name}`);
+  //       }
+  //     }
+  //   );
+  // };
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !cmdService) return;
-     // Collect all the write info
-     const writeInfo = {
-        action: 'write',
-        serviceUuid: cmdService.uuid,
-        characteristicUuid: activeCharacteristic.uuid,
-        macAddress: device.macAddress,
-        name: device.name,
-        value: value,
-      };
-      
-      // Log to console
-      console.info(writeInfo);
-
+    
+    // Show toast when write starts
+    toast.loading(`Writing to ${activeCharacteristic.name}...`, { id: 'write-status' });
+  
+    const writeInfo = {
+      action: 'write',
+      serviceUuid: cmdService.uuid,
+      characteristicUuid: activeCharacteristic.uuid,
+      macAddress: device.macAddress,
+      name: device.name,
+      value: value,
+    };
+    
+    console.info(writeInfo);
+  
     writeBleCharacteristic(
       cmdService.uuid,
       activeCharacteristic.uuid,
@@ -103,12 +139,14 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
         console.info({ data: data, error: error });
         if (data) {
           console.info(data, 'Is Data 123');
-          toast.success(`Value written to ${activeCharacteristic.name}`);
+          // Update existing toast
+          toast.success(`Value written to ${activeCharacteristic.name}`, { id: 'write-status' });
           setTimeout(() => {
             handleRead(cmdService.uuid, activeCharacteristic.uuid, device.name);
           }, 1000);
         } else {
-          toast.error(`Failed to write to ${activeCharacteristic.name}`);
+          // Update existing toast
+          toast.error(`Failed to write to ${activeCharacteristic.name}`, { id: 'write-status' });
         }
       }
     );
