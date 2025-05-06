@@ -62,6 +62,7 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
   const handleBack = () => onBack ? onBack() : router.back();
 
   const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
+    console.warn(serviceUuid, characteristicUuid, name, "-----65------")
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
       setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
@@ -80,6 +81,7 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
   };
  
   const handleWrite = (value: string | number) => {
+    console.warn(value, "---------83-------Value Write")
     if (!activeCharacteristic || !cmdService) return;
      // Collect all the write info
      const writeInfo = {
@@ -92,7 +94,7 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
       };
       
       // Log to console
-      console.info(writeInfo);
+      console.warn(writeInfo);
 
     writeBleCharacteristic(
       cmdService.uuid,
@@ -100,9 +102,9 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
       value,
       device.macAddress,
       (data: any, error: any) => {
-        console.info({ data: data, error: error });
+        console.warn({ data: data, error: error }, "-------104----");
         if (data) {
-          console.info(data, 'Is Data 123');
+          console.warn(data, 'Is Data 123');
           toast.success(`Value written to ${activeCharacteristic.name}`);
           setTimeout(() => {
             handleRead(cmdService.uuid, activeCharacteristic.uuid, device.name);
