@@ -96,6 +96,10 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
       // Log to console
       console.warn(writeInfo);
 
+      console.warn(cmdService.uuid, "99")
+      console.warn(activeCharacteristic.uuid, "100")
+      console.warn(value, "101")
+      console.warn(device.macAddress, "102")
     writeBleCharacteristic(
       cmdService.uuid,
       activeCharacteristic.uuid,

@@ -86,7 +86,7 @@ export const writeBleCharacteristic = (serviceUUID, characteristicUUID, value, m
       macAddress: macAddress,
     };
   
-  
+  console.warn(data, "----89---util function...")
   
     window.WebViewJavascriptBridge.callHandler(
       'writeBleCharacteristic', data,
