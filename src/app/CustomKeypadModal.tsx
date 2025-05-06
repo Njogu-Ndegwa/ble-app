@@ -133,6 +133,7 @@ export const CustomKeypadModal = ({
   };
 
   const submitInput = async () => {
+    console.warn("-----------136---------/")
     // Check if input exists
     if (!inputValue) {
       return;
