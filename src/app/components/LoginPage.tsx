@@ -1,11 +1,11 @@
-
 'use client'
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Mail, EyeOff, Eye } from 'lucide-react';
+import { Lock, Mail, EyeOff, Eye, ArrowLeft } from 'lucide-react';
 import { isTokenValid, loginWithGraphQL } from '@/app/components/authUtil';
 import { Toaster, toast } from 'react-hot-toast';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LoginPage = () => {
   const router = useRouter();
@@ -69,8 +69,34 @@ const LoginPage = () => {
     setShowPassword(!showPassword);
   };
 
+  const handleBackToCustomerView = () => {
+    // Change the user role back to Customer in localStorage/AsyncStorage
+    try {
+      localStorage.setItem('userRole', 'Customer');
+      // For React Native compatibility
+      if (typeof AsyncStorage !== 'undefined') {
+        AsyncStorage.setItem('userRole', 'Customer');
+      }
+      // Navigate back to the main page
+      router.push('/');
+    } catch (error) {
+      console.error('Error changing user role:', error);
+      toast.error('Failed to switch to Customer view');
+    }
+  };
+
   return (
-    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen flex flex-col justify-center">
+    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen flex flex-col relative">
+      {/* Back Button - Absolute positioned relative to the page */}
+      <button 
+        onClick={handleBackToCustomerView}
+        className="absolute top-4 left-4 text-gray-400 hover:text-white focus:outline-none flex items-center gap-1 transition-colors z-10"
+        aria-label="Back to Customer View"
+      >
+        <ArrowLeft className="h-5 w-5" />
+        {/* <span className="text-sm">Customer View</span> */}
+      </button>
+      
       <Toaster
         position="top-center"
         toastOptions={{
@@ -96,7 +122,8 @@ const LoginPage = () => {
         }}
       />
       
-      <div className="p-8">
+      <div className="p-8 flex-1 flex flex-col justify-center">
+        
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <h1 className="text-white text-2xl font-bold mb-2">BLE Device Manager</h1>
