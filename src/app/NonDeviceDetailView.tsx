@@ -128,7 +128,7 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
         return;
       }
       const rawCode = inputCode.replace(/\s/g, '');
-    if (rawCode.length !== 23) {
+  if (rawCode.length !== 23) {
     toast.error("Input code must be exactly 23 characters (e.g., *0307561888551305839957#)");
     return;
   }
@@ -205,7 +205,7 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
     stsService?.characteristicList?.find((char: any) => char.name.toLowerCase() === 'rcrd')?.realVal ??
     'N/A';
 
-  const isWriting = activeCharacteristic && loadingStates[activeCharacteristic.uuid];
+//   const isWriting = activeCharacteristic && loadingStates[activeCharacteristic.uuid];
 
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-gray-800 to-gray-900 min-h-screen text-white">
@@ -290,11 +290,12 @@ const NonDeviceDetailView: React.FC<NonDeviceDetailViewProps> = ({
               </div>
               <div
                 className={`h-14 flex-1 flex items-center justify-center rounded ${
-                  isLoadingService || isWriting ? 'bg-gray-500' : 'bg-blue-600 active:bg-blue-500'
+                  isLoadingService ? 'bg-gray-500' : 'bg-blue-600 active:bg-blue-500'
                 } text-white text-xl cursor-pointer`}
                 onClick={submitInput}
               >
-                {isLoadingService ? 'Loading...' : isWriting ? 'Writing...' : 'OK'}
+                OK
+                {/* {isLoadingService ? 'Loading...' : isWriting ? 'Writing...' : 'OK'} */}
               </div>
             </div>
           </div>

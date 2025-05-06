@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { useState, useRef } from 'react';
@@ -11,6 +12,8 @@ import ProtectedRoute from '@/app/components/protectedRoute';
 import { defaultImageUrl, itemImageMap } from '@/app/constants/imageUrls';
 import { bleLoadingSteps } from './constants/loadingStepsConfig';
 import NonDeviceDetailView from './NonDeviceDetailView';
+import { useRouter } from 'next/navigation';
+
 
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
@@ -95,8 +98,13 @@ const AppContainer = () => {
   // const [userRole, setUserRole] = useState<'Distributor' | 'Customer'>('Customer'); // Default to Distributor
   const [isToggled, setIsToggled] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
-  const [activePage, setActivePage] = useState<PageType>('assets');
-  const [activeSubPage, setActiveSubPage] = useState<string>('cmd');
+  // const [activePage, setActivePage] = useState<PageType>('assets');
+  const [activeSubPage, setActiveSubPage] = useState<string>('cmd'); // Default to 'cmd'
+  // const [activeSubPage, setActiveSubPage] = useState<string>('cmd');
+  // const [activeSubPage, setActiveSubPage] = useState<string>(isAuthenticated ? 'bledevices' : 'cmd'); // Conditional default
+  const router = useRouter();
+  
+  
 
 
   // Find the selected device data
@@ -138,13 +146,49 @@ const AppContainer = () => {
   // Handler for updating activePage and activeSubPage with restrictions
   const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
     // Restrict access to 'settings' when activePage is 'assets' and activeSubPage is 'cmd'
-    if (menuId === 'settings' && activePage === 'assets' && activeSubPage === 'cmd') {
-      toast.error('Access to Settings is restricted in CMD mode.');
+    if (menuId === 'settings'  && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'dashboard' && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'customer' && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'team'  && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'company' && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'maplocation'  && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'location' && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
+      return;
+    }
+    if (menuId === 'debug' && activeSubPage === 'cmd') {
+      router.push('/login');
+      // toast.error('Access to Settings is restricted in CMD mode.');
       return;
     }
 
     // Update page and subpage if not restricted
-    setActivePage(menuId);
+    // setActivePage(menuId);
     setActiveSubPage(itemId);
 
     // Handle specific actions
@@ -1557,20 +1601,20 @@ const AppContainer = () => {
         }}
       />
 
-      {activePage === 'assets' && activeSubPage === 'bledevices' ? (
+      { activeSubPage === 'bledevices' ? (
         <ProtectedRoute>
           {!selectedDevice ? (
-            <MobileListView
-              items={detectedDevices}
-              onStartConnection={startConnection}
-              connectedDevice={connectedDevice}
-              onScanQrCode={startQrCodeScan}
-              onRescanBleItems={handleBLERescan}
-              isScanning={isScanning}
-              activePage={activePage}
-              activeSubPage={activeSubPage}
-              onSubMenuItemClick={handleSubMenuItemClick}
-            />
+           <MobileListView
+           items={detectedDevices}
+           onStartConnection={startConnection}
+           connectedDevice={connectedDevice}
+           onScanQrCode={startQrCodeScan}
+           onRescanBleItems={handleBLERescan}
+           isScanning={isScanning}
+           activePage='assets'
+           activeSubPage='bledevices'
+           onSubMenuItemClick={handleSubMenuItemClick}
+         />
           ) : (
             <DeviceDetailView
               //@ts-ignore
@@ -1585,7 +1629,7 @@ const AppContainer = () => {
           )}
         </ProtectedRoute>
       ) : 
-      activePage === 'assets' && activeSubPage === 'cmd' ? (
+     activeSubPage === 'cmd' ? (
         !selectedDevice ? (
           <MobileListView
             items={detectedDevices}
@@ -1594,7 +1638,7 @@ const AppContainer = () => {
             onScanQrCode={startQrCodeScan}
             onRescanBleItems={handleBLERescan}
             isScanning={isScanning}
-            activePage={activePage}
+            activePage='assets'
             activeSubPage={activeSubPage}
             onSubMenuItemClick={handleSubMenuItemClick}
           />
@@ -1608,7 +1652,6 @@ const AppContainer = () => {
             isLoadingService={loadingService}
             serviceLoadingProgress={progress}
             handlePublish={handlePublish}
-
           />
         )
       ) : (
@@ -1619,7 +1662,7 @@ const AppContainer = () => {
           onScanQrCode={startQrCodeScan}
           onRescanBleItems={handleBLERescan}
           isScanning={isScanning}
-          activePage={activePage}
+          activePage='assets'
           activeSubPage={activeSubPage}
           onSubMenuItemClick={handleSubMenuItemClick}
         />
@@ -1633,7 +1676,7 @@ const AppContainer = () => {
               initialMessage="Preparing to connect..."
               completionMessage="Connection established!"
               loadingSteps={bleLoadingSteps}
-              onLoadingComplete={() => { }}
+              onLoadingComplete={() => {}}
               autoProgress={false}
               progress={progress}
             />
