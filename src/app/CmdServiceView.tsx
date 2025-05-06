@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { writeBleCharacteristic, readBleCharacteristic } from './utils';
 import { Clipboard, RefreshCw, ArrowLeft } from 'lucide-react';
@@ -89,6 +89,13 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
     
     return value.toString();
   };
+
+    useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
 
   return (
     <div className="space-y-4">
