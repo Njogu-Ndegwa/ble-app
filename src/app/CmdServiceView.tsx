@@ -30,7 +30,7 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
 
   const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
-    console.info("-----33----", serviceUuid, characteristicUuid, name)
+    console.warn("-----33----", serviceUuid, characteristicUuid, name)
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     
     readBleCharacteristic(serviceUuid, characteristicUuid, deviceMacAddress, (data: any, error: any) => {
@@ -58,7 +58,7 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
   };
 
   const handleWrite = (value: string | number) => {
-    console.info("-----60-----", value)
+    console.warn("-----60-----", value)
     if (!activeCharacteristic || !serviceData) return;
     writeBleCharacteristic(
       serviceData.uuid,
@@ -66,7 +66,7 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
       value,
       deviceMacAddress,
       (data: any, error: any) => {
-        console.info(data, "Data------68-----")
+        console.warn(data, "Data------68-----")
         if (data) {
           toast.success(`Value written to ${activeCharacteristic.name}`);
           setTimeout(() => {
