@@ -188,12 +188,12 @@ const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
     return defaultImageUrl;
   };
 
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole();
-  //   });
-  // }, []);
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
 
 
   useEffect(() => {
