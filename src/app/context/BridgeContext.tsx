@@ -108,12 +108,12 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
         return defaultImageUrl;
     };
-        useEffect(() => {
-        import('vconsole').then((module) => {
-            const VConsole = module.default;
-            new VConsole(); // Initialize VConsole
-        });
-    }, []);
+    //     useEffect(() => {
+    //     import('vconsole').then((module) => {
+    //         const VConsole = module.default;
+    //         new VConsole(); // Initialize VConsole
+    //     });
+    // }, []);
 
     // Initialize bridge
     useEffect(() => {
