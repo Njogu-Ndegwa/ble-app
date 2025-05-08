@@ -1,8 +1,7 @@
 'use client'
-
 import React from 'react';
 import { BluetoothSearching, BluetoothConnected } from 'lucide-react';
-import { BleDevice } from '@/app/page'; 
+import { BleDevice } from '@/app/context/BridgeContext';
 
 interface DeviceItemProps {
   device: BleDevice;

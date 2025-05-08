@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react';
-import { BleDevice } from '@/app/page'; 
+import { BleDevice } from '@/app/context/BridgeContext';
 import DeviceItem from './DeviceItem';
 import DeviceItemSkeleton from '@/components/DeviceItemSkeleton';
 
