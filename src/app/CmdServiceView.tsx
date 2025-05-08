@@ -52,14 +52,14 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
   );
 
   // Load service data if not already loaded
-  // useEffect(() => {
-  //   if (!cmdService && onRequestServiceData) {
-  //     onRequestServiceData('CMD');
-  //   }
-  //   if (!stsService && onRequestServiceData) {
-  //     onRequestServiceData('STS');
-  //   }
-  // }, [cmdService, stsService, onRequestServiceData]);
+  useEffect(() => {
+    if (!cmdService && onRequestServiceData) {
+      onRequestServiceData('CMD');
+    }
+    if (!stsService && onRequestServiceData) {
+      onRequestServiceData('STS');
+    }
+  }, [cmdService, stsService, onRequestServiceData]);
 
   // Handle back navigation
   const handleBack = () => onBack ? onBack() : router.back();
