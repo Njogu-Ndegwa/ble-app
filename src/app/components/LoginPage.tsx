@@ -52,7 +52,7 @@ const LoginPage = () => {
         
         // Redirect to main page
         setTimeout(() => {
-          router.push('/');
+          router.push('/bledevices');
         }, 1000);
       } else {
         toast.error(result.error || 'Login failed. Please check your credentials.');
