@@ -45,13 +45,17 @@ interface BridgeContextType {
     isConnecting: boolean;
     connectingDeviceId: string | null;
     progress: number;
-    attributeList: any;
+    attributeList: any[];
+    attrList: any[];
+    loadingService: string | null;
     startBleScan: () => void;
     stopBleScan: () => void;
     startConnection: (macAddress: string) => void;
     startQrCodeScan: () => void;
     handleBLERescan: () => void;
     setSelectedDevice: (deviceId: string | null) => void;
+    handleServiceDataRequest: (serviceName: string) => void;
+    handlePublish: (attributeList: any, serviceType: any) => void;
 }
 
 // Create the context
@@ -71,8 +75,13 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const [isConnecting, setIsConnecting] = useState(false);
     const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
     const [progress, setProgress] = useState(0);
-    const [attributeList, setServiceAttrList] = useState<any>([]);
+    const [attributeList, setServiceAttrList] = useState<any[]>([]);
+    const [attrList, setAtrrList] = useState<any[]>([]);
+    const [loadingService, setLoadingService] = useState<string | null>(null);
     const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+    const [androidId, setAndroidId] = useState<any>("")
+
+
     
     // Create a ref to the detected devices for use in QR code scanning
     const detectedDevicesRef = useRef(detectedDevices);
@@ -99,8 +108,7 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
         return defaultImageUrl;
     };
-    
-    // useEffect(() => {
+    //     useEffect(() => {
     //     import('vconsole').then((module) => {
     //         const VConsole = module.default;
     //         new VConsole(); // Initialize VConsole
@@ -145,14 +153,12 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 });
 
                 // Register all handlers
-
-                // Print handler
                 bridge.registerHandler("print", (data: string, responseCallback: (response: any) => void) => {
                     try {
                         const parsedData = JSON.parse(data);
                         if (parsedData && parsedData.data) {
                             responseCallback(parsedData.data);
-                            console.log("Response Callback")
+                            console.log("Response Callback");
                         } else {
                             throw new Error("Parsed data is not in the expected format.");
                         }
@@ -161,7 +167,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 });
 
-                // Find BLE device callback
                 bridge.registerHandler(
                     "findBleDeviceCallBack",
                     (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
@@ -170,39 +175,31 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                             console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
 
                             if (parsedData.macAddress && parsedData.name && parsedData.rssi && parsedData.name.includes("OVES")) {
-                                // Store the raw rssi value for sorting, and use the formatted version for display
                                 const rawRssi = Number(parsedData.rssi);
                                 const formattedRssi = convertRssiToFormattedString(rawRssi);
-
-                                // Update the device data
-                                parsedData.rssi = formattedRssi; // Use formatted RSSI for display
-                                parsedData.rawRssi = rawRssi; // Store raw RSSI for sorting
+                                parsedData.rssi = formattedRssi;
+                                parsedData.rawRssi = rawRssi;
                                 parsedData.imageUrl = getImageUrl(parsedData.name);
 
                                 setDetectedDevices(prevDevices => {
-                                    // Check if this device already exists in our array
                                     const deviceExists = prevDevices.some(
                                         device => device.macAddress === parsedData.macAddress
                                     );
 
-                                    // If device doesn't exist, add it to the array
                                     if (!deviceExists) {
                                         console.log("Adding new device:", parsedData.name);
                                         return [...prevDevices, parsedData];
                                     }
 
-                                    // If the device exists, update RSSI or other properties
                                     return prevDevices.map(device =>
                                         device.macAddress === parsedData.macAddress
-                                            ? { ...device, rssi: parsedData.rssi, rawRssi: parsedData.rawRssi } // Update both formatted and raw RSSI
+                                            ? { ...device, rssi: parsedData.rssi, rawRssi: parsedData.rawRssi }
                                             : device
                                     );
                                 });
 
-                                // Sort the devices by raw RSSI, so the closest ones appear first
                                 setDetectedDevices(prevDevices => {
-                                    return prevDevices
-                                        .sort((a, b) => b.rawRssi - a.rawRssi); // Sort by raw RSSI in descending order
+                                    return prevDevices.sort((a, b) => b.rawRssi - a.rawRssi);
                                 });
 
                                 responseCallback({ success: true });
@@ -216,54 +213,86 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // BLE connection failure callback
                 bridge.registerHandler(
                     "bleConnectFailCallBack",
                     (data: string, responseCallback: (response: any) => void) => {
                         console.log("Bluetooth connection failed:", data);
-                        setIsConnecting(false); // Reset connection state on failure
+                        setIsConnecting(false);
                         setProgress(0);
                         toast.error('Connection failed! Please try reconnecting again.', { id: 'connect-toast' });
                         responseCallback(data);
                     }
                 );
-                
-                // BLE connection success callback
+
                 bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
-                    setConnectedDevice(macAddress); // Set the connected device
+                    sessionStorage.setItem('connectedDeviceMac', macAddress);
+                    setConnectedDevice(macAddress);
                     setIsScanning(false);
-                    
-                    // Initialize BLE data
-                    initBleData(macAddress);
+                    const data = {
+                        serviceName: "ATT",
+                        macAddress: macAddress
+                    };
+                    setLoadingService("ATT");
+                    initServiceBleData(data);
                     responseCallback(macAddress);
                 });
 
-                // Service data progress callback
                 bridge.registerHandler("bleInitServiceDataOnProgressCallBack", (data, responseCallback) => {
                     console.info(data, "Service data progress update");
+                    try {
+                        const parsedData = JSON.parse(data);
+                        const progressPercentage = Math.round((parsedData.progress / parsedData.total) * 100);
+                        setProgress(progressPercentage);
+                    } catch (error) {
+                        console.error("Error parsing service progress data:", error);
+                    }
                     responseCallback(data);
                 });
 
-                // Service data complete callback
                 bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", (data, responseCallback) => {
                     console.info(data, "Service data initialization complete");
+                    try {
+                        const parsedData = JSON.parse(data);
+                        setServiceAttrList(prev => {
+                            const existingService = prev.find(s => s.serviceNameEnum === parsedData.serviceNameEnum);
+                            if (existingService) {
+                                return prev.map(s =>
+                                    s.serviceNameEnum === parsedData.serviceNameEnum ? parsedData : s
+                                );
+                            }
+                            return [...prev, parsedData];
+                        });
+                        setAtrrList(prev => {
+                            const existingService = prev.find(s => s.serviceNameEnum === parsedData.serviceNameEnum);
+                            if (existingService) {
+                                return prev.map(s =>
+                                    s.serviceNameEnum === parsedData.serviceNameEnum ? parsedData : s
+                                );
+                            }
+                            return [...prev, parsedData];
+                        });
+                        setLoadingService(null);
+                    } catch (error) {
+                        console.error("Error parsing service complete data:", error);
+                    }
                     responseCallback(data);
                 });
 
-                // Service data failure callback
                 bridge.registerHandler("bleInitServiceDataFailureCallBack", (data, responseCallback) => {
                     console.info(data, "Service data initialization failed");
+                    setLoadingService(null);
+                    toast.error('Failed to load service data');
                     responseCallback(data);
                 });
 
-                // BLE data complete callback
                 bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
                     const resp = JSON.parse(data);
-                    setServiceAttrList(resp.dataList.map((service: any, index: any) => ({ ...service, index })));
+                    const updatedList = resp.dataList.map((service: any, index: any) => ({ ...service, index }));
+                    setServiceAttrList(updatedList);
+                    setAtrrList(updatedList);
                     responseCallback(data);
                 });
 
-                // BLE data failure callback
                 bridge.registerHandler(
                     "bleInitDataFailureCallBack",
                     (data: string, responseCallback: (response: any) => void) => {
@@ -281,7 +310,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // BLE init data callback
                 bridge.registerHandler(
                     "bleInitDataCallBack",
                     (data: string, responseCallback: (response: any) => void) => {
@@ -295,7 +323,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // QR code scan result callback
                 bridge.registerHandler("scanQrcodeResultCallBack", (data, responseCallback) => {
                     console.info("Debug: Received data from scanQrcodeResultCallBack:", data);
                     try {
@@ -305,7 +332,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                         console.info(qrValue, "QrValue");
                         const last6FromBarcode = qrValue.slice(-6).toLowerCase();
 
-                        // Find device with matching code
                         const currentDevices = detectedDevicesRef.current;
                         console.info(currentDevices, "Current devices via ref");
                         const matches = currentDevices.filter((device) => {
@@ -327,7 +353,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     responseCallback(data);
                 });
 
-                // MQTT message received callback
                 bridge.registerHandler(
                     "mqttMessageReceived",
                     (data: string, responseCallback: (response: any) => void) => {
@@ -340,7 +365,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // BLE init data progress callback
                 bridge.registerHandler(
                     "bleInitDataOnProgressCallBack",
                     (data) => {
@@ -357,7 +381,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // MQTT connection callback
                 bridge.registerHandler(
                     "connectMqttCallBack",
                     (data: string, responseCallback: (response: any) => void) => {
@@ -373,7 +396,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // MQTT message arrived callback
                 bridge.registerHandler(
                     "mqttMsgArrivedCallBack",
                     (data: string, responseCallback: (response: any) => void) => {
@@ -382,7 +404,6 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     }
                 );
 
-                // Setup MQTT connection
                 const mqttConfig: MqttConfig = {
                     username: "Admin",
                     password: "7xzUV@MT",
@@ -407,10 +428,11 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         };
 
         connectWebViewJavascriptBridge(setupBridge);
+        readDeviceInfo()
 
         return () => {
-            console.log("Bridge context cleanup");
-        };
+            console.log("-------250------")
+          };
     }, []);
 
     // Auto-scan when bridge is initialized
@@ -424,15 +446,25 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }, [bridgeInitialized]);
 
     // Effect for handling 100% progress
+    // useEffect(() => {
+    //     if (progress === 100 && attributeList.length > 0) {
+    //         setIsConnecting(false);
+    //         setSelectedDevice(connectingDeviceId);
+    //         setAtrrList(attributeList);
+    //         handlePublish(attributeList);
+    //     }
+    // }, [progress, attributeList]);
+
     useEffect(() => {
-        if (progress === 100) {
-            setIsConnecting(false); // Connection process complete
-            setSelectedDevice(connectingDeviceId);
-            if (attributeList.length > 0) {
-                handlePublish(attributeList);
-            }
+        if (progress === 100 && attributeList.length > 0) {
+          setIsConnecting(false); // Connection process complete
+          setSelectedDevice(connectingDeviceId);
+          setAtrrList(attributeList)
+          // console.info(attributeList, "Attribute List -----441----")
+    
+          handlePublish(attributeList, loadingService)
         }
-    }, [progress, attributeList, connectingDeviceId]);
+      }, [progress, attributeList])
 
     // Function to start BLE scanning
     const startBleScan = () => {
@@ -467,17 +499,14 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
     };
 
-    // Function to start connection - FIXED: Now uses connBleByMacAddress from utils
+    // Function to start connection
     const startConnection = (macAddress: string) => {
         if (macAddress === connectedDevice && attributeList.length > 0) {
-            // Already connected, skip connection and go to details
             setSelectedDevice(macAddress);
         } else {
-            // Start new connection
             setIsConnecting(true);
             setConnectingDeviceId(macAddress);
             setProgress(0);
-            // Use the imported utility function instead of direct bridge call
             connBleByMacAddress(macAddress);
         }
     };
@@ -490,13 +519,12 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             });
         }
     };
-
+   
     // Function to handle BLE rescan
     const handleBLERescan = () => {
         if (isScanning && detectedDevices.length === 0) {
             stopBleScan();
-        }
-        else {
+        } else {
             setConnectedDevice(null);
             setDetectedDevices([]);
             setConnectingDeviceId(null);
@@ -505,75 +533,145 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
     };
 
-    // Function to handle MQTT publish
-    const handlePublish = (attributeList: any) => {
-        if (!window.WebViewJavascriptBridge || !attributeList) {
-            console.error("WebViewJavascriptBridge is not initialized or attributeList is empty.");
-            return;
-        }
-
-        // Find the STS_SERVICE from the attributeList
-        const stsService = attributeList.find((service: any) => service.serviceNameEnum === "STS_SERVICE");
-
-        if (!stsService) {
-            console.error("STS_SERVICE not found in attributeList.");
-            toast.error("Error: STS_SERVICE not found.");
-            return;
-        }
-
-        const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
-            acc[char.name] = char.realVal;
-            return acc;
-        }, {});
-
-        console.info(stsData, "STS Data");
-
-        const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
-
-        if (!attService) {
-            console.error("ATT_SERVICE not found in attributeList.");
-            toast.error("Error: ATT_SERVICE not found.");
-            return;
-        }
-
-        // Find the opid characteristic and get its realVal
-        const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
-
-        if (!opidChar) {
-            console.error("opid characteristic not found in ATT_SERVICE.");
-            toast.error("Error: opid not found in ATT_SERVICE.");
-            return;
-        }
-
-        const opidRealVal = opidChar.realVal;
-
-        // Define the data to publish
-        const dataToPublish = {
-            topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
-            qos: 0,
-            content: {
-                sts: stsData,
-                timestamp: Date.now(),
-                deviceInfo: "mac_address"
-            }
+    // Function to handle service data request
+    const handleServiceDataRequest = (serviceName: string) => {
+        if (!selectedDevice) return;
+        setLoadingService(serviceName);
+        setProgress(0);
+        const data = {
+            serviceName: serviceName,
+            macAddress: selectedDevice
         };
-
-        console.info(dataToPublish, "Data to Publish");
-
-        try {
-            window.WebViewJavascriptBridge.callHandler(
-                "mqttPublishMsg",
-                JSON.stringify(dataToPublish),
-                (response) => {
-                    console.info(`MQTT Response:`, response);
-                }
-            );
-        } catch (error) {
-            console.error(`Error calling WebViewJavascriptBridge`, error);
-            toast.error(`Error publishing message`);
-        }
+        initServiceBleData(data);
     };
 
+    // Function to handle MQTT publish
+    const handlePublish = (attributeList: any, serviceType: any) => {
+        if (!window.WebViewJavascriptBridge) {
+          console.error("WebViewJavascriptBridge is not initialized.");
+          toast.error("Error: WebViewJavascriptBridge is not initialized.");
+          return;
+        }
+    
+        // First, ensure we have attributeList and it's an array
+        if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
+          console.error("AttributeList is empty or invalid");
+          toast.error("Error: Device data not available yet");
+          return;
+        }
+    
+        // Find the ATT_SERVICE from the attributeList - this is required for all publish operations
+        const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
+    
+        if (!attService) {
+          console.error("ATT_SERVICE not found in attributeList.");
+          toast.error("ATT service data is required but not available yet");
+          // Queue this publish for retry after ATT service is loaded
+          return;
+        }
+    
+        // Get the opid from ATT_SERVICE
+        const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
+    
+        if (!opidChar || !opidChar.realVal) {
+          console.error("opid characteristic not found or has no value in ATT_SERVICE.");
+          toast.error("Device ID not available");
+          return;
+        }
+    
+        const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
+    
+        // Map service enum to match attributeList format
+        const serviceTypeMap: { [key: string]: string } = {
+          'ATT': 'ATT_SERVICE',
+          'CMD': 'CMD_SERVICE',
+          'STS': 'STS_SERVICE',
+          'DTA': 'DTA_SERVICE',
+          'DIA': 'DIA_SERVICE'
+        };
+    
+        const serviceNameEnum = serviceTypeMap[serviceType] || serviceType;
+    
+        // Find the requested service from the attributeList
+        const requestedService = attributeList.find((service: any) =>
+          service.serviceNameEnum === serviceNameEnum
+        );
+    
+        if (!requestedService) {
+          console.error(`${serviceNameEnum} not found in attributeList.`);
+          // toast.error(`${serviceType} service data not available yet`);
+          return;
+        }
+    
+        // Convert service data to key-value format
+        const serviceData = requestedService.characteristicList.reduce((acc: any, char: any) => {
+          // Skip null or undefined values
+          if (char.realVal !== null && char.realVal !== undefined) {
+            acc[char.name] = char.realVal;
+          }
+          return acc;
+        }, {});
+    
+        // Check if we have data to publish
+        if (Object.keys(serviceData).length === 0) {
+          console.error(`No valid data found in ${serviceType} service.`);
+          toast.error(`No data available to publish for ${serviceType}`);
+          return;
+        }
+    
+        // Define the data to publish
+        const dataToPublish = {
+          topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
+          qos: 0,
+          content: {
+            // Use the service name as the key for the data object
+            [serviceType.toLowerCase()]: serviceData,
+            timestamp: Date.now(),
+            deviceInfo: androidId || ""
+          }
+        };
+    
+        console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
+    
+        // Try to publish via MQTT
+        try {
+          window.WebViewJavascriptBridge.callHandler(
+            "mqttPublishMsg",
+            JSON.stringify(dataToPublish),
+            (response) => {
+              console.info(`MQTT Response for ${serviceType}:`, response);
+              toast.success(`${serviceType} data published successfully`);
+            }
+          );
+        } catch (error) {
+          console.error(`Error publishing ${serviceType} data:`, error);
+          toast.error(`Error publishing ${serviceType} data`);
+        }
+      };
+      const readDeviceInfo = () => {
+        if (!window.WebViewJavascriptBridge) {
+          console.error("WebViewJavascriptBridge is not initialized.");
+          toast.error("Error: WebViewJavascriptBridge is not initialized.");
+          return;
+        }
+        try {
+          window.WebViewJavascriptBridge.callHandler(
+            'readDeviceInfo', "",
+            (response) => {
+              console.warn(response, "Response");
+              const jsonData = JSON.parse(response);
+              if (jsonData.respCode === "200" && jsonData.respData && jsonData.respData.ANDROID_ID) {
+                const androidId = jsonData.respData.ANDROID_ID;
+                setAndroidId(androidId)
+                console.warn(androidId, "765---")
+              }
+            }
+          );
+        } catch (error) {
+          console.error(`Error :`, error);
+          toast.error(`Error reding device info data`);
+        }
+      }
     // Set up context value
     const contextValue: BridgeContextType = {
         bridgeInitialized,
@@ -585,12 +683,16 @@ export const BridgeProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         connectingDeviceId,
         progress,
         attributeList,
+        attrList,
+        loadingService,
         startBleScan,
         stopBleScan,
         startConnection,
         startQrCodeScan,
         handleBLERescan,
-        setSelectedDevice: (deviceId: string | null) => setConnectingDeviceId(deviceId)
+        setSelectedDevice: (deviceId: string | null) => setConnectingDeviceId(deviceId),
+        handleServiceDataRequest,
+        handlePublish
     };
 
     return (
