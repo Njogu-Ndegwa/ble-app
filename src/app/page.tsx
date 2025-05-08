@@ -19,12 +19,13 @@ const AppContainer = () => {
     isConnecting,
     connectingDeviceId,
     progress,
-    attributeList,
-    startBleScan,
-    stopBleScan,
+    attrList,
     startConnection,
     startQrCodeScan,
-    handleBLERescan
+    handleBLERescan,
+    handleServiceDataRequest,
+    loadingService,
+
   } = useBridge();
 
   useEffect(() => {
@@ -95,8 +96,10 @@ const AppContainer = () => {
         <CmdServiceView
         //@ts-ignore
           device={deviceDetails}
-          attributeList={attributeList}
+          attributeList={attrList}
           onBack={handleBackToList}
+          onRequestServiceData={handleServiceDataRequest}
+          isLoadingService={loadingService}
         />
       )}
       
@@ -121,3 +124,4 @@ const AppContainer = () => {
 }
 
 export default AppContainer;
+

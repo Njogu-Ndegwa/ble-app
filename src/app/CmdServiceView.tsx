@@ -16,28 +16,27 @@ interface CmdServiceViewProps {
   onBack?: () => void;
   onRequestServiceData?: (serviceName: string) => void;
   isLoadingService?: string | null;
-  serviceLoadingProgress?: number;
 }
 
 const CmdServiceView: React.FC<CmdServiceViewProps> = ({
-  device,
-  attributeList,
+  device, 
+  attributeList, 
   onBack,
   onRequestServiceData,
   isLoadingService,
-  serviceLoadingProgress = 0
 }) => {
   const router = useRouter();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
   // Loading state for read operations
   const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
   const [inputCode, setInputCode] = useState('');
-
+  
 
   // Services we need
   const services = {
     CMD: { serviceNameEnum: 'CMD_SERVICE', charNameContains: 'pubk' },
     STS: { serviceNameEnum: 'STS_SERVICE', charNameContains: 'rcrd' }
+    
   };
 
   // Find our services and characteristics
@@ -133,6 +132,7 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
       }
     );
   };
+  
 
   const submitInput = () => {
     if (isLoadingService) {
