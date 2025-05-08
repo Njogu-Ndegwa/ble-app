@@ -19,10 +19,13 @@ const BleDevicePage = () => {
         isConnecting,
         connectingDeviceId,
         progress,
-        attributeList,
+        attrList,
         startConnection,
         startQrCodeScan,
-        handleBLERescan
+        handleBLERescan,
+        handleServiceDataRequest,
+        loadingService,
+        handlePublish,
     } = useBridge();
     
     useEffect(() => {
@@ -92,10 +95,13 @@ const BleDevicePage = () => {
                     />
                 ) : (
                     <DeviceDetailView
-                        //@ts-ignore
-                        device={deviceDetails}
-                        attributeList={attributeList}
+                        device={deviceDetails!}
+                        attributeList={attrList}
                         onBack={handleBackToList}
+                        onRequestServiceData={handleServiceDataRequest}
+                        isLoadingService={loadingService}
+                        handlePublish={handlePublish} // Pass handlePublish to DeviceDetailView
+
                     />
                 )}
             </ProtectedRoute>
@@ -109,9 +115,9 @@ const BleDevicePage = () => {
                             initialMessage="Preparing to connect..."
                             completionMessage="Connection established!"
                             loadingSteps={bleLoadingSteps}
-                            onLoadingComplete={() => { }} // Handled in callback
-                            autoProgress={false} // Use real progress
-                            progress={progress} // Pass real progress
+                            onLoadingComplete={() => { }}
+                            autoProgress={false}
+                            progress={progress}
                         />
                     </div>
                 </div>
