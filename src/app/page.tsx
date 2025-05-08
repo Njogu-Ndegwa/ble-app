@@ -98,7 +98,7 @@ const AppContainer = () => {
           device={deviceDetails}
           attributeList={attrList}
           onBack={handleBackToList}
-          onRequestServiceData={handleServiceDataRequest}
+          // onRequestServiceData={handleServiceDataRequest}
           isLoadingService={loadingService}
         />
       )}
