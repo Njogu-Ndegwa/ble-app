@@ -37,19 +37,33 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
-  const [activeSubPage, setActiveSubPage] = useState<string>(
-    isAuthenticated ? 'bledevices' : 'cmd'
-  );
   
-
-  // Set activePage and activeSubPage based on current pathname
+  // Set activePage based on current pathname
   const [activePage, setActivePage] = useState<PageType>('assets');
+  const [activeSubPage, setActiveSubPage] = useState<string>('cmd');
 
+  // Check authentication status and redirect accordingly
   useEffect(() => {
-    // This will only run on the client side
-    setActiveSubPage(isAuthenticated ? 'bledevices' : 'cmd');
-  }, [isAuthenticated]);
+    if (isAuthenticated) {
+      // If authenticated, redirect to BLE devices page if not already there
+      if (pathname !== '/bledevices') {
+        router.push('/bledevices');
+      }
+      setActiveSubPage('bledevices');
+    } else {
+      // If not authenticated, stay on cmd page
+      setActiveSubPage('cmd');
+    }
+  }, [isAuthenticated, router, pathname]);
 
+  // Set activeSubPage based on pathname
+  useEffect(() => {
+    if (pathname === '/bledevices') {
+      setActiveSubPage('bledevices');
+    } else if (pathname === '/') {
+      setActiveSubPage('cmd');
+    }
+  }, [pathname]);
 
   const sidebarWidth = '80%';
 
@@ -65,19 +79,19 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
   const handleSubMenuItemClick = (menuId: PageType, itemId: string) => {
     // Check if user is authenticated before allowing navigation
-    if (!isAuthenticated) {
+    if (!isAuthenticated && itemId === 'bledevices') {
       // Redirect to login page for unauthenticated users
       router.push('/login');
       setIsMenuOpen(false);
       return;
     }
     
-    // Continue with normal navigation for authenticated users
+    // Continue with navigation
     setActivePage(menuId);
     setActiveSubPage(itemId);
     setIsMenuOpen(false);
 
-    if (menuId === 'assets' && itemId === 'bledevices') {
+    if (menuId === 'assets' && itemId === 'bledevices' && isAuthenticated) {
       router.push('/bledevices');
     } else if (menuId === 'assets' && itemId === 'cmd') {
       router.push('/');
