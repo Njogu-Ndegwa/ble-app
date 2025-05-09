@@ -82,27 +82,31 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
 // Handle read operation
 const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
   console.warn(`handleRead called with: serviceUuid=${serviceUuid}, characteristicUuid=${characteristicUuid}, name=${name}, macAddress=${device.macAddress}`);
-  
-  // No loading state set here anymore
-  
+
+  // Set loading state for this characteristic
+  setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
+
   readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
     console.warn(`readBleCharacteristic callback: data=`, data, `error=`, error);
-    
-    // No loading state cleared here anymore
-    
+
+    // Clear loading state
+    setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
+
     if (data) {
-      console.warn("Read value:", data.realVal);
+      console.info(data.realVal, "Value of Field");
       toast.success(`${name} read successfully`);
+      // Update the value in our state
       setUpdatedValues(prev => ({
         ...prev,
         [characteristicUuid]: data.realVal
       }));
     } else {
-      console.warn(`Failed to read ${name}. Error:`, error);
-      toast.error(`Failed to read ${name}: ${error?.message || "Unknown error"}`);
+      console.error("Error Reading Characteristics");
+      toast.error(`Failed to read ${name}`);
     }
   });
 };
+
 
 // Handle write operation
 const handleWrite = (value: string | number) => {
