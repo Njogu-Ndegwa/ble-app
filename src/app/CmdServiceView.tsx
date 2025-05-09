@@ -82,12 +82,14 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
 // Handle read operation
 const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
   console.warn(`handleRead called with: serviceUuid=${serviceUuid}, characteristicUuid=${characteristicUuid}, name=${name}, macAddress=${device.macAddress}`);
-  setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
-
-    readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
+  
+  // No loading state set here anymore
+  
+  readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
     console.warn(`readBleCharacteristic callback: data=`, data, `error=`, error);
-    setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
-
+    
+    // No loading state cleared here anymore
+    
     if (data) {
       console.warn("Read value:", data.realVal);
       toast.success(`${name} read successfully`);
@@ -110,7 +112,6 @@ const handleWrite = (value: string | number) => {
   const characteristicUuid = pubkChar.uuid;
   const name = device.name;
 
-  // Log the device name in the initial console.warn
   console.warn(
     `Beginning write operation for ${pubkChar.name} (Service: ${serviceUuid}, Characteristic: ${characteristicUuid}, Value: ${value}, Device MAC: ${device.macAddress}, Name: ${device.name})`
   );
@@ -131,9 +132,7 @@ const handleWrite = (value: string | number) => {
   toast.success(`Value written to ${pubkChar.name}`);
 
   setTimeout(() => {
-    console.warn(`Preparing to call handleRead with device name: ${device.name}`);
-    
-    handleRead(
+      handleRead(
       serviceUuid,
       characteristicUuid,
       name 
