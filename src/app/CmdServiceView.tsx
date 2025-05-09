@@ -79,59 +79,63 @@ const CmdServiceView: React.FC<CmdServiceViewProps> = ({
     return characteristic.realVal || 'N/A';
   };
 
-  // Handle read operation
-  const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
-    if (!serviceUuid || !characteristicUuid) return;
+// Handle read operation
+const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
+  if (!serviceUuid || !characteristicUuid) return;
 
-    // Set loading state for this characteristic
-    setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
+  console.warn(`Beginning read operation for ${name} (Service: ${serviceUuid}, Characteristic: ${characteristicUuid})`);
 
-    readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
-      // Clear loading state
-      setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
+  // Set loading state for this characteristic
+  setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
 
+  readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
+    // Clear loading state
+    setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
+
+    if (data) {
+      toast.success(`${name} read successfully`);
+      // Update the value in our state
+      setUpdatedValues(prev => ({
+        ...prev,
+        [characteristicUuid]: data.realVal
+      }));
+    } else {
+      toast.error(`Failed to read ${name}`);
+    }
+  });
+};
+
+// Handle write operation
+const handleWrite = (value: string | number) => {
+  if (!pubkChar || !cmdService) return;
+
+  const serviceUuid = cmdService.uuid;
+  const characteristicUuid = pubkChar.uuid;
+
+  console.warn(`Beginning write operation for ${pubkChar.name} (Service: ${serviceUuid}, Characteristic: ${characteristicUuid}, Value: ${value})`);
+
+  writeBleCharacteristic(
+    serviceUuid,
+    characteristicUuid,
+    value,
+    device.macAddress,
+    (data: any, error: any) => {
       if (data) {
-        toast.success(`${name} read successfully`);
-        // Update the value in our state
-        setUpdatedValues(prev => ({
-          ...prev,
-          [characteristicUuid]: data.realVal
-        }));
+        toast.success(`Value written successfully`);
+        // Read back the value after writing to update the UI
+        setTimeout(() => {
+          handleRead(
+            serviceUuid,
+            characteristicUuid,
+            pubkChar.name
+          );
+        }, 1000);
       } else {
-        toast.error(`Failed to read ${name}`);
+        toast.error(`Failed to write value`);
       }
-    });
-  };
-
-  // Handle write operation
-  const handleWrite = (value: string | number) => {
-    if (!pubkChar || !cmdService) return;
-
-    const serviceUuid = cmdService.uuid;
-    const characteristicUuid = pubkChar.uuid;
-
-    writeBleCharacteristic(
-      serviceUuid,
-      characteristicUuid,
-      value,
-      device.macAddress,
-      (data: any, error: any) => {
-        if (data) {
-          toast.success(`Value written successfully`);
-          // Read back the value after writing to update the UI
-          setTimeout(() => {
-            handleRead(
-              serviceUuid,
-              characteristicUuid,
-              pubkChar.name
-            );
-          }, 1000);
-        } else {
-          toast.error(`Failed to write value`);
-        }
-      }
-    );
-  };
+    }
+  );
+};
   
 
   const submitInput = () => {
