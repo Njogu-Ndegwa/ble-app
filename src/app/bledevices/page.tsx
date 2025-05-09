@@ -100,7 +100,8 @@ const BleDevicePage = () => {
                         onBack={handleBackToList}
                         onRequestServiceData={handleServiceDataRequest}
                         isLoadingService={loadingService}
-                        handlePublish={handlePublish} // Pass handlePublish to DeviceDetailView
+                        serviceLoadingProgress={progress}
+                        handlePublish={handlePublish}
 
                     />
                 )}
