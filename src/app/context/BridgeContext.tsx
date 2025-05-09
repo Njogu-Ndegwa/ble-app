@@ -119,12 +119,12 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
     return `${rssi}db ~ ${distance.toFixed(0)}m`;
   }
 
-       useEffect(() => {
-        import('vconsole').then((module) => {
-            const VConsole = module.default;
-            new VConsole(); // Initialize VConsole
-        });
-    }, []);
+    //    useEffect(() => {
+    //     import('vconsole').then((module) => {
+    //         const VConsole = module.default;
+    //         new VConsole(); // Initialize VConsole
+    //     });
+    // }, []);
   // Initialize the bridge
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -256,6 +256,7 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
               initServiceBleData(data)
               responseCallback(macAddress);
             });
+            
     
             // BLE service data initialization callback
             bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
@@ -425,11 +426,11 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
     readDeviceInfo();
     
     return () => {
-      console.log("Bridge context unmounting");
+      console.log("-------250------")
     };
-  }, []);
+  }, [bridgeInitialized]);
 
-  useEffect(() => {
+ useEffect(() => {
     if (bridgeInitialized) {
       startBleScan();
       return () => {
@@ -437,40 +438,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       };
     }
   }, [bridgeInitialized]);
-
-//   useEffect(() => {
-//     if (progress === 100 && attributeList.length > 0) {
-//       setIsConnecting(false); // Connection process complete
-      
-//       // Critical fix: Only navigate to device detail if we were connecting
-//       if (connectingDeviceId) {
-//         setSelectedDevice(connectingDeviceId);
-//       }
-      
-//       // Only try to publish if we have a valid service type
-//     //   if (loadingService) {
-//     //     handlePublish(attributeList, loadingService);
-//     //   }
-//     handlePublish(attributeList, loadingService)
-//     }
-//   }, [progress, attributeList, loadingService, connectingDeviceId]);
-
-
-// useEffect(() => {
-//     if (progress === 100 && attributeList.length > 0) {
-//       setIsConnecting(false); // Connection process complete
-      
-//       // Critical fix: Only navigate to device detail if we were connecting
-//       if (connectingDeviceId) {
-//         setSelectedDevice(connectingDeviceId);
-//       }
-//       setAtrrList(attributeList)
-//       // Don't automatically publish data when in CmdServiceView
-//       if (!CmdServiceView && loadingService) {
-//         handlePublish(attributeList, loadingService);
-//       }
-//     }
-//   }, [progress, attributeList, loadingService, connectingDeviceId, CmdServiceView]);
 
 useEffect(() => {
     if (progress === 100 && attributeList.length > 0) {
@@ -550,9 +517,9 @@ useEffect(() => {
         (responseData: string) => {
           try {
             const jsonData = JSON.parse(responseData);
-            console.log("BLE Data:", jsonData);
+            console.warn("BLE Data:", jsonData);
           } catch (error) {
-            console.error("Error parsing JSON data from 'startBleScan' response:", error);
+            console.warn("Error parsing JSON data from 'startBleScan' response:", error);
           }
         }
       );
@@ -585,6 +552,18 @@ useEffect(() => {
       startConnection(matches[0].macAddress)
     } else {
       toast.error("There was a problem connecting with device. Try doing it manually.")
+    }
+  };
+  const handleBLERescan = () => {
+    if (isScanning && detectedDevices.length === 0) {
+      stopBleScan();
+    }
+    else {
+      setConnectedDevice(null);
+      setDetectedDevices([]);
+      setSelectedDevice(null);
+      setConnectingDeviceId(null);
+      startBleScan();
     }
   };
 
@@ -716,18 +695,6 @@ useEffect(() => {
     }
   };
 
-  const handleBLERescan = () => {
-    if (isScanning && detectedDevices.length === 0) {
-      stopBleScan();
-    }
-    else {
-      setConnectedDevice(null);
-      setDetectedDevices([]);
-      setSelectedDevice(null);
-      setConnectingDeviceId(null);
-      startBleScan();
-    }
-  };
 
   // Create the context value object
   const contextValue: BridgeContextType = {

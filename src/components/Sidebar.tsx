@@ -13,8 +13,7 @@ import {
   LogOut
 } from 'lucide-react';
 
-// Define page types for navigation
-type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company' | 'maplocation' | 'settings' | 'location'| 'debug';
+type PageType = 'assets' | 'dashboard' | 'customer' | 'team' | 'company' | 'maplocation' | 'settings' | 'location' | 'debug';
 type SubPageType = string;
 
 interface SidebarProps {
@@ -25,6 +24,7 @@ interface SidebarProps {
   activeSubPage: SubPageType;
   onSubMenuItemClick: (menuId: PageType, itemId: SubPageType) => void;
   onLogout?: () => void;
+  isAuthenticated: boolean; // Add isAuthenticated prop
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -34,15 +34,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   activePage,
   activeSubPage,
   onSubMenuItemClick,
-  onLogout = () => console.log('Logout clicked')
+  onLogout = () => console.log('Logout clicked'),
+  isAuthenticated
 }) => {
-  // Set expandable menus state
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
-    // Set devices menu expanded by default
     'devices': true
   });
 
-  // Menu items data structure
+  // Menu items data structure, conditionally excluding CMD when authenticated
   const menuItems = [
     {
       id: 'dashboard',
@@ -60,7 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       subItems: [
         { id: 'bledevices', label: 'BLE Devices' },
         { id: 'fleetview', label: 'Fleet View' },
-        { id: 'cmd', label:'CMD'},
+        ...(isAuthenticated ? [] : [{ id: 'cmd', label: 'CMD' }]), // Conditionally include CMD
         { id: 'devicelocator', label: 'Device Locator' },
       ]
     },
@@ -119,7 +118,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         { id: 'location', label: 'Location History' }
       ]
     },
-
     {
       id: 'divider2',
       type: 'divider'
@@ -141,7 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       id: 'logout',
       label: 'Logout',
       icon: <LogOut size={18} />,
-      type: 'button', // Mark this as a button, not a menu item
+      type: 'button',
       onClick: () => onLogout()
     }
   ];
@@ -163,7 +161,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       }}
     >
       <div className="py-6 flex flex-col h-full">
-        {/* Menu Header */}
         <div className="px-6 mb-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-white">Menu</h2>
@@ -176,10 +173,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Menu Items with overflow scrolling */}
         <div className="flex-1 overflow-y-auto">
           {menuItems.map((menuItem) => {
-            // Handle dividers
             if (menuItem.type === 'divider') {
               return (
                 <div key={menuItem.id} className="px-6 py-2">
@@ -188,7 +183,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               );
             }
             
-            // Handle logout button
             if (menuItem.type === 'button') {
               return (
                 <div key={menuItem.id} className="px-6 py-2">
@@ -205,10 +199,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               );
             }
             
-            // Regular menu items
             return (
               <div key={menuItem.id} className="mb-1">
-                {/* Menu Item Header */}
                 <div
                   className={`flex items-center justify-between px-6 py-3 cursor-pointer ${
                     activePage === menuItem.id ? 'bg-[#2a2d31]' : 'hover:bg-[#2a2d31]'
@@ -228,7 +220,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </div>
 
-                {/* Submenu Items */}
                 {expandedMenus[menuItem.id] && menuItem.subItems && (
                   <div className="bg-[#161a1d] overflow-hidden transition-all">
                     {menuItem.subItems.map((subItem) => {
@@ -252,7 +243,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Menu Footer */}
         <div className="px-6 pt-4 border-t border-gray-800 mt-auto">
           <p className="text-xs text-gray-500">Version 1.2.5</p>
         </div>

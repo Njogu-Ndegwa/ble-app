@@ -56,6 +56,8 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     }
   }, [isAuthenticated, router, pathname]);
 
+  
+
   // Set activeSubPage based on pathname
   useEffect(() => {
     if (pathname === '/bledevices') {
@@ -93,7 +95,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
     if (menuId === 'assets' && itemId === 'bledevices' && isAuthenticated) {
       router.push('/bledevices');
-    } else if (menuId === 'assets' && itemId === 'cmd') {
+    } else if (menuId === 'assets' && itemId === 'cmd' ) {
       router.push('/');
     }
   };
@@ -138,6 +140,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
   const getPageTitle = () => {
     if (activePage === 'assets' && activeSubPage === 'bledevices') return 'All Devices';
+    if (activePage === 'assets' && activeSubPage === 'cmd') return 'CMD';
     if (activePage === 'team' && activeSubPage === 'members') return 'Customer Access';
     if (activePage === 'settings') return 'Settings';
 
@@ -175,6 +178,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         activeSubPage={activeSubPage}
         onSubMenuItemClick={handleSubMenuItemClick}
         onLogout={onLogout}
+        isAuthenticated={isAuthenticated} // Pass isAuthenticated prop
       />
 
       {isMenuOpen && (
