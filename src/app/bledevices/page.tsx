@@ -21,6 +21,7 @@ const BleDevicePage = () => {
     progress,
     loadingService,
     handleServiceDataRequest,
+    handlePublish,
     attrList
   } = useBridge();
   const [isReloading, setIsReloading] = useState(false);
@@ -83,6 +84,7 @@ const BleDevicePage = () => {
           onRequestServiceData={handleServiceDataRequest}
           serviceLoadingProgress={progress}
           isLoadingService={loadingService}
+          handlePublish={handlePublish}
         />
       )}
     {isReloading && <LoadingOverlay />}
