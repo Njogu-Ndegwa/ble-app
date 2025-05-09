@@ -263,7 +263,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         {/* Conditional Rendering Based on Tab */}
         {activeTab === 'HEARTBEAT' ? (
           <div className="space-y-4">
-            
             {/* Heartbeat View Component */}
             <HeartbeatView 
               attributeList={attributeList}

@@ -19,7 +19,7 @@ const LoginPage = () => {
     // Check if user is already logged in with a valid token
     const token = localStorage.getItem('auth_token');
     if (token && isTokenValid(token)) {
-      router.push('/');
+      router.push('/bledevices');
     }
   }, [router]);
 
