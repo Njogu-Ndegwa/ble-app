@@ -28,7 +28,7 @@ export default function MobileLayout({
           onClick={() => setOpen(true)}
         />
         <h2 className="text-white font-medium flex-1 text-center">
-          App&nbsp;Title
+          OV&nbsp;App
         </h2>
         <span className="w-6 h-6" /> {/* spacer */}
       </header>
