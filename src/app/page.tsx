@@ -1,3 +1,4 @@
+'use client'
 // app/page.tsx
 import { useEffect } from 'react';
 
@@ -17,7 +18,7 @@ export default function Index() {
     } else {
       // After reload, redirect to the desired page
     //   sessionStorage.removeItem('hasReloaded'); // Clean up
-      window.location.replace('/assets/bledevices');  // Redirect after reload
+      window.location.replace('/assets/bleDevices');  // Redirect after reload
     }
   }, []);
 
