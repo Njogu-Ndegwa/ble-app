@@ -53,6 +53,7 @@ interface WebViewJavascriptBridge {
   callHandler: (handlerName: string, data: any, callback: (responseData: string) => void) => void;
 }
 
+
 // Declare global window.WebViewJavascriptBridge
 declare global {
   interface Window {
