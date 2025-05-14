@@ -552,99 +552,9 @@ const AppContainer = () => {
     } else {
       toast.error("There was a problem connecting with device. Try doing it manually.")
     }
-    // const matches = detectedDevices.filter((device) => {
-    //   console.info(device, "Device")
-    //   const name = (device.name || "").toLowerCase();
-    //   console.info(name, "Device")
-    //   const last6FromName = name.slice(-6);
-    //   console.info(last6FromBarcode, "last6FromBarcode")
-    //   console.info(last6FromName, last6FromBarcode, "Codes---302")
-    //   return last6FromName === last6FromBarcode
-    // });
 
-    // console.info(matches, "Matches 302---")
   }
-  // Render the list view or detail view based on selection
-
-  // const handlePublish = (attributeList: any) => {
-
-  //   if (!window.WebViewJavascriptBridge) {
-  //     console.error("WebViewJavascriptBridge is not initialized.");
-  //     toast.error("Error: WebViewJavascriptBridge is not initialized.");
-
-  //     return;
-  //   }
-
-
-  //   // Find the STS_SERVICE from the attributeList
-  //   const stsService = attributeList.find((service: any) => service.serviceNameEnum === "STS_SERVICE");
-
-  //   if (!stsService) {
-  //     console.error("STS_SERVICE not found in attributeList.");
-  //     toast.error("Error: STS_SERVICE not found.");
-  //     return;
-  //   }
-  //   const stsData = stsService.characteristicList.reduce((acc: any, char: any) => {
-  //     acc[char.name] = char.realVal;
-  //     return acc;
-  //   }, {});
-
-  //   console.info(stsData, "STS Data");
-
-  //   const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
-
-  //   if (!attService) {
-  //       console.error("ATT_SERVICE not found in attributeList.");
-  //       toast.error("Error: ATT_SERVICE not found.");
-  //       return;
-  //   }
-
-  //   // Find the opid characteristic and get its realVal
-  //   const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
-
-  //   console.info(opidChar, "opid")
-  //   if (!opidChar) {
-  //       console.error("opid characteristic not found in ATT_SERVICE.");
-  //       toast.error("Error: opid not found in ATT_SERVICE.");
-  //       return;
-  //   }
-
-  //   const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
-
-  //   // Define the data to publish in the new format
-  //   const dataToPublish = {
-  //       topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
-  //       qos: 0,
-  //       content: {
-  //           sts: stsData,
-  //           timestamp: Date.now(),
-  //           deviceInfo: "mac_address"
-  //       }
-  //   };
-
-
-
-  //   console.info(dataToPublish, "Data to Publish");
-
-  //   try {
-  //     window.WebViewJavascriptBridge.callHandler(
-  //       "mqttPublishMsg",
-  //       JSON.stringify(dataToPublish), // Try stringifying the data
-  //       (response) => {
-  //         console.info(`MQTT Response for`, response);
-
-  //       }
-  //     );
-  //   } catch (error) {
-  //     console.error(
-  //       `Error calling WebViewJavascriptBridge`,
-  //       error
-  //     );
-  //     toast.error(`Error publishing `);
-  //   }
-
-  // };
-
+ 
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
@@ -751,8 +661,6 @@ const AppContainer = () => {
   };
   const readDeviceInfo = () => {
     if (!window.WebViewJavascriptBridge) {
-      console.error("WebViewJavascriptBridge is not initialized.");
-      toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
     try {
