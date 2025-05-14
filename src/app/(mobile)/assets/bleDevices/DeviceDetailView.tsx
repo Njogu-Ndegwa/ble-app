@@ -284,10 +284,10 @@
 
 import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { readBleCharacteristic, writeBleCharacteristic } from './utils';
+import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { Toaster, toast } from 'react-hot-toast';
 import { ArrowLeft, Share2, RefreshCw } from 'lucide-react';
-import { AsciiStringModal, NumericModal } from './modals';
+import { AsciiStringModal, NumericModal } from '../../../modals';
 import { Clipboard } from 'lucide-react';
 import HeartbeatView from '@/components/HeartbeatView';
 

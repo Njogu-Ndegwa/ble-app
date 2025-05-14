@@ -25,7 +25,7 @@ import {
   LogOut,
   MessageSquare
 } from 'lucide-react';
-import { BleDevice } from './page';
+import { BleDevice } from '../../../page';
 
 interface MobileListViewProps {
   items: BleDevice[];

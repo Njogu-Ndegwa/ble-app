@@ -6,11 +6,9 @@ import MobileListView from './MobileListView';
 import DeviceDetailView from './DeviceDetailView';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import ProgressiveLoading from './loader';
-import { connBleByMacAddress, initBleData, initServiceBleData } from "./utils"
+import ProgressiveLoading from '../../../../components/loader/progressiveLoading';
+import { connBleByMacAddress, initServiceBleData } from "../../../utils"
 import { Toaster, toast } from 'react-hot-toast';
-import { ScanQrCode } from 'lucide-react';
-import { AnyARecord } from 'dns';
 // Sample data structure for devices
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
