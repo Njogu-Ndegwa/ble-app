@@ -23,8 +23,8 @@ export const menuConfig: {
       label: 'Assets',
       icon: 'battery',
       children: [
-        { id: 'bledevices',    label: 'BLE Devices',    href: '/assets/bledevices'     },
-        { id: 'fleetview',     label: 'Fleet View',     href: '/assets/fleetview'      },
+        { id: 'bledevices',    label: 'BLE Devices',    href: '/assets/bleDevices'     },
+        { id: 'fleetview',     label: 'Fleet View',     href: '/assets/fleetView'      },
         { id: 'devicelocator', label: 'Device Locator', href: '/assets/devicelocator' },
       ],
     },
