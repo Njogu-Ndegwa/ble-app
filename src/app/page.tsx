@@ -1,6 +1,7 @@
 'use client'
-// app/page.tsx
+
 import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export default function Index() {
   useEffect(() => {
@@ -17,15 +18,14 @@ export default function Index() {
       }, 5000);
     } else {
       // After reload, redirect to the desired page
-    //   sessionStorage.removeItem('hasReloaded'); // Clean up
-      window.location.replace('/assets/bleDevices');  // Redirect after reload
+      // sessionStorage.removeItem('hasReloaded'); // Clean up
+      window.location.replace('/assets/bleDevices'); // Redirect after reload
     }
   }, []);
-
+  
   return (
-    <div>
-      {/* Show a message during the timeout */}
-      <p>Waiting for 5 seconds before reloading...</p>
+    <div className="fixed inset-0 bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex items-center justify-center">
+      <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
     </div>
   );
 }
