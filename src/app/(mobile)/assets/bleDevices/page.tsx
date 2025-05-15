@@ -463,6 +463,9 @@ const AppContainer = () => {
 
   }, []); // Empty dependency array to run only once on mount
 
+  console.error(detectedDevices, "Detected Devices----466---")
+
+  
   const startQrCodeScan = () => {
     console.info("Start QR Code Scan")
     if (window.WebViewJavascriptBridge) {
