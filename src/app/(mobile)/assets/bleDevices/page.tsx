@@ -144,12 +144,6 @@ const AppContainer = () => {
     return defaultImageUrl;
   };
 
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole();
-  //   });
-  // }, []);
 
 
 
@@ -458,10 +452,16 @@ const AppContainer = () => {
     connectWebViewJavascriptBridge(setupBridge);
     readDeviceInfo()
     return () => {
-      console.log("-------250------")
+            // 🔑 Reset singleton flag so the next mount registers new handlers
+            bridgeHasBeenInitialized = false;
+            // 🔑 Stop any lingering BLE scan
+            stopBleScan();
+            // Optional state resets for fresh mount
+            setBridgeInitialized(false);
+            setDetectedDevices([]);
     };
 
-  }, [bridgeInitialized]); // Empty dependency array to run only once on mount
+  }, []); // Empty dependency array to run only once on mount
 
   const startQrCodeScan = () => {
     console.info("Start QR Code Scan")
@@ -540,7 +540,7 @@ const AppContainer = () => {
     }
   };
 
-  
+
   const handleQrCode = (code: string) => {
     const currentDevices = detectedDevicesRef.current;
     const matches = currentDevices.filter((device) => {

@@ -22,6 +22,14 @@ export default function Index() {
       window.location.replace('/assets/bleDevices'); // Redirect after reload
     }
   }, []);
+
+    useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
+
   
   return (
     <div className="fixed inset-0 bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex items-center justify-center">
