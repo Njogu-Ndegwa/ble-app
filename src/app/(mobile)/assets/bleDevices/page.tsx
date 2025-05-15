@@ -9,8 +9,7 @@ import dynamic from 'next/dynamic';
 import ProgressiveLoading from '../../../../components/loader/progressiveLoading';
 import { connBleByMacAddress, initServiceBleData } from "../../../utils"
 import { Toaster, toast } from 'react-hot-toast';
-// Sample data structure for devices
-let bridgeHasBeenInitialized = false;
+
 // Define interfaces and types
 export interface BleDevice {
   macAddress: string;
@@ -191,8 +190,8 @@ const AppContainer = () => {
     };
 
     const setupBridge = (bridge: WebViewJavascriptBridge) => {
-      if (!bridgeHasBeenInitialized) {
-        bridgeHasBeenInitialized = true;
+      if (!bridgeInitialized) {
+        setBridgeInitialized(true)
         bridge.init((message: any, responseCallback: (response: any) => void) => {
           responseCallback("js success!");
         });
