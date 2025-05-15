@@ -84,6 +84,8 @@ const AppContainer = () => {
 
   const detectedDevicesRef = useRef(detectedDevices);
 
+    // 👇 replace the old global flag with a ref
+  const bridgeInitRef = useRef(false);
   // Update the ref whenever detectedDevices changes
   useEffect(() => {
     detectedDevicesRef.current = detectedDevices;
@@ -160,311 +162,612 @@ const AppContainer = () => {
   }
 
 
+  // useEffect(() => {
+  //   let timeoutId: NodeJS.Timeout;
+  //   let cleanup = () => {};
+  //   const connectWebViewJavascriptBridge = (callback: (bridge: WebViewJavascriptBridge) => void) => {
+  //     if (window.WebViewJavascriptBridge) {
+  //       callback(window.WebViewJavascriptBridge);
+  //     } else {
+  //       const handleBridgeReady = () => {
+  //         if (window.WebViewJavascriptBridge) {
+  //           callback(window.WebViewJavascriptBridge);
+  //         }
+  //       };
+  //       document.addEventListener("WebViewJavascriptBridgeReady", handleBridgeReady, false);
+
+  //       timeoutId = setTimeout(() => {
+  //         if (!window.WebViewJavascriptBridge) {
+  //           console.error("WebViewJavascriptBridge is not initialized within the timeout period.");
+  //         } else {
+  //           callback(window.WebViewJavascriptBridge);
+  //         }
+  //       }, 3000);
+
+  //       // Cleanup event listener and timeout on unmount
+  //       return () => {
+  //         document.removeEventListener("WebViewJavascriptBridgeReady", handleBridgeReady, false);
+  //         clearTimeout(timeoutId);
+  //       };
+  //     }
+  //   };
+
+  //   const setupBridge = (bridge: WebViewJavascriptBridge) => {
+  //     if (!bridgeHasBeenInitialized) {
+  //       bridgeHasBeenInitialized = true;
+  //       setBridgeInitialized(true)
+  //       bridge.init((message: any, responseCallback: (response: any) => void) => {
+  //         responseCallback("js success!");
+  //       });
+
+  //       bridge.registerHandler("print", (data: string, responseCallback: (response: any) => void) => {
+  //         try {
+  //           const parsedData = JSON.parse(data);
+  //           if (parsedData && parsedData.data) {
+  //             responseCallback(parsedData.data);
+  //             console.log("Response Callback")
+  //           } else {
+  //             throw new Error("Parsed data is not in the expected format.");
+  //           }
+  //         } catch (error) {
+  //           console.error("Error parsing JSON data from 'print' handler:", error);
+  //         }
+  //       });
+
+  //       bridge.registerHandler(
+  //         "findBleDeviceCallBack",
+  //         (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
+  //           try {
+  //             const parsedData: BleDevice = JSON.parse(data);
+  //             console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
+
+  //             if (parsedData.macAddress && parsedData.name && parsedData.rssi && parsedData.name.includes("OVES")) {
+  //               // Store the raw rssi value for sorting, and use the formatted version for display
+  //               const rawRssi = Number(parsedData.rssi);
+  //               const formattedRssi = convertRssiToFormattedString(rawRssi);
+
+  //               // Update the device data
+  //               parsedData.rssi = formattedRssi; // Use formatted RSSI for display
+  //               parsedData.rawRssi = rawRssi; // Store raw RSSI for sorting
+  //               parsedData.imageUrl = getImageUrl(parsedData.name);
+
+  //               setDetectedDevices(prevDevices => {
+  //                 // Check if this device already exists in our array
+  //                 const deviceExists = prevDevices.some(
+  //                   device => device.macAddress === parsedData.macAddress
+  //                 );
+
+  //                 // If device doesn't exist, add it to the array
+  //                 if (!deviceExists) {
+  //                   console.log("Adding new device:", parsedData.name);
+  //                   return [...prevDevices, parsedData];
+  //                 }
+
+  //                 // If the device exists, update RSSI or other properties
+  //                 return prevDevices.map(device =>
+  //                   device.macAddress === parsedData.macAddress
+  //                     ? { ...device, rssi: parsedData.rssi, rawRssi: parsedData.rawRssi } // Update both formatted and raw RSSI
+  //                     : device
+  //                 );
+  //               });
+
+  //               // Sort the devices by raw RSSI, so the closest ones appear first
+  //               setDetectedDevices(prevDevices => {
+  //                 return prevDevices
+  //                   .sort((a, b) => b.rawRssi - a.rawRssi); // Sort by raw RSSI in descending order
+  //               });
+
+  //               responseCallback({ success: true });
+  //             } else {
+  //               console.warn("Invalid device data format:", parsedData);
+  //             }
+  //           } catch (error) {
+  //             console.error("Error parsing BLE device data:", error);
+  //             responseCallback({ success: false, error: (error as Error).message });
+  //           }
+  //         }
+  //       );
+
+
+  //       bridge.registerHandler(
+  //         "bleConnectFailCallBack",
+  //         (data: string, responseCallback: (response: any) => void) => {
+  //           console.log("Bluetooth connection failed:", data);
+  //           setIsConnecting(false); // Reset connection state on failure
+  //           setProgress(0);
+  //           toast.error('Connection failed! Please try reconnecting again.', { id: 'connect-toast' });
+  //           responseCallback(data);
+  //         }
+  //       );
+
+  //       bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
+  //         sessionStorage.setItem('connectedDeviceMac', macAddress);
+  //         setConnectedDevice(macAddress); // Set the connected device
+  //         setIsScanning(false);
+  //         // initBleData(macAddress);
+  //         const data = {
+  //           serviceName: "ATT", // ATT/STS/DIA/CMD/xx
+  //           macAddress: macAddress
+  //         };
+  //         setLoadingService("ATT")
+  //         initServiceBleData(data)
+  //         responseCallback(macAddress);
+  //       });
+
+  //       // BLE service data initialization callback
+  //       bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
+  //         const resp = JSON.parse(data);
+  //         setServiceAttrList(resp.dataList.map((service: any, index: any) => ({ ...service, index })));
+  //         responseCallback(data);
+  //       });
+
+  //       bridge.registerHandler(
+  //         "bleInitDataCallBack",
+  //         (data: string, responseCallback: (response: any) => void) => {
+  //           try {
+  //             const parsedData = JSON.parse(data);
+  //             console.log(parsedData, "BleInitDataCallBack")
+  //             responseCallback(parsedData);
+  //           } catch (error) {
+  //             console.error("Error parsing JSON data from 'bleInitDataCallBack' handler:", error);
+  //           }
+  //         }
+  //       );
+
+  //       // QR Scan callback using the latest device list via ref
+  //       bridge.registerHandler("scanQrcodeResultCallBack", (data, responseCallback) => {
+  //         console.info("Debug: Received data from scanQrcodeResultCallBack:", data);
+  //         try {
+  //           const parsedData = JSON.parse(data);
+  //           console.info(parsedData, "Parsed Data")
+  //           const qrValue = parsedData.respData.value || "";
+  //           console.info(qrValue, "QrValue")
+  //           const last6FromBarcode = qrValue.slice(-6).toLowerCase();
+  //           handleQrCode(last6FromBarcode)
+
+
+  //         } catch (error) {
+  //           console.error("Error processing QR code data:", error);
+
+  //         }
+  //         responseCallback(data);
+  //       });
+
+  //       bridge.registerHandler(
+  //         "mqttMessageReceived",
+  //         (data: string, responseCallback: (response: any) => void) => {
+  //           try {
+  //             const parsedMessage = JSON.parse(data);
+  //             console.warn("Mqtt Message Recieved --337")
+  //             responseCallback(parsedMessage);
+  //           } catch (error) {
+  //             console.error("Error parsing MQTT message:", error);
+  //           }
+  //         }
+  //       );
+
+  //       bridge.registerHandler(
+  //         "bleInitDataOnProgressCallBack",
+  //         (data) => {
+  //           try {
+  //             const parsedData = JSON.parse(data);
+  //             const progressPercentage = Math.round(
+  //               (parsedData.progress / parsedData.total) * 100
+  //             );
+  //             // setProgress(progressPercentage);
+
+  //           } catch (error) {
+  //             console.error("Progress callback error:", error);
+  //           }
+  //         }
+  //       );
+
+  //       bridge.registerHandler(
+  //         "connectMqttCallBack",
+  //         (data: string, responseCallback: (response: any) => void) => {
+  //           try {
+  //             const parsedMessage = JSON.parse(data);
+  //             setIsMqttConnected(true)
+  //             // console.info("MQTT Connection Callback:", parsedMessage);
+  //             responseCallback("Received MQTT Connection Callback");
+  //           } catch (error) {
+  //             setIsMqttConnected(false)
+  //             console.error("Error parsing MQTT connection callback:", error);
+  //           }
+  //         }
+  //       );
+
+  //       bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function (data,
+  //         responseCallback) {
+  //         console.info(data);
+  //         const obj = JSON.parse(data);
+  //         // console.log(obj.total, "Total------376----");
+  //         // console.log(obj.progress, "Progress --------377------");
+  //         const parsedData = JSON.parse(data);
+  //         const progressPercentage = Math.round(
+  //           (parsedData.progress / parsedData.total) * 100
+  //         );
+  //         setProgress(progressPercentage);
+  //       });
+
+  //       bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function (data,
+  //         responseCallback) {
+
+  //         const parsedData = JSON.parse(data);
+  //         // console.info(parsedData, "On Complete----382---");
+  //         setServiceAttrList((prevList: any) => {
+  //           // If the list is empty, start a new array
+  //           if (!prevList || prevList.length === 0) {
+  //             return [parsedData];
+  //           }
+
+  //           // Find if service with same UUID already exists
+  //           const existingServiceIndex = prevList.findIndex(
+  //             (service: any) => service.uuid === parsedData.uuid
+  //           );
+
+  //           if (existingServiceIndex >= 0) {
+  //             // Service exists, replace it
+  //             const updatedList = [...prevList];
+  //             updatedList[existingServiceIndex] = parsedData;
+  //             return updatedList;
+  //           } else {
+  //             // Service doesn't exist, add it
+  //             return [...prevList, parsedData];
+  //           }
+  //         });
+  //         setTimeout(() => {
+  //           setLoadingService(null);
+  //         }, 100)
+
+  //       });
+  //       bridge.registerHandler("bleInitServiceDataFailureCallBack", function (data, responseCallback) {
+  //         console.info(data);
+  //         setLoadingService(null);
+  //       });
+
+  //       bridge.registerHandler(
+  //         "mqttMsgArrivedCallBack",
+  //         (data: string, responseCallback: (response: any) => void) => {
+  //           // console.info("MQTT Message Arrived Callback:", data);
+  //           console.warn("Mqtt Message Recieved --429")
+  //           responseCallback("Received MQTT Message");
+  //         }
+  //       );
+
+  //       const mqttConfig: MqttConfig = {
+  //         username: "Admin",
+  //         password: "7xzUV@MT",
+  //         clientId: "123",
+  //         hostname: "mqtt.omnivoltaic.com",
+  //         port: 1883,
+  //       };
+  //       bridge.callHandler("connectMqtt", mqttConfig, (responseData: string) => {
+  //         try {
+  //           const parsedResponse = JSON.parse(responseData);
+  //           if (parsedResponse.error) {
+  //             console.error("MQTT connection error:", parsedResponse.error.message);
+  //           }
+  //         } catch (error) {
+  //           console.error("Error parsing MQTT response:", error);
+  //         }
+  //       });
+
+  //       setBridgeInitialized(true); // Update state to prevent re-initialization
+  //       console.log("WebViewJavascriptBridge initialized.");
+  //     }
+  //   };
+
+  //   connectWebViewJavascriptBridge(setupBridge);
+  //   readDeviceInfo()
+  //   return () => {
+  //     console.log("-------250------")
+  //   };
+
+  // }, [bridgeHasBeenInitialized]); // Empty dependency array to run only once on mount
+
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const connectWebViewJavascriptBridge = (callback: (bridge: WebViewJavascriptBridge) => void) => {
+    let timeoutId: NodeJS.Timeout
+    let cleanup = () => {}
+  
+    const connectWebViewJavascriptBridge = (
+      cb: (bridge: WebViewJavascriptBridge) => void
+    ) => {
+      const ready = () =>
+        window.WebViewJavascriptBridge && cb(window.WebViewJavascriptBridge)
+  
       if (window.WebViewJavascriptBridge) {
-        callback(window.WebViewJavascriptBridge);
+        cb(window.WebViewJavascriptBridge)
       } else {
-        const handleBridgeReady = () => {
-          if (window.WebViewJavascriptBridge) {
-            callback(window.WebViewJavascriptBridge);
-          }
-        };
-        document.addEventListener("WebViewJavascriptBridgeReady", handleBridgeReady, false);
-
+        document.addEventListener(
+          'WebViewJavascriptBridgeReady',
+          ready,
+          false
+        )
+  
         timeoutId = setTimeout(() => {
-          if (!window.WebViewJavascriptBridge) {
-            console.error("WebViewJavascriptBridge is not initialized within the timeout period.");
+          if (window.WebViewJavascriptBridge) {
+            cb(window.WebViewJavascriptBridge)
           } else {
-            callback(window.WebViewJavascriptBridge);
+            console.error(
+              'WebViewJavascriptBridge is not initialized within the timeout period.'
+            )
           }
-        }, 3000);
-
-        // Cleanup event listener and timeout on unmount
-        return () => {
-          document.removeEventListener("WebViewJavascriptBridgeReady", handleBridgeReady, false);
-          clearTimeout(timeoutId);
-        };
+        }, 3000)
+  
+        cleanup = () => {
+          document.removeEventListener(
+            'WebViewJavascriptBridgeReady',
+            ready,
+            false
+          )
+          clearTimeout(timeoutId)
+        }
       }
-    };
-
+    }
+  
     const setupBridge = (bridge: WebViewJavascriptBridge) => {
-      if (!bridgeHasBeenInitialized) {
-        bridgeHasBeenInitialized = true;
-        setBridgeInitialized(true)
-        bridge.init((message: any, responseCallback: (response: any) => void) => {
-          responseCallback("js success!");
-        });
-
-        bridge.registerHandler("print", (data: string, responseCallback: (response: any) => void) => {
-          try {
-            const parsedData = JSON.parse(data);
-            if (parsedData && parsedData.data) {
-              responseCallback(parsedData.data);
-              console.log("Response Callback")
-            } else {
-              throw new Error("Parsed data is not in the expected format.");
-            }
-          } catch (error) {
-            console.error("Error parsing JSON data from 'print' handler:", error);
-          }
-        });
-
-        bridge.registerHandler(
-          "findBleDeviceCallBack",
-          (data: string, responseCallback: (response: { success: boolean; error?: string }) => void) => {
-            try {
-              const parsedData: BleDevice = JSON.parse(data);
-              console.log({ "MacAddress": parsedData.macAddress, "Parsed Name": parsedData.name, "Parsed Rssi": parsedData.rssi });
-
-              if (parsedData.macAddress && parsedData.name && parsedData.rssi && parsedData.name.includes("OVES")) {
-                // Store the raw rssi value for sorting, and use the formatted version for display
-                const rawRssi = Number(parsedData.rssi);
-                const formattedRssi = convertRssiToFormattedString(rawRssi);
-
-                // Update the device data
-                parsedData.rssi = formattedRssi; // Use formatted RSSI for display
-                parsedData.rawRssi = rawRssi; // Store raw RSSI for sorting
-                parsedData.imageUrl = getImageUrl(parsedData.name);
-
-                setDetectedDevices(prevDevices => {
-                  // Check if this device already exists in our array
-                  const deviceExists = prevDevices.some(
-                    device => device.macAddress === parsedData.macAddress
-                  );
-
-                  // If device doesn't exist, add it to the array
-                  if (!deviceExists) {
-                    console.log("Adding new device:", parsedData.name);
-                    return [...prevDevices, parsedData];
-                  }
-
-                  // If the device exists, update RSSI or other properties
-                  return prevDevices.map(device =>
-                    device.macAddress === parsedData.macAddress
-                      ? { ...device, rssi: parsedData.rssi, rawRssi: parsedData.rawRssi } // Update both formatted and raw RSSI
-                      : device
-                  );
-                });
-
-                // Sort the devices by raw RSSI, so the closest ones appear first
-                setDetectedDevices(prevDevices => {
-                  return prevDevices
-                    .sort((a, b) => b.rawRssi - a.rawRssi); // Sort by raw RSSI in descending order
-                });
-
-                responseCallback({ success: true });
-              } else {
-                console.warn("Invalid device data format:", parsedData);
-              }
-            } catch (error) {
-              console.error("Error parsing BLE device data:", error);
-              responseCallback({ success: false, error: (error as Error).message });
-            }
-          }
-        );
-
-
-        bridge.registerHandler(
-          "bleConnectFailCallBack",
-          (data: string, responseCallback: (response: any) => void) => {
-            console.log("Bluetooth connection failed:", data);
-            setIsConnecting(false); // Reset connection state on failure
-            setProgress(0);
-            toast.error('Connection failed! Please try reconnecting again.', { id: 'connect-toast' });
-            responseCallback(data);
-          }
-        );
-
-        bridge.registerHandler("bleConnectSuccessCallBack", (macAddress, responseCallback) => {
-          sessionStorage.setItem('connectedDeviceMac', macAddress);
-          setConnectedDevice(macAddress); // Set the connected device
-          setIsScanning(false);
-          // initBleData(macAddress);
-          const data = {
-            serviceName: "ATT", // ATT/STS/DIA/CMD/xx
-            macAddress: macAddress
-          };
-          setLoadingService("ATT")
-          initServiceBleData(data)
-          responseCallback(macAddress);
-        });
-
-        // BLE service data initialization callback
-        bridge.registerHandler("bleInitDataOnCompleteCallBack", (data, responseCallback) => {
-          const resp = JSON.parse(data);
-          setServiceAttrList(resp.dataList.map((service: any, index: any) => ({ ...service, index })));
-          responseCallback(data);
-        });
-
-        bridge.registerHandler(
-          "bleInitDataCallBack",
-          (data: string, responseCallback: (response: any) => void) => {
-            try {
-              const parsedData = JSON.parse(data);
-              console.log(parsedData, "BleInitDataCallBack")
-              responseCallback(parsedData);
-            } catch (error) {
-              console.error("Error parsing JSON data from 'bleInitDataCallBack' handler:", error);
-            }
-          }
-        );
-
-        // QR Scan callback using the latest device list via ref
-        bridge.registerHandler("scanQrcodeResultCallBack", (data, responseCallback) => {
-          console.info("Debug: Received data from scanQrcodeResultCallBack:", data);
-          try {
-            const parsedData = JSON.parse(data);
-            console.info(parsedData, "Parsed Data")
-            const qrValue = parsedData.respData.value || "";
-            console.info(qrValue, "QrValue")
-            const last6FromBarcode = qrValue.slice(-6).toLowerCase();
-            handleQrCode(last6FromBarcode)
-
-
-          } catch (error) {
-            console.error("Error processing QR code data:", error);
-
-          }
-          responseCallback(data);
-        });
-
-        bridge.registerHandler(
-          "mqttMessageReceived",
-          (data: string, responseCallback: (response: any) => void) => {
-            try {
-              const parsedMessage = JSON.parse(data);
-              console.warn("Mqtt Message Recieved --337")
-              responseCallback(parsedMessage);
-            } catch (error) {
-              console.error("Error parsing MQTT message:", error);
-            }
-          }
-        );
-
-        bridge.registerHandler(
-          "bleInitDataOnProgressCallBack",
-          (data) => {
-            try {
-              const parsedData = JSON.parse(data);
-              const progressPercentage = Math.round(
-                (parsedData.progress / parsedData.total) * 100
-              );
-              // setProgress(progressPercentage);
-
-            } catch (error) {
-              console.error("Progress callback error:", error);
-            }
-          }
-        );
-
-        bridge.registerHandler(
-          "connectMqttCallBack",
-          (data: string, responseCallback: (response: any) => void) => {
-            try {
-              const parsedMessage = JSON.parse(data);
-              setIsMqttConnected(true)
-              // console.info("MQTT Connection Callback:", parsedMessage);
-              responseCallback("Received MQTT Connection Callback");
-            } catch (error) {
-              setIsMqttConnected(false)
-              console.error("Error parsing MQTT connection callback:", error);
-            }
-          }
-        );
-
-        bridge.registerHandler("bleInitServiceDataOnProgressCallBack", function (data,
-          responseCallback) {
-          console.info(data);
-          const obj = JSON.parse(data);
-          // console.log(obj.total, "Total------376----");
-          // console.log(obj.progress, "Progress --------377------");
-          const parsedData = JSON.parse(data);
-          const progressPercentage = Math.round(
-            (parsedData.progress / parsedData.total) * 100
-          );
-          setProgress(progressPercentage);
-        });
-
-        bridge.registerHandler("bleInitServiceDataOnCompleteCallBack", function (data,
-          responseCallback) {
-
-          const parsedData = JSON.parse(data);
-          // console.info(parsedData, "On Complete----382---");
-          setServiceAttrList((prevList: any) => {
-            // If the list is empty, start a new array
-            if (!prevList || prevList.length === 0) {
-              return [parsedData];
-            }
-
-            // Find if service with same UUID already exists
-            const existingServiceIndex = prevList.findIndex(
-              (service: any) => service.uuid === parsedData.uuid
-            );
-
-            if (existingServiceIndex >= 0) {
-              // Service exists, replace it
-              const updatedList = [...prevList];
-              updatedList[existingServiceIndex] = parsedData;
-              return updatedList;
-            } else {
-              // Service doesn't exist, add it
-              return [...prevList, parsedData];
-            }
-          });
-          setTimeout(() => {
-            setLoadingService(null);
-          }, 100)
-
-        });
-        bridge.registerHandler("bleInitServiceDataFailureCallBack", function (data, responseCallback) {
-          console.info(data);
-          setLoadingService(null);
-        });
-
-        bridge.registerHandler(
-          "mqttMsgArrivedCallBack",
-          (data: string, responseCallback: (response: any) => void) => {
-            // console.info("MQTT Message Arrived Callback:", data);
-            console.warn("Mqtt Message Recieved --429")
-            responseCallback("Received MQTT Message");
-          }
-        );
-
-        const mqttConfig: MqttConfig = {
-          username: "Admin",
-          password: "7xzUV@MT",
-          clientId: "123",
-          hostname: "mqtt.omnivoltaic.com",
-          port: 1883,
-        };
-        bridge.callHandler("connectMqtt", mqttConfig, (responseData: string) => {
-          try {
-            const parsedResponse = JSON.parse(responseData);
-            if (parsedResponse.error) {
-              console.error("MQTT connection error:", parsedResponse.error.message);
-            }
-          } catch (error) {
-            console.error("Error parsing MQTT response:", error);
-          }
-        });
-
-        setBridgeInitialized(true); // Update state to prevent re-initialization
-        console.log("WebViewJavascriptBridge initialized.");
+      const noop = () => {}
+      const reg = (name: string, handler: any) => {
+        bridge.registerHandler(name, handler)
+        return () => bridge.registerHandler(name, noop)
       }
-    };
-
-    connectWebViewJavascriptBridge(setupBridge);
+  
+      if (!bridgeHasBeenInitialized) {
+        bridgeHasBeenInitialized = true
+        setBridgeInitialized(true)
+        bridge.init((_m, r) => r('js success!'))
+      }
+  
+      const offPrint = reg('print', (data: string, resp: any) => {
+        try {
+          const parsed = JSON.parse(data)
+          if (parsed?.data) resp(parsed.data)
+          else throw new Error('Parsed data is not in the expected format.')
+        } catch (err) {
+          console.error("Error parsing JSON in 'print':", err)
+        }
+      })
+  
+      const offFindBle = reg(
+        'findBleDeviceCallBack',
+        (
+          data: string,
+          resp: (r: { success: boolean; error?: string }) => void
+        ) => {
+          try {
+            const d: BleDevice = JSON.parse(data)
+            if (
+              d.macAddress &&
+              d.name &&
+              d.rssi &&
+              d.name.includes('OVES')
+            ) {
+              const raw = Number(d.rssi)
+              d.rawRssi = raw
+              d.rssi = convertRssiToFormattedString(raw)
+              d.imageUrl = getImageUrl(d.name)
+  
+              setDetectedDevices((prev) => {
+                const exists = prev.some(
+                  (p) => p.macAddress === d.macAddress
+                )
+                const next = exists
+                  ? prev.map((p) =>
+                      p.macAddress === d.macAddress
+                        ? {
+                            ...p,
+                            rssi: d.rssi,
+                            rawRssi: d.rawRssi,
+                          }
+                        : p
+                    )
+                  : [...prev, d]
+                return [...next].sort((a, b) => b.rawRssi - a.rawRssi)
+              })
+  
+              resp({ success: true })
+            } else {
+              console.warn('Invalid device data format:', d)
+            }
+          } catch (err: any) {
+            console.error('Error parsing BLE device data:', err)
+            resp({ success: false, error: err.message })
+          }
+        }
+      )
+  
+      const offBleConnectFail = reg(
+        'bleConnectFailCallBack',
+        (data: string, resp: any) => {
+          console.log('Bluetooth connection failed:', data)
+          setIsConnecting(false)
+          setProgress(0)
+          toast.error(
+            'Connection failed! Please try reconnecting again.',
+            { id: 'connect-toast' }
+          )
+          resp(data)
+        }
+      )
+  
+      const offBleConnectSuccess = reg(
+        'bleConnectSuccessCallBack',
+        (macAddress: string, resp: any) => {
+          sessionStorage.setItem('connectedDeviceMac', macAddress)
+          setConnectedDevice(macAddress)
+          setIsScanning(false)
+          const d = { serviceName: 'ATT', macAddress }
+          setLoadingService('ATT')
+          initServiceBleData(d)
+          resp(macAddress)
+        }
+      )
+  
+      const offInitComplete = reg(
+        'bleInitDataOnCompleteCallBack',
+        (data: string, resp: any) => {
+          const r = JSON.parse(data)
+          setServiceAttrList(
+            r.dataList.map((s: any, i: any) => ({ ...s, index: i }))
+          )
+          resp(data)
+        }
+      )
+  
+      const offInitData = reg('bleInitDataCallBack', (data: string, resp: any) => {
+        try {
+          const p = JSON.parse(data)
+          resp(p)
+        } catch (err) {
+          console.error(
+            "Error parsing JSON data from 'bleInitDataCallBack' handler:",
+            err
+          )
+        }
+      })
+  
+      const offQr = reg(
+        'scanQrcodeResultCallBack',
+        (data: string, resp: any) => {
+          try {
+            const p = JSON.parse(data)
+            const qrVal = p.respData.value || ''
+            handleQrCode(qrVal.slice(-6).toLowerCase())
+          } catch (err) {
+            console.error('Error processing QR code data:', err)
+          }
+          resp(data)
+        }
+      )
+  
+      const offMqttRecv = reg(
+        'mqttMessageReceived',
+        (data: string, resp: any) => {
+          try {
+            const p = JSON.parse(data)
+            resp(p)
+          } catch (err) {
+            console.error('Error parsing MQTT message:', err)
+          }
+        }
+      )
+  
+      const offInitProg = reg('bleInitDataOnProgressCallBack', (data: string) => {
+        try {
+          const p = JSON.parse(data)
+          setProgress(Math.round((p.progress / p.total) * 100))
+        } catch (err) {
+          console.error('Progress callback error:', err)
+        }
+      })
+  
+      const offConnectMqtt = reg(
+        'connectMqttCallBack',
+        (data: string, resp: any) => {
+          try {
+            JSON.parse(data)
+            setIsMqttConnected(true)
+            resp('Received MQTT Connection Callback')
+          } catch (err) {
+            setIsMqttConnected(false)
+            console.error('Error parsing MQTT connection callback:', err)
+          }
+        }
+      )
+  
+      const offSvcProg = reg(
+        'bleInitServiceDataOnProgressCallBack',
+        (data: string) => {
+          const p = JSON.parse(data)
+          setProgress(Math.round((p.progress / p.total) * 100))
+        }
+      )
+  
+      const offSvcComplete = reg(
+        'bleInitServiceDataOnCompleteCallBack',
+        (data: string, resp: any) => {
+          const parsedData = JSON.parse(data)
+          setServiceAttrList((prev: any) => {
+            if (!prev || prev.length === 0) return [parsedData]
+            const idx = prev.findIndex(
+              (s: any) => s.uuid === parsedData.uuid
+            )
+            if (idx >= 0) {
+              const u = [...prev]
+              u[idx] = parsedData
+              return u
+            }
+            return [...prev, parsedData]
+          })
+          setTimeout(() => setLoadingService(null), 100)
+          resp(data)
+        }
+      )
+  
+      const offSvcFail = reg(
+        'bleInitServiceDataFailureCallBack',
+        () => setLoadingService(null)
+      )
+  
+      const offMqttArrived = reg(
+        'mqttMsgArrivedCallBack',
+        (_: string, resp: any) => resp('Received MQTT Message')
+      )
+  
+      const mqttConfig: MqttConfig = {
+        username: 'Admin',
+        password: '7xzUV@MT',
+        clientId: '123',
+        hostname: 'mqtt.omnivoltaic.com',
+        port: 1883,
+      }
+      bridge.callHandler(
+        'connectMqtt',
+        mqttConfig,
+        (resp: string) => {
+          try {
+            const p = JSON.parse(resp)
+            if (p.error)
+              console.error(
+                'MQTT connection error:',
+                p.error.message
+              )
+          } catch (err) {
+            console.error('Error parsing MQTT response:', err)
+          }
+        }
+      )
+  
+      cleanup = () => {
+        offPrint()
+        offFindBle()
+        offBleConnectFail()
+        offBleConnectSuccess()
+        offInitComplete()
+        offInitData()
+        offQr()
+        offMqttRecv()
+        offInitProg()
+        offConnectMqtt()
+        offSvcProg()
+        offSvcComplete()
+        offSvcFail()
+        offMqttArrived()
+      }
+    }
+  
+    connectWebViewJavascriptBridge(setupBridge)
     readDeviceInfo()
-    return () => {
-      console.log("-------250------")
-    };
+  
+    return () => cleanup()
+  }, [bridgeHasBeenInitialized])
+  
 
-  }, [bridgeHasBeenInitialized]); // Empty dependency array to run only once on mount
-  console.error(bridgeInitialized, "bridgeInitialized-----466-----")
-  console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
+  
+  // console.error(bridgeInitialized, "bridgeInitialized-----466-----")
+  // console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
+  console.error(detectedDevices, "Detected Devices-----468")
 
   const startQrCodeScan = () => {
     console.info("Start QR Code Scan")
