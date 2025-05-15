@@ -89,6 +89,7 @@ const AppContainer = () => {
 
   const connectedDeviceRef = useRef<string | null>(null)
 useEffect(() => { connectedDeviceRef.current = connectedDevice }, [connectedDevice])
+console.error(connectedDeviceRef, "The Connected Device Reference---92---")
   // Update the ref whenever detectedDevices changes
   useEffect(() => {
     detectedDevicesRef.current = detectedDevices;
@@ -236,6 +237,7 @@ useEffect(() => { connectedDeviceRef.current = connectedDevice }, [connectedDevi
         ) => {
           try {
             const d: BleDevice = JSON.parse(data)
+            console.error(d, "Detected Devices.----239")
             if (
               d.macAddress &&
               d.name &&
