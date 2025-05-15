@@ -462,7 +462,7 @@ const AppContainer = () => {
       console.log("-------250------")
     };
 
-  }, [bridgeInitialized]); // Empty dependency array to run only once on mount
+  }, [bridgeHasBeenInitialized]); // Empty dependency array to run only once on mount
   console.error(bridgeInitialized, "bridgeInitialized-----466-----")
   console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
 
@@ -504,13 +504,13 @@ const AppContainer = () => {
   }, [progress, attributeList])
 
   useEffect(() => {
-    if (bridgeInitialized) {
+    if (bridgeHasBeenInitialized) {
       startBleScan();
       return () => {
         stopBleScan();
       };
     }
-  }, [bridgeInitialized]);
+  }, [bridgeHasBeenInitialized]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
