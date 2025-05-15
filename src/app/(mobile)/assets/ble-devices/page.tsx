@@ -144,12 +144,12 @@ const AppContainer = () => {
     return defaultImageUrl;
   };
 
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole();
-  //   });
-  // }, []);
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
 
 
 
@@ -192,6 +192,7 @@ const AppContainer = () => {
 
     const setupBridge = (bridge: WebViewJavascriptBridge) => {
       if (!bridgeHasBeenInitialized) {
+        bridgeHasBeenInitialized = true;
         setBridgeInitialized(true)
         bridge.init((message: any, responseCallback: (response: any) => void) => {
           responseCallback("js success!");
@@ -462,6 +463,8 @@ const AppContainer = () => {
     };
 
   }, [bridgeInitialized]); // Empty dependency array to run only once on mount
+  console.error(bridgeInitialized, "bridgeInitialized-----466-----")
+  console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
 
   const startQrCodeScan = () => {
     console.info("Start QR Code Scan")
