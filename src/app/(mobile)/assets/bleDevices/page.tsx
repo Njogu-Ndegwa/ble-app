@@ -540,6 +540,7 @@ const AppContainer = () => {
     }
   };
 
+  
   const handleQrCode = (code: string) => {
     const currentDevices = detectedDevicesRef.current;
     const matches = currentDevices.filter((device) => {
