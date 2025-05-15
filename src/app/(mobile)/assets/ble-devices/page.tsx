@@ -513,13 +513,24 @@ useEffect(() => { connectedDeviceRef.current = connectedDevice }, [connectedDevi
     }
   }, [progress, attributeList])
 
-  useEffect(() => {
-    if (bridgeHasBeenInitialized) {
-      stopBleScan()          // hard reset
-      startBleScan()
-      return () => stopBleScan()
-    }
-  }, [bridgeHasBeenInitialized])
+/*  Scan-cycle effect  */
+useEffect(() => {
+  if (!bridgeHasBeenInitialized) return
+
+  stopBleScan()                       // stop immediately
+
+  const id = setTimeout(() => {
+    /* give the native layer 300 ms, then start again */
+    startBleScan()
+  }, 300)
+
+  /* cleanup */
+  return () => {
+    clearTimeout(id)                  // cancel pending restart
+    stopBleScan()                     // and always stop when un-mounting
+  }
+}, [bridgeHasBeenInitialized])
+
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
