@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Sidebar from '../../components/sidebar/sidebar';   // wherever you put the sidebar file
 import { User } from 'lucide-react';
-
 export default function MobileLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+
+
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
