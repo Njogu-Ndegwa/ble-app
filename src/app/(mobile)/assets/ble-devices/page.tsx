@@ -88,7 +88,7 @@ const AppContainer = () => {
   const bridgeInitRef = useRef(false);
 
   const { bridge } = useBridge(); // Access bridge from context
-  
+
   const connectedDeviceRef = useRef<string | null>(null)
 useEffect(() => { connectedDeviceRef.current = connectedDevice }, [connectedDevice])
 console.error(connectedDeviceRef, "The Connected Device Reference---92---")
@@ -152,12 +152,7 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
     return defaultImageUrl;
   };
 
-  useEffect(() => {
-    import('vconsole').then((module) => {
-      const VConsole = module.default;
-      new VConsole();
-    });
-  }, []);
+
 
 
 
@@ -678,6 +673,7 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
       setupBridge(bridge);
       readDeviceInfo();
     }
+    
   }, [bridge]);
 
   
