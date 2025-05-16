@@ -88,7 +88,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   // Watch for the loading state of CMD and STS, and extract the pubk value once they are loaded
   useEffect(() => {
-    console.error(isLoadingService, loadingStates['CMD'] , loadingStates['STS'], "Extracted PUBK<------89------>")
+    console.error(isLoadingService, loadingStates['CMD'], loadingStates['STS'], "Extracted PUBK<------89------>")
     if (isLoadingService === null && !loadingStates['CMD'] && !loadingStates['STS']) {
       const extractedPubk = getPubkValue();
       console.error(extractedPubk, "Extracted PUBK<------89------>")
@@ -131,32 +131,35 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       onRequestServiceData(tabId);
     }
   };
-
+  // Handle read operation
   const handleRead = (serviceUuid: string, characteristicUuid: string, name: string) => {
-    setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
-    console.error(serviceUuid, characteristicUuid, device.macAddress, "------133----")
+    // Set loading state for this characteristic
+    setLoadingStates(prev => ({ ...prev, [characteristicUuid]: true }));
+
     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
-      setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
+      // Clear loading state
+      setLoadingStates(prev => ({ ...prev, [characteristicUuid]: false }));
+
       if (data) {
-        console.info(data.realVal, 'Value of Field');
+        console.info(data.realVal, "Value of Field");
         toast.success(`${name} read successfully`);
-        setUpdatedValues((prev) => ({
+        // Update the value in our state
+        setUpdatedValues(prev => ({
           ...prev,
-          [characteristicUuid]: data.realVal,
+          [characteristicUuid]: data.realVal
         }));
-        if (name.toLowerCase() === 'pubk') {
-          setPubkValue(data.realVal); // Update pubkValue when the pubk characteristic is read
-        }
       } else {
-        console.error('Error Reading Characteristics');
+        console.error("Error Reading Characteristics");
         toast.error(`Failed to read ${name}`);
       }
     });
   };
 
+  // Handle opening the appropriate modal
   const handleWriteClick = (characteristic: any) => {
-
     setActiveCharacteristic(characteristic);
+
+    // Determine which modal to open based on characteristic name
     if (characteristic.name.toLowerCase().includes('pubk')) {
       setAsciiModalOpen(true);
     } else {
@@ -164,15 +167,17 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     }
   };
 
+  // Handle write operation
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !activeService) return;
+
     console.info({
       action: 'write',
       serviceUuid: activeService.uuid,
       characteristicUuid: activeCharacteristic.uuid,
       macAddress: device.macAddress,
       name: device.name,
-      value: value,
+      value: value
     });
     writeBleCharacteristic(
       activeService.uuid,
@@ -180,24 +185,36 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       value,
       device.macAddress,
       (data: any, error: any) => {
-        console.info({ data: data, error: error });
+        console.info({ "data": data, "error": error })
         if (data) {
-          console.info(data, 'Is Data 123');
+          console.info(data, "Is Data 123")
+
         }
       }
     );
+    // Here you would implement the actual BLE write operation
+    // For now, we'll just show a success message
     toast.success(`Value written to ${activeCharacteristic.name}`);
+
     setTimeout(() => {
-      console.error(activeService.uuid, activeCharacteristic.uuid, device.name, "------184-----")
-      handleRead(activeService.uuid, activeCharacteristic.uuid, device.name);
-    }, 1000);
+      handleRead(
+        activeService.uuid,
+        activeCharacteristic.uuid,
+        device.name
+      )
+    }, 1000)
+    // // Update the value in our state
+    // setUpdatedValues(prev => ({
+    //   ...prev,
+    //   [activeCharacteristic.uuid]: value
+    // }));
   };
 
   const handleRefreshService = () => {
     if (!activeTab || !onRequestServiceData) return;
     onRequestServiceData(activeTab);
   };
-console.error()
+  console.error()
   return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
       <Toaster />
@@ -213,22 +230,30 @@ console.error()
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || 'Read'}
       />
-      
-      
-      {activeService.characteristicList.map((char: any) => {
-        char.name === "pubk" && (
-          <div className="p-4">
-          <h3 className="text-lg font-medium">Public Key (pubk) Value</h3>
-          <p className="text-sm font-mono">{char.name}</p>
-          <button
-            onClick={() => handleWriteClick(char)}
-            className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md"
-          >
-            Write
-          </button>
-        </div>
-        )
-      })}
+
+
+{activeService?.characteristicList.map((char: any) => {
+  if (char.name === "pubk") {
+    return (
+      <div className="p-4" key={char.uuid}>
+        <h3 className="text-lg font-medium">Public Key (pubk) Value</h3>
+        <p className="text-sm font-mono">
+          {updatedValues[char.uuid] !== undefined
+            ? updatedValues[char.uuid]
+            : formatValue(char)}
+        </p>
+        <button
+          onClick={() => handleWriteClick(char)}
+          className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md"
+        >
+          Write
+        </button>
+      </div>
+    );
+  }
+  return null; // Ensure we return null when the condition is not met.
+})}
+
       {/* {pubkValue && (
         <div className="p-4">
           <h3 className="text-lg font-medium">Public Key (pubk) Value</h3>
