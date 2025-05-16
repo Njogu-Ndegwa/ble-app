@@ -214,7 +214,22 @@ console.error()
         title={activeCharacteristic?.name || 'Read'}
       />
       
-      {pubkValue && (
+      
+      {activeService.characteristicList.map((char: any) => {
+        char.name === "pubk" && (
+          <div className="p-4">
+          <h3 className="text-lg font-medium">Public Key (pubk) Value</h3>
+          <p className="text-sm font-mono">{char.name}</p>
+          <button
+            onClick={() => handleWriteClick(char)}
+            className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md"
+          >
+            Write
+          </button>
+        </div>
+        )
+      })}
+      {/* {pubkValue && (
         <div className="p-4">
           <h3 className="text-lg font-medium">Public Key (pubk) Value</h3>
           <p className="text-sm font-mono">{pubkValue}</p>
@@ -225,7 +240,7 @@ console.error()
             Write
           </button>
         </div>
-      )}
+      )} */}
     </div>
   );
 };
