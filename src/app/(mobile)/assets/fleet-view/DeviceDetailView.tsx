@@ -95,7 +95,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       setPubkValue(extractedPubk);
     }
   }, [isLoadingService, loadingStates, attributeList]);
-  
+
   const activeService = attributeList.find((service) =>
     fixedTabs.find((tab) => tab.id === activeTab && tab.serviceNameEnum === service.serviceNameEnum)
   );
@@ -144,6 +144,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           ...prev,
           [characteristicUuid]: data.realVal,
         }));
+        if (name.toLowerCase() === 'pubk') {
+          setPubkValue(data.realVal); // Update pubkValue when the pubk characteristic is read
+        }
       } else {
         console.error('Error Reading Characteristics');
         toast.error(`Failed to read ${name}`);
