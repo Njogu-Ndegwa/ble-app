@@ -84,14 +84,14 @@ const AppContainer = () => {
 
   const detectedDevicesRef = useRef(detectedDevices);
 
-    // 👇 replace the old global flag with a ref
+  // 👇 replace the old global flag with a ref
   const bridgeInitRef = useRef(false);
 
   const { bridge } = useBridge(); // Access bridge from context
 
   const connectedDeviceRef = useRef<string | null>(null)
-useEffect(() => { connectedDeviceRef.current = connectedDevice }, [connectedDevice])
-console.error(connectedDeviceRef, "The Connected Device Reference---92---")
+  useEffect(() => { connectedDeviceRef.current = connectedDevice }, [connectedDevice])
+  console.error(connectedDeviceRef, "The Connected Device Reference---92---")
   // Update the ref whenever detectedDevices changes
   useEffect(() => {
     detectedDevicesRef.current = detectedDevices;
@@ -163,314 +163,9 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
   }
 
 
-  // useEffect(() => {
-  //   let timeoutId: NodeJS.Timeout
-  //   let cleanup = () => {}
-  
-  //   const connectWebViewJavascriptBridge = (
-  //     cb: (bridge: WebViewJavascriptBridge) => void
-  //   ) => {
-  //     const ready = () =>
-  //       window.WebViewJavascriptBridge && cb(window.WebViewJavascriptBridge)
-  
-  //     if (window.WebViewJavascriptBridge) {
-  //       cb(window.WebViewJavascriptBridge)
-  //     } else {
-  //       document.addEventListener(
-  //         'WebViewJavascriptBridgeReady',
-  //         ready,
-  //         false
-  //       )
-  
-  //       timeoutId = setTimeout(() => {
-  //         if (window.WebViewJavascriptBridge) {
-  //           cb(window.WebViewJavascriptBridge)
-  //         } else {
-  //           console.error(
-  //             'WebViewJavascriptBridge is not initialized within the timeout period.'
-  //           )
-  //         }
-  //       }, 3000)
-  
-  //       cleanup = () => {
-  //         document.removeEventListener(
-  //           'WebViewJavascriptBridgeReady',
-  //           ready,
-  //           false
-  //         )
-  //         clearTimeout(timeoutId)
-  //       }
-  //     }
-  //   }
-  
-  //   const setupBridge = (bridge: WebViewJavascriptBridge) => {
-  //     const noop = () => {}
-  //     const reg = (name: string, handler: any) => {
-  //       bridge.registerHandler(name, handler)
-  //       return () => bridge.registerHandler(name, noop)
-  //     }
-  
-  //     if (!bridgeHasBeenInitialized) {
-  //       bridgeHasBeenInitialized = true
-  //       setBridgeInitialized(true)
-  //       bridge.init((_m, r) => r('js success!'))
-  //     }
-  
-  //     const offPrint = reg('print', (data: string, resp: any) => {
-  //       try {
-  //         const parsed = JSON.parse(data)
-  //         if (parsed?.data) resp(parsed.data)
-  //         else throw new Error('Parsed data is not in the expected format.')
-  //       } catch (err) {
-  //         console.error("Error parsing JSON in 'print':", err)
-  //       }
-  //     })
-  
-  //     const offFindBle = reg(
-  //       'findBleDeviceCallBack',
-  //       (
-  //         data: string,
-  //         resp: (r: { success: boolean; error?: string }) => void
-  //       ) => {
-  //         try {
-  //           const d: BleDevice = JSON.parse(data)
-  //           console.error(d, "Detected Devices.----239")
-  //           if (
-  //             d.macAddress &&
-  //             d.name &&
-  //             d.rssi &&
-  //             d.name.includes('OVES')
-  //           ) {
-  //             const raw = Number(d.rssi)
-  //             d.rawRssi = raw
-  //             d.rssi = convertRssiToFormattedString(raw)
-  //             d.imageUrl = getImageUrl(d.name)
-  
-  //             setDetectedDevices((prev) => {
-  //               const exists = prev.some(
-  //                 (p) => p.macAddress === d.macAddress
-  //               )
-  //               const next = exists
-  //                 ? prev.map((p) =>
-  //                     p.macAddress === d.macAddress
-  //                       ? {
-  //                           ...p,
-  //                           rssi: d.rssi,
-  //                           rawRssi: d.rawRssi,
-  //                         }
-  //                       : p
-  //                   )
-  //                 : [...prev, d]
-  //               return [...next].sort((a, b) => b.rawRssi - a.rawRssi)
-  //             })
-  
-  //             resp({ success: true })
-  //           } else {
-  //             console.warn('Invalid device data format:', d)
-  //           }
-  //         } catch (err: any) {
-  //           console.error('Error parsing BLE device data:', err)
-  //           resp({ success: false, error: err.message })
-  //         }
-  //       }
-  //     )
-  
-  //     const offBleConnectFail = reg(
-  //       'bleConnectFailCallBack',
-  //       (data: string, resp: any) => {
-  //         console.log('Bluetooth connection failed:', data)
-  //         setIsConnecting(false)
-  //         setProgress(0)
-  //         toast.error(
-  //           'Connection failed! Please try reconnecting again.',
-  //           { id: 'connect-toast' }
-  //         )
-  //         resp(data)
-  //       }
-  //     )
-  
-  //     const offBleConnectSuccess = reg(
-  //       'bleConnectSuccessCallBack',
-  //       (macAddress: string, resp: any) => {
-  //         sessionStorage.setItem('connectedDeviceMac', macAddress)
-  //         setConnectedDevice(macAddress)
-  //         setIsScanning(false)
-  //         const d = { serviceName: 'ATT', macAddress }
-  //         setLoadingService('ATT')
-  //         initServiceBleData(d)
-  //         resp(macAddress)
-  //       }
-  //     )
-  
-  //     const offInitComplete = reg(
-  //       'bleInitDataOnCompleteCallBack',
-  //       (data: string, resp: any) => {
-  //         const r = JSON.parse(data)
-  //         setServiceAttrList(
-  //           r.dataList.map((s: any, i: any) => ({ ...s, index: i }))
-  //         )
-  //         resp(data)
-  //       }
-  //     )
-  
-  //     const offInitData = reg('bleInitDataCallBack', (data: string, resp: any) => {
-  //       try {
-  //         const p = JSON.parse(data)
-  //         resp(p)
-  //       } catch (err) {
-  //         console.error(
-  //           "Error parsing JSON data from 'bleInitDataCallBack' handler:",
-  //           err
-  //         )
-  //       }
-  //     })
-  
-  //     const offQr = reg(
-  //       'scanQrcodeResultCallBack',
-  //       (data: string, resp: any) => {
-  //         try {
-  //           const p = JSON.parse(data)
-  //           const qrVal = p.respData.value || ''
-  //           handleQrCode(qrVal.slice(-6).toLowerCase())
-  //         } catch (err) {
-  //           console.error('Error processing QR code data:', err)
-  //         }
-  //         resp(data)
-  //       }
-  //     )
-  
-  //     const offMqttRecv = reg(
-  //       'mqttMessageReceived',
-  //       (data: string, resp: any) => {
-  //         try {
-  //           const p = JSON.parse(data)
-  //           resp(p)
-  //         } catch (err) {
-  //           console.error('Error parsing MQTT message:', err)
-  //         }
-  //       }
-  //     )
-  
-  //     const offInitProg = reg('bleInitDataOnProgressCallBack', (data: string) => {
-  //       try {
-  //         const p = JSON.parse(data)
-  //         setProgress(Math.round((p.progress / p.total) * 100))
-  //       } catch (err) {
-  //         console.error('Progress callback error:', err)
-  //       }
-  //     })
-  
-  //     const offConnectMqtt = reg(
-  //       'connectMqttCallBack',
-  //       (data: string, resp: any) => {
-  //         try {
-  //           JSON.parse(data)
-  //           setIsMqttConnected(true)
-  //           resp('Received MQTT Connection Callback')
-  //         } catch (err) {
-  //           setIsMqttConnected(false)
-  //           console.error('Error parsing MQTT connection callback:', err)
-  //         }
-  //       }
-  //     )
-  
-  //     const offSvcProg = reg(
-  //       'bleInitServiceDataOnProgressCallBack',
-  //       (data: string) => {
-  //         const p = JSON.parse(data)
-  //         setProgress(Math.round((p.progress / p.total) * 100))
-  //       }
-  //     )
-  
-  //     const offSvcComplete = reg(
-  //       'bleInitServiceDataOnCompleteCallBack',
-  //       (data: string, resp: any) => {
-  //         const parsedData = JSON.parse(data)
-  //         setServiceAttrList((prev: any) => {
-  //           if (!prev || prev.length === 0) return [parsedData]
-  //           const idx = prev.findIndex(
-  //             (s: any) => s.uuid === parsedData.uuid
-  //           )
-  //           if (idx >= 0) {
-  //             const u = [...prev]
-  //             u[idx] = parsedData
-  //             return u
-  //           }
-  //           return [...prev, parsedData]
-  //         })
-  //         setTimeout(() => setLoadingService(null), 100)
-  //         resp(data)
-  //       }
-  //     )
-  
-  //     const offSvcFail = reg(
-  //       'bleInitServiceDataFailureCallBack',
-  //       () => setLoadingService(null)
-  //     )
-  
-  //     const offMqttArrived = reg(
-  //       'mqttMsgArrivedCallBack',
-  //       (_: string, resp: any) => resp('Received MQTT Message')
-  //     )
-  
-  //     const mqttConfig: MqttConfig = {
-  //       username: 'Admin',
-  //       password: '7xzUV@MT',
-  //       clientId: '123',
-  //       hostname: 'mqtt.omnivoltaic.com',
-  //       port: 1883,
-  //     }
-  //     bridge.callHandler(
-  //       'connectMqtt',
-  //       mqttConfig,
-  //       (resp: string) => {
-  //         try {
-  //           const p = JSON.parse(resp)
-  //           if (p.error)
-  //             console.error(
-  //               'MQTT connection error:',
-  //               p.error.message
-  //             )
-  //         } catch (err) {
-  //           console.error('Error parsing MQTT response:', err)
-  //         }
-  //       }
-  //     )
-  
-  //     cleanup = () => {
-  //       offPrint()
-  //       offFindBle()
-  //       offBleConnectFail()
-  //       offBleConnectSuccess()
-  //       offInitComplete()
-  //       offInitData()
-  //       offQr()
-  //       offMqttRecv()
-  //       offInitProg()
-  //       offConnectMqtt()
-  //       offSvcProg()
-  //       offSvcComplete()
-  //       offSvcFail()
-  //       offMqttArrived()
-
-  //         // disconnect if a device is still connected
-  // if (connectedDeviceRef.current) {
-  //   bridge.callHandler('disconnectBle', connectedDeviceRef.current, () => {})
-  // }
-
-  // // make sure scanning is really stopped
-  // window.WebViewJavascriptBridge?.callHandler('stopBleScan', '', () => {})
-  //     }
-  //   }
-  
-  //   connectWebViewJavascriptBridge(setupBridge)
-  //   readDeviceInfo()
-  
-  //   return () => cleanup()
-  // }, [bridgeHasBeenInitialized])
 
   const setupBridge = (bridge: WebViewJavascriptBridge) => {
-    const noop = () => {};
+    const noop = () => { };
     const reg = (name: string, handler: any) => {
       bridge.registerHandler(name, handler);
       return () => bridge.registerHandler(name, noop);
@@ -478,7 +173,11 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
 
     if (!bridgeHasBeenInitialized) {
       bridgeHasBeenInitialized = true;
-      bridge.init((_m, r) => r('js success!'));
+      try {
+        bridge.init((_m, r) => r('js success!'));
+      } catch (error) {
+        console.error("Error initializing bridge:", error);
+      }
     }
 
     const offPrint = reg('print', (data: string, resp: any) => {
@@ -506,14 +205,14 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
               const exists = prev.some((p) => p.macAddress === d.macAddress);
               const next = exists
                 ? prev.map((p) =>
-                    p.macAddress === d.macAddress
-                      ? {
-                          ...p,
-                          rssi: d.rssi,
-                          rawRssi: d.rawRssi,
-                        }
-                      : p
-                  )
+                  p.macAddress === d.macAddress
+                    ? {
+                      ...p,
+                      rssi: d.rssi,
+                      rawRssi: d.rawRssi,
+                    }
+                    : p
+                )
                 : [...prev, d];
               return [...next].sort((a, b) => b.rawRssi - a.rawRssi);
             });
@@ -661,10 +360,10 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
       offSvcFail();
 
       if (connectedDeviceRef.current) {
-        bridge.callHandler('disconnectBle', connectedDeviceRef.current, () => {});
+        bridge.callHandler('disconnectBle', connectedDeviceRef.current, () => { });
       }
 
-      bridge.callHandler('stopBleScan', '', () => {});
+      bridge.callHandler('stopBleScan', '', () => { });
     };
   };
 
@@ -673,12 +372,12 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
       setupBridge(bridge);
       readDeviceInfo();
     }
-    
+
   }, [bridge]);
 
-  
 
-  
+
+
   // console.error(bridgeInitialized, "bridgeInitialized-----466-----")
   // console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
   console.error(detectedDevices, "Detected Devices-----468")
@@ -720,23 +419,23 @@ console.error(connectedDeviceRef, "The Connected Device Reference---92---")
     }
   }, [progress, attributeList])
 
-/*  Scan-cycle effect  */
-useEffect(() => {
-  if (!bridgeHasBeenInitialized) return
+  /*  Scan-cycle effect  */
+  useEffect(() => {
+    if (!bridgeHasBeenInitialized) return
 
-  stopBleScan()                       // stop immediately
+    stopBleScan()                       // stop immediately
 
-  const id = setTimeout(() => {
-    /* give the native layer 300 ms, then start again */
-    startBleScan()
-  }, 300)
+    const id = setTimeout(() => {
+      /* give the native layer 300 ms, then start again */
+      startBleScan()
+    }, 300)
 
-  /* cleanup */
-  return () => {
-    clearTimeout(id)                  // cancel pending restart
-    stopBleScan()                     // and always stop when un-mounting
-  }
-}, [bridgeHasBeenInitialized])
+    /* cleanup */
+    return () => {
+      clearTimeout(id)                  // cancel pending restart
+      stopBleScan()                     // and always stop when un-mounting
+    }
+  }, [bridgeHasBeenInitialized])
 
 
   const startBleScan = () => {
@@ -771,12 +470,12 @@ useEffect(() => {
   // };
   const stopBleScan = () => {
     if (window.WebViewJavascriptBridge) {
-      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {})
+      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => { })
       setIsScanning(false)
     }
   }
 
-  
+
   const handleQrCode = (code: string) => {
     const currentDevices = detectedDevicesRef.current;
     const matches = currentDevices.filter((device) => {
@@ -792,42 +491,42 @@ useEffect(() => {
     }
 
   }
- 
+
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
       // toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
- 
+
     // First, ensure we have attributeList and it's an array
     if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
       console.error("AttributeList is empty or invalid");
       toast.error("Error: Device data not available yet");
       return;
     }
- 
+
     // Find the ATT_SERVICE from the attributeList - this is required for all publish operations
     const attService = attributeList.find((service: any) => service.serviceNameEnum === "ATT_SERVICE");
- 
+
     if (!attService) {
       console.error("ATT_SERVICE not found in attributeList.");
       toast.error("ATT service data is required but not available yet");
       // Queue this publish for retry after ATT service is loaded
       return;
     }
- 
+
     // Get the opid from ATT_SERVICE
     const opidChar = attService.characteristicList.find((char: any) => char.name === "opid");
- 
+
     if (!opidChar || !opidChar.realVal) {
       console.error("opid characteristic not found or has no value in ATT_SERVICE.");
       toast.error("Device ID not available");
       return;
     }
- 
+
     const opidRealVal = opidChar.realVal; // e.g., "45AH2311000102"
- 
+
     // Map service enum to match attributeList format
     const serviceTypeMap: { [key: string]: string } = {
       'ATT': 'ATT_SERVICE',
@@ -836,20 +535,20 @@ useEffect(() => {
       'DTA': 'DTA_SERVICE',
       'DIA': 'DIA_SERVICE',
     };
- 
+
     const serviceNameEnum = serviceTypeMap[serviceType] || serviceType;
- 
+
     // Find the requested service from the attributeList
     const requestedService = attributeList.find((service: any) =>
       service.serviceNameEnum === serviceNameEnum
     );
- 
+
     if (!requestedService) {
       console.error(`${serviceNameEnum} not found in attributeList.`);
       // toast.error(`${serviceType} service data not available yet`);
       return;
     }
- 
+
     // Convert service data to key-value format
     const serviceData = requestedService.characteristicList.reduce((acc: any, char: any) => {
       // Skip null or undefined values
@@ -858,14 +557,14 @@ useEffect(() => {
       }
       return acc;
     }, {});
- 
+
     // Check if we have data to publish
     if (Object.keys(serviceData).length === 0) {
       console.error(`No valid data found in ${serviceType} service.`);
       toast.error(`No data available to publish for ${serviceType}`);
       return;
     }
- 
+
     // Define the data to publish
     const dataToPublish = {
       topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
@@ -877,7 +576,7 @@ useEffect(() => {
         deviceInfo: androidId || ""
       }
     };
- 
+
     console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
     // toast(`Preparing to publish ${serviceType} data`, {
     //   duration: 2000, // Show for 2 seconds
