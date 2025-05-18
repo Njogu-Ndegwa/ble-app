@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Sidebar from '../../components/sidebar/sidebar';   // wherever you put the sidebar file
 import { User } from 'lucide-react';
-export default function MobileLayout({
+import { isAuth } from '@/lib/auth';
+ function MobileLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -38,3 +39,5 @@ export default function MobileLayout({
     </div>
   );
 }
+
+export default isAuth(MobileLayout);

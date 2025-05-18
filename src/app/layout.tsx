@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 import { BridgeProvider } from './context/bridgeContext';
-
-
+import { AuthProvider } from "./(auth)/context/auth-context";
+import apolloClient from "@/lib/apollo-client";
+import { ApolloProvider } from "@apollo/client";
 
 export default function RootLayout({
   children,
@@ -23,20 +24,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 
-    useEffect(() => {
-        import('vconsole').then((module) => {
-            const VConsole = module.default;
-            new VConsole();
-        });
-    }, []);
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <BridgeProvider>
-        {children}
-        </BridgeProvider>
+        <ApolloProvider client={apolloClient}>
+          <BridgeProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </BridgeProvider>
+        </ApolloProvider>
       </body>
     </html>
   );

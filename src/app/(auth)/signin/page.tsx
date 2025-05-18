@@ -1,138 +1,205 @@
-"use client";
-// export const metadata = {
-//   title: "Sign In - Mosaic",
-//   description: "Page description",
-// };
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import AuthHeader from "../auth-header";
-import AuthImage from "../auth-image";
-import { useAuth } from "@/lib/auth-context";
+'use client'
 
-export default function SignIn() {
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Lock, Mail, EyeOff, Eye, ArrowLeft } from 'lucide-react';
+import { Toaster, toast } from 'react-hot-toast';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../context/auth-context';
+
+const LoginPage = () => {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const { signIn, loading, error } = useAuth();
 
-  const [credentials, setCredentials] = React.useState({
-    email: "",
-    password: "",
-  });
-  const router = useRouter();
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setCredentials((prev) => ({ ...prev, [name]: value }));
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast.error('Please enter both email and password');
+      return;
+    }
+    const credentials = {
+        email:email,
+        password:password
+    }
+    signIn(credentials);
+  };
+  
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    signIn(credentials);
+  const handleBackToCustomerView = () => {
+    // Change the user role back to Customer in localStorage/AsyncStorage
+    try {
+      localStorage.setItem('userRole', 'Customer');
+      // For React Native compatibility
+      if (typeof AsyncStorage !== 'undefined') {
+        AsyncStorage.setItem('userRole', 'Customer');
+      }
+      // Navigate back to the main page
+      router.push('/');
+    } catch (error) {
+      console.error('Error changing user role:', error);
+      toast.error('Failed to switch to Customer view');
+    }
   };
 
   return (
-    <main className="bg-white dark:bg-gray-900">
-      <div className="relative md:flex">
-        {/* Content */}
-        <div className="md:w-1/2">
-          <div className="min-h-[100dvh] h-full flex flex-col after:flex-1">
-            <AuthHeader />
-
-            <div className="max-w-sm mx-auto w-full px-4 py-8">
-              <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-6">
-                Welcome back!
-              </h1>
-              {/* Form */}
-              <form onSubmit={handleSubmit}>
-                <div className="space-y-4">
-                  <div>
-                    <label
-                      className="block text-sm font-medium mb-1"
-                      htmlFor="email"
-                    >
-                      Email Address
-                    </label>
-                    <input
-                      id="email"
-                      name="email"
-                      onChange={handleChange}
-                      value={credentials.email}
-                      required
-                      className="form-input w-full"
-                      type="email"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="block text-sm font-medium mb-1"
-                      htmlFor="password"
-                    >
-                      Password
-                    </label>
-                    <input
-                      id="password"
-                      name="password"
-                      onChange={handleChange}
-                      value={credentials.password}
-                      required
-                      className="form-input w-full"
-                      type="password"
-                      autoComplete="on"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-6">
-                  <div className="mr-1">
-                    <Link
-                      className="text-sm underline hover:no-underline"
-                      href="/reset-password"
-                    >
-                      Forgot Password?
-                    </Link>
-                  </div>
-                  <button
-                    className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white ml-3"
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading ? "Signing In..." : "Sign In"}
-                  </button>
-                </div>
-              </form>
-              {error && <p style={{ color: "red" }}>{error.message}</p>}
-
-              {/* Footer */}
-              <div className="pt-5 mt-6 border-t border-gray-100 dark:border-gray-700/60">
-                <div className="text-sm">
-                  Don't you have an account?{" "}
-                  <Link
-                    className="font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400"
-                    href="/signup"
-                  >
-                    Sign Up
-                  </Link>
-                </div>
-                {/* Warning */}
-                <div className="mt-5">
-                  <div className="bg-yellow-500/20 text-yellow-700 px-3 py-2 rounded-lg">
-                    <svg
-                      className="inline w-3 h-3 shrink-0 fill-current mr-2"
-                      viewBox="0 0 12 12"
-                    >
-                      <path d="M10.28 1.28L3.989 7.575 1.695 5.28A1 1 0 00.28 6.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 1.28z" />
-                    </svg>
-                    <span className="text-sm">
-                      To support you during the pandemic super pro features are
-                      free until March 31st.
-                    </span>
-                  </div>
-                </div>
-              </div>
+    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen flex flex-col relative">
+      {/* Back Button - Absolute positioned relative to the page */}
+      <button 
+        onClick={handleBackToCustomerView}
+        className="absolute top-4 left-4 text-gray-400 hover:text-white focus:outline-none flex items-center gap-1 transition-colors z-10"
+        aria-label="Back to Customer View"
+      >
+        <ArrowLeft className="h-5 w-5" />
+        {/* <span className="text-sm">Customer View</span> */}
+      </button>
+      
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#333',
+            color: '#fff',
+            padding: '16px',
+            borderRadius: '8px',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10B981',
+              secondary: 'white',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: 'white',
+            },
+          },
+        }}
+      />
+      
+      <div className="p-8 flex-1 flex flex-col justify-center">
+        
+        {/* Logo/Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-white text-2xl font-bold mb-2">BLE Device Manager</h1>
+          <p className="text-gray-400 text-sm">Sign in to access your devices</p>
+        </div>
+        
+        {/* Login Form */}
+        <form onSubmit={handleLogin} className="space-y-6">
+          {/* Email Input */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Mail className="h-5 w-5 text-gray-500" />
+            </div>
+            <input
+              type="email"
+              className="w-full px-4 py-3 pl-10 border border-gray-700 bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          
+          {/* Password Input */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Lock className="h-5 w-5 text-gray-500" />
+            </div>
+            <input
+              type={showPassword ? "text" : "password"}
+              className="w-full px-4 py-3 pl-10 pr-10 border border-gray-700 bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+              onClick={togglePasswordVisibility}
+            >
+              {showPassword ? (
+                <EyeOff className="h-5 w-5 text-gray-500" />
+              ) : (
+                <Eye className="h-5 w-5 text-gray-500" />
+              )}
+            </button>
+          </div>
+          
+          {/* Remember Me & Forgot Password */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              {/* <input
+                id="remember-me"
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                checked={rememberMe}
+                onChange={() => setRememberMe(!rememberMe)}
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-400">
+                Remember me
+              </label> */}
+            </div>
+            <div className="text-sm">
+              <a href="/resetpwd" className="text-blue-500 hover:text-blue-400">
+                Forgot password?
+              </a>
             </div>
           </div>
+          
+          {/* Login Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white ${
+              isLoading 
+                ? 'bg-blue-700 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Signing in...
+              </>
+            ) : (
+              'Sign in'
+            )}
+          </button>
+        </form>
+        
+        {/* Create Account Link */}
+        <div className="mt-8 text-center">
+          <p className="text-gray-400 text-sm">
+            Don&apos;t have an account?{' '}
+            <a href="#" className="text-blue-500 hover:text-blue-400">
+              Contact support
+            </a>
+          </p>
         </div>
-
-        <AuthImage />
+        
+        {/* Version Info */}
+        <div className="mt-8 text-center text-xs text-gray-500">
+          <p>Version 1.2.5</p>
+        </div>
       </div>
-    </main>
+    </div>
   );
-}
+};
+
+export default LoginPage;
