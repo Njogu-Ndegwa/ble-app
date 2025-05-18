@@ -10,8 +10,6 @@ export default function MobileLayout({
 }) {
   const [open, setOpen] = useState(false);
 
-
-
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
       {open && <Sidebar onClose={() => setOpen(false)} />}
