@@ -19,7 +19,7 @@ export default function Index() {
     } else {
       // After reload, redirect to the desired page
       // sessionStorage.removeItem('hasReloaded'); // Clean up
-      window.location.replace('/assets/ble-devices'); // Redirect after reload
+      window.location.replace('/keypad/keypad'); // Redirect after reload
     }
   }, []);
   

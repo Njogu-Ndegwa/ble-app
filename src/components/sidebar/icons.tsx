@@ -1,11 +1,12 @@
 import {
     Home, Battery, BarChart4, Settings2, HelpCircle, Users,
-    Building2, UserCircle, BugPlay, LogOut, ChevronUp, ChevronDown
+    Building2, UserCircle, BugPlay, LogOut, ChevronUp, ChevronDown, Keyboard
   } from 'lucide-react';
   
   export const icons = {
     home: Home,
     battery: Battery,
+    keypad: Keyboard,
     barchart: BarChart4,
     settings: Settings2,
     help: HelpCircle,
