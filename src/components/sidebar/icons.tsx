@@ -1,6 +1,6 @@
 import {
     Home, Battery, BarChart4, Settings2, HelpCircle, Users,
-    Building2, UserCircle, BugPlay, LogOut, ChevronUp, ChevronDown, Keyboard
+    Building2, UserCircle, BugPlay, LogOut, ChevronUp, ChevronDown, Keyboard, MapPin
   } from 'lucide-react';
   
   export const icons = {
@@ -15,6 +15,7 @@ import {
     usercircle: UserCircle,
     bugplay: BugPlay,
     logout: LogOut,
+    location: MapPin,
     chevronup: ChevronUp,
     chevrondown: ChevronDown,
   } as const;

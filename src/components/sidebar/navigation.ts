@@ -45,6 +45,14 @@ export const menuConfig: {
         { id: 'payments',    label: 'Payments',     href: '/customers/payments'    },
       ],
     },
+     {
+      id: 'location',
+      label: 'Routes',
+      icon: 'location',
+      children: [
+        { id: 'routes', label: 'My Routes', href: '/location/routes' },
+      ],
+    },
     {
       id: 'team',
       label: 'Team',

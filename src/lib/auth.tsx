@@ -1,4 +1,3 @@
-// app/lib/auth.ts
 import { jwtDecode } from 'jwt-decode';
 import { redirect } from 'next/navigation';
 import { useEffect } from 'react';
@@ -93,10 +92,11 @@ export function isAuth(Component: any) {
 export const useMenuVisibility = () => {
   const decoded = getDecodedToken();
   console.log(decoded, "Decode TOken----85----")
-  const userType = decoded?.roleName || 'CUSTOMER';
-    console.log(userType, "User Type")
+  const userType = decoded?.roleName?.replace(/\s/g, '_')?.toUpperCase() || 'CUSTOMER';
+  console.log(userType, "User Type")
   const menuPermissions = {
-    SUPER_ADMIN: [    'dashboard', 'overview', 'overview1',
+    SUPER_ADMIN: [   
+    'dashboard', 'overview', 'overview1',
     'assets',        'bledevices', 'fleetview', 'devicelocator',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
@@ -107,7 +107,8 @@ export const useMenuVisibility = () => {
     'debug',         'console', 'reportissue',
     'divider-1', 'divider-2', 'divider-3',
     'logout',],
-    DISTRIBUTOR: [   'dashboard', 'overview', 'overview1',
+    DISTRIBUTOR: [   
+    'dashboard', 'overview', 'overview1',
     'assets',        'bledevices', 'fleetview', 'devicelocator',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
@@ -118,6 +119,12 @@ export const useMenuVisibility = () => {
     'debug',         'console', 'reportissue',
     'divider-1', 'divider-2', 'divider-3',
     'logout',],
+    GENERAL_AGENT: [
+    'assets', 'bledevices', 'fleetview', 'devicelocator',
+    'keypad',
+    'location', 'routes',
+    'logout',
+    ],
     CUSTOMER: ['keypad'],
   };
   type UserType = keyof typeof menuPermissions;
