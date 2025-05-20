@@ -9,7 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@apollo/client": "^3.13.8",
+    "@react-google-maps/api": "^2.20.6",
+    "@react-native-async-storage/async-storage": "^2.1.2",
     "@serwist/next": "^9.0.13",
+    "jwt-decode": "^4.0.0",
     "lucide-react": "^0.475.0",
     "next": "15.1.7",
     "react": "^19.0.0",
