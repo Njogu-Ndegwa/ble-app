@@ -27,9 +27,9 @@ import { isAuth } from '@/lib/auth';
           className="w-6 h-6 text-gray-400 cursor-pointer"
           onClick={() => setOpen(true)}
         />
-        <h2 className="text-white font-medium flex-1 text-center">
+        {/* <h2 className="text-white font-medium flex-1 text-center">
           OV&nbsp;App
-        </h2>
+        </h2> */}
         <span className="w-6 h-6" /> {/* spacer */}
       </header>
 
