@@ -98,6 +98,7 @@ export const useMenuVisibility = () => {
     SUPER_ADMIN: [   
     'dashboard', 'overview', 'overview1',
     'assets',        'bledevices', 'fleetview', 'devicelocator',
+    'mydevices', 'devices',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
     'team',          'members', 'chat',
@@ -110,6 +111,7 @@ export const useMenuVisibility = () => {
     DISTRIBUTOR: [   
     'dashboard', 'overview', 'overview1',
     'assets',        'bledevices', 'fleetview', 'devicelocator',
+    'mydevices', 'devices',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
     'team',          'members', 'chat',
