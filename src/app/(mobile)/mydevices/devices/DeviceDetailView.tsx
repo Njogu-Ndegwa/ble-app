@@ -4,8 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { Toaster, toast } from 'react-hot-toast';
-import { ArrowLeft, Share2, RefreshCw, Clipboard } from 'lucide-react';
-import { AsciiStringModal, NumericModal } from '../../../modals';
+import { ArrowLeft, Share2, RefreshCw, Clipboard, Check } from 'lucide-react';
 import { apiUrl } from '@/lib/apollo-client';
 
 interface DeviceDetailProps {
@@ -35,8 +34,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const router = useRouter();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>({});
   const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
-  const [asciiModalOpen, setAsciiModalOpen] = useState(false);
-  const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('CMD');
   const [duration, setDuration] = useState<number | null>(null);
@@ -361,26 +358,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   }
 };
 
-  return (
+ return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
       <Toaster />
-      <AsciiStringModal
-        isOpen={asciiModalOpen}
-        onClose={() => setAsciiModalOpen(false)}
-        onSubmit={(value) => handleWrite(value)}
-        title={activeCharacteristic?.name || 'Public Key / Last Code'}
-      />
-      <NumericModal
-        isOpen={numericModalOpen}
-        onClose={() => setNumericModalOpen(false)}
-        onSubmit={(value) => handleWrite(value)}
-        title={activeCharacteristic?.name || 'Read'}
-      />
       <div className="p-4 flex items-center">
         <button onClick={handleBack} className="mr-4">
           <ArrowLeft className="w-6 h-6 text-gray-400" />
         </button>
-        <h1 className="text-lg font-semibold flex-1">Device Details</h1>
+        <h1 className="text-lg font-semibold flex-1">Access Codes</h1>
         <Share2 className="w-5 h-5 text-gray-400" />
       </div>
       <div className="flex flex-col items-center p-6 pb-2">
@@ -397,13 +382,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         {isLoadingService === 'CMD' && (
           <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
             <div
-              className="bg-blue-500 h-full transition-all duration-300 ease-in-out animate-pulse"
+              className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
               style={{ width: serviceLoadingProgress > 0 ? `${serviceLoadingProgress}%` : '100%' }}
             ></div>
           </div>
         )}
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-white">CMD Service</h3>
+          {/* <h3 className="text-lg font-medium text-white">Access Codes</h3> */}
           <button
             onClick={handleRefreshService}
             className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
@@ -413,62 +398,87 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             <span>Refresh</span>
           </button>
         </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-400 mb-2">
-            Select Duration
-          </label>
-          <div className="w-full border border-gray-700 bg-gray-800 rounded-lg overflow-hidden">
-            <label
-              className={`flex items-center w-full px-4 py-2 ${
-                duration === 1 ? 'bg-gray-700' : ''
-              }`}
-            >
-              <input
-                type="radio"
-                name="duration"
-                value="1"
-                checked={duration === 1}
-                onChange={handleDurationChange}
-                className="mr-2"
-              />
-              1 Day
-            </label>
-            <label
-              className={`flex items-center w-full px-4 py-2 ${
-                duration === 3 ? 'bg-gray-700' : ''
-              }`}
-            >
-              <input
-                type="radio"
-                name="duration"
-                value="3"
-                checked={duration === 3}
-                onChange={handleDurationChange}
-                className="mr-2"
-              />
-              3 Days
-            </label>
+        <div className="mb-6">
+          <div className="flex items-center space-x-2 mb-3">
+            <label className="text-sm font-medium text-slate-300">Duration</label>
           </div>
-          <button
-            className={`w-full px-4 py-2 mt-2 rounded-lg text-white text-sm transition-colors ${
-              isSubmitting || !duration
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-            onClick={handleSubmit}
-            disabled={isSubmitting || !duration}
-          >
-            {isSubmitting ? 'Generating Code...' : 'Generate Code'}
-          </button>
-          <button
-            className={`w-full px-4 py-2 mt-2 rounded-lg text-white text-sm transition-colors ${
-              isRetrieving ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-            onClick={handleRetrieveCodes}
-            disabled={isRetrieving}
-          >
-            {isRetrieving ? 'Retrieving Codes...' : 'Retrieve Code'}
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { value: 1, label: '1 Day' },
+              { value: 3, label: '3 Days' }
+            ].map((option) => (
+              <label
+                key={option.value}
+                className={`relative cursor-pointer transition-all duration-200 ${
+                  duration === option.value
+                    ? 'transform scale-105'
+                    : 'hover:scale-102'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="duration"
+                  value={option.value}
+                  checked={duration === option.value}
+                  onChange={handleDurationChange}
+                  className="sr-only"
+                />
+                <div className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                  duration === option.value
+                    ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
+                    : 'border-slate-600 bg-slate-700/30 hover:border-slate-500'
+                }`}>
+                  <div className="text-center">
+                    <div className="font-semibold text-white">{option.label}</div>
+                  </div>
+                  {duration === option.value && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3 mb-6">
+         <button
+  className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
+    isSubmitting || !duration
+      ? 'bg-gray-500 cursor-not-allowed text-slate-400'
+      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+  }`}
+  onClick={handleSubmit}
+  disabled={isSubmitting || !duration}
+>
+  {isSubmitting ? (
+    <div className="flex items-center justify-center space-x-2">
+      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+      <span>Generating...</span>
+    </div>
+  ) : (
+    'Generate Code'
+  )}
+</button>
+
+<button
+  className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
+    isRetrieving
+      ? 'bg-slate-600 cursor-not-allowed text-slate-400'
+      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+  }`}
+  onClick={handleRetrieveCodes}
+  disabled={isRetrieving}
+>
+  {isRetrieving ? (
+    <div className="flex items-center justify-center space-x-2">
+      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+      <span>Retrieving...</span>
+    </div>
+  ) : (
+    'Retrieve Last Code'
+  )}
+</button>
         </div>
         {activeService ? (
           <div className="space-y-4">
@@ -478,8 +488,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 <div key={char.uuid} className="border border-gray-700 rounded-lg overflow-hidden">
                   <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
                     <span className="text-sm font-medium">{char.name}</span>
-                    <div className="flex space-x-2">  
-                    </div>
+                    <div className="flex space-x-2"></div>
                   </div>
                   <div className="p-4 space-y-2">
                     <div className="flex items-center justify-between group">
