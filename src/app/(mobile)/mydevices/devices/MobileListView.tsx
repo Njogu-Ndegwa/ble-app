@@ -130,31 +130,9 @@ const MobileListView: React.FC<MobileListViewProps> = ({
           {items.length === 0 && isScanning ? (
             renderSkeletons()
           ) : filteredItems.length > 0 ? (
-            filteredItems.map((item) => (
-              <div
-                key={item.macAddress}
-                className="flex items-start p-3 rounded-lg bg-[#2A2F33] cursor-pointer hover:bg-[#343a40] transition-colors"
-                onClick={() => handleDeviceClick(item.macAddress)}
-              >
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-12 h-12 rounded-full mr-3"
-                />
-                <div className="flex-1">
-                  <h3 className="text-[14px] font-medium text-white">{item.name}</h3>
-                  <p className="text-[10px] text-gray-400">{item.macAddress}</p>
-                  <p className="text-[10px] text-gray-500 mt-1">{item.rssi}</p>
-                </div>
-                <span className="text-lg">
-                  {item.macAddress === connectedDevice ? (
-                    <BluetoothConnected className="text-blue-500" />
-                  ) : (
-                    <BluetoothSearching className="text-gray-400" />
-                  )}
-                </span>
-              </div>
-            ))
+            <div className="text-center py-6 text-gray-400">
+              Scan to connect to devices.
+            </div>
           ) : (
             <div className="text-center py-6 text-gray-400">
               {searchQuery ? "No devices match your search." : "No devices found. Try scanning again."}
