@@ -28,6 +28,14 @@ export const menuConfig: {
         { id: 'devicelocator', label: 'Device Locator', href: '/assets/devicelocator' },
       ],
     },
+    {
+      id: 'mydevices',
+      label: 'My Devices',
+      icon: 'battery',
+      children: [
+        { id: 'devices',    label: 'My Devices',    href: '/mydevices/devices'     },
+      ],
+    },
         {
       id: 'keypad',
       label: 'Keypad',
