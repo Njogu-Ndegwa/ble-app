@@ -43,9 +43,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     { _id: string; codeDecString: string; codeHexString: string; createdAt: string; codeDays: number }[]
   >([]);
   const [isRetrieving, setIsRetrieving] = useState(false);
-
-  const initialDataLoadedRef = useRef<boolean>(false);
-  const heartbeatSentRef = useRef<boolean>(false);
+  const [itemId, setItemId] = useState<string | null>(null);
 
   const fixedTabs = [
     { id: 'CMD', label: 'CMD', serviceNameEnum: 'CMD_SERVICE' },
@@ -70,19 +68,75 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const activeService = attributeList.find(
     (service) => service.serviceNameEnum === 'CMD_SERVICE'
   );
-  const getDeviceId = () => {
+
+ useEffect(() => {
+  const fetchItemId = async () => {
     const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
-    if (attService) {
-      const opidChar = attService.characteristicList.find((char: any) => char.name === 'opid');
-      return opidChar?.realVal || null;
+    if (!attService) {
+      console.log('ATT_SERVICE not yet loaded, skipping fetchItemId');
+      return;
     }
-    return null;
-  };
- 
-  const deviceId = getDeviceId();
 
-  // const deviceId = "BATZ1901000034";
+    const oemItemId = attService.characteristicList.find((char: any) => char.name === 'opid')?.realVal || null;
+      if (!oemItemId) {
+        toast.error('OEM Item ID not available', { duration: 5000 });
+        return;
+      }
 
+      try {
+        const authToken = localStorage.getItem('access_token');
+        if (!authToken) {
+          toast.error('Please sign in to fetch item data', { duration: 5000 });
+          router.push('/signin');
+          return;
+        }
+
+        const query = `
+          query GetItemByOemItemId($oemItemId: ID!) {
+            getItembyOemItemId(oemItemId: $oemItemId) {
+              _id
+            }
+          }
+        `;
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            query,
+            variables: { oemItemId },
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}, Message: ${JSON.stringify(result)}`);
+        }
+
+        if (result.errors) {
+          throw new Error(`GraphQL error: ${result.errors.map((e: { message: any }) => e.message).join(', ')}`);
+        }
+
+        const fetchedItemId = result.data.getItembyOemItemId._id;
+        if (fetchedItemId) {
+          setItemId(fetchedItemId); // Store the _id in state
+          console.log('Item ID fetched successfully:', fetchedItemId);
+          // toast.success('Item ID fetched successfully', { duration: 1000 }); // Notify success
+        } else {
+          throw new Error('No item ID returned in response');
+        }
+      } catch (error) {
+        console.error('Error fetching item ID:', error);
+        toast.error(`Failed to fetch item data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    };
+
+    fetchItemId();
+}, [router, attributeList]);
   const isServiceLoaded = (serviceNameEnum: string) => {
     return attributeList.some((service) => service.serviceNameEnum === serviceNameEnum);
   };
@@ -110,13 +164,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     readBleCharacteristic(serviceUuid, characteristicUuid, device.macAddress, (data: any, error: any) => {
       setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
       if (data) {
-        // toast.success(`${name} read successfully`);
         setUpdatedValues((prev) => ({
           ...prev,
           [characteristicUuid]: data.realVal,
         }));
-      } else {
-        // toast.error(`Failed to read ${name}`);
       }
     });
   };
@@ -140,10 +191,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       value,
       device.macAddress,
       (data: any, error: any) => {
-        if (data) {
-          // toast.success(`Value written to ${pubkCharacteristic.name}`);
-        } else {
-          // toast.error(`Failed to write to ${pubkCharacteristic.name}`);
+        if (!data) {
+          toast.error(`Failed to write to ${pubkCharacteristic.name}`);
         }
       }
     );
@@ -164,177 +213,86 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleSubmit = async () => {
-  if (!deviceId) {
-    toast.error('Device ID not available');
-    return;
-  }
-  if (!duration) {
-    toast.error('Please select a duration');
-    return;
-  }
-  if (!Number.isInteger(duration) || duration < 0) {
-    toast.error('Duration must be a positive integer');
-    return;
-  }
-
-  setIsSubmitting(true);
-
-  try {
-    const authToken = localStorage.getItem('access_token');
-    if (!authToken) {
-      toast.error('Please sign in to generate a code');
-      router.push('/signin');
+    if (!itemId) {
+      toast.error('Item ID not available');
+      return;
+    }
+    if (!duration) {
+      toast.error('Please select a duration');
+      return;
+    }
+    if (!Number.isInteger(duration) || duration < 0) {
+      toast.error('Duration must be a positive integer');
       return;
     }
 
-    const query = `
-      mutation {
-        generateDaysCodeForItem(generateDaysCodeInput: {
-          itemId: "${deviceId}",
-          codeDays: ${duration}
-        }) {
-          codeType
-          codeHex
-          codeDec
-        }
+    setIsSubmitting(true);
+
+    try {
+      const authToken = localStorage.getItem('access_token');
+      if (!authToken) {
+        toast.error('Please sign in to generate a code');
+        router.push('/signin');
+        return;
       }
-    `;
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ query }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error ${response.status}: ${errorText}`);
-    }
-
-    const responseData = await response.json();
-
-    if (responseData.errors) {
-      const errorMessages = responseData.errors
-        .map((error: { message: string }) => error.message)
-        .join(', ');
-      throw new Error(`GraphQL error: ${errorMessages}`);
-    }
-
-    const { generateDaysCodeForItem } = responseData.data;
-    if (!generateDaysCodeForItem) {
-      throw new Error('No data returned from generateDaysCodeForItem');
-    }
-
-    const { codeDec } = generateDaysCodeForItem;
-    setGeneratedCode(codeDec);
-    toast.success(`Code: ${codeDec} generated Successfully`, { duration: 1000 });
-
-    console.info('attributeList:', attributeList);
-    const cmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
-    if (cmdService) {
-      console.info('cmdService:', cmdService);
-      const pubkCharacteristic = cmdService.characteristicList.find(
-        (char: any) => char.name.toLowerCase() === 'pubk'
-      );
-      console.info('pubkCharacteristic:', pubkCharacteristic?.name);
-      if (pubkCharacteristic) {
-        // Update currentValue in pubk immediately
-        setUpdatedValues((prev) => ({
-          ...prev,
-          [pubkCharacteristic.uuid]: codeDec,
-        }));
-        setActiveCharacteristic(pubkCharacteristic);
-        handleWrite(String(codeDec));
-      } else {
-        toast.error('pubk characteristic not found in CMD service');
-      }
-    } else {
-      toast.error('CMD service not available');
-    }
-  } catch (error) {
-    console.error('Error generating code:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error occurred';
-    toast.error(`Failed to generate code: ${message}`);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-  const handleRetrieveCodes = async () => {
-  if (!deviceId) {
-    toast.error('Device ID not available');
-    return;
-  }
-
-  const distributorId = localStorage.getItem('distributorId');
-  if (!distributorId) {
-    toast.error('Distributor ID not available. Please sign in.');
-    router.push('/signin');
-    return;
-  }
-
-  setIsRetrieving(true);
-
-  try {
-    const authToken = localStorage.getItem('access_token');
-    if (!authToken) {
-      toast.error('Please sign in to retrieve codes');
-      router.push('/signin');
-      return;
-    }
-
-    const query = `
-      query GetAllCodeEventsForItem {
-        getAllCodeEventsForItem(itemId: "${deviceId}", first: 1, distributorId: "${distributorId}") {
-          page {
-            edges {
-              node {
-                codeDecString
-              }
-            }
+      const query = `
+        mutation GenerateDaysCode($itemId: ID!, $codeDays: Int!) {
+          generateDaysCode(generateDaysCodeInput: {
+            itemId: $itemId,
+            codeDays: $codeDays
+          }) {
+            codeType
+            codeHex
+            codeDec
           }
         }
+      `;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          query,
+          variables: { itemId, codeDays: duration },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error ${response.status}: ${errorText}`);
       }
-    `;
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ query }),
-    });
+      const responseData = await response.json();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error ${response.status}: ${errorText}`);
-    }
+      if (responseData.errors) {
+        const errorMessages = responseData.errors
+          .map((error: { message: string }) => error.message)
+          .join(', ');
+        throw new Error(`GraphQL error: ${errorMessages}`);
+      }
 
-    const responseData = await response.json();
+      const { generateDaysCode } = responseData.data;
+      if (!generateDaysCode) {
+        throw new Error('No data returned from generateDaysCode');
+      }
 
-    if (responseData.errors) {
-      const errorMessages = responseData.errors
-        .map((error: { message: string }) => error.message)
-        .join(', ');
-      throw new Error(`GraphQL error: ${errorMessages}`);
-    }
-
-    const codeEventsData = responseData.data?.getAllCodeEventsForItem?.page?.edges || [];
-    if (codeEventsData.length > 0) {
-      const codeDec = codeEventsData[0].node.codeDecString;
+      const { codeDec } = generateDaysCode;
       setGeneratedCode(codeDec);
-      toast.success(`Code: ${codeDec} retrieved successfully`, { duration: 1000 });
+      toast.success(`Code: ${codeDec} generated successfully`, { duration: 1000 });
 
+      console.info('attributeList:', attributeList);
       const cmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
       if (cmdService) {
+        console.info('cmdService:', cmdService);
         const pubkCharacteristic = cmdService.characteristicList.find(
           (char: any) => char.name.toLowerCase() === 'pubk'
         );
+        console.info('pubkCharacteristic:', pubkCharacteristic?.name);
         if (pubkCharacteristic) {
-          // Update currentValue in pubk immediately
           setUpdatedValues((prev) => ({
             ...prev,
             [pubkCharacteristic.uuid]: codeDec,
@@ -347,18 +305,114 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       } else {
         toast.error('CMD service not available');
       }
-    } else {
-      toast.error('No codes found for this device');
+    } catch (error) {
+      console.error('Error generating code:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to generate code: ${message}`);
+    } finally {
+      setIsSubmitting(false);
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error occurred';
-    toast.error(`Failed to retrieve code: ${message}`);
-  } finally {
-    setIsRetrieving(false);
-  }
-};
+  };
 
- return (
+  const handleRetrieveCodes = async () => {
+    if (!itemId) {
+      toast.error('Item ID not available');
+      return;
+    }
+
+    const distributorId = localStorage.getItem('distributorId');
+    if (!distributorId) {
+      toast.error('Distributor ID not available. Please sign in.');
+      router.push('/signin');
+      return;
+    }
+
+    setIsRetrieving(true);
+
+    try {
+      const authToken = localStorage.getItem('access_token');
+      if (!authToken) {
+        toast.error('Please sign in to retrieve codes');
+        router.push('/signin');
+        return;
+      }
+
+      const query = `
+        query GetAllCodeEventsForSpecificItemByDistributor($itemId: ID!, $distributorId: ID!, $first: Int!) {
+          getAllCodeEventsForSpecificItemByDistributor(itemId: $itemId, distributorId: $distributorId, first: $first) {
+            page {
+              edges {
+                node {
+                  codeDecString
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          query,
+          variables: { itemId, distributorId, first: 1 },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error ${response.status}: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+
+      if (responseData.errors) {
+        const errorMessages = responseData.errors
+          .map((error: { message: string }) => error.message)
+          .join(', ');
+        throw new Error(`GraphQL error: ${errorMessages}`);
+      }
+
+      const codeEventsData = responseData.data?.getAllCodeEventsForSpecificItemByDistributor?.page?.edges || [];
+      if (codeEventsData.length > 0) {
+        const codeDec = codeEventsData[0].node.codeDecString;
+        setGeneratedCode(codeDec);
+        toast.success(`Code: ${codeDec} retrieved successfully`, { duration: 1000 });
+
+        const cmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
+        if (cmdService) {
+          const pubkCharacteristic = cmdService.characteristicList.find(
+            (char: any) => char.name.toLowerCase() === 'pubk'
+          );
+          if (pubkCharacteristic) {
+            setUpdatedValues((prev) => ({
+              ...prev,
+              [pubkCharacteristic.uuid]: codeDec,
+            }));
+            setActiveCharacteristic(pubkCharacteristic);
+            handleWrite(String(codeDec));
+          } else {
+            toast.error('pubk characteristic not found in CMD service');
+          }
+        } else {
+          toast.error('CMD service not available');
+        }
+      } else {
+        toast.error('No codes found for this device');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to retrieve code: ${message}`);
+    } finally {
+      setIsRetrieving(false);
+    }
+  };
+
+  return (
     <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
       <Toaster />
       <div className="p-4 flex items-center">
@@ -388,7 +442,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           </div>
         )}
         <div className="flex justify-between items-center mb-4">
-          {/* <h3 className="text-lg font-medium text-white">Access Codes</h3> */}
           <button
             onClick={handleRefreshService}
             className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
@@ -405,7 +458,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           <div className="grid grid-cols-2 gap-3">
             {[
               { value: 1, label: '1 Day' },
-              { value: 3, label: '3 Days' }
+              { value: 3, label: '3 Days' },
             ].map((option) => (
               <label
                 key={option.value}
@@ -423,11 +476,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                   onChange={handleDurationChange}
                   className="sr-only"
                 />
-                <div className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                  duration === option.value
-                    ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
-                    : 'border-slate-600 bg-slate-700/30 hover:border-slate-500'
-                }`}>
+                <div
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                    duration === option.value
+                      ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
+                      : 'border-slate-600 bg-slate-700/30 hover:border-slate-500'
+                  }`}
+                >
                   <div className="text-center">
                     <div className="font-semibold text-white">{option.label}</div>
                   </div>
@@ -442,43 +497,42 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           </div>
         </div>
         <div className="space-y-3 mb-6">
-         <button
-  className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-    isSubmitting || !duration
-      ? 'bg-gray-500 cursor-not-allowed text-slate-400'
-      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
-  }`}
-  onClick={handleSubmit}
-  disabled={isSubmitting || !duration}
->
-  {isSubmitting ? (
-    <div className="flex items-center justify-center space-x-2">
-      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-      <span>Generating...</span>
-    </div>
-  ) : (
-    'Generate Code'
-  )}
-</button>
-
-<button
-  className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-    isRetrieving
-      ? 'bg-slate-600 cursor-not-allowed text-slate-400'
-      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
-  }`}
-  onClick={handleRetrieveCodes}
-  disabled={isRetrieving}
->
-  {isRetrieving ? (
-    <div className="flex items-center justify-center space-x-2">
-      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-      <span>Retrieving...</span>
-    </div>
-  ) : (
-    'Retrieve Last Code'
-  )}
-</button>
+          <button
+            className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
+              isSubmitting || !duration
+                ? 'bg-gray-500 cursor-not-allowed text-slate-400'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+            }`}
+            onClick={handleSubmit}
+            disabled={isSubmitting || !duration}
+          >
+            {isSubmitting ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span>Generating...</span>
+              </div>
+            ) : (
+              'Generate Code'
+            )}
+          </button>
+          <button
+            className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
+              isRetrieving
+                ? 'bg-slate-600 cursor-not-allowed text-slate-400'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+            }`}
+            onClick={handleRetrieveCodes}
+            disabled={isRetrieving}
+          >
+            {isRetrieving ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span>Retrieving...</span>
+              </div>
+            ) : (
+              'Retrieve Last Code'
+            )}
+          </button>
         </div>
         {activeService ? (
           <div className="space-y-4">
@@ -508,7 +562,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                               ? updatedValues[char.uuid]
                               : formatValue(char);
                           navigator.clipboard.writeText(String(valueToCopy));
-                          toast.success('Value copied to clipboard');
+                          toast.success('Value copied to clipboard', { duration: 1000 });
                         }}
                         aria-label="Copy to clipboard"
                       >
