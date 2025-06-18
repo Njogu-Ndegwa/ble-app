@@ -25,6 +25,7 @@ const authLink = setContext((_, { headers }) => {
 
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors || networkError) {
+    // Handle unauthenticated errors
     if (
       graphQLErrors?.some((err) => err.extensions?.code === "UNAUTHENTICATED") ||
       (networkError && "statusCode" in networkError && networkError.statusCode === 401)
@@ -54,23 +55,24 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
               });
             })
             .catch((error) => {
-              localStorage.removeItem("access_token");
-              localStorage.removeItem("refresh_token");
-              localStorage.removeItem("distributorId");
-              window.location.href = "/signin";
+              handleLogout();
               observer.error(error);
             });
         });
       } else {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("distributorId");
-        window.location.href = "/signin";
+        handleLogout();
       }
     }
   }
   return forward(operation);
 });
+
+const handleLogout = () => {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("distributorId");
+  window.location.href = "/signin";
+};
 
 const apolloClient = new ApolloClient({
   link: ApolloLink.from([errorLink, authLink, httpLink]),
