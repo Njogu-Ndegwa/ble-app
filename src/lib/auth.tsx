@@ -1,3 +1,4 @@
+// app/lib/auth.ts
 import { jwtDecode } from 'jwt-decode';
 import { redirect } from 'next/navigation';
 import { useEffect } from 'react';
@@ -39,7 +40,7 @@ export const isAuthenticated = (): boolean => {
   return getDecodedToken() !== null;
 };
 
-const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup"] as const;
+const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider"] as const;
 
 export function isAuth(Component: any) {
   return function ProtectedPage(props: any) {
@@ -64,29 +65,6 @@ export function isAuth(Component: any) {
     return <Component {...props} />;
   };
 }
-// export function isAuth(Component: any) {
-//   return function IsAuth(props: any) {
-//     const auth = isAuthenticated;
-
-
-//     useEffect(() => {
-//       const decoded = getDecodedToken();
-//       console.log(decoded, "Decoded----41----")
-//       if (!decoded) {
-//         // redirect('/signin');
-//       }
-//     }, []);
-
-
-//     if (!auth) {
-//       return null;
-//     }
-
-//     return <Component {...props} />;
-//   };
-// }
-
-
 
 // Custom hook for menu visibility
 export const useMenuVisibility = () => {
@@ -127,7 +105,10 @@ export const useMenuVisibility = () => {
     'location', 'routes',
     'logout',
     ],
-    CUSTOMER: ['keypad'],
+    CUSTOMER: [
+    'keypad',
+    'rider', 'routes', 'station',
+],
   };
   type UserType = keyof typeof menuPermissions;
   const canViewMenu = (menuId: string): boolean => {
