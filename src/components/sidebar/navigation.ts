@@ -33,7 +33,16 @@ export const menuConfig: {
       label: 'My Devices',
       icon: 'battery',
       children: [
-        { id: 'devices',    label: 'My Devices',    href: '/mydevices/devices'     },
+        { id: 'devices',    label: 'My Device',    href: '/mydevices/devices'     },
+      ],
+    },
+    {
+      id: 'rider',
+      label: 'Rider',
+      icon: 'rider',
+      children: [
+        { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
+        { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     }
       ],
     },
         {
