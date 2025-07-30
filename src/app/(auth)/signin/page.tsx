@@ -28,8 +28,6 @@ const LoginPage = () => {
         password:password
     }
     signIn(credentials);
-
-  
   };
   
   const togglePasswordVisibility = () => {
@@ -171,7 +169,7 @@ const LoginPage = () => {
                 : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
             }`}
           >
-            {loading ? (
+            {isLoading ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -184,7 +182,7 @@ const LoginPage = () => {
             )}
           </button>
         </form>
-         {error && <p style={{ color: "red" }}>{error.message}</p>}
+        
         {/* Create Account Link */}
         <div className="mt-8 text-center">
           <p className="text-gray-400 text-sm">

@@ -1,10 +1,12 @@
-"use client";
-import React, { createContext, useState, useContext, ReactNode, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useMutation, ApolloError } from "@apollo/client";
-import { SIGN_IN_USER, REFRESH_TOKEN } from "../mutations";
+// app/lib/auth-context.tsx
+'use client';
 
-// AuthContext and Provider
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMutation, ApolloError } from '@apollo/client';
+import { SIGN_IN_USER, REFRESH_TOKEN } from '../mutations';
+import { isAuthenticated } from '@/lib/auth';
+
 interface AuthContextType {
   user: any;
   distributorId: string | null;
@@ -27,13 +29,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [signInUser] = useMutation(SIGN_IN_USER, {
     onCompleted: (data) => {
       const { accessToken, refreshToken, _id, name } = data.signInUser;
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("refresh_token", refreshToken);
-      localStorage.setItem("distributorId", _id);
-      localStorage.setItem("user", JSON.stringify({ name }));
+      localStorage.setItem('access_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem('distributorId', _id);
+      localStorage.setItem('user', JSON.stringify({ name }));
       setUser({ name });
       setDistributorId(_id);
-      router.push("/keypad/keypad");
+      // Redirect to /assets/ble-devices for authenticated users.
+      if (isAuthenticated()) {
+        router.push('/assets/ble-devices');
+      } else {
+        router.push('/keypad/keypad'); // Fallback, though this should not occur
+      }
     },
     onError: (error) => {
       setError(error);
@@ -43,8 +50,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [refreshTokenMutation] = useMutation(REFRESH_TOKEN, {
     onCompleted: (data) => {
       const { accessToken, refreshToken } = data.refreshClientAccessToken;
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("refresh_token", refreshToken);
+      localStorage.setItem('access_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
     },
     onError: (error) => {
       handleLogout();
@@ -58,9 +65,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const refreshAccessToken = async (): Promise<void> => {
-    const refreshToken = localStorage.getItem("refresh_token");
+    const refreshToken = localStorage.getItem('refresh_token');
     if (!refreshToken) {
-      throw new Error("No refresh token available");
+      throw new Error('No refresh token available');
     }
     await refreshTokenMutation({ variables: { refreshToken } });
   };
@@ -81,13 +88,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("distributorId");
-    localStorage.removeItem("user");
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('distributorId');
+    localStorage.removeItem('user');
     setUser(null);
     setDistributorId(null);
-    router.push("/signin");
+    router.push('/signin');
   };
 
   // Check online status and handle requests accordingly
@@ -97,7 +104,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const handleOffline = () => {
-      console.log("You are offline.");
+      console.log('You are offline.');
     };
 
     window.addEventListener('online', handleOnline);
@@ -111,10 +118,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Initial load of user data
   useEffect(() => {
-    const storedDistributorId = localStorage.getItem("distributorId");
-    const storedUser = localStorage.getItem("user");
-    const storedAccessToken = localStorage.getItem("access_token");
-    const storedRefreshToken = localStorage.getItem("refresh_token");
+    const storedDistributorId = localStorage.getItem('distributorId');
+    const storedUser = localStorage.getItem('user');
+    const storedAccessToken = localStorage.getItem('access_token');
+    const storedRefreshToken = localStorage.getItem('refresh_token');
 
     if (storedDistributorId) {
       setDistributorId(storedDistributorId);
@@ -123,7 +130,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(JSON.parse(storedUser));
     }
     if (storedAccessToken && storedRefreshToken && isTokenExpired(storedAccessToken)) {
-      // Refresh the token only if it has expired
       refreshAccessToken().catch(() => {
         handleLogout();
       });
@@ -140,7 +146,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

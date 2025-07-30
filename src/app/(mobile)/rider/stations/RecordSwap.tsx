@@ -87,7 +87,7 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
               <div className="space-y-4">
                 {/* Depleted Battery */}
                 <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">Depleted Battery status</h3>
+                  <h3 className="font-semibold text-gray-800 mb-2">Returned Battery status</h3>
                   <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg">
                     <div className="w-12 h-6 bg-red-500 rounded-sm relative overflow-hidden">
                       <div 
