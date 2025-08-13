@@ -89,7 +89,7 @@ export const useMenuVisibility = () => {
     DISTRIBUTOR: [   
     'dashboard', 'overview', 'overview1',
     'assets',        'bledevices', 'fleetview', 'devicelocator',
-    'mydevices', 'devices',
+    'mydevices', 'devices', 'pair', 'unpair',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
     'team',          'members', 'chat',
