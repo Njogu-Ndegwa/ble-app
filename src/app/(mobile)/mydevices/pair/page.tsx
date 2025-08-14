@@ -10,7 +10,7 @@ import { connBleByMacAddress, initServiceBleData } from "../../../utils";
 import { Toaster, toast } from "react-hot-toast";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useRouter } from "next/navigation";
-import { Mail, ArrowRight, Shield } from "lucide-react";
+import { Mail, ArrowRight, Shield, Contact } from "lucide-react";
 import { apiUrl } from "@/lib/apollo-client";
 
 let bridgeHasBeenInitialized = false;
@@ -92,8 +92,8 @@ const AppContainer = () => {
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   const [loadingService, setLoadingService] = useState<string | null>(null);
   const [androidId, setAndroidId] = useState<any>("");
-  const [email, setEmail] = useState<string>("");
-  const [isEmailSubmitted, setIsEmailSubmitted] = useState<boolean>(false);
+  const [contact, setContact] = useState<string>("");
+  const [isContactSubmitted, setIsContactSubmitted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const router = useRouter();
@@ -155,10 +155,16 @@ const AppContainer = () => {
     }
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error("Please enter a valid email address");
+    // Validate email or 10-digit phone number
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\d{10}$/;
+    const isEmail = emailRegex.test(contact);
+    const isPhone = phoneRegex.test(contact);
+
+    if (!isEmail && !isPhone) {
+      toast.error("Please enter a valid email address or 10-digit phone number");
       return;
     }
 
@@ -171,9 +177,10 @@ const AppContainer = () => {
       return;
     }
 
+    // Construct GraphQL query to search by email or phone
     const query = `
       query {
-        getAllCustomers(first: 10, search: "${email}") {
+        getAllCustomers(first: 10, search: "${contact}") {
           page {
             edges {
               node {
@@ -229,16 +236,16 @@ const AppContainer = () => {
         toast.success(
           `Customer found! ${customer.name} (ID: ${customer._id})`
         );
-        setIsEmailSubmitted(true);
+        setIsContactSubmitted(true);
       } else {
-        console.warn("No customers found for email:", email);
-        toast.error("No customers found for this email");
+        console.warn("No customers found for contact:", contact);
+        toast.error("No customers found for this email or phone number");
       }
     } catch (error: any) {
       console.error("Error fetching customer data:", {
         message: error.message,
         stack: error.stack,
-        email,
+        contact,
         apiUrl,
       });
       toast.error(
@@ -329,8 +336,8 @@ const AppContainer = () => {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
             const raw = Number(d.rssi);
-            d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
+            d.rawRssi = raw;
             d.imageUrl = getImageUrl(d.name);
 
             setDetectedDevices((prev) => {
@@ -716,7 +723,6 @@ const AppContainer = () => {
       topic: `dt/OVAPPBLE/DEVICENAME/${opidRealVal}`,
       qos: 0,
       content: {
-        // Use the service name as the key for the data object
         [serviceType.toLowerCase()]: serviceData,
         timestamp: Date.now(),
         deviceInfo: androidId || "",
@@ -857,11 +863,11 @@ const AppContainer = () => {
           },
         }}
       />
-      {!selectedDevice && !isEmailSubmitted ? (
+      {!selectedDevice && !isContactSubmitted ? (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             {/* Header */}
-            <div className="text-center mb-8">
+            <div className="text-center mb8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg mb-4">
                 <Shield className="w-8 h-8 text-white" />
               </div>
@@ -869,7 +875,7 @@ const AppContainer = () => {
                 Pair Asset Account
               </h1>
               <p className="text-gray-300 leading-relaxed">
-                Enter the customer registered email address to begin the account pairing process
+                Enter a registered email address or phone number to begin the account pairing process
               </p>
             </div>
 
@@ -882,7 +888,7 @@ const AppContainer = () => {
                     <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-semibold">1</span>
                     </div>
-                    <span className="ml-2 text-sm font-medium text-blue-400">Email Verification</span>
+                    <span className="ml-2 text-sm font-medium text-blue-400">Contact Verification</span>
                   </div>
                   <ArrowRight className="w-4 h-4 text-gray-500" />
                   <div className="flex items-center">
@@ -894,27 +900,27 @@ const AppContainer = () => {
                 </div>
               </div>
 
-              {/* Email Input Section */}
+              {/* Contact Input Section */}
               <div className="space-y-6">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-semibold text-gray-200 mb-3">
-                    Email Address
+                  <label htmlFor="contact" className="block text-sm font-semibold text-gray-200 mb-3">
+                    Email or Phone Number
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
+                      <Contact className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      id="contact"
+                      type="text"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          handleEmailSubmit(e);
+                          handleContactSubmit(e);
                         }
                       }}
-                      placeholder="Enter your registered email"
+                      placeholder="Email or phone number"
                       className="w-full pl-12 pr-4 py-4 bg-gray-700/80 border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-100 placeholder-gray-400"
                       disabled={isLoading}
                     />
@@ -922,8 +928,8 @@ const AppContainer = () => {
                 </div>
 
                 <button
-                  onClick={handleEmailSubmit}
-                  disabled={isLoading || !email}
+                  onClick={handleContactSubmit}
+                  disabled={isLoading || !contact}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg flex items-center justify-center space-x-2"
                 >
                   {isLoading ? (
@@ -950,6 +956,7 @@ const AppContainer = () => {
           onScanQrCode={startQrCodeScan}
           onRescanBleItems={handleBLERescan}
           isScanning={isScanning}
+          onSubmitQrCode={handleQrCode} // Add this prop
         />
       ) : (
         <DeviceDetailView
