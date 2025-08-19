@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import MobileListView from "./MobileListView";
 import DeviceDetailView from "./DeviceDetailView";
-import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import ProgressiveLoading from "../../../../components/loader/progressiveLoading";
 import { connBleByMacAddress, initServiceBleData } from "../../../utils";
@@ -86,6 +85,7 @@ const AppContainer = () => {
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   const [loadingService, setLoadingService] = useState<string | null>(null);
   const [androidId, setAndroidId] = useState<any>("");
+  const [ignoreProgressSet, setIgnoreProgressSet] = useState(false);
   // Find the selected device data
   const deviceDetails = selectedDevice
     ? detectedDevices.find((device) => device.macAddress === selectedDevice)
@@ -107,7 +107,7 @@ const AppContainer = () => {
   useEffect(() => {
     detectedDevicesRef.current = detectedDevices;
   }, [detectedDevices]);
-  useEffect(() => {
+    useEffect(() => {
     // 1) Push a dummy history entry when we open the detail view
     if (selectedDevice) {
       window.history.pushState(
@@ -130,12 +130,22 @@ const AppContainer = () => {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [selectedDevice]);
+  
 
   const handleDeviceSelect = (deviceId: string) => {
     setSelectedDevice(deviceId);
   };
 
   const handleBackToList = () => {
+    setIgnoreProgressSet(true); // Set guard first to skip useEffect logic
+  setSelectedDevice(null);
+  setConnectingDeviceId(null); // Clear connecting device
+  setIsConnecting(false); // Ensure no connection is in progress
+  setServiceAttrList([]); // Clear service attributes
+  setAtrrList([]); // Clear attribute list
+  setConnectedDevice(null); // Clear connected device
+  setLoadingService(null); // Clear loading service
+  setProgress(0); // Reset progress
     setSelectedDevice(null);
   };
 
@@ -480,15 +490,22 @@ const AppContainer = () => {
 
   console.info(isMqttConnected, "Is Mqtt Connected");
   useEffect(() => {
-    if (progress === 100 && attributeList.length > 0) {
-      setIsConnecting(false); // Connection process complete
-      setSelectedDevice(connectingDeviceId);
-      setAtrrList(attributeList);
-      // console.info(attributeList, "Attribute List -----441----")
+  console.log('Progress useEffect triggered with progress:', progress, 'attributeList.length:', attributeList.length, 'ignoreProgressSet:', ignoreProgressSet);
+  
+  if (ignoreProgressSet) {
+    setIgnoreProgressSet(false);
+    return;
+  }
 
-      handlePublish(attributeList, loadingService);
-    }
-  }, [progress, attributeList]);
+  if (progress === 100 && attributeList.length > 0) {
+    setIsConnecting(false); // Connection process complete
+    setSelectedDevice(connectingDeviceId);
+    setAtrrList(attributeList);
+    // console.info(attributeList, "Attribute List -----441----")
+
+    handlePublish(attributeList, loadingService);
+  }
+}, [progress, attributeList, ignoreProgressSet, connectingDeviceId, loadingService]); // Added ignoreProgressSet to deps
 
   /*  Scan-cycle effect  */
   useEffect(() => {
@@ -590,7 +607,7 @@ const AppContainer = () => {
 
     if (!attService) {
       console.error("ATT_SERVICE not found in attributeList.");
-      toast.error("ATT service data is required but not available yet");
+      // toast.error("ATT service data is required but not available yet");
       // Queue this publish for retry after ATT service is loaded
       return;
     }
@@ -815,6 +832,7 @@ const AppContainer = () => {
           onScanQrCode={startQrCodeScan}
           onRescanBleItems={handleBLERescan}
           isScanning={isScanning}
+            onSubmitQrCode={handleQrCode} // Add this prop
         />
       ) : (
         <DeviceDetailView
