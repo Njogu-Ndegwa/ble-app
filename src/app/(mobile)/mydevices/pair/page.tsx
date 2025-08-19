@@ -164,7 +164,9 @@ const AppContainer = () => {
     const isPhone = phoneRegex.test(contact);
 
     if (!isEmail && !isPhone) {
-      toast.error("Please enter a valid email address or 10-digit phone number");
+      toast.error(
+        "Please enter a valid email address or 10-digit phone number"
+      );
       return;
     }
 
@@ -217,14 +219,17 @@ const AppContainer = () => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("API Error Response:", errorText);
-        throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+        throw new Error(
+          `HTTP error! Status: ${response.status} - ${errorText}`
+        );
       }
 
       const result = await response.json();
       console.log("API Response Data:", result);
 
       if (result.errors) {
-        const errorMessage = result.errors[0]?.message || "GraphQL query failed";
+        const errorMessage =
+          result.errors[0]?.message || "GraphQL query failed";
         console.error("GraphQL Errors:", result.errors);
         throw new Error(errorMessage);
       }
@@ -233,9 +238,7 @@ const AppContainer = () => {
       if (customers.length > 0) {
         const customer = customers[0].node;
         sessionStorage.setItem("customerId", customer._id);
-        toast.success(
-          `Customer found! ${customer.name} (ID: ${customer._id})`
-        );
+        toast.success(`Customer found! ${customer.name} (ID: ${customer._id})`);
         setIsContactSubmitted(true);
       } else {
         console.warn("No customers found for contact:", contact);
@@ -422,9 +425,10 @@ const AppContainer = () => {
       try {
         const p = JSON.parse(data);
         const qrVal = p.respData.value || "";
-        handleQrCode(qrVal.slice(-6).toLowerCase());
+        handleQrCode(qrVal); // Pass full QR code without slicing or lowercasing
       } catch (err) {
         console.error("Error processing QR code data:", err);
+        toast.error("Failed to process scanned QR code", { duration: 10000 });
       }
       resp(data);
     });
@@ -627,20 +631,133 @@ const AppContainer = () => {
     }
   };
 
-  const handleQrCode = (code: string) => {
-    const currentDevices = detectedDevicesRef.current;
-    const matches = currentDevices.filter((device) => {
-      const name = (device.name || "").toLowerCase();
-      const last6FromName = name.slice(-6);
-      return last6FromName === code;
-    });
+  const handleQrCode = async (code: string) => {
+    console.warn('handleQrCode called with code:', code);
+    console.log('Current devices:', JSON.stringify(detectedDevicesRef.current, null, 2));
 
-    if (matches.length === 1) {
-      startConnection(matches[0].macAddress);
-    } else {
-      toast.error(
-        "There was a problem connecting with device. Try doing it manually."
-      );
+    // Show loading toast for 15 seconds
+    const toastId = toast.loading('Checking device...', { duration: 15000 });
+
+    try {
+      // Validate code
+      if (!code) {
+        toast.error('No QR code provided', { duration: 10000 });
+        console.error('No QR code provided');
+        return;
+      }
+
+      const currentDevices = detectedDevicesRef.current;
+      const matches = currentDevices.filter((device) => {
+        const name = (device.name || "").toLowerCase();
+        const last6FromName = name.slice(-6);
+        return last6FromName === code.slice(-6).toLowerCase();
+      });
+
+      console.warn('Matches found:', JSON.stringify(matches, null, 2));
+
+      if (matches.length !== 1) {
+        toast.error('There was a problem connecting with device. Try doing it manually.', { duration: 10000 });
+        console.error('Invalid number of device matches:', matches.length);
+        return;
+      }
+
+      const authToken = localStorage.getItem('access_token');
+      if (!authToken) {
+        toast.error('Please sign in to connect with device', { duration: 10000 });
+        console.error('No auth token found');
+        return;
+      }
+
+      const distributorId = localStorage.getItem('distributorId');
+      if (!distributorId) {
+        toast.error('Distributor ID not found in local storage', { duration: 10000 });
+        console.error('No distributorId found in localStorage');
+        return;
+      }
+
+      const query = `
+        query GetClientItems {
+          getAllClientItems(
+            pagination: OFFSET
+            limit: 10
+            offset: 0
+            clientId: "${distributorId}"
+            assetaccount: true
+            queryorder: ASC
+            search: "${code}"
+          ) {
+            page {
+              edges {
+                node {
+                  _id
+                }
+                cursor
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            pageData {
+              count
+              limit
+              offset
+            }
+          }
+        }
+      `;
+
+      console.log('apiUrl:', apiUrl);
+      console.warn('Sending GraphQL query with code:', code, 'and distributorId:', distributorId);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+          'Cache-Control': 'no-store',
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      const result = await response.json();
+      console.log('GraphQL response:', JSON.stringify(result, null, 2));
+
+      if (!response.ok) {
+        const errorMessage = `HTTP error! Status: ${response.status}, Message: ${JSON.stringify(result)}`;
+        toast.error(errorMessage, { duration: 10000 });
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      if (result.errors) {
+        const errorMessage = `GraphQL error: ${result.errors.map((e: { message: any }) => e.message).join(', ')}`;
+        toast.error(errorMessage, { duration: 10000 });
+        console.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      const edges = result.data?.getAllClientItems?.page?.edges || [];
+      console.log('Edges:', JSON.stringify(edges, null, 2));
+
+      if (edges.length > 0 && edges[0].node?._id) {
+        const deviceId = edges[0].node._id;
+        console.log('Device ID found:', deviceId);
+        toast.success(`Device found with ID: ${deviceId}. Connecting...`, { duration: 10000 });
+        startConnection(matches[0].macAddress);
+      } else {
+        console.log('No _id found in response, connection aborted');
+        toast.error('Unable to connect because device does not belong to that distributor', { duration: 10000 });
+      }
+    } catch (error) {
+      console.error('Error checking device ownership:', error);
+      const errorMessage = error instanceof Error ? `Failed to connect: ${error.message}` : 'There was a problem connecting with device. Try doing it manually.';
+      toast.error(errorMessage, { duration: 10000 });
+    } finally {
+      // Ensure loading toast is dismissed (though duration: 15000 handles this after 15 seconds)
+      toast.dismiss(toastId);
     }
   };
 
@@ -875,7 +992,8 @@ const AppContainer = () => {
                 Pair Asset Account
               </h1>
               <p className="text-gray-300 leading-relaxed">
-                Enter a registered email address or phone number to begin the account pairing process
+                Enter a registered email address or phone number to begin the
+                account pairing process
               </p>
             </div>
 
@@ -886,16 +1004,24 @@ const AppContainer = () => {
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center">
                     <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-semibold">1</span>
+                      <span className="text-white text-sm font-semibold">
+                        1
+                      </span>
                     </div>
-                    <span className="ml-2 text-sm font-medium text-blue-400">Contact Verification</span>
+                    <span className="ml-2 text-sm font-medium text-blue-400">
+                      Contact Verification
+                    </span>
                   </div>
                   <ArrowRight className="w-4 h-4 text-gray-500" />
                   <div className="flex items-center">
                     <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                      <span className="text-gray-400 text-sm font-semibold">2</span>
+                      <span className="text-gray-400 text-sm font-semibold">
+                        2
+                      </span>
                     </div>
-                    <span className="ml-2 text-sm font-medium text-gray-500">Account Pairing</span>
+                    <span className="ml-2 text-sm font-medium text-gray-500">
+                      Account Pairing
+                    </span>
                   </div>
                 </div>
               </div>
@@ -903,7 +1029,10 @@ const AppContainer = () => {
               {/* Contact Input Section */}
               <div className="space-y-6">
                 <div>
-                  <label htmlFor="contact" className="block text-sm font-semibold text-gray-200 mb-3">
+                  <label
+                    htmlFor="contact"
+                    className="block text-sm font-semibold text-gray-200 mb-3"
+                  >
                     Email or Phone Number
                   </label>
                   <div className="relative">
@@ -916,7 +1045,7 @@ const AppContainer = () => {
                       value={contact}
                       onChange={(e) => setContact(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === "Enter") {
                           handleContactSubmit(e);
                         }
                       }}
@@ -960,7 +1089,7 @@ const AppContainer = () => {
         />
       ) : (
         <DeviceDetailView
-        //@ts-ignore
+          //@ts-ignore
           device={deviceDetails}
           attributeList={attrList}
           onBack={handleBackToList}
