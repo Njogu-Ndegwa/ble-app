@@ -40,7 +40,7 @@ export const isAuthenticated = (): boolean => {
   return getDecodedToken() !== null;
 };
 
-const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider", "/ota"] as const;
+const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider"] as const;
 
 export function isAuth(Component: any) {
   return function ProtectedPage(props: any) {
@@ -92,7 +92,7 @@ export const useMenuVisibility = () => {
     'mydevices', 'devices', 'pair', 'unpair',
     'ota', 'deviceota', 'upload',
     'keypad',        // (the child is also keypad)
-    'customers',     'myportfolio', 'payments',
+    'customers',     'myportfolio', 'customerform',
     'team',          'members', 'chat',
     'company',       'request', 'updates',
     'myaccount',     'resetpassword',
@@ -102,6 +102,7 @@ export const useMenuVisibility = () => {
     'logout',],
     GENERAL_AGENT: [
     'assets', 'bledevices', 'fleetview', 'devicelocator',
+    'customers',     'myportfolio', 'customerform',
     'keypad',
     'location', 'routes',
     'logout',

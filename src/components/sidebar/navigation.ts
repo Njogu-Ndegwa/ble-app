@@ -64,11 +64,12 @@ export const menuConfig: {
         { id: 'keypad',    label: 'Keypad',    href: '/keypad/keypad'     },
       ],
     },
-    {
+     {
       id: 'customers',
       label: 'Customers',
       icon: 'barchart',
       children: [
+        { id: 'customerform', label: 'Customer Acquisition Form', href: '/customers/customerform' },
         { id: 'myportfolio', label: 'My Portfolio', href: '/customers/myportfolio' },
         { id: 'payments',    label: 'Payments',     href: '/customers/payments'    },
       ],
