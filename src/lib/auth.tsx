@@ -40,7 +40,7 @@ export const isAuthenticated = (): boolean => {
   return getDecodedToken() !== null;
 };
 
-const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider"] as const;
+const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider", "/ota"] as const;
 
 export function isAuth(Component: any) {
   return function ProtectedPage(props: any) {
