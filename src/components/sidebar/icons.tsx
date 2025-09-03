@@ -1,6 +1,6 @@
 import {
     Home, Battery, BarChart4, Settings2, HelpCircle, Users,
-    Building2, UserCircle, BugPlay, LogOut, ChevronUp, ChevronDown, Keyboard, MapPin, Bike
+    Building2, UserCircle, BugPlay, LogOut, ChevronUp, ChevronDown, Keyboard, MapPin, Bike, Cloud
   } from 'lucide-react';
   
   export const icons = {
@@ -19,5 +19,6 @@ import {
     chevronup: ChevronUp,
     chevrondown: ChevronDown,
     rider: Bike,
+    cloud: Cloud
   } as const;
   

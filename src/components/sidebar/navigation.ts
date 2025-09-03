@@ -38,6 +38,15 @@ export const menuConfig: {
         { id: 'unpair', label: 'UnPair Asset Account', href: '/mydevices/unpair'},
       ],
     },
+     {
+      id: 'ota',
+      label: 'OTA',
+      icon: 'cloud',
+      children: [
+        { id: 'upload',    label: 'Upload Files',    href: '/ota/upload'},
+        { id: 'deviceota',    label: 'Device OTA',    href: '/ota/deviceota'},
+      ],
+    },
     {
       id: 'rider',
       label: 'Rider',
