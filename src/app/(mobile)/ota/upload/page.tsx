@@ -1,7 +1,6 @@
 "use client";
-
 import React, { useState, useRef } from 'react';
-import { Upload, Download, Edit3, Trash2, File, Image, Music, Video, FileText, Plus } from 'lucide-react';
+import { Upload, Download, Edit3, Trash2, File, FileText, Plus, Archive } from 'lucide-react';
 
 interface FileItem {
   id: number;
@@ -19,12 +18,16 @@ export default function FileUploadPage() {
   const [newFileName, setNewFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) return <Image className="w-6 h-6 text-blue-500" />;
-    if (fileType.startsWith('audio/')) return <Music className="w-6 h-6 text-green-500" />;
-    if (fileType.startsWith('video/')) return <Video className="w-6 h-6 text-purple-500" />;
-    if (fileType.includes('text') || fileType.includes('document')) return <FileText className="w-6 h-6 text-orange-500" />;
-    return <File className="w-6 h-6 text-gray-500" />;
+  const getFileIcon = (fileType: string, fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    
+    if (extension === 'pdf') return <FileText className="w-6 h-6 text-red-500" />;
+    if (extension === 'hex16') return <Archive className="w-6 h-6 text-purple-500" />;
+    if (extension === 'doc' || extension === 'docx') return <FileText className="w-6 h-6 text-blue-500" />;
+    if (extension === 'txt') return <FileText className="w-6 h-6 text-gray-500" />;
+    if (extension === 'xls' || extension === 'xlsx') return <FileText className="w-6 h-6 text-green-500" />;
+    if (extension === 'ppt' || extension === 'pptx') return <FileText className="w-6 h-6 text-orange-500" />;
+    return <File className="w-6 h-6 text-gray-600" />;
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -37,8 +40,8 @@ export default function FileUploadPage() {
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     console.log('File select triggered', event.target.files);
-    
     const selectedFiles = Array.from(event.target.files || []);
+    
     if (selectedFiles.length === 0) {
       console.log('No files selected');
       return;
@@ -60,7 +63,7 @@ export default function FileUploadPage() {
 
       setFiles((prevFiles: FileItem[]) => [...prevFiles, ...newFiles]);
       setIsUploading(false);
-      
+
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -90,7 +93,7 @@ export default function FileUploadPage() {
   const startEdit = (fileItem: FileItem) => {
     setEditingFile(fileItem.id);
     const nameWithoutExtension = fileItem.name.includes('.') 
-      ? fileItem.name.substring(0, fileItem.name.lastIndexOf('.'))
+      ? fileItem.name.substring(0, fileItem.name.lastIndexOf('.')) 
       : fileItem.name;
     setNewFileName(nameWithoutExtension);
   };
@@ -102,10 +105,7 @@ export default function FileUploadPage() {
       if (file.id === fileId) {
         const extension = file.name.includes('.') ? file.name.split('.').pop() : '';
         const newName = extension ? `${newFileName.trim()}.${extension}` : newFileName.trim();
-        return {
-          ...file,
-          name: newName
-        };
+        return { ...file, name: newName };
       }
       return file;
     }));
@@ -120,7 +120,10 @@ export default function FileUploadPage() {
   };
 
   const triggerFileSelect = () => {
-    fileInputRef.current?.click();
+    console.log('Triggering file select...');
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, fileId: number) => {
@@ -136,24 +139,23 @@ export default function FileUploadPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Upload Files</h1>
-          <p className="text-gray-600">Browse, upload, and manage your files</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Upload Documents</h1>
+          <p className="text-gray-600">Browse and upload PDF, HEX16, and other document files</p>
         </div>
 
         {/* Upload Section */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
           <input
             type="file"
-            id="file-upload"
+            id="document-upload"
             ref={fileInputRef}
             onChange={handleFileSelect}
             multiple
             className="hidden"
-            accept="*/*"
+            accept=".pdf,.hex16,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.csv,.json,.xml,.zip,.rar,.7z"
           />
           
-          <label 
-            htmlFor="file-upload"
+          <div
             className="block border-2 border-dashed border-blue-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors active:bg-blue-100"
             onClick={triggerFileSelect}
           >
@@ -165,11 +167,12 @@ export default function FileUploadPage() {
             ) : (
               <div className="flex flex-col items-center">
                 <Plus className="w-12 h-12 text-blue-500 mb-4" />
-                <p className="text-lg font-medium text-gray-900 mb-2">Choose files to upload</p>
-                <p className="text-gray-500">Tap here to browse your device</p>
+                <p className="text-lg font-medium text-gray-900 mb-2">Choose documents to upload</p>
+                <p className="text-gray-500 mb-2">Tap here to browse your device</p>
+                <p className="text-sm text-gray-400">Supports: PDF, HEX16, DOC, TXT, XLS, and more</p>
               </div>
             )}
-          </label>
+          </div>
         </div>
 
         {/* Files List */}
@@ -178,13 +181,14 @@ export default function FileUploadPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
               Uploaded Files ({files.length})
             </h2>
-            
             <div className="space-y-3">
               {files.map((fileItem: FileItem) => (
-                <div key={fileItem.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div
+                  key={fileItem.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                >
                   <div className="flex items-center space-x-4 flex-1 min-w-0 mb-3 sm:mb-0">
-                    {getFileIcon(fileItem.type)}
-                    
+                    {getFileIcon(fileItem.type, fileItem.name)}
                     <div className="flex-1 min-w-0">
                       {editingFile === fileItem.id ? (
                         <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
@@ -233,7 +237,6 @@ export default function FileUploadPage() {
                       >
                         <Download className="w-5 h-5" />
                       </button>
-                      
                       <button
                         onClick={() => startEdit(fileItem)}
                         className="flex-1 sm:flex-none p-3 text-green-600 hover:bg-green-100 active:bg-green-200 rounded-lg transition-colors touch-manipulation"
@@ -241,7 +244,6 @@ export default function FileUploadPage() {
                       >
                         <Edit3 className="w-5 h-5" />
                       </button>
-                      
                       <button
                         onClick={() => handleDelete(fileItem.id)}
                         className="flex-1 sm:flex-none p-3 text-red-600 hover:bg-red-100 active:bg-red-200 rounded-lg transition-colors touch-manipulation"
@@ -260,7 +262,7 @@ export default function FileUploadPage() {
         {files.length === 0 && !isUploading && (
           <div className="text-center py-12">
             <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">No files uploaded yet</p>
+            <p className="text-gray-500 text-lg">No documents uploaded yet</p>
             <p className="text-gray-400">Upload some files to get started</p>
           </div>
         )}
@@ -268,7 +270,6 @@ export default function FileUploadPage() {
     </div>
   );
 }
-//working
 // "use client";
 
 // import React, { useState, useRef } from 'react';
@@ -391,16 +392,7 @@ export default function FileUploadPage() {
 //   };
 
 //   const triggerFileSelect = () => {
-//     // Multiple approaches for better WebView compatibility
-//     if (fileInputRef.current) {
-//       fileInputRef.current.click();
-//     }
-    
-//     // Fallback: Try to trigger the labeled input
-//     const labeledInput = document.getElementById('file-upload');
-//     if (labeledInput && !fileInputRef.current) {
-//       labeledInput.click();
-//     }
+//     fileInputRef.current?.click();
 //   };
 
 //   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>, fileId: number) => {
@@ -424,6 +416,7 @@ export default function FileUploadPage() {
 //         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
 //           <input
 //             type="file"
+//             id="file-upload"
 //             ref={fileInputRef}
 //             onChange={handleFileSelect}
 //             multiple
@@ -431,10 +424,10 @@ export default function FileUploadPage() {
 //             accept="*/*"
 //           />
           
-//           {/* Visible upload button for mobile */}
 //           <label 
 //             htmlFor="file-upload"
 //             className="block border-2 border-dashed border-blue-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors active:bg-blue-100"
+//             onClick={triggerFileSelect}
 //           >
 //             {isUploading ? (
 //               <div className="flex flex-col items-center">
@@ -449,16 +442,6 @@ export default function FileUploadPage() {
 //               </div>
 //             )}
 //           </label>
-
-//           {/* Alternative input for better mobile support */}
-//           <input
-//             id="file-upload"
-//             type="file"
-//             onChange={handleFileSelect}
-//             multiple
-//             className="hidden"
-//             accept="*/*"
-//           />
 //         </div>
 
 //         {/* Files List */}
