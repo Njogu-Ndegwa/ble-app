@@ -53,7 +53,8 @@ export const menuConfig: {
       icon: 'rider',
       children: [
         { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
-        { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     }
+        { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     },
+        { id: 'serviceplan', label: 'Rider', href: '/rider/serviceplan'}
       ],
     },
         {

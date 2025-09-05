@@ -109,7 +109,7 @@ export const useMenuVisibility = () => {
     ],
     CUSTOMER: [
     'keypad',
-    'rider', 'routes', 'station',
+    'rider', 'routes', 'station', 'serviceplan',
 ],
   };
   type UserType = keyof typeof menuPermissions;
