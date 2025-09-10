@@ -110,7 +110,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWriteClick = (characteristic: any) => {
     setActiveCharacteristic(characteristic);
-    if (characteristic.name.toLowerCase().includes('pubk')) {
+    if (characteristic.name.toLowerCase().includes('pubk') || characteristic.name.toLowerCase().includes('napn')) {
       setAsciiModalOpen(true);
     } else {
       setNumericModalOpen(true);
@@ -157,7 +157,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         isOpen={asciiModalOpen}
         onClose={() => setAsciiModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
-        title={activeCharacteristic?.name || 'Public Key / Last Code'}
+        title={activeCharacteristic?.name || 'Public Key / Last Code / GPRS Carrier APN Name'}
       />
       <NumericModal
         isOpen={numericModalOpen}
@@ -222,7 +222,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             isLoading={isLoadingService !== null}
             handlePublish={handlePublish}
             initialDataLoadedRef={initialDataLoadedRef}
-            heartbeatSentRef={heartbeatSentRef} // Pass heartbeatSentRef
+            heartbeatSentRef={heartbeatSentRef}
           />
         ) : (
           <>
