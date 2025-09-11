@@ -47,14 +47,16 @@ export const menuConfig: {
         { id: 'deviceota',    label: 'Device OTA',    href: '/ota/deviceota'},
       ],
     },
-    {
+     {
       id: 'rider',
       label: 'Rider',
       icon: 'rider',
       children: [
-        { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
-        { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     },
-        { id: 'serviceplan', label: 'Rider', href: '/rider/serviceplan'}
+        // { id: 'rider', label: 'Rider swap', href: '/rider/test'},
+        // { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
+        // { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     },
+        // { id: 'serviceplan', label: 'Rider', href: '/rider/serviceplan'},
+        { id: 'serviceplan1', label: 'Rider Portal', href: '/rider/serviceplan1'}
       ],
     },
         {
