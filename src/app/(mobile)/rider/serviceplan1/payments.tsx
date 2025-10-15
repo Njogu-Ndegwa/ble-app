@@ -34,15 +34,15 @@ const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
 
   return (
     <div className="space-y-6 p-4">
-      <div className="text-center">
+      {/* <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2">Payment History</h1>
         <p className="text-gray-400">View all your transactions and payment details</p>
-      </div>
+      </div> */}
 
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-4">
           <CreditCard className="w-5 h-5 text-gray-400" />
-          <h2 className="text-lg font-semibold text-white">All Transactions</h2>
+          <h2 className="text-lg font-semibold text-white">Transactions</h2>
         </div>
 
         {paymentHistory.length > 0 ? (

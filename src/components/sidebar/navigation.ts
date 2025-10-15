@@ -28,38 +28,32 @@ export const menuConfig: {
         { id: 'devicelocator', label: 'Device Locator', href: '/assets/devicelocator' },
       ],
     },
-     {
+    {
       id: 'mydevices',
       label: 'My Devices',
       icon: 'battery',
       children: [
-        { id: 'devices',    label: 'My Device',    href: '/mydevices/devices'     },
-        { id: 'pair', label: 'Pair Asset Account', href: '/mydevices/pair'},
-        { id: 'unpair', label: 'UnPair Asset Account', href: '/mydevices/unpair'},
+        { id: 'devices',    label: 'My Device',    href: '/mydevices/devices'},
       ],
     },
-     {
-      id: 'ota',
-      label: 'OTA',
-      icon: 'cloud',
-      children: [
-        { id: 'upload',    label: 'Upload Files',    href: '/ota/upload'},
-        { id: 'deviceota',    label: 'Device OTA',    href: '/ota/deviceota'},
-      ],
-    },
-     {
+    {
       id: 'rider',
       label: 'Rider',
       icon: 'rider',
       children: [
-        // { id: 'rider', label: 'Rider swap', href: '/rider/test'},
-        // { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
-        // { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     },
-        // { id: 'serviceplan', label: 'Rider', href: '/rider/serviceplan'},
         { id: 'serviceplan1', label: 'Rider Portal', href: '/rider/serviceplan1'}
       ],
     },
-        {
+    {
+      id: 'ticketing',
+      label: 'Support',
+      icon: 'help',
+      children: [
+        { id: 'support',    label: 'Support',    href: '/ticketing/support'     },
+     
+      ],
+    },
+    {
       id: 'keypad',
       label: 'Keypad',
       icon: 'keypad',
@@ -67,12 +61,11 @@ export const menuConfig: {
         { id: 'keypad',    label: 'Keypad',    href: '/keypad/keypad'     },
       ],
     },
-     {
+    {
       id: 'customers',
       label: 'Customers',
       icon: 'barchart',
       children: [
-        { id: 'customerform', label: 'Customer Acquisition Form', href: '/customers/customerform' },
         { id: 'myportfolio', label: 'My Portfolio', href: '/customers/myportfolio' },
         { id: 'payments',    label: 'Payments',     href: '/customers/payments'    },
       ],

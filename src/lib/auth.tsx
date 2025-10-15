@@ -1,6 +1,5 @@
 // app/lib/auth.ts
 import { jwtDecode } from 'jwt-decode';
-import { redirect } from 'next/navigation';
 import { useEffect } from 'react';
 import { useRouter, usePathname } from "next/navigation";
 interface DecodedToken {
@@ -79,6 +78,7 @@ export const useMenuVisibility = () => {
     'mydevices', 'devices',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
+    'ticketing', 'support',
     'team',          'members', 'chat',
     'company',       'request', 'updates',
     'myaccount',     'resetpassword',
@@ -88,11 +88,11 @@ export const useMenuVisibility = () => {
     'logout',],
     DISTRIBUTOR: [   
     'dashboard', 'overview', 'overview1',
-    'assets',        'bledevices', 'fleetview', 'devicelocator',
-    'mydevices', 'devices', 'pair', 'unpair',
-    'ota', 'deviceota', 'upload',
+    'assets',        'bledevices',
+    'mydevices', 'devices',
     'keypad',        // (the child is also keypad)
-    'customers',     'myportfolio', 'customerform',
+    'customers',     'myportfolio','payments',
+    'ticketing', 'support',
     'team',          'members', 'chat',
     'company',       'request', 'updates',
     'myaccount',     'resetpassword',
@@ -101,16 +101,15 @@ export const useMenuVisibility = () => {
     'divider-1', 'divider-2', 'divider-3',
     'logout',],
     GENERAL_AGENT: [
-    'assets', 'bledevices', 'fleetview', 'devicelocator',
-    'customers',     'myportfolio', 'customerform',
+    'assets', 'bledevices',
     'keypad',
     'location', 'routes',
+    'ticketing', 'support',
     'logout',
     ],
-     CUSTOMER: [
+    CUSTOMER: [
     'keypad',
     'rider','serviceplan1',
-    // 'rider', 'routes', 'station', 'serviceplan', 'serviceplan1'
 ],
   };
   type UserType = keyof typeof menuPermissions;

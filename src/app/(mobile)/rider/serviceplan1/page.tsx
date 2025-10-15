@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import {
-  LogIn,
-  User,
   Loader2,
   Wallet,
   LayoutDashboard,
@@ -14,19 +12,26 @@ import {
   LogOut,
   X,
   MapPin,
+  User,
+  HelpCircle,
 } from "lucide-react";
 import Dashboard from "./dashboard";
 import Products from "./products";
 import Payments from "./payments";
 import ChargingStationFinder from "./ChargingStationFinder";
-import { useBridge } from "@/app/context/bridgeContext"; // Import useBridge hook
+import Login from "./login";
+import Ticketing from "./ticketing";
+import { useBridge } from "@/app/context/bridgeContext";
+
+let bridgeHasBeenInitialized = false;
 
 // Define interfaces
 interface ServicePlan {
   name: string;
-  duration: string;
   price: number;
-  productId: string;
+  productId: number;
+  default_code: string;
+  suggested_billing_frequency?: string;
 }
 
 interface Customer {
@@ -34,6 +39,8 @@ interface Customer {
   name: string;
   email: string;
   phone: string;
+  partner_id?: number;
+  company_id?: number;
 }
 
 interface PaymentTransaction {
@@ -52,20 +59,31 @@ interface LocationData {
   [key: string]: any;
 }
 
-interface BleDevice {
-  macAddress: string;
-  name: string;
-  rssi: string;
-  rawRssi: number;
-  imageUrl?: string;
-  firmwareVersion?: string;
-  deviceId?: string;
+interface MqttConfig {
+  username: string;
+  password: string;
+  clientId: string;
+  hostname: string;
+  port: number;
+}
+
+interface FleetIds {
+  [serviceType: string]: string[];
 }
 
 interface WebViewJavascriptBridge {
-  init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
-  registerHandler: (handlerName: string, handler: (data: string, responseCallback: (response: any) => void) => void) => void;
-  callHandler: (handlerName: string, data: any, callback: (responseData: string) => void) => void;
+  init: (
+    callback: (message: any, responseCallback: (response: any) => void) => void
+  ) => void;
+  registerHandler: (
+    handlerName: string,
+    handler: (data: string, responseCallback: (response: any) => void) => void
+  ) => void;
+  callHandler: (
+    handlerName: string,
+    data: any,
+    callback: (responseData: string) => void
+  ) => void;
 }
 
 declare global {
@@ -74,278 +92,536 @@ declare global {
   }
 }
 
+const API_BASE = "https://evans-musamia-odoorestapi-staging-24591738.dev.odoo.com/api";
+
 const AppContainer = () => {
-  const [email, setEmail] = useState<string>("");
-  const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
   const [selectedPlan, setSelectedPlan] = useState<ServicePlan | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "payments" | "stations">("dashboard");
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login">("login");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
-  const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false); // Location state
-  const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null); // Location state
-  const bridgeInitRef = useRef(false); // Bridge initialization ref
-  const { bridge } = useBridge(); // Use bridge context
+  const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false);
+  const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
+  const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
+  const [allPlans, setAllPlans] = useState<ServicePlan[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState<boolean>(true);
+  const [fleetIds, setFleetIds] = useState<FleetIds | null>(null);
+  const bridgeInitRef = useRef(false);
+  const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
+  const { bridge } = useBridge();
 
-  const allPlans: ServicePlan[] = [
-    {
-      name: "PEG - OVT20",
-      duration: "7 Days",
-      price: 1,
-      productId: "MOBILE-001",
-    },
-    {
-      name: "PEG - OVT21",
-      duration: "14 Days",
-      price: 5,
-      productId: "MOBILE-002",
-    },
-    {
-      name: "PEG - OVT22",
-      duration: "30 Days",
-      price: 10,
-      productId: "MOBILE-003",
-    },
-  ];
+  // Check local storage for email on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const storedEmail = localStorage.getItem("userEmail");
+      if (storedEmail) {
+        try {
+          const response = await fetch(
+            `${API_BASE}/customers/login`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-API-KEY": "abs_connector_secret_key_2024",
+              },
+              body: JSON.stringify({ email: storedEmail }),
+            }
+          );
 
-  const [paymentHistory] = useState<PaymentTransaction[]>([
-    {
-      id: "TXN001",
-      planName: "PEG - OVT20",
-      amount: 1,
-      date: "2024-01-15",
-      status: "completed",
-    },
-    {
-      id: "TXN002",
-      planName: "PEG - OVT21",
-      amount: 5,
-      date: "2024-01-10",
-      status: "completed",
-    },
-    {
-      id: "TXN003",
-      planName: "PEG - OVT22",
-      amount: 10,
-      date: "2024-01-05",
-      status: "pending",
-    },
-  ]);
+          const data = await response.json();
+          if (response.status === 200) {
+            setCustomer(data.customer);
+            setIsLoggedIn(true);
+            setCurrentPage("dashboard");
+          } else {
+            localStorage.removeItem("userEmail");
+            setCurrentPage("products");
+          }
+        } catch (error) {
+          console.error("Error verifying stored email:", error);
+          localStorage.removeItem("userEmail");
+          setCurrentPage("products");
+        }
+      } else {
+        setCurrentPage("products");
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setIsCheckingAuth(false);
+    };
 
-  // Updated menu items with Charging Station Finder
-  const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "products", label: "Products", icon: Package },
-    { id: "payments", label: "Payments", icon: CreditCard },
-    { id: "stations", label: "Stations", icon: MapPin }, // New menu item
-  ];
+    checkAuth();
+  }, []);
 
-  // Validate coordinates
-  const hasValidCoordinates = (location: LocationData | null) => {
-    return (
-      location &&
-      typeof location.latitude === "number" &&
-      typeof location.longitude === "number" &&
-      !isNaN(location.latitude) &&
-      !isNaN(location.longitude) &&
-      location.latitude !== 0 &&
-      location.longitude !== 0 &&
-      location.latitude >= -90 &&
-      location.latitude <= 90 &&
-      location.longitude >= -180 &&
-      location.longitude <= 180
+  // Fetch service plans from the endpoint
+  useEffect(() => {
+    const fetchPlans = async () => {
+      if (!customer?.company_id) {
+        setIsLoadingPlans(false);
+        return;
+      }
+      setIsLoadingPlans(true);
+      try {
+        const response = await fetch(
+          `${API_BASE}/products/subscription?company_id=${customer.company_id}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-KEY": "abs_connector_secret_key_2024",
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.success && Array.isArray(data.products)) {
+          const plans: ServicePlan[] = data.products.map((product: any) => ({
+            name: product.name,
+            price: product.list_price,
+            productId: product.product_id,
+            default_code: product.default_code,
+            suggested_billing_frequency: product.suggested_billing_frequency || "monthly",
+          }));
+          setAllPlans(plans);
+        } else {
+          throw new Error("Invalid response format or no products found");
+        }
+      } catch (error) {
+        console.error("Error fetching plans:", error);
+        setAllPlans([]);
+      } finally {
+        setIsLoadingPlans(false);
+      }
+    };
+
+    fetchPlans();
+  }, [customer]);
+
+  // Fetch fleet IDs when MQTT is connected
+  useEffect(() => {
+    if (isMqttConnected && bridge && lastKnownLocation) {
+      console.info("MQTT connected, triggering fetchFleetIds");
+      const planId = selectedPlan?.default_code || "service-plan-basic-latest-a";
+      fetchFleetIds(planId);
+    }
+  }, [isMqttConnected, bridge, lastKnownLocation, selectedPlan]);
+
+  // Function to fetch fleet IDs via MQTT
+  const fetchFleetIds = (planId: string) => {
+    if (!bridge || !window.WebViewJavascriptBridge) {
+      console.error("WebViewJavascriptBridge is not initialized.");
+      return;
+    }
+
+    if (!lastKnownLocation || typeof lastKnownLocation.latitude !== 'number' || typeof lastKnownLocation.longitude !== 'number') {
+      console.error("Invalid location data:", lastKnownLocation);
+      return;
+    }
+
+    console.info("Plan ID used:", planId);
+    console.info("Constructing MQTT request for fleet IDs with planId:", planId);
+    const requestTopic = `call/abs/service/plan/${planId}/get_assets`;
+    const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
+    
+    const timestamp = new Date().toISOString();
+    
+    const content = {
+      timestamp,
+      plan_id: planId,
+      correlation_id: "test-asset-discovery-001",
+      actor: {
+        type: "customer",
+        id: "CUST-RIDER-001"
+      },
+      data: {
+        action: "GET_REQUIRED_ASSET_IDS",
+        rider_location: {
+          lat: lastKnownLocation.latitude,
+          lng: lastKnownLocation.longitude,
+        },
+        search_radius: 10,
+      },
+    };
+
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content,
+    };
+
+    console.info("MQTT message sent to bridge:", JSON.stringify(dataToPublish));
+
+    const reg = (name: string, handler: any) => {
+      bridge.registerHandler(name, handler);
+      return () => bridge.registerHandler(name, () => {});
+    };
+
+    const offResponseHandler = reg(
+      "mqttMsgArrivedCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const parsedData = JSON.parse(data);
+          console.info("Received MQTT arrived callback data:", parsedData);
+
+          const message = parsedData;
+          const topic = message.topic;
+          const rawMessageContent = message.message;
+
+          if (topic === responseTopic) {
+            console.info("Response received from rtrn topic:", JSON.stringify(message, null, 2));
+            
+            let responseData;
+            try {
+              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+            } catch (parseErr) {
+              responseData = rawMessageContent;
+            }
+
+            if (responseData?.data?.success) {
+              const fleetIds = responseData.data.metadata?.fleet_ids;
+              if (fleetIds) {
+                console.info("Resolved fleet IDs:", fleetIds);
+                setFleetIds(fleetIds);
+              } else {
+                console.info("No fleet IDs in response:", responseData);
+                setFleetIds(null);
+              }
+            } else {
+              const errorReason = responseData?.data?.metadata?.reason || 
+                                  responseData?.data?.signals?.[0] || 
+                                  "Unknown error";
+              console.error("MQTT request failed:", errorReason);
+            }
+            responseCallback({ success: true });
+          }
+        } catch (err) {
+          console.error("Error parsing MQTT arrived callback:", err);
+          responseCallback({ success: false, error: err });
+        }
+      }
     );
+
+    window.WebViewJavascriptBridge.callHandler(
+      "mqttSubTopic",
+      { topic: responseTopic, qos: 0 },
+      (subscribeResponse) => {
+        console.info("MQTT subscribe response:", subscribeResponse);
+        try {
+          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
+          if (subResp.respCode === "200") {
+            console.info("Subscribed to response topic successfully");
+          } else {
+            console.error("Subscribe failed:", subResp.respDesc || subResp.error);
+          }
+        } catch (err) {
+          console.error("Error parsing subscribe response:", err);
+        }
+      }
+    );
+
+    try {
+      window.WebViewJavascriptBridge.callHandler(
+        "mqttPublishMsg",
+        JSON.stringify(dataToPublish),
+        (response) => {
+          console.info("MQTT publish response:", response);
+          try {
+            const responseData = typeof response === 'string' ? JSON.parse(response) : response;
+            if (responseData.error || responseData.respCode !== "200") {
+              console.error("MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
+            } else {
+              console.info("MQTT request published successfully");
+            }
+          } catch (err) {
+            console.error("Error parsing MQTT publish response:", err);
+          }
+        }
+      );
+    } catch (err) {
+      console.error("Error calling mqttPublishMsg:", err);
+    }
+
+    setTimeout(() => {
+      console.info("Cleaning up MQTT response handler and subscription for:", responseTopic);
+      offResponseHandler();
+      bridge.callHandler(
+        "mqttUnSubTopic",
+        { topic: responseTopic, qos: 0 },
+        (unsubResponse) => {
+          console.info("MQTT unsubscribe response:", unsubResponse);
+        }
+      );
+    }, 15000);
   };
 
-  // Initialize bridge and set up location callback
-  useEffect(() => {
-    if (!bridge || bridgeInitRef.current) return;
+  const setupBridge = (bridge: WebViewJavascriptBridge) => {
+    const noop = () => {};
+    const reg = (name: string, handler: any) => {
+      bridge.registerHandler(name, handler);
+      return () => bridge.registerHandler(name, noop);
+    };
 
-    const setupBridge = (bridge: WebViewJavascriptBridge) => {
-      bridgeInitRef.current = true;
-
+    if (!bridgeHasBeenInitialized) {
+      bridgeHasBeenInitialized = true;
       try {
         bridge.init((_m, r) => r("js success!"));
       } catch (error) {
         console.error("Error initializing bridge:", error);
       }
+    }
 
-      const noop = () => {};
-      const reg = (name: string, handler: any) => {
-        bridge.registerHandler(name, handler);
-        return () => bridge.registerHandler(name, noop);
-      };
+    const offPrint = reg("print", (data: string, resp: any) => {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed?.data) resp(parsed.data);
+        else throw new Error("Parsed data is not in the expected format.");
+      } catch (err) {
+        console.error("Error parsing JSON in 'print':", err);
+      }
+    });
 
-      const offPrint = reg("print", (data: string, resp: any) => {
+    const offMqttRecv = reg(
+      "mqttMsgArrivedCallBack",
+      (data: string, resp: any) => {
+        try {
+          const p = JSON.parse(data);
+          console.info("General MQTT arrived callback:", p);
+          resp(p);
+        } catch (err) {
+          console.error("Error parsing general MQTT arrived callback:", err);
+        }
+      }
+    );
+
+    const offConnectMqtt = reg(
+      "connectMqttCallBack",
+      (data: string, resp: any) => {
         try {
           const parsed = JSON.parse(data);
-          if (parsed?.data) resp(parsed.data);
-          else throw new Error("Parsed data is not in the expected format.");
+          console.info("MQTT connection callback:", parsed);
+          setIsMqttConnected(true);
+          resp("Received MQTT Connection Callback");
         } catch (err) {
-          console.error("Error parsing JSON in 'print':", err);
+          setIsMqttConnected(false);
+          console.error("Error parsing MQTT connection callback:", err);
         }
-      });
+      }
+    );
 
-      const offLocationCallback = reg(
-        "locationCallBack",
-        (data: string, responseCallback: (response: any) => void) => {
-          try {
-            const rawLocationData = typeof data === "string" ? JSON.parse(data) : data;
+    const offLocationCallback = reg(
+      "locationCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const rawLocationData = typeof data === 'string' ? JSON.parse(data) : data;
 
-            if (!rawLocationData || typeof rawLocationData !== "object") {
-              toast.error("Invalid location data format");
-              responseCallback({ success: false, error: "Invalid format" });
-              return;
-            }
+          toast.dismiss('location-loading');
+          const dataPreview = JSON.stringify(rawLocationData, null, 2);
 
-            const { latitude, longitude } = rawLocationData;
+          if (!rawLocationData || typeof rawLocationData !== 'object') {
+            toast.error("Invalid location data format");
+            responseCallback({ success: false, error: "Invalid format" });
+            return;
+          }
 
-            if (
-              typeof latitude !== "number" ||
-              typeof longitude !== "number" ||
-              isNaN(latitude) ||
-              isNaN(longitude)
-            ) {
-              toast.error("Invalid coordinates: Must be valid numbers");
-              responseCallback({ success: false, error: "Invalid coordinates" });
-              return;
-            }
+          const { latitude, longitude } = rawLocationData;
 
-            const locationData: LocationData = {
-              latitude,
-              longitude,
-              timestamp: rawLocationData.timestamp || Date.now(),
-              locationName: rawLocationData.locationName,
+          if (typeof latitude !== 'number' || typeof longitude !== 'number' || isNaN(latitude) || isNaN(longitude)) {
+            toast.error("Invalid coordinates: Must be valid numbers");
+            responseCallback({ success: false, error: "Invalid coordinates" });
+            return;
+          }
+
+          const isSignificantChange = () => {
+            if (!lastProcessedLocation.current) return true;
+            const DISTANCE_THRESHOLD = 0.001;
+            return (
+              Math.abs(lastProcessedLocation.current.lat - latitude) > DISTANCE_THRESHOLD ||
+              Math.abs(lastProcessedLocation.current.lon - longitude) > DISTANCE_THRESHOLD
+            );
+          };
+
+          if (isSignificantChange()) {
+            setLastKnownLocation(rawLocationData);
+            lastProcessedLocation.current = {
+              lat: latitude,
+              lon: longitude,
             };
 
-            if (!hasValidCoordinates(locationData)) {
-              if (latitude === 0 && longitude === 0) {
-                toast.error("Location at (0,0) - possible GPS error");
-              } else {
-                toast.error("Coordinates out of valid range");
-              }
-              responseCallback({ success: false, error: "Invalid coordinates" });
-              return;
+            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+              toast.error("Coordinates out of valid range");
+            } else if (latitude === 0 && longitude === 0) {
+              toast.error("Location at (0,0) - possible GPS error");
             }
-
-            setLastKnownLocation(locationData);
-            setIsLocationListenerActive(true);
-            console.log("Location callback received:", locationData);
-            responseCallback({ success: true, location: locationData });
-          } catch (error) {
-            toast.error("Error processing location data");
-            console.error("Error in location callback:", error);
-            responseCallback({ success: false, error: String(error) });
           }
-        }
-      );
 
-      return () => {
-        offPrint();
-        offLocationCallback();
-      };
+          responseCallback({ success: true, location: rawLocationData });
+        } catch (error) {
+          toast.error("Error processing location data");
+          console.error("Error processing location data:", error);
+          responseCallback({ success: false, error: error });
+        }
+      }
+    );
+
+    const offQr = reg("scanQrcodeResultCallBack", (data: string, resp: any) => {
+      try {
+        const p = JSON.parse(data);
+        const qrVal = p.respData.value || "";
+        handleQrCode(qrVal);
+        resp(data);
+      } catch (err) {
+        console.error("Error processing QR code data:", err);
+        toast.error("Error processing QR code");
+      }
+    });
+
+    const mqttConfig: MqttConfig = {
+      username: "Admin",
+      password: "7xzUV@MT",
+      clientId: "123",
+      hostname: "mqtt.omnivoltaic.com",
+      port: 1883,
     };
 
+    bridge.callHandler("connectMqtt", mqttConfig, (resp: string) => {
+      try {
+        const p = JSON.parse(resp);
+        if (p.error) console.error("MQTT connection error:", p.error.message);
+      } catch (err) {
+        console.error("Error parsing MQTT response:", err);
+      }
+    });
+
+    bridge.callHandler('startLocationListener', {}, (responseData) => {
+      try {
+        const parsedResponse = JSON.parse(responseData);
+        if (parsedResponse?.respCode === "200") {
+          setIsLocationListenerActive(true);
+        } else {
+          console.error("Failed to start location listener:", parsedResponse?.respMessage);
+        }
+      } catch (error) {
+        console.error("Error parsing start location response:", error);
+      }
+    });
+
+    return () => {
+      offPrint();
+      offMqttRecv();
+      offConnectMqtt();
+      offLocationCallback();
+      offQr();
+    };
+  };
+
+  useEffect(() => {
     if (bridge) {
       return setupBridge(bridge);
     }
-
-    return () => {};
   }, [bridge]);
 
-  // Start location listener automatically when bridge is available
-  useEffect(() => {
-    if (bridge && bridgeInitRef.current) {
-      console.info("Requesting to start location listener");
-      toast.loading("Starting location listener...", { id: "location-loading" });
-
+  const startQrCodeScan = () => {
+    console.info("Start QR Code Scan");
+    if (bridge) {
       bridge.callHandler(
-        "startLocationListener",
-        {},
-        (responseData) => {
-          try {
-            const parsedResponse = JSON.parse(responseData);
-            toast.dismiss("location-loading");
-
-            if (parsedResponse?.respCode === "200") {
-              setIsLocationListenerActive(true);
-              // toast.success("Location tracking started");
-            } else {
-              setIsLocationListenerActive(false);
-              toast.error(`Failed to start: ${parsedResponse?.respMessage || "Unknown error"}`);
-            }
-          } catch (error) {
-            toast.dismiss("location-loading");
-            toast.error("Invalid response from location service");
-            console.error("Error parsing start location response:", error);
-          }
+        "startQrCodeScan",
+        999,
+        (responseData: string) => {
+          console.info("QR Code Scan Response:", responseData);
         }
       );
+    } else {
+      console.error("WebViewJavascriptBridge is not initialized.");
+      toast.error("Error: Bridge not initialized for QR code scanning");
     }
-  }, [bridge, bridgeInitRef.current]);
+  };
 
-  const handleSignIn = async () => {
-    if (!email.trim()) {
-      toast.error("Please enter your email");
-      return;
+  const handleQrCode = (code: string) => {
+    try {
+      const url = new URL(code);
+      const swapId = url.searchParams.get('swapId');
+      
+      if (swapId) {
+        toast.success(`Swap ID: ${swapId}`);
+        console.log(`Extracted Swap ID: ${swapId}`);
+      } else {
+        toast.error("No swapId found in the QR code URL");
+        console.error("No swapId parameter in URL:", code);
+      }
+    } catch (err) {
+      console.error("Error parsing QR code URL:", err);
+      toast.error("Invalid QR code URL");
     }
+  };
 
-    setIsSigningIn(true);
+  const initiateSubscriptionPurchase = async (plan: ServicePlan) => {
+    if (!customer?.id) {
+      toast.error("Customer data not available. Please sign in again.");
+      return false;
+    }
+    if (!customer?.company_id) {
+      toast.error("Company ID not available. Please sign in again.");
+      return false;
+    }
 
     try {
-      console.log("Attempting login with email:", email);
+      const purchaseData = {
+        customer_id: customer.id,
+        product_id: plan.productId,
+        quantity: 1,
+        billing_frequency: plan.suggested_billing_frequency || "monthly",
+        auto_confirm: true,
+        company_id: customer.company_id,
+        price_unit: plan.price,
+      };
+
       const response = await fetch(
-        "https://evans-musamia-odoorestapi.odoo.com/api/customers/login",
+        `${API_BASE}/products/subscription/purchase`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify(purchaseData),
         }
       );
 
       const data = await response.json();
-      console.log("API Response:", { status: response.status, data });
 
-      if (response.status === 200) {
-        console.log("Login successful, setting isLoggedIn to true");
-        setIsLoggedIn(true);
-        setSelectedPlan(null);
-        setCustomer(data.customer);
-        setCurrentPage("dashboard");
-        toast.success(`Welcome! Signed in as ${data.customer.name}`);
-      } else if (response.status === 404) {
-        throw new Error("User not found. Please check your email.");
-      } else if (response.status === 400) {
-        throw new Error("Invalid request. Please ensure your email is correct.");
+      if (response.ok && data.success && data.order?.id) {
+        console.log("Subscription purchase initiated:", data);
+        setOrderId(data.order.id);
+        toast.success(`Selected ${plan.name}`);
+        return true;
       } else {
-        throw new Error(data.message || "Login failed. Please try again.");
+        throw new Error(data.message || "Failed to initiate subscription purchase");
       }
     } catch (error: any) {
-      console.error("Sign-in error:", error);
-      toast.error(error.message || "Sign-in failed. Please try again.");
-    } finally {
-      setIsSigningIn(false);
+      console.error("Error initiating subscription purchase:", error);
+      toast.error(error.message || "Failed to initiate subscription. Please try again.");
+      return false;
     }
   };
 
-  const handleSignOut = () => {
-    setIsLoggedIn(false);
-    setCustomer(null);
-    setSelectedPlan(null);
-    setEmail("");
-    setCurrentPage("dashboard");
-    toast.success("Signed out successfully");
+  const handleSelectPlan = async (plan: ServicePlan) => {
+    const success = await initiateSubscriptionPurchase(plan);
+    if (success) {
+      setSelectedPlan(plan);
+      setShowPaymentModal(true);
+    }
   };
 
   const handlePayNow = () => {
-    console.log("Pay Now clicked for plan:", selectedPlan);
-    setShowPaymentModal(true);
+    if (selectedPlan) {
+      console.log("Pay Now clicked for plan:", selectedPlan);
+      setShowPaymentModal(true);
+    }
   };
 
   const handlePaymentSubmit = async () => {
@@ -365,22 +641,41 @@ const AppContainer = () => {
       return;
     }
 
+    if (!orderId) {
+      toast.error("Order data not available. Please select a plan again.");
+      return;
+    }
+
     setIsProcessingPayment(true);
 
     try {
+      const invoiceResponse = await fetch(
+        `${API_BASE}/orders/${orderId}/invoice`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+          },
+        }
+      );
+
+      const invoiceData = await invoiceResponse.json();
+
+      if (!invoiceResponse.ok || !invoiceData.success || !invoiceData.invoice?.id) {
+        throw new Error(invoiceData.message || "Failed to generate invoice");
+      }
+
+      const invoiceId = invoiceData.invoice.id;
+
       const fullPhoneNumber = `254${phoneNumber}`;
       const paymentData = {
-        partner_id: customer.id,
-        amount: selectedPlan.price,
+        invoice_id: invoiceId,
         phone_number: fullPhoneNumber,
-        reference: selectedPlan.productId,
-        description: `Payment for ${selectedPlan.name}`,
       };
 
-      console.log("Initiating payment with data:", paymentData);
-
-      const response = await fetch(
-        "https://evans-musamia-odoorestapi.odoo.com/api/lipay/initiate",
+      const paymentResponse = await fetch(
+        `${API_BASE}/payments/lipay/initiate`,
         {
           method: "POST",
           headers: {
@@ -391,16 +686,16 @@ const AppContainer = () => {
         }
       );
 
-      const data = await response.json();
-      console.log("Payment API Response:", { status: response.status, data });
+      const paymentResult = await paymentResponse.json();
 
-      if (response.ok) {
+      if (paymentResponse.ok) {
         toast.success("Payment initiated successfully! Check your phone for confirmation.");
         setShowPaymentModal(false);
         setPhoneNumber("");
         setSelectedPlan(null);
+        setOrderId(null);
       } else {
-        throw new Error(data.message || "Payment initiation failed. Please try again.");
+        throw new Error(paymentResult.message || "Payment initiation failed. Please try again.");
       }
     } catch (error: any) {
       console.error("Payment error:", error);
@@ -410,24 +705,52 @@ const AppContainer = () => {
     }
   };
 
+  const paymentHistory: PaymentTransaction[] = [
+    {
+      id: "TXN001",
+      planName: "Battery Swap Monthly",
+      amount: 29.99,
+      date: "2025-10-10",
+      status: "completed",
+    },
+  ];
+
+  const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "products", label: "Products", icon: Package },
+    { id: "transactions", label: "Transactions", icon: CreditCard },
+    { id: "charging stations", label: "Charging Stations", icon: MapPin },
+    { id: "support", label: "Support", icon: HelpCircle },
+    { id: "logout", label: "Logout", icon: LogOut },
+  ];
+
+  const handleLoginSuccess = (customerData: Customer) => {
+    localStorage.setItem("userEmail", customerData.email);
+    setIsLoggedIn(true);
+    setCustomer(customerData);
+    setSelectedPlan(null);
+    setOrderId(null);
+    setCurrentPage("products");
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem("userEmail");
+    setIsLoggedIn(false);
+    setCustomer(null);
+    setSelectedPlan(null);
+    setOrderId(null);
+    setCurrentPage("products");
+    toast.success("Signed out successfully");
+  };
+
   const handleCloseModal = () => {
     setShowPaymentModal(false);
     setPhoneNumber("");
   };
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-  };
-
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "").slice(0, 9);
     setPhoneNumber(value);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleSignIn();
-    }
   };
 
   const handlePhoneKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -437,14 +760,23 @@ const AppContainer = () => {
   };
 
   const renderMainContent = () => {
+    if (isLoadingPlans) {
+      return (
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        </div>
+      );
+    }
+
     if (selectedPlan) {
       return (
         <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-white mb-2">Confirm Product</h1>
             <p className="text-gray-400">
-              Plan selected: {selectedPlan.name} ({selectedPlan.duration}) - ${selectedPlan.price}
+              Plan selected: {selectedPlan.name} - ${selectedPlan.price}
             </p>
+            <p className="text-gray-400 text-sm mt-1">Code: {selectedPlan.default_code}</p>
           </div>
           <button
             onClick={handlePayNow}
@@ -453,7 +785,10 @@ const AppContainer = () => {
             Pay Now
           </button>
           <button
-            onClick={() => setSelectedPlan(null)}
+            onClick={() => {
+              setSelectedPlan(null);
+              setOrderId(null);
+            }}
             className="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             Change Product
@@ -466,35 +801,41 @@ const AppContainer = () => {
       case "dashboard":
         return <Dashboard customer={customer} />;
       case "products":
-        return <Products allPlans={allPlans} subscribedPlans={[]} onSelectPlan={setSelectedPlan} />;
-      case "payments":
+        return isLoggedIn ? <Products allPlans={allPlans} onSelectPlan={handleSelectPlan} /> : <Login onLoginSuccess={handleLoginSuccess} />;
+      case "transactions":
         return <Payments paymentHistory={paymentHistory} />;
-      case "stations":
-        return (
-          <ChargingStationFinder
-            userLocation={lastKnownLocation}
-            isLocationActive={isLocationListenerActive}
-            lastKnownLocation={lastKnownLocation}
-          />
-        );
+      case "charging stations":
+        return <ChargingStationFinder lastKnownLocation={lastKnownLocation} fleetIds={fleetIds} />;
+      case "support":
+        return <Ticketing customer={customer} allPlans={allPlans} />;
+      case "login":
+        return <Login onLoginSuccess={handleLoginSuccess} />;
       default:
         return <Dashboard customer={customer} />;
     }
   };
 
   useEffect(() => {
-    console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage });
-  }, [isLoggedIn, selectedPlan, customer, currentPage]);
+    console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds });
+  }, [isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds]);
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-gray-600" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0C0C0E] flex">
+    <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex">
       <Toaster
         position="top-center"
         toastOptions={{
           duration: 3000,
           style: {
-            background: "#1f2937",
-            color: "#f9fafb",
+            background: "#333",
+            color: "#fff",
             padding: "16px",
             borderRadius: "12px",
             border: "1px solid #374151",
@@ -514,7 +855,6 @@ const AppContainer = () => {
         }}
       />
 
-      {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
@@ -531,9 +871,9 @@ const AppContainer = () => {
                 <Wallet className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Complete Payment</h2>
-              <p className="text-gray-400 text-sm">
-                Plan: {selectedPlan?.name} ({selectedPlan?.duration})
+              <p className="text-gray-400 text-sm">{selectedPlan?.name}
               </p>
+              <p className="text-gray-400 text-sm mt-1">{selectedPlan?.default_code}</p>
               <p className="text-indigo-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
 
@@ -590,95 +930,42 @@ const AppContainer = () => {
       )}
 
       {!isLoggedIn ? (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-            {isSigningIn ? (
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-                <p className="text-white mt-4">Signing in...</p>
-              </div>
-            ) : (
-              <>
-                <div className="text-center mb-8">
-                  <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                    <User className="w-8 h-8 text-white" />
-                  </div>
-                  <h1 className="text-2xl font-bold text-white mb-2">Welcome</h1>
-                  <p className="text-gray-400">Please enter your email to continue</p>
-                </div>
-                <div className="mb-6">
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={handleEmailChange}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Enter your email"
-                    disabled={isSigningIn}
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </div>
-
-                <button
-                  onClick={handleSignIn}
-                  disabled={isSigningIn || !email.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none disabled:hover:scale-100"
-                >
-                  {isSigningIn ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      <LogIn className="w-5 h-5" />
-                      Sign In
-                    </>
-                  )}
-                </button>
-
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-gray-500">Need help? Contact support</p>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <Login onLoginSuccess={handleLoginSuccess} />
       ) : (
-      <>
-          {/* Sidebar */}
+        <>
           <div
             className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform ${
               sidebarOpen ? "translate-x-0" : "-translate-x-full"
-            } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
+            } transition-transform duration-300 ease-in-out`}
           >
             <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
-              <h2 className="text-xl font-bold text-white">Dashboard</h2>
+              <h2 className="text-xl font-bold text-white">Menu</h2>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="lg:hidden text-gray-400 hover:text-white"
+                className="text-gray-400 hover:text-white"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
 
             <div className="flex flex-col h-full">
-              <nav className="flex-1 px-4 py-6 space-y-2">
+              <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
                 {menuItems.map((item) => {
                   const Icon = item.icon;
                   return (
                     <button
                       key={item.id}
                       onClick={() => {
-                        setCurrentPage(item.id as any);
-                        setSidebarOpen(false);
+                        if (item.id === "logout") {
+                          handleSignOut();
+                        } else {
+                          setCurrentPage(item.id as any);
+                          setSidebarOpen(false);
+                        }
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-all duration-200 ${
                         currentPage === item.id
-                          ? "bg-indigo-600 text-white shadow-lg"
+                          ? "bg-gray-600 text-white shadow-lg"
                           : "text-gray-300 hover:bg-gray-700 hover:text-white"
                       }`}
                     >
@@ -690,37 +977,28 @@ const AppContainer = () => {
               </nav>
 
               <div className="p-4 border-t border-gray-700">
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3">
                   <div className="bg-blue-600 rounded-full p-2">
                     <User className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{customer?.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{customer?.email}</p>
+                    <p className="text-sm font-medium text-white truncate">{customer?.name || "User"}</p>
+                    <p className="text-xs text-gray-400 truncate">{customer?.email || "No email"}</p>
                   </div>
                 </div>
-                <button
-                  onClick={handleSignOut}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-all duration-200"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </button>
               </div>
             </div>
           </div>
 
-          {/* Mobile overlay */}
           {sidebarOpen && (
             <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+              className="fixed inset-0 bg-black bg-opacity-50 z-40"
               onClick={() => setSidebarOpen(false)}
             />
           )}
 
-          {/* Main content */}
-          <div className={`flex-1 flex flex-col lg:ml-0 ${sidebarOpen ? "hidden lg:flex" : "flex"}`}>
-            <div className="lg:hidden flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
+          <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
+            <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="text-gray-400 hover:text-white"
@@ -728,7 +1006,7 @@ const AppContainer = () => {
                 <Menu className="w-6 h-6" />
               </button>
               <h1 className="text-xl font-bold text-white capitalize">{currentPage}</h1>
-              <div className="w-6" /> {/* Spacer */}
+              <div className="w-6" />
             </div>
 
             <div className="flex-1 p-6 overflow-auto">{renderMainContent()}</div>

@@ -32,7 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
         setIsLoading(true);
         try {
           const response = await fetch(
-            `https://evans-musamia-odoorestapi.odoo.com/api/customers/${customer.id}/dashboard`,
+            `https://evans-musamia-odoorestapi-staging-24591738.dev.odoo.com/api/customers/${customer.id}/dashboard`,
             {
               method: "GET",
               headers: {
@@ -74,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
   return (
     <div className="space-y-6 p-4">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-white mb-2">Dashboard</h1>
+        {/* <h1 className="text-3xl font-bold text-white mb-2">Dashboard</h1> */}
         <p className="text-gray-400">Welcome back, {customer?.name}</p>
       </div>
 
@@ -88,10 +88,10 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-white">Active Plans</h3>
+                <h3 className="text-sm font-semibold text-white">My Products</h3>
               </div>
               <p className="text-xl font-bold text-white">{summary.active_subscriptions}</p>
-              <p className="text-xs text-gray-400">Active subscriptions</p>
+              <p className="text-xs text-gray-400">Active products</p>
             </div>
 
             <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
@@ -107,7 +107,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-white">Total Pending</h3>
+                <h3 className="text-sm font-semibold text-white">Amount Due</h3>
               </div>
               <p className="text-xl font-bold text-white">{summary.total_pending}</p>
               <p className="text-xs text-gray-400">Pending payments</p>
@@ -139,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
           <div className="grid grid-cols-1">
             <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-white">Overdue Status</h3>
+                <h3 className="text-sm font-semibold text-white">Status</h3>
               </div>
               <p className={`text-xl font-bold ${summary.has_overdue ? 'text-red-400' : 'text-green-400'}`}>
                 {summary.has_overdue ? 'Overdue' : 'No Overdue'}
@@ -158,3 +158,4 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
 };
 
 export default Dashboard;
+
