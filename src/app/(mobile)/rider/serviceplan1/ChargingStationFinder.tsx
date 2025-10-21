@@ -1,6 +1,17 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Battery, RefreshCw, Navigation, Zap, Filter, X, Wrench, Loader2 } from "lucide-react";
+import {
+  MapPin,
+  Battery,
+  RefreshCw,
+  Navigation,
+  Zap,
+  Filter,
+  X,
+  Wrench,
+  Loader2,
+  Hammer
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useBridge } from "@/app/context/bridgeContext";
 
@@ -40,9 +51,18 @@ interface FleetIds {
 }
 
 interface WebViewJavascriptBridge {
-  init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
-  registerHandler: (handlerName: string, handler: (data: string, responseCallback: (response: any) => void) => void) => void;
-  callHandler: (handlerName: string, data: any, callback: (responseData: string) => void) => void;
+  init: (
+    callback: (message: any, responseCallback: (response: any) => void) => void
+  ) => void;
+  registerHandler: (
+    handlerName: string,
+    handler: (data: string, responseCallback: (response: any) => void) => void
+  ) => void;
+  callHandler: (
+    handlerName: string,
+    data: any,
+    callback: (responseData: string) => void
+  ) => void;
 }
 
 declare global {
@@ -58,7 +78,10 @@ interface ChargingStationFinderProps {
   fleetIds: FleetIds | null;
 }
 
-const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationFinderProps) => {
+const ChargingStationFinder = ({
+  lastKnownLocation,
+  fleetIds,
+}: ChargingStationFinderProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -67,8 +90,9 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
   const [isMapVisible, setIsMapVisible] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  const [selectedService, setSelectedService] = useState<"battery_swap" | "maintenance" | "multi_service" | null>(null);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     name: "",
@@ -154,56 +178,95 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
     }
   }, [fleetIds, stations]);
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon3: number): string => {
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon3: number
+  ): string => {
     const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon3 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
     return distance.toFixed(1) + " km";
   };
 
   useEffect(() => {
-    const location = lastKnownLocation || { latitude: -1.2921, longitude: 36.8219 };
+    const location = lastKnownLocation || {
+      latitude: -1.2921,
+      longitude: 36.8219,
+    };
     const updatedStations = stations.map((station) => ({
       ...station,
-      distance: calculateDistance(location.latitude, location.longitude, station.lat, station.lng),
+      distance: calculateDistance(
+        location.latitude,
+        location.longitude,
+        station.lat,
+        station.lng
+      ),
     }));
     setStations(updatedStations);
-    applyFilters(updatedStations, fleetIds ? Object.values(fleetIds).flat() : null);
+    applyFilters(
+      updatedStations,
+      fleetIds ? Object.values(fleetIds).flat() : null
+    );
     if (mapInstanceRef.current && lastKnownLocation) {
-      mapInstanceRef.current.setView([lastKnownLocation.latitude, lastKnownLocation.longitude], 12);
+      mapInstanceRef.current.setView(
+        [lastKnownLocation.latitude, lastKnownLocation.longitude],
+        12
+      );
     }
   }, [lastKnownLocation]);
 
-  const applyFilters = (stationsToFilter: Station[], validFleetIds: string[] | null) => {
+  const applyFilters = (
+    stationsToFilter: Station[],
+    validFleetIds: string[] | null
+  ) => {
     let result = [...stationsToFilter];
     let showcasing = false;
     if (validFleetIds && validFleetIds.length > 0) {
-      result = result.filter((station) => validFleetIds.includes(station.fleetId));
+      result = result.filter((station) =>
+        validFleetIds.includes(station.fleetId)
+      );
     }
     if (result.length === 0 && validFleetIds && validFleetIds.length > 0) {
       result = [...stationsToFilter];
       showcasing = true;
     }
     if (filterOptions.name) {
-      result = result.filter((station) => station.name.toLowerCase().includes(filterOptions.name.toLowerCase()));
+      result = result.filter((station) =>
+        station.name.toLowerCase().includes(filterOptions.name.toLowerCase())
+      );
     }
     if (filterOptions.minDistance !== null) {
       result = result.filter((station) => {
         const distance = parseFloat(station.distance.split(" ")[0]);
-        return !isNaN(distance) && distance >= parseFloat(filterOptions.minDistance as string);
+        return (
+          !isNaN(distance) &&
+          distance >= parseFloat(filterOptions.minDistance as string)
+        );
       });
     }
     if (filterOptions.maxDistance !== null) {
       result = result.filter((station) => {
         const distance = parseFloat(station.distance.split(" ")[0]);
-        return !isNaN(distance) && distance <= (filterOptions.maxDistance as number);
+        return (
+          !isNaN(distance) && distance <= (filterOptions.maxDistance as number)
+        );
       });
     }
     if (filterOptions.minBatteryLevel !== null) {
-      result = result.filter((station) => station.batteryLevel >= (filterOptions.minBatteryLevel as number));
+      result = result.filter(
+        (station) =>
+          station.batteryLevel >= (filterOptions.minBatteryLevel as number)
+      );
     }
     if (filterOptions.minAvailableChargers !== null) {
       result = result.filter((station) => {
@@ -217,11 +280,19 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
         case "name":
           return multiplier * a.name.localeCompare(b.name);
         case "distance":
-          return multiplier * (parseFloat(a.distance.split(" ")[0]) - parseFloat(b.distance.split(" ")[0]));
+          return (
+            multiplier *
+            (parseFloat(a.distance.split(" ")[0]) -
+              parseFloat(b.distance.split(" ")[0]))
+          );
         case "batteryLevel":
           return multiplier * (a.batteryLevel - b.batteryLevel);
         case "availableChargers":
-          return multiplier * (parseInt(a.availableChargers.split("/")[0]) - parseInt(b.availableChargers.split("/")[0]));
+          return (
+            multiplier *
+            (parseInt(a.availableChargers.split("/")[0]) -
+              parseInt(b.availableChargers.split("/")[0]))
+          );
         default:
           return 0;
       }
@@ -239,13 +310,16 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
       if (!window.L) {
         const cssLink = document.createElement("link");
         cssLink.rel = "stylesheet";
-        cssLink.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+        cssLink.href =
+          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
         document.head.appendChild(cssLink);
         const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+        script.src =
+          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
         script.onload = () => {
           const routingScript = document.createElement("script");
-          routingScript.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js";
+          routingScript.src =
+            "https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js";
           routingScript.onload = initializeMap;
           document.head.appendChild(routingScript);
         };
@@ -267,12 +341,21 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
 
   const initializeMap = () => {
     if (mapRef.current && window.L) {
-      const center = lastKnownLocation ? [lastKnownLocation.latitude, lastKnownLocation.longitude] : [-1.2921, 36.8219];
-      mapInstanceRef.current = window.L.map(mapRef.current, { center, zoom: 12, zoomControl: true });
-      window.L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap contributors © CARTO",
-        maxZoom: 19,
-      }).addTo(mapInstanceRef.current);
+      const center = lastKnownLocation
+        ? [lastKnownLocation.latitude, lastKnownLocation.longitude]
+        : [-1.2921, 36.8219];
+      mapInstanceRef.current = window.L.map(mapRef.current, {
+        center,
+        zoom: 12,
+        zoomControl: true,
+      });
+      window.L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution: "© OpenStreetMap contributors © CARTO",
+          maxZoom: 19,
+        }
+      ).addTo(mapInstanceRef.current);
       setIsMapLoaded(true);
       addMarkersToMap();
     }
@@ -280,7 +363,9 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
 
   const addMarkersToMap = () => {
     if (!mapInstanceRef.current || !window.L) return;
-    markersRef.current.forEach((marker) => mapInstanceRef.current.removeLayer(marker));
+    markersRef.current.forEach((marker) =>
+      mapInstanceRef.current.removeLayer(marker)
+    );
     markersRef.current = [];
     if (lastKnownLocation?.latitude && lastKnownLocation?.longitude) {
       const userIcon = window.L.divIcon({
@@ -289,20 +374,38 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       });
-      const userMarker = window.L.marker([lastKnownLocation.latitude, lastKnownLocation.longitude], { icon: userIcon }).addTo(mapInstanceRef.current);
-      userMarker.bindPopup(`<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Your Location</h3><p style="margin: 0; font-size: 12px;">Lat: ${lastKnownLocation.latitude.toFixed(6)}</p><p style="margin: 0; font-size: 12px;">Lng: ${lastKnownLocation.longitude.toFixed(6)}</p></div>`);
+      const userMarker = window.L.marker(
+        [lastKnownLocation.latitude, lastKnownLocation.longitude],
+        { icon: userIcon }
+      ).addTo(mapInstanceRef.current);
+      userMarker.bindPopup(
+        `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Your Location</h3><p style="margin: 0; font-size: 12px;">Lat: ${lastKnownLocation.latitude.toFixed(
+          6
+        )}</p><p style="margin: 0; font-size: 12px;">Lng: ${lastKnownLocation.longitude.toFixed(
+          6
+        )}</p></div>`
+      );
       markersRef.current.push(userMarker);
     }
     filteredStations.forEach((station) => {
-      const markerColor = station.status === "available" ? "#10b981" : station.status === "limited" ? "#f59e0b" : "#ef4444";
+      const markerColor =
+        station.status === "available"
+          ? "#10b981"
+          : station.status === "limited"
+          ? "#f59e0b"
+          : "#ef4444";
       const stationIcon = window.L.divIcon({
         html: `<div style="width: 16px; height: 16px; background: ${markerColor}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
         className: "custom-station-marker",
         iconSize: [16, 16],
         iconAnchor: [8, 8],
       });
-      const marker = window.L.marker([station.lat, station.lng], { icon: stationIcon }).addTo(mapInstanceRef.current);
-      marker.bindPopup(`<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">${station.location}</p><p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">View Details</button></div>`);
+      const marker = window.L.marker([station.lat, station.lng], {
+        icon: stationIcon,
+      }).addTo(mapInstanceRef.current);
+      marker.bindPopup(
+        `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">${station.location}</p><p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">Select Station</button></div>`
+      );
       markersRef.current.push(marker);
     });
   };
@@ -312,7 +415,7 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
       const station = stations.find((s) => s.id === stationId);
       if (station) {
         setSelectedStation(station);
-        setIsDetailsModalOpen(true);
+        setIsServiceModalOpen(true);
       }
     };
   }, [stations]);
@@ -322,8 +425,8 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
   }, [filteredStations, isMapLoaded]);
 
   useEffect(() => {
-    setIsMapVisible(!isFilterModalOpen && !isDetailsModalOpen);
-  }, [isFilterModalOpen, isDetailsModalOpen]);
+    setIsMapVisible(!isFilterModalOpen && !isServiceModalOpen);
+  }, [isFilterModalOpen, isServiceModalOpen]);
 
   useEffect(() => {
     if (isMapVisible && mapInstanceRef.current) {
@@ -336,11 +439,22 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
     setTimeout(() => {
       const updatedStations = stations.map((station) => ({
         ...station,
-        batteryLevel: Math.max(20, Math.min(100, station.batteryLevel + (Math.random() - 0.5) * 10)),
-        distance: calculateDistance(lastKnownLocation?.latitude || -1.2921, lastKnownLocation?.longitude || 36.8219, station.lat, station.lng),
+        batteryLevel: Math.max(
+          20,
+          Math.min(100, station.batteryLevel + (Math.random() - 0.5) * 10)
+        ),
+        distance: calculateDistance(
+          lastKnownLocation?.latitude || -1.2921,
+          lastKnownLocation?.longitude || 36.8219,
+          station.lat,
+          station.lng
+        ),
       }));
       setStations(updatedStations);
-      applyFilters(updatedStations, fleetIds ? Object.values(fleetIds).flat() : null);
+      applyFilters(
+        updatedStations,
+        fleetIds ? Object.values(fleetIds).flat() : null
+      );
       setIsRefreshing(false);
     }, 1500);
   };
@@ -352,7 +466,10 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
     }
     routeControlRef.current = window.L.Routing.control({
       waypoints: [
-        window.L.latLng(lastKnownLocation?.latitude || -1.2921, lastKnownLocation?.longitude || 36.8219),
+        window.L.latLng(
+          lastKnownLocation?.latitude || -1.2921,
+          lastKnownLocation?.longitude || 36.8219
+        ),
         window.L.latLng(station.lat, station.lng),
       ],
       routeWhileDragging: false,
@@ -362,13 +479,19 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
       show: false,
     }).addTo(mapInstanceRef.current);
     const group = new window.L.featureGroup([
-      window.L.marker([lastKnownLocation?.latitude || -1.2921, lastKnownLocation?.longitude || 36.8219]),
+      window.L.marker([
+        lastKnownLocation?.latitude || -1.2921,
+        lastKnownLocation?.longitude || 36.8219,
+      ]),
       window.L.marker([station.lat, station.lng]),
     ]);
     mapInstanceRef.current.fitBounds(group.getBounds().pad(0.1));
   };
 
-  const handleServiceRequest = async (station: Station, serviceType: "battery_swap" | "maintenance" | "multi_service") => {
+  const handleServiceRequest = async (
+    station: Station,
+    serviceType: "battery_swap" | "maintenance" | "multi_service"
+  ) => {
     if (!bridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
       toast.error("Bridge not initialized");
@@ -376,17 +499,21 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
     }
 
     setProcessingId(station.id);
-    console.info(`Initiating ${serviceType} request for station: ${station.name}`);
+    console.info(
+      `Initiating ${serviceType} request for station: ${station.name}`
+    );
 
     // Define MQTT topics
     const requestTopic = `call/abs/service/plan/service-plan-basic-latest-a/emit_intent`;
     const responseTopic = `rtrn/abs/service/plan/service-plan-basic-latest-a/emit_intent`;
 
     // Determine requested_services based on serviceType
-    const requestedServices = 
-      serviceType === "battery_swap" ? ["battery_swap"] :
-      serviceType === "maintenance" ? ["maintenance"] :
-      ["battery_swap", "maintenance"];
+    const requestedServices =
+      serviceType === "battery_swap"
+        ? ["battery_swap"]
+        : serviceType === "maintenance"
+        ? ["maintenance"]
+        : ["battery_swap", "maintenance"];
 
     // Hardcoded payload with dynamic requested_services
     const payload = {
@@ -412,7 +539,9 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
     };
 
     // Register MQTT response handler
-    console.info(`Registering MQTT response handler for topic: ${responseTopic}`);
+    console.info(
+      `Registering MQTT response handler for topic: ${responseTopic}`
+    );
     const reg = (name: string, handler: any) => {
       bridge.registerHandler(name, handler);
       return () => bridge.registerHandler(name, () => {});
@@ -424,7 +553,10 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
         try {
           console.info(`Received MQTT message on topic: ${responseTopic}`);
           const parsedData = JSON.parse(data);
-          console.info("Parsed MQTT response data:", JSON.stringify(parsedData, null, 2));
+          console.info(
+            "Parsed MQTT response data:",
+            JSON.stringify(parsedData, null, 2)
+          );
 
           const message = parsedData;
           const topic = message.topic;
@@ -433,16 +565,41 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
           if (topic === responseTopic) {
             let responseData;
             try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-              console.info("Processed MQTT response content:", JSON.stringify(responseData, null, 2));
+              responseData =
+                typeof rawMessageContent === "string"
+                  ? JSON.parse(rawMessageContent)
+                  : rawMessageContent;
+              console.info(
+                "Processed MQTT response content:",
+                JSON.stringify(responseData, null, 2)
+              );
 
               if (responseData?.data?.success) {
-                console.info(`Successfully processed ${serviceType} request for station: ${station.name}`);
-                toast.success(`Successfully processed ${serviceType === "battery_swap" ? "Battery swap" : serviceType === "maintenance" ? "Service" : "Dual"} request for ${station.name}`);
+                console.info(
+                  `Successfully processed ${serviceType} request for station: ${station.name}`
+                );
+                toast.success(
+                  `Successfully processed ${
+                    serviceType === "battery_swap"
+                      ? "Battery swap"
+                      : serviceType === "maintenance"
+                      ? "Service"
+                      : "Dual"
+                  } request for ${station.name}`
+                );
               } else {
-                const errorReason = responseData?.data?.metadata?.reason || "Unknown error";
+                const errorReason =
+                  responseData?.data?.metadata?.reason || "Unknown error";
                 console.error(`MQTT request failed: ${errorReason}`);
-                toast.error(`Failed to process ${serviceType === "battery_swap" ? "Battery swap" : serviceType === "maintenance" ? "Service" : "Dual"} request: ${errorReason}`);
+                toast.error(
+                  `Failed to process ${
+                    serviceType === "battery_swap"
+                      ? "Battery swap"
+                      : serviceType === "maintenance"
+                      ? "Service"
+                      : "Dual"
+                  } request: ${errorReason}`
+                );
               }
             } catch (parseErr) {
               console.error("Error parsing MQTT response content:", parseErr);
@@ -468,12 +625,18 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
           (subscribeResponse) => {
             console.info("MQTT subscribe response:", subscribeResponse);
             try {
-              const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
+              const subResp =
+                typeof subscribeResponse === "string"
+                  ? JSON.parse(subscribeResponse)
+                  : subscribeResponse;
               if (subResp.respCode === "200") {
                 console.info("Successfully subscribed to response topic");
                 resolve(true);
               } else {
-                console.error("Subscribe failed:", subResp.respDesc || subResp.error);
+                console.error(
+                  "Subscribe failed:",
+                  subResp.respDesc || subResp.error
+                );
                 toast.error("Failed to subscribe to MQTT topic");
                 resolve(false);
               }
@@ -487,7 +650,10 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
       });
 
     // Publish the message
-    console.info(`Publishing MQTT message to topic: ${requestTopic} with payload:`, JSON.stringify(payload, null, 2));
+    console.info(
+      `Publishing MQTT message to topic: ${requestTopic} with payload:`,
+      JSON.stringify(payload, null, 2)
+    );
     const publishMessage = () =>
       new Promise<boolean>((resolve) => {
         bridge.callHandler(
@@ -496,14 +662,28 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
           (response) => {
             console.info("MQTT publish response:", response);
             try {
-              const responseData = typeof response === 'string' ? JSON.parse(response) : response;
+              const responseData =
+                typeof response === "string" ? JSON.parse(response) : response;
               if (responseData.error || responseData.respCode !== "200") {
-                console.error("MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
+                console.error(
+                  "MQTT publish error:",
+                  responseData.respDesc || responseData.error || "Unknown error"
+                );
                 toast.error("Failed to publish MQTT message");
                 resolve(false);
               } else {
-                console.info(`Successfully published ${serviceType} request for station: ${station.name}`);
-                toast.success(`${serviceType === "battery_swap" ? "Battery swap" : serviceType === "maintenance" ? "Service" : "Dual"} request sent for ${station.name}`);
+                console.info(
+                  `Successfully published ${serviceType} request for station: ${station.name}`
+                );
+                toast.success(
+                  `${
+                    serviceType === "battery_swap"
+                      ? "Battery swap"
+                      : serviceType === "maintenance"
+                      ? "Service"
+                      : "Dual"
+                  } request sent for ${station.name}`
+                );
                 resolve(true);
               }
             } catch (err) {
@@ -517,7 +697,9 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
 
     // Cleanup function
     const cleanup = () => {
-      console.info(`Cleaning up MQTT response handler and subscription for topic: ${responseTopic}`);
+      console.info(
+        `Cleaning up MQTT response handler and subscription for topic: ${responseTopic}`
+      );
       offResponseHandler();
       bridge.callHandler(
         "mqttUnSubTopic",
@@ -535,12 +717,16 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
 
     const attemptMqttOperations = async () => {
       while (retries < maxRetries) {
-        console.info(`Attempting MQTT operations (Attempt ${retries + 1}/${maxRetries})`);
+        console.info(
+          `Attempting MQTT operations (Attempt ${retries + 1}/${maxRetries})`
+        );
         const subscribed = await subscribeToTopic();
         if (!subscribed) {
           retries++;
           if (retries < maxRetries) {
-            console.info(`Retrying MQTT subscribe (${retries}/${maxRetries}) after ${retryDelay}ms`);
+            console.info(
+              `Retrying MQTT subscribe (${retries}/${maxRetries}) after ${retryDelay}ms`
+            );
             await new Promise((resolve) => setTimeout(resolve, retryDelay));
             continue;
           } else {
@@ -556,7 +742,9 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
         if (!published) {
           retries++;
           if (retries < maxRetries) {
-            console.info(`Retrying MQTT publish (${retries}/${maxRetries}) after ${retryDelay}ms`);
+            console.info(
+              `Retrying MQTT publish (${retries}/${maxRetries}) after ${retryDelay}ms`
+            );
             await new Promise((resolve) => setTimeout(resolve, retryDelay));
             continue;
           } else {
@@ -633,11 +821,18 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
       <div className="flex flex-col h-screen">
         {/* Map Container */}
         <div className="relative bg-gray-800 h-48 md:h-64 border-b border-gray-700 flex-shrink-0">
-          <div ref={mapRef} className="w-full h-full" style={{ display: isMapVisible ? "block" : "none" }} />
+          <div
+            ref={mapRef}
+            className="w-full h-full"
+            style={{ display: isMapVisible ? "block" : "none" }}
+          />
           {!isMapLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
               <div className="text-center">
-                <MapPin size={48} className="text-blue-400 mx-auto mb-2 animate-pulse" />
+                <MapPin
+                  size={48}
+                  className="text-blue-400 mx-auto mb-2 animate-pulse"
+                />
                 <p className="text-gray-400 text-sm">Loading map...</p>
               </div>
             </div>
@@ -647,7 +842,10 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
             disabled={isRefreshing}
             className="absolute bottom-3 right-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-3 py-2 rounded-lg flex items-center gap-2 transition-all z-10 text-sm font-medium"
           >
-            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+            <RefreshCw
+              size={16}
+              className={isRefreshing ? "animate-spin" : ""}
+            />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
@@ -659,7 +857,9 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
               placeholder="Search stations..."
               className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={filterOptions.name}
-              onChange={(e) => setFilterOptions({ ...filterOptions, name: e.target.value })}
+              onChange={(e) =>
+                setFilterOptions({ ...filterOptions, name: e.target.value })
+              }
             />
             <button
               onClick={() => setIsFilterModalOpen(true)}
@@ -675,37 +875,49 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Stations</h2>
-              <span className="text-sm text-gray-400">{filteredStations.length} nearby</span>
+              <span className="text-sm text-gray-400">
+                {filteredStations.length} nearby
+              </span>
             </div>
             {filteredStations.length === 0 && !isShowcasing && (
-              <p className="text-gray-400 text-center py-8">No stations match your filters.</p>
+              <p className="text-gray-400 text-center py-8">
+                No stations match your filters.
+              </p>
             )}
-            {isShowcasing && <p className="text-yellow-400 text-center mb-4 text-sm">Showing demo stations.</p>}
+            {isShowcasing && (
+              <p className="text-yellow-400 text-center mb-4 text-sm">
+                Showing demo stations.
+              </p>
+            )}
             <div className="space-y-3">
               {filteredStations.map((station) => (
                 <div
                   key={station.id}
                   className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all cursor-pointer"
-                  onClick={() => {
-                    setSelectedStation(station);
-                    setIsDetailsModalOpen(true);
-                  }}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white truncate">{station.name}</h3>
+                      <h3 className="font-semibold text-white truncate">
+                        {station.name}
+                      </h3>
                       <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
                         <MapPin size={12} className="flex-shrink-0" />
                         <span className="truncate">{station.location}</span>
                       </p>
                     </div>
-                    <span className="text-blue-400 text-sm font-medium ml-2 flex-shrink-0">{station.distance}</span>
+                    <span className="text-blue-400 text-sm font-medium ml-2 flex-shrink-0">
+                      {station.distance}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 mb-3">
                     <Zap size={14} className={getStatusColor(station.status)} />
-                    <span className={`text-xs ${getStatusColor(station.status)}`}>{station.availableChargers} available</span>
+                    <span
+                      className={`text-xs ${getStatusColor(station.status)}`}
+                    >
+                      {station.availableChargers} available
+                    </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -715,35 +927,16 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
                     >
                       Navigate
                     </button>
-                    <div className="grid grid-cols-3 gap-2">
-                      <StationButton
-                        label="Swap"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          handleServiceRequest(station, "battery_swap");
-                        }}
-                        color="bg-green-600 hover:bg-green-700"
-                        disabled={processingId === station.id}
-                      />
-                      <StationButton
-                        label="Service"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          handleServiceRequest(station, "maintenance");
-                        }}
-                        color="bg-orange-600 hover:bg-orange-700"
-                        disabled={processingId === station.id}
-                      />
-                      <StationButton
-                        label="Dual"
-                        onClick={(e: React.MouseEvent) => {
-                          e.stopPropagation();
-                          handleServiceRequest(station, "multi_service");
-                        }}
-                        color="bg-red-600 hover:bg-red-700"
-                        disabled={processingId === station.id}
-                      />
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedStation(station);
+                        setIsServiceModalOpen(true);
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Select Station
+                    </button>
                   </div>
                 </div>
               ))}
@@ -755,47 +948,75 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
       {isFilterModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-t-2xl md:rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsFilterModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+            <button
+              onClick={() => setIsFilterModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+            >
               <X size={20} />
             </button>
             <h3 className="text-lg font-semibold mb-6">Filter Stations</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Station Name</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Station Name
+                </label>
                 <input
                   type="text"
                   value={filterOptions.name}
-                  onChange={(e) => setFilterOptions({ ...filterOptions, name: e.target.value })}
+                  onChange={(e) =>
+                    setFilterOptions({ ...filterOptions, name: e.target.value })
+                  }
                   className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Search..."
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Distance (km)</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Distance (km)
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="number"
                     value={filterOptions.minDistance || ""}
-                    onChange={(e) => setFilterOptions({ ...filterOptions, minDistance: e.target.value })}
+                    onChange={(e) =>
+                      setFilterOptions({
+                        ...filterOptions,
+                        minDistance: e.target.value,
+                      })
+                    }
                     className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Min"
                   />
                   <input
                     type="number"
                     value={filterOptions.maxDistance || ""}
-                    onChange={(e) => setFilterOptions({ ...filterOptions, maxDistance: e.target.value ? parseInt(e.target.value) : null })}
+                    onChange={(e) =>
+                      setFilterOptions({
+                        ...filterOptions,
+                        maxDistance: e.target.value
+                          ? parseInt(e.target.value)
+                          : null,
+                      })
+                    }
                     className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Max"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Battery Level</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Battery Level
+                </label>
                 <div className="flex gap-2">
                   {["50", "75", "100"].map((level) => (
                     <button
                       key={level}
-                      onClick={() => setFilterOptions({ ...filterOptions, minBatteryLevel: parseInt(level) })}
+                      onClick={() =>
+                        setFilterOptions({
+                          ...filterOptions,
+                          minBatteryLevel: parseInt(level),
+                        })
+                      }
                       className={`flex-1 py-2 px-3 rounded-lg text-sm transition-colors ${
                         filterOptions.minBatteryLevel === parseInt(level)
                           ? "bg-blue-600 text-white"
@@ -808,12 +1029,19 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Min Chargers</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Min Chargers
+                </label>
                 <div className="flex gap-2">
                   {["2", "4", "6"].map((count) => (
                     <button
                       key={count}
-                      onClick={() => setFilterOptions({ ...filterOptions, minAvailableChargers: parseInt(count) })}
+                      onClick={() =>
+                        setFilterOptions({
+                          ...filterOptions,
+                          minAvailableChargers: parseInt(count),
+                        })
+                      }
                       className={`flex-1 py-2 px-3 rounded-lg text-sm transition-colors ${
                         filterOptions.minAvailableChargers === parseInt(count)
                           ? "bg-blue-600 text-white"
@@ -826,10 +1054,17 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Sort By</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Sort By
+                </label>
                 <select
                   value={filterOptions.sortBy}
-                  onChange={(e) => setFilterOptions({ ...filterOptions, sortBy: e.target.value as any })}
+                  onChange={(e) =>
+                    setFilterOptions({
+                      ...filterOptions,
+                      sortBy: e.target.value as any,
+                    })
+                  }
                   className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="distance">Distance</option>
@@ -839,12 +1074,19 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Sort Order</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Sort Order
+                </label>
                 <div className="flex gap-2">
                   {["asc", "desc"].map((order) => (
                     <button
                       key={order}
-                      onClick={() => setFilterOptions({ ...filterOptions, sortOrder: order as any })}
+                      onClick={() =>
+                        setFilterOptions({
+                          ...filterOptions,
+                          sortOrder: order as any,
+                        })
+                      }
                       className={`flex-1 py-2 px-3 rounded-lg text-sm transition-colors ${
                         filterOptions.sortOrder === order
                           ? "bg-blue-600 text-white"
@@ -884,106 +1126,227 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
           </div>
         </div>
       )}
-      {/* Details Modal */}
-      {isDetailsModalOpen && selectedStation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-t-2xl md:rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsDetailsModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-              <X size={20} />
-            </button>
-            <h3 className="text-lg font-semibold mb-4">{selectedStation.name}</h3>
-            <div className="space-y-4 mb-6">
-              <div>
-                <p className="text-sm text-gray-400 mb-1">Location</p>
-                <p className="text-white flex items-start gap-2">
-                  <MapPin size={16} className="mt-0.5 flex-shrink-0" />
-                  <span>{selectedStation.location}</span>
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Distance</p>
-                  <p className="text-white font-semibold">{selectedStation.distance}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Status</p>
-                  <p className={`font-semibold ${getStatusColor(selectedStation.status)}`}>
-                    {selectedStation.status.charAt(0).toUpperCase() + selectedStation.status.slice(1)}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400 mb-2">Battery Level</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <div className="w-full bg-gray-700 rounded-full h-2.5">
-                      <div
-                        className={`h-2.5 rounded-full ${getBatteryColor(selectedStation.batteryLevel)}`}
-                        style={{ width: `${selectedStation.batteryLevel}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                  <span className="text-white font-semibold whitespace-nowrap">{selectedStation.batteryLevel.toFixed(1)}%</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400 mb-1">Available Chargers</p>
-                <p className={`text-lg font-semibold ${getStatusColor(selectedStation.status)}`}>{selectedStation.availableChargers}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400 mb-1">Fleet</p>
-                <p className="text-white text-sm bg-gray-700 rounded px-3 py-2">{selectedStation.fleetId}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-700">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">Latitude</p>
-                  <p className="text-xs text-white font-mono">{selectedStation.lat.toFixed(6)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">Longitude</p>
-                  <p className="text-xs text-white font-mono">{selectedStation.lng.toFixed(6)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
+      {/* Service Modal */}
+      {isServiceModalOpen && selectedStation && (
+        <div className="fixed inset-0 bg-gray-900 z-50 overflow-y-auto">
+          <div className="min-h-screen">
+            {/* Header */}
+            <div className="bg-gray-800 px-4 py-6">
               <button
-                onClick={() => {
-                  setIsDetailsModalOpen(false);
-                  handleNavigateToStation(selectedStation);
-                }}
-                className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                onClick={() => setIsServiceModalOpen(false)}
+                className="flex items-center gap-2 text-white mb-4 hover:opacity-80 transition-opacity"
               >
-                <Navigation size={16} />
-                Navigate Here
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                Back
               </button>
-              <div className="grid grid-cols-3 gap-2">
-                <StationButton
-                  label="Swap"
+              <h2 className="text-2xl font-bold text-white">Select Service</h2>
+              <p className="text-blue-100 text-sm mt-1">
+                Choose what you need today
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-6">
+              {/* Available Services Section */}
+              <div>
+                <h3 className="text-white font-semibold mb-3">
+                  Available Services
+                </h3>
+                <div className="space-y-3">
+                  {/* Battery Swap Service */}
+                  <button
+                    onClick={() => {
+                      setSelectedService("battery_swap");
+                    }}
+                    disabled={processingId === selectedStation.id}
+                    className="w-full bg-gray-800 border-2 border-blue-500 rounded-xl p-4 flex items-center justify-between hover:bg-gray-750 transition-colors disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                        <Battery className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white font-semibold">Battery Swap</p>
+                        <p className="text-gray-400 text-sm">
+                          Quick battery exchange
+                        </p>
+                      </div>
+                    </div>
+                    {processingId === selectedStation.id ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                    ) : selectedService === "battery_swap" ? (
+                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-4 h-4 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 border-2 border-blue-500 rounded-full"></div>
+                    )}
+                  </button>
+
+                  {/* Maintenance Service */}
+                  <button
+                    onClick={() => {
+                      setSelectedService("maintenance");
+                    }}
+                    disabled={processingId === selectedStation.id}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl p-4 flex items-center justify-between hover:border-orange-500 hover:bg-gray-750 transition-colors disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                        <Hammer className="w-6 h-6 text-orange-400" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white font-semibold">Maintenance</p>
+                        <p className="text-gray-400 text-sm">
+                          Service & repair
+                        </p>
+                      </div>
+                    </div>
+                    {processingId === selectedStation.id ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
+                    ) : selectedService === "maintenance" ? (
+                      <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-4 h-4 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 border-2 border-orange-500 rounded-full"></div>
+                    )}
+                  </button>
+                  {/* Dual Service */}
+                  <button
+                    onClick={() => {
+                      setSelectedService("multi_service");
+                    }}
+                    disabled={processingId === selectedStation.id}
+                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl p-4 flex items-center justify-between hover:border-orange-500 hover:bg-gray-750 transition-colors disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                        <Wrench className="w-6 h-6 text-orange-400" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white font-semibold">Dual service</p>
+                        <p className="text-gray-400 text-sm">
+                          Battery swap & repair
+                        </p>
+                      </div>
+                    </div>
+                    {processingId === selectedStation.id ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
+                    ) : selectedService === "multi_service" ? (
+                      <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-4 h-4 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 border-2 border-orange-500 rounded-full"></div>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Station Details Section */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-white font-semibold">
+                    {selectedStation.name}
+                  </h3>
+                  <button className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
+                    <MapPin className="w-4 h-4 text-blue-400" />
+                  </button>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">Service Location</p>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3 text-gray-300">
+                    <Navigation className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm">
+                      {selectedStation.distance} from your location
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-300">
+                    <Zap className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">
+                      {selectedStation.availableChargers.split("/")[0]}{" "}
+                      batteries available
+                    </span>
+                  </div>
+                </div>
+
+                {/* Main Action Button */}
+                <button
                   onClick={() => {
-                    setIsDetailsModalOpen(false);
-                    handleServiceRequest(selectedStation, "battery_swap");
+                    if (!selectedService) return;
+                    setIsServiceModalOpen(false);
+                    handleServiceRequest(selectedStation, selectedService);
                   }}
-                  color="bg-green-600 hover:bg-green-700"
-                  disabled={processingId === selectedStation.id}
-                />
-                <StationButton
-                  label="Service"
-                  onClick={() => {
-                    setIsDetailsModalOpen(false);
-                    handleServiceRequest(selectedStation, "maintenance");
-                  }}
-                  color="bg-orange-600 hover:bg-orange-700"
-                  disabled={processingId === selectedStation.id}
-                />
-                <StationButton
-                  label="Dual"
-                  onClick={() => {
-                    setIsDetailsModalOpen(false);
-                    handleServiceRequest(selectedStation, "multi_service");
-                  }}
-                  color="bg-red-600 hover:bg-red-700"
-                  disabled={processingId === selectedStation.id}
-                />
+                  disabled={processingId === selectedStation.id || !selectedService}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {processingId === selectedStation.id ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : selectedService ? (
+                    `I'm on my way for ${
+                      selectedService === "battery_swap"
+                        ? "battery swap"
+                        : selectedService === "maintenance"
+                        ? "maintenance"
+                        : "dual service"
+                    }`
+                  ) : (
+                    "Select a service"
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -994,5 +1357,3 @@ const ChargingStationFinder = ({ lastKnownLocation, fleetIds }: ChargingStationF
 };
 
 export default ChargingStationFinder;
-
-

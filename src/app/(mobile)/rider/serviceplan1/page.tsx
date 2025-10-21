@@ -14,6 +14,7 @@ import {
   MapPin,
   User,
   HelpCircle,
+  Key,
 } from "lucide-react";
 import Dashboard from "./dashboard";
 import Products from "./products";
@@ -21,11 +22,12 @@ import Payments from "./payments";
 import ChargingStationFinder from "./ChargingStationFinder";
 import Login from "./login";
 import Ticketing from "./ticketing";
+import Authenticate from "./authenticate";
 import { useBridge } from "@/app/context/bridgeContext";
 
 let bridgeHasBeenInitialized = false;
 
-// Define interfaces
+// Define interfaces (unchanged)
 interface ServicePlan {
   name: string;
   price: number;
@@ -92,7 +94,7 @@ declare global {
   }
 }
 
-const API_BASE = "https://evans-musamia-odoorestapi-staging-24591738.dev.odoo.com/api";
+const API_BASE = "https://evans-musamia-odoorestapi.odoo.com/api";
 
 const AppContainer = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -103,7 +105,7 @@ const AppContainer = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login">("login");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "authenticate" | "login">("login");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false);
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
@@ -111,11 +113,233 @@ const AppContainer = () => {
   const [allPlans, setAllPlans] = useState<ServicePlan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState<boolean>(true);
   const [fleetIds, setFleetIds] = useState<FleetIds | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [locationActions, setLocationActions] = useState<any[]>([]);
+  const [isBindingSuccessful, setIsBindingSuccessful] = useState<boolean>(false);
   const bridgeInitRef = useRef(false);
   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
   const { bridge } = useBridge();
 
-  // Check local storage for email on mount
+  // New: bindCustomerToLocation (adapted from ChargingStationFinder's handleServiceRequest)
+  const bindCustomerToLocation = async (locationId: string) => {
+    if (!bridge || !window.WebViewJavascriptBridge) {
+      console.error("WebViewJavascriptBridge is not initialized.");
+      toast.error("Cannot connect to service: Bridge not initialized");
+      handleBindingResult({ success: false });
+      return;
+    }
+
+    console.info(`Initiating bindCustomerToLocation for locationId: ${locationId}`);
+
+    const requestTopic = "call/abs/service/plan/service-plan-basic-latest-a/bind_customer";
+    const responseTopic = "rtrn/abs/service/plan/service-plan-basic-latest-a/bind_customer";
+
+    const payload = {
+      timestamp: new Date().toISOString(),
+      plan_id: "service-plan-basic-latest-a",
+      correlation_id: `bind-${Date.now()}`,
+      actor: {
+        type: "customer",
+        id: "CUST-RIDER-001",
+      },
+      data: {
+        action: "BIND_CUSTOMER_TO_LOCATION",
+        location_id: locationId,
+        requested_services: ["battery_swap"],
+        authentication_method: "mobile_app",
+      },
+    };
+
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content: payload,
+    };
+
+    // Register MQTT response handler
+    const reg = (name: string, handler: any) => {
+      console.info(`Registering handler for ${name}`);
+      bridge.registerHandler(name, handler);
+      return () => {
+        console.info(`Unregistering handler for ${name}`);
+        bridge.registerHandler(name, () => {});
+      };
+    };
+
+    const offResponseHandler = reg(
+      "mqttMsgArrivedCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const parsedData = JSON.parse(data);
+          const message = parsedData;
+          const topic = message.topic;
+          const rawMessageContent = message.message;
+
+          if (topic === responseTopic) {
+            console.info("Response matches topic:", responseTopic);
+            let responseData;
+            try {
+              responseData = typeof rawMessageContent === "string" ? JSON.parse(rawMessageContent) : rawMessageContent;
+            } catch (parseErr) {
+              console.error("Error parsing MQTT message content:", parseErr);
+              responseData = rawMessageContent;
+            }
+
+            if (responseData?.data?.success) {
+              const sessionToken = responseData.data.metadata?.session_token;
+              const locationActions = responseData.data.metadata?.location_actions || [];
+              if (sessionToken) {
+                console.info("Binding successful - Session Token:", sessionToken);
+                handleBindingResult({ sessionToken, locationActions, success: true });
+                toast.success("Binding successful! Session token received.");
+              } else {
+                console.error("No session token in response:", responseData);
+                handleBindingResult({ success: false });
+                toast.error("No session token received");
+              }
+            } else {
+              const errorReason = responseData?.data?.metadata?.reason || 
+                                  responseData?.data?.signals?.[0] || 
+                                  "Unknown error";
+              console.error("MQTT binding failed:", errorReason);
+              handleBindingResult({ success: false });
+              toast.error(`Binding failed: ${errorReason}`);
+            }
+            responseCallback({ success: true });
+          }
+        } catch (err) {
+          console.error("Error processing MQTT callback:", err);
+          toast.error("Error processing response");
+          handleBindingResult({ success: false });
+          responseCallback({ success: false, error: String(err) });
+        }
+      }
+    );
+
+    // Subscribe to the response topic
+    const subscribeToTopic = () =>
+      new Promise<boolean>((resolve) => {
+        console.info(`Subscribing to MQTT response topic: ${responseTopic}`);
+        bridge.callHandler(
+          "mqttSubTopic",
+          { topic: responseTopic, qos: 0 },
+          (subscribeResponse) => {
+            console.info("MQTT subscribe response:", subscribeResponse);
+            try {
+              const subResp = typeof subscribeResponse === "string" ? JSON.parse(subscribeResponse) : subscribeResponse;
+              if (subResp.respCode === "200") {
+                console.info("Successfully subscribed to:", responseTopic);
+                resolve(true);
+              } else {
+                console.error("Subscribe failed:", subResp.respDesc || subResp.error || "Unknown error");
+                toast.error("Failed to subscribe to MQTT topic");
+                resolve(false);
+              }
+            } catch (err) {
+              console.error("Error parsing subscribe response:", err);
+              toast.error("Error subscribing to MQTT topic");
+              resolve(false);
+            }
+          }
+        );
+      });
+
+    // Publish the message
+    const publishMessage = () =>
+      new Promise<boolean>((resolve) => {
+        console.info(`Publishing MQTT message to topic: ${requestTopic}`);
+        bridge.callHandler(
+          "mqttPublishMsg",
+          JSON.stringify(dataToPublish),
+          (response) => {
+            console.info("MQTT publish response:", response);
+            try {
+              const responseData = typeof response === "string" ? JSON.parse(response) : response;
+              if (responseData.error || responseData.respCode !== "200") {
+                console.error("MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
+                toast.error("Failed to publish binding request");
+                resolve(false);
+              } else {
+                console.info("Successfully published binding request");
+                toast.success("Binding request sent");
+                resolve(true);
+              }
+            } catch (err) {
+              console.error("Error parsing MQTT publish response:", err);
+              toast.error("Error publishing binding request");
+              resolve(false);
+            }
+          }
+        );
+      });
+
+    // Cleanup function
+    const cleanup = () => {
+      console.info(`Cleaning up MQTT response handler and subscription for topic: ${responseTopic}`);
+      offResponseHandler();
+      bridge.callHandler(
+        "mqttUnSubTopic",
+        { topic: responseTopic, qos: 0 },
+        (unsubResponse) => {
+          console.info("MQTT unsubscribe response:", unsubResponse);
+        }
+      );
+    };
+
+    // Execute MQTT operations with retry mechanism
+    const maxRetries = 3;
+    const retryDelay = 2000;
+    let retries = 0;
+
+    const attemptMqttOperations = async () => {
+      while (retries < maxRetries) {
+        console.info(`Attempting MQTT operations (Attempt ${retries + 1}/${maxRetries})`);
+        const subscribed = await subscribeToTopic();
+        if (!subscribed) {
+          retries++;
+          if (retries < maxRetries) {
+            console.info(`Retrying MQTT subscribe (${retries}/${maxRetries}) after ${retryDelay}ms`);
+            await new Promise((resolve) => setTimeout(resolve, retryDelay));
+            continue;
+          } else {
+            console.error("Failed to subscribe to MQTT topic after retries");
+            toast.error("Failed to subscribe to MQTT topic after retries");
+            cleanup();
+            return;
+          }
+        }
+
+        const published = await publishMessage();
+        if (!published) {
+          retries++;
+          if (retries < maxRetries) {
+            console.info(`Retrying MQTT publish (${retries}/${maxRetries}) after ${retryDelay}ms`);
+            await new Promise((resolve) => setTimeout(resolve, retryDelay));
+            continue;
+          } else {
+            console.error("Failed to publish MQTT message after retries");
+            toast.error("Failed to publish binding request after retries");
+            cleanup();
+            return;
+          }
+        }
+
+        console.info("MQTT operations successful, scheduling cleanup");
+        setTimeout(() => cleanup(), 15000);
+        return;
+      }
+    };
+
+    try {
+      await attemptMqttOperations();
+    } catch (err) {
+      console.error("Error in MQTT operations:", err);
+      toast.error("Error in MQTT operations");
+      cleanup();
+    }
+  };
+
+  // Check local storage for email on mount (unchanged)
   useEffect(() => {
     const checkAuth = async () => {
       const storedEmail = localStorage.getItem("userEmail");
@@ -157,7 +381,7 @@ const AppContainer = () => {
     checkAuth();
   }, []);
 
-  // Fetch service plans from the endpoint
+  // Fetch service plans (unchanged)
   useEffect(() => {
     const fetchPlans = async () => {
       if (!customer?.company_id) {
@@ -202,7 +426,7 @@ const AppContainer = () => {
     fetchPlans();
   }, [customer]);
 
-  // Fetch fleet IDs when MQTT is connected
+  // Fetch fleet IDs (unchanged)
   useEffect(() => {
     if (isMqttConnected && bridge && lastKnownLocation) {
       console.info("MQTT connected, triggering fetchFleetIds");
@@ -211,7 +435,6 @@ const AppContainer = () => {
     }
   }, [isMqttConnected, bridge, lastKnownLocation, selectedPlan]);
 
-  // Function to fetch fleet IDs via MQTT
   const fetchFleetIds = (planId: string) => {
     if (!bridge || !window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
@@ -359,6 +582,7 @@ const AppContainer = () => {
     }, 15000);
   };
 
+  // Updated setupBridge to handle QR code scanning
   const setupBridge = (bridge: WebViewJavascriptBridge) => {
     const noop = () => {};
     const reg = (name: string, handler: any) => {
@@ -471,12 +695,16 @@ const AppContainer = () => {
     const offQr = reg("scanQrcodeResultCallBack", (data: string, resp: any) => {
       try {
         const p = JSON.parse(data);
-        const qrVal = p.respData.value || "";
+        const qrVal = p.respData?.value || "";
+        if (!qrVal) {
+          throw new Error("No QR code value provided");
+        }
         handleQrCode(qrVal);
-        resp(data);
+        resp({ success: true });
       } catch (err) {
         console.error("Error processing QR code data:", err);
         toast.error("Error processing QR code");
+        resp({ success: false, error: String(err) });
       }
     });
 
@@ -541,43 +769,69 @@ const AppContainer = () => {
     }
   };
 
+  // Updated handleQrCode to trigger bindCustomerToLocation
   const handleQrCode = (code: string) => {
     try {
-      const url = new URL(code);
-      const swapId = url.searchParams.get('swapId');
-      
-      if (swapId) {
-        toast.success(`Swap ID: ${swapId}`);
-        console.log(`Extracted Swap ID: ${swapId}`);
+      if (!code || typeof code !== "string") {
+        throw new Error("Invalid or empty QR code data");
+      }
+
+      let locationId: string | null = null;
+
+      // Plain text format
+      if (code.startsWith("location_id:")) {
+        locationId = code.replace("location_id:", "").trim();
       } else {
-        toast.error("No swapId found in the QR code URL");
-        console.error("No swapId parameter in URL:", code);
+        // URL parsing
+        const url = new URL(code);
+        locationId = url.searchParams.get('location_id');
+      }
+
+      if (locationId && currentPage === "authenticate") {
+        console.info("Location ID extracted in authenticate page:", locationId);
+        toast.success(`Location ID: ${locationId}`);
+        bindCustomerToLocation(locationId);
+        return locationId;
+      } else if (locationId) {
+        toast.success(`Location ID: ${locationId}`);
+        return locationId;
+      } else {
+        const swapId = new URL(code).searchParams.get('swapId');
+        if (swapId) {
+          toast.success(`Swap ID: ${swapId}`);
+          return null;
+        }
+        throw new Error("No location_id or swapId found");
       }
     } catch (err) {
-      console.error("Error parsing QR code URL:", err);
-      toast.error("Invalid QR code URL");
+      console.error("Error parsing QR code:", err);
+      toast.error("Invalid QR code format");
+      return null;
     }
+  };
+
+  const handleBindingResult = (result: { sessionToken?: string; locationActions?: any[]; success: boolean }) => {
+    setSessionToken(result.sessionToken || null);
+    setLocationActions(result.locationActions || []);
+    setIsBindingSuccessful(result.success);
   };
 
   const initiateSubscriptionPurchase = async (plan: ServicePlan) => {
     if (!customer?.id) {
       toast.error("Customer data not available. Please sign in again.");
-      return false;
+      return null;
     }
     if (!customer?.company_id) {
       toast.error("Company ID not available. Please sign in again.");
-      return false;
+      return null;
     }
 
     try {
       const purchaseData = {
+        auto_confirm: true,
+        billing_frequency: plan.suggested_billing_frequency || "monthly",
         customer_id: customer.id,
         product_id: plan.productId,
-        quantity: 1,
-        billing_frequency: plan.suggested_billing_frequency || "monthly",
-        auto_confirm: true,
-        company_id: customer.company_id,
-        price_unit: plan.price,
       };
 
       const response = await fetch(
@@ -596,23 +850,22 @@ const AppContainer = () => {
 
       if (response.ok && data.success && data.order?.id) {
         console.log("Subscription purchase initiated:", data);
-        setOrderId(data.order.id);
-        toast.success(`Selected ${plan.name}`);
-        return true;
+        return data.order;
       } else {
         throw new Error(data.message || "Failed to initiate subscription purchase");
       }
     } catch (error: any) {
       console.error("Error initiating subscription purchase:", error);
       toast.error(error.message || "Failed to initiate subscription. Please try again.");
-      return false;
+      return null;
     }
   };
 
   const handleSelectPlan = async (plan: ServicePlan) => {
-    const success = await initiateSubscriptionPurchase(plan);
-    if (success) {
+    const order = await initiateSubscriptionPurchase(plan);
+    if (order) {
       setSelectedPlan(plan);
+      setOrderId(order.id);
       setShowPaymentModal(true);
     }
   };
@@ -625,9 +878,9 @@ const AppContainer = () => {
   };
 
   const handlePaymentSubmit = async () => {
-    const phoneRegex = /^\d{9}$/;
+    const phoneRegex = /^\d{10}$/;
     if (!phoneNumber.trim() || !phoneRegex.test(phoneNumber)) {
-      toast.error("Please enter a valid 9-digit mobile number (e.g., 712345678)");
+      toast.error("Please enter a valid 10-digit mobile number (e.g., 0768194214)");
       return;
     }
 
@@ -649,29 +902,34 @@ const AppContainer = () => {
     setIsProcessingPayment(true);
 
     try {
-      const invoiceResponse = await fetch(
-        `${API_BASE}/orders/${orderId}/invoice`,
+      const orderResponse = await fetch(
+        `${API_BASE}/products/subscription/purchase`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
+          body: JSON.stringify({
+            auto_confirm: true,
+            billing_frequency: selectedPlan.suggested_billing_frequency || "monthly",
+            customer_id: customer.id,
+            product_id: selectedPlan.productId,
+          }),
         }
       );
 
-      const invoiceData = await invoiceResponse.json();
+      const orderData = await orderResponse.json();
 
-      if (!invoiceResponse.ok || !invoiceData.success || !invoiceData.invoice?.id) {
-        throw new Error(invoiceData.message || "Failed to generate invoice");
+      if (!orderResponse.ok || !orderData.success || !orderData.order?.subscription_code) {
+        throw new Error(orderData.message || "Failed to get subscription code");
       }
 
-      const invoiceId = invoiceData.invoice.id;
+      const subscriptionCode = orderData.order.subscription_code;
 
-      const fullPhoneNumber = `254${phoneNumber}`;
       const paymentData = {
-        invoice_id: invoiceId,
-        phone_number: fullPhoneNumber,
+        subscription_code: subscriptionCode,
+        phone_number: phoneNumber,
       };
 
       const paymentResponse = await fetch(
@@ -705,6 +963,13 @@ const AppContainer = () => {
     }
   };
 
+  const handleProceedToService = () => {
+    console.info("Proceed to Service clicked");
+    toast.success("Proceeding to service...");
+    setCurrentPage("dashboard");
+    setIsBindingSuccessful(false);
+  };
+
   const paymentHistory: PaymentTransaction[] = [
     {
       id: "TXN001",
@@ -720,6 +985,7 @@ const AppContainer = () => {
     { id: "products", label: "Products", icon: Package },
     { id: "transactions", label: "Transactions", icon: CreditCard },
     { id: "charging stations", label: "Charging Stations", icon: MapPin },
+    { id: "authenticate", label: "Authenticate", icon: Key },
     { id: "support", label: "Support", icon: HelpCircle },
     { id: "logout", label: "Logout", icon: LogOut },
   ];
@@ -749,7 +1015,7 @@ const AppContainer = () => {
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, "").slice(0, 9);
+    const value = e.target.value.replace(/\D/g, "").slice(0, 10);
     setPhoneNumber(value);
   };
 
@@ -806,6 +1072,18 @@ const AppContainer = () => {
         return <Payments paymentHistory={paymentHistory} />;
       case "charging stations":
         return <ChargingStationFinder lastKnownLocation={lastKnownLocation} fleetIds={fleetIds} />;
+      case "authenticate":
+        return (
+          <Authenticate
+            onScan={startQrCodeScan}
+            sessionToken={sessionToken}
+            locationActions={locationActions}
+            isBindingSuccessful={isBindingSuccessful}
+            onProceedToService={handleProceedToService}
+            onBindingResult={handleBindingResult}
+            // Removed bridge and onHandleQrCode props
+          />
+        );
       case "support":
         return <Ticketing customer={customer} allPlans={allPlans} />;
       case "login":
@@ -816,8 +1094,8 @@ const AppContainer = () => {
   };
 
   useEffect(() => {
-    console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds });
-  }, [isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds]);
+    console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds, sessionToken, locationActions, isBindingSuccessful });
+  }, [isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds, sessionToken, locationActions, isBindingSuccessful]);
 
   if (isCheckingAuth) {
     return (
@@ -871,8 +1149,7 @@ const AppContainer = () => {
                 <Wallet className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Complete Payment</h2>
-              <p className="text-gray-400 text-sm">{selectedPlan?.name}
-              </p>
+              <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
               <p className="text-gray-400 text-sm mt-1">{selectedPlan?.default_code}</p>
               <p className="text-indigo-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
@@ -882,23 +1159,20 @@ const AppContainer = () => {
                 Mobile Number
               </label>
               <div className="flex items-center">
-                <span className="inline-flex items-center px-4 py-3 bg-gray-600 border border-r-0 border-gray-600 rounded-l-lg text-gray-300 text-sm font-medium">
-                  254
-                </span>
                 <input
                   id="phone"
                   type="tel"
                   value={phoneNumber}
                   onChange={handlePhoneChange}
                   onKeyPress={handlePhoneKeyPress}
-                  placeholder="712345678"
-                  maxLength={9}
+                  placeholder="0768194214"
+                  maxLength={10}
                   disabled={isProcessingPayment}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-r-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Enter your 9-digit mobile number (e.g., 712345678)
+                Enter your 10-digit mobile number (e.g., 0768194214)
               </p>
             </div>
 
@@ -912,7 +1186,7 @@ const AppContainer = () => {
               </button>
               <button
                 onClick={handlePaymentSubmit}
-                disabled={isProcessingPayment || phoneNumber.length !== 9}
+                disabled={isProcessingPayment || phoneNumber.length !== 10}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
               >
                 {isProcessingPayment ? (

@@ -37,7 +37,7 @@ interface FormErrors {
   country?: string;
 }
 
-const API_BASE = "https://evans-musamia-odoorestapi-staging-24591738.dev.odoo.com/api";
+const API_BASE = "https://evans-musamia-odoorestapi.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState<string>("");
