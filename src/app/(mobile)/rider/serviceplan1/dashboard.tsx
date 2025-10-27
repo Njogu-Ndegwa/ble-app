@@ -34,7 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
         setIsLoading(true);
         try {
           const response = await fetch(
-            `https://evans-musamia-odoorestapi.odoo.com/api/customers/${customer.id}/dashboard`,
+            `https://crm-omnivoltaic.odoo.com/api/customers/${customer.id}/dashboard`,
             {
               method: "GET",
               headers: {

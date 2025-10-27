@@ -105,7 +105,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
   const [comment, setComment] = useState("");
 
   const API_BASE =
-    "https://evans-musamia-odoorestapi.odoo.com/api";
+    "https://crm-omnivoltaic.odoo.com/api";
   const API_KEY = "abs_connector_secret_key_2024";
   const headers = {
     "Content-Type": "application/json",

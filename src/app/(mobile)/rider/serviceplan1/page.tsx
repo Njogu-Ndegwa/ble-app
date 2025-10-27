@@ -94,7 +94,7 @@ declare global {
   }
 }
 
-const API_BASE = "https://evans-musamia-odoorestapi.odoo.com/api";
+const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const AppContainer = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);

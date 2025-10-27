@@ -119,7 +119,7 @@ const RegisterForm = () => {
       };
 
       console.log('Submitting to API:', {
-        url: 'https://evans-musamia-odoorestapi.odoo.com/api',
+        url: 'https://crm-omnivoltaic.odoo.com/api',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +128,7 @@ const RegisterForm = () => {
         body: JSON.stringify(apiData, null, 2),
       });
 
-      const response = await fetch('https://evans-musamia-odoorestapi.odoo.com/api/contacts', {
+      const response = await fetch('https://crm-omnivoltaic.odoo.com/api/contacts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
