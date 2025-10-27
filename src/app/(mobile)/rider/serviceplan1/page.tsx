@@ -124,7 +124,7 @@ const AppContainer = () => {
   const bindCustomerToLocation = async (locationId: string) => {
     if (!bridge || !window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
-      toast.error("Cannot connect to service: Bridge not initialized");
+      // toast.error("Cannot connect to service: Bridge not initialized");
       handleBindingResult({ success: false });
       return;
     }
@@ -195,7 +195,7 @@ const AppContainer = () => {
               } else {
                 console.error("No session token in response:", responseData);
                 handleBindingResult({ success: false });
-                toast.error("No session token received");
+                // toast.error("No session token received");
               }
             } else {
               const errorReason = responseData?.data?.metadata?.reason || 
@@ -203,13 +203,13 @@ const AppContainer = () => {
                                   "Unknown error";
               console.error("MQTT binding failed:", errorReason);
               handleBindingResult({ success: false });
-              toast.error(`Binding failed: ${errorReason}`);
+              // toast.error(`Binding failed: ${errorReason}`);
             }
             responseCallback({ success: true });
           }
         } catch (err) {
           console.error("Error processing MQTT callback:", err);
-          toast.error("Error processing response");
+          // toast.error("Error processing response");
           handleBindingResult({ success: false });
           responseCallback({ success: false, error: String(err) });
         }
@@ -232,12 +232,12 @@ const AppContainer = () => {
                 resolve(true);
               } else {
                 console.error("Subscribe failed:", subResp.respDesc || subResp.error || "Unknown error");
-                toast.error("Failed to subscribe to MQTT topic");
+                // toast.error("Failed to subscribe to MQTT topic");
                 resolve(false);
               }
             } catch (err) {
               console.error("Error parsing subscribe response:", err);
-              toast.error("Error subscribing to MQTT topic");
+              // toast.error("Error subscribing to MQTT topic");
               resolve(false);
             }
           }
@@ -257,7 +257,7 @@ const AppContainer = () => {
               const responseData = typeof response === "string" ? JSON.parse(response) : response;
               if (responseData.error || responseData.respCode !== "200") {
                 console.error("MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
-                toast.error("Failed to publish binding request");
+                // toast.error("Failed to publish binding request");
                 resolve(false);
               } else {
                 console.info("Successfully published binding request");
@@ -266,7 +266,7 @@ const AppContainer = () => {
               }
             } catch (err) {
               console.error("Error parsing MQTT publish response:", err);
-              toast.error("Error publishing binding request");
+              // toast.error("Error publishing binding request");
               resolve(false);
             }
           }
@@ -303,7 +303,7 @@ const AppContainer = () => {
             continue;
           } else {
             console.error("Failed to subscribe to MQTT topic after retries");
-            toast.error("Failed to subscribe to MQTT topic after retries");
+            // toast.error("Failed to subscribe to MQTT topic after retries");
             cleanup();
             return;
           }
@@ -318,7 +318,7 @@ const AppContainer = () => {
             continue;
           } else {
             console.error("Failed to publish MQTT message after retries");
-            toast.error("Failed to publish binding request after retries");
+            // toast.error("Failed to publish binding request after retries");
             cleanup();
             return;
           }
@@ -334,7 +334,7 @@ const AppContainer = () => {
       await attemptMqttOperations();
     } catch (err) {
       console.error("Error in MQTT operations:", err);
-      toast.error("Error in MQTT operations");
+      // toast.error("Error in MQTT operations");
       cleanup();
     }
   };
@@ -647,7 +647,7 @@ const AppContainer = () => {
           const dataPreview = JSON.stringify(rawLocationData, null, 2);
 
           if (!rawLocationData || typeof rawLocationData !== 'object') {
-            toast.error("Invalid location data format");
+            // toast.error("Invalid location data format");
             responseCallback({ success: false, error: "Invalid format" });
             return;
           }
@@ -655,7 +655,7 @@ const AppContainer = () => {
           const { latitude, longitude } = rawLocationData;
 
           if (typeof latitude !== 'number' || typeof longitude !== 'number' || isNaN(latitude) || isNaN(longitude)) {
-            toast.error("Invalid coordinates: Must be valid numbers");
+            // toast.error("Invalid coordinates: Must be valid numbers");
             responseCallback({ success: false, error: "Invalid coordinates" });
             return;
           }
@@ -677,15 +677,15 @@ const AppContainer = () => {
             };
 
             if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-              toast.error("Coordinates out of valid range");
+              // toast.error("Coordinates out of valid range");
             } else if (latitude === 0 && longitude === 0) {
-              toast.error("Location at (0,0) - possible GPS error");
+              // toast.error("Location at (0,0) - possible GPS error");
             }
           }
 
           responseCallback({ success: true, location: rawLocationData });
         } catch (error) {
-          toast.error("Error processing location data");
+          // toast.error("Error processing location data");
           console.error("Error processing location data:", error);
           responseCallback({ success: false, error: error });
         }
@@ -703,7 +703,7 @@ const AppContainer = () => {
         resp({ success: true });
       } catch (err) {
         console.error("Error processing QR code data:", err);
-        toast.error("Error processing QR code");
+        // toast.error("Error processing QR code");
         resp({ success: false, error: String(err) });
       }
     });

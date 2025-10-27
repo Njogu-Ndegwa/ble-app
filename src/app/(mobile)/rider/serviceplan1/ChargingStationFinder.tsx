@@ -603,13 +603,13 @@ const ChargingStationFinder = ({
               }
             } catch (parseErr) {
               console.error("Error parsing MQTT response content:", parseErr);
-              toast.error("Error processing MQTT response");
+              // toast.error("Error processing MQTT response");
             }
             responseCallback({ success: true });
           }
         } catch (err) {
           console.error("Error parsing MQTT arrived callback:", err);
-          toast.error("Error processing MQTT response");
+          // toast.error("Error processing MQTT response");
           responseCallback({ success: false, error: err });
         }
       }
@@ -637,12 +637,12 @@ const ChargingStationFinder = ({
                   "Subscribe failed:",
                   subResp.respDesc || subResp.error
                 );
-                toast.error("Failed to subscribe to MQTT topic");
+                // toast.error("Failed to subscribe to MQTT topic");
                 resolve(false);
               }
             } catch (err) {
               console.error("Error parsing subscribe response:", err);
-              toast.error("Error subscribing to MQTT topic");
+              // toast.error("Error subscribing to MQTT topic");
               resolve(false);
             }
           }
@@ -669,7 +669,7 @@ const ChargingStationFinder = ({
                   "MQTT publish error:",
                   responseData.respDesc || responseData.error || "Unknown error"
                 );
-                toast.error("Failed to publish MQTT message");
+                // toast.error("Failed to publish MQTT message");
                 resolve(false);
               } else {
                 console.info(
@@ -688,7 +688,7 @@ const ChargingStationFinder = ({
               }
             } catch (err) {
               console.error("Error parsing MQTT publish response:", err);
-              toast.error("Error publishing MQTT message");
+              // toast.error("Error publishing MQTT message");
               resolve(false);
             }
           }
@@ -731,7 +731,7 @@ const ChargingStationFinder = ({
             continue;
           } else {
             console.error("Failed to subscribe to MQTT topic after retries");
-            toast.error("Failed to subscribe to MQTT topic after retries");
+            // toast.error("Failed to subscribe to MQTT topic after retries");
             cleanup();
             setProcessingId(null);
             return;
@@ -749,7 +749,7 @@ const ChargingStationFinder = ({
             continue;
           } else {
             console.error("Failed to publish MQTT message after retries");
-            toast.error("Failed to publish MQTT message after retries");
+            // toast.error("Failed to publish MQTT message after retries");
             cleanup();
             setProcessingId(null);
             return;
@@ -770,7 +770,7 @@ const ChargingStationFinder = ({
       await attemptMqttOperations();
     } catch (err) {
       console.error("Error in MQTT operations:", err);
-      toast.error("Error in MQTT operations");
+      // toast.error("Error in MQTT operations");
       cleanup();
       setProcessingId(null);
     }
