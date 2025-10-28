@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import { useI18n } from '@/i18n';
 
 interface Customer {
   id: number;
@@ -25,6 +26,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -75,13 +77,13 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
   return (
     <div className="space-y-6 p-4">
       <div className="text-center mb-6">
-        <p className="text-gray-400">Welcome back, {customer?.name}</p>
+        <p className="text-gray-400">{t('Welcome back,')} {customer?.name}</p>
       </div>
 
       {isLoading ? (
         <div className="text-center py-8">
           <div className="inline-block w-8 h-8 border-4 border-gray-600 border-t-gray-400 rounded-full animate-spin mb-3"></div>
-          <p className="text-gray-400">Loading dashboard data...</p>
+          <p className="text-gray-400">{t('Loading dashboard data...')}</p>
         </div>
       ) : summary ? (
         <div className="space-y-6">
@@ -89,7 +91,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
           <div className="bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl p-6 border border-gray-600 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-2">Active Products</h3>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">{t('Active Products')}</h3>
                 <p className="text-4xl font-bold text-white">{summary.active_subscriptions}</p>
               </div>
               <div className="w-14 h-14 bg-gray-600 bg-opacity-50 rounded-full flex items-center justify-center">
@@ -102,7 +104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
 
           {/* Subscribed Products Section */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Subscribed Products</h3>
+            <h3 className="text-sm font-semibold text-white">{t('Subscribed Products')}</h3>
             
             {summary.subscribed_products.length > 0 ? (
               <div className="space-y-3">
@@ -114,13 +116,13 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <p className="text-lg font-semibold text-white mb-1">{product.product_name}</p>
-                        <p className="text-sm text-gray-400">Code: {product.product_code}</p>
+                        <p className="text-sm text-gray-400">{t('Code:')} {product.product_code}</p>
                       </div>
                       <p className="text-xl font-bold text-white">${product.price_unit.toFixed(2)}</p>
                     </div>
                     <div className="pt-3 border-t border-gray-600">
                       <p className="text-sm text-gray-400">
-                        Next Payment: {new Date(product.next_payment_date).toLocaleDateString('en-US', { 
+                        {t('Next Payment:')} {new Date(product.next_payment_date).toLocaleDateString('en-US', {
                           month: 'short', 
                           day: 'numeric', 
                           year: 'numeric' 
@@ -132,14 +134,14 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
               </div>
             ) : (
               <div className="bg-gray-700 rounded-xl p-6 border border-gray-600 text-center">
-                <p className="text-gray-400">No subscribed products.</p>
+                <p className="text-gray-400">{t('No subscribed products.')}</p>
               </div>
             )}
           </div>
         </div>
       ) : (
         <div className="text-center py-8">
-          <p className="text-gray-400">No dashboard data available.</p>
+          <p className="text-gray-400">{t('No dashboard data available.')}</p>
         </div>
       )}
     </div>

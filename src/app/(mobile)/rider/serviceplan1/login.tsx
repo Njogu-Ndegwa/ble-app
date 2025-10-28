@@ -4,6 +4,7 @@
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
 import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe } from "lucide-react";
+import { useI18n } from '@/i18n';
 
 // Define interfaces
 interface Customer {
@@ -40,6 +41,7 @@ interface FormErrors {
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+  const { t } = useI18n();
   const [email, setEmail] = useState<string>("");
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
@@ -87,39 +89,39 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     const newErrors: FormErrors = {};
 
     if (!formData.name || formData.name.trim().length === 0) {
-      newErrors.name = 'Full name is required';
+      newErrors.name = t('Full name is required');
     } else if (formData.name.trim().length < 2) {
-      newErrors.name = 'Name must be at least 2 characters long';
+      newErrors.name = t('Name must be at least 2 characters long');
     }
 
     if (!formData.email) {
-      newErrors.email = 'Email is required';
+      newErrors.email = t('Email is required');
     } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = t('Please enter a valid email address');
     }
 
     if (!formData.phone) {
-      newErrors.phone = 'Phone number is required';
+      newErrors.phone = t('Phone number is required');
     } else if (!validatePhone(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number';
+      newErrors.phone = t('Please enter a valid phone number');
     }
 
     if (!formData.street || formData.street.trim().length === 0) {
-      newErrors.street = 'Street address is required';
+      newErrors.street = t('Street address is required');
     }
 
     if (!formData.city || formData.city.trim().length === 0) {
-      newErrors.city = 'City is required';
+      newErrors.city = t('City is required');
     }
 
     if (!formData.zip || formData.zip.trim().length === 0) {
-      newErrors.zip = 'Zip code is required';
+      newErrors.zip = t('Zip code is required');
     } else if (!validateZip(formData.zip)) {
-      newErrors.zip = 'Please enter a valid zip code';
+      newErrors.zip = t('Please enter a valid zip code');
     }
 
     if (!formData.country) {
-      newErrors.country = 'Please select a country';
+      newErrors.country = t('Please select a country');
     }
 
     setErrors(newErrors);
@@ -128,7 +130,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleSignIn = async () => {
     if (!email.trim()) {
-      toast.error("Please enter your email");
+      toast.error(t("Please enter your email"));
       return;
     }
 
@@ -157,18 +159,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         // toast.success(`Welcome! Signed in as ${data.customer.name}`);
         onLoginSuccess(data.customer);
       } else if (response.status === 404) {
-        toast.error("User not found. Would you like to create an account?");
+        toast.error(t("User not found. Would you like to create an account?"));
         // Optionally pre-fill the registration email
         setFormData(prev => ({ ...prev, email }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
-        throw new Error("Invalid request. Please ensure your email is correct.");
+        throw new Error(t("Invalid request. Please ensure your email is correct."));
       } else {
-        throw new Error(data.message || "Login failed. Please try again.");
+        throw new Error(data.message || t("Login failed. Please try again."));
       }
     } catch (error: any) {
       console.error("Sign-in error:", error);
-      toast.error(error.message || "Sign-in failed. Please try again.");
+      toast.error(error.message || t("Sign-in failed. Please try again."));
     } finally {
       setIsSigningIn(false);
     }
@@ -177,7 +179,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const handleRegister = async () => {
     if (!validateForm()) {
       setSubmitStatus('error');
-      setSubmitMessage('Please fix the errors above');
+      setSubmitMessage(t('Please fix the errors above'));
       return;
     }
 
@@ -221,7 +223,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       const result = await response.json();
       console.log('Registration successful:', result);
       
-      toast.success('Registration successful! You can now sign in.');
+      toast.success(t('Registration successful! You can now sign in.'));
       
       // Switch back to login form and pre-fill email
       setShowRegister(false);
@@ -279,8 +281,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
               <UserPlus className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Create Account</h1>
-            <p className="text-gray-400">Join our community today</p>
+            <h1 className="text-2xl font-bold text-white mb-2">{t('Create Account')}</h1>
+            <p className="text-gray-400">{t('Join our community today')}</p>
           </div>
 
           {/* Success/Error Messages */}
@@ -304,7 +306,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Name */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Full Name <span className="text-red-400">*</span>
+                {t('Full Name')} <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <User size={16} className="absolute left-3 top-3 text-gray-500" />
@@ -315,7 +317,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.name ? 'border-red-500' : 'border-gray-600'
                   }`}
-                  placeholder="Enter your full name"
+                  placeholder={t('Enter your full name')}
                 />
               </div>
               {errors.name && (
@@ -326,7 +328,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Country Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Country <span className="text-red-400">*</span>
+                {t('Country')} <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <Globe size={16} className="absolute left-3 top-3 text-gray-500 z-10" />
@@ -337,7 +339,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                     errors.country ? 'border-red-500' : 'border-gray-600'
                   }`}
                 >
-                  <option value="" className="text-gray-400">Select a country</option>
+                  <option value="" className="text-gray-400">{t('Please select a country')}</option>
                   {countryOptions.map((country) => (
                     <option key={country.value} value={country.value} className="bg-gray-700 text-white">
                       {country.label}
@@ -359,7 +361,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Email <span className="text-red-400">*</span>
+                {t('Email')} <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-3 text-gray-500" />
@@ -370,7 +372,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.email ? 'border-red-500' : 'border-gray-600'
                   }`}
-                  placeholder="Enter your email"
+                  placeholder={t('Enter your email')}
                 />
               </div>
               {errors.email && (
@@ -381,7 +383,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Phone <span className="text-red-400">*</span>
+                {t('Phone')} <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <Phone size={16} className="absolute left-3 top-3 text-gray-500" />
@@ -392,7 +394,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.phone ? 'border-red-500' : 'border-gray-600'
                   }`}
-                  placeholder="Enter your phone number"
+                  placeholder={t('Enter your phone number')}
                 />
               </div>
               {errors.phone && (
@@ -403,7 +405,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {/* Street */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Street Address <span className="text-red-400">*</span>
+                {t('Street Address')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -412,7 +414,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.street ? 'border-red-500' : 'border-gray-600'
                 }`}
-                placeholder="Enter street address"
+                placeholder={t('Enter street address')}
               />
               {errors.street && (
                 <p className="mt-1 text-sm text-red-400">{errors.street}</p>
@@ -423,7 +425,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  City <span className="text-red-400">*</span>
+                  {t('City')} <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -432,7 +434,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.city ? 'border-red-500' : 'border-gray-600'
                   }`}
-                  placeholder="City"
+                  placeholder={t('City')}
                 />
                 {errors.city && (
                   <p className="mt-1 text-sm text-red-400">{errors.city}</p>
@@ -440,7 +442,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Zip <span className="text-red-400">*</span>
+                  {t('Zip')} <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -449,7 +451,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.zip ? 'border-red-500' : 'border-gray-600'
                   }`}
-                  placeholder="Zip"
+                  placeholder={t('Zip')}
                 />
                 {errors.zip && (
                   <p className="mt-1 text-sm text-red-400">{errors.zip}</p>
@@ -468,12 +470,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Creating Account...
+                  {t('Creating Account...')}
                 </>
               ) : (
                 <>
                   <UserPlus className="w-5 h-5" />
-                  Create Account
+                  {t('Create Account')}
                 </>
               )}
             </button>
@@ -483,7 +485,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               disabled={isSubmitting}
               className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
             >
-              Back to Sign In
+              {t('Back to Sign In')}
             </button>
           </div>
         </div>
@@ -506,13 +508,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <User className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-2">Welcome</h1>
-              <p className="text-gray-400">Please enter your email to continue</p>
+              <h1 className="text-2xl font-bold text-white mb-2">{t('Welcome')}</h1>
+              <p className="text-gray-400">{t('Please enter your email to continue')}</p>
             </div>
             
             <div className="mb-6">
               <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email
+                {t('Email')}
               </label>
               <input
                 id="email"
@@ -520,7 +522,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 value={email}
                 onChange={handleEmailChange}
                 onKeyPress={handleKeyPress}
-                placeholder="Enter your email"
+                placeholder={t('Enter your email')}
                 disabled={isSigningIn}
                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
@@ -535,12 +537,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 {isSigningIn ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Signing in...
+                    {t('Signing in...')}
                   </>
                 ) : (
                   <>
                     <LogIn className="w-5 h-5" />
-                    Sign In
+                    {t('Sign In')}
                   </>
                 )}
               </button>
@@ -551,12 +553,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
               >
                 <UserPlus className="w-5 h-5 inline mr-2" />
-                Create New Account
+                {t('Create New Account')}
               </button>
             </div>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">Need help? Contact support</p>
+              <p className="text-sm text-gray-500">{t('Need help? Contact support')}</p>
             </div>
           </>
         )}

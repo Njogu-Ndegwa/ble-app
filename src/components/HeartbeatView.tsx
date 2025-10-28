@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useI18n } from '@/i18n';
 
 interface HeartbeatViewProps {
   attributeList: any[];
@@ -10,7 +11,7 @@ interface HeartbeatViewProps {
   isLoading: boolean;
   handlePublish?: (attributeList: any, serviceType: string) => void;
   initialDataLoadedRef: React.MutableRefObject<boolean>;
-  heartbeatSentRef: React.MutableRefObject<boolean>; // Receive ref from parent
+  heartbeatSentRef: React.MutableRefObject<boolean>;
 }
 
 interface Metric {
@@ -28,6 +29,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   initialDataLoadedRef,
   heartbeatSentRef,
 }) => {
+  const { t } = useI18n();
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manualRefresh, setManualRefresh] = useState<number>(0);
@@ -45,8 +47,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       metrics.push({
         service: 'ATT',
         name: 'opid',
-        description: opid.desc || 'Unique operator identifier',
-        value: opid.realVal ?? 'N/A',
+        description: t(opid.desc) || t('heartbeat.metric.opid.desc'),
+        value: opid.realVal ?? t('common.na'),
       });
     }
 
@@ -55,8 +57,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       metrics.push({
         service: 'ATT',
         name: 'ppid',
-        description: ppid.desc || 'Product model identifier',
-        value: ppid.realVal ?? 'N/A',
+        description: t(ppid.desc) || t('heartbeat.metric.ppid.desc'),
+        value: ppid.realVal ?? t('common.na'),
       });
     }
 
@@ -65,8 +67,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       metrics.push({
         service: 'CMD',
         name: 'pubk',
-        description: pubk.desc || 'Public key for secure communication',
-        value: pubk.realVal ?? 'N/A',
+        description: t(pubk.desc) || t('heartbeat.metric.pubk.desc'),
+        value: pubk.realVal ?? t('common.na'),
       });
     }
 
@@ -75,8 +77,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       metrics.push({
         service: 'STS',
         name: 'rcrd',
-        description: rcrd.desc || 'Device record or log status',
-        value: rcrd.realVal ?? 'N/A',
+        description: t(rcrd.desc) || t('heartbeat.metric.rcrd.desc'),
+        value: rcrd.realVal ?? t('common.na'),
       });
     }
 
@@ -85,8 +87,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       metrics.push({
         service: 'STS',
         name: 'pgst',
-        description: pgst.desc || 'Grid connection status',
-        value: pgst.realVal ?? 'N/A',
+        description: t(pgst.desc) || t('heartbeat.metric.pgst.desc'),
+        value: pgst.realVal ?? t('common.na'),
       });
     }
 
@@ -95,8 +97,8 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       metrics.push({
         service: 'STS',
         name: 'tpgd',
-        description: tpgd.desc || 'Safety or limit indicator',
-        value: tpgd.realVal ?? 'N/A',
+        description: t(tpgd.desc) || t('heartbeat.metric.tpgd.desc'),
+        value: tpgd.realVal ?? t('common.na'),
       });
     }
 
@@ -132,7 +134,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
 
     handlePublish(formattedAttributeList, 'HEARTBEAT');
     heartbeatSentRef.current = true;
-    // toast.success('Heartbeat data sent');
+    // toast.success(t('heartbeat.publishSuccess'));
   };
 
   // Initial data load or manual refresh effect
@@ -154,7 +156,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     ) {
       handlePublishHeartbeat();
     }
-  }, [isLoading, manualRefresh]); // Removed attributeList from dependencies
+  }, [isLoading, manualRefresh]);
 
   const refreshAllServices = async () => {
     try {
@@ -167,14 +169,14 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       ]);
       setLastUpdated(new Date());
     } catch (err) {
-      setError('Failed to refresh services');
-      toast.error('Failed to refresh heartbeat data');
+      setError(t('heartbeat.error.refreshFailed'));
+      toast.error(t('heartbeat.error.refreshFailed'));
     }
   };
 
   const handleManualRefresh = () => {
-    heartbeatSentRef.current = false; // Allow re-publishing
-    setManualRefresh((prev) => prev + 1); // Trigger refresh
+    heartbeatSentRef.current = false;
+    setManualRefresh((prev) => prev + 1);
   };
 
   const requiredServices = ['ATT_SERVICE', 'CMD_SERVICE', 'STS_SERVICE'];
@@ -185,14 +187,16 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
   if (missingServices.length > 0) {
     return (
       <div className="p-6 text-center text-gray-400">
-        <p className="mb-4">Required services ({missingServices.join(', ')}) not loaded</p>
+        <p className="mb-4">
+          {t('heartbeat.missingServices', { services: missingServices.join(', ') })}
+        </p>
         <button
           onClick={handleManualRefresh}
           className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors disabled:bg-gray-600"
           disabled={isLoading}
-          aria-label="Load required services"
+          aria-label={t('heartbeat.loadRequired')}
         >
-          {isLoading ? 'Loading...' : 'Load Required Services'}
+          {isLoading ? t('heartbeat.loading') : t('heartbeat.loadRequiredButton')}
         </button>
       </div>
     );
@@ -202,17 +206,17 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-medium text-white">Device Heartbeat</h3>
+          <h3 className="text-lg font-medium text-white">{t('heartbeat.title')}</h3>
         </div>
         <div className="flex space-x-2">
           <button
             onClick={handleManualRefresh}
             className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors disabled:bg-gray-600"
             disabled={isLoading}
-            aria-label="Refresh heartbeat data"
+            aria-label={t('heartbeat.refreshButton')}
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-            <span>Refresh</span>
+            <span>{t('common.refresh')}</span>
           </button>
         </div>
       </div>
@@ -228,7 +232,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
             key={`${metric.service}-${metric.name}`}
             className="border border-gray-700 rounded-lg overflow-hidden"
             role="region"
-            aria-label={`${metric.name} metric`}
+            aria-label={`${metric.name} ${t('heartbeat.metric.label')}`}
           >
             <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
               <div className="flex items-center space-x-2">
@@ -240,11 +244,11 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
             </div>
             <div className="px-4 py-3 space-y-3">
               <div>
-                <p className="text-xs text-gray-400">Description</p>
+                <p className="text-xs text-gray-400">{t('common.description')}</p>
                 <p className="text-sm text-gray-200">{metric.description}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Current Value</p>
+                <p className="text-xs text-gray-400">{t('ble.detail.currentValue')}</p>
                 <p className="text-sm font-mono text-white">{metric.value}</p>
               </div>
             </div>
@@ -253,13 +257,13 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       </div>
       {metrics.length === 0 && (
         <div className="text-center p-8 text-gray-400">
-          <p>No heartbeat metrics available.</p>
+          <p>{t('heartbeat.noMetrics')}</p>
           <button
             onClick={handleManualRefresh}
             className="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors"
-            aria-label="Refresh metrics"
+            aria-label={t('heartbeat.refreshNow')}
           >
-            Refresh Now
+            {t('heartbeat.refreshNow')}
           </button>
         </div>
       )}

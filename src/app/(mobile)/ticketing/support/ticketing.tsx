@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Plus,
 } from "lucide-react";
+import { useI18n } from "@/i18n";
 
 // Interfaces
 interface Ticket {
@@ -34,32 +35,32 @@ interface Message {
 }
 
 // Priority mapping
-const getPriorityName = (priority: string): string => {
+const getPriorityName = (priority: string, t: any): string => {
   switch (priority.toLowerCase()) {
     case "low":
-      return "Low";
+      return t("Low");
     case "medium":
-      return "Medium";
+      return t("Medium");
     case "high":
-      return "High";
+      return t("High");
     case "urgent":
-      return "Urgent";
+      return t("Urgent");
     default:
-      return "Medium";
+      return t("Medium");
   }
 };
 
 // Priority colors
-const getPriorityColor = (priority: string) => {
-  const prio = getPriorityName(priority);
+const getPriorityColor = (priority: string, t: any) => {
+  const prio = getPriorityName(priority, t);
   switch (prio) {
-    case "Urgent":
+    case t("Urgent"):
       return "bg-red-100 text-red-800 border-red-200";
-    case "High":
+    case t("High"):
       return "bg-orange-100 text-orange-800 border-orange-200";
-    case "Medium":
+    case t("Medium"):
       return "bg-yellow-100 text-yellow-800 border-yellow-200";
-    case "Low":
+    case t("Low"):
       return "bg-gray-100 text-gray-800 border-gray-200";
     default:
       return "bg-gray-100 text-gray-800 border-gray-200";
@@ -67,6 +68,7 @@ const getPriorityColor = (priority: string) => {
 };
 
 const Ticketing: React.FC = () => {
+  const { t } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -218,7 +220,7 @@ const Ticketing: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-gray-400" />
-                <h2 className="text-lg font-semibold text-white">New Ticket</h2>
+                <h2 className="text-lg font-semibold text-white">{t("New Ticket")}</h2>
               </div>
               <button
                 onClick={() => setShowNewTicketForm(false)}
@@ -231,27 +233,27 @@ const Ticketing: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Subject *
+                  {t("Subject *")}
                 </label>
                 <input
                   type="text"
                   name="subject"
                   value={formData.subject}
                   onChange={handleFormChange}
-                  placeholder="Enter ticket subject"
+                  placeholder={t("Enter ticket subject")}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description *
+                  {t("Description *")}
                 </label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleFormChange}
-                  placeholder="Describe your issue..."
+                  placeholder={t("Describe your issue...")}
                   rows={4}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -259,7 +261,7 @@ const Ticketing: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Priority *
+                  {t("Priority *")}
                 </label>
                 <select
                   name="priority"
@@ -267,11 +269,11 @@ const Ticketing: React.FC = () => {
                   onChange={handleFormChange}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Select Priority</option>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
+                  <option value="">{t("Select Priority")}</option>
+                  <option value="low">{t("Low")}</option>
+                  <option value="medium">{t("Medium")}</option>
+                  <option value="high">{t("High")}</option>
+                  <option value="urgent">{t("Urgent")}</option>
                 </select>
               </div>
 
@@ -283,12 +285,12 @@ const Ticketing: React.FC = () => {
                 {isCreatingTicket ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating...
+                    {t("Creating...")}
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    Submit Ticket
+                    {t("Submit Ticket")}
                   </>
                 )}
               </button>
@@ -313,42 +315,43 @@ const Ticketing: React.FC = () => {
               className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Tickets
+              {t("Back to Tickets")}
             </button>
 
             <div className="space-y-4">
               <div>
                 <h3 className="text-xl font-bold text-white mb-2">
-                  Ticket #{selectedTicket.number}: {selectedTicket.subject}
+                  {t("Ticket #")}{selectedTicket.number}: {selectedTicket.subject}
                 </h3>
                 <p className="text-gray-400 text-sm">
-                  Customer: {selectedTicket.customer}
+                  {t("Customer:")} {selectedTicket.customer}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(
-                    selectedTicket.priority
+                    selectedTicket.priority,
+                    t
                   )}`}
                 >
-                  {getPriorityName(selectedTicket.priority)}
+                  {getPriorityName(selectedTicket.priority, t)}
                 </span>
               </div>
 
               <div className="text-sm text-gray-400 space-y-1">
                 <p>
-                  Created:{" "}
+                  {t("Created:")}{" "}
                   {new Date(selectedTicket.create_date).toLocaleDateString()}
                 </p>
               </div>
 
               <div>
                 <h4 className="text-sm font-medium text-gray-300 mb-3">
-                  Timeline
+                  {t("Timeline")}
                 </h4>
                 <div className="space-y-4">
-                  <p className="text-gray-400 text-sm">No messages yet.</p>
+                  <p className="text-gray-400 text-sm">{t("No messages yet.")}</p>
                 </div>
               </div>              
             </div>
@@ -366,14 +369,14 @@ const Ticketing: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-gray-400" />
-              <h2 className="text-lg font-semibold text-white">My Tickets</h2>
+              <h2 className="text-lg font-semibold text-white">{t("My Tickets")}</h2>
             </div>
             <button
               onClick={() => setShowNewTicketForm(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-all duration-200"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New Ticket</span>
+              <span className="hidden sm:inline">{t("New Ticket")}</span>
             </button>
           </div>
 
@@ -384,7 +387,7 @@ const Ticketing: React.FC = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search tickets..."
+                placeholder={t("Search tickets...")}
                 className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -409,10 +412,11 @@ const Ticketing: React.FC = () => {
                       </div>
                       <span
                         className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${getPriorityColor(
-                          ticket.priority
+                          ticket.priority,
+                          t
                         )}`}
                       >
-                        {getPriorityName(ticket.priority)}
+                        {getPriorityName(ticket.priority, t)}
                       </span>
                     </div>
 
@@ -436,9 +440,9 @@ const Ticketing: React.FC = () => {
             ) : (
               <div className="text-center py-12">
                 <MessageCircle className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">No tickets found.</p>
+                <p className="text-gray-400">{t("No tickets found.")}</p>
                 <p className="text-gray-500 text-sm mt-1">
-                  Create your first ticket to get started.
+                  {t("Create your first ticket to get started.")}
                 </p>
               </div>
             )}

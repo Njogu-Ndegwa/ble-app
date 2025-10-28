@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Upload, Download, Edit3, Trash2, File, FileText, Plus, Archive } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface FileItem {
   id: number;
@@ -13,6 +14,7 @@ interface FileItem {
 }
 
 const FileUploadPage = () => {
+  const { t } = useI18n();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [editingFile, setEditingFile] = useState<number | null>(null);
@@ -32,9 +34,9 @@ const FileUploadPage = () => {
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return t('0 Bytes');
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = [t('Bytes'), t('KB'), t('MB'), t('GB')];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
@@ -140,8 +142,8 @@ const FileUploadPage = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Upload Documents</h1>
-          <p className="text-gray-600">Browse and upload PDF, HEX16, and other document files</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{t('Upload Documents')}</h1>
+          <p className="text-gray-600">{t('Browse and upload PDF, HEX16, and other document files')}</p>
         </div>
 
         {/* Upload Section */}
@@ -163,14 +165,14 @@ const FileUploadPage = () => {
             {isUploading ? (
               <div className="flex flex-col items-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                <p className="text-blue-600 font-medium">Uploading files...</p>
+                <p className="text-blue-600 font-medium">{t('Uploading files...')}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center">
                 <Plus className="w-12 h-12 text-blue-500 mb-4" />
-                <p className="text-lg font-medium text-gray-900 mb-2">Choose documents to upload</p>
-                <p className="text-gray-500 mb-2">Tap here to browse your device</p>
-                <p className="text-sm text-gray-400">Supports: PDF, HEX16, DOC, TXT, XLS, and more</p>
+                <p className="text-lg font-medium text-gray-900 mb-2">{t('Choose documents to upload')}</p>
+                <p className="text-gray-500 mb-2">{t('Tap here to browse your device')}</p>
+                <p className="text-sm text-gray-400">{t('Supports: PDF, HEX16, DOC, TXT, XLS, and more')}</p>
               </div>
             )}
           </div>
@@ -180,7 +182,7 @@ const FileUploadPage = () => {
         {files.length > 0 && (
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Uploaded Files ({files.length})
+              {t('Uploaded Files')} ({files.length})
             </h2>
             <div className="space-y-3">
               {files.map((fileItem: FileItem) => (
@@ -199,20 +201,20 @@ const FileUploadPage = () => {
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFileName(e.target.value)}
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-base"
                             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleKeyPress(e, fileItem.id)}
-                            placeholder="Enter new filename"
+                            placeholder={t('Enter new filename')}
                           />
                           <div className="flex space-x-2">
                             <button
                               onClick={() => saveEdit(fileItem.id)}
                               className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 active:bg-green-700 transition-colors text-sm font-medium min-w-0 touch-manipulation"
                             >
-                              Save
+                              {t('Save')}
                             </button>
                             <button
                               onClick={cancelEdit}
                               className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 active:bg-gray-700 transition-colors text-sm font-medium min-w-0 touch-manipulation"
                             >
-                              Cancel
+                              {t('Cancel')}
                             </button>
                           </div>
                         </div>
@@ -222,7 +224,7 @@ const FileUploadPage = () => {
                           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-gray-500">
                             <span>{formatFileSize(fileItem.size)}</span>
                             <span className="hidden sm:inline">•</span>
-                            <span>Uploaded: {fileItem.uploadDate}</span>
+                            <span>{t('Uploaded')}: {fileItem.uploadDate}</span>
                           </div>
                         </>
                       )}
@@ -234,21 +236,21 @@ const FileUploadPage = () => {
                       <button
                         onClick={() => handleDownload(fileItem)}
                         className="flex-1 sm:flex-none p-3 text-blue-600 hover:bg-blue-100 active:bg-blue-200 rounded-lg transition-colors touch-manipulation"
-                        title="Download"
+                        title={t('Download')}
                       >
                         <Download className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => startEdit(fileItem)}
                         className="flex-1 sm:flex-none p-3 text-green-600 hover:bg-green-100 active:bg-green-200 rounded-lg transition-colors touch-manipulation"
-                        title="Rename"
+                        title={t('Rename')}
                       >
                         <Edit3 className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDelete(fileItem.id)}
                         className="flex-1 sm:flex-none p-3 text-red-600 hover:bg-red-100 active:bg-red-200 rounded-lg transition-colors touch-manipulation"
-                        title="Delete"
+                        title={t('Delete')}
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
@@ -263,8 +265,8 @@ const FileUploadPage = () => {
         {files.length === 0 && !isUploading && (
           <div className="text-center py-12">
             <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">No documents uploaded yet</p>
-            <p className="text-gray-400">Upload some files to get started</p>
+            <p className="text-gray-500 text-lg">{t('No documents uploaded yet')}</p>
+            <p className="text-gray-400">{t('Upload some files to get started')}</p>
           </div>
         )}
       </div>

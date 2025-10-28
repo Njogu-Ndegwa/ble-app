@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, CheckCircle } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface ProgressiveLoadingProps {
   initialMessage?: string;
@@ -26,6 +27,7 @@ interface ProgressiveLoadingProps {
   duration = 5000,
   progress
 }) => {
+  const { t } = useI18n();
   const [internalProgress, setInternalProgress] = useState(0);
   const [currentMessage, setCurrentMessage] = useState(initialMessage);
   const [isComplete, setIsComplete] = useState(false);
@@ -73,7 +75,7 @@ interface ProgressiveLoadingProps {
       <div className="w-full bg-[#2A2F33] rounded-lg p-4 shadow-lg">
         {/* Header with percentage */}
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-medium text-base">Loading</h3>
+          <h3 className="text-white font-medium text-base">{t('Loading')}</h3>
           <span className="text-white font-bold text-base">{displayProgress}%</span>
         </div>
         
@@ -92,7 +94,7 @@ interface ProgressiveLoadingProps {
           ) : (
             <CheckCircle className="text-gray-400 mr-2" size={16} />
           )}
-          <p className="text-gray-400 text-sm">{currentMessage}</p>
+          <p className="text-gray-400 text-sm">{t(currentMessage)}</p>
         </div>
         
         {/* Step indicators */}

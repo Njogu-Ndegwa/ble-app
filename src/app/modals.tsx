@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useI18n } from '@/i18n';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -41,6 +42,7 @@ export const AsciiStringModal = ({
   title: string;
 }) => {
   const [value, setValue] = useState('');
+  const { t } = useI18n();
 
   const handleSubmit = () => {
     onSubmit(value);
@@ -53,12 +55,12 @@ export const AsciiStringModal = ({
       <div className="p-5">
         <h3 className="text-xl font-semibold text-white mb-4">{title}</h3>
         <div className="bg-[#23262E] border border-gray-700 rounded-lg p-4 mb-6">
-          <p className="text-sm font-medium text-gray-300 mb-2">Please enter an ASCII string</p>
+          <p className="text-sm font-medium text-gray-300 mb-2">{t('Please enter an ASCII string')}</p>
           <textarea
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="w-full h-24 bg-[#16181D] border border-gray-700 rounded-lg p-3 text-white resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            placeholder="Enter value here..."
+            placeholder={t('Enter value here...')}
           />
         </div>
         <div className="flex justify-end space-x-3">
@@ -66,13 +68,13 @@ export const AsciiStringModal = ({
             onClick={onClose}
             className="px-5 py-2.5 text-sm font-medium text-gray-300 rounded-md hover:bg-gray-800 transition-colors"
           >
-            CANCEL
+            {t('Cancel')}
           </button>
           <button 
             onClick={handleSubmit}
             className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 transition-colors"
           >
-            SUBMIT
+            {t('Submit')}
           </button>
         </div>
       </div>
@@ -95,6 +97,7 @@ export const NumericModal = ({
   maxValue?: number;
 }) => {
   const [value, setValue] = useState('');
+  const { t } = useI18n();
 
   const handleSubmit = () => {
     onSubmit(Number(value));
@@ -107,7 +110,7 @@ export const NumericModal = ({
       <div className="p-5">
         <h3 className="text-xl font-semibold text-white mb-4">{title}</h3>
         <div className="bg-[#23262E] border border-gray-700 rounded-lg p-4 mb-6">
-          <p className="text-sm font-medium text-gray-300 mb-2">{`Please enter a number between 0 & ${maxValue}`}</p>
+          <p className="text-sm font-medium text-gray-300 mb-2">{t('Please enter a number between 0 &')}{` ${maxValue}`}</p>
           <input
             type="number"
             min="0"
@@ -123,13 +126,13 @@ export const NumericModal = ({
             onClick={onClose}
             className="px-5 py-2.5 text-sm font-medium text-gray-300 rounded-md hover:bg-gray-800 transition-colors"
           >
-            CANCEL
+            {t('Cancel')}
           </button>
           <button 
             onClick={handleSubmit}
             className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 transition-colors"
           >
-            SUBMIT
+            {t('Submit')}
           </button>
         </div>
       </div>

@@ -6,9 +6,11 @@ import { Lock, Mail, EyeOff, Eye, ArrowLeft } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/auth-context';
+import { useI18n } from '@/i18n';
 
 const LoginPage = () => {
   const router = useRouter();
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,18 +22,32 @@ const LoginPage = () => {
   useEffect(() => {
     if (!error) return;
 
-    // Extract the top-level error message from originalError.error
-    const errorMessage =
-      error?.graphQLErrors?.[0]?.extensions?.originalError?.error || 'Bad Request';
+    // Extract back-end message (if any) and map to localized text
+    const raw = (
+      (error?.graphQLErrors?.[0]?.extensions as any)?.originalError?.error ||
+      error?.graphQLErrors?.[0]?.message ||
+      error?.message ||
+      ''
+    ) as string;
 
-    toast.error(errorMessage);
+    const lc = raw.toLowerCase();
+    let message: string | undefined;
+
+    if (lc.includes('bad request')) message = t('auth.error.badRequest');
+    else if (lc.includes('unauthorized')) message = t('auth.error.unauthorized');
+    else if (lc.includes('invalid credentials') || lc.includes('invalid email') || lc.includes('invalid password')) message = t('auth.error.invalidCredentials');
+    else if (lc.includes('user not found') || lc.includes('not found')) message = t('auth.error.userNotFound');
+
+    if (!message) message = t('auth.error.badRequest');
+
+    toast.error(message);
   }, [error]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
-      toast.error('Please enter both email and password');
+      toast.error(t('auth.error.missingCredentials'));
       return;
     }
     const credentials = {
@@ -56,7 +72,7 @@ const LoginPage = () => {
       router.push('/');
     } catch (error) {
       console.error('Error changing user role:', error);
-      toast.error('Failed to switch to Customer view');
+      toast.error(t('auth.error.switchCustomer'));
     }
   };
 
@@ -65,7 +81,7 @@ const LoginPage = () => {
       <button 
         onClick={handleBackToCustomerView}
         className="absolute top-4 left-4 text-gray-400 hover:text-white focus:outline-none flex items-center gap-1 transition-colors z-10"
-        aria-label="Back to Customer View"
+        aria-label={t('auth.backToCustomer')}
       >
         <ArrowLeft className="h-5 w-5" />
       </button>
@@ -97,8 +113,8 @@ const LoginPage = () => {
       
       <div className="p-8 flex-1 flex flex-col justify-center">
         <div className="text-center mb-8">
-          <h1 className="text-white text-2xl font-bold mb-2">BLE Device Manager</h1>
-          <p className="text-gray-400 text-sm">Sign in to access your devices</p>
+          <h1 className="text-white text-2xl font-bold mb-2">{t('auth.title')}</h1>
+          <p className="text-gray-400 text-sm">{t('auth.subtitle')}</p>
         </div>
         
         <form onSubmit={handleLogin} className="space-y-6">
@@ -109,7 +125,7 @@ const LoginPage = () => {
             <input
               type="email"
               className="w-full px-4 py-3 pl-10 border border-gray-700 bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-              placeholder="Email address"
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -123,7 +139,7 @@ const LoginPage = () => {
             <input
               type={showPassword ? "text" : "password"}
               className="w-full px-4 py-3 pl-10 pr-10 border border-gray-700 bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-              placeholder="Password"
+              placeholder={t('auth.passwordPlaceholder')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -165,25 +181,25 @@ const LoginPage = () => {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Signing in...
+                {t('auth.signingIn')}
               </>
             ) : (
-              'Sign in'
+              t('auth.signIn')
             )}
           </button>
         </form>
         
         <div className="mt-8 text-center">
           <p className="text-gray-400 text-sm">
-            Don&apos;t have an account?{' '}
+            {t('auth.noAccount')} {' '}
             <a href="#" className="text-blue-500 hover:text-blue-400">
-              Contact support
+              {t('auth.contactSupport')}
             </a>
           </p>
         </div>
         
         <div className="mt-8 text-center text-xs text-gray-500">
-          <p>Version 1.2.5</p>
+          <p>{t('common.version', { version: '1.2.5' })}</p>
         </div>
       </div>
     </div>

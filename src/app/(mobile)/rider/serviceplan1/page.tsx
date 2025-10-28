@@ -24,6 +24,7 @@ import Login from "./login";
 import Ticketing from "./ticketing";
 import Authenticate from "./authenticate";
 import { useBridge } from "@/app/context/bridgeContext";
+import { useI18n } from '@/i18n';
 
 let bridgeHasBeenInitialized = false;
 
@@ -97,10 +98,12 @@ declare global {
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const AppContainer = () => {
+  const { t } = useI18n();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
   const [selectedPlan, setSelectedPlan] = useState<ServicePlan | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [showPaymentOptions, setShowPaymentOptions] = useState<boolean>(false);
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -120,11 +123,11 @@ const AppContainer = () => {
   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
   const { bridge } = useBridge();
 
-  // New: bindCustomerToLocation (adapted from ChargingStationFinder's handleServiceRequest)
+  // bindCustomerToLocation (unchanged)
   const bindCustomerToLocation = async (locationId: string) => {
     if (!bridge || !window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
-      // toast.error("Cannot connect to service: Bridge not initialized");
+      toast.error(t("Cannot connect to service: Bridge not initialized"));
       handleBindingResult({ success: false });
       return;
     }
@@ -156,7 +159,6 @@ const AppContainer = () => {
       content: payload,
     };
 
-    // Register MQTT response handler
     const reg = (name: string, handler: any) => {
       console.info(`Registering handler for ${name}`);
       bridge.registerHandler(name, handler);
@@ -191,11 +193,11 @@ const AppContainer = () => {
               if (sessionToken) {
                 console.info("Binding successful - Session Token:", sessionToken);
                 handleBindingResult({ sessionToken, locationActions, success: true });
-                toast.success("Binding successful! Session token received.");
+                toast.success(t("Binding successful! Session token received."));
               } else {
                 console.error("No session token in response:", responseData);
                 handleBindingResult({ success: false });
-                // toast.error("No session token received");
+                toast.error(t("No session token received"));
               }
             } else {
               const errorReason = responseData?.data?.metadata?.reason || 
@@ -203,20 +205,19 @@ const AppContainer = () => {
                                   "Unknown error";
               console.error("MQTT binding failed:", errorReason);
               handleBindingResult({ success: false });
-              // toast.error(`Binding failed: ${errorReason}`);
+              toast.error(`Binding failed: ${errorReason}`);
             }
             responseCallback({ success: true });
           }
         } catch (err) {
           console.error("Error processing MQTT callback:", err);
-          // toast.error("Error processing response");
+          toast.error(t("Error processing response"));
           handleBindingResult({ success: false });
           responseCallback({ success: false, error: String(err) });
         }
       }
     );
 
-    // Subscribe to the response topic
     const subscribeToTopic = () =>
       new Promise<boolean>((resolve) => {
         console.info(`Subscribing to MQTT response topic: ${responseTopic}`);
@@ -232,19 +233,18 @@ const AppContainer = () => {
                 resolve(true);
               } else {
                 console.error("Subscribe failed:", subResp.respDesc || subResp.error || "Unknown error");
-                // toast.error("Failed to subscribe to MQTT topic");
+                toast.error(t("Failed to subscribe to MQTT topic"));
                 resolve(false);
               }
             } catch (err) {
               console.error("Error parsing subscribe response:", err);
-              // toast.error("Error subscribing to MQTT topic");
+              toast.error(t("Error subscribing to MQTT topic"));
               resolve(false);
             }
           }
         );
       });
 
-    // Publish the message
     const publishMessage = () =>
       new Promise<boolean>((resolve) => {
         console.info(`Publishing MQTT message to topic: ${requestTopic}`);
@@ -257,23 +257,22 @@ const AppContainer = () => {
               const responseData = typeof response === "string" ? JSON.parse(response) : response;
               if (responseData.error || responseData.respCode !== "200") {
                 console.error("MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
-                // toast.error("Failed to publish binding request");
+                toast.error(t("Failed to publish binding request"));
                 resolve(false);
               } else {
                 console.info("Successfully published binding request");
-                toast.success("Binding request sent");
+                toast.success(t("Binding request sent"));
                 resolve(true);
               }
             } catch (err) {
               console.error("Error parsing MQTT publish response:", err);
-              // toast.error("Error publishing binding request");
+              toast.error(t("Error publishing binding request"));
               resolve(false);
             }
           }
         );
       });
 
-    // Cleanup function
     const cleanup = () => {
       console.info(`Cleaning up MQTT response handler and subscription for topic: ${responseTopic}`);
       offResponseHandler();
@@ -286,7 +285,6 @@ const AppContainer = () => {
       );
     };
 
-    // Execute MQTT operations with retry mechanism
     const maxRetries = 3;
     const retryDelay = 2000;
     let retries = 0;
@@ -303,7 +301,7 @@ const AppContainer = () => {
             continue;
           } else {
             console.error("Failed to subscribe to MQTT topic after retries");
-            // toast.error("Failed to subscribe to MQTT topic after retries");
+            toast.error(t("Failed to subscribe to MQTT topic after retries"));
             cleanup();
             return;
           }
@@ -318,7 +316,7 @@ const AppContainer = () => {
             continue;
           } else {
             console.error("Failed to publish MQTT message after retries");
-            // toast.error("Failed to publish binding request after retries");
+            toast.error(t("Failed to publish binding request after retries"));
             cleanup();
             return;
           }
@@ -334,7 +332,7 @@ const AppContainer = () => {
       await attemptMqttOperations();
     } catch (err) {
       console.error("Error in MQTT operations:", err);
-      // toast.error("Error in MQTT operations");
+      toast.error(t("Error in MQTT operations"));
       cleanup();
     }
   };
@@ -582,7 +580,7 @@ const AppContainer = () => {
     }, 15000);
   };
 
-  // Updated setupBridge to handle QR code scanning
+  // setupBridge (unchanged)
   const setupBridge = (bridge: WebViewJavascriptBridge) => {
     const noop = () => {};
     const reg = (name: string, handler: any) => {
@@ -647,7 +645,7 @@ const AppContainer = () => {
           const dataPreview = JSON.stringify(rawLocationData, null, 2);
 
           if (!rawLocationData || typeof rawLocationData !== 'object') {
-            // toast.error("Invalid location data format");
+            toast.error(t("Invalid location data format"));
             responseCallback({ success: false, error: "Invalid format" });
             return;
           }
@@ -655,7 +653,7 @@ const AppContainer = () => {
           const { latitude, longitude } = rawLocationData;
 
           if (typeof latitude !== 'number' || typeof longitude !== 'number' || isNaN(latitude) || isNaN(longitude)) {
-            // toast.error("Invalid coordinates: Must be valid numbers");
+            toast.error(t("Invalid coordinates: Must be valid numbers"));
             responseCallback({ success: false, error: "Invalid coordinates" });
             return;
           }
@@ -677,15 +675,15 @@ const AppContainer = () => {
             };
 
             if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-              // toast.error("Coordinates out of valid range");
+              toast.error(t("Coordinates out of valid range"));
             } else if (latitude === 0 && longitude === 0) {
-              // toast.error("Location at (0,0) - possible GPS error");
+              toast.error(t("Location at (0,0) - possible GPS error"));
             }
           }
 
           responseCallback({ success: true, location: rawLocationData });
         } catch (error) {
-          // toast.error("Error processing location data");
+          toast.error(t("Error processing location data"));
           console.error("Error processing location data:", error);
           responseCallback({ success: false, error: error });
         }
@@ -703,7 +701,7 @@ const AppContainer = () => {
         resp({ success: true });
       } catch (err) {
         console.error("Error processing QR code data:", err);
-        // toast.error("Error processing QR code");
+        toast.error(t("Error processing QR code"));
         resp({ success: false, error: String(err) });
       }
     });
@@ -765,11 +763,11 @@ const AppContainer = () => {
       );
     } else {
       console.error("WebViewJavascriptBridge is not initialized.");
-      toast.error("Error: Bridge not initialized for QR code scanning");
+      toast.error(t("Error: Bridge not initialized for QR code scanning"));
     }
   };
 
-  // Updated handleQrCode to trigger bindCustomerToLocation
+  // handleQrCode (unchanged)
   const handleQrCode = (code: string) => {
     try {
       if (!code || typeof code !== "string") {
@@ -778,11 +776,9 @@ const AppContainer = () => {
 
       let locationId: string | null = null;
 
-      // Plain text format
       if (code.startsWith("location_id:")) {
         locationId = code.replace("location_id:", "").trim();
       } else {
-        // URL parsing
         const url = new URL(code);
         locationId = url.searchParams.get('location_id');
       }
@@ -805,7 +801,7 @@ const AppContainer = () => {
       }
     } catch (err) {
       console.error("Error parsing QR code:", err);
-      toast.error("Invalid QR code format");
+      toast.error(t("Invalid QR code format"));
       return null;
     }
   };
@@ -818,11 +814,11 @@ const AppContainer = () => {
 
   const initiateSubscriptionPurchase = async (plan: ServicePlan) => {
     if (!customer?.id) {
-      toast.error("Customer data not available. Please sign in again.");
+      toast.error(t("Customer data not available. Please sign in again."));
       return null;
     }
     if (!customer?.company_id) {
-      toast.error("Company ID not available. Please sign in again.");
+      toast.error(t("Company ID not available. Please sign in again."));
       return null;
     }
 
@@ -856,7 +852,7 @@ const AppContainer = () => {
       }
     } catch (error: any) {
       console.error("Error initiating subscription purchase:", error);
-      toast.error(error.message || "Failed to initiate subscription. Please try again.");
+      toast.error(error.message || t("Failed to initiate subscription. Please try again."));
       return null;
     }
   };
@@ -866,36 +862,96 @@ const AppContainer = () => {
     if (order) {
       setSelectedPlan(plan);
       setOrderId(order.id);
-      setShowPaymentModal(true);
+      setShowPaymentOptions(true); // Show payment options instead of payment modal
     }
   };
 
-  const handlePayNow = () => {
-    if (selectedPlan) {
-      console.log("Pay Now clicked for plan:", selectedPlan);
-      setShowPaymentModal(true);
+  const handlePayByYourself = () => {
+    setShowPaymentOptions(false);
+    setShowPaymentModal(true); // Show payment modal for self-payment
+  };
+
+  const handlePayThroughAttendant = async () => {
+    if (!selectedPlan) {
+      toast.error(t("No plan selected"));
+      return;
+    }
+    if (!orderId) {
+      toast.error(t("Order data not available. Please select a plan again."));
+      return;
+    }
+
+    setIsProcessingPayment(true);
+
+    try {
+      const orderResponse = await fetch(
+        `${API_BASE}/products/subscription/purchase`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+          },
+          body: JSON.stringify({
+            auto_confirm: true,
+            billing_frequency: selectedPlan.suggested_billing_frequency || "monthly",
+            customer_id: customer!.id,
+            product_id: selectedPlan.productId,
+          }),
+        }
+      );
+
+      const orderData = await orderResponse.json();
+
+      if (!orderResponse.ok || !orderData.success || !orderData.order?.subscription_code) {
+        throw new Error(orderData.message || "Failed to get subscription code");
+      }
+
+      const transactionId = orderData.order.subscription_code;
+      const notificationUrl = `https://api.yourservice.com/notifications/mw?transaction_id=${transactionId}&status=pending&amount=${selectedPlan.price}`;
+
+      const notificationResponse = await fetch(notificationUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (notificationResponse.ok) {
+        toast.success(t("Payment request sent to attendant successfully!"));
+        setShowPaymentOptions(false);
+        setSelectedPlan(null);
+        setOrderId(null);
+      } else {
+        throw new Error("Failed to send payment request to attendant");
+      }
+    } catch (error: any) {
+      console.error("Error processing attendant payment:", error);
+      toast.error(error.message || t("Failed to send payment request to attendant"));
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
   const handlePaymentSubmit = async () => {
     const phoneRegex = /^\d{10}$/;
     if (!phoneNumber.trim() || !phoneRegex.test(phoneNumber)) {
-      toast.error("Please enter a valid 10-digit mobile number (e.g., 0768194214)");
+      toast.error(t("Please enter a valid 10-digit mobile number (e.g., 0768194214)"));
       return;
     }
 
     if (!selectedPlan) {
-      toast.error("No plan selected");
+      toast.error(t("No plan selected"));
       return;
     }
 
     if (!customer) {
-      toast.error("Customer data not available. Please sign in again.");
+      toast.error(t("Customer data not available. Please sign in again."));
       return;
     }
 
     if (!orderId) {
-      toast.error("Order data not available. Please select a plan again.");
+      toast.error(t("Order data not available. Please select a plan again."));
       return;
     }
 
@@ -947,17 +1003,17 @@ const AppContainer = () => {
       const paymentResult = await paymentResponse.json();
 
       if (paymentResponse.ok) {
-        toast.success("Payment initiated successfully! Check your phone for confirmation.");
+        toast.success(t("Payment initiated successfully! Check your phone for confirmation."));
         setShowPaymentModal(false);
         setPhoneNumber("");
         setSelectedPlan(null);
         setOrderId(null);
       } else {
-        throw new Error(paymentResult.message || "Payment initiation failed. Please try again.");
+        throw new Error(paymentResult.message || t("Payment initiation failed. Please try again."));
       }
     } catch (error: any) {
       console.error("Payment error:", error);
-      toast.error(error.message || "Payment failed. Please try again.");
+      toast.error(error.message || t("Payment failed. Please try again."));
     } finally {
       setIsProcessingPayment(false);
     }
@@ -965,7 +1021,7 @@ const AppContainer = () => {
 
   const handleProceedToService = () => {
     console.info("Proceed to Service clicked");
-    toast.success("Proceeding to service...");
+    toast.success(t("Proceeding to service..."));
     setCurrentPage("dashboard");
     setIsBindingSuccessful(false);
   };
@@ -981,13 +1037,13 @@ const AppContainer = () => {
   ];
 
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "products", label: "Products", icon: Package },
-    { id: "transactions", label: "Transactions", icon: CreditCard },
-    { id: "charging stations", label: "Charging Stations", icon: MapPin },
-    { id: "authenticate", label: "Authenticate", icon: Key },
-    { id: "support", label: "Support", icon: HelpCircle },
-    { id: "logout", label: "Logout", icon: LogOut },
+    { id: "dashboard", labelKey: "Dashboard", icon: LayoutDashboard },
+    { id: "products", labelKey: "Products", icon: Package },
+    { id: "transactions", labelKey: "Transactions", icon: CreditCard },
+    { id: "charging stations", labelKey: "Charging Stations", icon: MapPin },
+    { id: "authenticate", labelKey: "Authenticate", icon: Key },
+    { id: "support", labelKey: "Support", icon: HelpCircle },
+    { id: "logout", labelKey: "Logout", icon: LogOut },
   ];
 
   const handleLoginSuccess = (customerData: Customer) => {
@@ -1006,11 +1062,12 @@ const AppContainer = () => {
     setSelectedPlan(null);
     setOrderId(null);
     setCurrentPage("products");
-    toast.success("Signed out successfully");
+    toast.success(t("Signed out successfully"));
   };
 
   const handleCloseModal = () => {
     setShowPaymentModal(false);
+    setShowPaymentOptions(false);
     setPhoneNumber("");
   };
 
@@ -1034,21 +1091,73 @@ const AppContainer = () => {
       );
     }
 
+    if (selectedPlan && showPaymentOptions) {
+      return (
+        <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-white mb-2">{t("Confirm Product")}</h1>
+            <p className="text-gray-400">
+              {t("Plan selected:")} {selectedPlan.name} - ${selectedPlan.price}
+            </p>
+            <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
+          </div>
+          <button
+            onClick={handlePayByYourself}
+            disabled={isProcessingPayment}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+          >
+            {t("Pay by Yourself")}
+          </button>
+          <button
+            onClick={handlePayThroughAttendant}
+            disabled={isProcessingPayment}
+            className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+          >
+            {isProcessingPayment ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                {t("Processing...")}
+              </>
+            ) : (
+              <>{t("Pay through Attendant")}</>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setSelectedPlan(null);
+              setOrderId(null);
+              setShowPaymentOptions(false);
+            }}
+            disabled={isProcessingPayment}
+            className="w-full mt-4 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+          >
+            {t("Change Product")}
+          </button>
+        </div>
+      );
+    }
+
     if (selectedPlan) {
       return (
         <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">Confirm Product</h1>
+            <h1 className="text-2xl font-bold text-white mb-2">{t("Confirm Product")}</h1>
             <p className="text-gray-400">
-              Plan selected: {selectedPlan.name} - ${selectedPlan.price}
+              {t("Plan selected:")} {selectedPlan.name} - ${selectedPlan.price}
             </p>
-            <p className="text-gray-400 text-sm mt-1">Code: {selectedPlan.default_code}</p>
+            <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
           </div>
           <button
-            onClick={handlePayNow}
+            onClick={handlePayByYourself}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
-            Pay Now
+            {t("Pay by Yourself")}
+          </button>
+          <button
+            onClick={handlePayThroughAttendant}
+            className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+          >
+            {t("Pay through Attendant")}
           </button>
           <button
             onClick={() => {
@@ -1057,7 +1166,7 @@ const AppContainer = () => {
             }}
             className="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
-            Change Product
+            {t("Change Product")}
           </button>
         </div>
       );
@@ -1081,7 +1190,6 @@ const AppContainer = () => {
             isBindingSuccessful={isBindingSuccessful}
             onProceedToService={handleProceedToService}
             onBindingResult={handleBindingResult}
-            // Removed bridge and onHandleQrCode props
           />
         );
       case "support":
@@ -1148,7 +1256,7 @@ const AppContainer = () => {
               <div className="bg-indigo-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Wallet className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">Complete Payment</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">{t("Complete Payment")}</h2>
               <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
               <p className="text-gray-400 text-sm mt-1">{selectedPlan?.default_code}</p>
               <p className="text-indigo-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
@@ -1156,7 +1264,7 @@ const AppContainer = () => {
 
             <div className="mb-6">
               <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-2">
-                Mobile Number
+                {t("Mobile Number")}
               </label>
               <div className="flex items-center">
                 <input
@@ -1172,7 +1280,7 @@ const AppContainer = () => {
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Enter your 10-digit mobile number (e.g., 0768194214)
+                {t("Enter your 10-digit mobile number (e.g., 0768194214)")}
               </p>
             </div>
 
@@ -1182,7 +1290,7 @@ const AppContainer = () => {
                 disabled={isProcessingPayment}
                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button
                 onClick={handlePaymentSubmit}
@@ -1192,10 +1300,10 @@ const AppContainer = () => {
                 {isProcessingPayment ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Processing...
+                    {t("Processing...")}
                   </>
                 ) : (
-                  <>Pay Now</>
+                  <>{t("Pay Now")}</>
                 )}
               </button>
             </div>
@@ -1213,7 +1321,7 @@ const AppContainer = () => {
             } transition-transform duration-300 ease-in-out`}
           >
             <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
-              <h2 className="text-xl font-bold text-white">Menu</h2>
+              <h2 className="text-xl font-bold text-white">{t("Menu")}</h2>
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="text-gray-400 hover:text-white"
@@ -1244,7 +1352,7 @@ const AppContainer = () => {
                       }`}
                     >
                       <Icon className="w-5 h-5" />
-                      {item.label}
+                      {t(item.labelKey)}
                     </button>
                   );
                 })}
@@ -1271,7 +1379,7 @@ const AppContainer = () => {
             />
           )}
 
-          <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
+            <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
             <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
               <button
                 onClick={() => setSidebarOpen(true)}
@@ -1279,7 +1387,7 @@ const AppContainer = () => {
               >
                 <Menu className="w-6 h-6" />
               </button>
-              <h1 className="text-xl font-bold text-white capitalize">{currentPage}</h1>
+              <h1 className="text-xl font-bold text-white capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
               <div className="w-6" />
             </div>
 

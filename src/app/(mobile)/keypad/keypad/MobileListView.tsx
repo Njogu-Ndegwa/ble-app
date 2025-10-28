@@ -11,6 +11,7 @@ import {
   BluetoothConnected,
 } from 'lucide-react';
 import { BleDevice } from './page';
+import { useI18n } from '@/i18n';
 
 interface MobileListViewProps {
   items: BleDevice[];
@@ -41,6 +42,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   onRescanBleItems,
   isScanning,
 }) => {
+  const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Filter items based on search query
@@ -70,7 +72,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div className="text-center flex-1">
-            <h2 className="text-white font-medium">Keypad</h2>
+            <h2 className="text-white font-medium">{t('Keypad')}</h2>
           </div>
           <div className="relative">
             <RefreshCcw
@@ -85,7 +87,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
           <input
             type="text"
             className="w-full px-4 py-2 border border-gray-700 bg-gray-800 rounded-lg pr-20 focus:outline-none text-white"
-            placeholder="Search devices..."
+            placeholder={t('Search devices...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -109,7 +111,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
             onClick={(e) => e.stopPropagation()}
           >
-            Sort by...
+            {t('Sort by...')}
             <span className="text-xs">
               <ArrowUpDown />
             </span>
@@ -118,7 +120,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
             onClick={(e) => e.stopPropagation()}
           >
-            Filter
+            {t('Filter')}
             <span className="text-lg">
               <ListFilter />
             </span>
@@ -157,7 +159,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             ))
           ) : (
             <div className="text-center py-6 text-gray-400">
-              {searchQuery ? "No devices match your search." : "No devices found. Try scanning again."}
+              {searchQuery ? t('No devices match your search.') : t('No devices found. Try scanning again.')}
             </div>
           )}
         </div>
@@ -167,4 +169,3 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 };
 
 export default MobileListView;
-

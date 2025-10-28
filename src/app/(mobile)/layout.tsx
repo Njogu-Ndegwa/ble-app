@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Sidebar from '../../components/sidebar/sidebar';   // wherever you put the sidebar file
 import { User } from 'lucide-react';
 import { isAuth } from '@/lib/auth';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useI18n } from '@/i18n';
  function MobileLayout({
   children,
 }: {
@@ -11,6 +13,7 @@ import { isAuth } from '@/lib/auth';
 }) {
   const [open, setOpen] = useState(false);
 
+  
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
       {open && <Sidebar onClose={() => setOpen(false)} />}
@@ -30,7 +33,7 @@ import { isAuth } from '@/lib/auth';
         {/* <h2 className="text-white font-medium flex-1 text-center">
           OV&nbsp;App
         </h2> */}
-        <span className="w-6 h-6" /> {/* spacer */}
+        <LanguageSwitcher />
       </header>
 
       <main className={`${open ? 'opacity-30' : ''} transition-opacity duration-300 p-4`}>

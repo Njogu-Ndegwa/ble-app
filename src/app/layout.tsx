@@ -17,6 +17,7 @@ import { BridgeProvider } from './context/bridgeContext';
 import { AuthProvider } from "./(auth)/context/auth-context";
 import apolloClient from "@/lib/apollo-client";
 import { ApolloProvider } from "@apollo/client";
+import { I18nProvider } from "@/i18n";
 
 export default function RootLayout({
   children,
@@ -38,7 +39,9 @@ export default function RootLayout({
         <ApolloProvider client={apolloClient}>
           <BridgeProvider>
             <AuthProvider>
-              {children}
+              <I18nProvider>
+                {children}
+              </I18nProvider>
             </AuthProvider>
           </BridgeProvider>
         </ApolloProvider>

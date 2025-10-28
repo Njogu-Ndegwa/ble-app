@@ -1,108 +1,126 @@
-
 import { icons } from "./icons";
 export const menuConfig: {
     id: string;
     label?: string;
+    labelKey?: string;
     icon?: keyof typeof icons;
-    children?: { id: string; label: string; href: string }[];
+    children?: { id: string; label?: string; labelKey?: string; href: string }[];
     type?: 'divider' | 'button';
     action?: string;
   }[] = [
 
     {
       id: 'dashboard',
-      label: 'Dashboard',
+      labelKey: 'nav.dashboard',
       icon: 'home',
       children: [
-        { id: 'overview',  label: 'My Dash 1', href: '/dashboard/overview'  },
-        { id: 'overview1', label: 'My Dash 2', href: '/dashboard/overview1' },
+        { id: 'overview',  labelKey: 'nav.dashboard.overview', href: '/dashboard/overview'  },
+        { id: 'overview1', labelKey: 'nav.dashboard.overview1', href: '/dashboard/overview1' },
       ],
     },
     {
       id: 'assets',
-      label: 'Assets',
+      labelKey: 'nav.assets',
       icon: 'battery',
       children: [
-        { id: 'bledevices',    label: 'BLE Devices',    href: '/assets/ble-devices'     },
-        { id: 'fleetview',     label: 'Fleet View',     href: '/assets/fleet-view'      },
-        { id: 'devicelocator', label: 'Device Locator', href: '/assets/devicelocator' },
+        { id: 'bledevices',    labelKey: 'nav.assets.bledevices',    href: '/assets/ble-devices'     },
+        { id: 'fleetview',     labelKey: 'nav.assets.fleetview',     href: '/assets/fleet-view'      },
+        { id: 'devicelocator', labelKey: 'nav.assets.devicelocator', href: '/assets/devicelocator' },
       ],
     },
     {
       id: 'mydevices',
-      label: 'My Devices',
+      labelKey: 'nav.mydevices',
       icon: 'battery',
       children: [
-        { id: 'devices',    label: 'My Device',    href: '/mydevices/devices'},
+        { id: 'devices',    labelKey: 'nav.mydevices.devices',    href: '/mydevices/devices'},
+        { id: 'test',    labelKey: 'nav.mydevices.test',    href: '/mydevices/test'},
+        { id: 'link',    labelKey: 'nav.mydevices.link',    href: '/mydevices/link'},
+        { id: 'pair', labelKey: 'nav.mydevices.pair', href: '/mydevices/pair'},
+        { id: 'unpair', labelKey: 'nav.mydevices.unpair', href: '/mydevices/unpair'},
       ],
     },
-      {
+    {
       id: 'ota',
-      label: 'OTA',
+      labelKey: 'nav.ota',
       icon: 'cloud',
       children: [
-        { id: 'upload',    label: 'Upload Files',    href: '/ota/upload'},
-        { id: 'deviceota',    label: 'Device OTA',    href: '/ota/deviceota'},
+        { id: 'upload',    labelKey: 'nav.ota.upload',    href: '/ota/upload'},
+        { id: 'deviceota',    labelKey: 'nav.ota.deviceota',    href: '/ota/deviceota'},
       ],
     },
     {
       id: 'rider',
-      label: 'Rider',
+      labelKey: 'nav.rider',
       icon: 'rider',
       children: [
-        { id: 'serviceplan1', label: 'Rider Portal', href: '/rider/serviceplan1'}
+        // { id: 'rider', label: 'Rider swap', href: '/rider/test'},
+        // { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
+        // { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     },
+        // { id: 'serviceplan', label: 'Rider', href: '/rider/serviceplan'},
+        { id: 'serviceplan1', labelKey: 'nav.rider.serviceplan1', href: '/rider/serviceplan1'}
+      ],
+    },
+    {
+      id: 'payments',
+      labelKey: 'nav.payments',
+      icon: 'rider',
+      children: [
+        { id: 'payment',    labelKey: 'nav.payments.payment',    href: '/payments/payment'     },
+        { id: 'kenya',    labelKey: 'nav.payments.kenya',    href: '/payments/kenya'     }
       ],
     },
     {
       id: 'ticketing',
-      label: 'Support',
+      labelKey: 'nav.ticketing',
       icon: 'help',
       children: [
-        { id: 'support',    label: 'Support',    href: '/ticketing/support'     },
+        { id: 'support',    labelKey: 'nav.ticketing.support',    href: '/ticketing/support'     },
      
       ],
     },
     {
       id: 'keypad',
-      label: 'Keypad',
+      labelKey: 'nav.keypad',
       icon: 'keypad',
       children: [
-        { id: 'keypad',    label: 'Keypad',    href: '/keypad/keypad'     },
+        { id: 'keypad',    labelKey: 'nav.keypad.keypad',    href: '/keypad/keypad'     },
       ],
     },
     {
       id: 'customers',
-      label: 'Customers',
+      labelKey: 'nav.customers',
       icon: 'barchart',
       children: [
-        { id: 'myportfolio', label: 'My Portfolio', href: '/customers/myportfolio' },
-        { id: 'payments',    label: 'Payments',     href: '/customers/payments'    },
+        // { id: 'customerform', label: 'Customer Acquisition Form', href: '/customers/customerform' },
+        { id: 'myportfolio', labelKey: 'nav.customers.myportfolio', href: '/customers/myportfolio' },
+        { id: 'payments',    labelKey: 'nav.customers.payments',     href: '/customers/payments'    },
       ],
     },
      {
       id: 'location',
-      label: 'Routes',
+      labelKey: 'nav.location',
       icon: 'location',
       children: [
-        { id: 'routes', label: 'My Routes', href: '/location/routes' },
+        { id: 'routes', labelKey: 'nav.location.routes', href: '/location/routes' },
       ],
     },
     {
       id: 'team',
-      label: 'Team',
+      labelKey: 'nav.team',
       icon: 'users',
       children: [
-        { id: 'members', label: 'Members', href: '/team/members' },
-        { id: 'chat',    label: 'Chat',    href: '/team/chat'    },
+        { id: 'members', labelKey: 'nav.team.members', href: '/team/members' },
+        { id: 'chat',    labelKey: 'nav.team.chat',    href: '/team/chat'    },
       ],
     },
     {
       id: 'company',
-      label: 'Company',
+      labelKey: 'nav.company',
       icon: 'building',
       children: [
-        { id: 'request', label: 'Request', href: '/company/request' },
-        { id: 'updates', label: 'Updates', href: '/company/updates' },
+        { id: 'request', labelKey: 'nav.company.request', href: '/company/request' },
+        { id: 'updates', labelKey: 'nav.company.updates', href: '/company/updates' },
       ],
     },
 
@@ -110,18 +128,18 @@ export const menuConfig: {
   
     {
       id: 'myaccount',
-      label: 'My Account',
+      labelKey: 'nav.myaccount',
       icon: 'usercircle',
       children: [
-        { id: 'resetpassword', label: 'Reset Password', href: '/myaccount/resetpassword' },
+        { id: 'resetpassword', labelKey: 'nav.myaccount.resetpassword', href: '/myaccount/resetpassword' },
       ],
     },
     {
       id: 'settings',
-      label: 'My Settings',
+      labelKey: 'nav.settings',
       icon: 'settings',
       children: [
-        { id: 'settings', label: 'My Settings', href: '/settings' },
+        { id: 'settings', labelKey: 'nav.settings.settings', href: '/settings' },
       ],
     },
   
@@ -129,11 +147,11 @@ export const menuConfig: {
   
     {
       id: 'debug',
-      label: 'Debug',
+      labelKey: 'nav.debug',
       icon: 'bugplay',
       children: [
-        { id: 'console',     label: 'Console',      href: '/debug/console'     },
-        { id: 'reportissue', label: 'Report Issue', href: '/debug/reportissue' },
+        { id: 'console',     labelKey: 'nav.debug.console',      href: '/debug/console'     },
+        { id: 'reportissue', labelKey: 'nav.debug.reportissue', href: '/debug/reportissue' },
       ],
     },
   
@@ -141,10 +159,11 @@ export const menuConfig: {
   
     {
       id: 'logout',
-      label: 'Logout',
+      labelKey: 'common.logout',
       icon: 'logout',
       type: 'button',          
       action: 'logout',         
     },
   ] as const;
+  
   

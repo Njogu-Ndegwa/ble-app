@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import ProgressiveLoading from '../../../../components/loader/progressiveLoading';
 import { connBleByMacAddress, initServiceBleData } from '../../../utils';
 import { Toaster, toast } from 'react-hot-toast';
+import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 
 let bridgeHasBeenInitialized = false;
@@ -67,6 +68,7 @@ const defaultImageUrl =
 
 const AppContainer = () => {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const { t } = useI18n();
   const [bridgeInitialized, setBridgeInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
@@ -236,7 +238,7 @@ const AppContainer = () => {
     const offBleConnectFail = reg('bleConnectFailCallBack', (data: string, resp: any) => {
       setIsConnecting(false);
       setProgress(0);
-      toast.error('Connection failed! Please try reconnecting again.', {
+      toast.error(t('Connection failed! Please try reconnecting again.'), {
         id: 'connect-toast',
       });
       resp(data);
@@ -449,7 +451,7 @@ const AppContainer = () => {
     if (matches.length === 1) {
       handleDeviceSelect(matches[0].macAddress); // Updated to use handleDeviceSelect
     } else {
-      toast.error('There was a problem finding the device. Try selecting it manually.');
+      toast.error(t('There was a problem finding the device. Try selecting it manually.'));
     }
   };
 
@@ -461,7 +463,7 @@ const AppContainer = () => {
 
     if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
       console.error('AttributeList is empty or invalid');
-      toast.error('Error: Device data not available yet');
+      toast.error(t('Error: Device data not available yet'));
       return;
     }
 
@@ -469,7 +471,7 @@ const AppContainer = () => {
 
     if (!attService) {
       console.error('ATT_SERVICE not found in attributeList.');
-      toast.error('ATT service data is required but not available yet');
+      toast.error(t('ATT service data is required but not available yet'));
       return;
     }
 
@@ -477,7 +479,7 @@ const AppContainer = () => {
 
     if (!opidChar || !opidChar.realVal) {
       console.error('opid characteristic not found or has no value in ATT_SERVICE.');
-      toast.error('Device ID not available');
+      toast.error(t('Device ID not available'));
       return;
     }
 
@@ -509,7 +511,7 @@ const AppContainer = () => {
 
     if (Object.keys(serviceData).length === 0) {
       console.error(`No valid data found in ${serviceType} service.`);
-      toast.error(`No data available to publish for ${serviceType}`);
+      toast.error(t(`No data available to publish for ${serviceType}`));
       return;
     }
 
@@ -528,11 +530,11 @@ const AppContainer = () => {
     try {
       window.WebViewJavascriptBridge.callHandler('mqttPublishMsg', JSON.stringify(dataToPublish), (response) => {
         console.info(`MQTT Response for ${serviceType}:`, response);
-        toast.success(`${serviceType} data published successfully`);
+        toast.success(t(`${serviceType} data published successfully`));
       });
     } catch (error) {
       console.error(`Error publishing ${serviceType} data:`, error);
-      toast.error(`Error publishing ${serviceType} data`);
+      toast.error(t(`Error publishing ${serviceType} data`));
     }
   };
 
@@ -559,7 +561,7 @@ const AppContainer = () => {
   const publishAllAvailableServices = (attributeList: any) => {
     if (!attributeList || !Array.isArray(attributeList) || attributeList.length === 0) {
       console.error('AttributeList is empty or invalid');
-      toast.error('Error: Device data not available yet');
+      toast.error(t('Error: Device data not available yet'));
       return;
     }
 
@@ -567,7 +569,7 @@ const AppContainer = () => {
 
     if (!hasAttService) {
       console.error('ATT_SERVICE not found - required for publishing');
-      toast.error('Cannot publish: ATT service data not available');
+      toast.error(t('Cannot publish: ATT service data not available'));
       return;
     }
 
@@ -579,7 +581,7 @@ const AppContainer = () => {
     });
 
     if (availableServices.length === 0) {
-      toast.error('No service data available to publish');
+      toast.error(t('No service data available to publish'));
       return;
     }
 
@@ -593,12 +595,12 @@ const AppContainer = () => {
   };
 
   const bleLoadingSteps = [
-    { percentComplete: 10, message: 'Initializing Bluetooth connection...' },
-    { percentComplete: 25, message: 'Reading ATT Service...' },
-    { percentComplete: 45, message: 'Reading CMD Service...' },
-    { percentComplete: 60, message: 'Reading STS Service...' },
-    { percentComplete: 75, message: 'Reading DTA Service...' },
-    { percentComplete: 90, message: 'Reading DIA Service..' },
+    { percentComplete: 10, message: t('Initializing Bluetooth connection...') },
+    { percentComplete: 25, message: t('Reading ATT Service...') },
+    { percentComplete: 45, message: t('Reading CMD Service...') },
+    { percentComplete: 60, message: t('Reading STS Service...') },
+    { percentComplete: 75, message: t('Reading DTA Service...') },
+    { percentComplete: 90, message: t('Reading DIA Service..') },
   ];
 
   const handleBLERescan = () => {
@@ -658,8 +660,8 @@ const AppContainer = () => {
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="w-full max-w-md">
             <ProgressiveLoading
-              initialMessage="Preparing to connect..."
-              completionMessage="Connection established!"
+              initialMessage={t('Preparing to connect...')}
+              completionMessage={t('Connection established!')}
               loadingSteps={bleLoadingSteps}
               onLoadingComplete={() => {}}
               autoProgress={false}

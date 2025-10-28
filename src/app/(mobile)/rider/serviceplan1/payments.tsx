@@ -1,5 +1,6 @@
 import React from 'react';
 import { CreditCard } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface PaymentTransaction {
   id: string;
@@ -14,6 +15,7 @@ interface PaymentsProps {
 }
 
 const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
+  const { t } = useI18n();
   const getStatusStyles = (status: string) => {
     switch (status) {
       case 'completed':
@@ -42,7 +44,7 @@ const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-4">
           <CreditCard className="w-5 h-5 text-gray-400" />
-          <h2 className="text-lg font-semibold text-white">Transactions</h2>
+          <h2 className="text-lg font-semibold text-white">{t('Transactions')}</h2>
         </div>
 
         {paymentHistory.length > 0 ? (
@@ -56,7 +58,7 @@ const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
                   {/* Transaction ID and Status */}
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="text-xs text-gray-400">Transaction ID</p>
+                      <p className="text-xs text-gray-400">{t('Transaction ID')}</p>
                       <p className="text-sm text-white font-mono">
                         {formatTransactionId(transaction.id)}
                       </p>
@@ -70,18 +72,18 @@ const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
 
                   {/* Plan Name */}
                   <div>
-                    <p className="text-xs text-gray-400">Plan</p>
+                    <p className="text-xs text-gray-400">{t('Plan')}</p>
                     <p className="text-sm text-white font-medium">{transaction.planName}</p>
                   </div>
 
                   {/* Amount and Date */}
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="text-xs text-gray-400">Amount</p>
+                      <p className="text-xs text-gray-400">{t('Amount')}</p>
                       <p className="text-lg font-bold text-white">${transaction.amount}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-400">Date</p>
+                      <p className="text-xs text-gray-400">{t('Date')}</p>
                       <p className="text-sm text-gray-300">{transaction.date}</p>
                     </div>
                   </div>
@@ -92,8 +94,8 @@ const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
         ) : (
           <div className="bg-gray-700 rounded-xl p-8 border border-gray-600 text-center">
             <CreditCard className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-white mb-2">No Payment History</h3>
-            <p className="text-gray-400">Your transaction history will appear here once you make your first payment.</p>
+            <h3 className="text-lg font-semibold text-white mb-2">{t('No Payment History')}</h3>
+            <p className="text-gray-400">{t('Your transaction history will appear here once you make your first payment.')}</p>
           </div>
         )}
       </div>

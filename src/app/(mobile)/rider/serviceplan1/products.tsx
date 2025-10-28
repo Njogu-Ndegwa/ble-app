@@ -1,5 +1,6 @@
 import React from 'react';
 import { Package } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface ServicePlan {
   name: string;
@@ -15,6 +16,7 @@ interface ProductsProps {
 }
 
 const Products: React.FC<ProductsProps> = ({ allPlans, onSelectPlan }) => {
+  const { t } = useI18n();
   const renderPlanCard = (plan: ServicePlan) => (
     <div
       key={`${plan.productId}-${plan.default_code}`}
@@ -27,7 +29,7 @@ const Products: React.FC<ProductsProps> = ({ allPlans, onSelectPlan }) => {
           <div>
             <h3 className="text-sm font-semibold text-white">{plan.name}</h3>
             {/* <p className="text-xs text-gray-400">Subscription</p> */}
-            <p className="text-xs text-gray-500">Code: {plan.default_code}</p>
+            <p className="text-xs text-gray-500">{t('Code:')} {plan.default_code}</p>
           </div>
         </div>
         <div className="text-right">
@@ -38,7 +40,7 @@ const Products: React.FC<ProductsProps> = ({ allPlans, onSelectPlan }) => {
       <div
         className="w-full py-2 px-3 rounded-lg text-center font-semibold text-xs transition-colors duration-200 bg-gray-600 text-white border border-gray-500 hover:bg-gray-500"
       >
-        Select Product
+        {t('Select Product')}
       </div>
     </div>
   );
@@ -48,14 +50,14 @@ const Products: React.FC<ProductsProps> = ({ allPlans, onSelectPlan }) => {
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-4">
           <Package className="w-5 h-5 text-gray-400" />
-          <h2 className="text-lg font-semibold text-white">Products</h2>
+          <h2 className="text-lg font-semibold text-white">{t('Products')}</h2>
         </div>
         <div className="space-y-4">
           {allPlans.length > 0 ? (
             allPlans.map((plan) => renderPlanCard(plan))
           ) : (
             <div className="text-center py-8">
-              <p className="text-gray-400">No products available</p>
+              <p className="text-gray-400">{t('No products available')}</p>
             </div>
           )}
         </div>

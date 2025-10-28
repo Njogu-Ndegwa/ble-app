@@ -6,6 +6,8 @@ import { redirect, usePathname } from 'next/navigation';
 import { menuConfig } from './navigation';
 import { icons } from './icons';
 import { useMenuVisibility } from '@/lib/auth';
+import { useI18n } from '@/i18n';
+import { useRouter } from 'next/router';
 type Props = { onClose?: () => void };
 
 export default function Sidebar({ onClose }: Props) {
@@ -13,6 +15,7 @@ export default function Sidebar({ onClose }: Props) {
     const [open, setOpen] = useState<Record<string, boolean>>({ assets: true });
     const { canViewMenu, userType } = useMenuVisibility();
     const isCustomer = userType === 'CUSTOMER';
+    const { t } = useI18n();
     // const router = useRouter();
     /** ------------------------------------------------------------------
      *  Build a “clean” menu:
@@ -57,12 +60,12 @@ export default function Sidebar({ onClose }: Props) {
                 {/* ---------- Header ---------- */}
                 <div className="px-6 mb-6 flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-white">Menu</h2>
+                        <h2 className="text-lg font-semibold text-white">{t('common.menu')}</h2>
                         <button
                             onClick={onClose}
                             className="text-sm text-gray-400 hover:text-white"
                         >
-                            Close
+                            {t('common.close')}
                         </button>
                     </div>
                 </div>
@@ -103,7 +106,7 @@ export default function Sidebar({ onClose }: Props) {
                             const showLogin = isCustomer && item.id === 'logout';
 
                             const click = showLogin ? handleOnLogin : handleOnLogOut;
-                            const label = showLogin ? 'Login' : item.label;
+                            const label = showLogin ? t('common.login') : t('common.logout');
 
                             return (
                                 <div key={item.id} className="px-6 py-2">
@@ -122,7 +125,7 @@ export default function Sidebar({ onClose }: Props) {
 
                         /* ── Standard expandable section ──────────────────────── */
                         if (!item.icon || !item.children) return null;
-                        const { id, label, icon, children } = item;
+                        const { id, label, labelKey, icon, children } = item;
                         const Icon = icons[icon];
                         const expanded = open[id] ?? false;
                         const isActive = path.startsWith(`/${id}`);
@@ -152,7 +155,7 @@ export default function Sidebar({ onClose }: Props) {
                                             <Icon size={18} />
                                         </span>
                                         <span className={isActive ? 'text-white' : 'text-gray-200'}>
-                                            {label}
+                                            {labelKey ? t(labelKey) : label}
                                         </span>
                                     </div>
                                     <span className="text-gray-400">
@@ -179,7 +182,7 @@ export default function Sidebar({ onClose }: Props) {
                                                         : 'hover:bg-[#252a2e] text-gray-400'
                                                         }`}
                                                 >
-                                                    {sub.label}
+                                                    {sub.labelKey ? t(sub.labelKey) : sub.label}
                                                 </Link>
                                             );
                                         })}
@@ -192,7 +195,7 @@ export default function Sidebar({ onClose }: Props) {
 
                 {/* ---------- Footer ---------- */}
                 <div className="px-6 pt-4 border-t border-gray-800 flex-shrink-0">
-                    <p className="text-xs text-gray-500">Version 1.2.5</p>
+                    <p className="text-xs text-gray-500">{t('common.version', { version: '1.2.5' })}</p>
                 </div>
             </div>
         </aside>

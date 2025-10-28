@@ -1,16 +1,14 @@
-//working
-
 "use client";
 
 import React, { useState, useRef } from "react";
 import MobileListView from "./MobileListView";
 import DeviceDetailView from "./DeviceDetailView";
 import { useEffect } from "react";
-import dynamic from "next/dynamic";
 import ProgressiveLoading from "../../../../components/loader/progressiveLoading";
 import { connBleByMacAddress, initServiceBleData } from "../../../utils";
 import { Toaster, toast } from "react-hot-toast";
 import { useBridge } from "@/app/context/bridgeContext";
+import { useI18n } from "@/i18n";
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
 export interface BleDevice {
@@ -73,6 +71,7 @@ const defaultImageUrl =
   "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png";
 
 const AppContainer = () => {
+  const { t } = useI18n();
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [bridgeInitialized, setBridgeInitialized] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -203,7 +202,7 @@ const AppContainer = () => {
   ): string {
     // Calculate distance using the logarithmic path-loss model
     const distance = Math.pow(10, (txPower - rssi) / (10 * n));
-    return `${rssi}db ~ ${distance.toFixed(0)}m`;
+    return t('{rssi}db ~ {distance}m', { rssi: String(rssi), distance: distance.toFixed(0) });
   }
 
   const setupBridge = (bridge: WebViewJavascriptBridge) => {
@@ -278,7 +277,7 @@ const AppContainer = () => {
       (data: string, resp: any) => {
         setIsConnecting(false);
         setProgress(0);
-        toast.error("Connection failed! Please try reconnecting again.", {
+        toast.error(t('Connection failed! Please try reconnecting again.'), {
           id: "connect-toast",
         });
         resp(data);
@@ -418,7 +417,7 @@ const AppContainer = () => {
       }
     });
 
-    // Cleanup when the component unmounts or dependencies change
+    // Cleanup when the component unmounts or dependencies change.
     return () => {
       offPrint();
       offFindBle();
@@ -537,16 +536,6 @@ const AppContainer = () => {
     }
   };
 
-  // const stopBleScan = () => {
-  //   if (window.WebViewJavascriptBridge && isScanning) {
-  //     window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {
-  //       console.log("Scanning stopped");
-  //     });
-  //     setIsScanning(false);
-  //   } else {
-  //     console.error("WebViewJavascriptBridge is not initialized or scanning is not active.");
-  //   }
-  // };
   const stopBleScan = () => {
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
@@ -565,16 +554,13 @@ const AppContainer = () => {
     if (matches.length === 1) {
       startConnection(matches[0].macAddress);
     } else {
-      toast.error(
-        "There was a problem connecting with device. Try doing it manually."
-      );
+      toast.error(t('There was a problem connecting with device. Try doing it manually.'));
     }
   };
 
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
-      // toast.error("Error: WebViewJavascriptBridge is not initialized.");
       return;
     }
 
@@ -585,7 +571,7 @@ const AppContainer = () => {
       attributeList.length === 0
     ) {
       console.error("AttributeList is empty or invalid");
-      toast.error("Error: Device data not available yet");
+      toast.error(t('Error: Device data not available yet'));
       return;
     }
 
@@ -596,7 +582,7 @@ const AppContainer = () => {
 
     if (!attService) {
       console.error("ATT_SERVICE not found in attributeList.");
-      toast.error("ATT service data is required but not available yet");
+      toast.error(t('ATT service data is required but not available yet'));
       // Queue this publish for retry after ATT service is loaded
       return;
     }
@@ -610,7 +596,7 @@ const AppContainer = () => {
       console.error(
         "opid characteristic not found or has no value in ATT_SERVICE."
       );
-      toast.error("Device ID not available");
+      toast.error(t('Device ID not available'));
       return;
     }
 
@@ -653,7 +639,7 @@ const AppContainer = () => {
     // Check if we have data to publish
     if (Object.keys(serviceData).length === 0) {
       console.error(`No valid data found in ${serviceType} service.`);
-      toast.error(`No data available to publish for ${serviceType}`);
+      toast.error(t('No data available to publish for {service}', { service: serviceType }));
       return;
     }
 
@@ -680,12 +666,12 @@ const AppContainer = () => {
         JSON.stringify(dataToPublish),
         (response) => {
           console.info(`MQTT Response for ${serviceType}:`, response);
-          toast.success(`${serviceType} data published successfully`);
+          toast.success(t('{service} data published successfully', { service: serviceType }));
         }
       );
     } catch (error) {
       console.error(`Error publishing ${serviceType} data:`, error);
-      toast.error(`Error publishing ${serviceType} data`);
+      toast.error(t('Error publishing {service} data', { service: serviceType }));
     }
   };
   const readDeviceInfo = () => {
@@ -712,7 +698,7 @@ const AppContainer = () => {
       );
     } catch (error) {
       console.error(`Error :`, error);
-      toast.error(`Error reding device info data`);
+      toast.error(t('Error reading device info data'));
     }
   };
 
@@ -724,7 +710,7 @@ const AppContainer = () => {
       attributeList.length === 0
     ) {
       console.error("AttributeList is empty or invalid");
-      toast.error("Error: Device data not available yet");
+      toast.error(t('Error: Device data not available yet'));
       return;
     }
 
@@ -735,7 +721,7 @@ const AppContainer = () => {
 
     if (!hasAttService) {
       console.error("ATT_SERVICE not found - required for publishing");
-      toast.error("Cannot publish: ATT service data not available");
+      toast.error(t('ATT service data is required but not available yet'));
       return;
     }
 
@@ -751,7 +737,7 @@ const AppContainer = () => {
     });
 
     if (availableServices.length === 0) {
-      toast.error("No service data available to publish");
+      toast.error(t('No service data available to publish'));
       return;
     }
 
@@ -766,12 +752,12 @@ const AppContainer = () => {
   };
 
   const bleLoadingSteps = [
-    { percentComplete: 10, message: "Initializing Bluetooth connection..." },
-    { percentComplete: 25, message: "Reading ATT Service..." },
-    { percentComplete: 45, message: "Reading CMD Service..." },
-    { percentComplete: 60, message: "Reading STS Service..." },
-    { percentComplete: 75, message: "Reading DTA Service..." },
-    { percentComplete: 90, message: "Reading DIA Service.." },
+    { percentComplete: 10, message: t('Initializing Bluetooth connection...') },
+    { percentComplete: 25, message: t('Reading ATT Service...') },
+    { percentComplete: 45, message: t('Reading CMD Service...') },
+    { percentComplete: 60, message: t('Reading STS Service...') },
+    { percentComplete: 75, message: t('Reading DTA Service...') },
+    { percentComplete: 90, message: t('Reading DIA Service..') },
   ];
   const handleBLERescan = () => {
     if (isScanning && detectedDevices.length === 0) {
@@ -838,8 +824,8 @@ const AppContainer = () => {
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="w-full max-w-md">
             <ProgressiveLoading
-              initialMessage="Preparing to connect..."
-              completionMessage="Connection established!"
+              initialMessage={t('Preparing to connect...')}
+              completionMessage={t('Connection established!')}
               loadingSteps={bleLoadingSteps}
               onLoadingComplete={() => {}} // Handled in callback
               autoProgress={false} // Use real progress
