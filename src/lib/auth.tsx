@@ -90,6 +90,7 @@ export const useMenuVisibility = () => {
     'dashboard', 'overview', 'overview1',
     'assets',        'bledevices',
     'mydevices', 'devices',
+    'ota', 'deviceota', 'upload',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio','payments',
     'ticketing', 'support',

@@ -36,6 +36,15 @@ export const menuConfig: {
         { id: 'devices',    label: 'My Device',    href: '/mydevices/devices'},
       ],
     },
+      {
+      id: 'ota',
+      label: 'OTA',
+      icon: 'cloud',
+      children: [
+        { id: 'upload',    label: 'Upload Files',    href: '/ota/upload'},
+        { id: 'deviceota',    label: 'Device OTA',    href: '/ota/deviceota'},
+      ],
+    },
     {
       id: 'rider',
       label: 'Rider',
