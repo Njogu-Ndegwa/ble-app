@@ -1,5 +1,6 @@
 // app/lib/auth.ts
 import { jwtDecode } from 'jwt-decode';
+import { redirect } from 'next/navigation';
 import { useEffect } from 'react';
 import { useRouter, usePathname } from "next/navigation";
 interface DecodedToken {
@@ -39,7 +40,7 @@ export const isAuthenticated = (): boolean => {
   return getDecodedToken() !== null;
 };
 
-const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider"] as const;
+const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup", "/rider", "/attendant"] as const;
 
 export function isAuth(Component: any) {
   return function ProtectedPage(props: any) {
@@ -78,8 +79,8 @@ export const useMenuVisibility = () => {
     'mydevices', 'devices',
     'keypad',        // (the child is also keypad)
     'customers',     'myportfolio', 'payments',
-    'ticketing', 'support',
     'team',          'members', 'chat',
+    'ticketing', 'support',
     'company',       'request', 'updates',
     'myaccount',     'resetpassword',
     'settings',      // top-level and child
@@ -88,7 +89,7 @@ export const useMenuVisibility = () => {
     'logout',],
     DISTRIBUTOR: [   
     'dashboard', 'overview', 'overview1',
-    'assets',        'bledevices',
+    'assets', 'bledevices',
     'mydevices', 'devices',
     'ota', 'deviceota', 'upload',
     'keypad',        // (the child is also keypad)
@@ -111,6 +112,8 @@ export const useMenuVisibility = () => {
     CUSTOMER: [
     'keypad',
     'rider','serviceplan1',
+    'attendant'
+    // 'rider', 'routes', 'station', 'serviceplan', 'serviceplan1'
 ],
   };
   type UserType = keyof typeof menuPermissions;
