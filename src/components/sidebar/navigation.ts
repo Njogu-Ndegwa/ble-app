@@ -87,6 +87,14 @@ export const menuConfig: {
         { id: 'keypad',    labelKey: 'nav.keypad.keypad',    href: '/keypad/keypad'     },
       ],
     },
+     {
+      id: 'attendant',
+      labelKey: 'nav.attendant',
+      icon: 'usercircle',
+      children: [
+        { id: 'attendant',    labelKey: 'nav.attendant.attendant',    href: '/attendant/attendant'     },
+      ],
+    },
     {
       id: 'customers',
       labelKey: 'nav.customers',

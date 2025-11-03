@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
-import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe } from "lucide-react";
+import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe, Eye, EyeOff } from "lucide-react";
 import { useI18n } from '@/i18n';
 
 // Define interfaces
@@ -43,6 +43,8 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const { t } = useI18n();
   const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
   
@@ -133,6 +135,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       toast.error(t("Please enter your email"));
       return;
     }
+    if (!password.trim()) {
+      toast.error(t("Please enter your password"));
+      return;
+    }
 
     setIsSigningIn(true);
 
@@ -146,7 +152,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, password }),
         }
       );
 
@@ -260,6 +266,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
+  };
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -509,7 +518,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <User className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-bold text-white mb-2">{t('Welcome')}</h1>
-              <p className="text-gray-400">{t('Please enter your email to continue')}</p>
+              <p className="text-gray-400">{t('Please enter your email and password to continue')}</p>
             </div>
             
             <div className="mb-6">
@@ -528,10 +537,37 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               />
             </div>
 
+            <div className="mb-6">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                {t('Password')}
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={handlePasswordChange}
+                  onKeyPress={handleKeyPress}
+                  placeholder={t('Enter your password')}
+                  disabled={isSigningIn}
+                  className="w-full pr-12 pl-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? t('Hide password') : t('Show password')}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-200"
+                  disabled={isSigningIn}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <button
                 onClick={handleSignIn}
-                disabled={isSigningIn || !email.trim()}
+                disabled={isSigningIn || !email.trim() || !password.trim()}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none disabled:hover:scale-100"
               >
                 {isSigningIn ? (
