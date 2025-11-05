@@ -12,6 +12,7 @@ interface Customer {
   name: string;
   email: string;
   phone: string;
+  partner_id?: number;
 }
 
 interface LoginProps {
@@ -145,7 +146,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     try {
       console.log("Attempting login with email:", email);
       const response = await fetch(
-        `${API_BASE}/customers/login`,
+        `${API_BASE}/auth/login`,
         {
           method: "POST",
           headers: {
@@ -158,12 +159,61 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       const data = await response.json();
       console.log("API Response:", { status: response.status, data });
+      console.log("Full response data:", JSON.stringify(data, null, 2));
 
       if (response.status === 200) {
         console.log("Login successful");
         localStorage.setItem("userEmail", email);
-        // toast.success(`Welcome! Signed in as ${data.customer.name}`);
-        onLoginSuccess(data.customer);
+        // Save token to localStorage if present in response
+        const token = data.session?.token || data.token;
+        if (token) {
+          localStorage.setItem("authToken_rider", token);
+          console.log("Token saved to localStorage:", token.substring(0, 20) + "...");
+          console.log("Verifying token in localStorage:", localStorage.getItem("authToken_rider") ? "Found" : "Not found");
+        } else {
+          console.warn("No token found in response. Available keys:", Object.keys(data));
+          if (data.session) {
+            console.warn("Session object keys:", Object.keys(data.session));
+          }
+        }
+        // Extract customer data from session.user or fallback to data.customer
+        // Explicitly extract all fields including partner_id from session.user
+        const sessionUser = data.session?.user;
+        const fallbackCustomer = data.customer;
+        
+        let customerData: Customer;
+        
+        if (sessionUser) {
+          // Use session.user data (has partner_id)
+          customerData = {
+            id: sessionUser.id || 0,
+            name: sessionUser.name || "",
+            email: sessionUser.email || "",
+            phone: sessionUser.phone || "",
+            // Explicitly get partner_id - don't use || operator as 0 is valid
+            partner_id: sessionUser.partner_id !== undefined ? sessionUser.partner_id : undefined,
+          };
+          console.log("Login: sessionUser object:", sessionUser);
+          console.log("Login: sessionUser.partner_id:", sessionUser.partner_id);
+        } else if (fallbackCustomer) {
+          // Fallback to data.customer
+          customerData = {
+            id: fallbackCustomer.id || 0,
+            name: fallbackCustomer.name || "",
+            email: fallbackCustomer.email || "",
+            phone: fallbackCustomer.phone || "",
+            partner_id: fallbackCustomer.partner_id !== undefined ? fallbackCustomer.partner_id : undefined,
+          };
+        } else {
+          throw new Error("No customer data found in response");
+        }
+        
+        console.log("Login: Customer data prepared:", customerData);
+        console.log("Login: partner_id from session.user:", data.session?.user?.partner_id);
+        console.log("Login: Final customerData.partner_id:", customerData.partner_id);
+        
+        // toast.success(`Welcome! Signed in as ${customerData.name}`);
+        onLoginSuccess(customerData);
       } else if (response.status === 404) {
         toast.error(t("User not found. Would you like to create an account?"));
         // Optionally pre-fill the registration email

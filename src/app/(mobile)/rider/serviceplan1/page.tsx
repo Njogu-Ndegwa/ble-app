@@ -14,7 +14,8 @@ import {
   MapPin,
   User,
   HelpCircle,
-  Key,
+  Settings,
+  QrCode,
 } from "lucide-react";
 import Dashboard from "./dashboard";
 import Products from "./products";
@@ -22,7 +23,8 @@ import Payments from "./payments";
 import ChargingStationFinder from "./ChargingStationFinder";
 import Login from "./login";
 import Ticketing from "./ticketing";
-import Authenticate from "./authenticate";
+import SettingsPage from "./settings";
+import QRGenerator from "./qr-generator";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from '@/i18n';
 
@@ -35,6 +37,7 @@ interface ServicePlan {
   productId: number;
   default_code: string;
   suggested_billing_frequency?: string;
+  currency_symbol?: string;
 }
 
 interface Customer {
@@ -108,7 +111,7 @@ const AppContainer = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "authenticate" | "login">("login");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login" | "settings" | "qr-generator">("login");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false);
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
@@ -116,260 +119,121 @@ const AppContainer = () => {
   const [allPlans, setAllPlans] = useState<ServicePlan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState<boolean>(true);
   const [fleetIds, setFleetIds] = useState<FleetIds | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [locationActions, setLocationActions] = useState<any[]>([]);
-  const [isBindingSuccessful, setIsBindingSuccessful] = useState<boolean>(false);
   const bridgeInitRef = useRef(false);
   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
   const { bridge } = useBridge();
 
-  // bindCustomerToLocation (unchanged)
-  const bindCustomerToLocation = async (locationId: string) => {
-    if (!bridge || !window.WebViewJavascriptBridge) {
-      console.error("WebViewJavascriptBridge is not initialized.");
-      toast.error(t("Cannot connect to service: Bridge not initialized"));
-      handleBindingResult({ success: false });
-      return;
-    }
-
-    console.info(`Initiating bindCustomerToLocation for locationId: ${locationId}`);
-
-    const requestTopic = "call/abs/service/plan/service-plan-basic-latest-a/bind_customer";
-    const responseTopic = "rtrn/abs/service/plan/service-plan-basic-latest-a/bind_customer";
-
-    const payload = {
-      timestamp: new Date().toISOString(),
-      plan_id: "service-plan-basic-latest-a",
-      correlation_id: `bind-${Date.now()}`,
-      actor: {
-        type: "customer",
-        id: "CUST-RIDER-001",
-      },
-      data: {
-        action: "BIND_CUSTOMER_TO_LOCATION",
-        location_id: locationId,
-        requested_services: ["battery_swap"],
-        authentication_method: "mobile_app",
-      },
-    };
-
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: payload,
-    };
-
-    const reg = (name: string, handler: any) => {
-      console.info(`Registering handler for ${name}`);
-      bridge.registerHandler(name, handler);
-      return () => {
-        console.info(`Unregistering handler for ${name}`);
-        bridge.registerHandler(name, () => {});
-      };
-    };
-
-    const offResponseHandler = reg(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedData = JSON.parse(data);
-          const message = parsedData;
-          const topic = message.topic;
-          const rawMessageContent = message.message;
-
-          if (topic === responseTopic) {
-            console.info("Response matches topic:", responseTopic);
-            let responseData;
-            try {
-              responseData = typeof rawMessageContent === "string" ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch (parseErr) {
-              console.error("Error parsing MQTT message content:", parseErr);
-              responseData = rawMessageContent;
-            }
-
-            if (responseData?.data?.success) {
-              const sessionToken = responseData.data.metadata?.session_token;
-              const locationActions = responseData.data.metadata?.location_actions || [];
-              if (sessionToken) {
-                console.info("Binding successful - Session Token:", sessionToken);
-                handleBindingResult({ sessionToken, locationActions, success: true });
-                toast.success(t("Binding successful! Session token received."));
-              } else {
-                console.error("No session token in response:", responseData);
-                handleBindingResult({ success: false });
-                toast.error(t("No session token received"));
-              }
-            } else {
-              const errorReason = responseData?.data?.metadata?.reason || 
-                                  responseData?.data?.signals?.[0] || 
-                                  "Unknown error";
-              console.error("MQTT binding failed:", errorReason);
-              handleBindingResult({ success: false });
-              toast.error(`Binding failed: ${errorReason}`);
-            }
-            responseCallback({ success: true });
-          }
-        } catch (err) {
-          console.error("Error processing MQTT callback:", err);
-          toast.error(t("Error processing response"));
-          handleBindingResult({ success: false });
-          responseCallback({ success: false, error: String(err) });
-        }
-      }
-    );
-
-    const subscribeToTopic = () =>
-      new Promise<boolean>((resolve) => {
-        console.info(`Subscribing to MQTT response topic: ${responseTopic}`);
-        bridge.callHandler(
-          "mqttSubTopic",
-          { topic: responseTopic, qos: 0 },
-          (subscribeResponse) => {
-            console.info("MQTT subscribe response:", subscribeResponse);
-            try {
-              const subResp = typeof subscribeResponse === "string" ? JSON.parse(subscribeResponse) : subscribeResponse;
-              if (subResp.respCode === "200") {
-                console.info("Successfully subscribed to:", responseTopic);
-                resolve(true);
-              } else {
-                console.error("Subscribe failed:", subResp.respDesc || subResp.error || "Unknown error");
-                toast.error(t("Failed to subscribe to MQTT topic"));
-                resolve(false);
-              }
-            } catch (err) {
-              console.error("Error parsing subscribe response:", err);
-              toast.error(t("Error subscribing to MQTT topic"));
-              resolve(false);
-            }
-          }
-        );
-      });
-
-    const publishMessage = () =>
-      new Promise<boolean>((resolve) => {
-        console.info(`Publishing MQTT message to topic: ${requestTopic}`);
-        bridge.callHandler(
-          "mqttPublishMsg",
-          JSON.stringify(dataToPublish),
-          (response) => {
-            console.info("MQTT publish response:", response);
-            try {
-              const responseData = typeof response === "string" ? JSON.parse(response) : response;
-              if (responseData.error || responseData.respCode !== "200") {
-                console.error("MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
-                toast.error(t("Failed to publish binding request"));
-                resolve(false);
-              } else {
-                console.info("Successfully published binding request");
-                toast.success(t("Binding request sent"));
-                resolve(true);
-              }
-            } catch (err) {
-              console.error("Error parsing MQTT publish response:", err);
-              toast.error(t("Error publishing binding request"));
-              resolve(false);
-            }
-          }
-        );
-      });
-
-    const cleanup = () => {
-      console.info(`Cleaning up MQTT response handler and subscription for topic: ${responseTopic}`);
-      offResponseHandler();
-      bridge.callHandler(
-        "mqttUnSubTopic",
-        { topic: responseTopic, qos: 0 },
-        (unsubResponse) => {
-          console.info("MQTT unsubscribe response:", unsubResponse);
-        }
-      );
-    };
-
-    const maxRetries = 3;
-    const retryDelay = 2000;
-    let retries = 0;
-
-    const attemptMqttOperations = async () => {
-      while (retries < maxRetries) {
-        console.info(`Attempting MQTT operations (Attempt ${retries + 1}/${maxRetries})`);
-        const subscribed = await subscribeToTopic();
-        if (!subscribed) {
-          retries++;
-          if (retries < maxRetries) {
-            console.info(`Retrying MQTT subscribe (${retries}/${maxRetries}) after ${retryDelay}ms`);
-            await new Promise((resolve) => setTimeout(resolve, retryDelay));
-            continue;
-          } else {
-            console.error("Failed to subscribe to MQTT topic after retries");
-            toast.error(t("Failed to subscribe to MQTT topic after retries"));
-            cleanup();
-            return;
-          }
-        }
-
-        const published = await publishMessage();
-        if (!published) {
-          retries++;
-          if (retries < maxRetries) {
-            console.info(`Retrying MQTT publish (${retries}/${maxRetries}) after ${retryDelay}ms`);
-            await new Promise((resolve) => setTimeout(resolve, retryDelay));
-            continue;
-          } else {
-            console.error("Failed to publish MQTT message after retries");
-            toast.error(t("Failed to publish binding request after retries"));
-            cleanup();
-            return;
-          }
-        }
-
-        console.info("MQTT operations successful, scheduling cleanup");
-        setTimeout(() => cleanup(), 15000);
-        return;
-      }
-    };
-
-    try {
-      await attemptMqttOperations();
-    } catch (err) {
-      console.error("Error in MQTT operations:", err);
-      toast.error(t("Error in MQTT operations"));
-      cleanup();
-    }
-  };
 
   // Check local storage for email on mount (unchanged)
   useEffect(() => {
     const checkAuth = async () => {
       const storedEmail = localStorage.getItem("userEmail");
-      if (storedEmail) {
+      const storedToken = localStorage.getItem("authToken_rider");
+      
+      // If we have a token, verify it's still valid by calling dashboard
+      if (storedToken && storedEmail) {
         try {
-          const response = await fetch(
-            `${API_BASE}/customers/login`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-API-KEY": "abs_connector_secret_key_2024",
-              },
-              body: JSON.stringify({ email: storedEmail }),
-            }
-          );
+          const headers: HeadersInit = {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+            "Authorization": `Bearer ${storedToken}`,
+          };
 
-          const data = await response.json();
-          if (response.status === 200) {
-            setCustomer(data.customer);
-            setIsLoggedIn(true);
-            setCurrentPage("dashboard");
+          const response = await fetch(`${API_BASE}/customer/dashboard`, {
+            method: "GET",
+            headers,
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Token is valid, user is logged in
+            // Restore customer data - merge dashboard response with stored data
+            let customerData: Customer | null = null;
+            
+            // Get stored customer data first (has complete info like partner_id, phone)
+            const storedCustomerDataStr = localStorage.getItem("customerData_rider");
+            let storedCustomerData: Customer | null = null;
+            if (storedCustomerDataStr) {
+              try {
+                storedCustomerData = JSON.parse(storedCustomerDataStr);
+                console.log("checkAuth: Stored customer data from localStorage:", storedCustomerData);
+                console.log("checkAuth: Stored partner_id:", storedCustomerData?.partner_id);
+              } catch (e) {
+                console.error("Error parsing stored customer data:", e);
+              }
+            }
+            
+            console.log("checkAuth: Dashboard response customer:", data.customer);
+            console.log("checkAuth: Dashboard customer id:", data.customer?.id);
+            
+            // Merge dashboard response with stored data
+            // IMPORTANT: Always prioritize storedCustomerData for id and partner_id (from login)
+            // Only use dashboard response for name/email updates
+            if (storedCustomerData) {
+              // Use stored data as base (has correct id and partner_id from login)
+              // If partner_id is missing in stored data, use dashboard customer.id as partner_id
+              // (dashboard customer.id is typically the partner_id)
+              let partnerId = storedCustomerData.partner_id;
+              
+              if (!partnerId && data.customer?.id) {
+                // Dashboard customer.id is the partner_id
+                partnerId = data.customer.id;
+                console.log("checkAuth: Using dashboard customer.id as partner_id:", partnerId);
+              }
+              
+              customerData = {
+                id: storedCustomerData.id || data.customer?.id || 0, // Use stored id, or dashboard id if stored is missing
+                name: data.customer?.name || storedCustomerData.name || "",
+                email: data.customer?.email || storedEmail || storedCustomerData.email || "",
+                phone: storedCustomerData.phone || data.customer?.phone || "",
+                partner_id: partnerId, // Use stored, or fallback to dashboard customer.id
+                company_id: 2, // Hardcode company_id to 2
+              };
+              console.log("checkAuth: Restored customer data with partner_id:", customerData.partner_id);
+              console.log("checkAuth: Final customerData:", customerData);
+            } else if (data.customer) {
+              // Fallback if no stored data (shouldn't happen normally)
+              // Dashboard customer.id is the partner_id
+              customerData = {
+                id: data.customer.id || 0,
+                name: data.customer.name || "",
+                email: data.customer.email || storedEmail || "",
+                phone: data.customer.phone || "",
+                partner_id: data.customer.partner_id || data.customer.id, // Use customer.id as partner_id
+                company_id: 2, // Hardcode company_id to 2
+              };
+              console.log("checkAuth: Using dashboard customer data (fallback) with partner_id:", customerData.partner_id);
+            }
+            
+            if (customerData && customerData.id) {
+              // Update localStorage with merged customer data
+              localStorage.setItem("customerData_rider", JSON.stringify(customerData));
+              setCustomer(customerData);
+              setIsLoggedIn(true);
+              setCurrentPage("dashboard");
+            } else {
+              // No customer data available, clear and redirect
+              localStorage.removeItem("userEmail");
+              localStorage.removeItem("authToken_rider");
+              localStorage.removeItem("customerData_rider");
+              setCurrentPage("products");
+            }
           } else {
+            // Token invalid, clear and redirect
             localStorage.removeItem("userEmail");
+            localStorage.removeItem("authToken_rider");
+            localStorage.removeItem("customerData_rider");
             setCurrentPage("products");
           }
         } catch (error) {
-          console.error("Error verifying stored email:", error);
+          console.error("Error verifying token:", error);
           localStorage.removeItem("userEmail");
+          localStorage.removeItem("authToken_rider");
+          localStorage.removeItem("customerData_rider");
           setCurrentPage("products");
         }
       } else {
+        // No token or email, redirect to products/login
         setCurrentPage("products");
       }
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -382,20 +246,30 @@ const AppContainer = () => {
   // Fetch service plans (unchanged)
   useEffect(() => {
     const fetchPlans = async () => {
-      if (!customer?.company_id) {
+      if (!customer?.id) {
         setIsLoadingPlans(false);
         return;
       }
       setIsLoadingPlans(true);
       try {
+        // Get token from localStorage
+        const token = localStorage.getItem("authToken_rider");
+        
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+          "X-API-KEY": "abs_connector_secret_key_2024",
+        };
+
+        // Add Bearer token if available
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         const response = await fetch(
-          `${API_BASE}/products/subscription?company_id=${customer.company_id}`,
+          `${API_BASE}/products/subscription`,
           {
             method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "X-API-KEY": "abs_connector_secret_key_2024",
-            },
+            headers,
           }
         );
 
@@ -403,11 +277,12 @@ const AppContainer = () => {
 
         if (data.success && Array.isArray(data.products)) {
           const plans: ServicePlan[] = data.products.map((product: any) => ({
-            name: product.name,
-            price: product.list_price,
-            productId: product.product_id,
-            default_code: product.default_code,
-            suggested_billing_frequency: product.suggested_billing_frequency || "monthly",
+            name: product.name || '',
+            price: product.list_price || 0,
+            productId: product.product_id || 0,
+            default_code: product.default_code || '',
+            suggested_billing_frequency: product.subscription_info?.suggested_billing_frequency || "monthly",
+            currency_symbol: product.currency_symbol || '$',
           }));
           setAllPlans(plans);
         } else {
@@ -454,7 +329,7 @@ const AppContainer = () => {
     const content = {
       timestamp,
       plan_id: planId,
-      correlation_id: "test-asset-discovery-001",
+      correlation_id: `asset-discovery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       actor: {
         type: "customer",
         id: "CUST-RIDER-001"
@@ -783,12 +658,7 @@ const AppContainer = () => {
         locationId = url.searchParams.get('location_id');
       }
 
-      if (locationId && currentPage === "authenticate") {
-        console.info("Location ID extracted in authenticate page:", locationId);
-        toast.success(`Location ID: ${locationId}`);
-        bindCustomerToLocation(locationId);
-        return locationId;
-      } else if (locationId) {
+      if (locationId) {
         toast.success(`Location ID: ${locationId}`);
         return locationId;
       } else {
@@ -806,38 +676,44 @@ const AppContainer = () => {
     }
   };
 
-  const handleBindingResult = (result: { sessionToken?: string; locationActions?: any[]; success: boolean }) => {
-    setSessionToken(result.sessionToken || null);
-    setLocationActions(result.locationActions || []);
-    setIsBindingSuccessful(result.success);
-  };
 
   const initiateSubscriptionPurchase = async (plan: ServicePlan) => {
     if (!customer?.id) {
       toast.error(t("Customer data not available. Please sign in again."));
       return null;
     }
-    if (!customer?.company_id) {
-      toast.error(t("Company ID not available. Please sign in again."));
-      return null;
-    }
+    // company_id is hardcoded to 2, so this check is no longer needed
+    // if (!customer?.company_id) {
+    //   toast.error(t("Company ID not available. Please sign in again."));
+    //   return null;
+    // }
 
     try {
+      // Get token from localStorage
+      const token = localStorage.getItem("authToken_rider");
+      
       const purchaseData = {
-        auto_confirm: true,
         billing_frequency: plan.suggested_billing_frequency || "monthly",
         customer_id: customer.id,
         product_id: plan.productId,
+        price: plan.price,
       };
 
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "X-API-KEY": "abs_connector_secret_key_2024",
+      };
+
+      // Add Bearer token if available
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
-        `${API_BASE}/products/subscription/purchase`,
+        `https://crm-omnivoltaic.odoo.com/api/products/subscription/purchase`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-          },
+          headers,
           body: JSON.stringify(purchaseData),
         }
       );
@@ -1019,12 +895,6 @@ const AppContainer = () => {
     }
   };
 
-  const handleProceedToService = () => {
-    console.info("Proceed to Service clicked");
-    toast.success(t("Proceeding to service..."));
-    setCurrentPage("dashboard");
-    setIsBindingSuccessful(false);
-  };
 
   const paymentHistory: PaymentTransaction[] = [
     {
@@ -1041,15 +911,32 @@ const AppContainer = () => {
     { id: "products", labelKey: "Products", icon: Package },
     { id: "transactions", labelKey: "Transactions", icon: CreditCard },
     { id: "charging stations", labelKey: "Charging Stations", icon: MapPin },
-    { id: "authenticate", labelKey: "Authenticate", icon: Key },
     { id: "support", labelKey: "Support", icon: HelpCircle },
+    { id: "settings", labelKey: "Settings", icon: Settings },
+    { id: "qr-generator", labelKey: "QR Generator", icon: QrCode },
     { id: "logout", labelKey: "Logout", icon: LogOut },
   ];
 
   const handleLoginSuccess = (customerData: Customer) => {
-    localStorage.setItem("userEmail", customerData.email);
+    console.log("handleLoginSuccess: Received customerData:", customerData);
+    console.log("handleLoginSuccess: partner_id:", customerData.partner_id);
+    
+    // Hardcode company_id to 2
+    const customerWithCompanyId = {
+      ...customerData,
+      company_id: 2,
+    };
+    
+    localStorage.setItem("userEmail", customerWithCompanyId.email);
+    // Save customer data to localStorage for restoration
+    localStorage.setItem("customerData_rider", JSON.stringify(customerWithCompanyId));
+    
+    // Verify what was saved
+    const saved = localStorage.getItem("customerData_rider");
+    console.log("handleLoginSuccess: Saved to localStorage:", saved);
+    
     setIsLoggedIn(true);
-    setCustomer(customerData);
+    setCustomer(customerWithCompanyId);
     setSelectedPlan(null);
     setOrderId(null);
     setCurrentPage("products");
@@ -1057,6 +944,8 @@ const AppContainer = () => {
 
   const handleSignOut = () => {
     localStorage.removeItem("userEmail");
+    localStorage.removeItem("authToken_rider");
+    localStorage.removeItem("customerData_rider");
     setIsLoggedIn(false);
     setCustomer(null);
     setSelectedPlan(null);
@@ -1181,19 +1070,12 @@ const AppContainer = () => {
         return <Payments paymentHistory={paymentHistory} />;
       case "charging stations":
         return <ChargingStationFinder lastKnownLocation={lastKnownLocation} fleetIds={fleetIds} />;
-      case "authenticate":
-        return (
-          <Authenticate
-            onScan={startQrCodeScan}
-            sessionToken={sessionToken}
-            locationActions={locationActions}
-            isBindingSuccessful={isBindingSuccessful}
-            onProceedToService={handleProceedToService}
-            onBindingResult={handleBindingResult}
-          />
-        );
       case "support":
         return <Ticketing customer={customer} allPlans={allPlans} />;
+      case "settings":
+        return <SettingsPage />;
+      case "qr-generator":
+        return <QRGenerator customer={customer} />;
       case "login":
         return <Login onLoginSuccess={handleLoginSuccess} />;
       default:
@@ -1202,8 +1084,8 @@ const AppContainer = () => {
   };
 
   useEffect(() => {
-    console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds, sessionToken, locationActions, isBindingSuccessful });
-  }, [isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds, sessionToken, locationActions, isBindingSuccessful]);
+    console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds });
+  }, [isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds]);
 
   if (isCheckingAuth) {
     return (
@@ -1379,7 +1261,7 @@ const AppContainer = () => {
             />
           )}
 
-            <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
+          <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
             <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
               <button
                 onClick={() => setSidebarOpen(true)}

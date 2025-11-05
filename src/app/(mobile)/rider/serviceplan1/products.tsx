@@ -8,6 +8,7 @@ interface ServicePlan {
   productId: number;
   default_code: string;
   suggested_billing_frequency?: string;
+  currency_symbol?: string;
 }
 
 interface ProductsProps {
@@ -29,11 +30,15 @@ const Products: React.FC<ProductsProps> = ({ allPlans, onSelectPlan }) => {
           <div>
             <h3 className="text-sm font-semibold text-white">{plan.name}</h3>
             {/* <p className="text-xs text-gray-400">Subscription</p> */}
-            <p className="text-xs text-gray-500">{t('Code:')} {plan.default_code}</p>
+            {plan.default_code && (
+              <p className="text-xs text-gray-500">{t('Code:')} {plan.default_code}</p>
+            )}
           </div>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-white">${plan.price}</p>
+          <p className="text-lg font-bold text-white">
+            {plan.currency_symbol || '$'}{(plan.price || 0).toFixed(2)}
+          </p>
         </div>
       </div>
 

@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useBridge } from "@/app/context/bridgeContext";
-import { useI18n } from '@/i18n';
 
 interface Station {
   id: number;
@@ -38,6 +37,7 @@ interface FilterOptions {
   sortBy: "name" | "distance" | "batteryLevel" | "availableChargers";
   sortOrder: "asc" | "desc";
 }
+
 interface LocationData {
   latitude: number;
   longitude: number;
@@ -82,7 +82,6 @@ const ChargingStationFinder = ({
   lastKnownLocation,
   fleetIds,
 }: ChargingStationFinderProps) => {
-  const { t } = useI18n();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -405,7 +404,7 @@ const ChargingStationFinder = ({
         icon: stationIcon,
       }).addTo(mapInstanceRef.current);
       marker.bindPopup(
-        `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">${station.location}</p><p style="margin: 0 0 4px 0; font-size: 12px;">${t("Distance")}: ${station.distance}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">${t("Select Station")}</button></div>`
+        `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">${station.location}</p><p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">Select Station</button></div>`
       );
       markersRef.current.push(marker);
     });
@@ -516,11 +515,11 @@ const ChargingStationFinder = ({
         ? ["maintenance"]
         : ["battery_swap", "maintenance"];
 
-    // Hardcoded payload with dynamic requested_services
+    // Dynamic payload with current timestamp and unique correlation_id
     const payload = {
-      timestamp: "2025-01-15T09:00:00Z",
+      timestamp: new Date().toISOString(),
       plan_id: "service-plan-basic-latest-a",
-      correlation_id: "test-service-intent-001",
+      correlation_id: `service-intent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       actor: {
         type: "customer",
         id: "CUST-RIDER-001",
@@ -528,7 +527,7 @@ const ChargingStationFinder = ({
       data: {
         action: "EMIT_SERVICE_INTENT_SIGNAL",
         target_location_id: "LOC001",
-        estimated_arrival_time: "2025-01-15T09:30:00Z",
+        estimated_arrival_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes from now
         requested_services: requestedServices,
       },
     };
@@ -834,7 +833,7 @@ const ChargingStationFinder = ({
                   size={48}
                   className="text-blue-400 mx-auto mb-2 animate-pulse"
                 />
-                <p className="text-gray-400 text-sm">{t("Loading map...")}</p>
+                <p className="text-gray-400 text-sm">Loading map...</p>
               </div>
             </div>
           )}
@@ -847,7 +846,7 @@ const ChargingStationFinder = ({
               size={16}
               className={isRefreshing ? "animate-spin" : ""}
             />
-            <span className="hidden sm:inline">{t("Refresh")}</span>
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
         {/* Search & Filter Bar */}
@@ -855,7 +854,7 @@ const ChargingStationFinder = ({
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder={t("Search stations...")}
+              placeholder="Search stations..."
               className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={filterOptions.name}
               onChange={(e) =>
@@ -867,7 +866,7 @@ const ChargingStationFinder = ({
               className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
             >
               <Filter size={16} />
-              <span className="hidden sm:inline">{t("Filter")}</span>
+              <span className="hidden sm:inline">Filter</span>
             </button>
           </div>
         </div>
@@ -875,14 +874,14 @@ const ChargingStationFinder = ({
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">{t("Stations")}</h2>
+              <h2 className="text-lg font-semibold">Stations</h2>
               <span className="text-sm text-gray-400">
-                {filteredStations.length} {t("nearby")}
+                {filteredStations.length} nearby
               </span>
             </div>
             {filteredStations.length === 0 && !isShowcasing && (
               <p className="text-gray-400 text-center py-8">
-                {t("No stations match your filters.")}
+                No stations match your filters.
               </p>
             )}
             {isShowcasing && (
@@ -926,7 +925,7 @@ const ChargingStationFinder = ({
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
-                      {t("Navigate")}
+                      Navigate
                     </button>
                     <button
                       onClick={(e) => {
@@ -936,7 +935,7 @@ const ChargingStationFinder = ({
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
-                      {t("Select Station")}
+                      Select Station
                     </button>
                   </div>
                 </div>
@@ -959,7 +958,7 @@ const ChargingStationFinder = ({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-300 mb-2">
-                  {t("Station Name")}
+                  Station Name
                 </label>
                 <input
                   type="text"
@@ -1150,11 +1149,11 @@ const ChargingStationFinder = ({
                     d="M15 19l-7-7 7-7"
                   />
                 </svg>
-                {t("Back")}
+                Back
               </button>
-              <h2 className="text-2xl font-bold text-white">{t("Select Service")}</h2>
+              <h2 className="text-2xl font-bold text-white">Select Service</h2>
               <p className="text-blue-100 text-sm mt-1">
-                {t("Choose what you need today")}
+                Choose what you need today
               </p>
             </div>
 
@@ -1163,7 +1162,7 @@ const ChargingStationFinder = ({
               {/* Available Services Section */}
               <div>
                 <h3 className="text-white font-semibold mb-3">
-                  {t("Available Services")}
+                  Available Services
                 </h3>
                 <div className="space-y-3">
                   {/* Battery Swap Service */}
@@ -1179,9 +1178,9 @@ const ChargingStationFinder = ({
                         <Battery className="w-6 h-6 text-blue-400" />
                       </div>
                       <div className="text-left">
-                        <p className="text-white font-semibold">{t("Battery Swap")}</p>
+                        <p className="text-white font-semibold">Battery Swap</p>
                         <p className="text-gray-400 text-sm">
-                          {t("Quick battery exchange")}
+                          Quick battery exchange
                         </p>
                       </div>
                     </div>
@@ -1221,9 +1220,9 @@ const ChargingStationFinder = ({
                         <Hammer className="w-6 h-6 text-orange-400" />
                       </div>
                       <div className="text-left">
-                        <p className="text-white font-semibold">{t("Maintenance")}</p>
+                        <p className="text-white font-semibold">Maintenance</p>
                         <p className="text-gray-400 text-sm">
-                          {t("Service & repair")}
+                          Service & repair
                         </p>
                       </div>
                     </div>
@@ -1262,9 +1261,9 @@ const ChargingStationFinder = ({
                         <Wrench className="w-6 h-6 text-orange-400" />
                       </div>
                       <div className="text-left">
-                        <p className="text-white font-semibold">{t("Dual service")}</p>
+                        <p className="text-white font-semibold">Dual service</p>
                         <p className="text-gray-400 text-sm">
-                          {t("Battery swap & repair")}
+                          Battery swap & repair
                         </p>
                       </div>
                     </div>
@@ -1303,20 +1302,20 @@ const ChargingStationFinder = ({
                     <MapPin className="w-4 h-4 text-blue-400" />
                   </button>
                 </div>
-                <p className="text-gray-400 text-sm mb-4">{t("Service Location")}</p>
+                <p className="text-gray-400 text-sm mb-4">Service Location</p>
 
                 <div className="space-y-3 mb-6">
                   <div className="flex items-center gap-3 text-gray-300">
                     <Navigation className="w-4 h-4 text-blue-400" />
                     <span className="text-sm">
-                      {selectedStation.distance} {t("from your location")}
+                      {selectedStation.distance} from your location
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-gray-300">
                     <Zap className="w-4 h-4 text-green-400" />
                     <span className="text-sm">
                       {selectedStation.availableChargers.split("/")[0]}{" "}
-                      {t("batteries available")}
+                      batteries available
                     </span>
                   </div>
                 </div>
@@ -1334,18 +1333,18 @@ const ChargingStationFinder = ({
                   {processingId === selectedStation.id ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      {t("Processing...")}
+                      Processing...
                     </>
                   ) : selectedService ? (
-                    `${t("I'm on my way for")} ${
+                    `I'm on my way for ${
                       selectedService === "battery_swap"
-                        ? t("battery swap")
+                        ? "battery swap"
                         : selectedService === "maintenance"
-                        ? t("maintenance")
-                        : t("dual service")
+                        ? "maintenance"
+                        : "dual service"
                     }`
                   ) : (
-                    t("Select a service")
+                    "Select a service"
                   )}
                 </button>
               </div>

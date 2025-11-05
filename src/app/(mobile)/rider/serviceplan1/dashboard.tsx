@@ -10,15 +10,23 @@ interface Customer {
 }
 
 interface SubscribedProduct {
-  product_name: string;
-  product_code: string;
-  next_payment_date: string;
-  price_unit: number;
+  id: number;
+  subscription_code: string;
+  name: string;
+  status: string;
+  next_cycle_date: string;
+  price_at_signup: number;
+  product_id: [number, string];
+  currency_symbol?: string;
 }
 
 interface DashboardSummary {
   active_subscriptions: number;
   subscribed_products: SubscribedProduct[];
+  total_invoiced: number;
+  total_outstanding: number;
+  total_paid: number;
+  total_orders: number;
 }
 
 interface DashboardProps {
@@ -35,14 +43,24 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
       const fetchDashboardData = async () => {
         setIsLoading(true);
         try {
+          // Get token from localStorage
+          const token = localStorage.getItem("authToken_rider");
+          
+          const headers: HeadersInit = {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+          };
+
+          // Add Bearer token if available
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+
           const response = await fetch(
-            `https://crm-omnivoltaic.odoo.com/api/customers/${customer.id}/dashboard`,
+            `https://crm-omnivoltaic.odoo.com/api/customer/dashboard`,
             {
               method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                "X-API-KEY": "abs_connector_secret_key_2024",
-              },
+              headers,
             }
           );
 
@@ -51,12 +69,20 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
 
           if (response.status === 200 && data.success && data.summary) {
             setSummary({
-              active_subscriptions: data.summary.active_subscriptions,
-              subscribed_products: data.subscribed_products.map((product: any) => ({
-                product_name: product.product_name,
-                product_code: product.product_code,
-                next_payment_date: product.next_payment_date,
-                price_unit: product.price_unit,
+              active_subscriptions: data.summary.active_subscriptions || 0,
+              total_invoiced: data.summary.total_invoiced || 0,
+              total_outstanding: data.summary.total_outstanding || 0,
+              total_paid: data.summary.total_paid || 0,
+              total_orders: data.summary.total_orders || 0,
+              subscribed_products: (data.active_subscriptions || []).map((subscription: any) => ({
+                id: subscription.id,
+                subscription_code: subscription.subscription_code || '',
+                name: subscription.name || '',
+                status: subscription.status || '',
+                next_cycle_date: subscription.next_cycle_date || '',
+                price_at_signup: subscription.price_at_signup || 0,
+                product_id: subscription.product_id || [0, ''],
+                currency_symbol: subscription.currency_symbol || subscription.currency || '$',
               })),
             });
           } else {
@@ -115,20 +141,25 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <p className="text-lg font-semibold text-white mb-1">{product.product_name}</p>
-                        <p className="text-sm text-gray-400">{t('Code:')} {product.product_code}</p>
+                        <p className="text-lg font-semibold text-white mb-1">{product.name}</p>
+                        <p className="text-sm text-gray-400">{t('Code:')} {product.subscription_code}</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('Status:')} {product.status}</p>
                       </div>
-                      <p className="text-xl font-bold text-white">${product.price_unit.toFixed(2)}</p>
-                    </div>
-                    <div className="pt-3 border-t border-gray-600">
-                      <p className="text-sm text-gray-400">
-                        {t('Next Payment:')} {new Date(product.next_payment_date).toLocaleDateString('en-US', {
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
+                      <p className="text-xl font-bold text-white">
+                        {(product.price_at_signup || 0).toFixed(2)}
                       </p>
                     </div>
+                    {product.next_cycle_date && (
+                      <div className="pt-3 border-t border-gray-600">
+                        <p className="text-sm text-gray-400">
+                          {t('Next Cycle:')} {new Date(product.next_cycle_date).toLocaleDateString('en-US', {
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

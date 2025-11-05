@@ -1,3 +1,4 @@
+
 'use client'
 // import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -25,12 +26,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 
-  useEffect(() => {
-    import('vconsole').then((module) => {
-      const VConsole = module.default;
-      new VConsole();
-    });
-  }, []);
+  // useEffect(() => {
+  //   import('vconsole').then((module) => {
+  //     const VConsole = module.default;
+  //     new VConsole();
+  //   });
+  // }, []);
   return (
     <html lang="en">
       <body

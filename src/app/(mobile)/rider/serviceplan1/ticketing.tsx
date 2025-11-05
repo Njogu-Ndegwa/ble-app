@@ -109,34 +109,71 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
   const API_BASE =
     "https://crm-omnivoltaic.odoo.com/api";
   const API_KEY = "abs_connector_secret_key_2024";
-  const headers = {
-    "Content-Type": "application/json",
-    "X-API-KEY": API_KEY,
+  
+  // Get token from localStorage
+  const getHeaders = () => {
+    const token = localStorage.getItem("authToken_rider");
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      "X-API-KEY": API_KEY,
+    };
+    // Add Bearer token if available
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
   };
 
-  const TICKETS_URL = `${API_BASE}/tickets?partner_id=${customer?.id}&page=1&page_size=20`;
-
-  // Fetch tickets
+  // Fetch tickets automatically when component mounts or customer.partner_id changes
   useEffect(() => {
-    if (!customer?.id) {
+    // Try to get partner_id from customer or localStorage
+    const partnerId = customer?.partner_id || (() => {
+      try {
+        const storedCustomer = localStorage.getItem("customerData_rider");
+        if (storedCustomer) {
+          const parsed = JSON.parse(storedCustomer);
+          return parsed?.partner_id;
+        }
+      } catch (e) {
+        console.error("Error parsing stored customer data:", e);
+      }
+      return null;
+    })();
+
+    if (!partnerId) {
+      console.log("Ticketing: No partner_id available, skipping fetch. Customer:", customer);
       setIsLoadingTickets(false);
       setTickets([]);
       return;
     }
+
+    console.log("Ticketing: Fetching tickets for partner_id:", partnerId);
+    const TICKETS_URL = `${API_BASE}/tickets?partner_id=${partnerId}&page=1&page_size=20`;
 
     const fetchTickets = async () => {
       setIsLoadingTickets(true);
       try {
         const response = await fetch(TICKETS_URL, {
           method: "GET",
-          headers,
+          headers: getHeaders(),
         });
         const data = await response.json();
         console.log("Tickets API Response:", data); // Debug log
-        if (response.ok && data.success) {
-          setTickets(data.tickets || []);
+        
+        if (response.ok) {
+          // Handle different response structures
+          if (data.success !== false) {
+            // Response is successful - extract tickets
+            const ticketsList = data.tickets || data.data?.tickets || data.data || [];
+            const ticketsArray = Array.isArray(ticketsList) ? ticketsList : [];
+            console.log("Ticketing: Fetched tickets:", ticketsArray.length);
+            setTickets(ticketsArray);
+          } else {
+            console.error("API returned success=false:", data);
+            setTickets([]);
+          }
         } else {
-          console.error("API Error:", data); // Debug log
+          console.error("API Error:", response.status, data);
           setTickets([]);
         }
       } catch (error) {
@@ -148,7 +185,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
     };
 
     fetchTickets();
-  }, [customer, TICKETS_URL]);
+  }, [customer?.partner_id, customer?.id]);
 
   const handleFormChange = (
     e: React.ChangeEvent<
@@ -189,7 +226,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
       const response = await fetch(`${API_BASE}/tickets`, {
         method: "POST",
-        headers,
+        headers: getHeaders(),
         body: JSON.stringify(ticketData),
       });
 
@@ -206,10 +243,26 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
         });
         setShowNewTicketForm(false);
         // Refetch tickets after creation
-        const fetchResponse = await fetch(TICKETS_URL, { headers });
-        const fetchData = await fetchResponse.json();
-        if (fetchResponse.ok && fetchData.success) {
-          setTickets(fetchData.tickets || []);
+        const partnerId = customer?.partner_id || (() => {
+          try {
+            const storedCustomer = localStorage.getItem("customerData_rider");
+            if (storedCustomer) {
+              const parsed = JSON.parse(storedCustomer);
+              return parsed?.partner_id;
+            }
+          } catch (e) {
+            return null;
+          }
+          return null;
+        })();
+        
+        if (partnerId) {
+          const refetchUrl = `${API_BASE}/tickets?partner_id=${partnerId}`;
+          const fetchResponse = await fetch(refetchUrl, { headers: getHeaders() });
+          const fetchData = await fetchResponse.json();
+          if (fetchResponse.ok && fetchData.success) {
+            setTickets(fetchData.tickets || []);
+          }
         }
       } else {
         console.error("Ticket creation failed:", data);
