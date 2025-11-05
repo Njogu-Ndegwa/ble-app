@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Settings, Eye, EyeOff, Loader2, Lock } from "lucide-react";
 import { useI18n } from '@/i18n';
@@ -9,6 +10,7 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const SettingsPage: React.FC = () => {
   const { t } = useI18n();
+  const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmPassword, setConfirmPassword] = useState<string>("");
@@ -91,6 +93,24 @@ const SettingsPage: React.FC = () => {
         setNewPassword("");
         setConfirmPassword("");
         setErrors({});
+
+        // Invalidate session and redirect to login
+        try {
+          localStorage.removeItem("authToken_rider");
+          localStorage.removeItem("customerData_rider");
+        } catch {}
+
+        // Give the user a moment to see the success toast, then redirect
+        setTimeout(() => {
+          // Navigate back to serviceplan1 route and force a reload so parent state resets to login
+          router.replace("/rider/serviceplan1");
+          // Ensure parent container re-runs auth checks and shows Login
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              window.location.replace('/rider/serviceplan1');
+            }
+          }, 100);
+        }, 800);
       } else {
         const errorMessage = data.message || data.error || t("Failed to change password. Please try again.");
         toast.error(errorMessage);

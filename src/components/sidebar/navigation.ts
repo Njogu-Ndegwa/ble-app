@@ -34,10 +34,6 @@ export const menuConfig: {
       icon: 'battery',
       children: [
         { id: 'devices',    labelKey: 'nav.mydevices.devices',    href: '/mydevices/devices'},
-        { id: 'test',    labelKey: 'nav.mydevices.test',    href: '/mydevices/test'},
-        { id: 'link',    labelKey: 'nav.mydevices.link',    href: '/mydevices/link'},
-        { id: 'pair', labelKey: 'nav.mydevices.pair', href: '/mydevices/pair'},
-        { id: 'unpair', labelKey: 'nav.mydevices.unpair', href: '/mydevices/unpair'},
       ],
     },
     {
@@ -54,10 +50,6 @@ export const menuConfig: {
       labelKey: 'nav.rider',
       icon: 'rider',
       children: [
-        // { id: 'rider', label: 'Rider swap', href: '/rider/test'},
-        // { id: 'routes',    label: 'Rider routes',    href: '/rider/routes'     },
-        // { id: 'station',    label: 'Swapper app',    href: '/rider/stations'     },
-        // { id: 'serviceplan', label: 'Rider', href: '/rider/serviceplan'},
         { id: 'serviceplan1', labelKey: 'nav.rider.serviceplan1', href: '/rider/serviceplan1'}
       ],
     },
@@ -173,5 +165,4 @@ export const menuConfig: {
       action: 'logout',         
     },
   ] as const;
-  
   
