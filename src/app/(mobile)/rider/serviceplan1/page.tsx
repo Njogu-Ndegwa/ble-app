@@ -303,7 +303,7 @@ const AppContainer = () => {
   useEffect(() => {
     if (isMqttConnected && bridge && lastKnownLocation) {
       console.info("MQTT connected, triggering fetchFleetIds");
-      const planId = selectedPlan?.default_code || "service-plan-basic-latest-a";
+      const planId = "bss-plan-weekly-freedom-nairobi-v2-plan5";
       fetchFleetIds(planId);
     }
   }, [isMqttConnected, bridge, lastKnownLocation, selectedPlan]);

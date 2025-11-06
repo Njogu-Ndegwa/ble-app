@@ -94,26 +94,61 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
       return;
     }
     try {
-      const dataToPublish = { topic, qos: 0, content };
-      // toast(t("Publishing to") + ` ${topic}`);
+      // Determine response topic based on publish topic
+      let responseTopic: string;
+      if (topic.includes("emit")) {
+        responseTopic = "echo/#";
+      } else if (topic.includes("call")) {
+        responseTopic = "rtrn/#";
+      } else {
+        // Default fallback if neither emit nor call is found
+        responseTopic = "echo/#";
+      }
+
+      // Subscribe to response topic first
       window.WebViewJavascriptBridge.callHandler(
-        "mqttPublishMsg",
-        JSON.stringify(dataToPublish),
-        (resp: any) => {
+        "mqttSubTopic",
+        { topic: responseTopic, qos: 0 },
+        (subscribeResp: any) => {
           try {
-            const r = typeof resp === "string" ? JSON.parse(resp) : resp;
-            // Expecting respCode/respDesc shape from native layer
-            if (r?.respCode === "200" || r?.respData === true) {
-              // toast.success(t("Published to") + ` ${topic}`);
+            const subResp = typeof subscribeResp === "string" ? JSON.parse(subscribeResp) : subscribeResp;
+            if (subResp?.respCode === "200" || subResp?.respData === true) {
+              console.info(`Subscribed to response topic: ${responseTopic}`);
             } else {
-              // toast.error((r?.respDesc as string) || t("Publish failed"));
+              console.warn(`Failed to subscribe to ${responseTopic}:`, subResp?.respDesc || subResp?.error);
             }
-          } catch {
-            // Unknown response, still consider it attempted
-            // toast.success(t("Published to") + ` ${topic}`);
+          } catch (err) {
+            console.warn("Error parsing subscribe response:", err);
           }
         }
       );
+
+      // Small delay to ensure subscription is processed before publishing
+      setTimeout(() => {
+        if (!window.WebViewJavascriptBridge) {
+          return;
+        }
+        const dataToPublish = { topic, qos: 0, content };
+        // toast(t("Publishing to") + ` ${topic}`);
+        window.WebViewJavascriptBridge.callHandler(
+          "mqttPublishMsg",
+          JSON.stringify(dataToPublish),
+          (resp: any) => {
+            try {
+              const r = typeof resp === "string" ? JSON.parse(resp) : resp;
+              // Expecting respCode/respDesc shape from native layer
+              if (r?.respCode === "200" || r?.respData === true) {
+                // toast.success(t("Published to") + ` ${topic}`);
+              } else {
+                // toast.error((r?.respDesc as string) || t("Publish failed"));
+              }
+            } catch {
+              // Unknown response, still consider it attempted
+              // toast.success(t("Published to") + ` ${topic}`);
+            }
+          }
+        );
+      }, 100);
     } catch (err) {
       // toast.error(t("Publish failed"));
     }

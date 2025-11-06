@@ -169,6 +169,132 @@ const ChargingStationFinder = ({
   ]);
   const { bridge } = useBridge();
 
+  // Fetch real stations from API when fleetIds are available
+  useEffect(() => {
+    const fetchRealStations = async () => {
+      if (!fleetIds || !fleetIds.swap_station_fleet || fleetIds.swap_station_fleet.length === 0) {
+        return;
+      }
+
+      try {
+        console.info("Fetching real stations from API for fleet IDs:", fleetIds.swap_station_fleet);
+        
+        // Make a single API call with all fleet IDs
+        const requestBody = { ids: fleetIds.swap_station_fleet };
+        console.info(`Request body:`, JSON.stringify(requestBody));
+        
+        const response = await fetch(`https://dash.omnivoltaic.com/fleets/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        console.info(`Response status: ${response.status} ${response.statusText}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Failed to fetch stations:`, {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+          });
+          return;
+        }
+
+        const data = await response.json();
+        console.info(`API response:`, JSON.stringify(data, null, 2));
+
+        // Process all fleet responses
+        const allStations: Station[] = [];
+
+        fleetIds.swap_station_fleet.forEach((fleetId: string) => {
+          const fleetKey = `fleet_${fleetId}`;
+          const stationsData = data[fleetKey];
+
+          if (!stationsData) {
+            console.warn(`No fleet_${fleetId} key in response. Available keys:`, Object.keys(data));
+            return;
+          }
+
+          if (!Array.isArray(stationsData)) {
+            console.warn(`stationsData for fleet ${fleetId} is not an array:`, typeof stationsData, stationsData);
+            return;
+          }
+
+          console.info(`Found ${stationsData.length} stations for fleet ${fleetId}`);
+
+          // Transform API response to Station format
+          stationsData.forEach((stationData: any, index: number) => {
+            const coordinates = stationData.coordinates;
+            const chargeSlots = stationData.Charge_slot || [];
+            
+            // Count available slots (chst === 0 and btid is not empty)
+            const availableSlots = chargeSlots.filter((slot: any) => 
+              slot.chst === 0 && slot.btid && slot.btid.trim() !== ""
+            ).length;
+            const totalSlots = chargeSlots.length;
+            
+            // Calculate average battery level from slots with battery (rsoc > 0)
+            const slotsWithBattery = chargeSlots.filter((slot: any) => 
+              slot.rsoc > 0 && slot.btid && slot.btid.trim() !== ""
+            );
+            const avgBatteryLevel = slotsWithBattery.length > 0
+              ? slotsWithBattery.reduce((sum: number, slot: any) => sum + (slot.rsoc || 0), 0) / slotsWithBattery.length
+              : 0;
+
+            // Generate unique ID from fleet ID, opid, and index
+            const opid = stationData.opid || "";
+            const stationId = Math.abs(
+              parseInt(fleetId.substring(fleetId.length - 8), 36) + 
+              (opid ? parseInt(opid.substring(opid.length - 4), 36) : 0) + 
+              index
+            ) % 100000;
+
+            allStations.push({
+              id: stationId,
+              name: opid ? `Station ${opid}` : `Swap Station ${index + 1}`,
+              location: `${coordinates.plat.toFixed(4)}, ${coordinates.plong.toFixed(4)}`,
+              distance: "N/A", // Will be calculated later
+              batteryLevel: Math.round(avgBatteryLevel * 100) / 100,
+              availableChargers: `${availableSlots}/${totalSlots}`,
+              status: availableSlots > 0 ? "available" : availableSlots === 0 && totalSlots > 0 ? "busy" : "limited",
+              lat: coordinates.plat,
+              lng: coordinates.plong,
+              fleetId: fleetId,
+            } as Station);
+          });
+        });
+
+        if (allStations.length > 0) {
+          console.info(`Fetched ${allStations.length} real stations from API`);
+          // Calculate distances for real stations
+          const location = lastKnownLocation || {
+            latitude: -1.2921,
+            longitude: 36.8219,
+          };
+          const stationsWithDistance = allStations.map((station) => ({
+            ...station,
+            distance: calculateDistance(
+              location.latitude,
+              location.longitude,
+              station.lat,
+              station.lng
+            ),
+          }));
+          setStations(stationsWithDistance);
+        } else {
+          console.warn("No real stations fetched from API, keeping demo stations");
+        }
+      } catch (error) {
+        console.error("Error fetching real stations:", error);
+      }
+    };
+
+    fetchRealStations();
+  }, [fleetIds, lastKnownLocation]);
+
   useEffect(() => {
     if (fleetIds) {
       const validFleetIds = Object.values(fleetIds).flat();
@@ -488,6 +614,194 @@ const ChargingStationFinder = ({
     mapInstanceRef.current.fitBounds(group.getBounds().pad(0.1));
   };
 
+  // Phase W4: Fleet Allocation - Request asset allocation from ARM
+  const handleFleetAllocation = async (
+    station: Station,
+    serviceType: "battery_swap" | "maintenance" | "multi_service"
+  ) => {
+    if (!bridge) {
+      console.error("WebViewJavascriptBridge is not initialized.");
+      return;
+    }
+
+    console.info(`Phase W4: Initiating fleet allocation for station: ${station.name}`);
+
+    // Determine target fleet ID from fleetIds (from Phase W1)
+    let targetFleetId = station.fleetId; // Fallback to station's fleetId
+    if (fleetIds) {
+      // Try to get swap_station_fleet first, then fallback to other fleet types
+      const swapStationFleets = fleetIds.swap_station_fleet || fleetIds["swap_station_fleet"];
+      if (swapStationFleets && swapStationFleets.length > 0) {
+        targetFleetId = swapStationFleets[0];
+      } else {
+        // Get first available fleet
+        const fleetTypes = Object.keys(fleetIds);
+        if (fleetTypes.length > 0 && fleetIds[fleetTypes[0]].length > 0) {
+          targetFleetId = fleetIds[fleetTypes[0]][0];
+        }
+      }
+    }
+
+    // Format location_id from station coordinates or use station ID
+    let locationId = `LOC${station.id}`;
+    if (lastKnownLocation?.latitude && lastKnownLocation?.longitude) {
+      locationId = `LOC${Math.round(lastKnownLocation.latitude * 1000)}${Math.round(lastKnownLocation.longitude * 1000)}`;
+    }
+
+    // Determine service sequence based on serviceType
+    const serviceSequence = serviceType === "battery_swap"
+      ? "battery_swap"
+      : serviceType === "maintenance"
+      ? "maintenance"
+      : "battery_swap,maintenance";
+
+    const requestTopic = `emit/uxi/service/plan/bss-plan-weekly-freedom-nairobi-v2-plan5/fleet_allocation`;
+    const responseTopic = "echo/#";
+
+    // Generate unique correlation_id and session_token for each request
+    const correlationId = `fleet-allocation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const sessionToken = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    const payload = {
+      timestamp: new Date().toISOString(), // Current time
+      plan_id: "bss-plan-weekly-freedom-nairobi-v2-plan5",
+      correlation_id: correlationId, // Unique for each request
+      session_token: sessionToken, // Unique for each request
+      actor: {
+        type: "system",
+        id: "service-coordinator",
+      },
+      data: {
+        action: "SEND_ASSET_ALLOCATION_SIGNAL",
+        target_fleet_id: targetFleetId,
+        location_id: locationId,
+        service_sequence: serviceSequence,
+      },
+    };
+
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content: payload,
+    };
+
+    console.info("Phase W4: Publishing fleet allocation request:", JSON.stringify(dataToPublish, null, 2));
+
+    const reg = (name: string, handler: any) => {
+      bridge.registerHandler(name, handler);
+      return () => bridge.registerHandler(name, () => {});
+    };
+
+    const offResponseHandler = reg(
+      "mqttMsgArrivedCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const parsedData = JSON.parse(data);
+          const topic = parsedData.topic;
+          const rawMessageContent = parsedData.message;
+
+          if (topic.startsWith("echo/")) {
+            console.info("Phase W4: Received fleet allocation response:", rawMessageContent);
+            let responseData;
+            try {
+              responseData = typeof rawMessageContent === "string"
+                ? JSON.parse(rawMessageContent)
+                : rawMessageContent;
+
+              if (responseData?.data?.success || responseData?.signals?.includes("ASSET_ALLOCATION_SIGNAL_SENT")) {
+                console.info(`Phase W4: Fleet allocation successful for ${station.name}`);
+                toast.success(`Fleet allocation completed for ${station.name}`);
+              } else {
+                console.warn("Phase W4: Fleet allocation response indicates non-success:", responseData);
+              }
+            } catch (parseErr) {
+              console.error("Phase W4: Error parsing response:", parseErr);
+            }
+            responseCallback({ success: true });
+          }
+        } catch (err) {
+          console.error("Phase W4: Error processing MQTT callback:", err);
+          responseCallback({ success: false, error: err });
+        }
+      }
+    );
+
+    const subscribeToTopic = () =>
+      new Promise<boolean>((resolve) => {
+        bridge.callHandler(
+          "mqttSubTopic",
+          { topic: responseTopic, qos: 0 },
+          (subscribeResponse) => {
+            try {
+              const subResp = typeof subscribeResponse === "string"
+                ? JSON.parse(subscribeResponse)
+                : subscribeResponse;
+              if (subResp.respCode === "200") {
+                console.info("Phase W4: Successfully subscribed to response topic");
+                resolve(true);
+              } else {
+                console.warn("Phase W4: Subscribe failed:", subResp.respDesc || subResp.error);
+                resolve(false);
+              }
+            } catch (err) {
+              console.error("Phase W4: Error parsing subscribe response:", err);
+              resolve(false);
+            }
+          }
+        );
+      });
+
+    const publishMessage = () =>
+      new Promise<boolean>((resolve) => {
+        bridge.callHandler(
+          "mqttPublishMsg",
+          JSON.stringify(dataToPublish),
+          (response) => {
+            try {
+              const responseData = typeof response === "string" ? JSON.parse(response) : response;
+              if (responseData.error || responseData.respCode !== "200") {
+                console.error("Phase W4: Publish error:", responseData.respDesc || responseData.error);
+                resolve(false);
+              } else {
+                console.info(`Phase W4: Successfully published fleet allocation for ${station.name}`);
+                resolve(true);
+              }
+            } catch (err) {
+              console.error("Phase W4: Error parsing publish response:", err);
+              resolve(false);
+            }
+          }
+        );
+      });
+
+    const cleanup = () => {
+      offResponseHandler();
+      bridge.callHandler(
+        "mqttUnSubTopic",
+        { topic: responseTopic, qos: 0 },
+        () => {}
+      );
+    };
+
+    try {
+      const subscribed = await subscribeToTopic();
+      if (subscribed) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const published = await publishMessage();
+        if (published) {
+          setTimeout(() => cleanup(), 15000);
+        } else {
+          cleanup();
+        }
+      } else {
+        cleanup();
+      }
+    } catch (err) {
+      console.error("Phase W4: Error in MQTT operations:", err);
+      cleanup();
+    }
+  };
+
   const handleServiceRequest = async (
     station: Station,
     serviceType: "battery_swap" | "maintenance" | "multi_service"
@@ -504,8 +818,8 @@ const ChargingStationFinder = ({
     );
 
     // Define MQTT topics
-    const requestTopic = `call/abs/service/plan/service-plan-basic-latest-a/emit_intent`;
-    const responseTopic = `rtrn/abs/service/plan/service-plan-basic-latest-a/emit_intent`;
+    const requestTopic = `call/abs/service/plan/bss-plan-weekly-freedom-nairobi-v2-plan5/emit_intent`;
+    const responseTopic = `rtrn/abs/service/plan/bss-plan-weekly-freedom-nairobi-v2-plan5/emit_intent`;
 
     // Determine requested_services based on serviceType
     const requestedServices =
@@ -518,7 +832,7 @@ const ChargingStationFinder = ({
     // Dynamic payload with current timestamp and unique correlation_id
     const payload = {
       timestamp: new Date().toISOString(),
-      plan_id: "service-plan-basic-latest-a",
+      plan_id: "bss-plan-weekly-freedom-nairobi-v2-plan5",
       correlation_id: `service-intent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       actor: {
         type: "customer",
@@ -587,6 +901,11 @@ const ChargingStationFinder = ({
                       : "Dual"
                   } request for ${station.name}`
                 );
+                
+                // Phase W4: Fleet Allocation - automatically trigger after W2 succeeds
+                setTimeout(() => {
+                  handleFleetAllocation(station, serviceType);
+                }, 1000);
               } else {
                 const errorReason =
                   responseData?.data?.metadata?.reason || "Unknown error";

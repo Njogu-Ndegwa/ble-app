@@ -224,12 +224,12 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
       locationId = `LOC${Math.round(lastKnownLocation.latitude * 1000)}${Math.round(lastKnownLocation.longitude * 1000)}`;
     }
 
-    const requestTopic = `emit/uxi/service/plan/${subscriptionCode}/customer_binding`;
+    const requestTopic = `emit/uxi/service/plan/bss-plan-weekly-freedom-nairobi-v2-plan5/customer_binding`;
     const responseTopic = "echo/#";
 
     const content = {
       timestamp: new Date().toISOString(),
-      plan_id: subscriptionCode,
+      plan_id: "bss-plan-weekly-freedom-nairobi-v2-plan5",
       correlation_id: `binding-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       actor: {
         type: "customer",
