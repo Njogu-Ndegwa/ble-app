@@ -7,7 +7,7 @@ import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from '@/i18n';
 
 // ABS topics use hardcoded payloads as per docs; publish via bridge like BLE page
-const PLAN_ID = "bss-plan-weekly-freedom-nairobi-v2-plan1";
+const PLAN_ID = "bss-plan-weekly-freedom-nairobi-v2-plan5";
 const ATTENDANT_ID = "attendant-001";
 const STATION = "STATION_001";
 
@@ -88,67 +88,40 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const scanTypeRef = useRef<"customer" | "equipment" | null>(null);
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
 
+  const formatDisplayValue = (value?: string | number, fallback?: string) => {
+    if (value === undefined || value === null || value === "") {
+      return fallback ?? t("N/A");
+    }
+    const strValue = String(value);
+    return strValue.length > 48 ? `${strValue.slice(0, 45)}…` : strValue;
+  };
+
   const mqttPublish = useCallback((topic: string, content: any) => {
     if (!window.WebViewJavascriptBridge) {
       // toast.error(t("MQTT disconnected"));
       return;
     }
     try {
-      // Determine response topic based on publish topic
-      let responseTopic: string;
-      if (topic.includes("emit")) {
-        responseTopic = "echo/#";
-      } else if (topic.includes("call")) {
-        responseTopic = "rtrn/#";
-      } else {
-        // Default fallback if neither emit nor call is found
-        responseTopic = "echo/#";
-      }
-
-      // Subscribe to response topic first
+      const dataToPublish = { topic, qos: 0, content };
+      // toast(t("Publishing to") + ` ${topic}`);
       window.WebViewJavascriptBridge.callHandler(
-        "mqttSubTopic",
-        { topic: responseTopic, qos: 0 },
-        (subscribeResp: any) => {
+        "mqttPublishMsg",
+        JSON.stringify(dataToPublish),
+        (resp: any) => {
           try {
-            const subResp = typeof subscribeResp === "string" ? JSON.parse(subscribeResp) : subscribeResp;
-            if (subResp?.respCode === "200" || subResp?.respData === true) {
-              console.info(`Subscribed to response topic: ${responseTopic}`);
+            const r = typeof resp === "string" ? JSON.parse(resp) : resp;
+            // Expecting respCode/respDesc shape from native layer
+            if (r?.respCode === "200" || r?.respData === true) {
+              // toast.success(t("Published to") + ` ${topic}`);
             } else {
-              console.warn(`Failed to subscribe to ${responseTopic}:`, subResp?.respDesc || subResp?.error);
+              // toast.error((r?.respDesc as string) || t("Publish failed"));
             }
-          } catch (err) {
-            console.warn("Error parsing subscribe response:", err);
+          } catch {
+            // Unknown response, still consider it attempted
+            // toast.success(t("Published to") + ` ${topic}`);
           }
         }
       );
-
-      // Small delay to ensure subscription is processed before publishing
-      setTimeout(() => {
-        if (!window.WebViewJavascriptBridge) {
-          return;
-        }
-        const dataToPublish = { topic, qos: 0, content };
-        // toast(t("Publishing to") + ` ${topic}`);
-        window.WebViewJavascriptBridge.callHandler(
-          "mqttPublishMsg",
-          JSON.stringify(dataToPublish),
-          (resp: any) => {
-            try {
-              const r = typeof resp === "string" ? JSON.parse(resp) : resp;
-              // Expecting respCode/respDesc shape from native layer
-              if (r?.respCode === "200" || r?.respData === true) {
-                // toast.success(t("Published to") + ` ${topic}`);
-              } else {
-                // toast.error((r?.respDesc as string) || t("Publish failed"));
-              }
-            } catch {
-              // Unknown response, still consider it attempted
-              // toast.success(t("Published to") + ` ${topic}`);
-            }
-          }
-        );
-      }, 100);
     } catch (err) {
       // toast.error(t("Publish failed"));
     }
@@ -159,9 +132,35 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
       // Simplified: treat the scanned QR as successful identification
       setCustomerIdentified(true);
       setIsScanningCustomer(false);
-      setCustomerData({
-        customer_id: qrCodeData,
-      });
+      let parsedData: any = qrCodeData;
+      try {
+        const maybeParsed = JSON.parse(qrCodeData);
+        if (maybeParsed && typeof maybeParsed === "object") {
+          parsedData = maybeParsed;
+        }
+      } catch (err) {
+        parsedData = qrCodeData;
+      }
+
+      const normalizedData: any = {
+        customer_id:
+          typeof parsedData === "object"
+            ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
+            : qrCodeData,
+        subscription_code:
+          typeof parsedData === "object"
+            ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
+            : undefined,
+        product_name:
+          typeof parsedData === "object"
+            ? parsedData.product_name || parsedData.productName || parsedData.product?.name
+            : undefined,
+        name: typeof parsedData === "object" ? parsedData.name || parsedData.customer_name : undefined,
+        phone: typeof parsedData === "object" ? parsedData.phone || parsedData.phone_number : undefined,
+        raw: qrCodeData,
+      };
+
+      setCustomerData(normalizedData);
       // toast.success(t("Customer identified successfully"));
 
       // Publish hardcoded payload to ABS topic (emit/identify_customer)
@@ -174,6 +173,9 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
         data: {
           action: "IDENTIFY_CUSTOMER",
           qr_code_data: qrCodeData,
+          customer_id: normalizedData.customer_id,
+          subscription_code: normalizedData.subscription_code,
+          product_name: normalizedData.product_name,
           attendant_station: STATION,
         },
       };
@@ -985,16 +987,22 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
               <div className="bg-gray-600 rounded-lg p-4 space-y-2">
                 <p className="text-sm text-gray-300">
                   <span className="font-medium text-white">{t("Customer ID")}:</span>{" "}
-                  {customerData.customer_id || t('N/A')}
+                  {formatDisplayValue(customerData.customer_id)}
                 </p>
                 <p className="text-sm text-gray-300">
                   <span className="font-medium text-white">{t("Name")}:</span>{" "}
-                  {customerData.name || t('N/A')}
+                  {formatDisplayValue(customerData.name || customerData.product_name)}
                 </p>
                 <p className="text-sm text-gray-300">
                   <span className="font-medium text-white">{t("Phone")}:</span>{" "}
-                  {customerData.phone || t('N/A')}
+                  {formatDisplayValue(customerData.phone)}
                 </p>
+                {customerData.subscription_code && (
+                  <p className="text-sm text-gray-300">
+                    <span className="font-medium text-white">{t("Subscription")}:</span>{" "}
+                    {formatDisplayValue(customerData.subscription_code)}
+                  </p>
+                )}
               </div>
             )}
           </div>

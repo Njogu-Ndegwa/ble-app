@@ -124,6 +124,7 @@ const AppContainer = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
+  const [pendingOrder, setPendingOrder] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login" | "settings" | "qr-generator">("login");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false);
@@ -1039,7 +1040,7 @@ const AppContainer = () => {
       
       const purchaseData = {
         billing_frequency: plan.suggested_billing_frequency || "monthly",
-        customer_id: customer.id,
+        customer_id: customer.partner_id ?? customer.id,
         product_id: plan.productId,
         price: plan.price,
       };
@@ -1083,6 +1084,7 @@ const AppContainer = () => {
     if (order) {
       setSelectedPlan(plan);
       setOrderId(order.id);
+      setPendingOrder(order);
       setShowPaymentOptions(true); // Show payment options instead of payment modal
     }
   };
@@ -1101,34 +1103,15 @@ const AppContainer = () => {
       toast.error(t("Order data not available. Please select a plan again."));
       return;
     }
+    if (!pendingOrder?.subscription_code) {
+      toast.error(t("Subscription reference not available. Please select the plan again."));
+      return;
+    }
 
     setIsProcessingPayment(true);
 
     try {
-      const orderResponse = await fetch(
-        `${API_BASE}/products/subscription/purchase`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-          },
-          body: JSON.stringify({
-            auto_confirm: true,
-            billing_frequency: selectedPlan.suggested_billing_frequency || "monthly",
-            customer_id: customer!.id,
-            product_id: selectedPlan.productId,
-          }),
-        }
-      );
-
-      const orderData = await orderResponse.json();
-
-      if (!orderResponse.ok || !orderData.success || !orderData.order?.subscription_code) {
-        throw new Error(orderData.message || "Failed to get subscription code");
-      }
-
-      const transactionId = orderData.order.subscription_code;
+      const transactionId = pendingOrder.subscription_code;
       const notificationUrl = `https://api.yourservice.com/notifications/mw?transaction_id=${transactionId}&status=pending&amount=${selectedPlan.price}`;
 
       const notificationResponse = await fetch(notificationUrl, {
@@ -1143,6 +1126,7 @@ const AppContainer = () => {
         setShowPaymentOptions(false);
         setSelectedPlan(null);
         setOrderId(null);
+        setPendingOrder(null);
       } else {
         throw new Error("Failed to send payment request to attendant");
       }
@@ -1171,52 +1155,37 @@ const AppContainer = () => {
       return;
     }
 
-    if (!orderId) {
-      toast.error(t("Order data not available. Please select a plan again."));
+    if (!orderId || !pendingOrder?.subscription_code) {
+      toast.error(t("Subscription details not available. Please select the plan again."));
       return;
     }
 
     setIsProcessingPayment(true);
 
     try {
-      const orderResponse = await fetch(
-        `${API_BASE}/products/subscription/purchase`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-          },
-          body: JSON.stringify({
-            auto_confirm: true,
-            billing_frequency: selectedPlan.suggested_billing_frequency || "monthly",
-            customer_id: customer.id,
-            product_id: selectedPlan.productId,
-          }),
-        }
-      );
-
-      const orderData = await orderResponse.json();
-
-      if (!orderResponse.ok || !orderData.success || !orderData.order?.subscription_code) {
-        throw new Error(orderData.message || "Failed to get subscription code");
-      }
-
-      const subscriptionCode = orderData.order.subscription_code;
+      const token = localStorage.getItem("authToken_rider");
+      const subscriptionCode = pendingOrder.subscription_code;
 
       const paymentData = {
         subscription_code: subscriptionCode,
         phone_number: phoneNumber,
+        amount: selectedPlan.price,
       };
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        "X-API-KEY": "abs_connector_secret_key_2024",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
 
       const paymentResponse = await fetch(
         `${API_BASE}/payments/lipay/initiate`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-          },
+          headers,
           body: JSON.stringify(paymentData),
         }
       );
@@ -1229,6 +1198,7 @@ const AppContainer = () => {
         setPhoneNumber("");
         setSelectedPlan(null);
         setOrderId(null);
+        setPendingOrder(null);
       } else {
         throw new Error(paymentResult.message || t("Payment initiation failed. Please try again."));
       }
@@ -1284,6 +1254,7 @@ const AppContainer = () => {
     setCustomer(customerWithCompanyId);
     setSelectedPlan(null);
     setOrderId(null);
+    setPendingOrder(null);
     setCurrentPage("products");
   };
 
@@ -1295,6 +1266,7 @@ const AppContainer = () => {
     setCustomer(null);
     setSelectedPlan(null);
     setOrderId(null);
+    setPendingOrder(null);
     setCurrentPage("products");
     toast.success(t("Signed out successfully"));
   };
@@ -1361,6 +1333,7 @@ const AppContainer = () => {
               setSelectedPlan(null);
               setOrderId(null);
               setShowPaymentOptions(false);
+              setPendingOrder(null);
             }}
             disabled={isProcessingPayment}
             className="w-full mt-4 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
@@ -1397,6 +1370,7 @@ const AppContainer = () => {
             onClick={() => {
               setSelectedPlan(null);
               setOrderId(null);
+              setPendingOrder(null);
             }}
             className="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
