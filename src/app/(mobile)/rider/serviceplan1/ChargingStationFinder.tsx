@@ -21,7 +21,7 @@ interface Station {
   location: string;
   distance: string;
   batteryLevel: number;
-  availableChargers: string;
+  availableChargers: number;
   status: string;
   lat: number;
   lng: number;
@@ -76,11 +76,15 @@ declare global {
 interface ChargingStationFinderProps {
   lastKnownLocation: LocationData | null;
   fleetIds: FleetIds | null;
+  stations?: Station[];
+  isLoadingStations?: boolean;
 }
 
 const ChargingStationFinder = ({
   lastKnownLocation,
   fleetIds,
+  stations: propStations,
+  isLoadingStations: propIsLoadingStations = false,
 }: ChargingStationFinderProps) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -105,97 +109,83 @@ const ChargingStationFinder = ({
   });
   const [filteredStations, setFilteredStations] = useState<Station[]>([]);
   const [isShowcasing, setIsShowcasing] = useState(false);
-  const [stations, setStations] = useState<Station[]>([
-    {
-      id: 1,
-      name: "Central Mall Station",
-      location: "Westlands, Nairobi",
-      distance: "N/A",
-      batteryLevel: 20.0,
-      availableChargers: "1/8",
-      status: "busy",
-      lat: -1.2672,
-      lng: 36.8121,
-      fleetId: "fleet-kenya",
-    },
-    {
-      id: 2,
-      name: "CBD Quick Charge",
-      location: "City Centre, Nairobi",
-      distance: "N/A",
-      batteryLevel: 82.87,
-      availableChargers: "5/6",
-      status: "available",
-      lat: -1.2841,
-      lng: 36.8219,
-      fleetId: "fleet-kenya",
-    },
-    {
-      id: 3,
-      name: "Kilimani Hub",
-      location: "Kilimani Road",
-      distance: "N/A",
-      batteryLevel: 99.58,
-      availableChargers: "10/10",
-      status: "available",
-      lat: -1.2901,
-      lng: 36.7844,
-      fleetId: "fleet-stations-kenya",
-    },
-    {
-      id: 4,
-      name: "Kasarani Station",
-      location: "Kasarani Estate",
-      distance: "N/A",
-      batteryLevel: 45.98,
-      availableChargers: "1/4",
-      status: "busy",
-      lat: -1.2297,
-      lng: 36.8973,
-      fleetId: "fleet-kenya",
-    },
-    {
-      id: 5,
-      name: "Karen Shopping Center",
-      location: "Karen Road",
-      distance: "N/A",
-      batteryLevel: 95.41,
-      availableChargers: "5/6",
-      status: "available",
-      lat: -1.3197,
-      lng: 36.7022,
-      fleetId: "fleet-stations-kenya",
-    },
-  ]);
+  // Initialize with empty array - will be populated from props or API
+  const [stations, setStations] = useState<Station[]>([]);
   const { bridge } = useBridge();
 
-  // Fetch real stations from API when fleetIds are available
+  // Use stations from props if available, otherwise fetch from API
   useEffect(() => {
+    // If stations are provided as props, use them directly (even if empty array)
+    if (propStations !== undefined) {
+      console.info("ChargingStationFinder: Using stations from props:", propStations.length, propStations);
+      setStations(propStations);
+      return;
+    }
+
+    // Otherwise, fetch stations from API (fallback) using GraphQL
     const fetchRealStations = async () => {
       if (!fleetIds || !fleetIds.swap_station_fleet || fleetIds.swap_station_fleet.length === 0) {
         return;
       }
 
       try {
-        console.info("Fetching real stations from API for fleet IDs:", fleetIds.swap_station_fleet);
+        console.info("ChargingStationFinder: Fetching real stations from GraphQL API for fleet IDs:", fleetIds.swap_station_fleet);
         
-        // Make a single API call with all fleet IDs
-        const requestBody = { ids: fleetIds.swap_station_fleet };
-        console.info(`Request body:`, JSON.stringify(requestBody));
+        // Use the thing microservice GraphQL endpoint
+        const graphqlEndpoint = "https://thing-microservice-prod.omnivoltaic.com/graphql";
         
-        const response = await fetch(`https://dash.omnivoltaic.com/fleets/query`, {
+        // Get access token for authentication
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+        
+        // GraphQL query
+        const query = `
+          query GetFleetAvatars($fleetIds: [String!]!) {
+            getFleetAvatarsSummary(fleetIds: $fleetIds) {
+              fleets {
+                fleetId
+                items {
+                  oemItemID
+                  opid
+                  updatedAt
+                  coordinates {
+                    plat
+                    plong
+                  }
+                  Charge_slot {
+                    cnum
+                    btid
+                    chst
+                    rsoc
+                    reca
+                    pckv
+                    pckc
+                  }
+                }
+              }
+              missingFleetIds
+            }
+          }
+        `;
+
+        const response = await fetch(graphqlEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(token ? { authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify({
+            query,
+            variables: {
+              fleetIds: fleetIds.swap_station_fleet,
+            },
+          }),
         });
 
-        console.info(`Response status: ${response.status} ${response.statusText}`);
+        console.info(`ChargingStationFinder: Response status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Failed to fetch stations:`, {
+          console.error(`ChargingStationFinder: Failed to fetch stations:`, {
             status: response.status,
             statusText: response.statusText,
             error: errorText,
@@ -203,31 +193,38 @@ const ChargingStationFinder = ({
           return;
         }
 
-        const data = await response.json();
-        console.info(`API response:`, JSON.stringify(data, null, 2));
+        const result = await response.json();
+        
+        if (result.errors) {
+          console.error("ChargingStationFinder: GraphQL errors:", result.errors);
+          return;
+        }
+
+        const data = result.data?.getFleetAvatarsSummary;
+        console.info(`ChargingStationFinder: GraphQL API response received`);
+
+        if (!data || !data.fleets || !Array.isArray(data.fleets)) {
+          console.warn("ChargingStationFinder: Invalid response structure from GraphQL API");
+          return;
+        }
 
         // Process all fleet responses
         const allStations: Station[] = [];
 
-        fleetIds.swap_station_fleet.forEach((fleetId: string) => {
-          const fleetKey = `fleet_${fleetId}`;
-          const stationsData = data[fleetKey];
+        // Process each fleet in the response
+        data.fleets.forEach((fleet: any) => {
+          const fleetId = fleet.fleetId;
+          const items = fleet.items || [];
 
-          if (!stationsData) {
-            console.warn(`No fleet_${fleetId} key in response. Available keys:`, Object.keys(data));
-            return;
-          }
-
-          if (!Array.isArray(stationsData)) {
-            console.warn(`stationsData for fleet ${fleetId} is not an array:`, typeof stationsData, stationsData);
-            return;
-          }
-
-          console.info(`Found ${stationsData.length} stations for fleet ${fleetId}`);
+          console.info(`ChargingStationFinder: Found ${items.length} stations for fleet ${fleetId}`);
 
           // Transform API response to Station format
-          stationsData.forEach((stationData: any, index: number) => {
+          items.forEach((stationData: any, index: number) => {
             const coordinates = stationData.coordinates;
+            if (!coordinates || typeof coordinates.plat !== 'number' || typeof coordinates.plong !== 'number') {
+              return;
+            }
+
             const chargeSlots = stationData.Charge_slot || [];
             
             // Count available slots (chst === 0 and btid is not empty)
@@ -258,7 +255,7 @@ const ChargingStationFinder = ({
               location: `${coordinates.plat.toFixed(4)}, ${coordinates.plong.toFixed(4)}`,
               distance: "N/A", // Will be calculated later
               batteryLevel: Math.round(avgBatteryLevel * 100) / 100,
-              availableChargers: `${availableSlots}/${totalSlots}`,
+              availableChargers: availableSlots,
               status: availableSlots > 0 ? "available" : availableSlots === 0 && totalSlots > 0 ? "busy" : "limited",
               lat: coordinates.plat,
               lng: coordinates.plong,
@@ -269,21 +266,59 @@ const ChargingStationFinder = ({
 
         if (allStations.length > 0) {
           console.info(`Fetched ${allStations.length} real stations from API`);
-          // Calculate distances for real stations
+          // Calculate distances and filter by location
           const location = lastKnownLocation || {
             latitude: -1.2921,
             longitude: 36.8219,
           };
-          const stationsWithDistance = allStations.map((station) => ({
-            ...station,
-            distance: calculateDistance(
-              location.latitude,
-              location.longitude,
-              station.lat,
-              station.lng
-            ),
-          }));
-          setStations(stationsWithDistance);
+          
+          // Filter stations within 500km radius (adjustable)
+          const maxRadiusKm = 500;
+          const nearbyStations = allStations
+            .map((station) => {
+              const distanceKm = calculateDistanceKm(
+                location.latitude,
+                location.longitude,
+                station.lat,
+                station.lng
+              );
+              return {
+                ...station,
+                distance: calculateDistance(
+                  location.latitude,
+                  location.longitude,
+                  station.lat,
+                  station.lng
+                ),
+                distanceKm, // Store numeric distance for filtering
+              };
+            })
+            .filter((station) => station.distanceKm <= maxRadiusKm);
+
+          console.info(
+            `Filtered to ${nearbyStations.length} stations within ${maxRadiusKm}km of user location`
+          );
+
+          if (nearbyStations.length > 0) {
+            // Remove distanceKm property before setting state (it's not part of Station interface)
+            const stationsToDisplay = nearbyStations.map(({ distanceKm, ...station }) => station);
+            setStations(stationsToDisplay);
+          } else {
+            console.warn(
+              `No stations found within ${maxRadiusKm}km. Showing all stations instead.`
+            );
+            // If no nearby stations, show all stations (fallback)
+            const stationsWithDistance = allStations.map((station) => ({
+              ...station,
+              distance: calculateDistance(
+                location.latitude,
+                location.longitude,
+                station.lat,
+                station.lng
+              ),
+            }));
+            setStations(stationsWithDistance);
+          }
         } else {
           console.warn("No real stations fetched from API, keeping demo stations");
         }
@@ -292,27 +327,37 @@ const ChargingStationFinder = ({
       }
     };
 
-    fetchRealStations();
-  }, [fleetIds, lastKnownLocation]);
+    // Only fetch if propStations is not provided (undefined)
+    if (propStations === undefined) {
+      fetchRealStations();
+    }
+  }, [fleetIds, lastKnownLocation, propStations]);
 
   useEffect(() => {
+    // Apply filters whenever stations or fleetIds change
+    // Use propStations if available (most up-to-date), otherwise use stations state
+    const stationsToFilter = propStations !== undefined ? propStations : stations;
+    
     if (fleetIds) {
       const validFleetIds = Object.values(fleetIds).flat();
-      applyFilters(stations, validFleetIds);
+      console.info("ChargingStationFinder: useEffect - Applying filters with stations:", stationsToFilter.length, "fleetIds:", validFleetIds, "using propStations:", propStations !== undefined);
+      applyFilters(stationsToFilter, validFleetIds);
     } else {
-      applyFilters(stations, null);
+      console.info("ChargingStationFinder: useEffect - Applying filters with stations:", stationsToFilter.length, "no fleetIds", "using propStations:", propStations !== undefined);
+      applyFilters(stationsToFilter, null);
     }
-  }, [fleetIds, stations]);
+  }, [fleetIds, stations, propStations]);
 
-  const calculateDistance = (
+  // Calculate distance in kilometers (returns number)
+  const calculateDistanceKm = (
     lat1: number,
     lon1: number,
     lat2: number,
-    lon3: number
-  ): string => {
-    const R = 6371;
+    lon2: number
+  ): number => {
+    const R = 6371; // Earth's radius in km
     const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon3 - lon1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * (Math.PI / 180)) *
@@ -320,7 +365,16 @@ const ChargingStationFinder = ({
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
+    return R * c;
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon3: number
+  ): string => {
+    const distance = calculateDistanceKm(lat1, lon1, lat2, lon3);
     return distance.toFixed(1) + " km";
   };
 
@@ -355,12 +409,21 @@ const ChargingStationFinder = ({
     stationsToFilter: Station[],
     validFleetIds: string[] | null
   ) => {
+    console.info("ChargingStationFinder: applyFilters called with", stationsToFilter.length, "stations, validFleetIds:", validFleetIds);
     let result = [...stationsToFilter];
     let showcasing = false;
     if (validFleetIds && validFleetIds.length > 0) {
-      result = result.filter((station) =>
-        validFleetIds.includes(station.fleetId)
-      );
+      const beforeFilter = result.length;
+      result = result.filter((station) => {
+        const included = validFleetIds.includes(station.fleetId);
+        if (!included) {
+          console.warn(`ChargingStationFinder: Station ${station.name} (fleetId: ${station.fleetId}) filtered out - not in validFleetIds`);
+        }
+        return included;
+      });
+      console.info(`ChargingStationFinder: Filtered ${beforeFilter} stations to ${result.length} based on fleetIds`);
+    } else {
+      console.info("ChargingStationFinder: No fleetIds filter applied, showing all stations");
     }
     if (result.length === 0 && validFleetIds && validFleetIds.length > 0) {
       result = [...stationsToFilter];
@@ -395,10 +458,9 @@ const ChargingStationFinder = ({
       );
     }
     if (filterOptions.minAvailableChargers !== null) {
-      result = result.filter((station) => {
-        const available = parseInt(station.availableChargers.split("/")[0]);
-        return available >= (filterOptions.minAvailableChargers as number);
-      });
+      result = result.filter(
+        (station) => station.availableChargers >= (filterOptions.minAvailableChargers as number)
+      );
     }
     result.sort((a, b) => {
       const multiplier = filterOptions.sortOrder === "asc" ? 1 : -1;
@@ -414,15 +476,12 @@ const ChargingStationFinder = ({
         case "batteryLevel":
           return multiplier * (a.batteryLevel - b.batteryLevel);
         case "availableChargers":
-          return (
-            multiplier *
-            (parseInt(a.availableChargers.split("/")[0]) -
-              parseInt(b.availableChargers.split("/")[0]))
-          );
+          return multiplier * (a.availableChargers - b.availableChargers);
         default:
           return 0;
       }
     });
+    console.info("ChargingStationFinder: Final filtered stations count:", result.length, result);
     setFilteredStations(result);
     setIsShowcasing(showcasing);
   };
@@ -488,7 +547,11 @@ const ChargingStationFinder = ({
   };
 
   const addMarkersToMap = () => {
-    if (!mapInstanceRef.current || !window.L) return;
+    if (!mapInstanceRef.current || !window.L) {
+      console.warn("ChargingStationFinder: Map not ready for markers");
+      return;
+    }
+    console.info("ChargingStationFinder: Adding markers to map, filteredStations count:", filteredStations.length);
     markersRef.current.forEach((marker) =>
       mapInstanceRef.current.removeLayer(marker)
     );
@@ -514,6 +577,7 @@ const ChargingStationFinder = ({
       markersRef.current.push(userMarker);
     }
     filteredStations.forEach((station) => {
+      console.info(`ChargingStationFinder: Adding marker for station ${station.name} at (${station.lat}, ${station.lng})`);
       const markerColor =
         station.status === "available"
           ? "#10b981"
@@ -530,10 +594,11 @@ const ChargingStationFinder = ({
         icon: stationIcon,
       }).addTo(mapInstanceRef.current);
       marker.bindPopup(
-        `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">${station.location}</p><p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">Select Station</button></div>`
+        `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p><p style="margin: 0 0 4px 0; font-size: 12px;">Available chargers: ${station.availableChargers}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">Select Station</button></div>`
       );
       markersRef.current.push(marker);
     });
+    console.info(`ChargingStationFinder: Added ${markersRef.current.length} markers to map`);
   };
 
   useEffect(() => {
@@ -1198,7 +1263,13 @@ const ChargingStationFinder = ({
                 {filteredStations.length} nearby
               </span>
             </div>
-            {filteredStations.length === 0 && !isShowcasing && (
+            {propIsLoadingStations && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-400 mr-2" />
+                <p className="text-gray-400">Loading stations...</p>
+              </div>
+            )}
+            {!propIsLoadingStations && filteredStations.length === 0 && !isShowcasing && (
               <p className="text-gray-400 text-center py-8">
                 No stations match your filters.
               </p>
@@ -1208,8 +1279,9 @@ const ChargingStationFinder = ({
                 Showing demo stations.
               </p>
             )}
-            <div className="space-y-3">
-              {filteredStations.map((station) => (
+            {!propIsLoadingStations && (
+              <div className="space-y-3">
+                {filteredStations.map((station) => (
                 <div
                   key={station.id}
                   className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all cursor-pointer"
@@ -1219,10 +1291,6 @@ const ChargingStationFinder = ({
                       <h3 className="font-semibold text-white truncate">
                         {station.name}
                       </h3>
-                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                        <MapPin size={12} className="flex-shrink-0" />
-                        <span className="truncate">{station.location}</span>
-                      </p>
                     </div>
                     <span className="text-blue-400 text-sm font-medium ml-2 flex-shrink-0">
                       {station.distance}
@@ -1259,7 +1327,8 @@ const ChargingStationFinder = ({
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1633,7 +1702,7 @@ const ChargingStationFinder = ({
                   <div className="flex items-center gap-3 text-gray-300">
                     <Zap className="w-4 h-4 text-green-400" />
                     <span className="text-sm">
-                      {selectedStation.availableChargers.split("/")[0]}{" "}
+                      {selectedStation.availableChargers}{" "}
                       batteries available
                     </span>
                   </div>

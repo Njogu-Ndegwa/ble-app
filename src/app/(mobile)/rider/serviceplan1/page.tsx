@@ -77,6 +77,19 @@ interface FleetIds {
   [serviceType: string]: string[];
 }
 
+interface Station {
+  id: number;
+  name: string;
+  location: string;
+  distance: string;
+  batteryLevel: number;
+  availableChargers: number;
+  status: string;
+  lat: number;
+  lng: number;
+  fleetId: string;
+}
+
 interface WebViewJavascriptBridge {
   init: (
     callback: (message: any, responseCallback: (response: any) => void) => void
@@ -119,6 +132,8 @@ const AppContainer = () => {
   const [allPlans, setAllPlans] = useState<ServicePlan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState<boolean>(true);
   const [fleetIds, setFleetIds] = useState<FleetIds | null>(null);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [isLoadingStations, setIsLoadingStations] = useState<boolean>(false);
   const bridgeInitRef = useRef(false);
   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
   const { bridge } = useBridge();
@@ -308,6 +323,13 @@ const AppContainer = () => {
     }
   }, [isMqttConnected, bridge, lastKnownLocation, selectedPlan]);
 
+  // Refetch stations when location changes (to update distances and filtering)
+  useEffect(() => {
+    if (fleetIds && lastKnownLocation) {
+      fetchStationsFromAPI(fleetIds);
+    }
+  }, [lastKnownLocation]);
+
   const fetchFleetIds = (planId: string) => {
     if (!bridge || !window.WebViewJavascriptBridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
@@ -323,6 +345,9 @@ const AppContainer = () => {
     console.info("Constructing MQTT request for fleet IDs with planId:", planId);
     const requestTopic = `call/abs/service/plan/${planId}/get_assets`;
     const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
+    const paymentPlanId = "bss-plan-weekly-freedom-nairobi-v2-plan5";
+    const paymentRequestTopic = `call/uxi/billing/plan/${paymentPlanId}/payment_check`;
+    const paymentResponseTopic = `rtrn/uxi/billing/plan/${paymentPlanId}/payment_check`;
     
     const timestamp = new Date().toISOString();
     
@@ -352,10 +377,33 @@ const AppContainer = () => {
 
     console.info("MQTT message sent to bridge:", JSON.stringify(dataToPublish));
 
+    const paymentContent = {
+      timestamp: new Date().toISOString(),
+      plan_id: paymentPlanId,
+      correlation_id: `payment-check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      actor: {
+        type: "customer",
+        id: "CUST-RIDER-001",
+      },
+      data: {
+        action: "CHECK_ODOO_PAYMENT_STATUS",
+        force_real_time_check: false,
+      },
+    };
+
+    const paymentDataToPublish = {
+      topic: paymentRequestTopic,
+      qos: 0,
+      content: paymentContent,
+    };
+
     const reg = (name: string, handler: any) => {
       bridge.registerHandler(name, handler);
       return () => bridge.registerHandler(name, () => {});
     };
+
+    let assetResponseHandled = false;
+    let paymentResponseHandled = false;
 
     const offResponseHandler = reg(
       "mqttMsgArrivedCallBack",
@@ -383,9 +431,12 @@ const AppContainer = () => {
               if (fleetIds) {
                 console.info("Resolved fleet IDs:", fleetIds);
                 setFleetIds(fleetIds);
+                // Fetch stations immediately after fleetIds are set
+                fetchStationsFromAPI(fleetIds);
               } else {
                 console.info("No fleet IDs in response:", responseData);
                 setFleetIds(null);
+                setStations([]);
               }
             } else {
               const errorReason = responseData?.data?.metadata?.reason || 
@@ -393,6 +444,32 @@ const AppContainer = () => {
                                   "Unknown error";
               console.error("MQTT request failed:", errorReason);
             }
+            assetResponseHandled = true;
+            responseCallback({ success: true });
+          } else if (topic === paymentResponseTopic) {
+            console.info("Payment check response received:", JSON.stringify(message, null, 2));
+            let paymentResponse;
+            try {
+              paymentResponse = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+            } catch (err) {
+              paymentResponse = rawMessageContent;
+            }
+
+            console.info("Parsed payment response payload:", paymentResponse);
+
+            const paymentState = paymentResponse?.metadata?.service_availability?.current_state;
+            const isAllowed = paymentResponse?.metadata?.service_availability?.is_allowed;
+            const odooState = paymentResponse?.metadata?.odoo_payment_state;
+            console.info("Payment status check:", {
+              isAllowed,
+              paymentState,
+              odooState,
+            });
+
+            if (isAllowed !== true) {
+              console.warn("Payment status indicates service may not be allowed:", paymentResponse?.metadata);
+            }
+            paymentResponseHandled = true;
             responseCallback({ success: true });
           }
         } catch (err) {
@@ -420,6 +497,24 @@ const AppContainer = () => {
       }
     );
 
+    window.WebViewJavascriptBridge.callHandler(
+      "mqttSubTopic",
+      { topic: paymentResponseTopic, qos: 0 },
+      (subscribeResponse) => {
+        console.info("MQTT subscribe response (payment):", subscribeResponse);
+        try {
+          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
+          if (subResp.respCode === "200") {
+            console.info("Subscribed to payment response topic successfully");
+          } else {
+            console.error("Payment subscribe failed:", subResp.respDesc || subResp.error);
+          }
+        } catch (err) {
+          console.error("Error parsing payment subscribe response:", err);
+        }
+      }
+    );
+
     try {
       window.WebViewJavascriptBridge.callHandler(
         "mqttPublishMsg",
@@ -442,7 +537,34 @@ const AppContainer = () => {
       console.error("Error calling mqttPublishMsg:", err);
     }
 
+    try {
+      console.info("Publishing payment status check:", JSON.stringify(paymentDataToPublish));
+      window.WebViewJavascriptBridge.callHandler(
+        "mqttPublishMsg",
+        JSON.stringify(paymentDataToPublish),
+        (response) => {
+          console.info("MQTT publish response (payment):", response);
+          try {
+            const responseData = typeof response === 'string' ? JSON.parse(response) : response;
+            if (responseData.error || responseData.respCode !== "200") {
+              console.error("MQTT payment publish error:", responseData.respDesc || responseData.error || "Unknown error");
+            } else {
+              console.info("MQTT payment request published successfully");
+            }
+          } catch (err) {
+            console.error("Error parsing MQTT payment publish response:", err);
+          }
+        }
+      );
+    } catch (err) {
+      console.error("Error calling mqttPublishMsg for payment check:", err);
+    }
+
     setTimeout(() => {
+      console.info("MQTT handler cleanup status", {
+        assetResponseHandled,
+        paymentResponseHandled,
+      });
       console.info("Cleaning up MQTT response handler and subscription for:", responseTopic);
       offResponseHandler();
       bridge.callHandler(
@@ -452,7 +574,230 @@ const AppContainer = () => {
           console.info("MQTT unsubscribe response:", unsubResponse);
         }
       );
+      bridge.callHandler(
+        "mqttUnSubTopic",
+        { topic: paymentResponseTopic, qos: 0 },
+        (unsubResponse) => {
+          console.info("MQTT unsubscribe response (payment):", unsubResponse);
+        }
+      );
     }, 15000);
+  };
+
+  // Calculate distance in kilometers
+  const calculateDistanceKm = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): string => {
+    const distance = calculateDistanceKm(lat1, lon1, lat2, lon2);
+    return distance.toFixed(1) + " km";
+  };
+
+  // Fetch stations from API when fleetIds are available using GraphQL
+  const fetchStationsFromAPI = async (fleetIds: FleetIds) => {
+    if (!fleetIds.swap_station_fleet || fleetIds.swap_station_fleet.length === 0) {
+      return;
+    }
+
+    setIsLoadingStations(true);
+    try {
+      console.info("Page: Fetching real stations from GraphQL API for fleet IDs:", fleetIds.swap_station_fleet);
+      
+      // Use the thing microservice GraphQL endpoint
+      const graphqlEndpoint = "https://thing-microservice-prod.omnivoltaic.com/graphql";
+      
+      // Get access token for authentication
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      
+      // GraphQL query
+      const query = `
+        query GetFleetAvatars($fleetIds: [String!]!) {
+          getFleetAvatarsSummary(fleetIds: $fleetIds) {
+            fleets {
+              fleetId
+              items {
+                oemItemID
+                opid
+                updatedAt
+                coordinates {
+                  plat
+                  plong
+                }
+                Charge_slot {
+                  cnum
+                  btid
+                  chst
+                  rsoc
+                  reca
+                  pckv
+                  pckc
+                }
+              }
+            }
+            missingFleetIds
+          }
+        }
+      `;
+
+      const response = await fetch(graphqlEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query,
+          variables: {
+            fleetIds: fleetIds.swap_station_fleet,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Page: Failed to fetch stations:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
+        setIsLoadingStations(false);
+        return;
+      }
+
+      const result = await response.json();
+      
+      if (result.errors) {
+        console.error("Page: GraphQL errors:", result.errors);
+        setIsLoadingStations(false);
+        return;
+      }
+
+      const data = result.data?.getFleetAvatarsSummary;
+      console.info(`Page: GraphQL API response received:`, JSON.stringify(data, null, 2));
+
+      if (!data || !data.fleets || !Array.isArray(data.fleets)) {
+        console.warn("Page: Invalid response structure from GraphQL API", data);
+        setIsLoadingStations(false);
+        return;
+      }
+      
+      console.info(`Page: Found ${data.fleets.length} fleets in response`);
+      console.info(`Page: missingFleetIds from API:`, data.missingFleetIds);
+
+      const allStations: Station[] = [];
+      const location = lastKnownLocation || {
+        latitude: -1.2921,
+        longitude: 36.8219,
+      };
+
+      // Process each fleet in the response
+      data.fleets.forEach((fleet: any) => {
+        const fleetId = fleet.fleetId;
+        const items = fleet.items || [];
+        
+        console.info(`Page: Processing fleet ${fleetId} with ${items.length} items`);
+
+        items.forEach((stationData: any, index: number) => {
+          const coordinates = stationData.coordinates;
+          console.info(`Page: Processing item ${index}, coordinates:`, coordinates);
+          
+          if (!coordinates || typeof coordinates.plat !== 'number' || typeof coordinates.plong !== 'number') {
+            console.warn(`Page: Invalid coordinates for item ${index}:`, coordinates);
+            return;
+          }
+
+          const chargeSlots = stationData.Charge_slot || [];
+          
+          const availableSlots = chargeSlots.filter((slot: any) => 
+            slot.chst === 0 && slot.btid && slot.btid.trim() !== ""
+          ).length;
+          const totalSlots = chargeSlots.length;
+          
+          const slotsWithBattery = chargeSlots.filter((slot: any) => 
+            slot.rsoc > 0 && slot.btid && slot.btid.trim() !== ""
+          );
+          const avgBatteryLevel = slotsWithBattery.length > 0
+            ? slotsWithBattery.reduce((sum: number, slot: any) => sum + (slot.rsoc || 0), 0) / slotsWithBattery.length
+            : 0;
+
+          const opid = stationData.opid || "";
+          const stationId = Math.abs(
+            parseInt(fleetId.substring(fleetId.length - 8), 36) + 
+            (opid ? parseInt(opid.substring(opid.length - 4), 36) : 0) + 
+            index
+          ) % 100000;
+
+          const distanceKm = calculateDistanceKm(
+            location.latitude,
+            location.longitude,
+            coordinates.plat,
+            coordinates.plong
+          );
+
+          console.info(`Page: Station ${opid || `index ${index}`} - Distance: ${distanceKm.toFixed(2)}km, Location: (${location.latitude}, ${location.longitude}) to (${coordinates.plat}, ${coordinates.plong})`);
+
+          // Filter stations within 500km radius (or show all if no location is available)
+          if (distanceKm <= 500 || !lastKnownLocation) {
+            const station = {
+              id: stationId,
+              name: opid ? `Station ${opid}` : `Swap Station ${index + 1}`,
+              location: `${coordinates.plat.toFixed(4)}, ${coordinates.plong.toFixed(4)}`,
+              distance: calculateDistance(
+                location.latitude,
+                location.longitude,
+                coordinates.plat,
+                coordinates.plong
+              ),
+              batteryLevel: Math.round(avgBatteryLevel * 100) / 100,
+              availableChargers: availableSlots,
+              status: availableSlots > 0 ? "available" : availableSlots === 0 && totalSlots > 0 ? "busy" : "limited",
+              lat: coordinates.plat,
+              lng: coordinates.plong,
+              fleetId: fleetId,
+            };
+            
+            console.info(`Page: Adding station:`, station);
+            allStations.push(station);
+          } else {
+            console.warn(`Page: Station ${opid || `index ${index}`} filtered out - distance ${distanceKm.toFixed(2)}km exceeds 500km`);
+          }
+        });
+      });
+
+      console.info(`Page: Fetched ${allStations.length} stations from GraphQL API`);
+      console.info(`Page: Processed ${data.fleets.length} fleets`);
+      if (data.missingFleetIds && data.missingFleetIds.length > 0) {
+        console.warn(`Page: Missing fleet IDs:`, data.missingFleetIds);
+      } else {
+        console.info(`Page: All fleet IDs found (missingFleetIds is empty)`);
+      }
+      setStations(allStations);
+    } catch (error) {
+      console.error("Page: Error fetching real stations:", error);
+    } finally {
+      setIsLoadingStations(false);
+    }
   };
 
   // setupBridge (unchanged)
@@ -1069,7 +1414,7 @@ const AppContainer = () => {
       case "transactions":
         return <Payments paymentHistory={paymentHistory} />;
       case "charging stations":
-        return <ChargingStationFinder lastKnownLocation={lastKnownLocation} fleetIds={fleetIds} />;
+        return <ChargingStationFinder lastKnownLocation={lastKnownLocation} fleetIds={fleetIds} stations={stations} isLoadingStations={isLoadingStations} />;
       case "support":
         return <Ticketing customer={customer} allPlans={allPlans} />;
       case "settings":
