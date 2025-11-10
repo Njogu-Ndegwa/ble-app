@@ -170,7 +170,7 @@
   "Loading {tab} service data...": "Chargement des données du service {tab}...",
   "No data available for this service": "Aucune donnée disponible pour ce service",
   "Load {tab} Service Data": "Charger les données du service {tab}",
-
+  
   "ble.detail.read": "Lire",
   "ble.detail.reading": "Lecture...",
   "ble.detail.write": "Écrire",
@@ -285,7 +285,7 @@
   "heartbeat.metric.rcrd.desc": "État du journal ou de l'enregistrement de l'appareil",
   "heartbeat.metric.pgst.desc": "État de connexion au réseau",
   "heartbeat.metric.tpgd.desc": "Indicateur de sécurité ou de limite",
-
+  
   "Keypad": "Clavier numérique",
   "Device": "Appareil",
   "Current PUBK Value": "Valeur PUBK actuelle",
@@ -310,7 +310,7 @@
   "Value written to {name}": "Valeur écrite dans {name}",
   "Value copied": "Valeur copiée",
   "Loading...": "Chargement...",
-
+  
   "Welcome back,": "Bon retour,",
   "Loading dashboard data...": "Chargement des données du tableau de bord...",
   "No dashboard data available.": "Aucune donnée de tableau de bord disponible.",
@@ -415,8 +415,8 @@
   "Priority": "Priorité",
   "Customer:": "Client :",
   "Back to Tickets": "Retour aux tickets",
-
-   "Confirm Product": "Confirmer le produit",
+  
+  "Confirm Product": "Confirmer le produit",
   "Plan selected:": "Plan sélectionné :",
   "Pay by Yourself": "Payer vous-même",
   "Pay through Attendant": "Payer via l'employé",
@@ -431,7 +431,7 @@
   "Payment failed. Please try again.": "Le paiement a échoué. Veuillez réessayer.",
   "Proceeding to service...": "Passage au service...",
   "Signed out successfully": "Déconnexion réussie",
-
+  
   "Dashboard": "Tableau de bord",
   "Products": "Produits",
   "Transactions": "Transactions",
@@ -439,7 +439,7 @@
   "Authenticate": "S'authentifier",
   "Support": "Support",
   "Logout": "Se déconnecter",
-
+  
   "Loading map...": "Chargement de la carte...",
   "Refresh": "Actualiser",
   "Search stations...": "Rechercher des stations...",
@@ -453,7 +453,7 @@
   "Service & repair": "Service et réparation",
   "Dual service": "Service double",
   "Battery swap & repair": "Échange de batterie et réparation",
-
+  
   "Navigate": "Naviguer",
   "Select Station": "Sélectionner la station",
   "Back": "Retour",
@@ -470,11 +470,11 @@
   "Select a service": "Sélectionner un service",
   "Station Name": "Nom de la station",
   "Distance": "Distance",
-
+  
   "My Tickets": "Mes tickets",
   "Creating...": "Création...",
   "Created:": "Créé :",
-
+  
   "My Devices": "Mes appareils",
   "Enter QR code or scan...": "Entrez le code QR ou scannez...",
   "Sort by...": "Trier par...",
@@ -521,8 +521,12 @@
   "Failed to read {name}": "Échec de la lecture de {name}",
   "Value written to {name}": "Valeur écrite dans {name}",
   "Failed to write {name}": "Échec de l'écriture de {name}",
+  "Failed to write {name}: {error}": "Échec de l'écriture de {name} : {error}",
+  "Write operation failed": "Échec de l'opération d'écriture",
+  "Device not connected. Please reconnect and try again.": "Appareil non connecté. Veuillez vous reconnecter et réessayer.",
+  "Device disconnected. Please reconnect.": "Appareil déconnecté. Veuillez vous reconnecter.",
   "Value copied to clipboard": "Valeur copiée dans le presse-papiers",
-
+  
   "Device Details": "Détails de l'appareil",
   "Unknown Device": "Appareil inconnu",
   "Unknown MAC": "MAC inconnue",
@@ -550,12 +554,12 @@
   "Enter value here...": "Entrez la valeur ici...",
   "Please enter a number between 0 &": "Veuillez saisir un nombre entre 0 et 65535",
   "Loading": "Chargement",
-
+  
   "Bluetooth OTA": "Bluetooth OTA",
   "Device Upgrade": "Mise à niveau de l'appareil",
   "MAC Address": "Adresse MAC",
-
-   "Upload Documents": "Télécharger des documents",
+  
+  "Upload Documents": "Télécharger des documents",
   "Browse and upload PDF, HEX16, and other document files": "Parcourir et télécharger des fichiers PDF, HEX16 et autres documents",
   "Uploading files...": "Téléchargement des fichiers...",
   "Choose documents to upload": "Choisir des documents à télécharger",
@@ -576,8 +580,8 @@
   "KB": "Ko",
   "MB": "Mo",
   "GB": "Go",
-
-
+  
+  
   "Location service unavailable - bridge not found": "Service de localisation indisponible - pont introuvable",
   "Failed to start: ": "Échec du démarrage : ",
   "Unknown error": "Erreur inconnue",
@@ -619,14 +623,14 @@
   "24 Hours": "24 Heures",
   "No location history available for this period": "Aucun historique de localisation disponible pour cette période",
   "Unknown location": "Localisation inconnue",
-
+  
   "Scan Station QR Code": "Scanner le code QR de la station",
   "Position the QR code within the frame then scan below": "Positionnez le code QR dans le cadre puis scannez ci-dessous",
   "Start Scan": "Démarrer le scan",
   "Session Token": "Jeton de session",
   "Location Actions": "Actions de localisation",
   "Proceed to Service": "Accéder au service",
-
+  
   "Attendant Workflow": "Flux de travail du préposé",
   "Battery Swap Service": "Service d'échange de batterie",
   "Attendant Station": "Station du préposé",

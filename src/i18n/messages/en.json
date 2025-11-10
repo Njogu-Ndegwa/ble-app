@@ -178,7 +178,7 @@
   "Loading {tab} service data...": "Loading {tab} service data...",
   "No data available for this service": "No data available for this service",
   "Load {tab} Service Data": "Load {tab} Service Data",
-
+  
   
   "Firmware Version. Factory set.": "Firmware Version. Factory set.",
   "OEM Device ID. Factory set.": "OEM Device ID. Factory set.",
@@ -293,7 +293,7 @@
   "heartbeat.metric.rcrd.desc": "Device record or log status",
   "heartbeat.metric.pgst.desc": "Grid connection status",
   "heartbeat.metric.tpgd.desc": "Safety or limit indicator",
-
+  
   "Keypad": "Keypad",
   "Device": "Device",
   "Current PUBK Value": "Current PUBK Value",
@@ -318,7 +318,7 @@
   "Value written to {name}": "Value written to {name}",
   "Value copied": "Value copied",
   "Loading...": "Loading...",
-
+  
   "Welcome back,": "Welcome back,",
   "Loading dashboard data...": "Loading dashboard data...",
   "No dashboard data available.": "No dashboard data available.",
@@ -425,7 +425,7 @@
   "Priority": "Priority",
   "Customer:": "Customer:",
   "Back to Tickets": "Back to Tickets",
-
+  
   "Confirm Product": "Confirm Product",
   "Plan selected:": "Plan selected:",
   "Pay by Yourself": "Pay by Yourself",
@@ -441,7 +441,7 @@
   "Payment failed. Please try again.": "Payment failed. Please try again.",
   "Proceeding to service...": "Proceeding to service...",
   "Signed out successfully": "Signed out successfully",
-
+  
   "Dashboard": "Dashboard",
   "Products": "Products",
   "Transactions": "Transactions",
@@ -449,7 +449,7 @@
   "Authenticate": "Authenticate",
   "Support": "Support",
   "Logout": "Logout",
-
+  
   "Loading map...": "Loading map...",
   "Refresh": "Refresh",
   "Search stations...": "Search stations...",
@@ -463,7 +463,7 @@
   "Service & repair": "Service & repair",
   "Dual service": "Dual service",
   "Battery swap & repair": "Battery swap & repair",
-
+  
   "Navigate": "Navigate",
   "Select Station": "Select Station",
   "Back": "Back",
@@ -480,11 +480,11 @@
   "Select a service": "Select a service",
   "Station Name": "Station Name",
   "Distance": "Distance",
-
+  
   "My Tickets": "My Tickets",
   "Creating...": "Creating...",
   "Created:": "Created:",
-
+  
   "My Devices": "My Devices",
   "Enter QR code or scan...": "Enter QR code or scan...",
   "Sort by...": "Sort by...",
@@ -531,8 +531,12 @@
   "Failed to read {name}": "Failed to read {name}",
   "Value written to {name}": "Value written to {name}",
   "Failed to write {name}": "Failed to write {name}",
+  "Failed to write {name}: {error}": "Failed to write {name}: {error}",
+  "Write operation failed": "Write operation failed",
+  "Device not connected. Please reconnect and try again.": "Device not connected. Please reconnect and try again.",
+  "Device disconnected. Please reconnect.": "Device disconnected. Please reconnect.",
   "Value copied to clipboard": "Value copied to clipboard",
-
+  
   "Device Details": "Device Details",
   "Unknown Device": "Unknown Device",
   "Unknown MAC": "Unknown MAC",
@@ -560,11 +564,11 @@
   "Enter value here...": "Enter value here...",
   "Please enter a number between 0 &": "Please enter a number between 0 & 65535",
   "Loading": "Loading",
-
+  
   "Bluetooth OTA": "Bluetooth OTA",
   "Device Upgrade": "Device Upgrade",
   "MAC Address": "MAC Address",
-
+  
   "Upload Documents": "Upload Documents",
   "Browse and upload PDF, HEX16, and other document files": "Browse and upload PDF, HEX16, and other document files",
   "Uploading files...": "Uploading files...",
@@ -586,7 +590,7 @@
   "KB": "KB",
   "MB": "MB",
   "GB": "GB",
-
+  
   "Location service unavailable - bridge not found": "Location service unavailable - bridge not found",
   "Failed to start: ": "Failed to start: ",
   "Unknown error": "Unknown error",
@@ -628,14 +632,14 @@
   "24 Hours": "24 Hours",
   "No location history available for this period": "No location history available for this period",
   "Unknown location": "Unknown location",
-
+  
   "Scan Station QR Code": "Scan Station QR Code",
   "Position the QR code within the frame then scan below": "Position the QR code within the frame then scan below",
   "Start Scan": "Start Scan",
   "Session Token": "Session Token",
   "Location Actions": "Location Actions",
   "Proceed to Service": "Proceed to Service",
-
+  
   "Attendant Workflow": "Attendant Workflow",
   "Battery Swap Service": "Battery Swap Service",
   "Attendant Station": "Attendant Station",
