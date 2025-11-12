@@ -80,12 +80,41 @@ interface ChargingStationFinderProps {
   isLoadingStations?: boolean;
 }
 
+const LEAFLET_MARKER_BASE =
+  "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img";
+
+const stationIconSources: Record<
+  string,
+  { iconUrl: string; iconRetinaUrl: string }
+> = {
+  available: {
+    iconUrl: `${LEAFLET_MARKER_BASE}/marker-icon-green.png`,
+    iconRetinaUrl: `${LEAFLET_MARKER_BASE}/marker-icon-2x-green.png`,
+  },
+  limited: {
+    iconUrl: `${LEAFLET_MARKER_BASE}/marker-icon-orange.png`,
+    iconRetinaUrl: `${LEAFLET_MARKER_BASE}/marker-icon-2x-orange.png`,
+  },
+  offline: {
+    iconUrl: `${LEAFLET_MARKER_BASE}/marker-icon-red.png`,
+    iconRetinaUrl: `${LEAFLET_MARKER_BASE}/marker-icon-2x-red.png`,
+  },
+  default: {
+    iconUrl: `${LEAFLET_MARKER_BASE}/marker-icon-grey.png`,
+    iconRetinaUrl: `${LEAFLET_MARKER_BASE}/marker-icon-2x-grey.png`,
+  },
+};
+
 const ChargingStationFinder = ({
   lastKnownLocation,
   fleetIds,
   stations: propStations,
   isLoadingStations: propIsLoadingStations = false,
 }: ChargingStationFinderProps) => {
+  const isSelectStationDisabled = true;
+  const isServicePublishingDisabled = true;
+  const isFleetAllocationDisabled = true;
+
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -112,6 +141,24 @@ const ChargingStationFinder = ({
   // Initialize with empty array - will be populated from props or API
   const [stations, setStations] = useState<Station[]>([]);
   const { bridge } = useBridge();
+
+  const getStationIcon = (status: Station["status"]) => {
+    if (!window || !window.L) return null;
+    const key =
+      typeof status === "string" ? status.toLowerCase() : "default";
+    const source =
+      stationIconSources[key] ?? stationIconSources.default;
+
+    return window.L.icon({
+      iconUrl: source.iconUrl,
+      iconRetinaUrl: source.iconRetinaUrl,
+      shadowUrl: `${LEAFLET_MARKER_BASE}/marker-shadow.png`,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
+  };
 
   // Use stations from props if available, otherwise fetch from API
   useEffect(() => {
@@ -557,12 +604,18 @@ const ChargingStationFinder = ({
     );
     markersRef.current = [];
     if (lastKnownLocation?.latitude && lastKnownLocation?.longitude) {
-      const userIcon = window.L.divIcon({
-        html: `<div style="width: 20px; height: 20px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-        className: "custom-user-marker",
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
+    const userIcon = window.L.icon({
+      iconUrl:
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
+      iconRetinaUrl:
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+      shadowUrl:
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
       const userMarker = window.L.marker(
         [lastKnownLocation.latitude, lastKnownLocation.longitude],
         { icon: userIcon }
@@ -578,21 +631,12 @@ const ChargingStationFinder = ({
     }
     filteredStations.forEach((station) => {
       console.info(`ChargingStationFinder: Adding marker for station ${station.name} at (${station.lat}, ${station.lng})`);
-      const markerColor =
-        station.status === "available"
-          ? "#10b981"
-          : station.status === "limited"
-          ? "#f59e0b"
-          : "#ef4444";
-      const stationIcon = window.L.divIcon({
-        html: `<div style="width: 16px; height: 16px; background: ${markerColor}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-        className: "custom-station-marker",
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-      });
-      const marker = window.L.marker([station.lat, station.lng], {
-        icon: stationIcon,
-      }).addTo(mapInstanceRef.current);
+      const stationIcon = getStationIcon(station.status);
+      const markerOptions = stationIcon ? { icon: stationIcon } : undefined;
+      const marker = window.L.marker(
+        [station.lat, station.lng],
+        markerOptions as any
+      ).addTo(mapInstanceRef.current);
       marker.bindPopup(
         `<div style="color: #000; font-family: system-ui;"><h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3><p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p><p style="margin: 0 0 4px 0; font-size: 12px;">Available chargers: ${station.availableChargers}</p><button onclick="window.showStationDetails(${station.id})" style="background: #3b82f6; color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">Select Station</button></div>`
       );
@@ -603,13 +647,17 @@ const ChargingStationFinder = ({
 
   useEffect(() => {
     (window as any).showStationDetails = (stationId: number) => {
+      if (isSelectStationDisabled) {
+        console.info("ChargingStationFinder: Select station flow is currently disabled.");
+        return;
+      }
       const station = stations.find((s) => s.id === stationId);
       if (station) {
         setSelectedStation(station);
         setIsServiceModalOpen(true);
       }
     };
-  }, [stations]);
+  }, [stations, isSelectStationDisabled]);
 
   useEffect(() => {
     if (isMapLoaded) addMarkersToMap();
@@ -668,7 +716,14 @@ const ChargingStationFinder = ({
       createMarker: () => null,
       lineOptions: { styles: [{ color: "#3b82f6", weight: 4, opacity: 0.8 }] },
       show: false,
+      collapsible: true,
     }).addTo(mapInstanceRef.current);
+
+    const controlContainer = routeControlRef.current?.getContainer?.();
+    if (controlContainer) {
+      controlContainer.style.display = "none";
+    }
+
     const group = new window.L.featureGroup([
       window.L.marker([
         lastKnownLocation?.latitude || -1.2921,
@@ -684,6 +739,12 @@ const ChargingStationFinder = ({
     station: Station,
     serviceType: "battery_swap" | "maintenance" | "multi_service"
   ) => {
+    if (isFleetAllocationDisabled) {
+      console.info("Phase W4: Fleet allocation publishing is currently disabled.");
+      toast("Fleet allocation is currently disabled.");
+      return;
+    }
+
     if (!bridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
       return;
@@ -871,6 +932,12 @@ const ChargingStationFinder = ({
     station: Station,
     serviceType: "battery_swap" | "maintenance" | "multi_service"
   ) => {
+    if (isServicePublishingDisabled) {
+      toast("Service request publishing is currently disabled.");
+      setProcessingId(null);
+      return;
+    }
+
     if (!bridge) {
       console.error("WebViewJavascriptBridge is not initialized.");
       toast.error("Bridge not initialized");
@@ -1274,11 +1341,6 @@ const ChargingStationFinder = ({
                 No stations match your filters.
               </p>
             )}
-            {isShowcasing && (
-              <p className="text-yellow-400 text-center mb-4 text-sm">
-                Showing demo stations.
-              </p>
-            )}
             {!propIsLoadingStations && (
               <div className="space-y-3">
                 {filteredStations.map((station) => (
@@ -1304,7 +1366,11 @@ const ChargingStationFinder = ({
                       {station.availableChargers} available
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div
+                    className={`grid gap-2 ${
+                      isSelectStationDisabled ? "grid-cols-1" : "grid-cols-2"
+                    }`}
+                  >
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1314,16 +1380,18 @@ const ChargingStationFinder = ({
                     >
                       Navigate
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedStation(station);
-                        setIsServiceModalOpen(true);
-                      }}
-                      className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Select Station
-                    </button>
+                    {!isSelectStationDisabled && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStation(station);
+                          setIsServiceModalOpen(true);
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Select Station
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1515,7 +1583,7 @@ const ChargingStationFinder = ({
         </div>
       )}
       {/* Service Modal */}
-      {isServiceModalOpen && selectedStation && (
+      {!isSelectStationDisabled && isServiceModalOpen && selectedStation && (
         <div className="fixed inset-0 bg-gray-900 z-50 overflow-y-auto">
           <div className="min-h-screen">
             {/* Header */}
