@@ -2673,13 +2673,14 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     if (currentPhase !== "A4") return;
     setIsRunningPhase4(true);
     setPhase4Status({ activity: "pending", usage: undefined });
+
     setTimeout(() => {
       setPhase4Status((prev: any) => ({
         ...prev,
         activity: "success",
         usage: "pending",
       }));
-      // Publish Activity Report and Workflow Update
+
       mqttPublish(`emit/uxi/attendant/plan/${PLAN_ID}/activity_report`, {
         timestamp: new Date().toISOString(),
         plan_id: PLAN_ID,
@@ -2695,6 +2696,7 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
           attendant_station: STATION,
         },
       });
+
       mqttPublish(`emit/uxi/attendant/plan/${PLAN_ID}/workflow_update`, {
         timestamp: new Date().toISOString(),
         plan_id: PLAN_ID,
@@ -2712,11 +2714,29 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
         },
       });
     }, 600);
+
     setTimeout(() => {
       setPhase4Status((prev: any) => ({ ...prev, usage: "success" }));
       setIsRunningPhase4(false);
-      // toast.success(t("Workflow completed"));
-      // Publish Usage Report to billing
+
+      const formattedCheckoutId = checkoutEquipmentId
+        ? `BAT_NEW_ATT_${checkoutEquipmentId}`
+        : "BAT_NEW_ATT_001";
+      const formattedCheckinId = checkinEquipmentId
+        ? `BAT_RETURN_ATT_${checkinEquipmentId}`
+        : null;
+
+      const serviceCompletionDetails: Record<string, any> = {
+        new_battery_id: formattedCheckoutId,
+        energy_transferred: 45.5,
+        service_duration: 240,
+        attendant_station: STATION,
+      };
+
+      if (customerType === "returning" && formattedCheckinId) {
+        serviceCompletionDetails.old_battery_id = formattedCheckinId;
+      }
+
       mqttPublish(`emit/uxi/billing/plan/${PLAN_ID}/usage_report`, {
         timestamp: new Date().toISOString(),
         plan_id: PLAN_ID,
@@ -2725,43 +2745,21 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
         data: {
           action: "REPORT_SERVICE_USAGE_TO_ODOO",
           usage_type: "battery_swap_completed",
-          service_completion_details: {
-            old_battery_id: equipmentData || "BAT_RETURN_ATT_001",
-            new_battery_id: equipmentData || "BAT_NEW_ATT_001",
-            energy_transferred: 48.5,
-            service_duration: 240,
-            attendant_station: STATION,
-          },
+          service_completion_details: serviceCompletionDetails,
         },
       });
     }, 1300);
-  }, [currentPhase, t, mqttPublish, equipmentData]);
+  }, [currentPhase, checkoutEquipmentId, checkinEquipmentId, customerType, mqttPublish]);
 
   if (currentPhase === "A2") {
     return (
       <div className="space-y-6 p-4">
         {/* Header */}
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">
+          {/* <h2 className="text-2xl font-bold text-white mb-2">
             {t("Attendant")}
-          </h2>
+          </h2> */}
           <p className="text-gray-400">{t("Validation")}</p>
-        </div>
-
-        {/* MQTT Status */}
-        <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isMqttConnected ? "bg-green-500" : "bg-red-500"
-                }`}
-              />
-              <span className="text-sm text-gray-300">
-                {isMqttConnected ? t("MQTT connected") : t("MQTT disconnected")}
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Validation Steps */}
@@ -2855,26 +2853,10 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
       <div className="space-y-6 p-4">
         {/* Header */}
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">
+          {/* <h2 className="text-2xl font-bold text-white mb-2">
             {t("Attendant")}
-          </h2>
+          </h2> */}
           <p className="text-gray-400">{t("Transaction Execution")}</p>
-        </div>
-
-        {/* MQTT Status */}
-        <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isMqttConnected ? "bg-green-500" : "bg-red-500"
-                }`}
-              />
-              <span className="text-sm text-gray-300">
-                {isMqttConnected ? t("MQTT connected") : t("MQTT disconnected")}
-              </span>
-            </div>
-          </div>
         </div>
 
         <div className="bg-gray-700 rounded-xl p-6 border border-gray-600 space-y-3">
@@ -3046,11 +3028,8 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
               <div className="mt-4 p-4 bg-green-900/30 border border-green-700 rounded-lg">
                 <div className="flex items-center gap-2 text-green-400 mb-2">
                   <CheckCircle className="w-5 h-5" />
-                  <span className="font-medium">{t("Phase 3 complete")}</span>
+                  <span className="font-medium">{t("Proceed")}</span>
                 </div>
-                <p className="text-sm text-gray-400">
-                  {t("You can proceed to phase 4 (Reporting)")}
-                </p>
               </div>
               <button
                 onClick={() => setCurrentPhase("A4")}
@@ -3084,26 +3063,10 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     return (
       <div className="space-y-6 p-4">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">
+          {/* <h2 className="text-2xl font-bold text-white mb-2">
             {t("Attendant")}
-          </h2>
+          </h2> */}
           <p className="text-gray-400">{t("Reporting & Completion")}</p>
-        </div>
-
-        {/* MQTT Status */}
-        <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isMqttConnected ? "bg-green-500" : "bg-red-500"
-                }`}
-              />
-              <span className="text-sm text-gray-300">
-                {isMqttConnected ? t("MQTT connected") : t("MQTT disconnected")}
-              </span>
-            </div>
-          </div>
         </div>
 
         <div className="bg-gray-700 rounded-xl p-6 border border-gray-600 space-y-3">
@@ -3184,26 +3147,10 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     return (
       <div className="space-y-6 p-4">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-white mb-2">
+          {/* <h2 className="text-2xl font-bold text-white mb-2">
             {t("Battery Swap")}
-          </h2>
+          </h2> */}
           <p className="text-gray-400">{t("Select Customer Type")}</p>
-        </div>
-
-        {/* MQTT Status */}
-        <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  isMqttConnected ? "bg-green-500" : "bg-red-500"
-                }`}
-              />
-              <span className="text-sm text-gray-300">
-                {isMqttConnected ? t("MQTT connected") : t("MQTT disconnected")}
-              </span>
-            </div>
-          </div>
         </div>
 
         <div className="bg-gray-700 rounded-xl p-6 border border-gray-600 space-y-4">
@@ -3247,30 +3194,14 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     <div className="space-y-6 p-4">
       {/* Header */}
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-white mb-2">
+        {/* <h2 className="text-2xl font-bold text-white mb-2">
           {t("Battery Swap")}
-        </h2>
+        </h2> */}
         <p className="text-gray-400">
           {customerType === "first-time"
             ? t("First-Time Customer - Customer & Equipment Identification")
             : t("Returning Customer - Customer & Equipment Identification")}
         </p>
-      </div>
-
-      {/* MQTT Status */}
-      <div className="bg-gray-700 rounded-xl p-4 border border-gray-600">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isMqttConnected ? "bg-green-500" : "bg-red-500"
-              }`}
-            />
-            <span className="text-sm text-gray-300">
-              {isMqttConnected ? t("MQTT connected") : t("MQTT disconnected")}
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Phase A1 - Customer Identification */}

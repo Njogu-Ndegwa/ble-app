@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Loader2, Download, Copy, Check } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import QRCode from "qrcode";
 import { useI18n } from '@/i18n';
@@ -73,10 +73,8 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [qrDataUrls, setQrDataUrls] = useState<{ [key: number]: string }>({});
-  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
-  const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
   const bridgeInitRef = useRef(false);
   const mqttConnectedRef = useRef<boolean>(false);
 
@@ -555,47 +553,6 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
     fetchSubscriptions();
   }, [customer?.partner_id, t]);
 
-  const handleDownload = async (subscriptionId: number, subscriptionCode: string) => {
-    const dataUrl = qrDataUrls[subscriptionId];
-    if (!dataUrl) {
-      toast.error(t("QR code not available"));
-      return;
-    }
-
-    try {
-      const link = document.createElement("a");
-      link.download = `qr-code-${subscriptionCode}.png`;
-      link.href = dataUrl;
-      link.click();
-      toast.success(t("QR code downloaded successfully"));
-    } catch (error) {
-      console.error("Error downloading QR code:", error);
-      toast.error(t("Failed to download QR code"));
-    }
-  };
-
-  const handleCopy = async (subscriptionId: number) => {
-    const dataUrl = qrDataUrls[subscriptionId];
-    if (!dataUrl) {
-      toast.error(t("QR code not available"));
-      return;
-    }
-
-    try {
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": blob }),
-      ]);
-      setCopiedId(subscriptionId);
-      toast.success(t("QR code copied to clipboard"));
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch (error) {
-      console.error("Error copying QR code:", error);
-      toast.error(t("Failed to copy QR code"));
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -674,32 +631,6 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
                     <span className="font-medium">{t("Next Cycle:")}</span>{" "}
                     {new Date(subscription.next_cycle_date).toLocaleDateString()}
                   </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                  <button
-                    onClick={() => handleDownload(subscription.id, subscription.subscription_code)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
-                  >
-                    <Download className="w-4 h-4" />
-                    {t("Download")}
-                  </button>
-                  <button
-                    onClick={() => handleCopy(subscription.id)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
-                  >
-                    {copiedId === subscription.id ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        {t("Copied")}
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        {t("Copy")}
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
             </div>

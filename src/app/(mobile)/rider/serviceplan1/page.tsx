@@ -1228,7 +1228,7 @@ const AppContainer = () => {
     { id: "charging stations", labelKey: "Charging Stations", icon: MapPin },
     { id: "support", labelKey: "Support", icon: HelpCircle },
     { id: "settings", labelKey: "Settings", icon: Settings },
-    { id: "qr-generator", labelKey: "QR Generator", icon: QrCode },
+    { id: "qr-generator", labelKey: "My QR", icon: QrCode },
     { id: "logout", labelKey: "Logout", icon: LogOut },
   ];
 
