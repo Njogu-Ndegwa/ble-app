@@ -78,6 +78,7 @@ interface ChargingStationFinderProps {
   fleetIds: FleetIds | null;
   stations?: Station[];
   isLoadingStations?: boolean;
+  onFindStations?: () => void;
 }
 
 const LEAFLET_MARKER_BASE =
@@ -110,6 +111,7 @@ const ChargingStationFinder = ({
   fleetIds,
   stations: propStations,
   isLoadingStations: propIsLoadingStations = false,
+  onFindStations,
 }: ChargingStationFinderProps) => {
   const isSelectStationDisabled = true;
   const isServicePublishingDisabled = true;
@@ -140,6 +142,7 @@ const ChargingStationFinder = ({
   const [isShowcasing, setIsShowcasing] = useState(false);
   // Initialize with empty array - will be populated from props or API
   const [stations, setStations] = useState<Station[]>([]);
+  const [isFindingStations, setIsFindingStations] = useState(false);
   const { bridge } = useBridge();
 
   const getStationIcon = (status: Station["status"]) => {
@@ -394,6 +397,14 @@ const ChargingStationFinder = ({
       applyFilters(stationsToFilter, null);
     }
   }, [fleetIds, stations, propStations]);
+
+  // Reset finding stations state when stations are loaded or loading stops
+  useEffect(() => {
+    const hasStations = stations.length > 0 || (propStations !== undefined && propStations.length > 0);
+    if (hasStations || (!propIsLoadingStations && isFindingStations)) {
+      setIsFindingStations(false);
+    }
+  }, [stations.length, propStations, propIsLoadingStations, isFindingStations]);
 
   // Calculate distance in kilometers (returns number)
   const calculateDistanceKm = (
@@ -696,6 +707,12 @@ const ChargingStationFinder = ({
       );
       setIsRefreshing(false);
     }, 1500);
+  };
+
+  const handleFindStationsClick = () => {
+    if (!onFindStations) return;
+    setIsFindingStations(true);
+    onFindStations();
   };
 
   const handleNavigateToStation = (station: Station) => {
@@ -1300,29 +1317,54 @@ const ChargingStationFinder = ({
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
-        {/* Search & Filter Bar */}
-        <div className="px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Search stations..."
-              className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={filterOptions.name}
-              onChange={(e) =>
-                setFilterOptions({ ...filterOptions, name: e.target.value })
-              }
-            />
+        {/* Find Stations Button - Show when no stations are loaded */}
+        {stations.length === 0 && onFindStations && (
+          <div className="px-4 py-4 bg-gray-800 border-b border-gray-700 flex-shrink-0">
             <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              onClick={handleFindStationsClick}
+              disabled={isFindingStations || propIsLoadingStations}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-75 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-lg disabled:cursor-not-allowed"
             >
-              <Filter size={16} />
-              <span className="hidden sm:inline">Filter</span>
+              {isFindingStations || propIsLoadingStations ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>Finding stations near you...</span>
+                </>
+              ) : (
+                <>
+                  <MapPin size={20} />
+                  <span>Find stations near me</span>
+                </>
+              )}
             </button>
           </div>
-        </div>
-        {/* Stations List */}
-        <div className="flex-1 overflow-y-auto">
+        )}
+        {/* Search & Filter Bar - Only show when stations are loaded */}
+        {stations.length > 0 && (
+          <div className="px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Search stations..."
+                className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={filterOptions.name}
+                onChange={(e) =>
+                  setFilterOptions({ ...filterOptions, name: e.target.value })
+                }
+              />
+              <button
+                onClick={() => setIsFilterModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <Filter size={16} />
+                <span className="hidden sm:inline">Filter</span>
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Stations List - Only show when stations are loaded */}
+        {stations.length > 0 && (
+          <div className="flex-1 overflow-y-auto">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Stations</h2>
@@ -1399,6 +1441,7 @@ const ChargingStationFinder = ({
             )}
           </div>
         </div>
+        )}
       </div>
       {/* Filter Modal */}
       {isFilterModalOpen && (
