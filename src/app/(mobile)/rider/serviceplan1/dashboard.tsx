@@ -180,5 +180,3 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
 };
 
 export default Dashboard;
-
-

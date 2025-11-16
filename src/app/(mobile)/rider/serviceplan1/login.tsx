@@ -145,8 +145,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
       console.log("Attempting login with email:", email);
+      console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
       const response = await fetch(
-        `${API_BASE}/auth/login`,
+        "https://crm-omnivoltaic.odoo.com/api/auth/login",
         {
           method: "POST",
           headers: {
@@ -158,8 +159,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       );
 
       const data = await response.json();
-      console.log("API Response:", { status: response.status, data });
-      console.log("Full response data:", JSON.stringify(data, null, 2));
+      
+      console.info("=== Login Response ===");
+      console.info("Response Status:", response.status);
+      console.info("Response OK:", response.ok);
+      console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+      console.info("Full Response Data:", JSON.stringify(data, null, 2));
+      console.info("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
 
       if (response.status === 200) {
         console.log("Login successful");
@@ -215,13 +221,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         // toast.success(`Welcome! Signed in as ${customerData.name}`);
         onLoginSuccess(customerData);
       } else if (response.status === 404) {
+        console.error("=== Login Error Response (404) ===");
+        console.error("Response Status:", response.status);
+        console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
+        console.error("Error Data:", JSON.stringify(data, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
         // Optionally pre-fill the registration email
         setFormData(prev => ({ ...prev, email }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
+        console.error("=== Login Error Response (400) ===");
+        console.error("Response Status:", response.status);
+        console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
+        console.error("Error Data:", JSON.stringify(data, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
         throw new Error(t("Invalid request. Please ensure your email is correct."));
       } else {
+        console.error("=== Login Error Response ===");
+        console.error("Response Status:", response.status);
+        console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
+        console.error("Error Data:", JSON.stringify(data, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
         throw new Error(data.message || t("Login failed. Please try again."));
       }
     } catch (error: any) {
@@ -243,20 +264,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setSubmitStatus(null);
 
     try {
+      // Always use company_id: "14" regardless of country selection
       const apiData = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        mobile: formData.phone,
-        street: formData.street,
-        city: formData.city,
-        zip: formData.zip,
-        country: formData.country,
-        is_company: false,
+        company_id: "14",
       };
 
       console.log('Submitting registration:', apiData);
-      const response = await fetch(`${API_BASE}/contacts`, {
+      console.log('Registration endpoint: https://crm-omnivoltaic.odoo.com/api/auth/register');
+      const response = await fetch('https://crm-omnivoltaic.odoo.com/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,13 +289,29 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
+          console.error('=== Registration Error Response ===');
+          console.error('Response Status:', response.status);
+          console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
+          console.error('Error Data:', JSON.stringify(errorData, null, 2));
+          console.error('Payload Sent:', JSON.stringify(apiData, null, 2));
           errorMessage = errorData.message || errorData.error || errorMessage;
+        } else {
+          console.error('=== Registration Error Response ===');
+          console.error('Response Status:', response.status);
+          console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
+          console.error('Payload Sent:', JSON.stringify(apiData, null, 2));
         }
         throw new Error(errorMessage);
       }
 
       const result = await response.json();
-      console.log('Registration successful:', result);
+      
+      console.info('=== Registration Response ===');
+      console.info('Response Status:', response.status);
+      console.info('Response OK:', response.ok);
+      console.info('Response Headers:', Object.fromEntries(response.headers.entries()));
+      console.info('Full Response Data:', JSON.stringify(result, null, 2));
+      console.info('Payload Sent:', JSON.stringify(apiData, null, 2));
       
       toast.success(t('Registration successful! You can now sign in.'));
       

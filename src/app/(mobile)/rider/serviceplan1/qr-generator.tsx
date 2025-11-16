@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, MapPin, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import QRCode from "qrcode";
 import { useI18n } from '@/i18n';
@@ -29,6 +29,7 @@ interface QRGeneratorProps {
     email?: string;
     partner_id?: number;
   } | null;
+  isMqttConnected?: boolean;
 }
 
 interface LocationData {
@@ -36,14 +37,6 @@ interface LocationData {
   longitude: number;
   timestamp?: number;
   [key: string]: any;
-}
-
-interface MqttConfig {
-  username: string;
-  password: string;
-  clientId: string;
-  hostname: string;
-  port: number;
 }
 
 interface WebViewJavascriptBridge {
@@ -67,16 +60,21 @@ declare global {
   }
 }
 
-const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
+const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = false }) => {
   const { t } = useI18n();
   const { bridge } = useBridge();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [qrDataUrls, setQrDataUrls] = useState<{ [key: number]: string }>({});
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
-  const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
+  const [bindingStatus, setBindingStatus] = useState<{ [key: number]: "idle" | "loading" | "success" | "error" }>({});
   const bridgeInitRef = useRef(false);
   const mqttConnectedRef = useRef<boolean>(false);
+
+  // Update ref when prop changes
+  useEffect(() => {
+    mqttConnectedRef.current = isMqttConnected;
+  }, [isMqttConnected]);
 
   // Setup bridge and location listener
   const setupBridge = (b: WebViewJavascriptBridge) => {
@@ -119,44 +117,6 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
       }
     );
 
-    const offConnectMqtt = reg(
-      "connectMqttCallBack",
-      (data: string, resp: any) => {
-        try {
-          const parsed = JSON.parse(data);
-          console.log("QR Generator: MQTT connection callback:", parsed);
-          setIsMqttConnected(true);
-          mqttConnectedRef.current = true;
-          resp("Received MQTT Connection Callback");
-        } catch (err) {
-          setIsMqttConnected(false);
-          mqttConnectedRef.current = false;
-          console.error("QR Generator: Error parsing MQTT connection callback:", err);
-        }
-      }
-    );
-
-    const mqttConfig: MqttConfig = {
-      username: "Admin",
-      password: "7xzUV@MT",
-      clientId: "123",
-      hostname: "mqtt.omnivoltaic.com",
-      port: 1883,
-    };
-
-    b.callHandler("connectMqtt", mqttConfig, (resp: string) => {
-      try {
-        const p = JSON.parse(resp);
-        if (p.error) {
-          console.error("QR Generator: MQTT connection error:", p.error.message);
-          setIsMqttConnected(false);
-        }
-      } catch (err) {
-        console.error("QR Generator: Error parsing MQTT response:", err);
-        setIsMqttConnected(false);
-      }
-    });
-
     b.callHandler('startLocationListener', {}, (responseData) => {
       try {
         const parsedResponse = JSON.parse(responseData);
@@ -172,7 +132,6 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
 
     return () => {
       offLocationCallback();
-      offConnectMqtt();
       bridgeInitRef.current = false;
     };
   };
@@ -200,35 +159,43 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
   };
 
   // Publish MQTT message for customer binding
-  const publishCustomerBinding = async (subscriptionCode: string) => {
+  const publishCustomerBinding = async (subscriptionCode: string, subscriptionId: number) => {
     if (!bridge || !window.WebViewJavascriptBridge) {
       console.error("QR Generator: WebViewJavascriptBridge is not initialized.");
+      toast.error(t("MQTT bridge not initialized"));
       return;
     }
+
+    // Set loading state
+    setBindingStatus((prev) => ({ ...prev, [subscriptionId]: "loading" }));
 
     // Wait for MQTT connection before proceeding
     console.log("QR Generator: Waiting for MQTT connection...");
     const connected = await waitForMqttConnection(10000);
     if (!connected) {
       console.error("QR Generator: MQTT not connected. Cannot publish message.");
+      setBindingStatus((prev) => ({ ...prev, [subscriptionId]: "error" }));
+      toast.error(t("MQTT not connected. Please try again."));
       return;
     }
     console.log("QR Generator: MQTT is connected. Proceeding with publish...");
 
-    // Format location_id from coordinates or use default
-    let locationId = "LOC001"; // Default
-    if (lastKnownLocation?.latitude && lastKnownLocation?.longitude) {
-      // Format as LOC{lat}{lng} or use coordinates directly
-      locationId = `LOC${Math.round(lastKnownLocation.latitude * 1000)}${Math.round(lastKnownLocation.longitude * 1000)}`;
-    }
+    // Always use LOC001 as location_id
+    const locationId = "LOC001";
 
-    const requestTopic = `emit/uxi/service/plan/231214/customer_binding`;
+    // Use subscription_code as plan_id
+    const planId = subscriptionCode;
+    const requestTopic = `emit/uxi/service/plan/${planId}/customer_binding`;
     const responseTopic = "echo/#";
+
+    const correlationId = `binding-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const correlationKey = `__customerBindingCorrelation_${subscriptionId}`;
+    (window as any)[correlationKey] = correlationId;
 
     const content = {
       timestamp: new Date().toISOString(),
-      plan_id: "231214",
-      correlation_id: `binding-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      plan_id: planId,
+      correlation_id: correlationId,
       actor: {
         type: "customer",
         id: "CUST-RIDER-001",
@@ -256,10 +223,16 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
       };
     };
 
+    let settled = false;
     const offResponseHandler = reg(
       "mqttMsgArrivedCallBack",
       (data: string, responseCallback: (response: any) => void) => {
         try {
+          if (settled) {
+            responseCallback({ success: true });
+            return;
+          }
+
           const parsedData = JSON.parse(data);
           const topic = parsedData.topic;
           const rawMessageContent = parsedData.message;
@@ -274,6 +247,54 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
               console.error("QR Generator: Error parsing response:", parseErr);
               responseData = rawMessageContent;
             }
+
+            // Check correlation ID match
+            const storedCorrelationId = (window as any)[correlationKey];
+            const responseCorrelationId = responseData?.correlation_id || responseData?.metadata?.correlation_id;
+            
+            console.log("QR Generator: Stored Correlation ID:", storedCorrelationId);
+            console.log("QR Generator: Response Correlation ID:", responseCorrelationId);
+
+            const correlationMatches = 
+              Boolean(storedCorrelationId) &&
+              Boolean(responseCorrelationId) &&
+              (responseCorrelationId === storedCorrelationId ||
+               responseCorrelationId.startsWith(storedCorrelationId) ||
+               storedCorrelationId.startsWith(responseCorrelationId));
+
+            if (correlationMatches) {
+              console.log("QR Generator: Correlation ID matches! Processing response");
+
+              // Check for required signals
+              const signals = responseData?.signals || responseData?.data?.signals || responseData?.metadata?.signals || [];
+              console.log("QR Generator: Response signals:", signals);
+
+              const requiredSignals = ["BINDING_ESTABLISHED", "SERVICE_VALIDATED", "LOCATION_ACTIONS_TRIGGERED"];
+              const hasRequiredSignals = requiredSignals.every(signal => 
+                Array.isArray(signals) && signals.includes(signal)
+              );
+
+              if (hasRequiredSignals) {
+                console.log("QR Generator: All required signals found! Binding successful");
+                settled = true;
+                setBindingStatus((prev) => ({ ...prev, [subscriptionId]: "success" }));
+                toast.success(t("Location binding successful"));
+                (window as any)[correlationKey] = null;
+                cleanup();
+              } else {
+                console.warn("QR Generator: Required signals not found in response");
+                console.warn("QR Generator: Expected signals:", requiredSignals);
+                console.warn("QR Generator: Received signals:", signals);
+                settled = true;
+                setBindingStatus((prev) => ({ ...prev, [subscriptionId]: "error" }));
+                toast.error(t("Location binding failed"));
+                (window as any)[correlationKey] = null;
+                cleanup();
+              }
+            } else {
+              console.log("QR Generator: Correlation ID does not match, ignoring response");
+            }
+
             responseCallback({ success: true });
           }
         } catch (err) {
@@ -333,9 +354,23 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
         );
       });
 
+    // Timeout handler - declare before cleanup so it can be cleared
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        console.warn("QR Generator: Location binding timed out");
+        setBindingStatus((prev) => ({ ...prev, [subscriptionId]: "error" }));
+        toast.error(t("Location binding timed out"));
+        cleanup();
+      }
+    }, 30000); // 30 second timeout
+
     const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       console.log(`QR Generator: Cleaning up MQTT response handler and subscription for topic: ${responseTopic}`);
       offResponseHandler();
+      (window as any)[correlationKey] = null;
       bridge.callHandler(
         "mqttUnSubTopic",
         { topic: responseTopic, qos: 0 },
@@ -403,8 +438,8 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
           }
         }
 
-        console.log("QR Generator: MQTT operations successful, scheduling cleanup");
-        setTimeout(() => cleanup(), 15000);
+        console.log("QR Generator: MQTT operations successful, waiting for response...");
+        // Don't cleanup immediately - wait for response or timeout
         return;
       }
     };
@@ -413,6 +448,9 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
       await attemptMqttOperations();
     } catch (err) {
       console.error("QR Generator: Error in MQTT operations:", err);
+      clearTimeout(timeoutId);
+      setBindingStatus((prev) => ({ ...prev, [subscriptionId]: "error" }));
+      toast.error(t("Failed to publish location binding request"));
       cleanup();
     }
   };
@@ -528,12 +566,12 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
           });
           setQrDataUrls(qrMap);
           
-          // Auto-publish MQTT message for each subscription
+          // Initialize binding status for all subscriptions
+          const initialStatus: { [key: number]: "idle" } = {};
           data.subscriptions.forEach((sub: Subscription) => {
-            if (sub.subscription_code) {
-              publishCustomerBinding(sub.subscription_code);
-            }
+            initialStatus[sub.id] = "idle";
           });
+          setBindingStatus(initialStatus);
         } else {
           console.error("QR Generator: Invalid response format:", data);
           console.error("QR Generator: data.success:", data.success);
@@ -582,12 +620,12 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-gray-700">
+      {/* <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-gray-700">
         <h2 className="text-xl font-bold text-white mb-4">{t("Subscription QR Codes")}</h2>
         <p className="text-gray-400 text-sm mb-6">
           {t("Each QR code contains your customer ID, subscription code, and product name")}
         </p>
-      </div>
+      </div> */}
 
       <div className="grid gap-6">
         {subscriptions.map((subscription) => (
@@ -631,6 +669,47 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer }) => {
                     <span className="font-medium">{t("Next Cycle:")}</span>{" "}
                     {new Date(subscription.next_cycle_date).toLocaleDateString()}
                   </p>
+                </div>
+                
+                {/* Location Binding Button */}
+                <div className="mt-4">
+                  <button
+                    onClick={() => publishCustomerBinding(subscription.subscription_code, subscription.id)}
+                    disabled={bindingStatus[subscription.id] === "loading"}
+                    className={`w-full md:w-auto px-4 py-2 rounded-lg font-medium transition-all ${
+                      bindingStatus[subscription.id] === "loading"
+                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                        : bindingStatus[subscription.id] === "success"
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : bindingStatus[subscription.id] === "error"
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      {bindingStatus[subscription.id] === "loading" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>{t("Binding...")}</span>
+                        </>
+                      ) : bindingStatus[subscription.id] === "success" ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>{t("Location Bound")}</span>
+                        </>
+                      ) : bindingStatus[subscription.id] === "error" ? (
+                        <>
+                          <XCircle className="w-4 h-4" />
+                          <span>{t("Retry Location Binding")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="w-4 h-4" />
+                          <span>{t("Location Binding")}</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>
