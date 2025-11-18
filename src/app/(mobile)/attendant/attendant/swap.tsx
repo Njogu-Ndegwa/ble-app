@@ -104,6 +104,13 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const [checkoutEnergyTransferred, setCheckoutEnergyTransferred] = useState<string>("");
   const [checkinEnergyTransferred, setCheckinEnergyTransferred] = useState<string>("");
   const [dynamicPlanId, setDynamicPlanId] = useState<string>(""); // Will be set from subscription_code in QR code
+  const [paymentState, setPaymentState] = useState<string | null>(null);
+  const [serviceStates, setServiceStates] = useState<Array<{
+    service_id: string;
+    used: number;
+    quota: number;
+    current_asset: string | null;
+  }>>([]);
   
   // Phase A2 validation states
   const [validationStatus, setValidationStatus] = useState<{
@@ -810,6 +817,34 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
                   console.info(
                     "Customer identification successful! Required signal found in response."
                   );
+                  
+                  // Extract paymentState and serviceStates from response
+                  const servicePlanData = responseData?.data?.metadata?.service_plan_data;
+                  if (servicePlanData) {
+                    const extractedPaymentState = servicePlanData.paymentState;
+                    const extractedServiceStates = servicePlanData.serviceStates || [];
+                    
+                    console.info("Extracted paymentState:", extractedPaymentState);
+                    console.info("Extracted serviceStates:", extractedServiceStates);
+                    
+                    setPaymentState(extractedPaymentState);
+                    setServiceStates(extractedServiceStates);
+                  } else {
+                    // Try alternative paths in case structure is different
+                    const altPaymentState = responseData?.data?.metadata?.paymentState || 
+                                           responseData?.metadata?.paymentState;
+                    const altServiceStates = responseData?.data?.metadata?.serviceStates ||
+                                            responseData?.metadata?.serviceStates ||
+                                            [];
+                    
+                    if (altPaymentState) {
+                      setPaymentState(altPaymentState);
+                    }
+                    if (Array.isArray(altServiceStates) && altServiceStates.length > 0) {
+                      setServiceStates(altServiceStates);
+                    }
+                  }
+                  
                   setCustomerIdentificationResponse({
                     received: true,
                     status: "success",
@@ -1606,6 +1641,34 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
                   console.info(
                     "Customer identification successful! Required signal found in response."
                   );
+                  
+                  // Extract paymentState and serviceStates from response
+                  const servicePlanData = responseData?.data?.metadata?.service_plan_data;
+                  if (servicePlanData) {
+                    const extractedPaymentState = servicePlanData.paymentState;
+                    const extractedServiceStates = servicePlanData.serviceStates || [];
+                    
+                    console.info("Extracted paymentState:", extractedPaymentState);
+                    console.info("Extracted serviceStates:", extractedServiceStates);
+                    
+                    setPaymentState(extractedPaymentState);
+                    setServiceStates(extractedServiceStates);
+                  } else {
+                    // Try alternative paths in case structure is different
+                    const altPaymentState = responseData?.data?.metadata?.paymentState || 
+                                           responseData?.metadata?.paymentState;
+                    const altServiceStates = responseData?.data?.metadata?.serviceStates ||
+                                            responseData?.metadata?.serviceStates ||
+                                            [];
+                    
+                    if (altPaymentState) {
+                      setPaymentState(altPaymentState);
+                    }
+                    if (Array.isArray(altServiceStates) && altServiceStates.length > 0) {
+                      setServiceStates(altServiceStates);
+                    }
+                  }
+                  
                   setCustomerIdentificationResponse({
                     received: true,
                     status: "success",
@@ -1890,6 +1953,8 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const handleStartCustomerScan = () => {
     setCustomerData(null);
     setCustomerIdentified(false);
+    setPaymentState(null);
+    setServiceStates([]);
     scanTypeRef.current = "customer";
     setIsScanningCustomer(true);
     startQrCodeScan();
@@ -1924,6 +1989,8 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     setCustomerIdentificationResponse({ received: false });
     setEquipmentIdentified(false);
     setEquipmentIdentificationResponse({ received: false });
+    setPaymentState(null);
+    setServiceStates([]);
     setIsScanningCustomer(false);
     setIsScanningEquipment(false);
     setIsScanningCheckin(false);
@@ -3152,7 +3219,7 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
                   <span className="font-medium">{t("Customer Identified")}</span>
                 </div>
                 {customerData && (
-                  <div className="bg-gray-600 rounded-lg p-4 space-y-2">
+                  <div className="bg-gray-600 rounded-lg p-4 space-y-3">
                     <p className="text-sm text-gray-300">
                       <span className="font-medium text-white">
                         {t("Customer ID")}:
@@ -3165,6 +3232,53 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
                         customerData.name || customerData.product_name
                       )}
                     </p>
+                    
+                    {/* Payment State */}
+                    {paymentState && (
+                      <div className="pt-2 border-t border-gray-500">
+                        <p className="text-sm text-gray-300">
+                          <span className="font-medium text-white">{t("Payment State")}:</span>{" "}
+                          <span className={`font-semibold ${
+                            paymentState === "CURRENT" ? "text-green-400" :
+                            paymentState === "OVERDUE" ? "text-red-400" :
+                            "text-yellow-400"
+                          }`}>
+                            {paymentState}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Service States */}
+                    {serviceStates && serviceStates.length > 0 && (
+                      <div className="pt-2 border-t border-gray-500">
+                        <p className="text-sm font-medium text-white mb-2">{t("Service States")}:</p>
+                        <div className="space-y-2">
+                          {serviceStates.map((service, index) => (
+                            <div key={index} className="bg-gray-700 rounded-lg p-3 space-y-1">
+                              <p className="text-xs text-gray-300">
+                                <span className="font-medium text-white">{t("Service ID")}:</span>{" "}
+                                {formatDisplayValue(service.service_id)}
+                              </p>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-300">
+                                  <span className="font-medium text-white">{t("Used")}:</span> {service.used}
+                                </span>
+                                <span className="text-gray-300">
+                                  <span className="font-medium text-white">{t("Quota")}:</span> {service.quota.toLocaleString()}
+                                </span>
+                              </div>
+                              {service.current_asset && (
+                                <p className="text-xs text-gray-300">
+                                  <span className="font-medium text-white">{t("Current Asset")}:</span>{" "}
+                                  {formatDisplayValue(service.current_asset)}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -3896,7 +4010,7 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
               <span className="font-medium">{t("Customer Identified")}</span>
             </div>
             {customerData && (
-              <div className="bg-gray-600 rounded-lg p-4 space-y-2">
+              <div className="bg-gray-600 rounded-lg p-4 space-y-3">
                 <p className="text-sm text-gray-300">
                   <span className="font-medium text-white">
                     {t("Customer ID")}:
@@ -3916,6 +4030,53 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
                     </span>{" "}
                     {formatDisplayValue(customerData.subscription_code)}
                   </p>
+                )}
+                
+                {/* Payment State */}
+                {paymentState && (
+                  <div className="pt-2 border-t border-gray-500">
+                    <p className="text-sm text-gray-300">
+                      <span className="font-medium text-white">{t("Payment State")}:</span>{" "}
+                      <span className={`font-semibold ${
+                        paymentState === "CURRENT" ? "text-green-400" :
+                        paymentState === "OVERDUE" ? "text-red-400" :
+                        "text-yellow-400"
+                      }`}>
+                        {paymentState}
+                      </span>
+                    </p>
+                  </div>
+                )}
+                
+                {/* Service States */}
+                {serviceStates && serviceStates.length > 0 && (
+                  <div className="pt-2 border-t border-gray-500">
+                    <p className="text-sm font-medium text-white mb-2">{t("Service States")}:</p>
+                    <div className="space-y-2">
+                      {serviceStates.map((service, index) => (
+                        <div key={index} className="bg-gray-700 rounded-lg p-3 space-y-1">
+                          <p className="text-xs text-gray-300">
+                            <span className="font-medium text-white">{t("Service ID")}:</span>{" "}
+                            {formatDisplayValue(service.service_id)}
+                          </p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-300">
+                              <span className="font-medium text-white">{t("Used")}:</span> {service.used}
+                            </span>
+                            <span className="text-gray-300">
+                              <span className="font-medium text-white">{t("Quota")}:</span> {service.quota.toLocaleString()}
+                            </span>
+                          </div>
+                          {service.current_asset && (
+                            <p className="text-xs text-gray-300">
+                              <span className="font-medium text-white">{t("Current Asset")}:</span>{" "}
+                              {formatDisplayValue(service.current_asset)}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
