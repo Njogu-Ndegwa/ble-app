@@ -121,9 +121,11 @@ const AppContainer = () => {
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState<boolean>(false);
   const [showAttendantPaymentModal, setShowAttendantPaymentModal] = useState<boolean>(false);
+  const [showTopUpModal, setShowTopUpModal] = useState<boolean>(false);
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [transactionId, setTransactionId] = useState<string>("");
   const [receipt, setReceipt] = useState<string>("");
+  const [serviceId, setServiceId] = useState<string>("");
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
@@ -362,7 +364,6 @@ const AppContainer = () => {
         "Content-Type": "application/json",
         "X-API-KEY": "abs_connector_secret_key_2024",
       };
-
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
@@ -960,10 +961,33 @@ const AppContainer = () => {
       }
     });
 
+    // Generate unique client ID to avoid conflicts when multiple devices connect
+    // Format: rider-{userId}-{timestamp}-{random}
+    const generateClientId = () => {
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      // Try to get user ID from customer state, localStorage, or use guest
+      let userId = "guest";
+      try {
+        if (customer?.id || customer?.partner_id) {
+          userId = String(customer.id || customer.partner_id);
+        } else {
+          const storedCustomer = localStorage.getItem("customerData_rider");
+          if (storedCustomer) {
+            const parsed = JSON.parse(storedCustomer);
+            userId = String(parsed.id || parsed.partner_id || "guest");
+          }
+        }
+      } catch (e) {
+        console.warn("Could not get user ID for client ID generation:", e);
+      }
+      return `rider-${userId}-${timestamp}-${random}`;
+    };
+
     const mqttConfig: MqttConfig = {
       username: "Admin",
       password: "7xzUV@MT",
-      clientId: "123",
+      clientId: generateClientId(),
       hostname: "mqtt.omnivoltaic.com",
       port: 1883,
     };
@@ -1157,6 +1181,28 @@ const AppContainer = () => {
     setShowAttendantPaymentModal(true);
   };
 
+  const handleTopUp = async () => {
+    if (!selectedPlan) {
+      toast.error(t("No plan selected"));
+      return;
+    }
+    if (!orderId) {
+      toast.error(t("Order data not available. Please select a plan again."));
+      return;
+    }
+    if (!pendingOrder?.subscription_code) {
+      toast.error(t("Subscription reference not available. Please select the plan again."));
+      return;
+    }
+
+    // Reset transaction ID, receipt, and service ID inputs
+    setTransactionId("");
+    setReceipt("");
+    setServiceId("");
+    setShowPaymentOptions(false);
+    setShowTopUpModal(true);
+  };
+
   const handleAttendantPaymentConfirm = async () => {
     if (!transactionId.trim()) {
       toast.error(t("Please enter the transaction ID from your text messages"));
@@ -1224,6 +1270,85 @@ const AppContainer = () => {
     } catch (error: any) {
       console.error("Error confirming attendant payment:", error);
       toast.error(error.message || t("Failed to confirm payment. Please try again."));
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleTopUpPaymentConfirm = async () => {
+    if (!transactionId.trim()) {
+      toast.error(t("Please enter the transaction ID from your text messages"));
+      return;
+    }
+
+    if (!serviceId.trim()) {
+      toast.error(t("Please enter the service ID"));
+      return;
+    }
+
+    if (!pendingOrder?.subscription_code) {
+      toast.error(t("Subscription details not available. Please select the plan again."));
+      return;
+    }
+
+    setIsProcessingPayment(true);
+
+    try {
+      const token = localStorage.getItem("authToken_rider");
+      
+      const headers: HeadersInit = {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const payload = {
+        subscription_code: pendingOrder.subscription_code,
+        receipt: transactionId.trim(),
+        service_id: serviceId.trim(),
+      };
+
+      const response = await fetch(
+        `${API_BASE}/lipay/manual-confirm`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const result = await response.json();
+
+      console.info("=== Top Up Payment Confirmation Response ===");
+      console.info("Response Status:", response.status);
+      console.info("Response OK:", response.ok);
+      console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+      console.info("Full Response Data:", JSON.stringify(result, null, 2));
+      console.info("Payload Sent:", JSON.stringify(payload, null, 2));
+
+      if (response.ok) {
+        console.info("Top up payment confirmation successful");
+        toast.success(t("Top up payment confirmed successfully!"));
+        setShowTopUpModal(false);
+        setShowPaymentOptions(false);
+        setSelectedPlan(null);
+        setOrderId(null);
+        setPendingOrder(null);
+        setTransactionId("");
+        setReceipt("");
+        setServiceId("");
+        // Refresh dashboard or navigate to transactions
+        setCurrentPage("dashboard");
+      } else {
+        console.error("Top up payment confirmation failed:", result);
+        throw new Error(result.message || result.error || t("Top up payment confirmation failed"));
+      }
+    } catch (error: any) {
+      console.error("Error confirming top up payment:", error);
+      toast.error(error.message || t("Failed to confirm top up payment. Please try again."));
     } finally {
       setIsProcessingPayment(false);
     }
@@ -1429,6 +1554,20 @@ const AppContainer = () => {
             )}
           </button>
           <button
+            onClick={handleTopUp}
+            disabled={isProcessingPayment}
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+          >
+            {isProcessingPayment ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                {t("Processing...")}
+              </>
+            ) : (
+              <>{t("Top Up")}</>
+            )}
+          </button>
+          <button
             onClick={() => {
               setSelectedPlan(null);
               setOrderId(null);
@@ -1465,6 +1604,12 @@ const AppContainer = () => {
             className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             {t("Pay through Attendant")}
+          </button>
+          <button
+            onClick={handleTopUp}
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+          >
+            {t("Top Up")}
           </button>
           <button
             onClick={() => {
@@ -1699,6 +1844,103 @@ const AppContainer = () => {
         </div>
       )}
 
+      {/* Top Up Payment Modal */}
+      {showTopUpModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+            <button
+              onClick={() => {
+                setShowTopUpModal(false);
+                setTransactionId("");
+                setReceipt("");
+                setServiceId("");
+              }}
+              disabled={isProcessingPayment}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <Wallet className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">{t("Top Up")}</h2>
+              <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
+              <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
+              <p className="text-blue-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
+            </div>
+
+            {/* Transaction ID Input Section */}
+            <div className="mb-4">
+              <label htmlFor="topUpTransactionId" className="block text-sm font-medium text-gray-300 mb-2">
+                {t("Transaction ID")}
+              </label>
+              <input
+                id="topUpTransactionId"
+                type="text"
+                value={transactionId}
+                onChange={(e) => setTransactionId(e.target.value)}
+                placeholder={t("Enter transaction ID from your text messages")}
+                disabled={isProcessingPayment}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {t("Enter the transaction ID you received via text message from the attendant.")}
+              </p>
+            </div>
+
+            {/* Service ID Input Section */}
+            <div className="mb-6">
+              <label htmlFor="serviceId" className="block text-sm font-medium text-gray-300 mb-2">
+                {t("Service ID")}
+              </label>
+              <input
+                id="serviceId"
+                type="text"
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
+                placeholder={t("Enter service ID")}
+                disabled={isProcessingPayment}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {t("Enter the service ID for the top up.")}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowTopUpModal(false);
+                  setTransactionId("");
+                  setReceipt("");
+                  setServiceId("");
+                }}
+                disabled={isProcessingPayment}
+                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                onClick={handleTopUpPaymentConfirm}
+                disabled={isProcessingPayment || !transactionId.trim() || !serviceId.trim()}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+              >
+                {isProcessingPayment ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {t("Confirming...")}
+                  </>
+                ) : (
+                  <>{t("Confirm Top Up")}</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!isLoggedIn ? (
         <Login onLoginSuccess={handleLoginSuccess} />
       ) : (
@@ -1790,7 +2032,7 @@ const AppContainer = () => {
 export default AppContainer;
 // "use client";
 
-// import React, { useState, useEffect, useRef } from "react";
+// import React, { useState, useEffect, useRef, useCallback } from "react";
 // import { Toaster, toast } from "react-hot-toast";
 // import {
 //   Loader2,
@@ -1932,6 +2174,7 @@ export default AppContainer;
 //   const [fleetIds, setFleetIds] = useState<FleetIds | null>(null);
 //   const [stations, setStations] = useState<Station[]>([]);
 //   const [isLoadingStations, setIsLoadingStations] = useState<boolean>(false);
+//   const [activePlanId, setActivePlanId] = useState<string | null>(null);
 //   const bridgeInitRef = useRef(false);
 //   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
 //   const prevCustomerIdRef = useRef<number | null>(null);
@@ -2001,7 +2244,7 @@ export default AppContainer;
 //                 email: data.customer?.email || storedEmail || storedCustomerData.email || "",
 //                 phone: storedCustomerData.phone || data.customer?.phone || "",
 //                 partner_id: partnerId, // Use stored, or fallback to dashboard customer.id
-//                 company_id: 2, // Hardcode company_id to 2
+//                 company_id: 14, // Hardcode company_id to 14
 //               };
 //               console.log("checkAuth: Restored customer data with partner_id:", customerData.partner_id);
 //               console.log("checkAuth: Final customerData:", customerData);
@@ -2014,7 +2257,7 @@ export default AppContainer;
 //                 email: data.customer.email || storedEmail || "",
 //                 phone: data.customer.phone || "",
 //                 partner_id: data.customer.partner_id || data.customer.id, // Use customer.id as partner_id
-//                 company_id: 2, // Hardcode company_id to 2
+//                 company_id: 14, // Hardcode company_id to 14
 //               };
 //               console.log("checkAuth: Using dashboard customer data (fallback) with partner_id:", customerData.partner_id);
 //             }
@@ -2023,11 +2266,11 @@ export default AppContainer;
 //               // Update localStorage with merged customer data
 //               localStorage.setItem("customerData_rider", JSON.stringify(customerData));
 //               setCustomer(customerData);
-//               setIsLoggedIn(true);
-//               setCurrentPage("dashboard");
-//             } else {
+//             setIsLoggedIn(true);
+//             setCurrentPage("dashboard");
+//           } else {
 //               // No customer data available, clear and redirect
-//               localStorage.removeItem("userEmail");
+//             localStorage.removeItem("userEmail");
 //               localStorage.removeItem("authToken_rider");
 //               localStorage.removeItem("customerData_rider");
 //               setCurrentPage("products");
@@ -2142,13 +2385,81 @@ export default AppContainer;
 //     }
 //   };
 
+//   // Fetch active subscription to get planId
+//   const fetchActiveSubscription = useCallback(async (partnerId: number) => {
+//     try {
+//       console.info("Fetching active subscription for partner_id:", partnerId);
+//       const token = localStorage.getItem("authToken_rider");
+//       const headers: HeadersInit = {
+//         "Content-Type": "application/json",
+//         "X-API-KEY": "abs_connector_secret_key_2024",
+//       };
+
+//       if (token) {
+//         headers["Authorization"] = `Bearer ${token}`;
+//       }
+
+//       const url = `https://crm-omnivoltaic.odoo.com/api/customers/${partnerId}/subscriptions?page=1&limit=20`;
+//       console.info("Subscriptions endpoint:", url);
+//       const response = await fetch(url, {
+//         method: "GET",
+//         headers,
+//       });
+
+//       if (!response.ok) {
+//         console.error("Failed to fetch subscriptions:", response.status, response.statusText);
+//         return null;
+//       }
+
+//       const data = await response.json();
+//       console.info("=== Active Subscription Response ===");
+//       console.info("Response Status:", response.status);
+//       console.info("Full Response Data:", JSON.stringify(data, null, 2));
+
+//       if (data.success && Array.isArray(data.subscriptions)) {
+//         // Find the first active subscription
+//         const activeSubscription = data.subscriptions.find(
+//           (sub: any) => sub.status === "active"
+//         );
+
+//         if (activeSubscription) {
+//           console.info("Active subscription found:", activeSubscription.subscription_code);
+//           setActivePlanId(activeSubscription.subscription_code);
+//           return activeSubscription.subscription_code;
+//         } else {
+//           // This is expected for new users who haven't purchased a product yet
+//           console.info("No active subscription found - user may need to purchase a product first");
+//           return null;
+//         }
+//       } else {
+//         // Empty subscriptions array is normal for new users
+//         if (data.success && (!data.subscriptions || data.subscriptions.length === 0)) {
+//           console.info("No subscriptions found - user may need to purchase a product first");
+//         } else {
+//           console.warn("Invalid response format:", data);
+//         }
+//         return null;
+//       }
+//     } catch (error) {
+//       console.error("Error fetching active subscription:", error);
+//       return null;
+//     }
+//   }, []);
+
+//   // Reset activePlanId when customer logs out
+//   useEffect(() => {
+//     if (!customer?.id) {
+//       setActivePlanId(null);
+//     }
+//   }, [customer?.id]);
+
 //   // Fetch fleet IDs (unchanged)
 //   useEffect(() => {
 //     // Removed automatic fetchFleetIds - now triggered manually via "Find stations near me" button
 //   }, [isMqttConnected, bridge, lastKnownLocation, selectedPlan]);
 
 //   // Handler to manually trigger station finding
-//   const handleFindStations = () => {
+//   const handleFindStations = async () => {
 //     if (!bridge || !lastKnownLocation) {
 //       toast.error(t("Location not available. Please wait for GPS to initialize."));
 //       return;
@@ -2157,8 +2468,29 @@ export default AppContainer;
 //       toast.error(t("MQTT not connected. Please wait a moment and try again."));
 //       return;
 //     }
+//     if (!customer?.id) {
+//       toast.error(t("Please log in to find stations."));
+//       return;
+//     }
+
+//     if (!customer.partner_id) {
+//       toast.error(t("Partner information not available. Please log in again."));
+//       return;
+//     }
+
+//     // Fetch active subscription if not already loaded
+//     let planId = activePlanId;
+//     if (!planId) {
+//       toast.loading(t("Checking subscription status..."), { id: "checking-subscription" });
+//       planId = await fetchActiveSubscription(customer.partner_id);
+//       toast.dismiss("checking-subscription");
+      
+//       if (!planId) {
+//         toast.error(t("No active subscription found. Please purchase a product first."));
+//         return;
+//       }
+//     }
    
-//     const planId = "bss-plan-weekly-freedom-nairobi-v2-plan5";
 //     fetchFleetIds(planId);
 //   };
 
@@ -2761,7 +3093,7 @@ export default AppContainer;
 //       toast.error(t("Customer data not available. Please sign in again."));
 //       return null;
 //     }
-//     // company_id is hardcoded to 2, so this check is no longer needed
+//     // company_id is hardcoded to 14, so this check is no longer needed
 //     // if (!customer?.company_id) {
 //     //   toast.error(t("Company ID not available. Please sign in again."));
 //     //   return null;
@@ -2799,10 +3131,19 @@ export default AppContainer;
 
 //       const data = await response.json();
 
+//       console.info("=== Subscription Purchase Response ===");
+//       console.info("Response Status:", response.status);
+//       console.info("Response OK:", response.ok);
+//       console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+//       console.info("Full Response Data:", JSON.stringify(data, null, 2));
+//       console.info("Payload Sent:", JSON.stringify(purchaseData, null, 2));
+
 //       if (response.ok && data.success && data.order?.id) {
-//         console.log("Subscription purchase initiated:", data);
+//         console.info("Subscription purchase initiated successfully");
+//         console.info("Order Details:", JSON.stringify(data.order, null, 2));
 //         return data.order;
 //       } else {
+//         console.error("Subscription purchase failed:", data);
 //         throw new Error(data.message || "Failed to initiate subscription purchase");
 //       }
 //     } catch (error: any) {
@@ -2865,8 +3206,8 @@ export default AppContainer;
 //       const token = localStorage.getItem("authToken_rider");
       
 //       const headers: HeadersInit = {
-//         "Content-Type": "application/json",
-//         "X-API-KEY": "abs_connector_secret_key_2024",
+//             "Content-Type": "application/json",
+//             "X-API-KEY": "abs_connector_secret_key_2024",
 //       };
 
 //       if (token) {
@@ -2889,7 +3230,15 @@ export default AppContainer;
 
 //       const result = await response.json();
 
+//       console.info("=== Attendant Payment Confirmation Response ===");
+//       console.info("Response Status:", response.status);
+//       console.info("Response OK:", response.ok);
+//       console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+//       console.info("Full Response Data:", JSON.stringify(result, null, 2));
+//       console.info("Payload Sent:", JSON.stringify(payload, null, 2));
+
 //       if (response.ok) {
+//         console.info("Payment confirmation successful");
 //         toast.success(t("Payment confirmed successfully!"));
 //         setShowAttendantPaymentModal(false);
 //         setShowPaymentOptions(false);
@@ -2901,6 +3250,7 @@ export default AppContainer;
 //         // Refresh dashboard or navigate to transactions
 //         setCurrentPage("dashboard");
 //       } else {
+//         console.error("Payment confirmation failed:", result);
 //         throw new Error(result.message || result.error || t("Payment confirmation failed"));
 //       }
 //     } catch (error: any) {
@@ -2965,7 +3315,15 @@ export default AppContainer;
 
 //       const paymentResult = await paymentResponse.json();
 
+//       console.info("=== Payment Initiation Response ===");
+//       console.info("Response Status:", paymentResponse.status);
+//       console.info("Response OK:", paymentResponse.ok);
+//       console.info("Response Headers:", Object.fromEntries(paymentResponse.headers.entries()));
+//       console.info("Full Response Data:", JSON.stringify(paymentResult, null, 2));
+//       console.info("Payload Sent:", JSON.stringify(paymentData, null, 2));
+
 //       if (paymentResponse.ok) {
+//         console.info("Payment initiation successful");
 //         toast.success(t("Payment initiated successfully! Check your phone for confirmation."));
 //         setShowPaymentModal(false);
 //         setPhoneNumber("");
@@ -2973,6 +3331,7 @@ export default AppContainer;
 //         setOrderId(null);
 //         setPendingOrder(null);
 //       } else {
+//         console.error("Payment initiation failed:", paymentResult);
 //         throw new Error(paymentResult.message || t("Payment initiation failed. Please try again."));
 //       }
 //     } catch (error: any) {
@@ -3009,10 +3368,10 @@ export default AppContainer;
 //     console.log("handleLoginSuccess: Received customerData:", customerData);
 //     console.log("handleLoginSuccess: partner_id:", customerData.partner_id);
     
-//     // Hardcode company_id to 2
+//     // Hardcode company_id to 14
 //     const customerWithCompanyId = {
 //       ...customerData,
-//       company_id: 2,
+//       company_id: 14,
 //     };
     
 //     localStorage.setItem("userEmail", customerWithCompanyId.email);
