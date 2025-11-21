@@ -25,6 +25,7 @@ import Login from "./login";
 import Ticketing from "./ticketing";
 import SettingsPage from "./settings";
 import QRGenerator from "./qr-generator";
+import PaymentQR from "./payment-qr";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from '@/i18n';
 
@@ -130,7 +131,7 @@ const AppContainer = () => {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
   const [pendingOrder, setPendingOrder] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login" | "settings" | "qr-generator">("login");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login" | "settings" | "qr-generator" | "payment-qr">("login");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false);
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
@@ -1275,85 +1276,6 @@ const AppContainer = () => {
     }
   };
 
-  const handleTopUpPaymentConfirm = async () => {
-    if (!transactionId.trim()) {
-      toast.error(t("Please enter the transaction ID from your text messages"));
-      return;
-    }
-
-    if (!serviceId.trim()) {
-      toast.error(t("Please enter the service ID"));
-      return;
-    }
-
-    if (!pendingOrder?.subscription_code) {
-      toast.error(t("Subscription details not available. Please select the plan again."));
-      return;
-    }
-
-    setIsProcessingPayment(true);
-
-    try {
-      const token = localStorage.getItem("authToken_rider");
-      
-      const headers: HeadersInit = {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-      };
-
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const payload = {
-        subscription_code: pendingOrder.subscription_code,
-        receipt: transactionId.trim(),
-        service_id: serviceId.trim(),
-      };
-
-      const response = await fetch(
-        `${API_BASE}/lipay/manual-confirm`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await response.json();
-
-      console.info("=== Top Up Payment Confirmation Response ===");
-      console.info("Response Status:", response.status);
-      console.info("Response OK:", response.ok);
-      console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
-      console.info("Full Response Data:", JSON.stringify(result, null, 2));
-      console.info("Payload Sent:", JSON.stringify(payload, null, 2));
-
-      if (response.ok) {
-        console.info("Top up payment confirmation successful");
-        toast.success(t("Top up payment confirmed successfully!"));
-        setShowTopUpModal(false);
-        setShowPaymentOptions(false);
-        setSelectedPlan(null);
-        setOrderId(null);
-        setPendingOrder(null);
-        setTransactionId("");
-        setReceipt("");
-        setServiceId("");
-        // Refresh dashboard or navigate to transactions
-        setCurrentPage("dashboard");
-      } else {
-        console.error("Top up payment confirmation failed:", result);
-        throw new Error(result.message || result.error || t("Top up payment confirmation failed"));
-      }
-    } catch (error: any) {
-      console.error("Error confirming top up payment:", error);
-      toast.error(error.message || t("Failed to confirm top up payment. Please try again."));
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-
   const handlePaymentSubmit = async () => {
     const phoneRegex = /^\d{10}$/;
     if (!phoneNumber.trim() || !phoneRegex.test(phoneNumber)) {
@@ -1453,6 +1375,7 @@ const AppContainer = () => {
     { id: "charging stations", labelKey: "Charging Stations", icon: MapPin },
     { id: "support", labelKey: "Support", icon: HelpCircle },
     { id: "settings", labelKey: "Settings", icon: Settings },
+    { id: "payment-qr", labelKey: "Payment QR", icon: Wallet },
     { id: "qr-generator", labelKey: "My QR", icon: QrCode },
     { id: "logout", labelKey: "Logout", icon: LogOut },
   ];
@@ -1649,6 +1572,8 @@ const AppContainer = () => {
         return <Ticketing customer={customer} allPlans={allPlans} />;
       case "settings":
         return <SettingsPage />;
+      case "payment-qr":
+        return <PaymentQR customer={customer} />;
       case "qr-generator":
         return <QRGenerator customer={customer} isMqttConnected={isMqttConnected} />;
       case "login":
@@ -1922,20 +1847,6 @@ const AppContainer = () => {
               >
                 {t("Cancel")}
               </button>
-              <button
-                onClick={handleTopUpPaymentConfirm}
-                disabled={isProcessingPayment || !transactionId.trim() || !serviceId.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
-              >
-                {isProcessingPayment ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {t("Confirming...")}
-                  </>
-                ) : (
-                  <>{t("Confirm Top Up")}</>
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -2153,9 +2064,11 @@ export default AppContainer;
 //   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
 //   const [showPaymentOptions, setShowPaymentOptions] = useState<boolean>(false);
 //   const [showAttendantPaymentModal, setShowAttendantPaymentModal] = useState<boolean>(false);
+//   const [showTopUpModal, setShowTopUpModal] = useState<boolean>(false);
 //   const [phoneNumber, setPhoneNumber] = useState<string>("");
 //   const [transactionId, setTransactionId] = useState<string>("");
 //   const [receipt, setReceipt] = useState<string>("");
+//   const [serviceId, setServiceId] = useState<string>("");
 //   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
 //   const [customer, setCustomer] = useState<Customer | null>(null);
 //   const [orderId, setOrderId] = useState<number | null>(null);
@@ -2394,7 +2307,6 @@ export default AppContainer;
 //         "Content-Type": "application/json",
 //         "X-API-KEY": "abs_connector_secret_key_2024",
 //       };
-
 //       if (token) {
 //         headers["Authorization"] = `Bearer ${token}`;
 //       }
@@ -2992,10 +2904,33 @@ export default AppContainer;
 //       }
 //     });
 
+//     // Generate unique client ID to avoid conflicts when multiple devices connect
+//     // Format: rider-{userId}-{timestamp}-{random}
+//     const generateClientId = () => {
+//       const timestamp = Date.now();
+//       const random = Math.random().toString(36).substring(2, 9);
+//       // Try to get user ID from customer state, localStorage, or use guest
+//       let userId = "guest";
+//       try {
+//         if (customer?.id || customer?.partner_id) {
+//           userId = String(customer.id || customer.partner_id);
+//         } else {
+//           const storedCustomer = localStorage.getItem("customerData_rider");
+//           if (storedCustomer) {
+//             const parsed = JSON.parse(storedCustomer);
+//             userId = String(parsed.id || parsed.partner_id || "guest");
+//           }
+//         }
+//       } catch (e) {
+//         console.warn("Could not get user ID for client ID generation:", e);
+//       }
+//       return `rider-${userId}-${timestamp}-${random}`;
+//     };
+
 //     const mqttConfig: MqttConfig = {
 //       username: "Admin",
 //       password: "7xzUV@MT",
-//       clientId: "123",
+//       clientId: generateClientId(),
 //       hostname: "mqtt.omnivoltaic.com",
 //       port: 1883,
 //     };
@@ -3189,6 +3124,28 @@ export default AppContainer;
 //     setShowAttendantPaymentModal(true);
 //   };
 
+//   const handleTopUp = async () => {
+//     if (!selectedPlan) {
+//       toast.error(t("No plan selected"));
+//       return;
+//     }
+//     if (!orderId) {
+//       toast.error(t("Order data not available. Please select a plan again."));
+//       return;
+//     }
+//     if (!pendingOrder?.subscription_code) {
+//       toast.error(t("Subscription reference not available. Please select the plan again."));
+//       return;
+//     }
+
+//     // Reset transaction ID, receipt, and service ID inputs
+//     setTransactionId("");
+//     setReceipt("");
+//     setServiceId("");
+//     setShowPaymentOptions(false);
+//     setShowTopUpModal(true);
+//   };
+
 //   const handleAttendantPaymentConfirm = async () => {
 //     if (!transactionId.trim()) {
 //       toast.error(t("Please enter the transaction ID from your text messages"));
@@ -3256,6 +3213,85 @@ export default AppContainer;
 //     } catch (error: any) {
 //       console.error("Error confirming attendant payment:", error);
 //       toast.error(error.message || t("Failed to confirm payment. Please try again."));
+//     } finally {
+//       setIsProcessingPayment(false);
+//     }
+//   };
+
+//   const handleTopUpPaymentConfirm = async () => {
+//     if (!transactionId.trim()) {
+//       toast.error(t("Please enter the transaction ID from your text messages"));
+//       return;
+//     }
+
+//     if (!serviceId.trim()) {
+//       toast.error(t("Please enter the service ID"));
+//       return;
+//     }
+
+//     if (!pendingOrder?.subscription_code) {
+//       toast.error(t("Subscription details not available. Please select the plan again."));
+//       return;
+//     }
+
+//     setIsProcessingPayment(true);
+
+//     try {
+//       const token = localStorage.getItem("authToken_rider");
+      
+//       const headers: HeadersInit = {
+//             "Content-Type": "application/json",
+//             "X-API-KEY": "abs_connector_secret_key_2024",
+//       };
+
+//       if (token) {
+//         headers["Authorization"] = `Bearer ${token}`;
+//       }
+
+//       const payload = {
+//         subscription_code: pendingOrder.subscription_code,
+//         receipt: transactionId.trim(),
+//         service_id: serviceId.trim(),
+//       };
+
+//       const response = await fetch(
+//         `${API_BASE}/lipay/manual-confirm`,
+//         {
+//           method: "POST",
+//           headers,
+//           body: JSON.stringify(payload),
+//         }
+//       );
+
+//       const result = await response.json();
+
+//       console.info("=== Top Up Payment Confirmation Response ===");
+//       console.info("Response Status:", response.status);
+//       console.info("Response OK:", response.ok);
+//       console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+//       console.info("Full Response Data:", JSON.stringify(result, null, 2));
+//       console.info("Payload Sent:", JSON.stringify(payload, null, 2));
+
+//       if (response.ok) {
+//         console.info("Top up payment confirmation successful");
+//         toast.success(t("Top up payment confirmed successfully!"));
+//         setShowTopUpModal(false);
+//         setShowPaymentOptions(false);
+//         setSelectedPlan(null);
+//         setOrderId(null);
+//         setPendingOrder(null);
+//         setTransactionId("");
+//         setReceipt("");
+//         setServiceId("");
+//         // Refresh dashboard or navigate to transactions
+//         setCurrentPage("dashboard");
+//       } else {
+//         console.error("Top up payment confirmation failed:", result);
+//         throw new Error(result.message || result.error || t("Top up payment confirmation failed"));
+//       }
+//     } catch (error: any) {
+//       console.error("Error confirming top up payment:", error);
+//       toast.error(error.message || t("Failed to confirm top up payment. Please try again."));
 //     } finally {
 //       setIsProcessingPayment(false);
 //     }
@@ -3461,6 +3497,20 @@ export default AppContainer;
 //             )}
 //           </button>
 //           <button
+//             onClick={handleTopUp}
+//             disabled={isProcessingPayment}
+//             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+//           >
+//             {isProcessingPayment ? (
+//               <>
+//                 <Loader2 className="w-5 h-5 animate-spin" />
+//                 {t("Processing...")}
+//               </>
+//             ) : (
+//               <>{t("Top Up")}</>
+//             )}
+//           </button>
+//           <button
 //             onClick={() => {
 //               setSelectedPlan(null);
 //               setOrderId(null);
@@ -3497,6 +3547,12 @@ export default AppContainer;
 //             className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
 //           >
 //             {t("Pay through Attendant")}
+//           </button>
+//           <button
+//             onClick={handleTopUp}
+//             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+//           >
+//             {t("Top Up")}
 //           </button>
 //           <button
 //             onClick={() => {
@@ -3724,6 +3780,103 @@ export default AppContainer;
 //                   </>
 //                 ) : (
 //                   <>{t("Confirm Payment")}</>
+//                 )}
+//               </button>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Top Up Payment Modal */}
+//       {showTopUpModal && (
+//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+//           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+//             <button
+//               onClick={() => {
+//                 setShowTopUpModal(false);
+//                 setTransactionId("");
+//                 setReceipt("");
+//                 setServiceId("");
+//               }}
+//               disabled={isProcessingPayment}
+//               className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+//             >
+//               <X className="w-6 h-6" />
+//             </button>
+
+//             <div className="text-center mb-6">
+//               <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+//                 <Wallet className="w-8 h-8 text-white" />
+//               </div>
+//               <h2 className="text-2xl font-bold text-white mb-2">{t("Top Up")}</h2>
+//               <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
+//               <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
+//               <p className="text-blue-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
+//             </div>
+
+//             {/* Transaction ID Input Section */}
+//             <div className="mb-4">
+//               <label htmlFor="topUpTransactionId" className="block text-sm font-medium text-gray-300 mb-2">
+//                 {t("Transaction ID")}
+//               </label>
+//               <input
+//                 id="topUpTransactionId"
+//                 type="text"
+//                 value={transactionId}
+//                 onChange={(e) => setTransactionId(e.target.value)}
+//                 placeholder={t("Enter transaction ID from your text messages")}
+//                 disabled={isProcessingPayment}
+//                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+//               />
+//               <p className="text-xs text-gray-500 mt-1">
+//                 {t("Enter the transaction ID you received via text message from the attendant.")}
+//               </p>
+//             </div>
+
+//             {/* Service ID Input Section */}
+//             <div className="mb-6">
+//               <label htmlFor="serviceId" className="block text-sm font-medium text-gray-300 mb-2">
+//                 {t("Service ID")}
+//               </label>
+//               <input
+//                 id="serviceId"
+//                 type="text"
+//                 value={serviceId}
+//                 onChange={(e) => setServiceId(e.target.value)}
+//                 placeholder={t("Enter service ID")}
+//                 disabled={isProcessingPayment}
+//                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+//               />
+//               <p className="text-xs text-gray-500 mt-1">
+//                 {t("Enter the service ID for the top up.")}
+//               </p>
+//             </div>
+
+//             <div className="flex gap-3">
+//               <button
+//                 onClick={() => {
+//                   setShowTopUpModal(false);
+//                   setTransactionId("");
+//                   setReceipt("");
+//                   setServiceId("");
+//                 }}
+//                 disabled={isProcessingPayment}
+//                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+//               >
+//                 {t("Cancel")}
+//               </button>
+//               <button
+//                 onClick={handleTopUpPaymentConfirm}
+//                 disabled={isProcessingPayment || !transactionId.trim() || !serviceId.trim()}
+//                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+//               >
+//                 {isProcessingPayment ? (
+//                   <>
+//                     <Loader2 className="w-5 h-5 animate-spin" />
+//                     {t("Confirming...")}
+//                   </>
+//                 ) : (
+//                   <>{t("Confirm Top Up")}</>
 //                 )}
 //               </button>
 //             </div>
