@@ -1,10 +1,10 @@
-// login works well
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-hot-toast";
-import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe, Eye, EyeOff } from "lucide-react";
+import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe, Eye, EyeOff, QrCode } from "lucide-react";
 import { useI18n } from '@/i18n';
+import { useBridge } from "@/app/context/bridgeContext";
 
 // Define interfaces
 interface Customer {
@@ -43,11 +43,15 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const { t } = useI18n();
+  const { bridge } = useBridge();
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
+  const [scannedBatteryCode, setScannedBatteryCode] = useState<string | null>(null);
+  const [isScanningBattery, setIsScanningBattery] = useState<boolean>(false);
+  const bridgeInitRef = useRef(false);
   
   // Registration form state
   const [formData, setFormData] = useState<FormData>({
@@ -72,6 +76,85 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
   const [submitMessage, setSubmitMessage] = useState('');
+  const [assignBattery, setAssignBattery] = useState<boolean>(false);
+
+  // Load scanned battery code from localStorage on mount and when registration form is shown
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedBatteryCode = localStorage.getItem("assignedBatteryCode");
+    if (storedBatteryCode) {
+      setScannedBatteryCode(storedBatteryCode);
+    }
+  }, [showRegister]);
+
+  // Persist scanned battery code to localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (scannedBatteryCode) {
+        localStorage.setItem("assignedBatteryCode", scannedBatteryCode);
+      }
+    } catch (error) {
+      console.error("Failed to persist battery code:", error);
+    }
+  }, [scannedBatteryCode]);
+
+  // Setup bridge for QR code scanning
+  useEffect(() => {
+    if (!bridge || bridgeInitRef.current) return;
+
+    const setupBridge = () => {
+      bridgeInitRef.current = true;
+
+      const reg = (name: string, handler: any) => {
+        bridge.registerHandler(name, handler);
+        return () => bridge.registerHandler(name, () => {});
+      };
+
+      const offQr = reg("scanQrcodeResultCallBack", (data: string, resp: any) => {
+        try {
+          const parsed = JSON.parse(data);
+          const qrVal = parsed.respData?.value || "";
+          
+          if (qrVal) {
+            setScannedBatteryCode(qrVal);
+            localStorage.setItem('assignedBatteryCode', qrVal);
+            setIsScanningBattery(false);
+            toast.success(t('Battery code scanned successfully'));
+          }
+        } catch (err) {
+          console.error("Error processing QR code data:", err);
+          toast.error(t("Error processing QR code"));
+          setIsScanningBattery(false);
+        }
+        resp(data);
+      });
+
+      return () => {
+        offQr();
+        bridgeInitRef.current = false;
+      };
+    };
+
+    return setupBridge();
+  }, [bridge, t]);
+
+  // Start QR code scan
+  const startBatteryQrScan = useCallback(() => {
+    if (!bridge) {
+      toast.error(t("Bridge not initialized"));
+      return;
+    }
+
+    setIsScanningBattery(true);
+    bridge.callHandler(
+      "startQrCodeScan",
+      999,
+      (responseData: string) => {
+        console.info("QR Code Scan Response:", responseData);
+      }
+    );
+  }, [bridge, t]);
 
   // Validation functions
   const validateEmail = (email: string): boolean => {
@@ -329,6 +412,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         zip: '',
         country: '',
       });
+      setAssignBattery(false);
+      // Keep scannedBatteryCode in localStorage - don't clear it after registration
+      // Reload from localStorage to maintain persistence
+      const persistedBatteryCode = localStorage.getItem('assignedBatteryCode');
+      setScannedBatteryCode(persistedBatteryCode);
       setSubmitStatus(null);
       setErrors({});
       
@@ -551,13 +639,76 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 )}
               </div>
             </div>
+
+            {/* Assign Battery Checkbox */}
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="assignBattery"
+                  checked={assignBattery}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    setAssignBattery(isChecked);
+                    if (!isChecked) {
+                      setScannedBatteryCode(null);
+                      localStorage.removeItem('assignedBatteryCode');
+                    }
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <label htmlFor="assignBattery" className="text-sm text-gray-300 cursor-pointer">
+                  {t('Assign Battery')}
+                </label>
+              </div>
+              
+              {assignBattery && (
+                <div className="ml-6 space-y-2">
+                  {scannedBatteryCode ? (
+                    <div className="bg-green-900/30 border border-green-700 rounded-lg p-2">
+                      <p className="text-xs text-green-300 mb-1">{t('Battery Code Scanned')}:</p>
+                      <p className="text-sm font-mono text-green-200">{scannedBatteryCode}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScannedBatteryCode(null);
+                          localStorage.removeItem('assignedBatteryCode');
+                        }}
+                        className="mt-2 text-xs text-red-400 hover:text-red-300"
+                      >
+                        {t('Clear')}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startBatteryQrScan}
+                      disabled={isScanningBattery}
+                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:cursor-not-allowed text-sm"
+                    >
+                      {isScanningBattery ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {t('Scanning...')}
+                        </>
+                      ) : (
+                        <>
+                          <QrCode className="w-4 h-4" />
+                          {t('Scan Battery QR Code')}
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Buttons */}
           <div className="mt-6 space-y-3">
             <button
               onClick={handleRegister}
-              disabled={isSubmitting}
+              disabled={isSubmitting || (assignBattery && !scannedBatteryCode)}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
             >
               {isSubmitting ? (
