@@ -114,7 +114,7 @@ declare global {
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
-const AppContainer = () => {
+const AppContainer: React.FC = () => {
   const { t } = useI18n();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
@@ -1254,7 +1254,96 @@ const AppContainer = () => {
 
       if (response.ok) {
         console.info("Payment confirmation successful");
-        toast.success(t("Payment confirmed successfully!"));
+        toast.success(t("Payment confirmation successful"));
+        
+        // Wait 5 seconds then publish to payment_and_service
+        const subscriptionCode = pendingOrder?.subscription_code;
+        if (subscriptionCode && window.WebViewJavascriptBridge && bridge) {
+          console.info("=== Scheduling Payment and Service Publish (5 seconds) ===");
+          console.info("Subscription Code:", subscriptionCode);
+          
+          // Capture receipt value before setTimeout
+          const receiptValue = transactionId.trim();
+          
+          setTimeout(() => {
+            console.info("=== Publishing Payment and Service to MQTT (after 5 second delay) ===");
+            
+            // Get assigned battery code from localStorage
+            const assignedBatteryCode = localStorage.getItem("assignedBatteryCode");
+            const batteryId = assignedBatteryCode ? `BAT_NEW_${assignedBatteryCode}` : "BAT_NEW_001";
+            
+            const mqttPayload = {
+              timestamp: new Date().toISOString(),
+              plan_id: subscriptionCode,
+              correlation_id: `att-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              actor: {
+                type: "attendant",
+                id: "attendant-001",
+              },
+              data: {
+                action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+                attendant_station: "STATION_001",
+                payment_data: {
+                  service_id: "service-electricity-togo-1",
+                  payment_amount: 10,
+                  payment_reference: receiptValue,
+                  payment_method: "MPESA",
+                  payment_type: "DEPOSIT",
+                },
+                service_data: {
+                  new_battery_id: batteryId,
+                },
+              },
+            };
+
+            const mqttTopic = `emit/uxi/attendant/plan/${subscriptionCode}/payment_and_service`;
+            const dataToPublish = {
+              topic: mqttTopic,
+              qos: 0,
+              content: mqttPayload,
+            };
+
+            console.info("Topic:", mqttTopic);
+            console.info("Payload:", JSON.stringify(mqttPayload, null, 2));
+            console.info("Bridge available:", !!window.WebViewJavascriptBridge);
+
+            try {
+              if (window.WebViewJavascriptBridge) {
+                console.info("=== Calling mqttPublishMsg handler ===");
+                window.WebViewJavascriptBridge.callHandler(
+                  "mqttPublishMsg",
+                  JSON.stringify(dataToPublish),
+                  (mqttResponse) => {
+                    console.info("=== MQTT Publish Response Received ===");
+                    console.info("Raw Response:", mqttResponse);
+                    try {
+                      const responseData = typeof mqttResponse === 'string' ? JSON.parse(mqttResponse) : mqttResponse;
+                      console.info("Parsed Response:", JSON.stringify(responseData, null, 2));
+                      if (responseData.error || responseData.respCode !== "200") {
+                        console.error("❌ MQTT publish error:", responseData.respDesc || responseData.error || "Unknown error");
+                        toast.error(t("Failed to publish payment and service"));
+                      } else {
+                        console.info("✅ Payment and service published to MQTT successfully");
+                        toast.success(t("Payment and service completed"));
+                      }
+                    } catch (err) {
+                      console.error("❌ Error parsing MQTT publish response:", err);
+                      toast.error(t("Error processing MQTT response"));
+                    }
+                  }
+                );
+                console.info("=== mqttPublishMsg handler called successfully ===");
+              } else {
+                console.error("❌ WebViewJavascriptBridge not available for MQTT publish");
+                toast.error(t("Bridge not available"));
+              }
+            } catch (publishError) {
+              console.error("❌ Error calling mqttPublishMsg:", publishError);
+              toast.error(t("Failed to publish: ") + (publishError as Error).message);
+            }
+          }, 8000); // 5 second delay
+        }
+        
         setShowAttendantPaymentModal(false);
         setShowPaymentOptions(false);
         setSelectedPlan(null);
@@ -1271,6 +1360,85 @@ const AppContainer = () => {
     } catch (error: any) {
       console.error("Error confirming attendant payment:", error);
       toast.error(error.message || t("Failed to confirm payment. Please try again."));
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleTopUpPaymentConfirm = async () => {
+    if (!transactionId.trim()) {
+      toast.error(t("Please enter the transaction ID from your text messages"));
+      return;
+    }
+
+    if (!serviceId.trim()) {
+      toast.error(t("Please enter the service ID"));
+      return;
+    }
+
+    if (!pendingOrder?.subscription_code) {
+      toast.error(t("Subscription details not available. Please select the plan again."));
+      return;
+    }
+
+    setIsProcessingPayment(true);
+
+    try {
+      const token = localStorage.getItem("authToken_rider");
+      
+      const headers: HeadersInit = {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const payload = {
+        subscription_code: pendingOrder.subscription_code,
+        receipt: transactionId.trim(),
+        service_id: serviceId.trim(),
+      };
+
+      const response = await fetch(
+        `${API_BASE}/lipay/manual-confirm`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const result = await response.json();
+
+      console.info("=== Top Up Payment Confirmation Response ===");
+      console.info("Response Status:", response.status);
+      console.info("Response OK:", response.ok);
+      console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
+      console.info("Full Response Data:", JSON.stringify(result, null, 2));
+      console.info("Payload Sent:", JSON.stringify(payload, null, 2));
+
+      if (response.ok) {
+        console.info("Top up payment confirmation successful");
+        toast.success(t("Top up payment confirmed successfully!"));
+        setShowTopUpModal(false);
+        setShowPaymentOptions(false);
+        setSelectedPlan(null);
+        setOrderId(null);
+        setPendingOrder(null);
+        setTransactionId("");
+        setReceipt("");
+        setServiceId("");
+        // Refresh dashboard or navigate to transactions
+        setCurrentPage("dashboard");
+      } else {
+        console.error("Top up payment confirmation failed:", result);
+        throw new Error(result.message || result.error || t("Top up payment confirmation failed"));
+      }
+    } catch (error: any) {
+      console.error("Error confirming top up payment:", error);
+      toast.error(error.message || t("Failed to confirm top up payment. Please try again."));
     } finally {
       setIsProcessingPayment(false);
     }
@@ -1476,7 +1644,7 @@ const AppContainer = () => {
               <>{t("Pay through Attendant")}</>
             )}
           </button>
-          <button
+          {/* <button
             onClick={handleTopUp}
             disabled={isProcessingPayment}
             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
@@ -1489,7 +1657,7 @@ const AppContainer = () => {
             ) : (
               <>{t("Top Up")}</>
             )}
-          </button>
+          </button> */}
           <button
             onClick={() => {
               setSelectedPlan(null);
@@ -1528,12 +1696,12 @@ const AppContainer = () => {
           >
             {t("Pay through Attendant")}
           </button>
-          <button
+          {/* <button
             onClick={handleTopUp}
             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             {t("Top Up")}
-          </button>
+          </button> */}
           <button
             onClick={() => {
               setSelectedPlan(null);
@@ -1846,6 +2014,20 @@ const AppContainer = () => {
                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
                 {t("Cancel")}
+              </button>
+              <button
+                onClick={handleTopUpPaymentConfirm}
+                disabled={isProcessingPayment || !transactionId.trim() || !serviceId.trim()}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+              >
+                {isProcessingPayment ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {t("Confirming...")}
+                  </>
+                ) : (
+                  <>{t("Confirm Top Up")}</>
+                )}
               </button>
             </div>
           </div>

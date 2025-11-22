@@ -126,13 +126,6 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-2">{t("Generate Payment QR")}</h2>
-        <p className="text-gray-400">
-          {t("Create a payment QR code containing your subscription code and transaction ID.")}
-        </p>
-      </div>
-
       <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 space-y-4">
         {/* Subscription Code */}
         <div>

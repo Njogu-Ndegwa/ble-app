@@ -104,6 +104,8 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   );
   const [checkoutEnergyTransferred, setCheckoutEnergyTransferred] = useState<string>("");
   const [checkinEnergyTransferred, setCheckinEnergyTransferred] = useState<string>("");
+  const [checkoutErrorMessage, setCheckoutErrorMessage] = useState<string | null>(null);
+  const [isComputingEnergy, setIsComputingEnergy] = useState<boolean>(false);
   const [dynamicPlanId, setDynamicPlanId] = useState<string>(""); // Will be set from subscription_code in QR code
   const [isScanningPayment, setIsScanningPayment] = useState<boolean>(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState<boolean>(false);
@@ -153,6 +155,7 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const [phase4Status, setPhase4Status] = useState<{
     activity?: "pending" | "success" | "error";
     usage?: "pending" | "success" | "error";
+    payment_and_service?: "pending" | "success" | "error";
   }>({});
   
   const electricityService = useMemo(
@@ -541,10 +544,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                     const extractedPaymentState = servicePlanData.paymentState;
                     const extractedServiceState = servicePlanData.serviceState;
                     const extractedStatus = servicePlanData.status;
+                    // Show all service states, not just electricity service
                     const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
                       (service: any) =>
-                        typeof service?.service_id === "string" &&
-                        service.service_id.includes("service-electricity-togo")
+                        typeof service?.service_id === "string"
                     );
                     const inferredType = deriveCustomerTypeFromPayload(responseData);
                     
@@ -878,7 +881,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       // const cleanEquipmentId = equipmentIdString.replace(/^BAT_(NEW|RETURN)_ATT_/i, '');
       
       // Format equipment ID with BAT_NEW_ATT_ prefix for equipment identification
-      const formattedEquipmentId = `BAT_NEW_ATT_${equipmentIdString}`;
+      const formattedEquipmentId = `BAT_NEW_${equipmentIdString}`;
       
       setEquipmentData(equipmentIdString); // Store original for display
       
@@ -1236,6 +1239,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         !serviceData ||
         !Array.isArray(serviceData.characteristicList)
       ) {
+        setIsComputingEnergy(false); // Energy computation failed - invalid data
         return;
       }
 
@@ -1257,6 +1261,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           rcapRaw,
           pckvRaw,
         });
+        setIsComputingEnergy(false); // Energy computation failed
         return;
       }
 
@@ -1268,6 +1273,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           pckv,
           computedEnergy,
         });
+        setIsComputingEnergy(false); // Energy computation failed
         return;
       }
 
@@ -1275,6 +1281,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       const formattedEnergy = computedEnergy.toFixed(2);
       setCheckinEnergyTransferred(formattedEnergy);
       autoFilledCheckinEnergyRef.current = true;
+      setIsComputingEnergy(false); // Energy computation complete
       toast.success(t("Energy auto-filled from BLE device data"), {
         id: "checkin-energy-autofill",
       });
@@ -1430,10 +1437,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                     const extractedPaymentState = servicePlanData.paymentState;
                     const extractedServiceState = servicePlanData.serviceState;
                     const extractedStatus = servicePlanData.status;
+                    // Show all service states, not just electricity service
                     const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
                       (service: any) =>
-                        typeof service?.service_id === "string" &&
-                        service.service_id.includes("service-electricity-togo")
+                        typeof service?.service_id === "string"
                     );
                     const inferredType = deriveCustomerTypeFromPayload(responseData);
                     
@@ -1776,6 +1783,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           toast.success(t("BLE device connected successfully"));
           setDtaServiceData(null);
           autoFilledCheckinEnergyRef.current = false;
+          setIsComputingEnergy(true); // Start computing energy from BLE device
           initServiceBleData(
             {
               serviceName: "DTA",
@@ -1797,6 +1805,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           setIsConnectingBle(false);
           setBleConnectionProgress(0);
           setIsScanningCheckin(false);
+          setIsComputingEnergy(false); // Energy computation failed
           stopBleScan();
           scanTypeRef.current = null;
           toast.error(t("BLE connection failed. Please try again."));
@@ -1830,6 +1839,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
             resp(parsedData);
           } catch (err) {
             console.error("Error parsing BLE service data:", err);
+            setIsComputingEnergy(false); // Energy computation failed
             resp({ success: false, error: String(err) });
           }
         }
@@ -1839,6 +1849,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         "bleInitServiceDataFailureCallBack",
         (data: string) => {
           console.error("Failed to initialize DTA service:", data);
+          setIsComputingEnergy(false); // Energy computation failed
           toast.error(t("Unable to read device energy data. Please try again."));
         }
       );
@@ -2000,6 +2011,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     setBleConnectionProgress(0);
     setCheckinEnergyTransferred("");
     setDtaServiceData(null);
+    setIsComputingEnergy(false); // Reset energy computation state
     autoFilledCheckinEnergyRef.current = false;
     scanTypeRef.current = "checkin";
     setIsScanningCheckin(true);
@@ -2052,6 +2064,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     setEquipmentIdentified(false);
     setEquipmentIdentificationResponse({ received: false });
     setEquipmentErrorMessage(null);
+    setCheckoutErrorMessage(null);
     setPaymentState(null);
     setServiceState(null);
     setServicePlanStatus(null);
@@ -2066,6 +2079,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     setCheckoutEquipmentId(null);
     setCheckoutEnergyTransferred("");
     setCheckinEnergyTransferred("");
+    setIsComputingEnergy(false); // Reset energy computation state
     setDetectedBleDevices([]);
     setIsScanningBle(false);
     setIsConnectingBle(false);
@@ -2420,7 +2434,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     }
 
     setIsRunningPhase4(true);
-    setPhase4Status({ activity: "pending", usage: "pending" });
+    setPhase4Status((prev) => ({ ...prev, activity: "pending", usage: "pending" }));
 
     try {
     console.info("=== Starting Phase 4 Operations ===");
@@ -2469,20 +2483,6 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         ? `BAT_RETURN_ATT_${equipmentIdForCheckin}`
       : null;
 
-      const paymentServiceBatteryId = (() => {
-        if (!formattedCheckoutId) return null;
-        const marker = "ATT_";
-        const markerIndex = formattedCheckoutId.indexOf(marker);
-        if (markerIndex === -1) {
-          return checkoutEquipmentId ? `BAT_NEW_${checkoutEquipmentId}` : null;
-        }
-        const suffix = formattedCheckoutId.slice(markerIndex + marker.length);
-        if (!suffix) {
-          return checkoutEquipmentId ? `BAT_NEW_${checkoutEquipmentId}` : null;
-        }
-        return `BAT_NEW_${suffix}`;
-      })();
-
     const checkoutEnergy = checkoutEnergyTransferred.trim()
       ? parseFloat(checkoutEnergyTransferred)
       : 0;
@@ -2512,7 +2512,11 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     };
 
     if (customerType === "returning" && formattedCheckinId) {
-      serviceCompletionDetails.old_battery_id = formattedCheckinId;
+      // Format old_battery_id as BAT_NEW_<equipmentId>
+      const equipmentIdForCheckin = checkinEquipmentIdFull || checkinEquipmentId;
+      serviceCompletionDetails.old_battery_id = equipmentIdForCheckin 
+        ? `BAT_NEW_${equipmentIdForCheckin}` 
+        : formattedCheckinId;
     }
 
     mqttPublish(`emit/uxi/billing/plan/${dynamicPlanId}/usage_report`, {
@@ -2527,83 +2531,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       },
     });
 
-      // Call payment_and_service for both first-time and returning customers if payment was made
-      if (paymentConfirmed && calculatedPaymentAmount !== null && calculatedPaymentAmount > 0 && formattedCheckoutId) {
-        const serviceId = electricityService?.service_id || "service-electricity-togo-1";
-        const paymentAmount = calculatedPaymentAmount;
-        const paymentReference = paymentReceipt || `MPESA-TXN-${Date.now()}`;
-        
-        let paymentAndServicePayload: any;
-        
-        if (customerType === "returning" && formattedCheckinId) {
-          // Returning customer payload with old and new battery IDs
-          paymentAndServicePayload = {
-            timestamp: new Date().toISOString(),
-            plan_id: dynamicPlanId,
-            correlation_id: `att-txn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            actor: {
-              type: "attendant",
-              id: ATTENDANT_ID,
-            },
-            data: {
-              action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-              attendant_station: STATION,
-              payment_data: {
-                service_id: serviceId,
-                payment_amount: paymentAmount,
-                payment_reference: paymentReference,
-                payment_method: "MPESA",
-                payment_type: "TOP_UP",
-              },
-              service_data: {
-                old_battery_id: formattedCheckinId,
-                new_battery_id: formattedCheckoutId,
-                energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-                service_duration: 240,
-              },
-            },
-          };
-        } else if (customerType === "first-time" && paymentServiceBatteryId) {
-          // First-time customer payload (keep existing structure for backward compatibility)
-          paymentAndServicePayload = {
-            timestamp: new Date().toISOString(),
-            plan_id: dynamicPlanId,
-            correlation_id: `att-payment-service-${Date.now()}`,
-            actor: { type: "attendant", id: ATTENDANT_ID },
-            data: {
-              action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-              attendant_station: STATION,
-              payment_data: {
-                service_id: serviceId,
-                payment_amount: paymentAmount,
-                payment_reference: paymentReference,
-                payment_method: "MPESA",
-                payment_type: "DEPOSIT",
-              },
-              service_data: {
-                new_battery_id: paymentServiceBatteryId,
-              },
-            },
-          };
-        }
-
-        if (paymentAndServicePayload) {
-          mqttPublish(
-            `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`,
-            paymentAndServicePayload
-          );
-        }
-      }
-
       setPhase4Status((prev) => ({ ...prev, usage: "success" }));
 
-    console.info("=== Phase 4 Operations Completed ===");
-    
-    setTimeout(() => {
-      resetFlow();
-        setIsRunningPhase4(false);
-        setPhase4Status({});
-      }, 600);
+    console.info("=== Phase 4 Operations Published ===");
+    setIsRunningPhase4(false);
     } catch (error) {
       console.error("Phase 4 operations failed:", error);
       setIsRunningPhase4(false);
@@ -2621,18 +2552,15 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     checkoutEnergyTransferred,
     checkinEnergyTransferred,
     mqttPublish,
-    resetFlow,
     isRunningPhase4,
     customerData?.customer_id,
-    calculatedPaymentAmount,
-    paymentReceipt,
-    paymentConfirmed,
-    electricityService?.service_id,
   ]);
 
   const handleSwapComplete = useCallback(() => {
-    runPhase4Operations();
-  }, [runPhase4Operations]);
+    resetFlow();
+    setPhase4Status({});
+    setIsRunningPhase4(false);
+  }, [resetFlow]);
 
   const confirmManualPayment = useCallback(
     async ({
@@ -2703,298 +2631,198 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       return;
     }
 
+    if (!paymentConfirmed) {
+      toast.error(t("Payment confirmation is required before checkout"));
+      return;
+    }
+
+    setCheckoutErrorMessage(null);
     setIsRunningPhase3(true);
     setPhase3Status((prev: any) => ({ ...prev, checkout: "pending" }));
+    setPhase4Status((prev) => ({ ...prev, payment_and_service: "pending" }));
 
-    // Format equipment ID: BAT_NEW_ATT_{scanned_id}
-    const formattedEquipmentId = `BAT_NEW_ATT_${checkoutEquipmentId}`;
-    const correlationId = `att-checkout-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const requestTopic = `call/uxi/attendant/plan/${dynamicPlanId}/equipment_checkout`;
-    const responseTopic = "rtrn/#";
+    const formattedCheckoutId = checkoutEquipmentId
+      ? `BAT_NEW_ATT_${checkoutEquipmentId}`
+      : null;
+    const equipmentIdForCheckin = checkinEquipmentIdFull || checkinEquipmentId;
+    const formattedCheckinId = equipmentIdForCheckin
+      ? `BAT_RETURN_ATT_${equipmentIdForCheckin}`
+      : null;
 
-    // Calculate energy transferred based on customer type
-    // For returning customers: energy_transferred = checkout_energy - checkin_energy
-    // For first-time customers: energy_transferred = checkout_energy
+    const paymentServiceBatteryId = (() => {
+      if (!formattedCheckoutId) return null;
+      const marker = "ATT_";
+      const markerIndex = formattedCheckoutId.indexOf(marker);
+      if (markerIndex === -1) {
+        return checkoutEquipmentId ? `BAT_NEW_${checkoutEquipmentId}` : null;
+      }
+      const suffix = formattedCheckoutId.slice(markerIndex + marker.length);
+      if (!suffix) {
+        return checkoutEquipmentId ? `BAT_NEW_${checkoutEquipmentId}` : null;
+      }
+      return `BAT_NEW_${suffix}`;
+    })();
+
     const checkoutEnergy = checkoutEnergyTransferred.trim()
       ? parseFloat(checkoutEnergyTransferred)
       : 0;
     const checkinEnergy = checkinEnergyTransferred.trim()
       ? parseFloat(checkinEnergyTransferred)
       : 0;
-    
+
     let energyTransferred = 0;
     if (customerType === "returning") {
-      // For returning customers, calculate the difference
       energyTransferred = checkoutEnergy - checkinEnergy;
-      console.info(`[Checkout] Returning customer - Energy calculation: ${checkoutEnergy} (checkout) - ${checkinEnergy} (checkin) = ${energyTransferred} kWh`);
     } else {
-      // For first-time customers, use checkout energy directly
       energyTransferred = checkoutEnergy;
-      console.info(`[Checkout] First-time customer - Energy transferred: ${energyTransferred} kWh`);
     }
-    
-    // Ensure energy is not negative
     if (energyTransferred < 0) {
-      console.warn(`[Checkout] Calculated energy is negative (${energyTransferred}), setting to 0`);
       energyTransferred = 0;
     }
 
-    // Build payload - same for both first-time and returning customers
-    const payload = {
-      timestamp: new Date().toISOString(),
-      plan_id: dynamicPlanId,
-      correlation_id: correlationId,
-      actor: { type: "attendant", id: ATTENDANT_ID },
-      data: {
-        action: "EQUIPMENT_CHECKOUT",
-        replacement_equipment_id: formattedEquipmentId,
-        energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-        service_duration: 240,
-      },
-    };
+    const serviceId = electricityService?.service_id || "service-electricity-togo-1";
+    const paymentAmount =
+      calculatedPaymentAmount !== null ? calculatedPaymentAmount : 0;
+    const paymentReference = paymentReceipt || `MPESA-TXN-${Date.now()}`;
+    const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 9)}`;
 
+    let paymentAndServicePayload: any = null;
+
+    if (customerType === "returning" && formattedCheckinId) {
+      const oldBatteryId = equipmentIdForCheckin
+        ? `BAT_NEW_${equipmentIdForCheckin}`
+        : formattedCheckinId;
+
+      paymentAndServicePayload = {
+        timestamp: new Date().toISOString(),
+        plan_id: dynamicPlanId,
+        correlation_id: paymentCorrelationId,
+        actor: { type: "attendant", id: ATTENDANT_ID },
+        data: {
+          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+          attendant_station: STATION,
+          payment_data: {
+            service_id: serviceId,
+            payment_amount: paymentAmount,
+            payment_reference: paymentReference,
+            payment_method: "MPESA",
+            payment_type: "TOP_UP",
+          },
+          service_data: {
+            old_battery_id: oldBatteryId,
+            new_battery_id: formattedCheckoutId,
+            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+            service_duration: 240,
+          },
+        },
+      };
+    } else if (customerType === "first-time" && paymentServiceBatteryId) {
+      paymentAndServicePayload = {
+        timestamp: new Date().toISOString(),
+        plan_id: dynamicPlanId,
+        correlation_id: paymentCorrelationId,
+        actor: { type: "attendant", id: ATTENDANT_ID },
+        data: {
+          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+          attendant_station: STATION,
+          payment_data: {
+            service_id: serviceId,
+            payment_amount: paymentAmount,
+            payment_reference: paymentReference,
+            payment_method: "MPESA",
+            payment_type: "DEPOSIT",
+          },
+          service_data: {
+            new_battery_id: paymentServiceBatteryId,
+            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+            service_duration: 240,
+          },
+        },
+      };
+    }
+
+    if (!paymentAndServicePayload) {
+      const errorMessage = t("Unable to build checkout payload. Please retry.");
+      setCheckoutErrorMessage(errorMessage);
+      toast.error(errorMessage);
+      setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
+      setIsRunningPhase3(false);
+      setPhase4Status((prev) => ({ ...prev, payment_and_service: "error" }));
+      return;
+    }
+
+    const requestTopic = `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`;
+    
     const dataToPublish = {
       topic: requestTopic,
       qos: 0,
-      content: payload,
+      content: paymentAndServicePayload,
     };
 
-    console.info("=== Equipment Checkout MQTT ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Payload:", JSON.stringify(payload, null, 2));
-    console.info("Correlation ID:", correlationId);
-
-    const correlationKey = "__equipmentCheckoutCorrelationId";
-    (window as any)[correlationKey] = correlationId;
-
-    let settled = false;
-
-    const cleanup = () => {
-      if (settled) return;
-      settled = true;
-      (window as any)[correlationKey] = null;
-      deregister();
-      try {
-        bridge.callHandler(
-          "mqttUnSubTopic",
-          { topic: responseTopic, qos: 0 },
-          () => {}
-        );
-      } catch (err) {
-        console.warn("Checkout unsubscribe error", err);
-      }
-    };
-
-    const reg = (name: string, handler: any) => {
-      bridge.registerHandler(name, handler);
-      return () => bridge.registerHandler(name, () => {});
-    };
-
-    const handleIncomingMessage = (
-      data: string,
-      responseCallback: (response: any) => void
-    ) => {
-      try {
-        const parsedData = JSON.parse(data);
-        const topic = parsedData.topic;
-        const rawMessage = parsedData.message;
-
-        if (topic && (topic.startsWith("rtrn/") || topic.startsWith("echo/"))) {
-          let responseData: any;
-          try {
-            responseData =
-              typeof rawMessage === "string"
-                ? JSON.parse(rawMessage)
-                : rawMessage;
-          } catch (err) {
-            responseData = rawMessage;
+    // Publish payment_and_service and immediately proceed with reporting
+    console.info("Publishing payment_and_service payload to", requestTopic);
+    console.info("Payload:", JSON.stringify(paymentAndServicePayload, null, 2));
+    
+    bridge.callHandler(
+      "mqttPublishMsg",
+      JSON.stringify(dataToPublish),
+      (publishResponse: any) => {
+        try {
+          const pubResp =
+            typeof publishResponse === "string"
+              ? JSON.parse(publishResponse)
+              : publishResponse;
+          
+          if (pubResp?.error || pubResp?.respCode !== "200") {
+            console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
+            setCheckoutErrorMessage(t("Failed to publish payment and service"));
+            setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
+            setIsRunningPhase3(false);
+            setPhase4Status((prev) => ({ ...prev, payment_and_service: "error" }));
+            toast.error(t("Failed to publish payment and service"));
+          } else {
+            console.info("Payment and service published successfully");
+            // Immediately mark as success and run Phase 4 operations
+            setCheckoutErrorMessage(null);
+            setPhase3Status((prev: any) => ({ ...prev, checkout: "success" }));
+            setIsRunningPhase3(false);
+            setPhase4Status((prev) => ({
+              ...prev,
+              payment_and_service: "success",
+            }));
+            toast.success(t("Checkout completed"));
+            
+            // Immediately call Phase 4 operations
+            runPhase4Operations();
           }
-
-          console.info("=== Equipment Checkout MQTT Response ===");
-          console.info("Response Topic:", topic);
-          console.info("Response Payload:", JSON.stringify(responseData, null, 2));
-
-          const storedCorrelationId = (window as any)[correlationKey];
-          const responseCorrelationId =
-            responseData?.correlation_id ||
-            responseData?.metadata?.correlation_id;
-
-          console.info("Stored Correlation ID:", storedCorrelationId);
-          console.info("Response Correlation ID:", responseCorrelationId);
-
-          if (settled) {
-            console.warn("Handler already settled, ignoring response");
-            responseCallback({ success: true });
-            return;
-          }
-
-          const correlationMatches =
-            Boolean(storedCorrelationId) &&
-            Boolean(responseCorrelationId) &&
-            (responseCorrelationId === storedCorrelationId ||
-              responseCorrelationId.startsWith(storedCorrelationId) ||
-              storedCorrelationId.startsWith(responseCorrelationId));
-
-          console.info("Correlation matches:", correlationMatches);
-
-          if (correlationMatches && !settled) {
-            const successFlag =
-              responseData?.success === true ||
-              responseData?.data?.success === true ||
-              responseData?.metadata?.success === true;
-
-            const signals = responseData?.signals || responseData?.data?.signals || responseData?.metadata?.signals || [];
-            const hasRequiredSignal = Array.isArray(signals) && signals.includes("EQUIPMENT_CHECKOUT_REQUESTED");
-
-            console.info("Success flag:", successFlag);
-            console.info("Signals:", signals);
-            console.info("Has required signal:", hasRequiredSignal);
-
-            if (successFlag && hasRequiredSignal) {
-              cleanup();
-              setPhase3Status((prev: any) => ({ ...prev, checkout: "success" }));
-              setIsRunningPhase3(false);
-            } else {
-              const errorMessage =
-                responseData?.data?.error ||
-                responseData?.error ||
-                responseData?.data?.message ||
-                responseData?.message ||
-                (!successFlag
-                  ? "Equipment checkout failed: success flag false"
-                  : "Equipment checkout failed: required signal not found");
-
-              cleanup();
-              setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
-              setIsRunningPhase3(false);
-              console.error("Checkout error:", errorMessage);
-            }
-          }
-
-          responseCallback({ success: true });
+        } catch (err) {
+          console.error("Error parsing publish response:", err);
+          setCheckoutErrorMessage(t("Error processing publish response"));
+          setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
+          setIsRunningPhase3(false);
+          setPhase4Status((prev) => ({ ...prev, payment_and_service: "error" }));
+          toast.error(t("Error processing publish response"));
         }
-      } catch (err: any) {
-        console.error("Error parsing checkout response:", err);
-        responseCallback({ success: false, error: err?.message });
       }
-    };
-
-    const deregister = reg("mqttMsgArrivedCallBack", handleIncomingMessage);
-
-    const timeoutId = window.setTimeout(() => {
-      if (!settled) {
-        console.warn("Equipment checkout timed out");
-        cleanup();
-        setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
-        setIsRunningPhase3(false);
-      }
-    }, 45000);
-
-    const attemptMqttOperations = (retryCount = 0, maxRetries = 5) => {
-      bridge.callHandler(
-        "mqttSubTopic",
-        { topic: responseTopic, qos: 0 },
-        (subscribeResponse: any) => {
-          try {
-            const subResp =
-              typeof subscribeResponse === "string"
-                ? JSON.parse(subscribeResponse)
-                : subscribeResponse;
-            const errorMessage =
-              (subResp?.respDesc || subResp?.error || "").toString();
-            const isConnectionError = errorMessage
-              .toLowerCase()
-              .includes("not connected") ||
-              errorMessage.toLowerCase().includes("disconnected");
-
-            if (subResp?.respCode === "200") {
-              console.info("Successfully subscribed to", responseTopic);
-              setTimeout(() => {
-                try {
-                  console.info("Publishing checkout request to", requestTopic);
-                  bridge.callHandler(
-                    "mqttPublishMsg",
-                    JSON.stringify(dataToPublish),
-                    (publishResponse: any) => {
-                      try {
-                        const pubResp =
-                          typeof publishResponse === "string"
-                            ? JSON.parse(publishResponse)
-                            : publishResponse;
-                        const pubMessage =
-                          (pubResp?.respDesc || pubResp?.error || "").toString();
-                        const pubConnectionError = pubMessage
-                          .toLowerCase()
-                          .includes("not connected") ||
-                          pubMessage.toLowerCase().includes("disconnected");
-
-                        if (pubResp?.error || pubResp?.respCode !== "200") {
-                          if (pubConnectionError && retryCount < maxRetries) {
-                            setTimeout(() => {
-                              attemptMqttOperations(retryCount + 1, maxRetries);
-                            }, 1000);
-                          } else {
-                            clearTimeout(timeoutId);
-                            cleanup();
-                            setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
-                            setIsRunningPhase3(false);
-                            console.error("Checkout publish error:", pubMessage);
-                          }
-                        } else {
-                          console.info("Checkout request published successfully");
-                        }
-                      } catch (err) {
-                        console.error("Error parsing publish response:", err);
-                      }
-                    }
-                  );
-                } catch (err) {
-                  console.error("Error calling mqttPublishMsg:", err);
-                  if (retryCount < maxRetries) {
-                    setTimeout(() => {
-                      attemptMqttOperations(retryCount + 1, maxRetries);
-                    }, 1000);
-                  } else {
-                    clearTimeout(timeoutId);
-                    cleanup();
-                    setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
-                    setIsRunningPhase3(false);
-                  }
-                }
-              }, 300);
-            } else if (isConnectionError && retryCount < maxRetries) {
-              setTimeout(() => {
-                attemptMqttOperations(retryCount + 1, maxRetries);
-              }, 1000);
-            } else {
-              clearTimeout(timeoutId);
-              cleanup();
-              setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
-              setIsRunningPhase3(false);
-              console.error("Subscribe failed:", errorMessage);
-            }
-          } catch (err) {
-            console.error("Error parsing subscribe response:", err);
-            if (retryCount < maxRetries) {
-              setTimeout(() => {
-                attemptMqttOperations(retryCount + 1, maxRetries);
-              }, 1000);
-            } else {
-              clearTimeout(timeoutId);
-              cleanup();
-              setPhase3Status((prev: any) => ({ ...prev, checkout: "error" }));
-              setIsRunningPhase3(false);
-            }
-          }
-        }
-      );
-    };
-
-    setTimeout(() => {
-      attemptMqttOperations();
-    }, 500);
-  }, [bridge, checkoutEquipmentId, checkoutEnergyTransferred, checkinEnergyTransferred, customerType, dynamicPlanId, runPhase4Operations]);
+    );
+  }, [
+    bridge,
+    calculatedPaymentAmount,
+    checkoutEquipmentId,
+    checkoutEnergyTransferred,
+    checkinEnergyTransferred,
+    customerType,
+    dynamicPlanId,
+    paymentReceipt,
+    paymentConfirmed,
+    checkinEquipmentId,
+    checkinEquipmentIdFull,
+    electricityService?.service_id,
+    runPhase4Operations,
+    t,
+  ]);
 
   // Auto-progression: identification complete → move to transaction phase
   useEffect(() => {
@@ -3322,17 +3150,27 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       {t("Energy at Check-In (kWh)")}
                     </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={checkinEnergyTransferred}
-                      readOnly
-                      disabled
-                      className="w-full bg-gray-700 border border-gray-500 rounded-lg p-2 text-gray-400 cursor-not-allowed"
-                      placeholder="0.00"
-                    />
+                    {isComputingEnergy ? (
+                      <div className="w-full bg-gray-700 border border-gray-500 rounded-lg p-3 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                        <span className="text-sm text-gray-300">{t("Computing energy from battery...")}</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={checkinEnergyTransferred}
+                        readOnly
+                        disabled
+                        className="w-full bg-gray-700 border border-gray-500 rounded-lg p-2 text-gray-400 cursor-not-allowed"
+                        placeholder="0.00"
+                      />
+                    )}
                     <p className="text-xs text-gray-400 mt-1">
-                      {t("Energy is automatically calculated from BLE device data")}
+                      {isComputingEnergy 
+                        ? t("Please wait while energy is being calculated...")
+                        : t("Energy is automatically calculated from BLE device data")
+                      }
                     </p>
                   </div>
                 )}
@@ -3362,10 +3200,17 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                       phase3Status.checkin === undefined) && (
                       <button
                         onClick={handleEquipmentCheckin}
-                        disabled={isRunningPhase3}
+                        disabled={isRunningPhase3 || isComputingEnergy || !checkinEnergyTransferred}
                         className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all text-sm"
                       >
-                        <span className="whitespace-nowrap">{t("Process Check-In")}</span>
+                        {isComputingEnergy ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                            <span className="whitespace-nowrap">{t("Computing energy...")}</span>
+                          </>
+                        ) : (
+                          <span className="whitespace-nowrap">{t("Process Check-In")}</span>
+                        )}
                       </button>
                     )}
                   </div>
@@ -3491,7 +3336,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                         ? t("Scanning...")
                         : isConfirmingPayment
                         ? t("Processing...")
-                        : t("Proceed to Payment")}
+                        : t("Confirm Payment")}
                     </button>
                   </div>
                 )}
@@ -3529,6 +3374,9 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                         <span className="whitespace-nowrap">{t("Process Checkout")}</span>
                       </button>
                     )}
+                    {checkoutErrorMessage && (
+                      <p className="text-xs text-red-300">{checkoutErrorMessage}</p>
+                    )}
                   </div>
                 )}
               </>
@@ -3546,19 +3394,21 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                 </div>
               <button
                 onClick={handleSwapComplete}
-                disabled={isRunningPhase4}
+                disabled={phase4Status.payment_and_service !== "success"}
                 className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all text-sm"
               >
-                {isRunningPhase4 ? (
+                {phase4Status.payment_and_service === "success" ? (
+                  <span>{t("Swap Complete")}</span>
+                ) : (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    {t("Completing...")}
+                    {t("Awaiting confirmation...")}
                   </>
-                ) : (
-                  <span>{t("Swap Complete")}</span>
                 )}
               </button>
-              {(phase4Status.activity === "error" || phase4Status.usage === "error") && (
+              {(phase4Status.activity === "error" ||
+                phase4Status.usage === "error" ||
+                phase4Status.payment_and_service === "error") && (
                 <p className="text-xs text-red-300">
                   {t("Reporting failed. Please try again.")}
                 </p>
