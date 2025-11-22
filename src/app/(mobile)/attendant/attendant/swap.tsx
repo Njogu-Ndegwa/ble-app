@@ -2642,7 +2642,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     setPhase4Status((prev) => ({ ...prev, payment_and_service: "pending" }));
 
     const formattedCheckoutId = checkoutEquipmentId
-      ? `BAT_NEW_ATT_${checkoutEquipmentId}`
+      ? `BAT_NEW_${checkoutEquipmentId}`
       : null;
     const equipmentIdForCheckin = checkinEquipmentIdFull || checkinEquipmentId;
     const formattedCheckinId = equipmentIdForCheckin
