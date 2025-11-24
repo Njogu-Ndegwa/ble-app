@@ -124,7 +124,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         </div>
 
         {/* Sort and Filter */}
-        <div className="flex gap-2 mb-4">
+        {/* <div className="flex gap-2 mb-4">
           <button
             className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
             onClick={(e) => e.stopPropagation()}
@@ -143,7 +143,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
               <ListFilter />
             </span>
           </button>
-        </div>
+        </div> */}
 
         {/* List Items or Skeleton Loaders */}
         <div className="space-y-3">
