@@ -326,48 +326,52 @@
         /* Hero Section with Bikes */
         .role-hero {
             position: relative;
-            margin: 0 -20px;
-            padding: 20px 20px 0;
-            background: linear-gradient(180deg, 
-                rgba(248, 250, 252, 0.95) 0%, 
-                rgba(241, 245, 249, 0.9) 60%,
-                transparent 100%
-            );
-            border-radius: 0 0 32px 32px;
+            margin: 0 -20px 16px;
+            padding: 24px 24px 0;
+            background: #1e293b;
+            overflow: hidden;
         }
 
         [data-theme="light"] .role-hero {
-            background: linear-gradient(180deg, 
-                #ffffff 0%, 
-                #f8fafc 60%,
-                var(--bg-primary) 100%
-            );
+            background: #0f172a;
+        }
+
+        /* Gradient overlay */
+        .role-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(circle at 30% 80%, rgba(251, 146, 60, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(251, 146, 60, 0.08) 0%, transparent 40%);
+            pointer-events: none;
+        }
+
+        /* Bottom curve */
+        .role-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: -5%;
+            right: -5%;
+            height: 24px;
+            background: var(--bg-primary);
+            border-radius: 100% 100% 0 0;
         }
 
         .role-hero-image {
             position: relative;
+            z-index: 1;
             width: 100%;
-            max-width: 320px;
+            max-width: 340px;
             margin: 0 auto;
-            padding-bottom: 16px;
         }
 
         .role-hero-image img {
             width: 100%;
             height: auto;
             object-fit: contain;
-        }
-
-        /* Ground shadow */
-        .role-hero-shadow {
-            position: absolute;
-            bottom: 8px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 70%;
-            height: 20px;
-            background: radial-gradient(ellipse, rgba(0,0,0,0.15) 0%, transparent 70%);
-            border-radius: 50%;
+            display: block;
         }
 
         /* Title Section */
@@ -1651,7 +1655,6 @@
                     <div class="role-hero">
                         <div class="role-hero-image">
                             <img src="assets/Bikes Oves.png" alt="Electric Bikes">
-                            <div class="role-hero-shadow"></div>
                         </div>
                     </div>
 
