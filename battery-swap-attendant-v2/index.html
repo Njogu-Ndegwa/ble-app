@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>SwapFlow | Attendant</title>
+    <title>SwapFlow | Station App</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -168,6 +168,12 @@
             color: var(--accent-amber);
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .status-badge {
             display: flex;
             align-items: center;
@@ -191,13 +197,6 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
-        }
-
-        /* Header Right Section */
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
 
         /* Theme Toggle */
@@ -278,6 +277,21 @@
             z-index: 5;
         }
 
+        .main.no-padding-bottom {
+            padding-bottom: 20px;
+        }
+
+        /* Module/View States */
+        .module {
+            display: none;
+            height: 100%;
+        }
+
+        .module.active {
+            display: flex;
+            flex-direction: column;
+        }
+
         /* Screen States */
         .screen {
             display: none;
@@ -297,6 +311,318 @@
                 opacity: 1;
                 transform: translateY(0);
             }
+        }
+
+        /* ===================== */
+        /* ROLE SELECTION PAGE   */
+        /* ===================== */
+        .role-selection {
+            padding-top: 10px;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 100px);
+        }
+
+        .role-hero {
+            text-align: center;
+            padding: 20px 0 30px;
+        }
+
+        .role-hero-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 24px;
+            position: relative;
+        }
+
+        .role-hero-icon::before {
+            content: '';
+            position: absolute;
+            inset: 10px;
+            border: 3px dashed var(--border);
+            border-radius: var(--radius-lg);
+        }
+
+        .role-hero-icon svg {
+            width: 70px;
+            height: 70px;
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            color: var(--accent-amber);
+            filter: drop-shadow(0 4px 12px var(--accent-amber-glow));
+        }
+
+        .role-title {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 12px;
+        }
+
+        .role-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .role-description strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Applet Grid */
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            padding: 10px 0 24px;
+        }
+
+        .role-applet {
+            aspect-ratio: 1;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-xl);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 12px 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .role-applet::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--accent-amber-soft) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .role-applet:hover {
+            border-color: var(--accent-amber);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px -8px var(--accent-amber-glow);
+        }
+
+        .role-applet:hover::before {
+            opacity: 1;
+        }
+
+        .role-applet.selected {
+            border-color: var(--accent-amber);
+            background: var(--accent-amber-soft);
+        }
+
+        .role-applet.selected::after {
+            content: '';
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            background: var(--accent-amber);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .role-applet .check-icon {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 20px;
+            height: 20px;
+            color: var(--bg-primary);
+            z-index: 2;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.2s ease;
+        }
+
+        .role-applet.selected .check-icon {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .role-applet.disabled {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
+        .role-applet-image {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.25s ease;
+        }
+
+        .role-applet:hover .role-applet-image {
+            transform: scale(1.08);
+        }
+
+        .role-applet-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .role-applet-label {
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .role-applet-badge {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 3px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Station Info Card */
+        .station-info {
+            margin-top: auto;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .station-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--accent-amber-soft);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .station-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--accent-amber);
+        }
+
+        .station-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .station-name {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .station-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .station-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            background: var(--success-soft);
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--success);
+        }
+
+        .station-status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+        }
+
+        /* Role Page Action */
+        .role-action {
+            padding: 16px 0;
+        }
+
+        .role-action .btn {
+            width: 100%;
+        }
+
+        .role-action .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .role-action .btn.ready {
+            animation: btnPulse 0.3s ease;
+        }
+
+        @keyframes btnPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        /* ===================== */
+        /* ATTENDANT MODULE      */
+        /* ===================== */
+
+        /* Progress Steps */
+        .progress-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px 0 10px;
+            margin-bottom: 20px;
+        }
+
+        .progress-step {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .progress-step.active {
+            background: var(--accent-amber);
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .progress-step.completed {
+            background: var(--success);
         }
 
         /* Scan Screen */
@@ -468,8 +794,8 @@
             color: var(--text-muted);
         }
 
-        /* Verification Screen */
-        .battery-card {
+        /* Battery & Customer Cards */
+        .battery-card, .customer-card, .cost-card, .receipt-card {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
@@ -477,14 +803,14 @@
             margin-bottom: 20px;
         }
 
-        .battery-header {
+        .battery-header, .customer-header {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
             margin-bottom: 20px;
         }
 
-        .battery-id {
+        .battery-id, .customer-id {
             font-family: 'DM Mono', monospace;
             font-size: 13px;
             color: var(--text-muted);
@@ -554,6 +880,10 @@
             transition: height 0.5s ease;
         }
 
+        .battery-level.full {
+            background: linear-gradient(180deg, var(--success) 0%, #059669 100%);
+        }
+
         .battery-info {
             flex: 1;
         }
@@ -587,15 +917,10 @@
 
         /* Customer Info */
         .customer-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
             padding: 20px;
-            margin-bottom: 20px;
         }
 
         .customer-header {
-            display: flex;
             align-items: center;
             gap: 14px;
             margin-bottom: 16px;
@@ -611,18 +936,13 @@
             justify-content: center;
             font-size: 18px;
             font-weight: 600;
+            color: white;
         }
 
         .customer-name {
             font-size: 16px;
             font-weight: 500;
             margin-bottom: 2px;
-        }
-
-        .customer-id {
-            font-family: 'DM Mono', monospace;
-            font-size: 12px;
-            color: var(--text-muted);
         }
 
         .customer-details {
@@ -651,14 +971,6 @@
         }
 
         /* Cost Breakdown */
-        .cost-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            margin-bottom: 20px;
-        }
-
         .cost-title {
             font-size: 14px;
             font-weight: 500;
@@ -813,14 +1125,6 @@
             margin-bottom: 32px;
         }
 
-        .receipt-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            text-align: left;
-        }
-
         .receipt-header {
             display: flex;
             justify-content: space-between;
@@ -854,6 +1158,264 @@
 
         .receipt-value {
             font-weight: 500;
+        }
+
+        /* ===================== */
+        /* SALES REP MODULE      */
+        /* ===================== */
+
+        /* Form Styles */
+        .form-section {
+            margin-bottom: 24px;
+        }
+
+        .form-section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 15px;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-amber);
+            box-shadow: 0 0 0 3px var(--accent-amber-soft);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        /* Product Selection */
+        .product-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .product-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .product-card:hover {
+            border-color: var(--accent-amber);
+        }
+
+        .product-card.selected {
+            border-color: var(--accent-amber);
+            background: var(--accent-amber-soft);
+        }
+
+        .product-radio {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .product-card.selected .product-radio {
+            border-color: var(--accent-amber);
+            background: var(--accent-amber);
+        }
+
+        .product-radio::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.2s ease;
+        }
+
+        .product-card.selected .product-radio::after {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .product-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .product-price {
+            font-family: 'DM Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-amber);
+        }
+
+        .product-price-period {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* Customer Preview Card */
+        .preview-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .preview-avatar {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--info) 0%, #2563eb 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .preview-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .preview-phone {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .preview-badge {
+            margin-left: auto;
+            padding: 4px 10px;
+            background: var(--info-soft);
+            color: var(--info);
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .preview-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        /* Checkout Summary */
+        .checkout-summary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .checkout-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .checkout-item:last-child {
+            border-bottom: none;
+        }
+
+        .checkout-item-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .checkout-item-value {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .checkout-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: var(--success-soft);
+            border-radius: var(--radius-md);
+            margin-top: 12px;
+        }
+
+        .checkout-total-label {
+            font-weight: 500;
+            color: var(--success);
+        }
+
+        .checkout-total-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--success);
         }
 
         /* Bottom Action Bar */
@@ -930,6 +1492,17 @@
             box-shadow: 0 8px 24px -8px var(--success-glow);
         }
 
+        .btn-outline {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent-amber);
+            color: var(--accent-amber);
+        }
+
         /* Loading State */
         .loading-overlay {
             position: fixed;
@@ -969,47 +1542,31 @@
             font-size: 14px;
         }
 
-        /* Progress Steps */
-        .progress-bar {
+        /* Back to Roles Button */
+        .back-to-roles {
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 8px;
-            padding: 20px 0 10px;
-            margin-bottom: 20px;
+            padding: 8px 0;
+            margin-bottom: 16px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 13px;
+            transition: color 0.2s ease;
         }
 
-        .progress-step {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--border);
-            transition: all 0.3s ease;
+        .back-to-roles:hover {
+            color: var(--accent-amber);
         }
 
-        .progress-step.active {
-            background: var(--accent-amber);
-            width: 24px;
-            border-radius: 4px;
-        }
-
-        .progress-step.completed {
-            background: var(--success);
+        .back-to-roles svg {
+            width: 16px;
+            height: 16px;
         }
 
         /* Utility */
         .hidden {
             display: none !important;
-        }
-
-        /* Animations */
-        .fade-in {
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
         }
 
         /* Scrollbar */
@@ -1041,17 +1598,15 @@
                 <div class="logo-text">Swap<span>Flow</span></div>
             </div>
             <div class="header-right">
-                <div class="status-badge">
+                <div class="status-badge" id="statusBadge">
                     <span class="status-dot"></span>
                     Online
                 </div>
                 <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
-                    <!-- Sun Icon (for light mode) -->
                     <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="5"/>
                         <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
                     </svg>
-                    <!-- Moon Icon (for dark mode) -->
                     <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                     </svg>
@@ -1059,224 +1614,582 @@
             </div>
         </header>
 
-        <!-- Progress Bar -->
-        <div class="progress-bar">
-            <div class="progress-step active" data-step="1"></div>
-            <div class="progress-step" data-step="2"></div>
-            <div class="progress-step" data-step="3"></div>
-            <div class="progress-step" data-step="4"></div>
+        <!-- ==================== -->
+        <!-- ROLE SELECTION MODULE -->
+        <!-- ==================== -->
+        <div class="module active" id="module-roles">
+            <main class="main no-padding-bottom">
+                <div class="role-selection">
+                    <!-- Hero Section -->
+                    <div class="role-hero">
+                        <div class="role-hero-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M13.5 2L4 14h7v8l9.5-12H13.5V2z"/>
+                            </svg>
+                        </div>
+                        <h1 class="role-title">Select Your Role</h1>
+                        <p class="role-description">
+                            Choose <strong>your role</strong> to access the right tools for your daily tasks at the station.
+                        </p>
+                    </div>
+
+                    <!-- Applet Grid -->
+                    <div class="role-grid">
+                        <!-- Swap Attendant -->
+                        <div class="role-applet" onclick="toggleRoleSelection(this, 'attendant')" data-role="attendant">
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            <div class="role-applet-image">
+                                <img src="assets/Attendant.png" alt="Swap Attendant">
+                            </div>
+                            <span class="role-applet-label">Attendant</span>
+                        </div>
+
+                        <!-- Sales Rep -->
+                        <div class="role-applet" onclick="toggleRoleSelection(this, 'sales')" data-role="sales">
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            <div class="role-applet-image">
+                                <img src="assets/Sales.png" alt="Sales Rep">
+                            </div>
+                            <span class="role-applet-label">Sales Rep</span>
+                        </div>
+
+                        <!-- Station Manager -->
+                        <div class="role-applet disabled" onclick="toggleRoleSelection(this, 'manager')" data-role="manager">
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            <div class="role-applet-image">
+                                <img src="assets/Keypad.png" alt="Station Manager">
+                            </div>
+                            <span class="role-applet-label">Manager</span>
+                            <span class="role-applet-badge">Coming Soon</span>
+                        </div>
+
+                        <!-- Rider -->
+                        <div class="role-applet disabled" onclick="toggleRoleSelection(this, 'rider')" data-role="rider">
+                            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            <div class="role-applet-image">
+                                <img src="assets/Rider.png" alt="Rider">
+                            </div>
+                            <span class="role-applet-label">Rider</span>
+                            <span class="role-applet-badge">Coming Soon</span>
+                        </div>
+                    </div>
+
+                    <!-- Station Info -->
+                    <div class="station-info">
+                        <div class="station-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                        </div>
+                        <div class="station-details">
+                            <div class="station-name">Westlands Swap Station</div>
+                            <div class="station-id">STN-NRB-042</div>
+                        </div>
+                        <div class="station-status">
+                            <span class="station-status-dot"></span>
+                            Online
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <div class="role-action">
+                        <button class="btn btn-primary" id="role-continue-btn" onclick="proceedWithRole()" disabled>
+                            <span>Continue</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </main>
         </div>
 
-        <!-- Main Content -->
-        <main class="main">
-            <!-- Screen 1: Scan Battery -->
-            <div class="screen active" id="screen-scan">
-                <div class="scan-prompt">
-                    <h1 class="scan-title">Scan Battery</h1>
-                    <p class="scan-subtitle">Point camera at the battery barcode</p>
-                    
-                    <div class="scanner-area" onclick="simulateScan()">
+        <!-- ==================== -->
+        <!-- ATTENDANT MODULE     -->
+        <!-- ==================== -->
+        <div class="module" id="module-attendant">
+            <!-- Progress Bar -->
+            <div class="progress-bar">
+                <div class="progress-step active" data-step="1"></div>
+                <div class="progress-step" data-step="2"></div>
+                <div class="progress-step" data-step="3"></div>
+                <div class="progress-step" data-step="4"></div>
+            </div>
+
+            <main class="main">
+                <!-- Back to Roles -->
+                <div class="back-to-roles" onclick="backToRoles()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Change Role
+                </div>
+
+                <!-- Screen 1: Scan Battery -->
+                <div class="screen active" id="att-screen-scan">
+                    <div class="scan-prompt">
+                        <h1 class="scan-title">Scan Battery</h1>
+                        <p class="scan-subtitle">Point camera at the battery barcode</p>
+                        
+                        <div class="scanner-area" onclick="attSimulateScan()">
+                            <div class="scanner-frame">
+                                <div class="scanner-corners">
+                                    <div class="scanner-corner-bl"></div>
+                                    <div class="scanner-corner-br"></div>
+                                </div>
+                                <div class="scanner-line"></div>
+                                <div class="scanner-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                        <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <p class="scan-hint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4M12 8h.01"/>
+                            </svg>
+                            Tap scanner area to simulate
+                        </p>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-value">24</div>
+                            <div class="stat-label">Today</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">156</div>
+                            <div class="stat-label">This Week</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">98%</div>
+                            <div class="stat-label">Success</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 2: Verification -->
+                <div class="screen" id="att-screen-verify">
+                    <div class="battery-card">
+                        <div class="battery-header">
+                            <div>
+                                <div class="battery-id">BAT-2024-7829</div>
+                                <div class="battery-name">PowerCell X60</div>
+                            </div>
+                            <span class="battery-status verified">Verified</span>
+                        </div>
+                        
+                        <div class="battery-visual">
+                            <div class="battery-icon-large">
+                                <div class="battery-level" style="--level: 35%;"></div>
+                            </div>
+                            <div class="battery-info">
+                                <div class="battery-charge">35%</div>
+                                <div class="battery-charge-label">Remaining Charge</div>
+                                <div class="battery-meta">
+                                    <div class="battery-meta-item">Cycles: <span>142</span></div>
+                                    <div class="battery-meta-item">Health: <span>94%</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customer-card">
+                        <div class="customer-header">
+                            <div class="customer-avatar">JM</div>
+                            <div>
+                                <div class="customer-name">James Mwangi</div>
+                                <div class="customer-id">CUS-8847-KE</div>
+                            </div>
+                        </div>
+                        <div class="customer-details">
+                            <div class="detail-item">
+                                <div class="detail-label">Phone</div>
+                                <div class="detail-value">+254 712 ***456</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Plan</div>
+                                <div class="detail-value">Pay-Per-Swap</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Last Swap</div>
+                                <div class="detail-value">2 days ago</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Total Swaps</div>
+                                <div class="detail-value">34</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 3: Payment -->
+                <div class="screen" id="att-screen-payment">
+                    <div class="cost-card">
+                        <div class="cost-title">Swap Cost Breakdown</div>
+                        <div class="cost-row">
+                            <span class="cost-label">Energy Used (65%)</span>
+                            <span class="cost-value">KES 195.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span class="cost-label">Service Fee</span>
+                            <span class="cost-value">KES 20.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span class="cost-label">Loyalty Discount</span>
+                            <span class="cost-value" style="color: var(--success);">-KES 15.00</span>
+                        </div>
+                        <div class="cost-total">
+                            <span class="cost-total-label">Total Amount</span>
+                            <span class="cost-total-value">KES 200</span>
+                        </div>
+                    </div>
+
+                    <div class="payment-scan">
+                        <h2 class="payment-title">Confirm Payment</h2>
+                        <p class="payment-subtitle">Scan customer's payment QR code</p>
+                        
+                        <div class="qr-scanner-area" onclick="attSimulatePayment()">
+                            <div class="qr-scanner-frame">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="7"/>
+                                    <rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="14" y="14" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <div class="payment-amount">KES 200.00</div>
+                        <div class="payment-status">Awaiting payment confirmation</div>
+                    </div>
+                </div>
+
+                <!-- Screen 4: Success -->
+                <div class="screen" id="att-screen-success">
+                    <div class="success-screen">
+                        <div class="success-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                        </div>
+                        <h2 class="success-title">Swap Complete!</h2>
+                        <p class="success-message">Hand over the fully charged battery to customer</p>
+                        
+                        <div class="receipt-card">
+                            <div class="receipt-header">
+                                <span class="receipt-title">Transaction Receipt</span>
+                                <span class="receipt-id">#TXN-892741</span>
+                            </div>
+                            <div class="receipt-row">
+                                <span class="receipt-label">Customer</span>
+                                <span class="receipt-value">James Mwangi</span>
+                            </div>
+                            <div class="receipt-row">
+                                <span class="receipt-label">Battery Out</span>
+                                <span class="receipt-value">BAT-2024-7829 (35%)</span>
+                            </div>
+                            <div class="receipt-row">
+                                <span class="receipt-label">Battery In</span>
+                                <span class="receipt-value">BAT-2024-3156 (100%)</span>
+                            </div>
+                            <div class="receipt-row">
+                                <span class="receipt-label">Amount Paid</span>
+                                <span class="receipt-value" style="color: var(--success);">KES 200.00</span>
+                            </div>
+                            <div class="receipt-row">
+                                <span class="receipt-label">Time</span>
+                                <span class="receipt-value">14:32:07</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Attendant Action Bar -->
+            <div class="action-bar">
+                <div class="action-bar-inner">
+                    <button class="btn btn-secondary hidden" id="att-btn-back" onclick="attGoBack()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        Back
+                    </button>
+                    <button class="btn btn-primary" id="att-btn-main" onclick="attHandleMainAction()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="att-btn-icon">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+                        </svg>
+                        <span id="att-btn-text">Scan Battery</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== -->
+        <!-- SALES REP MODULE     -->
+        <!-- ==================== -->
+        <div class="module" id="module-sales">
+            <!-- Progress Bar -->
+            <div class="progress-bar">
+                <div class="progress-step active" data-step="1"></div>
+                <div class="progress-step" data-step="2"></div>
+                <div class="progress-step" data-step="3"></div>
+                <div class="progress-step" data-step="4"></div>
+            </div>
+
+            <main class="main">
+                <!-- Back to Roles -->
+                <div class="back-to-roles" onclick="backToRoles()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Change Role
+                </div>
+
+                <!-- Screen 1: Customer Registration -->
+                <div class="screen active" id="sales-screen-register">
+                    <h2 class="scan-title" style="text-align: center; margin-bottom: 8px;">New Customer</h2>
+                    <p class="scan-subtitle" style="text-align: center; margin-bottom: 24px;">Enter customer details to get started</p>
+
+                    <div class="form-section">
+                        <div class="form-section-title">Personal Information</div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-input" id="firstName" placeholder="John">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-input" id="lastName" placeholder="Doe">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-input" id="phone" placeholder="+254 7XX XXX XXX">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">National ID</label>
+                            <input type="text" class="form-input" id="nationalId" placeholder="Enter ID number">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">Vehicle Information</div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Vehicle Registration</label>
+                            <input type="text" class="form-input" id="vehicleReg" placeholder="KXX 000X">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Vehicle Type</label>
+                                <input type="text" class="form-input" id="vehicleType" placeholder="Motorcycle">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Model</label>
+                                <input type="text" class="form-input" id="vehicleModel" placeholder="TVS HLX 125">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 2: Select Subscription -->
+                <div class="screen" id="sales-screen-subscription">
+                    <h2 class="scan-title" style="text-align: center; margin-bottom: 8px;">Choose Plan</h2>
+                    <p class="scan-subtitle" style="text-align: center; margin-bottom: 24px;">Select a subscription package</p>
+
+                    <div class="product-grid">
+                        <div class="product-card" onclick="selectProduct(this, 'daily')">
+                            <div class="product-radio"></div>
+                            <div class="product-info">
+                                <div class="product-name">Daily Pass</div>
+                                <div class="product-desc">Unlimited swaps for 24 hours</div>
+                            </div>
+                            <div class="product-price">
+                                KES 150
+                                <span class="product-price-period">/day</span>
+                            </div>
+                        </div>
+
+                        <div class="product-card selected" onclick="selectProduct(this, 'weekly')">
+                            <div class="product-radio"></div>
+                            <div class="product-info">
+                                <div class="product-name">Weekly Plan</div>
+                                <div class="product-desc">Unlimited swaps for 7 days</div>
+                            </div>
+                            <div class="product-price">
+                                KES 800
+                                <span class="product-price-period">/week</span>
+                            </div>
+                        </div>
+
+                        <div class="product-card" onclick="selectProduct(this, 'monthly')">
+                            <div class="product-radio"></div>
+                            <div class="product-info">
+                                <div class="product-name">Monthly Plan</div>
+                                <div class="product-desc">Unlimited swaps for 30 days</div>
+                            </div>
+                            <div class="product-price">
+                                KES 2,500
+                                <span class="product-price-period">/month</span>
+                            </div>
+                        </div>
+
+                        <div class="product-card" onclick="selectProduct(this, 'payperswap')">
+                            <div class="product-radio"></div>
+                            <div class="product-info">
+                                <div class="product-name">Pay-Per-Swap</div>
+                                <div class="product-desc">Pay only when you swap</div>
+                            </div>
+                            <div class="product-price">
+                                KES 0
+                                <span class="product-price-period">deposit</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 3: Assign Battery -->
+                <div class="screen" id="sales-screen-battery">
+                    <h2 class="scan-title" style="text-align: center; margin-bottom: 8px;">Assign Battery</h2>
+                    <p class="scan-subtitle" style="text-align: center; margin-bottom: 24px;">Scan a battery to assign to customer</p>
+
+                    <!-- Customer Preview -->
+                    <div class="preview-card">
+                        <div class="preview-header">
+                            <div class="preview-avatar" id="sales-avatar">JD</div>
+                            <div>
+                                <div class="preview-name" id="sales-customer-name">John Doe</div>
+                                <div class="preview-phone" id="sales-customer-phone">+254 712 345 678</div>
+                            </div>
+                            <span class="preview-badge" id="sales-plan-badge">Weekly Plan</span>
+                        </div>
+                        <div class="preview-details">
+                            <div class="detail-item">
+                                <div class="detail-label">Vehicle</div>
+                                <div class="detail-value" id="sales-vehicle">KXX 000X</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">National ID</div>
+                                <div class="detail-value" id="sales-id">*****678</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Battery Scanner -->
+                    <div class="scanner-area" onclick="salesSimulateBatteryScan()" style="width: 200px; height: 200px; margin: 20px auto;">
                         <div class="scanner-frame">
-                            <div class="scanner-corners">
+                            <div class="scanner-corners" style="inset: 15px;">
                                 <div class="scanner-corner-bl"></div>
                                 <div class="scanner-corner-br"></div>
                             </div>
                             <div class="scanner-line"></div>
                             <div class="scanner-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                    <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width: 48px; height: 48px;">
+                                    <rect x="2" y="6" width="20" height="12" rx="2"/>
+                                    <path d="M22 10v4"/>
+                                    <path d="M6 10v4"/>
                                 </svg>
                             </div>
                         </div>
                     </div>
-                    
+
                     <p class="scan-hint">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10"/>
                             <path d="M12 16v-4M12 8h.01"/>
                         </svg>
-                        Tap scanner area to simulate
+                        Tap to scan battery barcode
                     </p>
                 </div>
 
-                <div class="stats-row">
-                    <div class="stat-card">
-                        <div class="stat-value">24</div>
-                        <div class="stat-label">Today</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">156</div>
-                        <div class="stat-label">This Week</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">98%</div>
-                        <div class="stat-label">Success</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Screen 2: Verification -->
-            <div class="screen" id="screen-verify">
-                <div class="battery-card">
-                    <div class="battery-header">
-                        <div>
-                            <div class="battery-id">BAT-2024-7829</div>
-                            <div class="battery-name">PowerCell X60</div>
+                <!-- Screen 4: Checkout/Success -->
+                <div class="screen" id="sales-screen-checkout">
+                    <div class="success-screen" style="padding-top: 30px;">
+                        <div class="success-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
                         </div>
-                        <span class="battery-status verified">Verified</span>
-                    </div>
-                    
-                    <div class="battery-visual">
-                        <div class="battery-icon-large">
-                            <div class="battery-level" style="--level: 35%;"></div>
-                        </div>
-                        <div class="battery-info">
-                            <div class="battery-charge">35%</div>
-                            <div class="battery-charge-label">Remaining Charge</div>
-                            <div class="battery-meta">
-                                <div class="battery-meta-item">Cycles: <span>142</span></div>
-                                <div class="battery-meta-item">Health: <span>94%</span></div>
+                        <h2 class="success-title">Registration Complete!</h2>
+                        <p class="success-message">Customer has been registered successfully</p>
+                        
+                        <!-- Checkout Summary -->
+                        <div class="checkout-summary" style="text-align: left;">
+                            <div class="receipt-header">
+                                <span class="receipt-title">Registration Summary</span>
+                                <span class="receipt-id" id="sales-reg-id">#REG-104782</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Customer</span>
+                                <span class="checkout-item-value" id="checkout-name">John Doe</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Phone</span>
+                                <span class="checkout-item-value" id="checkout-phone">+254 712 345 678</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Plan</span>
+                                <span class="checkout-item-value" id="checkout-plan">Weekly Plan</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Battery Assigned</span>
+                                <span class="checkout-item-value" id="checkout-battery">BAT-2024-1156</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Battery Charge</span>
+                                <span class="checkout-item-value" style="color: var(--success);">100%</span>
+                            </div>
+                            <div class="checkout-total">
+                                <span class="checkout-total-label">Amount Due</span>
+                                <span class="checkout-total-value" id="checkout-amount">KES 800</span>
                             </div>
                         </div>
                     </div>
                 </div>
+            </main>
 
-                <div class="customer-card">
-                    <div class="customer-header">
-                        <div class="customer-avatar">JM</div>
-                        <div>
-                            <div class="customer-name">James Mwangi</div>
-                            <div class="customer-id">CUS-8847-KE</div>
-                        </div>
-                    </div>
-                    <div class="customer-details">
-                        <div class="detail-item">
-                            <div class="detail-label">Phone</div>
-                            <div class="detail-value">+254 712 ***456</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Plan</div>
-                            <div class="detail-value">Pay-Per-Swap</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Last Swap</div>
-                            <div class="detail-value">2 days ago</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Total Swaps</div>
-                            <div class="detail-value">34</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Screen 3: Payment -->
-            <div class="screen" id="screen-payment">
-                <div class="cost-card">
-                    <div class="cost-title">Swap Cost Breakdown</div>
-                    <div class="cost-row">
-                        <span class="cost-label">Energy Used (65%)</span>
-                        <span class="cost-value">KES 195.00</span>
-                    </div>
-                    <div class="cost-row">
-                        <span class="cost-label">Service Fee</span>
-                        <span class="cost-value">KES 20.00</span>
-                    </div>
-                    <div class="cost-row">
-                        <span class="cost-label">Loyalty Discount</span>
-                        <span class="cost-value" style="color: var(--success);">-KES 15.00</span>
-                    </div>
-                    <div class="cost-total">
-                        <span class="cost-total-label">Total Amount</span>
-                        <span class="cost-total-value">KES 200</span>
-                    </div>
-                </div>
-
-                <div class="payment-scan">
-                    <h2 class="payment-title">Confirm Payment</h2>
-                    <p class="payment-subtitle">Scan customer's payment QR code</p>
-                    
-                    <div class="qr-scanner-area" onclick="simulatePayment()">
-                        <div class="qr-scanner-frame">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="3" width="7" height="7"/>
-                                <rect x="14" y="3" width="7" height="7"/>
-                                <rect x="14" y="14" width="7" height="7"/>
-                                <rect x="3" y="14" width="7" height="7"/>
-                            </svg>
-                        </div>
-                    </div>
-                    
-                    <div class="payment-amount">KES 200.00</div>
-                    <div class="payment-status">Awaiting payment confirmation</div>
-                </div>
-            </div>
-
-            <!-- Screen 4: Success -->
-            <div class="screen" id="screen-success">
-                <div class="success-screen">
-                    <div class="success-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 6L9 17l-5-5"/>
+            <!-- Sales Rep Action Bar -->
+            <div class="action-bar">
+                <div class="action-bar-inner">
+                    <button class="btn btn-secondary hidden" id="sales-btn-back" onclick="salesGoBack()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
                         </svg>
-                    </div>
-                    <h2 class="success-title">Swap Complete!</h2>
-                    <p class="success-message">Hand over the fully charged battery to customer</p>
-                    
-                    <div class="receipt-card">
-                        <div class="receipt-header">
-                            <span class="receipt-title">Transaction Receipt</span>
-                            <span class="receipt-id">#TXN-892741</span>
-                        </div>
-                        <div class="receipt-row">
-                            <span class="receipt-label">Customer</span>
-                            <span class="receipt-value">James Mwangi</span>
-                        </div>
-                        <div class="receipt-row">
-                            <span class="receipt-label">Battery Out</span>
-                            <span class="receipt-value">BAT-2024-7829 (35%)</span>
-                        </div>
-                        <div class="receipt-row">
-                            <span class="receipt-label">Battery In</span>
-                            <span class="receipt-value">BAT-2024-3156 (100%)</span>
-                        </div>
-                        <div class="receipt-row">
-                            <span class="receipt-label">Amount Paid</span>
-                            <span class="receipt-value" style="color: var(--success);">KES 200.00</span>
-                        </div>
-                        <div class="receipt-row">
-                            <span class="receipt-label">Time</span>
-                            <span class="receipt-value">14:32:07</span>
-                        </div>
-                    </div>
+                        Back
+                    </button>
+                    <button class="btn btn-primary" id="sales-btn-main" onclick="salesHandleMainAction()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="sales-btn-icon">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                        <span id="sales-btn-text">Continue</span>
+                    </button>
                 </div>
-            </div>
-        </main>
-
-        <!-- Action Bar -->
-        <div class="action-bar">
-            <div class="action-bar-inner">
-                <button class="btn btn-secondary hidden" id="btn-back" onclick="goBack()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 12H5M12 19l-7-7 7-7"/>
-                    </svg>
-                    Back
-                </button>
-                <button class="btn btn-primary" id="btn-main" onclick="handleMainAction()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="btn-icon">
-                        <rect x="3" y="3" width="18" height="18" rx="2"/>
-                        <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
-                    </svg>
-                    <span id="btn-text">Scan Battery</span>
-                </button>
             </div>
         </div>
 
         <!-- Loading Overlay -->
         <div class="loading-overlay" id="loading">
             <div class="loading-spinner"></div>
-            <div class="loading-text" id="loading-text">Scanning...</div>
+            <div class="loading-text" id="loading-text">Processing...</div>
         </div>
     </div>
 
@@ -1299,10 +2212,8 @@
             const html = document.documentElement;
             const currentTheme = html.getAttribute('data-theme');
             
-            // Add transition class
             html.classList.add('theme-transition');
             
-            // Toggle theme
             if (currentTheme === 'light') {
                 html.removeAttribute('data-theme');
                 localStorage.setItem('swapflow-theme', 'dark');
@@ -1311,183 +2222,313 @@
                 localStorage.setItem('swapflow-theme', 'light');
             }
             
-            // Remove transition class after animation
             setTimeout(() => {
                 html.classList.remove('theme-transition');
             }, 300);
         }
 
-        // Initialize theme immediately to prevent flash
         initTheme();
 
         // =====================
-        // App State
+        // Role Selection
         // =====================
-        let currentScreen = 1;
-        const totalScreens = 4;
+        let currentRole = null;
+        let selectedRole = null;
 
-        // Screen Configuration
-        const screenConfig = {
-            1: { 
-                btnText: 'Scan Battery', 
-                btnIcon: 'scan',
-                showBack: false 
-            },
-            2: { 
-                btnText: 'Proceed to Payment', 
-                btnIcon: 'arrow',
-                showBack: true 
-            },
-            3: { 
-                btnText: 'Scan Payment QR', 
-                btnIcon: 'qr',
-                showBack: true 
-            },
-            4: { 
-                btnText: 'New Swap', 
-                btnIcon: 'plus',
-                showBack: false,
-                btnClass: 'btn-success'
+        function toggleRoleSelection(element, role) {
+            // Remove selection from all applets
+            document.querySelectorAll('.role-applet').forEach(applet => {
+                applet.classList.remove('selected');
+            });
+            
+            // Select clicked applet
+            element.classList.add('selected');
+            selectedRole = role;
+            
+            // Enable continue button
+            const continueBtn = document.getElementById('role-continue-btn');
+            continueBtn.disabled = false;
+            continueBtn.classList.add('ready');
+        }
+
+        function proceedWithRole() {
+            if (!selectedRole) return;
+            
+            currentRole = selectedRole;
+            
+            // Hide all modules
+            document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+            
+            // Show selected module
+            if (currentRole === 'attendant') {
+                document.getElementById('module-attendant').classList.add('active');
+                attGoToScreen(1);
+            } else if (currentRole === 'sales') {
+                document.getElementById('module-sales').classList.add('active');
+                salesGoToScreen(1);
             }
+        }
+
+        function backToRoles() {
+            currentRole = null;
+            // Keep selectedRole so it stays highlighted when going back
+            document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+            document.getElementById('module-roles').classList.add('active');
+        }
+
+        // =====================
+        // Attendant Module
+        // =====================
+        let attCurrentScreen = 1;
+
+        const attScreenConfig = {
+            1: { btnText: 'Scan Battery', btnIcon: 'scan', showBack: false },
+            2: { btnText: 'Proceed to Payment', btnIcon: 'arrow', showBack: true },
+            3: { btnText: 'Scan Payment QR', btnIcon: 'qr', showBack: true },
+            4: { btnText: 'New Swap', btnIcon: 'plus', showBack: false, btnClass: 'btn-success' }
         };
 
-        // Icon SVGs
-        const icons = {
+        const attIcons = {
             scan: `<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>`,
             arrow: `<path d="M5 12h14M12 5l7 7-7 7"/>`,
             qr: `<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>`,
             plus: `<path d="M12 5v14M5 12h14"/>`
         };
 
-        // DOM Elements
-        const screens = document.querySelectorAll('.screen');
-        const progressSteps = document.querySelectorAll('.progress-step');
-        const btnMain = document.getElementById('btn-main');
-        const btnBack = document.getElementById('btn-back');
-        const btnText = document.getElementById('btn-text');
-        const btnIcon = document.getElementById('btn-icon');
-        const loadingOverlay = document.getElementById('loading');
-        const loadingText = document.getElementById('loading-text');
-
-        // Navigate to Screen
-        function goToScreen(screenNum) {
-            // Hide all screens
-            screens.forEach(s => s.classList.remove('active'));
+        function attGoToScreen(screenNum) {
+            const module = document.getElementById('module-attendant');
+            module.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(`att-screen-${attGetScreenName(screenNum)}`).classList.add('active');
             
-            // Show target screen
-            document.getElementById(`screen-${getScreenName(screenNum)}`).classList.add('active');
-            
-            // Update progress
-            progressSteps.forEach((step, index) => {
+            module.querySelectorAll('.progress-step').forEach((step, index) => {
                 step.classList.remove('active', 'completed');
-                if (index + 1 < screenNum) {
-                    step.classList.add('completed');
-                } else if (index + 1 === screenNum) {
-                    step.classList.add('active');
-                }
+                if (index + 1 < screenNum) step.classList.add('completed');
+                else if (index + 1 === screenNum) step.classList.add('active');
             });
             
-            // Update button
-            const config = screenConfig[screenNum];
-            btnText.textContent = config.btnText;
-            btnIcon.innerHTML = icons[config.btnIcon];
+            const config = attScreenConfig[screenNum];
+            document.getElementById('att-btn-text').textContent = config.btnText;
+            document.getElementById('att-btn-icon').innerHTML = attIcons[config.btnIcon];
             
-            // Show/hide back button
-            if (config.showBack) {
-                btnBack.classList.remove('hidden');
-            } else {
-                btnBack.classList.add('hidden');
-            }
+            const btnBack = document.getElementById('att-btn-back');
+            const btnMain = document.getElementById('att-btn-main');
             
-            // Update button class
+            if (config.showBack) btnBack.classList.remove('hidden');
+            else btnBack.classList.add('hidden');
+            
             btnMain.className = 'btn ' + (config.btnClass || 'btn-primary');
-            
-            currentScreen = screenNum;
+            attCurrentScreen = screenNum;
         }
 
-        function getScreenName(num) {
-            const names = { 1: 'scan', 2: 'verify', 3: 'payment', 4: 'success' };
-            return names[num];
+        function attGetScreenName(num) {
+            return { 1: 'scan', 2: 'verify', 3: 'payment', 4: 'success' }[num];
         }
 
-        // Simulate Battery Scan
-        function simulateScan() {
+        function attSimulateScan() {
             showLoading('Scanning battery...');
+            setTimeout(() => { hideLoading(); attGoToScreen(2); }, 1500);
+        }
+
+        function attSimulatePayment() {
+            showLoading('Verifying payment...');
+            setTimeout(() => { hideLoading(); attGoToScreen(4); }, 2000);
+        }
+
+        function attHandleMainAction() {
+            switch(attCurrentScreen) {
+                case 1: attSimulateScan(); break;
+                case 2: attGoToScreen(3); break;
+                case 3: attSimulatePayment(); break;
+                case 4: attGoToScreen(1); break;
+            }
+        }
+
+        function attGoBack() {
+            if (attCurrentScreen > 1) attGoToScreen(attCurrentScreen - 1);
+        }
+
+        // =====================
+        // Sales Rep Module
+        // =====================
+        let salesCurrentScreen = 1;
+        let selectedPlan = 'weekly';
+
+        const salesScreenConfig = {
+            1: { btnText: 'Continue', btnIcon: 'arrow', showBack: false },
+            2: { btnText: 'Continue', btnIcon: 'arrow', showBack: true },
+            3: { btnText: 'Scan Battery', btnIcon: 'scan', showBack: true },
+            4: { btnText: 'New Registration', btnIcon: 'plus', showBack: false, btnClass: 'btn-success' }
+        };
+
+        const salesIcons = {
+            arrow: `<path d="M5 12h14M12 5l7 7-7 7"/>`,
+            scan: `<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>`,
+            plus: `<path d="M12 5v14M5 12h14"/>`
+        };
+
+        function salesGoToScreen(screenNum) {
+            const module = document.getElementById('module-sales');
+            module.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(`sales-screen-${salesGetScreenName(screenNum)}`).classList.add('active');
             
+            module.querySelectorAll('.progress-step').forEach((step, index) => {
+                step.classList.remove('active', 'completed');
+                if (index + 1 < screenNum) step.classList.add('completed');
+                else if (index + 1 === screenNum) step.classList.add('active');
+            });
+            
+            const config = salesScreenConfig[screenNum];
+            document.getElementById('sales-btn-text').textContent = config.btnText;
+            document.getElementById('sales-btn-icon').innerHTML = salesIcons[config.btnIcon];
+            
+            const btnBack = document.getElementById('sales-btn-back');
+            const btnMain = document.getElementById('sales-btn-main');
+            
+            if (config.showBack) btnBack.classList.remove('hidden');
+            else btnBack.classList.add('hidden');
+            
+            btnMain.className = 'btn ' + (config.btnClass || 'btn-primary');
+            salesCurrentScreen = screenNum;
+
+            // Update preview on screen 3
+            if (screenNum === 3) {
+                updateSalesPreview();
+            }
+        }
+
+        function salesGetScreenName(num) {
+            return { 1: 'register', 2: 'subscription', 3: 'battery', 4: 'checkout' }[num];
+        }
+
+        function selectProduct(element, plan) {
+            document.querySelectorAll('.product-card').forEach(card => card.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedPlan = plan;
+        }
+
+        function updateSalesPreview() {
+            const firstName = document.getElementById('firstName').value || 'John';
+            const lastName = document.getElementById('lastName').value || 'Doe';
+            const phone = document.getElementById('phone').value || '+254 712 345 678';
+            const vehicle = document.getElementById('vehicleReg').value || 'KXX 000X';
+            const nationalId = document.getElementById('nationalId').value || '12345678';
+            
+            const initials = (firstName[0] || 'J') + (lastName[0] || 'D');
+            const fullName = firstName + ' ' + lastName;
+            
+            document.getElementById('sales-avatar').textContent = initials.toUpperCase();
+            document.getElementById('sales-customer-name').textContent = fullName;
+            document.getElementById('sales-customer-phone').textContent = phone;
+            document.getElementById('sales-vehicle').textContent = vehicle;
+            document.getElementById('sales-id').textContent = '*****' + nationalId.slice(-3);
+            
+            const planNames = {
+                'daily': 'Daily Pass',
+                'weekly': 'Weekly Plan',
+                'monthly': 'Monthly Plan',
+                'payperswap': 'Pay-Per-Swap'
+            };
+            document.getElementById('sales-plan-badge').textContent = planNames[selectedPlan];
+        }
+
+        function salesSimulateBatteryScan() {
+            showLoading('Scanning battery...');
             setTimeout(() => {
                 hideLoading();
-                goToScreen(2);
+                updateCheckoutSummary();
+                salesGoToScreen(4);
             }, 1500);
         }
 
-        // Simulate Payment Scan
-        function simulatePayment() {
-            showLoading('Verifying payment...');
+        function updateCheckoutSummary() {
+            const firstName = document.getElementById('firstName').value || 'John';
+            const lastName = document.getElementById('lastName').value || 'Doe';
+            const phone = document.getElementById('phone').value || '+254 712 345 678';
             
-            setTimeout(() => {
-                hideLoading();
-                goToScreen(4);
-            }, 2000);
+            const planNames = {
+                'daily': 'Daily Pass',
+                'weekly': 'Weekly Plan',
+                'monthly': 'Monthly Plan',
+                'payperswap': 'Pay-Per-Swap'
+            };
+            
+            const planPrices = {
+                'daily': 'KES 150',
+                'weekly': 'KES 800',
+                'monthly': 'KES 2,500',
+                'payperswap': 'KES 0'
+            };
+            
+            document.getElementById('checkout-name').textContent = firstName + ' ' + lastName;
+            document.getElementById('checkout-phone').textContent = phone;
+            document.getElementById('checkout-plan').textContent = planNames[selectedPlan];
+            document.getElementById('checkout-amount').textContent = planPrices[selectedPlan];
+            document.getElementById('sales-reg-id').textContent = '#REG-' + Math.floor(100000 + Math.random() * 900000);
+            document.getElementById('checkout-battery').textContent = 'BAT-2024-' + Math.floor(1000 + Math.random() * 9000);
         }
 
-        // Main Action Handler
-        function handleMainAction() {
-            switch(currentScreen) {
-                case 1:
-                    simulateScan();
-                    break;
-                case 2:
-                    goToScreen(3);
-                    break;
-                case 3:
-                    simulatePayment();
-                    break;
-                case 4:
-                    goToScreen(1);
+        function salesHandleMainAction() {
+            switch(salesCurrentScreen) {
+                case 1: salesGoToScreen(2); break;
+                case 2: salesGoToScreen(3); break;
+                case 3: salesSimulateBatteryScan(); break;
+                case 4: 
+                    // Reset form
+                    document.getElementById('firstName').value = '';
+                    document.getElementById('lastName').value = '';
+                    document.getElementById('phone').value = '';
+                    document.getElementById('nationalId').value = '';
+                    document.getElementById('vehicleReg').value = '';
+                    document.getElementById('vehicleType').value = '';
+                    document.getElementById('vehicleModel').value = '';
+                    salesGoToScreen(1);
                     break;
             }
         }
 
-        // Go Back
-        function goBack() {
-            if (currentScreen > 1) {
-                goToScreen(currentScreen - 1);
-            }
+        function salesGoBack() {
+            if (salesCurrentScreen > 1) salesGoToScreen(salesCurrentScreen - 1);
         }
 
+        // =====================
         // Loading States
+        // =====================
         function showLoading(text) {
-            loadingText.textContent = text;
-            loadingOverlay.classList.add('active');
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading').classList.add('active');
         }
 
         function hideLoading() {
-            loadingOverlay.classList.remove('active');
+            document.getElementById('loading').classList.remove('active');
         }
 
-        // Initialize
+        // =====================
+        // Initialize & Events
+        // =====================
         document.addEventListener('DOMContentLoaded', () => {
-            goToScreen(1);
+            // Update greeting based on time
+            const hour = new Date().getHours();
+            let greeting = 'Good morning!';
+            if (hour >= 12 && hour < 17) greeting = 'Good afternoon!';
+            else if (hour >= 17) greeting = 'Good evening!';
+            document.querySelector('.role-greeting').textContent = greeting;
         });
 
-        // Add touch feedback
-        document.querySelectorAll('.btn, .scanner-area, .qr-scanner-area, .theme-toggle').forEach(el => {
-            el.addEventListener('touchstart', function() {
-                this.style.transform = 'scale(0.95)';
+        // Touch feedback
+        document.querySelectorAll('.btn, .scanner-area, .qr-scanner-area, .theme-toggle, .role-applet, .product-card').forEach(el => {
+            el.addEventListener('touchstart', function() { 
+                if (!this.classList.contains('disabled')) {
+                    this.style.transform = 'scale(0.96)'; 
+                }
             });
-            el.addEventListener('touchend', function() {
-                this.style.transform = '';
-            });
+            el.addEventListener('touchend', function() { this.style.transform = ''; });
         });
 
-        // Listen for system theme changes
+        // System theme listener
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
             if (!localStorage.getItem('swapflow-theme')) {
-                if (e.matches) {
-                    document.documentElement.removeAttribute('data-theme');
-                } else {
-                    document.documentElement.setAttribute('data-theme', 'light');
-                }
+                if (e.matches) document.documentElement.removeAttribute('data-theme');
+                else document.documentElement.setAttribute('data-theme', 'light');
             }
         });
     </script>
