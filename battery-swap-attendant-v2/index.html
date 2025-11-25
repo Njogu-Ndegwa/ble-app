@@ -775,6 +775,232 @@
         }
 
         /* ===================== */
+        /* SPLASH SCREEN         */
+        /* ===================== */
+        .splash {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.6s ease, visibility 0.6s ease;
+        }
+
+        .splash.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .splash-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        /* Battery swap animation */
+        .splash-animation {
+            position: relative;
+            width: 120px;
+            height: 160px;
+            margin-bottom: 32px;
+        }
+
+        /* Battery shell */
+        .splash-battery {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 110px;
+            background: var(--bg-tertiary);
+            border: 3px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .splash-battery::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 10px;
+            background: var(--border);
+            border-radius: 4px 4px 0 0;
+        }
+
+        /* Battery charging fill */
+        .splash-battery-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 0%;
+            background: linear-gradient(180deg, var(--accent-amber) 0%, #d97706 100%);
+            animation: batteryFill 2.3s steps(1, end) forwards;
+        }
+
+        @keyframes batteryFill {
+            0% { height: 10%; }
+            10% { height: 10%; }
+            11% { height: 20%; }
+            22% { height: 20%; }
+            23% { height: 30%; }
+            33% { height: 30%; }
+            34% { height: 40%; }
+            44% { height: 40%; }
+            45% { height: 50%; }
+            55% { height: 50%; }
+            56% { height: 60%; }
+            66% { height: 60%; }
+            67% { height: 70%; }
+            77% { height: 70%; }
+            78% { height: 80%; }
+            88% { height: 80%; }
+            89% { height: 90%; }
+            100% { height: 90%; }
+        }
+
+        /* Swap arrows */
+        .splash-arrows {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .splash-arrow {
+            width: 24px;
+            height: 24px;
+            color: var(--accent-amber);
+            animation: arrowBounce 1s ease-in-out infinite;
+        }
+
+        .splash-arrow:nth-child(1) {
+            animation-delay: 0s;
+            opacity: 0.4;
+        }
+
+        .splash-arrow:nth-child(2) {
+            animation-delay: 0.15s;
+            opacity: 0.7;
+        }
+
+        .splash-arrow:nth-child(3) {
+            animation-delay: 0.3s;
+            opacity: 1;
+        }
+
+        @keyframes arrowBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(6px); }
+        }
+
+        /* Energy particles */
+        .splash-particles {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .splash-particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--accent-amber);
+            border-radius: 50%;
+            animation: particleFloat 2s ease-in-out infinite;
+        }
+
+        .splash-particle:nth-child(1) {
+            left: 10%;
+            top: 60%;
+            animation-delay: 0s;
+        }
+
+        .splash-particle:nth-child(2) {
+            right: 10%;
+            top: 50%;
+            animation-delay: 0.5s;
+        }
+
+        .splash-particle:nth-child(3) {
+            left: 20%;
+            top: 30%;
+            animation-delay: 1s;
+        }
+
+        .splash-particle:nth-child(4) {
+            right: 20%;
+            top: 70%;
+            animation-delay: 1.5s;
+        }
+
+        @keyframes particleFloat {
+            0%, 100% { 
+                opacity: 0;
+                transform: translateY(0) scale(0);
+            }
+            50% { 
+                opacity: 1;
+                transform: translateY(-20px) scale(1);
+            }
+        }
+
+        .splash-brand {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        .splash-brand span {
+            color: var(--accent-amber);
+        }
+
+        .splash-loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .splash-loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .splash-loading-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-amber);
+            border-radius: 50%;
+            animation: loadingDot 1.2s ease-in-out infinite;
+        }
+
+        .splash-loading-dot:nth-child(1) { animation-delay: 0s; }
+        .splash-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .splash-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes loadingDot {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1); }
+        }
+
+        /* ===================== */
         /* ATTENDANT MODULE      */
         /* ===================== */
 
@@ -1796,9 +2022,56 @@
         </header>
 
         <!-- ==================== -->
+        <!-- SPLASH SCREEN        -->
+        <!-- ==================== -->
+        <div class="splash" id="splash-screen">
+            <div class="splash-content">
+                <!-- Battery Swap Animation -->
+                <div class="splash-animation">
+                    <!-- Swap arrows coming down -->
+                    <div class="splash-arrows">
+                        <svg class="splash-arrow" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                        </svg>
+                        <svg class="splash-arrow" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                        </svg>
+                        <svg class="splash-arrow" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4l-8 8h5v8h6v-8h5z"/>
+                        </svg>
+                    </div>
+                    
+                    <!-- Battery with charging animation -->
+                    <div class="splash-battery">
+                        <div class="splash-battery-fill"></div>
+                    </div>
+                    
+                    <!-- Floating energy particles -->
+                    <div class="splash-particles">
+                        <div class="splash-particle"></div>
+                        <div class="splash-particle"></div>
+                        <div class="splash-particle"></div>
+                        <div class="splash-particle"></div>
+                    </div>
+                </div>
+
+                <h1 class="splash-brand">Swap<span>Flow</span></h1>
+                
+                <div class="splash-loading">
+                    <span>Loading</span>
+                    <div class="splash-loading-dots">
+                        <div class="splash-loading-dot"></div>
+                        <div class="splash-loading-dot"></div>
+                        <div class="splash-loading-dot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== -->
         <!-- ONBOARDING MODULE    -->
         <!-- ==================== -->
-        <div class="module active" id="module-onboarding">
+        <div class="module" id="module-onboarding">
             <main class="main no-padding-bottom">
                 <div class="onboarding">
                     <div class="onboarding-slides">
@@ -2494,6 +2767,32 @@
         initTheme();
 
         // =====================
+        // Splash Screen
+        // =====================
+        function showSplashAndProceed() {
+            const splash = document.getElementById('splash-screen');
+            const onboardingSeen = localStorage.getItem('swapflow-onboarding-seen');
+            
+            // Show splash for 2.5 seconds then proceed
+            setTimeout(() => {
+                splash.classList.add('hidden');
+                
+                if (onboardingSeen === 'true') {
+                    // Go straight to roles
+                    document.getElementById('module-roles').classList.add('active');
+                } else {
+                    // Show onboarding
+                    document.getElementById('module-onboarding').classList.add('active');
+                }
+            }, 2500);
+        }
+
+        function checkSplash() {
+            // Always show splash on page load (it's a loading screen)
+            showSplashAndProceed();
+        }
+
+        // =====================
         // Onboarding Carousel
         // =====================
         let currentSlide = 0;
@@ -2553,7 +2852,7 @@
             document.getElementById('module-roles').classList.add('active');
         }
 
-        // Check if user has seen onboarding
+        // Check if user has seen onboarding (called after splash)
         function checkOnboarding() {
             const seen = localStorage.getItem('swapflow-onboarding-seen');
             if (seen === 'true') {
@@ -2839,8 +3138,8 @@
         // Initialize & Events
         // =====================
         document.addEventListener('DOMContentLoaded', () => {
-            // Check if onboarding was seen
-            checkOnboarding();
+            // Check splash and onboarding state
+            checkSplash();
             
             // Add swipe support for onboarding
             const slidesContainer = document.querySelector('.onboarding-slides');
