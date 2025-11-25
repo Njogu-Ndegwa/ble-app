@@ -326,26 +326,56 @@
         /* Hero Section with Bikes */
         .role-hero {
             position: relative;
-            margin: 0 -20px 24px;
-            padding: 30px 20px 24px;
-            background: #0c1320;
+            margin: 0 -20px 20px;
+            padding: 20px 20px 0;
             overflow: hidden;
         }
 
-        [data-theme="light"] .role-hero {
-            background: #111827;
+        /* Atmospheric gradient cloud/mist at bottom */
+        .role-hero-atmosphere {
+            position: absolute;
+            bottom: 0;
+            left: -20%;
+            right: -20%;
+            height: 70px;
+            background: linear-gradient(90deg,
+                rgba(99, 102, 241, 0.08) 0%,
+                rgba(139, 92, 246, 0.15) 25%,
+                rgba(217, 119, 6, 0.12) 50%,
+                rgba(245, 158, 11, 0.15) 75%,
+                rgba(251, 146, 60, 0.08) 100%
+            );
+            filter: blur(20px);
+            pointer-events: none;
         }
 
-        /* Spotlight glow */
-        .role-hero::before {
-            content: '';
+        /* Secondary mist layer for depth */
+        .role-hero-mist {
             position: absolute;
-            top: 50%;
+            bottom: -10px;
+            left: -10%;
+            right: -10%;
+            height: 50px;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.04) 30%,
+                rgba(255, 255, 255, 0.06) 50%,
+                rgba(255, 255, 255, 0.04) 70%,
+                transparent 100%
+            );
+            filter: blur(15px);
+            pointer-events: none;
+        }
+
+        /* Subtle reflection */
+        .role-hero-reflect {
+            position: absolute;
+            bottom: 0;
             left: 50%;
-            transform: translate(-50%, -40%);
-            width: 320px;
-            height: 200px;
-            background: radial-gradient(ellipse, rgba(255,255,255,0.06) 0%, transparent 70%);
+            transform: translateX(-50%);
+            width: 200px;
+            height: 30px;
+            background: radial-gradient(ellipse, rgba(255,255,255,0.03) 0%, transparent 70%);
             pointer-events: none;
         }
 
@@ -353,8 +383,9 @@
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 320px;
+            max-width: 330px;
             margin: 0 auto;
+            padding-bottom: 15px;
         }
 
         .role-hero-image img {
@@ -1646,6 +1677,10 @@
                         <div class="role-hero-image">
                             <img src="assets/Bikes Oves.png" alt="Electric Bikes">
                         </div>
+                        <!-- Atmospheric cloud/mist effect -->
+                        <div class="role-hero-atmosphere"></div>
+                        <div class="role-hero-mist"></div>
+                        <div class="role-hero-reflect"></div>
                     </div>
 
                     <!-- Title Section -->
