@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SwapFlow | Attendant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0b;
+            --bg-secondary: #111113;
+            --bg-tertiary: #18181b;
+            --bg-elevated: #1f1f23;
+            --border: #27272a;
+            --border-subtle: #1e1e21;
+            
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            
+            --accent-amber: #f59e0b;
+            --accent-amber-soft: rgba(245, 158, 11, 0.15);
+            --accent-amber-glow: rgba(245, 158, 11, 0.4);
+            
+            --success: #10b981;
+            --success-soft: rgba(16, 185, 129, 0.15);
+            --success-glow: rgba(16, 185, 129, 0.4);
+            
+            --error: #ef4444;
+            --error-soft: rgba(239, 68, 68, 0.15);
+            
+            --info: #3b82f6;
+            --info-soft: rgba(59, 130, 246, 0.15);
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            
+            --shadow-glow: 0 0 60px -15px var(--accent-amber-glow);
+            --shadow-card: 0 4px 24px -8px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* App Container */
+        .app {
+            height: 100%;
+            max-width: 430px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Background Pattern */
+        .app::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 300px;
+            background: 
+                radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-amber-soft) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        .header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-amber) 0%, #d97706 100%);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--bg-primary);
+        }
+
+        .logo-text {
+            font-weight: 600;
+            font-size: 18px;
+            letter-spacing: -0.02em;
+        }
+
+        .logo-text span {
+            color: var(--accent-amber);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--success-soft);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--success);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0 20px 100px;
+            position: relative;
+            z-index: 5;
+        }
+
+        /* Screen States */
+        .screen {
+            display: none;
+            animation: fadeSlideIn 0.4s ease-out;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scan Screen */
+        .scan-prompt {
+            text-align: center;
+            padding-top: 40px;
+        }
+
+        .scan-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .scan-subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 40px;
+        }
+
+        .scanner-area {
+            width: 260px;
+            height: 260px;
+            margin: 0 auto 40px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .scanner-frame {
+            width: 100%;
+            height: 100%;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-xl);
+            position: relative;
+            background: var(--bg-secondary);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .scanner-area:hover .scanner-frame {
+            border-color: var(--accent-amber);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .scanner-corners {
+            position: absolute;
+            inset: 20px;
+        }
+
+        .scanner-corners::before,
+        .scanner-corners::after,
+        .scanner-corner-bl,
+        .scanner-corner-br {
+            content: '';
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-color: var(--accent-amber);
+            border-style: solid;
+            border-width: 0;
+        }
+
+        .scanner-corners::before {
+            top: 0;
+            left: 0;
+            border-top-width: 3px;
+            border-left-width: 3px;
+            border-top-left-radius: 8px;
+        }
+
+        .scanner-corners::after {
+            top: 0;
+            right: 0;
+            border-top-width: 3px;
+            border-right-width: 3px;
+            border-top-right-radius: 8px;
+        }
+
+        .scanner-corner-bl {
+            bottom: 0;
+            left: 0;
+            border-bottom-width: 3px;
+            border-left-width: 3px;
+            border-bottom-left-radius: 8px;
+        }
+
+        .scanner-corner-br {
+            bottom: 0;
+            right: 0;
+            border-bottom-width: 3px;
+            border-right-width: 3px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .scanner-line {
+            position: absolute;
+            left: 30px;
+            right: 30px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-amber), transparent);
+            animation: scanLine 2s ease-in-out infinite;
+            box-shadow: 0 0 20px var(--accent-amber-glow);
+        }
+
+        @keyframes scanLine {
+            0%, 100% { top: 30px; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: calc(100% - 30px); opacity: 0; }
+        }
+
+        .scanner-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-muted);
+        }
+
+        .scanner-icon svg {
+            width: 64px;
+            height: 64px;
+            stroke-width: 1;
+        }
+
+        .scan-hint {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .scan-hint svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 40px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        /* Verification Screen */
+        .battery-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .battery-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .battery-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .battery-name {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .battery-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .battery-status.verified {
+            background: var(--success-soft);
+            color: var(--success);
+        }
+
+        .battery-status.pending {
+            background: var(--accent-amber-soft);
+            color: var(--accent-amber);
+        }
+
+        .battery-visual {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+        }
+
+        .battery-icon-large {
+            width: 80px;
+            height: 120px;
+            background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-tertiary) 100%);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            overflow: hidden;
+        }
+
+        .battery-icon-large::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px 4px 0 0;
+        }
+
+        .battery-level {
+            height: var(--level, 35%);
+            background: linear-gradient(180deg, var(--accent-amber) 0%, #d97706 100%);
+            transition: height 0.5s ease;
+        }
+
+        .battery-info {
+            flex: 1;
+        }
+
+        .battery-charge {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .battery-charge-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .battery-meta {
+            display: flex;
+            gap: 16px;
+        }
+
+        .battery-meta-item {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .battery-meta-item span {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Customer Info */
+        .customer-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .customer-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .customer-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--info) 0%, #2563eb 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .customer-name {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .customer-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .customer-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .detail-item {
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+        }
+
+        .detail-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Cost Breakdown */
+        .cost-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .cost-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .cost-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .cost-row:last-child {
+            border-bottom: none;
+        }
+
+        .cost-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .cost-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+        }
+
+        .cost-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: var(--accent-amber-soft);
+            border-radius: var(--radius-md);
+            margin-top: 16px;
+        }
+
+        .cost-total-label {
+            font-weight: 500;
+        }
+
+        .cost-total-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--accent-amber);
+        }
+
+        /* Payment Scan */
+        .payment-scan {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .payment-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .payment-subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .qr-scanner-area {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 24px;
+            position: relative;
+        }
+
+        .qr-scanner-frame {
+            width: 100%;
+            height: 100%;
+            border: 2px dashed var(--accent-amber);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .qr-scanner-frame:hover {
+            background: var(--accent-amber-soft);
+            border-style: solid;
+        }
+
+        .qr-scanner-frame svg {
+            width: 48px;
+            height: 48px;
+            color: var(--accent-amber);
+        }
+
+        .payment-amount {
+            font-family: 'DM Mono', monospace;
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--accent-amber);
+            margin-bottom: 8px;
+        }
+
+        .payment-status {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* Success Screen */
+        .success-screen {
+            text-align: center;
+            padding-top: 60px;
+        }
+
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            background: var(--success-soft);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: successPop 0.5s ease-out;
+        }
+
+        @keyframes successPop {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .success-icon svg {
+            width: 48px;
+            height: 48px;
+            color: var(--success);
+        }
+
+        .success-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .success-message {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 32px;
+        }
+
+        .receipt-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            text-align: left;
+        }
+
+        .receipt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            border-bottom: 1px dashed var(--border);
+            margin-bottom: 16px;
+        }
+
+        .receipt-title {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .receipt-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+        }
+
+        .receipt-label {
+            color: var(--text-muted);
+        }
+
+        .receipt-value {
+            font-weight: 500;
+        }
+
+        /* Bottom Action Bar */
+        .action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 430px;
+            padding: 16px 20px;
+            background: linear-gradient(to top, var(--bg-primary) 80%, transparent);
+            z-index: 100;
+        }
+
+        .action-bar-inner {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 16px 24px;
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-amber) 0%, #d97706 100%);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px -8px var(--accent-amber-glow);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            border-color: var(--text-muted);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px -8px var(--success-glow);
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 11, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-amber);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Progress Steps */
+        .progress-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px 0 10px;
+            margin-bottom: 20px;
+        }
+
+        .progress-step {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .progress-step.active {
+            background: var(--accent-amber);
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .progress-step.completed {
+            background: var(--success);
+        }
+
+        /* Utility */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Scrollbar */
+        .main::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .main::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .main::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M7 2v6m10-6v6M6 10v9a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-9"/>
+                        <path d="M12 6v6"/>
+                    </svg>
+                </div>
+                <div class="logo-text">Swap<span>Flow</span></div>
+            </div>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                Online
+            </div>
+        </header>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar">
+            <div class="progress-step active" data-step="1"></div>
+            <div class="progress-step" data-step="2"></div>
+            <div class="progress-step" data-step="3"></div>
+            <div class="progress-step" data-step="4"></div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Screen 1: Scan Battery -->
+            <div class="screen active" id="screen-scan">
+                <div class="scan-prompt">
+                    <h1 class="scan-title">Scan Battery</h1>
+                    <p class="scan-subtitle">Point camera at the battery barcode</p>
+                    
+                    <div class="scanner-area" onclick="simulateScan()">
+                        <div class="scanner-frame">
+                            <div class="scanner-corners">
+                                <div class="scanner-corner-bl"></div>
+                                <div class="scanner-corner-br"></div>
+                            </div>
+                            <div class="scanner-line"></div>
+                            <div class="scanner-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p class="scan-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4M12 8h.01"/>
+                        </svg>
+                        Tap scanner area to simulate
+                    </p>
+                </div>
+
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-value">24</div>
+                        <div class="stat-label">Today</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">156</div>
+                        <div class="stat-label">This Week</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">98%</div>
+                        <div class="stat-label">Success</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 2: Verification -->
+            <div class="screen" id="screen-verify">
+                <div class="battery-card">
+                    <div class="battery-header">
+                        <div>
+                            <div class="battery-id">BAT-2024-7829</div>
+                            <div class="battery-name">PowerCell X60</div>
+                        </div>
+                        <span class="battery-status verified">Verified</span>
+                    </div>
+                    
+                    <div class="battery-visual">
+                        <div class="battery-icon-large">
+                            <div class="battery-level" style="--level: 35%;"></div>
+                        </div>
+                        <div class="battery-info">
+                            <div class="battery-charge">35%</div>
+                            <div class="battery-charge-label">Remaining Charge</div>
+                            <div class="battery-meta">
+                                <div class="battery-meta-item">Cycles: <span>142</span></div>
+                                <div class="battery-meta-item">Health: <span>94%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="customer-card">
+                    <div class="customer-header">
+                        <div class="customer-avatar">JM</div>
+                        <div>
+                            <div class="customer-name">James Mwangi</div>
+                            <div class="customer-id">CUS-8847-KE</div>
+                        </div>
+                    </div>
+                    <div class="customer-details">
+                        <div class="detail-item">
+                            <div class="detail-label">Phone</div>
+                            <div class="detail-value">+254 712 ***456</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Plan</div>
+                            <div class="detail-value">Pay-Per-Swap</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Last Swap</div>
+                            <div class="detail-value">2 days ago</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Swaps</div>
+                            <div class="detail-value">34</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 3: Payment -->
+            <div class="screen" id="screen-payment">
+                <div class="cost-card">
+                    <div class="cost-title">Swap Cost Breakdown</div>
+                    <div class="cost-row">
+                        <span class="cost-label">Energy Used (65%)</span>
+                        <span class="cost-value">KES 195.00</span>
+                    </div>
+                    <div class="cost-row">
+                        <span class="cost-label">Service Fee</span>
+                        <span class="cost-value">KES 20.00</span>
+                    </div>
+                    <div class="cost-row">
+                        <span class="cost-label">Loyalty Discount</span>
+                        <span class="cost-value" style="color: var(--success);">-KES 15.00</span>
+                    </div>
+                    <div class="cost-total">
+                        <span class="cost-total-label">Total Amount</span>
+                        <span class="cost-total-value">KES 200</span>
+                    </div>
+                </div>
+
+                <div class="payment-scan">
+                    <h2 class="payment-title">Confirm Payment</h2>
+                    <p class="payment-subtitle">Scan customer's payment QR code</p>
+                    
+                    <div class="qr-scanner-area" onclick="simulatePayment()">
+                        <div class="qr-scanner-frame">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="7" height="7"/>
+                                <rect x="14" y="3" width="7" height="7"/>
+                                <rect x="14" y="14" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-amount">KES 200.00</div>
+                    <div class="payment-status">Awaiting payment confirmation</div>
+                </div>
+            </div>
+
+            <!-- Screen 4: Success -->
+            <div class="screen" id="screen-success">
+                <div class="success-screen">
+                    <div class="success-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                    </div>
+                    <h2 class="success-title">Swap Complete!</h2>
+                    <p class="success-message">Hand over the fully charged battery to customer</p>
+                    
+                    <div class="receipt-card">
+                        <div class="receipt-header">
+                            <span class="receipt-title">Transaction Receipt</span>
+                            <span class="receipt-id">#TXN-892741</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Customer</span>
+                            <span class="receipt-value">James Mwangi</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Battery Out</span>
+                            <span class="receipt-value">BAT-2024-7829 (35%)</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Battery In</span>
+                            <span class="receipt-value">BAT-2024-3156 (100%)</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Amount Paid</span>
+                            <span class="receipt-value" style="color: var(--success);">KES 200.00</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Time</span>
+                            <span class="receipt-value">14:32:07</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Action Bar -->
+        <div class="action-bar">
+            <div class="action-bar-inner">
+                <button class="btn btn-secondary hidden" id="btn-back" onclick="goBack()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back
+                </button>
+                <button class="btn btn-primary" id="btn-main" onclick="handleMainAction()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="btn-icon">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+                    </svg>
+                    <span id="btn-text">Scan Battery</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" id="loading-text">Scanning...</div>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        let currentScreen = 1;
+        const totalScreens = 4;
+
+        // Screen Configuration
+        const screenConfig = {
+            1: { 
+                btnText: 'Scan Battery', 
+                btnIcon: 'scan',
+                showBack: false 
+            },
+            2: { 
+                btnText: 'Proceed to Payment', 
+                btnIcon: 'arrow',
+                showBack: true 
+            },
+            3: { 
+                btnText: 'Scan Payment QR', 
+                btnIcon: 'qr',
+                showBack: true 
+            },
+            4: { 
+                btnText: 'New Swap', 
+                btnIcon: 'plus',
+                showBack: false,
+                btnClass: 'btn-success'
+            }
+        };
+
+        // Icon SVGs
+        const icons = {
+            scan: `<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>`,
+            arrow: `<path d="M5 12h14M12 5l7 7-7 7"/>`,
+            qr: `<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>`,
+            plus: `<path d="M12 5v14M5 12h14"/>`
+        };
+
+        // DOM Elements
+        const screens = document.querySelectorAll('.screen');
+        const progressSteps = document.querySelectorAll('.progress-step');
+        const btnMain = document.getElementById('btn-main');
+        const btnBack = document.getElementById('btn-back');
+        const btnText = document.getElementById('btn-text');
+        const btnIcon = document.getElementById('btn-icon');
+        const loadingOverlay = document.getElementById('loading');
+        const loadingText = document.getElementById('loading-text');
+
+        // Navigate to Screen
+        function goToScreen(screenNum) {
+            // Hide all screens
+            screens.forEach(s => s.classList.remove('active'));
+            
+            // Show target screen
+            document.getElementById(`screen-${getScreenName(screenNum)}`).classList.add('active');
+            
+            // Update progress
+            progressSteps.forEach((step, index) => {
+                step.classList.remove('active', 'completed');
+                if (index + 1 < screenNum) {
+                    step.classList.add('completed');
+                } else if (index + 1 === screenNum) {
+                    step.classList.add('active');
+                }
+            });
+            
+            // Update button
+            const config = screenConfig[screenNum];
+            btnText.textContent = config.btnText;
+            btnIcon.innerHTML = icons[config.btnIcon];
+            
+            // Show/hide back button
+            if (config.showBack) {
+                btnBack.classList.remove('hidden');
+            } else {
+                btnBack.classList.add('hidden');
+            }
+            
+            // Update button class
+            btnMain.className = 'btn ' + (config.btnClass || 'btn-primary');
+            
+            currentScreen = screenNum;
+        }
+
+        function getScreenName(num) {
+            const names = { 1: 'scan', 2: 'verify', 3: 'payment', 4: 'success' };
+            return names[num];
+        }
+
+        // Simulate Battery Scan
+        function simulateScan() {
+            showLoading('Scanning battery...');
+            
+            setTimeout(() => {
+                hideLoading();
+                goToScreen(2);
+            }, 1500);
+        }
+
+        // Simulate Payment Scan
+        function simulatePayment() {
+            showLoading('Verifying payment...');
+            
+            setTimeout(() => {
+                hideLoading();
+                goToScreen(4);
+            }, 2000);
+        }
+
+        // Main Action Handler
+        function handleMainAction() {
+            switch(currentScreen) {
+                case 1:
+                    simulateScan();
+                    break;
+                case 2:
+                    goToScreen(3);
+                    break;
+                case 3:
+                    simulatePayment();
+                    break;
+                case 4:
+                    goToScreen(1);
+                    break;
+            }
+        }
+
+        // Go Back
+        function goBack() {
+            if (currentScreen > 1) {
+                goToScreen(currentScreen - 1);
+            }
+        }
+
+        // Loading States
+        function showLoading(text) {
+            loadingText.textContent = text;
+            loadingOverlay.classList.add('active');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.remove('active');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            goToScreen(1);
+        });
+
+        // Add touch feedback
+        document.querySelectorAll('.btn, .scanner-area, .qr-scanner-area').forEach(el => {
+            el.addEventListener('touchstart', function() {
+                this.style.transform = 'scale(0.98)';
+            });
+            el.addEventListener('touchend', function() {
+                this.style.transform = '';
+            });
+        });
+    </script>
+</body>
+</html>

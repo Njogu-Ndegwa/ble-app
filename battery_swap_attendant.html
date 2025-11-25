@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoltSwap Attendant</title>
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --card-bg: #181b21;
+            --primary: #00f0ff; /* Cyan/Electric Blue */
+            --primary-dim: #00f0ff33;
+            --success: #00ff9d; /* Neon Green */
+            --text-main: #ffffff;
+            --text-muted: #8b9bb4;
+            --danger: #ff4757;
+            --radius: 16px;
+            --font-main: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--text-main);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Mobile Container Simulation */
+        .app-container {
+            width: 100%;
+            max-width: 414px; /* iPhone Max width */
+            height: 100vh;
+            max-height: 896px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        /* Header */
+        header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logo span { color: var(--success); }
+        
+        .status-pill {
+            background: var(--card-bg);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); }
+
+        /* Views Manager */
+        .view-container {
+            flex: 1;
+            position: relative;
+        }
+
+        .view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+
+        .view.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: scale(1);
+        }
+
+        /* Typography & Components */
+        h1 { font-size: 2rem; margin-bottom: 10px; line-height: 1.1; }
+        h2 { font-size: 1.5rem; margin-bottom: 15px; }
+        p { color: var(--text-muted); line-height: 1.5; margin-bottom: 20px; }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .btn {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 18px;
+            border-radius: var(--radius);
+            width: 100%;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: auto; /* Push to bottom */
+            box-shadow: 0 4px 20px var(--primary-dim);
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-secondary {
+            background: var(--card-bg);
+            color: var(--text-main);
+            box-shadow: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Specific View Styles */
+
+        /* Home View */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: var(--radius);
+            text-align: center;
+        }
+        .stat-val { font-size: 1.8rem; font-weight: 700; color: var(--text-main); }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); }
+
+        .scan-trigger {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed var(--text-muted);
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            color: var(--text-muted);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .scan-trigger:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-dim);
+        }
+        .scan-icon { font-size: 3rem; margin-bottom: 10px; }
+
+        /* Scanner Overlay */
+        .scanner-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transform: translateY(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        .scanner-overlay.open { transform: translateY(0); }
+        .scan-frame {
+            width: 250px;
+            height: 250px;
+            border: 2px solid var(--primary);
+            border-radius: 20px;
+            position: relative;
+            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.8);
+        }
+        .scan-frame::after {
+            content: '';
+            position: absolute;
+            top: 10%; left: 10%; right: 10%; height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            animation: scan 2s infinite linear;
+        }
+        @keyframes scan {
+            0% { top: 10%; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 90%; opacity: 0; }
+        }
+
+        /* Verification View */
+        .battery-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .battery-icon {
+            width: 60px; height: 100px;
+            border: 3px solid var(--text-muted);
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            padding: 3px;
+        }
+        .battery-icon::before {
+            content: ''; position: absolute; top: -6px; left: 18px; width: 18px; height: 4px; background: var(--text-muted);
+        }
+        .battery-level {
+            width: 100%; height: 20%;
+            background: var(--danger);
+            border-radius: 2px;
+        }
+        
+        .user-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 15px;
+        }
+        .avatar {
+            width: 40px; height: 40px; background: #333; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+        }
+        .verified-badge {
+            color: var(--success);
+            font-size: 0.8rem;
+            display: flex; align-items: center; gap: 4px;
+            margin-left: auto;
+        }
+
+        .cost-row {
+            display: flex; justify-content: space-between;
+            margin-bottom: 8px; font-size: 0.9rem; color: var(--text-muted);
+        }
+        .cost-total {
+            display: flex; justify-content: space-between;
+            margin-top: 15px; padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 1.4rem; font-weight: 700; color: var(--text-main);
+        }
+
+        /* Success View */
+        .success-content {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 60%;
+        }
+        .checkmark-circle {
+            width: 80px; height: 80px;
+            background: var(--success);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; color: #000;
+            margin-bottom: 20px;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
+        }
+        .new-battery-card {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(0,0,0,0));
+            border: 1px solid var(--primary);
+            margin-top: 20px;
+            width: 100%;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <span>⚡</span> VoltSwap
+            </div>
+            <div class="status-pill">
+                <div class="dot"></div> Station #042
+            </div>
+        </header>
+
+        <div class="view-container">
+            
+            <!-- STEP 1: HOME / DASHBOARD -->
+            <div class="view active" id="view-home">
+                <h1>Hello, Alex</h1>
+                <p>Ready for the next customer?</p>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-val" style="color: var(--success)">12</div>
+                        <div class="stat-label">Ready</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-val">4</div>
+                        <div class="stat-label">Charging</div>
+                    </div>
+                </div>
+
+                <div class="scan-trigger" onclick="startProcess()">
+                    <div class="scan-icon">📷</div>
+                    <h3>Scan Battery</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 0.9rem;">Tap to activate camera</p>
+                </div>
+
+                <p style="text-align: center; font-size: 0.8rem;">Last swap: 5 mins ago</p>
+            </div>
+
+            <!-- STEP 2: VERIFY & COST -->
+            <div class="view" id="view-verify">
+                <h2>Confirm Swap</h2>
+                
+                <div class="card">
+                    <div class="user-row">
+                        <div class="avatar">JD</div>
+                        <div>
+                            <div style="font-weight: 600;">John Doe</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);">Standard Member</div>
+                        </div>
+                        <div class="verified-badge">
+                            ✓ Verified
+                        </div>
+                    </div>
+                    
+                    <div class="battery-info">
+                        <div class="battery-icon">
+                            <div class="battery-level"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.9rem; color: var(--text-muted);">Incoming Battery</div>
+                            <div style="font-size: 1.2rem; font-weight: bold;">ID: B-8842</div>
+                            <div style="color: var(--danger); font-size: 0.9rem;">12% Charge</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="cost-row">
+                        <span>Swap Fee</span>
+                        <span>$2.00</span>
+                    </div>
+                    <div class="cost-row">
+                        <span>Energy Delta (88%)</span>
+                        <span>$3.50</span>
+                    </div>
+                    <div class="cost-total">
+                        <span>Total</span>
+                        <span>$5.50</span>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="goToPayment()">
+                    Confirm & Pay
+                </button>
+                <button class="btn btn-secondary" onclick="goHome()" style="margin-top: 10px;">
+                    Cancel
+                </button>
+            </div>
+
+            <!-- STEP 3: PAYMENT -->
+            <div class="view" id="view-payment">
+                <h2 style="text-align: center;">Payment</h2>
+                <p style="text-align: center;">Ask customer to scan QR or tap phone</p>
+
+                <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+                    <div style="background: #fff; padding: 20px; border-radius: 10px;">
+                        <svg width="200" height="200" viewBox="0 0 100 100">
+                            <path d="M10,10 h30 v30 h-30 z M60,10 h30 v30 h-30 z M10,60 h30 v30 h-30 z M50,50 h10 v10 h-10 z M70,70 h10 v10 h-10 z M60,50 h10 v10 h-10 z" fill="#000"></path>
+                            <rect x="45" y="45" width="50" height="50" fill="#000" opacity="0.1"></rect>
+                        </svg>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 1.5rem; font-weight: bold;">$5.50</div>
+                    <div style="color: var(--text-muted);">John Doe • **** 4242</div>
+                </div>
+
+                <button class="btn" onclick="simulatePaymentSuccess()">
+                    Simulate Payment Received
+                </button>
+            </div>
+
+            <!-- STEP 4: SUCCESS -->
+            <div class="view" id="view-success">
+                <div class="success-content">
+                    <div class="checkmark-circle">✓</div>
+                    <h2>Payment Successful</h2>
+                    <p>Transaction ID: #TRX-9982</p>
+
+                    <div class="card new-battery-card">
+                        <div style="text-align: left;">
+                            <div style="color: var(--primary); font-size: 0.8rem; font-weight: bold; text-transform: uppercase; margin-bottom: 5px;">Dispense Now</div>
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #fff;">Battery #B-104</div>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                                <span style="color: var(--success);">100% Charged</span>
+                                <span style="color: var(--text-muted);">• Slot 3</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="goHome()">
+                    Done (Next Customer)
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Scanner Overlay (Hidden by default) -->
+        <div class="scanner-overlay" id="scanner">
+            <div class="scan-frame"></div>
+            <p style="margin-top: 20px; color: #fff;">Align QR Code on Battery</p>
+            <button class="btn btn-secondary" style="width: auto; position: absolute; bottom: 50px;" onclick="closeScanner()">Cancel</button>
+        </div>
+
+    </div>
+
+    <script>
+        // Simple View Router
+        function navigateTo(viewId) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(el => {
+                el.classList.remove('active');
+            });
+            // Show target view
+            document.getElementById(viewId).classList.add('active');
+        }
+
+        function startProcess() {
+            const scanner = document.getElementById('scanner');
+            scanner.classList.add('open');
+            
+            // Simulate scanning delay
+            setTimeout(() => {
+                closeScanner();
+                navigateTo('view-verify');
+            }, 2000);
+        }
+
+        function closeScanner() {
+            document.getElementById('scanner').classList.remove('open');
+        }
+
+        function goHome() {
+            navigateTo('view-home');
+        }
+
+        function goToPayment() {
+            navigateTo('view-payment');
+        }
+
+        function simulatePaymentSuccess() {
+            const btn = document.querySelector('#view-payment .btn');
+            const originalText = btn.innerText;
+            btn.innerText = "Processing...";
+            btn.style.background = "var(--text-muted)";
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.background = "var(--primary)";
+                navigateTo('view-success');
+            }, 1500);
+        }
+    </script>
+</body>
+</html>
+
