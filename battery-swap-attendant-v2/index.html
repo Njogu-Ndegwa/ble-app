@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Dark Theme (Default) */
         :root {
             --bg-primary: #0a0a0b;
             --bg-secondary: #111113;
@@ -41,6 +42,43 @@
             
             --shadow-glow: 0 0 60px -15px var(--accent-amber-glow);
             --shadow-card: 0 4px 24px -8px rgba(0, 0, 0, 0.5);
+            
+            --loading-overlay: rgba(10, 10, 11, 0.9);
+            --logo-icon-text: #0a0a0b;
+        }
+
+        /* Light Theme */
+        [data-theme="light"] {
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f3f4;
+            --bg-elevated: #e8eaed;
+            --border: #dadce0;
+            --border-subtle: #e8eaed;
+            
+            --text-primary: #1a1a1a;
+            --text-secondary: #5f6368;
+            --text-muted: #80868b;
+            
+            --accent-amber: #d97706;
+            --accent-amber-soft: rgba(217, 119, 6, 0.12);
+            --accent-amber-glow: rgba(217, 119, 6, 0.3);
+            
+            --success: #059669;
+            --success-soft: rgba(5, 150, 105, 0.12);
+            --success-glow: rgba(5, 150, 105, 0.3);
+            
+            --error: #dc2626;
+            --error-soft: rgba(220, 38, 38, 0.12);
+            
+            --info: #2563eb;
+            --info-soft: rgba(37, 99, 235, 0.12);
+            
+            --shadow-glow: 0 0 60px -15px var(--accent-amber-glow);
+            --shadow-card: 0 4px 24px -8px rgba(0, 0, 0, 0.1);
+            
+            --loading-overlay: rgba(248, 249, 250, 0.95);
+            --logo-icon-text: #ffffff;
         }
 
         * {
@@ -117,7 +155,7 @@
         .logo-icon svg {
             width: 20px;
             height: 20px;
-            color: var(--bg-primary);
+            color: var(--logo-icon-text);
         }
 
         .logo-text {
@@ -153,6 +191,81 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        /* Header Right Section */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent-amber);
+            background: var(--bg-tertiary);
+        }
+
+        .theme-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            position: absolute;
+        }
+
+        .theme-toggle .icon-sun {
+            opacity: 0;
+            transform: rotate(-90deg) scale(0);
+        }
+
+        .theme-toggle .icon-moon {
+            opacity: 1;
+            transform: rotate(0deg) scale(1);
+        }
+
+        [data-theme="light"] .theme-toggle .icon-sun {
+            opacity: 1;
+            transform: rotate(0deg) scale(1);
+        }
+
+        [data-theme="light"] .theme-toggle .icon-moon {
+            opacity: 0;
+            transform: rotate(90deg) scale(0);
+        }
+
+        /* Theme Transition */
+        html {
+            transition: background-color 0.3s ease;
+        }
+
+        html.theme-transition,
+        html.theme-transition *,
+        html.theme-transition *::before,
+        html.theme-transition *::after {
+            transition: background-color 0.3s ease, 
+                        border-color 0.3s ease, 
+                        color 0.3s ease,
+                        box-shadow 0.3s ease !important;
         }
 
         /* Main Content */
@@ -784,7 +897,7 @@
 
         .btn-primary {
             background: linear-gradient(135deg, var(--accent-amber) 0%, #d97706 100%);
-            color: var(--bg-primary);
+            color: #ffffff;
         }
 
         .btn-primary:hover {
@@ -821,7 +934,7 @@
         .loading-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(10, 10, 11, 0.9);
+            background: var(--loading-overlay);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -927,9 +1040,22 @@
                 </div>
                 <div class="logo-text">Swap<span>Flow</span></div>
             </div>
-            <div class="status-badge">
-                <span class="status-dot"></span>
-                Online
+            <div class="header-right">
+                <div class="status-badge">
+                    <span class="status-dot"></span>
+                    Online
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+                    <!-- Sun Icon (for light mode) -->
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <!-- Moon Icon (for dark mode) -->
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
             </div>
         </header>
 
@@ -1155,7 +1281,48 @@
     </div>
 
     <script>
+        // =====================
+        // Theme Management
+        // =====================
+        function initTheme() {
+            const savedTheme = localStorage.getItem('swapflow-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } else if (!prefersDark) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            
+            // Add transition class
+            html.classList.add('theme-transition');
+            
+            // Toggle theme
+            if (currentTheme === 'light') {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('swapflow-theme', 'dark');
+            } else {
+                html.setAttribute('data-theme', 'light');
+                localStorage.setItem('swapflow-theme', 'light');
+            }
+            
+            // Remove transition class after animation
+            setTimeout(() => {
+                html.classList.remove('theme-transition');
+            }, 300);
+        }
+
+        // Initialize theme immediately to prevent flash
+        initTheme();
+
+        // =====================
         // App State
+        // =====================
         let currentScreen = 1;
         const totalScreens = 4;
 
@@ -1304,13 +1471,24 @@
         });
 
         // Add touch feedback
-        document.querySelectorAll('.btn, .scanner-area, .qr-scanner-area').forEach(el => {
+        document.querySelectorAll('.btn, .scanner-area, .qr-scanner-area, .theme-toggle').forEach(el => {
             el.addEventListener('touchstart', function() {
-                this.style.transform = 'scale(0.98)';
+                this.style.transform = 'scale(0.95)';
             });
             el.addEventListener('touchend', function() {
                 this.style.transform = '';
             });
+        });
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('swapflow-theme')) {
+                if (e.matches) {
+                    document.documentElement.removeAttribute('data-theme');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            }
         });
     </script>
 </body>
