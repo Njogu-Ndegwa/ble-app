@@ -326,47 +326,34 @@
         /* Hero Section with Bikes */
         .role-hero {
             position: relative;
-            margin: 0 -20px 20px;
-            padding: 28px 20px 20px;
-            background: linear-gradient(165deg, #1a2234 0%, #141c2b 100%);
+            margin: 0 -20px 24px;
+            padding: 30px 20px 24px;
+            background: #0c1320;
             overflow: hidden;
         }
 
         [data-theme="light"] .role-hero {
-            background: linear-gradient(165deg, #1e293b 0%, #0f172a 100%);
+            background: #111827;
         }
 
-        /* Subtle inner shadow for depth */
+        /* Spotlight glow */
         .role-hero::before {
             content: '';
             position: absolute;
-            inset: 0;
-            box-shadow: inset 0 -40px 60px -40px rgba(0, 0, 0, 0.4);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -40%);
+            width: 320px;
+            height: 200px;
+            background: radial-gradient(ellipse, rgba(255,255,255,0.06) 0%, transparent 70%);
             pointer-events: none;
-        }
-
-        /* Clean bottom separator */
-        .role-hero::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, 
-                transparent 0%, 
-                var(--accent-amber) 20%, 
-                var(--accent-amber) 80%, 
-                transparent 100%
-            );
-            opacity: 0.4;
         }
 
         .role-hero-image {
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 330px;
+            max-width: 320px;
             margin: 0 auto;
         }
 
