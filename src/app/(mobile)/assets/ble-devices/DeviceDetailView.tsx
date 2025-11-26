@@ -267,7 +267,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         }
         
         if (writeSuccess) {
-          toast.success(t("Value written to {name}", { name: activeCharacteristic.name }));
+          // toast.success(t("Value written to {name}", { name: activeCharacteristic.name }));
+          toast.success(t("Success"));
+
           // Wait longer for write to fully complete before reading (BLE operations need time)
           setTimeout(() => {
             // Verify connection again before read
@@ -280,11 +282,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           }, 2000); // Increased to 2000ms for better reliability with multiple devices
         } else {
           console.error("Write failed:", errorMessage || "Unknown error");
+          // toast.error(
+          //   t("Failed to write {name}: {error}", {
+          //     name: activeCharacteristic.name,
+          //     error: errorMessage || t("Write operation failed"),
+          //   })
+          // );
           toast.error(
-            t("Failed to write {name}: {error}", {
-              name: activeCharacteristic.name,
-              error: errorMessage || t("Write operation failed"),
-            })
+            t("Failed")
           );
         }
       }
@@ -699,6 +704,14 @@ export default DeviceDetailView;
 
 //   const handleWrite = (value: string | number) => {
 //     if (!activeCharacteristic || !activeService) return;
+    
+//     // Verify device is still connected before attempting write
+//     const connectedMac = sessionStorage.getItem("connectedDeviceMac");
+//     if (!connectedMac || connectedMac !== device.macAddress) {
+//       toast.error(t("Device not connected. Please reconnect and try again."));
+//       return;
+//     }
+    
 //     console.info({
 //       action: "write",
 //       serviceUuid: activeService.uuid,
@@ -707,22 +720,86 @@ export default DeviceDetailView;
 //       name: device.name,
 //       value: value,
 //     });
+    
+//     // Set loading state
+//     setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: true }));
+    
 //     writeBleCharacteristic(
 //       activeService.uuid,
 //       activeCharacteristic.uuid,
 //       value,
 //       device.macAddress,
-//       (data: any, error: any) => {
-//         console.info({ data: data, error: error });
-//         if (data) {
-//           console.info(data, "Is Data 123");
+//       (responseData: any) => {
+//         setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: false }));
+//         console.info({ writeResponse: responseData });
+        
+//         // Parse response to check if write succeeded
+//         let writeSuccess = false;
+//         let errorMessage = null;
+        
+//         try {
+//           // Handle different response formats
+//           let response: any;
+          
+//           if (typeof responseData === 'string') {
+//             try {
+//               response = JSON.parse(responseData);
+//             } catch (e) {
+//               // If it's a plain string, check if it indicates success
+//               if (responseData.toLowerCase() === "success" || responseData.toLowerCase() === "ok") {
+//                 writeSuccess = true;
+//               } else {
+//                 errorMessage = responseData;
+//               }
+//             }
+//           } else {
+//             response = responseData;
+//           }
+          
+//           // Check if write was successful based on response structure
+//           if (response) {
+//             if (response.respCode === "200" || response.respCode === 200) {
+//               writeSuccess = true;
+//             } else if (response.respData === true || response.respData === "success") {
+//               writeSuccess = true;
+//             } else if (response.success === true) {
+//               writeSuccess = true;
+//             } else if (response.respDesc) {
+//               errorMessage = response.respDesc;
+//             } else if (response.error) {
+//               errorMessage = response.error;
+//             } else if (response.message) {
+//               errorMessage = response.message;
+//             }
+//           }
+//         } catch (e) {
+//           console.error("Error parsing write response:", e);
+//           errorMessage = "Unknown write response format";
+//         }
+        
+//         if (writeSuccess) {
+//           toast.success(t("Value written to {name}", { name: activeCharacteristic.name }));
+//           // Wait longer for write to fully complete before reading (BLE operations need time)
+//           setTimeout(() => {
+//             // Verify connection again before read
+//             const stillConnected = sessionStorage.getItem("connectedDeviceMac");
+//             if (stillConnected === device.macAddress) {
+//               handleRead(activeService.uuid, activeCharacteristic.uuid, device.name);
+//             } else {
+//               toast.error(t("Device disconnected. Please reconnect."));
+//             }
+//           }, 2000); // Increased to 2000ms for better reliability with multiple devices
+//         } else {
+//           console.error("Write failed:", errorMessage || "Unknown error");
+//           toast.error(
+//             t("Failed to write {name}: {error}", {
+//               name: activeCharacteristic.name,
+//               error: errorMessage || t("Write operation failed"),
+//             })
+//           );
 //         }
 //       }
 //     );
-//     toast.success(`Value written to ${activeCharacteristic.name}`);
-//     setTimeout(() => {
-//       handleRead(activeService.uuid, activeCharacteristic.uuid, device.name);
-//     }, 1000);
 //   };
 
 //   const handleRefreshService = () => {

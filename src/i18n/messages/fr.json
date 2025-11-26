@@ -112,6 +112,9 @@
   "nav.team.members": "Membres",
   "nav.team.chat": "Chat",
 
+  "nav.attendant": "Préposé",
+  "nav.attendant.attendant": "Préposé",
+
   "nav.company": "Entreprise",
   "nav.company.request": "Demande",
   "nav.company.updates": "Mises à jour",
@@ -930,7 +933,14 @@
   "Kenya": "Kenya",
   "Philippines": "Philippines",
   "Togo": "Togo",
-  "Shenzhen": "Shenzhen"
+  "Shenzhen": "Shenzhen",
+  "Last Code": "Dernier code",
+  "New Code:": "Nouveau code :",
+  "Code must contain exactly 21 digits": "Le code doit contenir exactement 21 chiffres",
+  "Code can only include digits between the markers": "Le code ne peut contenir que des chiffres entre les marqueurs",
+  "Code must contain 21 digits": "Le code doit contenir 21 chiffres",
+  "Success": "Succès",
+  "Failed": "Échec"
 }
 
 

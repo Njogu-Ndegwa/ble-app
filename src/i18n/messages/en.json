@@ -939,5 +939,17 @@
   "Kenya": "Kenya",
   "Philippines": "Philippines",
   "Togo": "Togo",
-  "Shenzhen": "Shenzhen"
+  "Shenzhen": "Shenzhen",
+
+  "Input Code:": "Input Code:",
+  "Last Code": "Last Code",
+  "New Code:": "New Code:",
+
+  "Code must contain 21 digits between * and #": "Code must contain 21 digits between * and #",
+  "Code must contain exactly 21 digits": "Code must contain exactly 21 digits",
+  "Code can only include digits between the markers": "Code can only include digits between the markers",
+  "Code must contain 21 digits": "Code must contain 21 digits",
+
+  "Success": "Success",
+  "Failed": "Failed"
 }

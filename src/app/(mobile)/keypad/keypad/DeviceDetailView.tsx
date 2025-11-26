@@ -224,7 +224,8 @@ useEffect(() => {
       }
 
       if (writeSuccess) {
-        toast.success(t("Value written to {name}", { name: char.name }));
+        // toast.success(t("Value written to {name}", { name: char.name }));
+        toast.success(t("Success"));
         setTimeout(() => {
           const stillConnected = sessionStorage.getItem("connectedDeviceMac");
           if (stillConnected === device.macAddress) {
@@ -235,11 +236,14 @@ useEffect(() => {
         }, 2000);
       } else {
         console.error("Write failed:", errorMessage || "Unknown error");
+        // toast.error(
+        //   t("Failed to write {name}: {error}", {
+        //     name: char.name,
+        //     error: errorMessage || t("Write operation failed"),
+        //   })
+        // );
         toast.error(
-          t("Failed to write {name}: {error}", {
-            name: char.name,
-            error: errorMessage || t("Write operation failed"),
-          })
+          t("Failed")
         );
       }
     });
@@ -376,7 +380,7 @@ useEffect(() => {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(String(getDisplayValue(pubkCharacteristic)));
-                toast.success(t('Value copied'));
+                // toast.success(t('Value copied'));
               }}
               className="ml-1 p-1 text-gray-400 hover:text-blue-500"
             >
@@ -526,13 +530,16 @@ useEffect(() => {
 };
 
 export default DeviceDetailView;
-
 // import React, { useState, useRef, useEffect, useMemo } from 'react';
 // import { Toaster, toast } from 'react-hot-toast';
 // import { ArrowLeft, Share2, Clipboard} from 'lucide-react';
 // import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 // import { AsciiStringModal, NumericModal } from '../../../modals';
 // import { useI18n } from '@/i18n';
+
+// const START_SENTINEL = '*';
+// const END_SENTINEL = '#';
+// const REQUIRED_DIGIT_COUNT = 21;
 
 // interface DeviceDetailProps {
 //   device: {
@@ -566,7 +573,7 @@ export default DeviceDetailView;
 //   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
 //   const [numericModalOpen, setNumericModalOpen] = useState(false);
 //   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-//   const [inputCode, setInputCode] = useState('');
+//   const [digitInput, setDigitInput] = useState('');
 //   const inputRef = useRef<HTMLInputElement>(null);
   
 //   /* Values we may want to display although they have their own cards */
@@ -782,12 +789,15 @@ export default DeviceDetailView;
 //   /* ------------------------------------------------------------------ */
 //   /* Keypad / input logic */
 //   /* ------------------------------------------------------------------ */
-//   const keypad: string[][] = [
+//   const keypad: (string | null)[][] = [
 //     ['1', '2', '3'],
 //     ['4', '5', '6'],
 //     ['7', '8', '9'],
-//     ['*', '0', '#'],
+//     [null, '0', null],
 //   ];
+
+//   const buildRawCode = (digits: string) =>
+//     `${START_SENTINEL}${digits}${digits.length === REQUIRED_DIGIT_COUNT ? END_SENTINEL : ''}`;
 
 //   const formatInputCode = (code: string) => {
 //     const raw = code.replace(/\s/g, '');
@@ -803,17 +813,15 @@ export default DeviceDetailView;
 //     return segs.join(' ');
 //   };
 
-//   const handleNumpadClick = (key: string) => {
-//     setInputCode((prev) => {
-//       const raw = prev.replace(/\s/g, '');
-//       if (key === 'backspace') {
-//         return formatInputCode(raw.slice(0, -1));
-//       }
-//       if (raw.length >= 23) return prev;
-//       if (raw.length === 0 && key !== '*') return prev;
-//       if (raw.length === 22 && key !== '#') return prev;
-//       if (raw.length >= 1 && raw.length < 22 && !/^[0-9]$/.test(key)) return prev;
-//       return formatInputCode(raw + key);
+//   const rawInputCode = buildRawCode(digitInput);
+//   const formattedInputCode = formatInputCode(rawInputCode);
+//   const isCodeComplete = digitInput.length === REQUIRED_DIGIT_COUNT;
+
+//   const handleNumpadClick = (key: string | null) => {
+//     if (!key || !/^\d$/.test(key)) return;
+//     setDigitInput((prev) => {
+//       if (prev.length >= REQUIRED_DIGIT_COUNT) return prev;
+//       return prev + key;
 //     });
 //   };
 
@@ -829,22 +837,19 @@ export default DeviceDetailView;
 //         const clipboardText = await navigator.clipboard.readText();
 //         pastedText = clipboardText.trim();
 //       }
-//       const rawText = pastedText.replace(/\s/g, '');
-//       // Validate pasted code: must be 23 characters, start with *, end with #, and have 21 digits in between
-//       if (rawText.length !== 23) {
-//         toast.error(t('Pasted code must be 23 characters'));
+//       let rawText = pastedText.replace(/\s/g, '');
+//       if (rawText.startsWith(START_SENTINEL)) rawText = rawText.slice(1);
+//       if (rawText.endsWith(END_SENTINEL)) rawText = rawText.slice(0, -1);
+
+//       if (rawText.length !== REQUIRED_DIGIT_COUNT) {
+//         toast.error(t('Code must contain exactly 21 digits'));
 //         return;
 //       }
-//       if (!rawText.startsWith('*') || !rawText.endsWith('#')) {
-//         toast.error(t('Code must start with * and end with #'));
+//       if (!/^\d+$/.test(rawText)) {
+//         toast.error(t('Code can only include digits between the markers'));
 //         return;
 //       }
-//       const digits = rawText.slice(1, -1);
-//       if (!/^\d{21}$/.test(digits)) {
-//         toast.error(t('Code must contain 21 digits between * and #'));
-//         return;
-//       }
-//       setInputCode(formatInputCode(rawText));
+//       setDigitInput(rawText);
 //       // toast.success('Code pasted successfully');
 //     } catch (error) {
 //       console.error('Failed to paste:', error);
@@ -852,19 +857,21 @@ export default DeviceDetailView;
 //     }
 //   };
 
-//   const clearInput = () => handleNumpadClick('backspace');
+//   const clearInput = () => {
+//     setDigitInput((prev) => prev.slice(0, -1));
+//   };
 
 //   const submitInput = () => {
 //     if (isLoadingService) return toast.error(t('Service is loading, please wait'));
-//     const raw = inputCode.replace(/\s/g, '');
-//     if (raw.length !== 23) return toast.error(t('Code must be 23 characters'));
+//     if (!isCodeComplete) return toast.error(t('Code must contain 21 digits'));
 //     if (!pubkCharacteristic) return toast.error(t('Public key characteristic not found'));
-//     writeCharacteristic(pubkCharacteristic, formatInputCode(inputCode), () => {
+//     const rawCode = buildRawCode(digitInput);
+//     writeCharacteristic(pubkCharacteristic, formatInputCode(rawCode), () => {
 //       setTimeout(() =>
 //         handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name),
 //       1000);
 //     });
-//     setInputCode('');
+//     setDigitInput('');
 //   };
 
 //   const focusInput = () => {
@@ -892,7 +899,7 @@ export default DeviceDetailView;
 //     <div className="flex space-x-4">
 //       {/* pubk card */}
 //       <div className="border border-gray-700 rounded-lg p-4 bg-gray-800 w-3/4">
-//         <div className="text-sm text-gray-400 mb-2">{t('Current PUBK Value')}</div>
+//         <div className="text-sm text-gray-400 mb-2">{t('Last Code')}</div>
 //         {pubkCharacteristic ? (
 //           <div className="min-h-8 flex items-center">
 //             <div className="font-mono text-sm overflow-hidden overflow-ellipsis w-5/6 whitespace-nowrap">
@@ -933,7 +940,7 @@ export default DeviceDetailView;
 //   const inputDisplay = (
 //     <div className="border border-gray-700 rounded-lg p-3 bg-gray-800">
 //       <div className="flex justify-between items-center mb-1">
-//         <p className="text-sm text-gray-400">{t('Input Code:')}</p>
+//         <p className="text-sm text-gray-400">{t('New Code:')}</p>
 //         <button
 //           onClick={async () => {
 //             try {
@@ -951,7 +958,7 @@ export default DeviceDetailView;
 //         <input
 //           ref={inputRef}
 //           type="text"
-//           value={inputCode}
+//           value={formattedInputCode}
 //           onPaste={handlePaste}
 //           onChange={(e) => {
 //             e.preventDefault();
@@ -961,10 +968,14 @@ export default DeviceDetailView;
 //           className="font-mono h-8 mt-1 truncate p-1 bg-gray-900 rounded w-full text-white pr-10"
 //           style={{
 //             fontSize:
-//               inputCode.length > 20 ? '0.75rem' : inputCode.length > 15 ? '0.875rem' : '1rem',
+//               formattedInputCode.length > 20
+//                 ? '0.75rem'
+//                 : formattedInputCode.length > 15
+//                 ? '0.875rem'
+//                 : '1rem',
 //           }}
 //         />
-//         {inputCode && (
+//         {digitInput.length > 0 && (
 //           <button
 //             onClick={clearInput}
 //             className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
@@ -976,19 +987,25 @@ export default DeviceDetailView;
 //     </div>
 //   );
 
+//   const okDisabled = Boolean(isLoadingService) || !isCodeComplete;
+
 //   const keypadGrid = (
 //     <>
 //       <div className="grid grid-cols-3 gap-2">
 //         {keypad.map((row, i) =>
-//           row.map((key) => (
-//             <button
-//               key={`${i}-${key}`}
-//               className="bg-gray-700 hover:bg-gray-600 text-white text-xl font-semibold rounded-lg py-3"
-//               onClick={() => handleNumpadClick(key)}
-//             >
-//               {key}
-//             </button>
-//           ))
+//           row.map((key, j) =>
+//             key ? (
+//               <button
+//                 key={`${i}-${j}`}
+//                 className="bg-gray-700 hover:bg-gray-600 text-white text-xl font-semibold rounded-lg py-3"
+//                 onClick={() => handleNumpadClick(key)}
+//               >
+//                 {key}
+//               </button>
+//             ) : (
+//               <div key={`${i}-${j}`} />
+//             )
+//           )
 //         )}
 //       </div>
 //       <div className="flex space-x-4 mt-2">
@@ -999,10 +1016,14 @@ export default DeviceDetailView;
 //           ←
 //         </div>
 //         <div
-//           className={`h-14 flex-1 flex items-center justify-center rounded ${isLoadingService ? 'bg-gray-500' : 'bg-blue-600 active:bg-blue-500'} text-white text-xl cursor-pointer`}
-//           onClick={submitInput}
+//           className={`h-14 flex-1 flex items-center justify-center rounded ${
+//             okDisabled ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-600 active:bg-blue-500 cursor-pointer'
+//           } text-white text-xl`}
+//           onClick={() => {
+//             if (!okDisabled) submitInput();
+//           }}
 //         >
-//           OK
+//           SUBMIT
 //         </div>
 //       </div>
 //     </>
@@ -1037,3 +1058,4 @@ export default DeviceDetailView;
 // };
 
 // export default DeviceDetailView;
+
