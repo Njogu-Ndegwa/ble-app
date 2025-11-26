@@ -1,17 +1,20 @@
 
 'use client'
 // import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Outfit, DM_Mono } from "next/font/google";
 import "./globals.css";
-import { useEffect } from "react";
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+
+// Oves Design System fonts
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
+  weight: ['300', '400', '500', '600', '700'],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const dmMono = DM_Mono({
+  variable: "--font-dm-mono",
   subsets: ["latin"],
+  weight: ['400', '500'],
 });
 
 import { BridgeProvider } from './context/bridgeContext';
@@ -35,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${outfit.variable} ${dmMono.variable} antialiased`}
       >
         <ApolloProvider client={apolloClient}>
           <BridgeProvider>
