@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantUser, clearAttendantLogin } from '@/lib/attendant-auth';
+import { getAttendantUser } from '@/lib/attendant-auth';
 
 // Import components
 import {
@@ -929,9 +929,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [currentStep]);
 
-  // Handle logout and back to roles
+  // Handle back to roles (don't logout - shared between Attendant & Sales)
   const handleBackToRoles = useCallback(() => {
-    clearAttendantLogin();
     if (onBack) {
       onBack();
     } else {
@@ -1032,13 +1031,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     <div className="attendant-container">
       <div className="attendant-bg-gradient" />
       
-      {/* Back to Roles / Logout */}
+      {/* Back to Roles */}
       <div style={{ padding: '8px 16px 0' }}>
         <button className="back-to-roles" onClick={handleBackToRoles}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          Logout
+          Change Role
         </button>
       </div>
 
