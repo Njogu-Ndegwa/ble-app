@@ -1,10 +1,9 @@
-// login works well
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { LogIn, User, Loader2, UserPlus, Mail, Phone, AlertCircle, CheckCircle, Globe } from "lucide-react";
 import { useI18n } from '@/i18n';
+import { saveAttendantLogin, getStoredEmail } from '@/lib/attendant-auth';
 
 // Define interfaces
 interface Customer {
@@ -45,6 +44,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState<string>("");
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
+  
+  // Pre-fill email from stored value
+  useEffect(() => {
+    const storedEmail = getStoredEmail();
+    if (storedEmail) {
+      setEmail(storedEmail);
+    }
+  }, []);
   
   // Registration form state
   const [formData, setFormData] = useState<FormData>({
@@ -155,7 +162,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       if (response.status === 200) {
         console.log("Login successful");
-        localStorage.setItem("userEmail", email);
+        saveAttendantLogin({
+          id: data.customer.id,
+          name: data.customer.name,
+          email: data.customer.email || email,
+          phone: data.customer.phone,
+        });
         onLoginSuccess(data.customer);
       } else if (response.status === 404) {
         toast.error(t("User not found. Would you like to create an account?"));
@@ -268,284 +280,291 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  // Registration Form
   if (showRegister) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-          <div className="text-center mb-6">
-            <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <UserPlus className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white mb-2">{t('Create Account')}</h1>
-            <p className="text-gray-400">{t('Join our community today')}</p>
+      <div className="login-container">
+        {/* Back Button */}
+        <button className="back-link" onClick={() => setShowRegister(false)} style={{ position: 'absolute', top: 16, left: 16 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          {t('Back')}
+        </button>
+
+        {/* Header */}
+        <div className="login-header">
+          <div className="login-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="8.5" cy="7" r="4"/>
+              <path d="M20 8v6M23 11h-6"/>
+            </svg>
           </div>
+          <h1 className="login-title">{t('Create Account')}</h1>
+          <p className="login-subtitle">{t('Join our community today')}</p>
+        </div>
 
-          {submitStatus && (
-            <div className={`mb-4 p-3 rounded-lg flex items-center ${
-              submitStatus === 'success' 
-                ? 'bg-green-900/50 border border-green-700 text-green-200' 
-                : 'bg-red-900/50 border border-red-700 text-red-200'
-            }`}>
-              {submitStatus === 'success' ? (
-                <CheckCircle size={16} className="mr-2 flex-shrink-0" />
-              ) : (
-                <AlertCircle size={16} className="mr-2 flex-shrink-0" />
-              )}
-              <span className="text-sm">{submitMessage}</span>
-            </div>
-          )}
+        {/* Status Alert */}
+        {submitStatus && (
+          <div className={`status-alert ${submitStatus}`} style={{ maxWidth: 320, width: '100%' }}>
+            {submitStatus === 'success' ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4M12 16h.01"/>
+              </svg>
+            )}
+            <span>{submitMessage}</span>
+          </div>
+        )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Full Name')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <User size={16} className="absolute left-3 top-3 text-gray-500" />
+        {/* Registration Form */}
+        <div className="login-form">
+          <div className="form-section">
+            <div className="form-section-title">{t('Personal Information')}</div>
+            
+            {/* Full Name */}
+            <div className="form-group">
+              <label className="form-label">{t('Full Name')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
                 <input
                   type="text"
+                  className={`form-input ${errors.name ? 'error' : ''}`}
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-600'
-                  }`}
                   placeholder={t('Enter your full name')}
                 />
               </div>
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-              )}
+              {errors.name && <p className="form-error">{errors.name}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Country')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Globe size={16} className="absolute left-3 top-3 text-gray-500 z-10" />
+            {/* Country */}
+            <div className="form-group">
+              <label className="form-label">{t('Country')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
                 <select
+                  className={`form-input ${errors.country ? 'error' : ''}`}
                   value={formData.country}
                   onChange={(e) => handleInputChange('country', e.target.value)}
-                  className={`w-full pl-10 pr-4 py-3 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${
-                    errors.country ? 'border-red-500' : 'border-gray-600'
-                  }`}
+                  style={{ paddingLeft: 42, appearance: 'none' }}
                 >
-                  <option value="" className="text-gray-400">{t('Please select a country')}</option>
+                  <option value="">{t('Select a country')}</option>
                   {countryOptions.map((country) => (
-                    <option key={country.value} value={country.value} className="bg-gray-700 text-white">
+                    <option key={country.value} value={country.value}>
                       {country.label}
                     </option>
                   ))}
                 </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
               </div>
-              {errors.country && (
-                <p className="mt-1 text-sm text-red-400">{errors.country}</p>
-              )}
+              {errors.country && <p className="form-error">{errors.country}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Email')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3 top-3 text-gray-500" />
+            {/* Email */}
+            <div className="form-group">
+              <label className="form-label">{t('Email')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
                 <input
                   type="email"
+                  className={`form-input ${errors.email ? 'error' : ''}`}
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.email ? 'border-red-500' : 'border-gray-600'
-                  }`}
                   placeholder={t('Enter your email')}
                 />
               </div>
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-400">{errors.email}</p>
-              )}
+              {errors.email && <p className="form-error">{errors.email}</p>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Phone')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Phone size={16} className="absolute left-3 top-3 text-gray-500" />
+            {/* Phone */}
+            <div className="form-group">
+              <label className="form-label">{t('Phone')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
                 <input
                   type="tel"
+                  className={`form-input ${errors.phone ? 'error' : ''}`}
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.phone ? 'border-red-500' : 'border-gray-600'
-                  }`}
-                  placeholder={t('Enter your phone number')}
+                  placeholder="+254 7XX XXX XXX"
                 />
               </div>
-              {errors.phone && (
-                <p className="mt-1 text-sm text-red-400">{errors.phone}</p>
-              )}
+              {errors.phone && <p className="form-error">{errors.phone}</p>}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Street Address')} <span className="text-red-400">*</span>
-              </label>
+          <div className="form-section">
+            <div className="form-section-title">{t('Address')}</div>
+            
+            {/* Street */}
+            <div className="form-group">
+              <label className="form-label">{t('Street Address')} *</label>
               <input
                 type="text"
+                className={`form-input ${errors.street ? 'error' : ''}`}
                 value={formData.street}
                 onChange={(e) => handleInputChange('street', e.target.value)}
-                className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.street ? 'border-red-500' : 'border-gray-600'
-                }`}
                 placeholder={t('Enter street address')}
               />
-              {errors.street && (
-                <p className="mt-1 text-sm text-red-400">{errors.street}</p>
-              )}
+              {errors.street && <p className="form-error">{errors.street}</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  {t('City')} <span className="text-red-400">*</span>
-                </label>
+            {/* City & Zip */}
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">{t('City')} *</label>
                 <input
                   type="text"
+                  className={`form-input ${errors.city ? 'error' : ''}`}
                   value={formData.city}
                   onChange={(e) => handleInputChange('city', e.target.value)}
-                  className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.city ? 'border-red-500' : 'border-gray-600'
-                  }`}
                   placeholder={t('City')}
                 />
-                {errors.city && (
-                  <p className="mt-1 text-sm text-red-400">{errors.city}</p>
-                )}
+                {errors.city && <p className="form-error">{errors.city}</p>}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  {t('Zip')} <span className="text-red-400">*</span>
-                </label>
+              <div className="form-group">
+                <label className="form-label">{t('Zip Code')} *</label>
                 <input
                   type="text"
+                  className={`form-input ${errors.zip ? 'error' : ''}`}
                   value={formData.zip}
                   onChange={(e) => handleInputChange('zip', e.target.value)}
-                  className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.zip ? 'border-red-500' : 'border-gray-600'
-                  }`}
                   placeholder={t('Zip')}
                 />
-                {errors.zip && (
-                  <p className="mt-1 text-sm text-red-400">{errors.zip}</p>
-                )}
+                {errors.zip && <p className="form-error">{errors.zip}</p>}
               </div>
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
-            <button
-              onClick={handleRegister}
-              disabled={isSubmitting}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {t('Creating Account...')}
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-5 h-5" />
-                  {t('Create Account')}
-                </>
-              )}
-            </button>
+          {/* Submit Button */}
+          <button
+            className="btn btn-primary login-btn"
+            onClick={handleRegister}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+                <span>{t('Creating Account...')}</span>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="8.5" cy="7" r="4"/>
+                  <path d="M20 8v6M23 11h-6"/>
+                </svg>
+                <span>{t('Create Account')}</span>
+              </>
+            )}
+          </button>
 
-            <button
-              onClick={() => setShowRegister(false)}
-              disabled={isSubmitting}
-              className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
+          <p className="login-help">
+            {t('Already have an account?')}{' '}
+            <button 
+              onClick={() => setShowRegister(false)} 
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              {t('Back to Sign In')}
+              {t('Sign In')}
             </button>
-          </div>
+          </p>
         </div>
       </div>
     );
   }
 
+  // Login Form
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-        {isSigningIn ? (
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-            <p className="text-white mt-4">{t('Signing in...')}</p>
+    <div className="login-container">
+      {/* Header */}
+      <div className="login-header">
+        <div className="login-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h1 className="login-title">{t('Staff Login')}</h1>
+        <p className="login-subtitle">{t('Sign in to access your workspace')}</p>
+      </div>
+
+      {/* Login Form */}
+      <div className="login-form">
+        {/* Email Input */}
+        <div className="form-group">
+          <label className="form-label">{t('Email Address')}</label>
+          <div className="input-with-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <input
+              type="email"
+              className="form-input"
+              value={email}
+              onChange={handleEmailChange}
+              onKeyPress={handleKeyPress}
+              placeholder={t('Enter your email')}
+              disabled={isSigningIn}
+            />
           </div>
-        ) : (
-          <>
-            <div className="text-center mb-8">
-              <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-white mb-2">{t('Welcome')}</h1>
-              <p className="text-gray-400">{t('Please enter your email to continue')}</p>
-            </div>
-            
-            <div className="mb-6">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                {t('Email')}
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={handleEmailChange}
-                onKeyPress={handleKeyPress}
-                placeholder={t('Enter your email')}
-                disabled={isSigningIn}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
+        </div>
 
-            <div className="space-y-3">
-              <button
-                onClick={handleSignIn}
-                disabled={isSigningIn || !email.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none disabled:hover:scale-100"
-              >
-                {isSigningIn ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {t('Signing in...')}
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-5 h-5" />
-                    {t('Sign In')}
-                  </>
-                )}
-              </button>
+        {/* Sign In Button */}
+        <button
+          className="btn btn-primary login-btn"
+          onClick={handleSignIn}
+          disabled={isSigningIn || !email.trim()}
+        >
+          {isSigningIn ? (
+            <>
+              <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+              <span>{t('Signing in...')}</span>
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+              <span>{t('Sign In')}</span>
+            </>
+          )}
+        </button>
 
-              <button
-                onClick={() => setShowRegister(true)}
-                disabled={isSigningIn}
-                className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
-              >
-                <UserPlus className="w-5 h-5 inline mr-2" />
-                {t('Create New Account')}
-              </button>
-            </div>
+        {/* Create Account Button */}
+        <button
+          className="btn btn-secondary"
+          onClick={() => setShowRegister(true)}
+          disabled={isSigningIn}
+          style={{ width: '100%', marginTop: 10 }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <path d="M20 8v6M23 11h-6"/>
+          </svg>
+          <span>{t('Create New Account')}</span>
+        </button>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">{t('Need help? Contact support')}</p>
-            </div>
-          </>
-        )}
+        <p className="login-help">
+          {t('Need help? Contact your supervisor')}
+        </p>
       </div>
     </div>
   );

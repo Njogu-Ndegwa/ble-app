@@ -2,16 +2,15 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import SplashScreen from '@/components/splash/SplashScreen';
 import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
+import SelectRole from '@/components/roles/SelectRole';
 
-type AppState = 'splash' | 'onboarding';
+type AppState = 'splash' | 'onboarding' | 'selectRole';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 
 export default function Index() {
-  const router = useRouter();
   const [appState, setAppState] = useState<AppState>('splash');
 
   const hasSeenOnboarding = () => {
@@ -23,22 +22,18 @@ export default function Index() {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
   };
 
-  const goToNextPage = useCallback(() => {
-    router.replace('/keypad/keypad');
-  }, [router]);
-
   const handleSplashComplete = useCallback(() => {
     if (hasSeenOnboarding()) {
-      goToNextPage();
+      setAppState('selectRole');
     } else {
       setAppState('onboarding');
     }
-  }, [goToNextPage]);
+  }, []);
 
   const handleOnboardingComplete = useCallback(() => {
     markOnboardingComplete();
-    goToNextPage();
-  }, [goToNextPage]);
+    setAppState('selectRole');
+  }, []);
 
   if (appState === 'splash') {
     return <SplashScreen onComplete={handleSplashComplete} />;
@@ -46,6 +41,10 @@ export default function Index() {
 
   if (appState === 'onboarding') {
     return <OnboardingCarousel onComplete={handleOnboardingComplete} />;
+  }
+
+  if (appState === 'selectRole') {
+    return <SelectRole />;
   }
 
   return null;
