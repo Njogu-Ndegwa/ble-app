@@ -1,37 +1,31 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { toast } from 'react-hot-toast';
 import { useBridge } from '@/app/context/bridgeContext';
+import { getAttendantUser } from '@/lib/attendant-auth';
 
-// Types
-interface CustomerData {
-  id: string;
-  name: string;
-  subscriptionId: string;
-  subscriptionType: string;
-  swapCount?: number;
-  lastSwap?: string;
-}
+// Import components
+import {
+  Timeline,
+  CustomerStatePanel,
+  ActionBar,
+  Step1CustomerScan,
+  Step2OldBattery,
+  Step3NewBattery,
+  Step4Review,
+  Step5Payment,
+  Step6Success,
+  // Types
+  CustomerData,
+  BatteryData,
+  SwapData,
+  AttendantStep,
+} from './components';
 
-interface BatteryData {
-  id: string;
-  shortId: string;
-  chargeLevel: number;
-  energy?: number;
-}
-
-interface SwapData {
-  oldBattery: BatteryData | null;
-  newBattery: BatteryData | null;
-  energyDiff: number;
-  cost: number;
-  rate: number;
-}
-
-type AttendantStep = 1 | 2 | 3 | 4 | 5 | 6;
+// Constants
+const PAYMENT_CONFIRMATION_ENDPOINT = "https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm";
 
 interface AttendantFlowProps {
   onBack?: () => void;
@@ -41,12 +35,32 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge } = useBridge();
   
+  // Attendant info from login
+  const [attendantInfo, setAttendantInfo] = useState<{ id: string; station: string }>({
+    id: 'attendant-001',
+    station: 'STATION_001',
+  });
+
+  // Load attendant info on mount
+  useEffect(() => {
+    const user = getAttendantUser();
+    if (user) {
+      setAttendantInfo({
+        id: `attendant-${user.id}`,
+        station: `STATION_${user.id}`,
+      });
+    }
+  }, []);
+  
   // Step management
   const [currentStep, setCurrentStep] = useState<AttendantStep>(1);
   
   // Input mode for step 1
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [manualSubscriptionId, setManualSubscriptionId] = useState('');
+  
+  // Plan ID from QR code (subscription_code)
+  const [dynamicPlanId, setDynamicPlanId] = useState<string>('');
   
   // Data states
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
@@ -55,167 +69,520 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     newBattery: null,
     energyDiff: 0,
     cost: 0,
-    rate: 120, // KES per kWh
+    rate: 120, // Will be updated from service response
   });
+  
+  // Service states from MQTT response
+  const [serviceStates, setServiceStates] = useState<Array<{
+    service_id: string;
+    used: number;
+    quota: number;
+    current_asset: string | null;
+    name?: string;
+    usageUnitPrice?: number;
+  }>>([]);
+  
+  // Customer type (first-time or returning)
+  const [customerType, setCustomerType] = useState<'first-time' | 'returning' | null>(null);
   
   // Loading states
   const [isScanning, setIsScanning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Stats (would be fetched from API)
-  const [stats] = useState({ today: 24, thisWeek: 156, successRate: 98 });
+  // Payment states
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentReceipt, setPaymentReceipt] = useState<string | null>(null);
+  
+  // Phase states
+  const [paymentAndServiceStatus, setPaymentAndServiceStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+  
+  // Stats (fetched from API in a real implementation)
+  const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
 
   // Transaction ID
   const [transactionId, setTransactionId] = useState<string>('');
+  
+  // Ref for correlation ID
+  const correlationIdRef = useRef<string>('');
 
-  // Helper: Get initials from name
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+  // Get electricity service from service states
+  const electricityService = serviceStates.find(
+    (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
+  );
 
-  // Helper: Get battery level class
-  const getBatteryClass = (level: number) => {
-    if (level >= 80) return 'full';
-    if (level >= 40) return 'medium';
-    return 'low';
-  };
+  // Get battery fleet service (to check current_asset for customer type)
+  const batteryFleetService = serviceStates.find(
+    (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
+  );
 
-  // Step 1: Scan Customer QR
+  // Step 1: Scan Customer QR - with MQTT identify_customer
   const handleScanCustomer = useCallback(async () => {
+    if (!bridge) {
+      toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
     setIsScanning(true);
     
-    try {
-      if (bridge) {
-        bridge.callHandler('scanQRCode', {}, (responseData: string) => {
+    const processQRData = (qrCodeData: string) => {
+      let parsedData: any;
+      try {
+        parsedData = JSON.parse(qrCodeData);
+      } catch {
+        parsedData = qrCodeData;
+      }
+
+      const normalizedData: any = {
+        customer_id: typeof parsedData === 'object'
+          ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
+          : qrCodeData,
+        subscription_code: typeof parsedData === 'object'
+          ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
+          : undefined,
+        name: typeof parsedData === 'object'
+          ? parsedData.name || parsedData.customer_name
+          : undefined,
+        raw: qrCodeData,
+      };
+
+      // Extract subscription_code as plan_id
+      const subscriptionCode = normalizedData.subscription_code;
+      if (!subscriptionCode) {
+        console.error("No subscription_code found in QR code");
+        toast.error("QR code missing subscription_code");
+        setIsScanning(false);
+        return;
+      }
+
+      setDynamicPlanId(subscriptionCode);
+      console.info("Using subscription_code as plan_id:", subscriptionCode);
+
+      const currentPlanId = subscriptionCode;
+      const customerId = normalizedData.customer_id;
+      const formattedQrCodeData = `QR_CUSTOMER_TEST_${customerId}`;
+
+      // Generate correlation ID
+      const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      correlationIdRef.current = correlationId;
+      (window as any).__customerIdentificationCorrelationId = correlationId;
+
+      // Build MQTT payload
+      const requestTopic = `emit/uxi/attendant/plan/${currentPlanId}/identify_customer`;
+      const responseTopic = `echo/abs/service/plan/${currentPlanId}/identify_customer`;
+
+      const payload = {
+        timestamp: new Date().toISOString(),
+        plan_id: currentPlanId,
+        correlation_id: correlationId,
+        actor: { type: "attendant", id: attendantInfo.id },
+        data: {
+          action: "IDENTIFY_CUSTOMER",
+          qr_code_data: formattedQrCodeData,
+          attendant_station: attendantInfo.station,
+        },
+      };
+
+      const dataToPublish = {
+        topic: requestTopic,
+        qos: 0,
+        content: payload,
+      };
+
+      console.info("=== Customer Identification MQTT ===");
+      console.info("Request Topic:", requestTopic);
+      console.info("Response Topic:", responseTopic);
+      console.info("Payload:", JSON.stringify(payload, null, 2));
+
+      // Register response handler
+      bridge.registerHandler(
+        "mqttMsgArrivedCallBack",
+        (data: string, responseCallback: (response: any) => void) => {
           try {
-            const result = JSON.parse(responseData);
-            if (result.success && result.data) {
-              // Parse QR code data - expecting subscription info
-              const qrData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-              
-              setCustomerData({
-                id: qrData.customer_id || qrData.id || 'CUS-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
-                name: qrData.name || 'Customer',
-                subscriptionId: qrData.subscription_code || qrData.subscriptionId || 'SUB-' + Math.random().toString(36).substr(2, 8).toUpperCase(),
-                subscriptionType: qrData.plan_type || 'Pay-Per-Swap',
-                swapCount: qrData.swap_count || 0,
-                lastSwap: qrData.last_swap || 'First swap',
-              });
-              
-              setCurrentStep(2);
-              toast.success('Customer identified');
-            } else {
-              toast.error('Invalid QR code');
+            const parsedMqttData = JSON.parse(data);
+            const topic = parsedMqttData.topic;
+            const rawMessageContent = parsedMqttData.message;
+
+            // Check if this is our response topic
+            if (topic === responseTopic) {
+              console.info("Response received from identify_customer:", JSON.stringify(parsedMqttData, null, 2));
+
+              let responseData: any;
+              try {
+                responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+              } catch {
+                responseData = rawMessageContent;
+              }
+
+              // Check correlation ID
+              const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
+              const responseCorrelationId = responseData?.correlation_id;
+
+              const correlationMatches =
+                Boolean(storedCorrelationId) &&
+                Boolean(responseCorrelationId) &&
+                (responseCorrelationId === storedCorrelationId ||
+                  responseCorrelationId.startsWith(storedCorrelationId) ||
+                  storedCorrelationId.startsWith(responseCorrelationId));
+
+              if (correlationMatches) {
+                // Parse response structure: data.success, data.signals, data.metadata
+                const success = responseData?.data?.success ?? false;
+                const signals = responseData?.data?.signals || [];
+
+                const hasRequiredSignal = success === true && 
+                  Array.isArray(signals) && 
+                  signals.includes("CUSTOMER_IDENTIFIED_SUCCESS");
+
+                if (hasRequiredSignal) {
+                  console.info("Customer identification successful!");
+                  
+                  // Extract from data.metadata structure
+                  const metadata = responseData?.data?.metadata;
+                  const servicePlanData = metadata?.service_plan_data;
+                  const serviceBundle = metadata?.service_bundle;
+                  const identifiedCustomerId = metadata?.customer_id;
+                  
+                  if (servicePlanData) {
+                    // Extract service states
+                    const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
+                      (service: any) => typeof service?.service_id === 'string'
+                    );
+                    
+                    // Enrich with service bundle info (usageUnitPrice, name)
+                    const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
+                      const matchingService = serviceBundle?.services?.find(
+                        (svc: any) => svc.serviceId === serviceState.service_id
+                      );
+                      return {
+                        ...serviceState,
+                        name: matchingService?.name,
+                        usageUnitPrice: matchingService?.usageUnitPrice,
+                      };
+                    });
+                    
+                    setServiceStates(enrichedServiceStates);
+                    
+                    // Determine customer type from battery fleet service current_asset
+                    const batteryFleet = enrichedServiceStates.find(
+                      (s: any) => s.service_id?.includes('service-battery-fleet')
+                    );
+                    const inferredType = batteryFleet?.current_asset ? 'returning' : 'first-time';
+                    setCustomerType(inferredType);
+                    
+                    // Find electricity service for rate and quotas
+                    const elecService = enrichedServiceStates.find(
+                      (s: any) => s.service_id?.includes('service-electricity')
+                    );
+                    
+                    // Find swap count service for swap quotas
+                    const swapCountService = enrichedServiceStates.find(
+                      (s: any) => s.service_id?.includes('service-swap-count')
+                    );
+                    
+                    // Update rate from service
+                    if (elecService?.usageUnitPrice) {
+                      setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
+                    }
+                    
+                    // Set customer data from response
+                    setCustomerData({
+                      id: identifiedCustomerId || servicePlanData.customerId || customerId,
+                      name: normalizedData.name || identifiedCustomerId || 'Customer',
+                      subscriptionId: servicePlanData.servicePlanId || subscriptionCode,
+                      subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
+                      swapCount: swapCountService?.used || 0,
+                      lastSwap: 'N/A',
+                      energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
+                      energyTotal: elecService?.quota || 0,
+                      swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
+                      swapsTotal: swapCountService?.quota || 21,
+                      paymentStatus: servicePlanData.paymentState === 'CURRENT' ? 'current' : 'overdue',
+                      accountStatus: servicePlanData.status === 'ACTIVE' ? 'active' : 'inactive',
+                      currentBatteryId: batteryFleet?.current_asset || undefined,
+                    });
+                    
+                    setCurrentStep(2);
+                    toast.success('Customer identified');
+                  } else {
+                    console.error("No service_plan_data in response");
+                    toast.error("Invalid customer data received");
+                  }
+                } else {
+                  console.error("Customer identification failed - missing required signal");
+                  const errorMsg = responseData?.data?.error || responseData?.error || "Customer identification failed";
+                  toast.error(errorMsg);
+                }
+              }
             }
-          } catch (e) {
-            console.error('Error parsing QR data:', e);
-            toast.error('Failed to read QR code');
+            responseCallback({});
+          } catch (err) {
+            console.error("Error processing MQTT response:", err);
           }
           setIsScanning(false);
-        });
-      } else {
-        // Simulate for testing without bridge
-        setTimeout(() => {
-          setCustomerData({
-            id: 'CUS-8847-KE',
-            name: 'James Mwangi',
-            subscriptionId: 'SUB-8847-KE',
-            subscriptionType: 'Pay-Per-Swap',
-            swapCount: 34,
-            lastSwap: '2 days ago',
-          });
-          setCurrentStep(2);
-          toast.success('Customer identified');
+        }
+      );
+
+      // Publish the request
+      bridge.callHandler(
+        "mqttPublishMsg",
+        JSON.stringify(dataToPublish),
+        (publishResponse: string) => {
+          try {
+            const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
+            if (pubResp?.error || pubResp?.respCode !== "200") {
+              console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
+              toast.error("Failed to identify customer");
+              setIsScanning(false);
+            } else {
+              console.info("identify_customer published, waiting for response...");
+            }
+          } catch (err) {
+            console.error("Error parsing publish response:", err);
+            toast.error("Error identifying customer");
+            setIsScanning(false);
+          }
+        }
+      );
+    };
+
+    try {
+      bridge.callHandler('scanQRCode', {}, (responseData: string) => {
+        try {
+          const result = JSON.parse(responseData);
+          if (result.success && result.data) {
+            const qrData = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+            processQRData(qrData);
+          } else {
+            toast.error('Failed to scan QR code');
+            setIsScanning(false);
+          }
+        } catch (e) {
+          console.error('Error parsing QR data:', e);
+          toast.error('Failed to read QR code');
           setIsScanning(false);
-        }, 1500);
-      }
+        }
+      });
     } catch (error) {
       console.error('Scan error:', error);
       toast.error('Scan failed');
       setIsScanning(false);
     }
-  }, [bridge]);
+  }, [bridge, attendantInfo]);
 
-  // Step 1: Manual lookup
+  // Step 1: Manual lookup - also uses MQTT
   const handleManualLookup = useCallback(async () => {
     if (!manualSubscriptionId.trim()) {
       toast.error('Please enter a Subscription ID');
       return;
     }
+
+    if (!bridge) {
+      toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
     
     setIsProcessing(true);
     
-    try {
-      // In production, this would be an API call
-      // For now, simulate lookup
-      setTimeout(() => {
-        setCustomerData({
-          id: 'CUS-' + manualSubscriptionId.slice(-4),
-          name: 'John Doe',
-          subscriptionId: manualSubscriptionId.toUpperCase(),
-          subscriptionType: 'Pay-Per-Swap',
-          swapCount: 12,
-          lastSwap: '5 days ago',
-        });
-        setCurrentStep(2);
-        toast.success('Customer found');
-        setIsProcessing(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Lookup error:', error);
-      toast.error('Customer not found');
-      setIsProcessing(false);
-    }
-  }, [manualSubscriptionId]);
+    // Use the subscription ID as the plan_id
+    const subscriptionCode = manualSubscriptionId.trim();
+    setDynamicPlanId(subscriptionCode);
+    
+    // Generate correlation ID
+    const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    correlationIdRef.current = correlationId;
+    (window as any).__customerIdentificationCorrelationId = correlationId;
 
-  // Step 2: Scan Old Battery (customer bringing in)
+    // Build MQTT payload for manual lookup
+    const requestTopic = `emit/uxi/attendant/plan/${subscriptionCode}/identify_customer`;
+    const responseTopic = `echo/abs/service/plan/${subscriptionCode}/identify_customer`;
+
+    const payload = {
+      timestamp: new Date().toISOString(),
+      plan_id: subscriptionCode,
+      correlation_id: correlationId,
+      actor: { type: "attendant", id: attendantInfo.id },
+      data: {
+        action: "IDENTIFY_CUSTOMER",
+        qr_code_data: `MANUAL_${subscriptionCode}`,
+        attendant_station: attendantInfo.station,
+      },
+    };
+
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content: payload,
+    };
+
+    console.info("=== Manual Customer Identification MQTT ===");
+    console.info("Request Topic:", requestTopic);
+    console.info("Payload:", JSON.stringify(payload, null, 2));
+
+    // Register response handler (same as QR scan)
+    bridge.registerHandler(
+      "mqttMsgArrivedCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const parsedMqttData = JSON.parse(data);
+          const topic = parsedMqttData.topic;
+          const rawMessageContent = parsedMqttData.message;
+
+          if (topic === responseTopic) {
+            let responseData: any;
+            try {
+              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+            } catch {
+              responseData = rawMessageContent;
+            }
+
+            const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
+            const responseCorrelationId = responseData?.correlation_id;
+
+            const correlationMatches =
+              Boolean(storedCorrelationId) &&
+              Boolean(responseCorrelationId) &&
+              (responseCorrelationId === storedCorrelationId ||
+                responseCorrelationId.startsWith(storedCorrelationId) ||
+                storedCorrelationId.startsWith(responseCorrelationId));
+
+            if (correlationMatches) {
+              const success = responseData?.data?.success ?? false;
+              const signals = responseData?.data?.signals || [];
+
+              if (success && signals.includes("CUSTOMER_IDENTIFIED_SUCCESS")) {
+                const metadata = responseData?.data?.metadata;
+                const servicePlanData = metadata?.service_plan_data;
+                const serviceBundle = metadata?.service_bundle;
+                const identifiedCustomerId = metadata?.customer_id;
+                
+                if (servicePlanData) {
+                  const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
+                    (service: any) => typeof service?.service_id === 'string'
+                  );
+                  
+                  const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
+                    const matchingService = serviceBundle?.services?.find(
+                      (svc: any) => svc.serviceId === serviceState.service_id
+                    );
+                    return {
+                      ...serviceState,
+                      name: matchingService?.name,
+                      usageUnitPrice: matchingService?.usageUnitPrice,
+                    };
+                  });
+                  
+                  setServiceStates(enrichedServiceStates);
+                  
+                  const batteryFleet = enrichedServiceStates.find(
+                    (s: any) => s.service_id?.includes('service-battery-fleet')
+                  );
+                  setCustomerType(batteryFleet?.current_asset ? 'returning' : 'first-time');
+                  
+                  const elecService = enrichedServiceStates.find(
+                    (s: any) => s.service_id?.includes('service-electricity')
+                  );
+                  const swapCountService = enrichedServiceStates.find(
+                    (s: any) => s.service_id?.includes('service-swap-count')
+                  );
+                  
+                  if (elecService?.usageUnitPrice) {
+                    setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
+                  }
+                  
+                  setCustomerData({
+                    id: identifiedCustomerId || servicePlanData.customerId,
+                    name: identifiedCustomerId || 'Customer',
+                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode,
+                    subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
+                    swapCount: swapCountService?.used || 0,
+                    lastSwap: 'N/A',
+                    energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
+                    energyTotal: elecService?.quota || 0,
+                    swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
+                    swapsTotal: swapCountService?.quota || 21,
+                    paymentStatus: servicePlanData.paymentState === 'CURRENT' ? 'current' : 'overdue',
+                    accountStatus: servicePlanData.status === 'ACTIVE' ? 'active' : 'inactive',
+                    currentBatteryId: batteryFleet?.current_asset || undefined,
+                  });
+                  
+                  setCurrentStep(2);
+                  toast.success('Customer found');
+                }
+              } else {
+                const errorMsg = responseData?.data?.error || "Customer not found";
+                toast.error(errorMsg);
+              }
+            }
+          }
+          responseCallback({});
+        } catch (err) {
+          console.error("Error processing MQTT response:", err);
+        }
+        setIsProcessing(false);
+      }
+    );
+
+    // Publish the request
+    bridge.callHandler(
+      "mqttPublishMsg",
+      JSON.stringify(dataToPublish),
+      (publishResponse: string) => {
+        try {
+          const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
+          if (pubResp?.error || pubResp?.respCode !== "200") {
+            console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
+            toast.error("Failed to lookup customer");
+            setIsProcessing(false);
+          }
+        } catch (err) {
+          console.error("Error parsing publish response:", err);
+          toast.error("Error looking up customer");
+          setIsProcessing(false);
+        }
+      }
+    );
+  }, [bridge, manualSubscriptionId, attendantInfo]);
+
+  // Step 2: Scan Old Battery
   const handleScanOldBattery = useCallback(async () => {
+    if (!bridge) {
+      toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
     setIsScanning(true);
     
     try {
-      if (bridge) {
-        bridge.callHandler('scanQRCode', {}, (responseData: string) => {
-          try {
-            const result = JSON.parse(responseData);
-            if (result.success && result.data) {
-              const batteryData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-              
-              const oldBattery: BatteryData = {
-                id: batteryData.battery_id || batteryData.id || 'BAT-2024-' + Math.random().toString().slice(2, 6),
-                shortId: batteryData.short_id || 'BAT-' + Math.random().toString().slice(2, 6),
-                chargeLevel: batteryData.charge_level || batteryData.soc || 35,
-                energy: batteryData.energy || 0.87,
-              };
-              
-              setSwapData(prev => ({ ...prev, oldBattery }));
-              setCurrentStep(3);
-              toast.success('Old battery scanned');
-            } else {
-              toast.error('Invalid battery QR');
+      bridge.callHandler('scanQRCode', {}, (responseData: string) => {
+        try {
+          const result = JSON.parse(responseData);
+          if (result.success && result.data) {
+            let batteryData: any;
+            try {
+              batteryData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+            } catch {
+              batteryData = { id: result.data };
             }
-          } catch (e) {
-            console.error('Error parsing battery data:', e);
-            toast.error('Failed to read battery');
+            
+            const oldBattery: BatteryData = {
+              id: batteryData.battery_id || batteryData.id || batteryData,
+              shortId: (batteryData.battery_id || batteryData.id || batteryData).toString().slice(-6),
+              chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 0,
+              energy: batteryData.energy || batteryData.kwh || 0,
+            };
+            
+            setSwapData(prev => ({ ...prev, oldBattery }));
+            setCurrentStep(3);
+            toast.success('Old battery scanned');
+          } else {
+            toast.error('Failed to scan battery QR');
           }
-          setIsScanning(false);
-        });
-      } else {
-        // Simulate for testing
-        setTimeout(() => {
-          setSwapData(prev => ({
-            ...prev,
-            oldBattery: {
-              id: 'BAT-2024-7829',
-              shortId: 'BAT-7829',
-              chargeLevel: 35,
-              energy: 0.87,
-            }
-          }));
-          setCurrentStep(3);
-          toast.success('Old battery scanned');
-          setIsScanning(false);
-        }, 1200);
-      }
+        } catch (e) {
+          console.error('Error parsing battery data:', e);
+          toast.error('Failed to read battery');
+        }
+        setIsScanning(false);
+      });
     } catch (error) {
       console.error('Scan error:', error);
       toast.error('Scan failed');
@@ -223,120 +590,315 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [bridge]);
 
-  // Step 3: Scan New Battery (giving to customer)
+  // Step 3: Scan New Battery
   const handleScanNewBattery = useCallback(async () => {
+    if (!bridge) {
+      toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
     setIsScanning(true);
     
     try {
-      if (bridge) {
-        bridge.callHandler('scanQRCode', {}, (responseData: string) => {
-          try {
-            const result = JSON.parse(responseData);
-            if (result.success && result.data) {
-              const batteryData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-              
-              const newBattery: BatteryData = {
-                id: batteryData.battery_id || batteryData.id || 'BAT-2024-' + Math.random().toString().slice(2, 6),
-                shortId: batteryData.short_id || 'BAT-' + Math.random().toString().slice(2, 6),
-                chargeLevel: batteryData.charge_level || batteryData.soc || 100,
-                energy: batteryData.energy || 2.5,
-              };
-              
-              // Calculate energy difference and cost
-              const oldEnergy = swapData.oldBattery?.energy || 0;
-              const newEnergy = newBattery.energy || 2.5;
-              const energyDiff = newEnergy - oldEnergy;
-              const cost = Math.round(energyDiff * swapData.rate);
-              
-              setSwapData(prev => ({ 
-                ...prev, 
-                newBattery,
-                energyDiff: Math.round(energyDiff * 100) / 100,
-                cost: cost > 0 ? cost : 0,
-              }));
-              setCurrentStep(4);
-              toast.success('New battery scanned');
-            } else {
-              toast.error('Invalid battery QR');
+      bridge.callHandler('scanQRCode', {}, (responseData: string) => {
+        try {
+          const result = JSON.parse(responseData);
+          if (result.success && result.data) {
+            let batteryData: any;
+            try {
+              batteryData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+            } catch {
+              batteryData = { id: result.data };
             }
-          } catch (e) {
-            console.error('Error parsing battery data:', e);
-            toast.error('Failed to read battery');
+            
+            const newBattery: BatteryData = {
+              id: batteryData.battery_id || batteryData.id || batteryData,
+              shortId: (batteryData.battery_id || batteryData.id || batteryData).toString().slice(-6),
+              chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 100,
+              energy: batteryData.energy || batteryData.kwh || 0,
+            };
+            
+            // Calculate energy difference and cost
+            const oldEnergy = swapData.oldBattery?.energy || 0;
+            const newEnergy = newBattery.energy || 0;
+            const energyDiff = newEnergy - oldEnergy;
+            const rate = electricityService?.usageUnitPrice || swapData.rate;
+            const cost = Math.round(energyDiff * rate * 100) / 100;
+            
+            setSwapData(prev => ({ 
+              ...prev, 
+              newBattery,
+              energyDiff: Math.round(energyDiff * 100) / 100,
+              cost: cost > 0 ? cost : 0,
+            }));
+            setCurrentStep(4);
+            toast.success('New battery scanned');
+          } else {
+            toast.error('Failed to scan battery QR');
           }
-          setIsScanning(false);
-        });
-      } else {
-        // Simulate for testing
-        setTimeout(() => {
-          const newBattery: BatteryData = {
-            id: 'BAT-2024-3156',
-            shortId: 'BAT-3156',
-            chargeLevel: 100,
-            energy: 2.5,
-          };
-          
-          const oldEnergy = swapData.oldBattery?.energy || 0.87;
-          const energyDiff = 2.5 - oldEnergy;
-          
-          setSwapData(prev => ({
-            ...prev,
-            newBattery,
-            energyDiff: Math.round(energyDiff * 100) / 100,
-            cost: Math.round(energyDiff * prev.rate),
-          }));
-          setCurrentStep(4);
-          toast.success('New battery scanned');
-          setIsScanning(false);
-        }, 1200);
-      }
+        } catch (e) {
+          console.error('Error parsing battery data:', e);
+          toast.error('Failed to read battery');
+        }
+        setIsScanning(false);
+      });
     } catch (error) {
       console.error('Scan error:', error);
       toast.error('Scan failed');
       setIsScanning(false);
     }
-  }, [bridge, swapData.oldBattery, swapData.rate]);
+  }, [bridge, swapData.oldBattery, swapData.rate, electricityService?.usageUnitPrice]);
 
   // Step 4: Proceed to payment
   const handleProceedToPayment = useCallback(() => {
     setCurrentStep(5);
   }, []);
 
-  // Step 5: Confirm Payment
+  // Step 5: Confirm Payment via HTTP
   const handleConfirmPayment = useCallback(async () => {
+    if (!bridge) {
+      toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
     setIsScanning(true);
     
-    try {
-      // In production, this would scan customer QR and confirm payment via API
-      if (bridge) {
-        bridge.callHandler('scanQRCode', {}, async (responseData: string) => {
+    // Scan customer QR for payment confirmation
+    bridge.callHandler('scanQRCode', {}, async (responseData: string) => {
+      try {
+        const result = JSON.parse(responseData);
+        if (result.success && result.data) {
+          // Extract transaction ID from QR
+          let qrData: any;
           try {
-            // Process payment confirmation
-            const txnId = 'TXN-' + Math.random().toString().slice(2, 8);
-            setTransactionId(txnId);
-            setCurrentStep(6);
-            toast.success('Payment confirmed!');
-          } catch (e) {
-            console.error('Payment error:', e);
-            toast.error('Payment confirmation failed');
+            qrData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+          } catch {
+            qrData = { transaction_id: result.data };
           }
+          const txnId = qrData.transaction_id || qrData.txn_id || qrData.id || result.data;
+          
+          // Call HTTP endpoint for payment confirmation
+          try {
+            const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                transaction_id: txnId,
+                plan_id: dynamicPlanId,
+                amount: swapData.cost,
+              }),
+            });
+            
+            if (response.ok) {
+              setPaymentConfirmed(true);
+              setPaymentReceipt(txnId);
+              setTransactionId(txnId);
+              toast.success('Payment confirmed');
+              
+              // Now publish payment_and_service
+              publishPaymentAndService(txnId);
+            } else {
+              const errorData = await response.json().catch(() => ({}));
+              toast.error(errorData.message || 'Payment confirmation failed');
+              setIsScanning(false);
+            }
+          } catch (err) {
+            console.error('Payment confirmation error:', err);
+            toast.error('Payment confirmation failed. Check network connection.');
+            setIsScanning(false);
+          }
+        } else {
+          toast.error('Failed to scan payment QR');
           setIsScanning(false);
-        });
-      } else {
-        // Simulate for testing
-        setTimeout(() => {
-          const txnId = 'TXN-' + Math.random().toString().slice(2, 8);
-          setTransactionId(txnId);
-          setCurrentStep(6);
-          toast.success('Payment confirmed!');
-          setIsScanning(false);
-        }, 1500);
+        }
+      } catch (e) {
+        console.error('Payment error:', e);
+        toast.error('Payment confirmation failed');
+        setIsScanning(false);
       }
-    } catch (error) {
-      console.error('Payment error:', error);
-      toast.error('Payment failed');
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge, dynamicPlanId, swapData.cost]);
+
+  // Step 5: Manual payment confirmation
+  const handleManualPayment = useCallback((paymentId: string) => {
+    setIsProcessing(true);
+    
+    // Call HTTP endpoint for manual payment confirmation
+    const confirmManualPayment = async () => {
+      try {
+        const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transaction_id: paymentId,
+            plan_id: dynamicPlanId,
+            amount: swapData.cost,
+          }),
+        });
+        
+        if (response.ok) {
+          setPaymentConfirmed(true);
+          setPaymentReceipt(paymentId);
+          setTransactionId(paymentId);
+          toast.success('Payment confirmed');
+          
+          // Now publish payment_and_service
+          publishPaymentAndService(paymentId);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          toast.error(errorData.message || 'Payment confirmation failed');
+          setIsProcessing(false);
+        }
+      } catch (err) {
+        console.error('Manual payment error:', err);
+        toast.error('Payment confirmation failed. Check network connection.');
+        setIsProcessing(false);
+      }
+    };
+    
+    confirmManualPayment();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dynamicPlanId, swapData.cost]);
+
+  // Publish payment_and_service via MQTT
+  const publishPaymentAndService = useCallback((paymentReference: string) => {
+    if (!bridge) {
+      console.error("Bridge not available for payment_and_service");
+      toast.error('Bridge not available. Please restart the app.');
       setIsScanning(false);
+      setIsProcessing(false);
+      return;
     }
-  }, [bridge]);
+
+    setPaymentAndServiceStatus('pending');
+
+    const formattedCheckoutId = swapData.newBattery?.id 
+      ? `BAT_NEW_${swapData.newBattery.id}` 
+      : null;
+    
+    const formattedCheckinId = swapData.oldBattery?.id
+      ? `BAT_RETURN_ATT_${swapData.oldBattery.id}`
+      : null;
+
+    const checkoutEnergy = swapData.newBattery?.energy || 0;
+    const checkinEnergy = swapData.oldBattery?.energy || 0;
+    let energyTransferred = customerType === 'returning' 
+      ? checkoutEnergy - checkinEnergy 
+      : checkoutEnergy;
+    if (energyTransferred < 0) energyTransferred = 0;
+
+    const serviceId = electricityService?.service_id || "service-electricity-default";
+    const paymentAmount = swapData.cost;
+    const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    let paymentAndServicePayload: any = null;
+
+    if (customerType === 'returning' && formattedCheckinId) {
+      // Returning customer payload
+      const oldBatteryId = swapData.oldBattery?.id 
+        ? `BAT_NEW_${swapData.oldBattery.id}` 
+        : formattedCheckinId;
+
+      paymentAndServicePayload = {
+        timestamp: new Date().toISOString(),
+        plan_id: dynamicPlanId,
+        correlation_id: paymentCorrelationId,
+        actor: { type: "attendant", id: attendantInfo.id },
+        data: {
+          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+          attendant_station: attendantInfo.station,
+          payment_data: {
+            service_id: serviceId,
+            payment_amount: paymentAmount,
+            payment_reference: paymentReference,
+            payment_method: "MPESA",
+            payment_type: "TOP_UP",
+          },
+          service_data: {
+            old_battery_id: oldBatteryId,
+            new_battery_id: formattedCheckoutId,
+            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+            service_duration: 240,
+          },
+        },
+      };
+    } else if (customerType === 'first-time' && formattedCheckoutId) {
+      // First-time customer payload
+      paymentAndServicePayload = {
+        timestamp: new Date().toISOString(),
+        plan_id: dynamicPlanId,
+        correlation_id: paymentCorrelationId,
+        actor: { type: "attendant", id: attendantInfo.id },
+        data: {
+          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+          attendant_station: attendantInfo.station,
+          payment_data: {
+            service_id: serviceId,
+            payment_amount: paymentAmount,
+            payment_reference: paymentReference,
+            payment_method: "MPESA",
+            payment_type: "DEPOSIT",
+          },
+          service_data: {
+            new_battery_id: formattedCheckoutId,
+            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+            service_duration: 240,
+          },
+        },
+      };
+    }
+
+    if (!paymentAndServicePayload) {
+      console.error("Unable to build payment_and_service payload - missing battery data");
+      toast.error("Unable to complete swap - missing battery data");
+      setPaymentAndServiceStatus('error');
+      setIsScanning(false);
+      setIsProcessing(false);
+      return;
+    }
+
+    const requestTopic = `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`;
+    
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content: paymentAndServicePayload,
+    };
+
+    console.info("=== Publishing payment_and_service ===");
+    console.info("Topic:", requestTopic);
+    console.info("Payload:", JSON.stringify(paymentAndServicePayload, null, 2));
+
+    bridge.callHandler(
+      "mqttPublishMsg",
+      JSON.stringify(dataToPublish),
+      (publishResponse: any) => {
+        try {
+          const pubResp = typeof publishResponse === 'string' 
+            ? JSON.parse(publishResponse) 
+            : publishResponse;
+          
+          if (pubResp?.error || pubResp?.respCode !== "200") {
+            console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
+            toast.error("Failed to complete swap");
+            setPaymentAndServiceStatus('error');
+          } else {
+            console.info("payment_and_service published successfully");
+            setPaymentAndServiceStatus('success');
+            setCurrentStep(6);
+            toast.success('Swap completed!');
+          }
+        } catch (err) {
+          console.error("Error parsing publish response:", err);
+          toast.error("Error completing swap");
+          setPaymentAndServiceStatus('error');
+        }
+        setIsScanning(false);
+        setIsProcessing(false);
+      }
+    );
+  }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
 
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
@@ -351,6 +913,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     });
     setManualSubscriptionId('');
     setTransactionId('');
+    setInputMode('scan');
+    setDynamicPlanId('');
+    setServiceStates([]);
+    setCustomerType(null);
+    setPaymentConfirmed(false);
+    setPaymentReceipt(null);
+    setPaymentAndServiceStatus('idle');
   }, []);
 
   // Go back one step
@@ -360,7 +929,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [currentStep]);
 
-  // Handle back to roles
+  // Handle back to roles (don't logout - shared between Attendant & Sales)
   const handleBackToRoles = useCallback(() => {
     if (onBack) {
       onBack();
@@ -369,474 +938,89 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [onBack, router]);
 
-  // Render progress bar
-  const renderProgressBar = () => (
-    <div className="progress-bar">
-      {[1, 2, 3, 4, 5, 6].map((step) => (
-        <div
-          key={step}
-          className={`progress-step ${
-            step === currentStep ? 'active' : step < currentStep ? 'completed' : ''
-          }`}
-        />
-      ))}
-    </div>
-  );
+  // Handle timeline step click (go back to previous steps)
+  const handleTimelineClick = useCallback((step: AttendantStep) => {
+    if (step < currentStep) {
+      setCurrentStep(step);
+    }
+  }, [currentStep]);
 
-  // Render Step 1: Identify Customer
-  const renderStep1 = () => (
-    <div className="scan-prompt">
-      <h1 className="scan-title">Identify Customer</h1>
-      
-      {/* Toggle between Scan and Manual */}
-      <div className="input-toggle">
-        <button 
-          className={`toggle-btn ${inputMode === 'scan' ? 'active' : ''}`}
-          onClick={() => setInputMode('scan')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"/>
-            <rect x="14" y="3" width="7" height="7"/>
-            <rect x="14" y="14" width="7" height="7"/>
-            <rect x="3" y="14" width="7" height="7"/>
-          </svg>
-          Scan QR
-        </button>
-        <button 
-          className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
-          onClick={() => setInputMode('manual')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20h9"/>
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-          </svg>
-          Enter ID
-        </button>
-      </div>
-      
-      {inputMode === 'scan' ? (
-        <>
-          <p className="scan-subtitle">Scan customer&apos;s QR code</p>
-          
-          <div className="scanner-area" onClick={handleScanCustomer}>
-            <div className="scanner-frame">
-              <div className="scanner-corners">
-                <div className="scanner-corner-bl"></div>
-                <div className="scanner-corner-br"></div>
-              </div>
-              <div className="scanner-line"></div>
-              <div className="scanner-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7"/>
-                  <rect x="14" y="3" width="7" height="7"/>
-                  <rect x="14" y="14" width="7" height="7"/>
-                  <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-          
-          <p className="scan-hint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 16v-4M12 8h.01"/>
-            </svg>
-            Customer shows their app QR code
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="scan-subtitle">Enter Subscription ID manually</p>
-          
-          <div className="manual-entry-form">
-            <div className="form-group">
-              <label className="form-label">Subscription ID</label>
-              <input 
-                type="text" 
-                className="form-input manual-id-input" 
-                placeholder="e.g. SUB-8847-KE"
-                value={manualSubscriptionId}
-                onChange={(e) => setManualSubscriptionId(e.target.value)}
-              />
-            </div>
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%', marginTop: '8px' }}
-              onClick={handleManualLookup}
-              disabled={isProcessing}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35"/>
-              </svg>
-              {isProcessing ? 'Looking up...' : 'Look Up Customer'}
-            </button>
-          </div>
-          
-          <p className="scan-hint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 16v-4M12 8h.01"/>
-            </svg>
-            Find ID on customer&apos;s account or receipt
-          </p>
-        </>
-      )}
-
-      <div className="stats-row">
-        <div className="stat-card">
-          <div className="stat-value">{stats.today}</div>
-          <div className="stat-label">Today</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.thisWeek}</div>
-          <div className="stat-label">This Week</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.successRate}%</div>
-          <div className="stat-label">Success</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Render Step 2: Scan Old Battery
-  const renderStep2 = () => (
-    <>
-      <div className="customer-card" style={{ marginBottom: '12px' }}>
-        <div className="customer-header" style={{ marginBottom: 0 }}>
-          <div className="customer-avatar">{customerData ? getInitials(customerData.name) : 'CU'}</div>
-          <div>
-            <div className="customer-name">{customerData?.name || 'Customer'}</div>
-            <div className="customer-id">{customerData?.subscriptionId} • {customerData?.subscriptionType}</div>
-          </div>
-          <span className="battery-status verified" style={{ marginLeft: 'auto' }}>Verified</span>
-        </div>
-      </div>
-
-      <div className="scan-prompt">
-        <h1 className="scan-title">Scan Old Battery</h1>
-        <p className="scan-subtitle">Scan the battery the customer brought in</p>
-        
-        <div className="scanner-area" onClick={handleScanOldBattery} style={{ margin: '12px auto' }}>
-          <div className="scanner-frame">
-            <div className="scanner-corners">
-              <div className="scanner-corner-bl"></div>
-              <div className="scanner-corner-br"></div>
-            </div>
-            <div className="scanner-line"></div>
-            <div className="scanner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-        
-        <p className="scan-hint">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 16v-4M12 8h.01"/>
-          </svg>
-          Verify battery belongs to customer
-        </p>
-      </div>
-    </>
-  );
-
-  // Render Step 3: Scan New Battery
-  const renderStep3 = () => (
-    <>
-      <div className="battery-card" style={{ marginBottom: '12px' }}>
-        <div className="battery-header" style={{ marginBottom: '8px' }}>
-          <div>
-            <div className="battery-id">OLD BATTERY</div>
-            <div className="battery-name">{swapData.oldBattery?.id}</div>
-          </div>
-          <span className="battery-status verified">Matched</span>
-        </div>
-        <div className="battery-visual" style={{ padding: '8px', marginBottom: 0 }}>
-          <div className="battery-icon-large" style={{ width: '40px', height: '60px' }}>
-            <div 
-              className="battery-level" 
-              style={{ '--level': `${swapData.oldBattery?.chargeLevel || 35}%` } as React.CSSProperties}
-            ></div>
-          </div>
-          <div className="battery-info">
-            <div className="battery-charge" style={{ fontSize: '20px' }}>{swapData.oldBattery?.chargeLevel || 35}%</div>
-            <div className="battery-charge-label">Charge Remaining</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="scan-prompt">
-        <h1 className="scan-title">Scan New Battery</h1>
-        <p className="scan-subtitle">Scan the fresh battery to give customer</p>
-        
-        <div className="scanner-area" onClick={handleScanNewBattery} style={{ margin: '12px auto' }}>
-          <div className="scanner-frame">
-            <div className="scanner-corners">
-              <div className="scanner-corner-bl"></div>
-              <div className="scanner-corner-br"></div>
-            </div>
-            <div className="scanner-line"></div>
-            <div className="scanner-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
-  // Render Step 4: Review & Cost
-  const renderStep4 = () => (
-    <>
-      {/* Visual Battery Comparison */}
-      <div className="battery-swap-visual">
-        <div className="battery-swap-item">
-          <div className={`battery-icon-swap ${getBatteryClass(swapData.oldBattery?.chargeLevel || 35)}`}>
-            <div 
-              className="battery-level-swap" 
-              style={{ '--level': `${swapData.oldBattery?.chargeLevel || 35}%` } as React.CSSProperties}
-            ></div>
-            <span className="battery-percent">{swapData.oldBattery?.chargeLevel || 35}%</span>
-          </div>
-          <div className="battery-swap-label">RETURNING</div>
-          <div className="battery-swap-id">{swapData.oldBattery?.shortId}</div>
-        </div>
-        
-        <div className="swap-arrow-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </div>
-        
-        <div className="battery-swap-item">
-          <div className={`battery-icon-swap ${getBatteryClass(swapData.newBattery?.chargeLevel || 100)}`}>
-            <div 
-              className="battery-level-swap" 
-              style={{ '--level': `${swapData.newBattery?.chargeLevel || 100}%` } as React.CSSProperties}
-            ></div>
-            <span className="battery-percent">{swapData.newBattery?.chargeLevel || 100}%</span>
-          </div>
-          <div className="battery-swap-label">RECEIVING</div>
-          <div className="battery-swap-id">{swapData.newBattery?.shortId}</div>
-        </div>
-      </div>
-
-      {/* Energy Differential Badge */}
-      <div className="energy-diff-badge">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
-        <span>+{swapData.energyDiff} kWh</span>
-      </div>
-
-      <div className="cost-card">
-        <div className="cost-title">Cost Breakdown</div>
-        <div className="cost-row">
-          <span className="cost-label">Energy Received</span>
-          <span className="cost-value">{swapData.energyDiff} kWh</span>
-        </div>
-        <div className="cost-row">
-          <span className="cost-label">Rate</span>
-          <span className="cost-value">KES {swapData.rate}/kWh</span>
-        </div>
-        <div className="cost-total">
-          <span className="cost-total-label">Total Due</span>
-          <span className="cost-total-value">KES {swapData.cost}</span>
-        </div>
-      </div>
-
-      <div className="customer-card" style={{ padding: '10px' }}>
-        <div className="customer-header" style={{ marginBottom: 0 }}>
-          <div className="customer-avatar">{customerData ? getInitials(customerData.name) : 'CU'}</div>
-          <div>
-            <div className="customer-name">{customerData?.name}</div>
-            <div className="customer-id">{customerData?.swapCount} swaps • Last: {customerData?.lastSwap}</div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
-  // Render Step 5: Confirm Payment
-  const renderStep5 = () => (
-    <>
-      <div className="cost-card" style={{ marginBottom: '12px' }}>
-        <div className="cost-total" style={{ marginTop: 0 }}>
-          <span className="cost-total-label">Amount to Collect</span>
-          <span className="cost-total-value">KES {swapData.cost}</span>
-        </div>
-      </div>
-
-      <div className="payment-scan">
-        <h2 className="payment-title">Confirm Payment</h2>
-        <p className="payment-subtitle">After customer pays, scan their QR to confirm</p>
-        
-        <div className="qr-scanner-area" onClick={handleConfirmPayment}>
-          <div className="qr-scanner-frame">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"/>
-              <rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-            </svg>
-          </div>
-        </div>
-        
-        <div className="payment-amount">KES {swapData.cost.toFixed(2)}</div>
-        <div className="payment-status">Scan customer QR after payment</div>
-      </div>
-    </>
-  );
-
-  // Render Step 6: Success
-  const renderStep6 = () => (
-    <div className="success-screen">
-      <div className="success-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 6L9 17l-5-5"/>
-        </svg>
-      </div>
-      <h2 className="success-title">Swap Complete!</h2>
-      <p className="success-message">Hand over {swapData.newBattery?.id} to customer</p>
-      
-      <div className="receipt-card">
-        <div className="receipt-header">
-          <span className="receipt-title">Transaction Receipt</span>
-          <span className="receipt-id">#{transactionId}</span>
-        </div>
-        <div className="receipt-row">
-          <span className="receipt-label">Customer</span>
-          <span className="receipt-value">{customerData?.name}</span>
-        </div>
-        <div className="receipt-row">
-          <span className="receipt-label">Returned</span>
-          <span className="receipt-value">{swapData.oldBattery?.id} ({swapData.oldBattery?.chargeLevel}%)</span>
-        </div>
-        <div className="receipt-row">
-          <span className="receipt-label">Issued</span>
-          <span className="receipt-value">{swapData.newBattery?.id} ({swapData.newBattery?.chargeLevel}%)</span>
-        </div>
-        <div className="receipt-row">
-          <span className="receipt-label">Energy</span>
-          <span className="receipt-value">{swapData.energyDiff} kWh</span>
-        </div>
-        <div className="receipt-row">
-          <span className="receipt-label">Amount Paid</span>
-          <span className="receipt-value" style={{ color: 'var(--success)' }}>KES {swapData.cost.toFixed(2)}</span>
-        </div>
-        <div className="receipt-row">
-          <span className="receipt-label">Time</span>
-          <span className="receipt-value">{new Date().toLocaleTimeString()}</span>
-        </div>
-      </div>
-    </div>
-  );
+  // Get main action based on current step
+  const handleMainAction = useCallback(() => {
+    switch (currentStep) {
+      case 1:
+        if (inputMode === 'scan') {
+          handleScanCustomer();
+        } else {
+          handleManualLookup();
+        }
+        break;
+      case 2:
+        handleScanOldBattery();
+        break;
+      case 3:
+        handleScanNewBattery();
+        break;
+      case 4:
+        handleProceedToPayment();
+        break;
+      case 5:
+        handleConfirmPayment();
+        break;
+      case 6:
+        handleNewSwap();
+        break;
+    }
+  }, [currentStep, inputMode, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleNewSwap]);
 
   // Render current step content
   const renderStepContent = () => {
     switch (currentStep) {
-      case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      case 5: return renderStep5();
-      case 6: return renderStep6();
-      default: return renderStep1();
-    }
-  };
-
-  // Get action bar config for current step
-  const getActionBarConfig = () => {
-    switch (currentStep) {
       case 1:
-        return {
-          showBack: false,
-          mainText: 'Scan Customer',
-          mainAction: handleScanCustomer,
-          mainIcon: 'qr',
-        };
+        return (
+          <Step1CustomerScan
+            inputMode={inputMode}
+            setInputMode={setInputMode}
+            manualSubscriptionId={manualSubscriptionId}
+            setManualSubscriptionId={setManualSubscriptionId}
+            onScanCustomer={handleScanCustomer}
+            onManualLookup={handleManualLookup}
+            isProcessing={isProcessing}
+            stats={stats}
+          />
+        );
       case 2:
-        return {
-          showBack: true,
-          mainText: 'Scan Old Battery',
-          mainAction: handleScanOldBattery,
-          mainIcon: 'scan',
-        };
+        return <Step2OldBattery onScanOldBattery={handleScanOldBattery} />;
       case 3:
-        return {
-          showBack: true,
-          mainText: 'Scan New Battery',
-          mainAction: handleScanNewBattery,
-          mainIcon: 'scan',
-        };
+        return (
+          <Step3NewBattery 
+            oldBattery={swapData.oldBattery} 
+            onScanNewBattery={handleScanNewBattery} 
+          />
+        );
       case 4:
-        return {
-          showBack: true,
-          mainText: 'Collect Payment',
-          mainAction: handleProceedToPayment,
-          mainIcon: 'arrow',
-        };
+        return (
+          <Step4Review 
+            swapData={swapData} 
+            customerData={customerData} 
+          />
+        );
       case 5:
-        return {
-          showBack: true,
-          mainText: 'Confirm Payment',
-          mainAction: handleConfirmPayment,
-          mainIcon: 'qr',
-        };
+        return (
+          <Step5Payment 
+            swapData={swapData} 
+            onConfirmPayment={handleConfirmPayment}
+            onManualPayment={handleManualPayment}
+            isProcessing={isProcessing || paymentAndServiceStatus === 'pending'}
+          />
+        );
       case 6:
-        return {
-          showBack: false,
-          mainText: 'New Swap',
-          mainAction: handleNewSwap,
-          mainIcon: 'plus',
-          mainClass: 'btn-success',
-        };
-      default:
-        return {
-          showBack: false,
-          mainText: 'Scan Customer',
-          mainAction: handleScanCustomer,
-          mainIcon: 'qr',
-        };
-    }
-  };
-
-  const actionConfig = getActionBarConfig();
-
-  // Icon components for action bar
-  const ActionIcon = ({ type }: { type: string }) => {
-    switch (type) {
-      case 'qr':
         return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-          </svg>
-        );
-      case 'scan':
-        return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
-          </svg>
-        );
-      case 'arrow':
-        return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        );
-      case 'plus':
-        return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
+          <Step6Success 
+            swapData={swapData} 
+            customerData={customerData} 
+            transactionId={transactionId}
+          />
         );
       default:
         return null;
@@ -847,55 +1031,50 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     <div className="attendant-container">
       <div className="attendant-bg-gradient" />
       
-      {/* Progress Bar */}
-      {renderProgressBar()}
-
-      {/* Main Content */}
-      <main className="attendant-main">
-        {/* Back to Roles */}
+      {/* Back to Roles */}
+      <div style={{ padding: '8px 16px 0' }}>
         <button className="back-to-roles" onClick={handleBackToRoles}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
           Change Role
         </button>
+      </div>
 
-        {/* Step Content */}
+      {/* Interactive Timeline */}
+      <Timeline 
+        currentStep={currentStep} 
+        onStepClick={handleTimelineClick}
+      />
+
+      {/* Customer State Panel - Shows after customer identified */}
+      <CustomerStatePanel 
+        customer={customerData} 
+        visible={currentStep > 1}
+      />
+
+      {/* Main Content */}
+      <main className="attendant-main">
         {renderStepContent()}
       </main>
 
       {/* Action Bar */}
-      <div className="action-bar">
-        <div className="action-bar-inner">
-          {actionConfig.showBack && (
-            <button className="btn btn-secondary" onClick={handleBack}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-              Back
-            </button>
-          )}
-          <button 
-            className={`btn ${actionConfig.mainClass || 'btn-primary'}`}
-            onClick={actionConfig.mainAction}
-            disabled={isScanning || isProcessing}
-          >
-            <ActionIcon type={actionConfig.mainIcon} />
-            <span>{isScanning ? 'Scanning...' : actionConfig.mainText}</span>
-          </button>
-        </div>
-      </div>
+      <ActionBar
+        currentStep={currentStep}
+        onBack={handleBack}
+        onMainAction={handleMainAction}
+        isLoading={isScanning || isProcessing || paymentAndServiceStatus === 'pending'}
+      />
 
       {/* Loading Overlay */}
-      {(isScanning || isProcessing) && (
+      {(isScanning || isProcessing || paymentAndServiceStatus === 'pending') && (
         <div className="loading-overlay active">
           <div className="loading-spinner"></div>
-          <div className="loading-text">{isScanning ? 'Scanning...' : 'Processing...'}</div>
+          <div className="loading-text">
+            {paymentAndServiceStatus === 'pending' ? 'Completing swap...' : isScanning ? 'Scanning...' : 'Processing...'}
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-
-
