@@ -2488,6 +2488,69 @@ html.theme-transition *::after {
   letter-spacing: 0.3px;
 }
 
+/* Service Cycle FSM States */
+.state-badge.service-battery-issued {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.state-badge.service-wait-battery {
+  background: rgba(240, 165, 0, 0.15);
+  color: #f0a500;
+}
+
+.state-badge.service-battery-returned {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.state-badge.service-battery-lost {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.state-badge.service-complete {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.state-badge.service-initial {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+}
+
+/* Payment Cycle FSM States */
+.state-badge.payment-current {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.state-badge.payment-deposit-due {
+  background: rgba(240, 165, 0, 0.15);
+  color: #f0a500;
+}
+
+.state-badge.payment-renewal-due {
+  background: rgba(255, 140, 0, 0.15);
+  color: #ff8c00;
+}
+
+.state-badge.payment-final-due {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.state-badge.payment-complete {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.state-badge.payment-initial {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+}
+
+/* Legacy badge styles (for backwards compatibility) */
 .state-badge.active {
   background: var(--success-soft);
   color: var(--success);

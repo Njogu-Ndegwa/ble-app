@@ -12,8 +12,10 @@ export interface CustomerData {
   energyTotal?: number;
   swapsRemaining?: number;
   swapsTotal?: number;
-  paymentStatus?: 'current' | 'overdue';
-  accountStatus?: 'active' | 'inactive';
+  // Payment Cycle FSM states
+  paymentState?: 'INITIAL' | 'DEPOSIT_DUE' | 'CURRENT' | 'RENEWAL_DUE' | 'FINAL_DUE' | 'COMPLETE';
+  // Service Cycle FSM states  
+  serviceState?: 'INITIAL' | 'WAIT_BATTERY_ISSUE' | 'BATTERY_ISSUED' | 'BATTERY_RETURNED' | 'BATTERY_LOST' | 'COMPLETE';
   currentBatteryId?: string;
 }
 

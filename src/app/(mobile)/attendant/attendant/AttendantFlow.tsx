@@ -329,8 +329,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     energyTotal: elecService?.quota || 0,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
-                    paymentStatus: servicePlanData.paymentState === 'CURRENT' ? 'current' : 'overdue',
-                    accountStatus: servicePlanData.status === 'ACTIVE' ? 'active' : 'inactive',
+                    // FSM states from response
+                    paymentState: servicePlanData.paymentState || 'INITIAL',
+                    serviceState: servicePlanData.serviceState || 'INITIAL',
                     currentBatteryId: batteryFleet?.current_asset || undefined,
                   });
                   
@@ -625,8 +626,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     energyTotal: elecService?.quota || 0,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
-                    paymentStatus: servicePlanData.paymentState === 'CURRENT' ? 'current' : 'overdue',
-                    accountStatus: servicePlanData.status === 'ACTIVE' ? 'active' : 'inactive',
+                    // FSM states from response
+                    paymentState: servicePlanData.paymentState || 'INITIAL',
+                    serviceState: servicePlanData.serviceState || 'INITIAL',
                     currentBatteryId: batteryFleet?.current_asset || undefined,
                   });
                   

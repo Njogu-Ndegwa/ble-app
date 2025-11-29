@@ -8,6 +8,44 @@ interface CustomerStatePanelProps {
   visible: boolean;
 }
 
+// Service Cycle FSM state styling
+const getServiceStateConfig = (state?: string): { className: string; label: string } => {
+  switch (state) {
+    case 'BATTERY_ISSUED':
+      return { className: 'service-battery-issued', label: 'Battery Issued' };
+    case 'WAIT_BATTERY_ISSUE':
+      return { className: 'service-wait-battery', label: 'Awaiting Battery' };
+    case 'BATTERY_RETURNED':
+      return { className: 'service-battery-returned', label: 'Battery Returned' };
+    case 'BATTERY_LOST':
+      return { className: 'service-battery-lost', label: 'Battery Lost' };
+    case 'COMPLETE':
+      return { className: 'service-complete', label: 'Complete' };
+    case 'INITIAL':
+    default:
+      return { className: 'service-initial', label: 'Initial' };
+  }
+};
+
+// Payment Cycle FSM state styling
+const getPaymentStateConfig = (state?: string): { className: string; label: string } => {
+  switch (state) {
+    case 'CURRENT':
+      return { className: 'payment-current', label: 'Current' };
+    case 'DEPOSIT_DUE':
+      return { className: 'payment-deposit-due', label: 'Deposit Due' };
+    case 'RENEWAL_DUE':
+      return { className: 'payment-renewal-due', label: 'Renewal Due' };
+    case 'FINAL_DUE':
+      return { className: 'payment-final-due', label: 'Final Due' };
+    case 'COMPLETE':
+      return { className: 'payment-complete', label: 'Complete' };
+    case 'INITIAL':
+    default:
+      return { className: 'payment-initial', label: 'Initial' };
+  }
+};
+
 export default function CustomerStatePanel({ customer, visible }: CustomerStatePanelProps) {
   if (!visible || !customer) return null;
 
@@ -24,6 +62,9 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
     return 'critical';
   };
 
+  const serviceConfig = getServiceStateConfig(customer.serviceState);
+  const paymentConfig = getPaymentStateConfig(customer.paymentState);
+
   return (
     <>
       {/* Customer Identity Panel */}
@@ -36,12 +77,14 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
               <div className="state-customer-name">{customer.name}</div>
               <div className="state-plan-row">
                 <span className="state-plan-name">{customer.subscriptionType}</span>
-                <span className={`state-badge ${customer.accountStatus || 'active'}`}>
-                  {customer.accountStatus === 'active' ? 'Active' : 'Inactive'}
-                </span>
-                {customer.paymentStatus && (
-                  <span className={`state-badge ${customer.paymentStatus}`}>
-                    {customer.paymentStatus === 'current' ? 'Current' : 'Overdue'}
+                {customer.serviceState && (
+                  <span className={`state-badge ${serviceConfig.className}`}>
+                    {serviceConfig.label}
+                  </span>
+                )}
+                {customer.paymentState && (
+                  <span className={`state-badge ${paymentConfig.className}`}>
+                    {paymentConfig.label}
                   </span>
                 )}
               </div>
