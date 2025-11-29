@@ -145,8 +145,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Ref for tracking current scan type
   const scanTypeRef = useRef<'customer' | 'old_battery' | 'new_battery' | 'payment' | null>(null);
   
-  // Bridge initialization ref
-  const bridgeHandlersRegisteredRef = useRef<boolean>(false);
+  // Bridge initialization ref (for preventing double init() calls)
   const bridgeInitRef = useRef<boolean>(false);
   
   // BLE handlers ready flag - ensures we don't start scanning before handlers are registered
@@ -818,6 +817,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     populateEnergyFromDtaRef.current = populateEnergyFromDta;
   }, [populateEnergyFromDta]);
 
+  // Ref for electricityService to avoid re-registering handlers when service data changes
+  const electricityServiceRef = useRef(electricityService);
+  useEffect(() => {
+    electricityServiceRef.current = electricityService;
+  }, [electricityService]);
+
   // Setup bridge handlers for QR code scanning and BLE (follows pattern from swap.tsx)
   const setupBridge = useCallback((b: WebViewJavascriptBridge) => {
     const noop = () => {};
@@ -1080,7 +1085,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   const oldEnergy = prev.oldBattery?.energy || 0;
                   const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
                   const energyDiffKwh = energyDiffWh / 1000; // Convert to kWh for billing
-                  const rate = electricityService?.usageUnitPrice || prev.rate;
+                  // Use ref to get latest electricityService value without causing callback recreation
+                  const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
                   const cost = Math.round(energyDiffKwh * rate * 100) / 100; // Cost based on kWh
                   
                   console.info('Energy differential calculated:', {
@@ -1173,16 +1179,28 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     };
   // Note: We removed the processing callback functions from dependencies since we now use refs
   // The refs are always up-to-date via useEffect hooks, so the bridge handler always calls the latest version
-  }, [clearScanTimeout, electricityService?.usageUnitPrice]);
+  // electricityService is also accessed via ref to prevent handler re-registration when service data loads
+  }, [clearScanTimeout]);
 
   // Setup bridge when ready
+  // NOTE: We intentionally DON'T use a ref to track registration because:
+  // 1. The setupBridge callback may change when dependencies change
+  // 2. When it changes, the cleanup runs (unregistering handlers)
+  // 3. We need to re-register handlers with the new callback
+  // React's useEffect cleanup mechanism handles this correctly
   useEffect(() => {
-    if (bridge && isBridgeReady && !bridgeHandlersRegisteredRef.current) {
-      console.info('=== AttendantFlow: Setting up bridge handlers ===');
-      bridgeHandlersRegisteredRef.current = true;
-      const cleanup = setupBridge(bridge as unknown as WebViewJavascriptBridge);
-      return cleanup;
+    if (!bridge || !isBridgeReady) {
+      console.info('AttendantFlow: Waiting for bridge...', { bridge: !!bridge, isBridgeReady });
+      return;
     }
+    
+    console.info('=== AttendantFlow: Setting up bridge handlers ===');
+    const cleanup = setupBridge(bridge as unknown as WebViewJavascriptBridge);
+    
+    return () => {
+      console.info('=== AttendantFlow: Cleaning up bridge handlers ===');
+      cleanup();
+    };
   }, [bridge, isBridgeReady, setupBridge]);
 
   // Start BLE scanning when user reaches battery scanning steps (Step 2 or 3)
