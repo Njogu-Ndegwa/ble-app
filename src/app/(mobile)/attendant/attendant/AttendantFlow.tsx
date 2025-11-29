@@ -1024,15 +1024,21 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               console.info("payment_and_service response - success:", success, "signals:", signals);
 
               // Handle both fresh success and idempotent (cached) responses
+              // Fresh success signals: ASSET_RETURNED, ASSET_ALLOCATED, SERVICE_COMPLETED
+              // Idempotent signal: IDEMPOTENT_OPERATION_DETECTED
+              const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
+              const hasServiceCompletedSignal = signals.includes("SERVICE_COMPLETED");
+              const hasAssetSignals = signals.includes("ASSET_RETURNED") || signals.includes("ASSET_ALLOCATED");
+              
               const hasSuccessSignal = success === true && 
                 Array.isArray(signals) && 
-                (signals.includes("PAYMENT_AND_SERVICE_RECORDED") || 
-                 signals.includes("IDEMPOTENT_OPERATION_DETECTED") ||
-                 signals.includes("SERVICE_COMPLETION_RECORDED"));
+                (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
 
               if (hasSuccessSignal) {
-                const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
                 console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
+                
+                // Clear the correlation ID to prevent fire-and-forget fallback
+                (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
                 setCurrentStep(6);
@@ -1040,6 +1046,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               } else if (success) {
                 // Success without specific signal - still treat as success
                 console.info("payment_and_service completed (generic success)");
+                
+                // Clear the correlation ID to prevent fire-and-forget fallback
+                (window as any).__paymentAndServiceCorrelationId = null;
+                
                 setPaymentAndServiceStatus('success');
                 setCurrentStep(6);
                 toast.success('Swap completed!');
