@@ -27,6 +27,7 @@ import {
   BleDevice,
   BleScanState,
 } from './components';
+import ProgressiveLoading from '@/components/loader/progressiveLoading';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -1974,7 +1975,6 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         return (
           <Step2OldBattery 
             onScanOldBattery={handleScanOldBattery}
-            expectedBatteryId={customerData?.currentBatteryId}
             isFirstTimeCustomer={customerType === 'first-time'}
           />
         );
@@ -2055,29 +2055,98 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         inputMode={inputMode}
       />
 
-      {/* Loading Overlay */}
-      {(isScanning || isProcessing || paymentAndServiceStatus === 'pending') && (
+      {/* Loading Overlay - Simple overlay for non-BLE operations */}
+      {(isScanning || isProcessing || paymentAndServiceStatus === 'pending') && 
+       !bleScanState.isConnecting && 
+       !bleScanState.isReadingEnergy && 
+       !(bleScanState.isScanning && (scanTypeRef.current === 'old_battery' || scanTypeRef.current === 'new_battery')) && (
         <div className="loading-overlay active">
           <div className="loading-spinner"></div>
           <div className="loading-text">
             {paymentAndServiceStatus === 'pending' 
               ? 'Completing swap...' 
-              : bleScanState.isReadingEnergy
-              ? 'Reading battery energy...'
-              : bleScanState.isConnecting 
-              ? `Connecting to battery... ${bleScanState.connectionProgress}%`
-              : bleScanState.isScanning && (scanTypeRef.current === 'old_battery' || scanTypeRef.current === 'new_battery')
-              ? 'Scanning for battery...'
               : isScanning 
               ? 'Scanning...' 
               : 'Processing...'}
           </div>
-          {/* Show BLE scan progress info */}
-          {bleScanState.detectedDevices.length > 0 && bleScanState.isScanning && (
-            <div className="loading-subtext" style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>
-              Found {bleScanState.detectedDevices.length} device(s) nearby
+        </div>
+      )}
+
+      {/* BLE Scan-to-Bind Progress Overlay */}
+      {(bleScanState.isConnecting || bleScanState.isReadingEnergy || 
+        (bleScanState.isScanning && (scanTypeRef.current === 'old_battery' || scanTypeRef.current === 'new_battery'))) && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+          <div className="w-full max-w-md px-4">
+            <div className="ble-progress-container">
+              {/* Header */}
+              <div className="ble-progress-header">
+                <div className="ble-progress-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
+                  </svg>
+                </div>
+                <div className="ble-progress-title">
+                  {bleScanState.isReadingEnergy 
+                    ? 'Reading Battery Data' 
+                    : bleScanState.isConnecting 
+                    ? 'Connecting to Battery'
+                    : 'Scanning for Battery'}
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="ble-progress-bar-container">
+                <div className="ble-progress-bar-bg">
+                  <div 
+                    className="ble-progress-bar-fill"
+                    style={{ 
+                      width: `${bleScanState.isScanning && !bleScanState.isConnecting 
+                        ? Math.min(bleScanState.detectedDevices.length * 15 + 10, 40) 
+                        : bleScanState.connectionProgress}%` 
+                    }}
+                  />
+                </div>
+                <div className="ble-progress-percent">
+                  {bleScanState.isScanning && !bleScanState.isConnecting 
+                    ? Math.min(bleScanState.detectedDevices.length * 15 + 10, 40)
+                    : bleScanState.connectionProgress}%
+                </div>
+              </div>
+
+              {/* Status Message */}
+              <div className="ble-progress-status">
+                {bleScanState.isReadingEnergy 
+                  ? 'Reading energy data from battery...'
+                  : bleScanState.connectionProgress >= 75
+                  ? 'Almost connected...'
+                  : bleScanState.connectionProgress >= 50
+                  ? 'Establishing connection...'
+                  : bleScanState.connectionProgress >= 25
+                  ? 'Authenticating device...'
+                  : bleScanState.isConnecting
+                  ? 'Initializing Bluetooth connection...'
+                  : bleScanState.detectedDevices.length > 0
+                  ? `Found ${bleScanState.detectedDevices.length} device(s) nearby`
+                  : 'Searching for nearby batteries...'}
+              </div>
+
+              {/* Step Indicators */}
+              <div className="ble-progress-steps">
+                <div className={`ble-step ${bleScanState.isScanning || bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'completed' : ''}`}>
+                  <div className="ble-step-dot" />
+                  <span>Scan</span>
+                </div>
+                <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
+                  <div className="ble-step-dot" />
+                  <span>Connect</span>
+                </div>
+                <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
+                  <div className="ble-step-dot" />
+                  <span>Read</span>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

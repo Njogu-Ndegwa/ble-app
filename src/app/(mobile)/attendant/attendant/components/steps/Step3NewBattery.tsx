@@ -3,6 +3,7 @@
 import React from 'react';
 import ScannerArea from '../ScannerArea';
 import { BatteryData, getBatteryClass } from '../types';
+import { Bluetooth } from 'lucide-react';
 
 interface Step3Props {
   oldBattery: BatteryData | null;
@@ -41,6 +42,19 @@ export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3P
       <div className="scan-prompt">
         <h1 className="scan-title">Scan New Battery</h1>
         <p className="scan-subtitle">Scan the fresh battery to give customer</p>
+        
+        {/* Bluetooth Required Notice */}
+        <div className="bluetooth-notice">
+          <div className="bluetooth-notice-icon">
+            <Bluetooth size={20} />
+          </div>
+          <div className="bluetooth-notice-content">
+            <span className="bluetooth-notice-title">Bluetooth Required</span>
+            <span className="bluetooth-notice-text">
+              Please ensure Bluetooth is turned ON on this device to read battery energy levels
+            </span>
+          </div>
+        </div>
         
         <ScannerArea onClick={onScanNewBattery} type="battery" size="small" />
         
