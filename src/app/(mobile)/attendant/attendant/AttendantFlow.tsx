@@ -24,6 +24,15 @@ import {
   AttendantStep,
 } from './components';
 
+// MQTT Configuration interface
+interface MqttConfig {
+  username: string;
+  password: string;
+  clientId: string;
+  hostname: string;
+  port: number;
+}
+
 // Constants
 const PAYMENT_CONFIRMATION_ENDPOINT = "https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm";
 
@@ -51,6 +60,97 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       });
     }
   }, []);
+
+  // Initialize MQTT connection
+  useEffect(() => {
+    if (!bridge) {
+      console.info('Bridge not available yet, waiting for initialization...');
+      return;
+    }
+
+    console.info('=== Initializing MQTT Connection for Attendant Flow ===');
+
+    // Register the MQTT connection callback handler
+    bridge.registerHandler(
+      'connectMqttCallBack',
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+          console.info('=== MQTT Connection Callback ===');
+          console.info('Connection Callback Data:', JSON.stringify(parsedData, null, 2));
+
+          // Check if connection was successful
+          const isConnected =
+            parsedData?.connected === true ||
+            parsedData?.status === 'connected' ||
+            parsedData?.respCode === '200' ||
+            (parsedData && !parsedData.error);
+
+          if (isConnected) {
+            console.info('MQTT connection confirmed as connected');
+            setIsMqttConnected(true);
+          } else {
+            console.warn('MQTT connection callback indicates not connected:', parsedData);
+            setIsMqttConnected(false);
+          }
+          responseCallback('Received MQTT Connection Callback');
+        } catch (err) {
+          console.error('Error parsing MQTT connection callback:', err);
+          // If we can't parse it, assume connection might be OK but log the error
+          console.warn('Assuming MQTT connection is OK despite parse error');
+          setIsMqttConnected(true);
+          responseCallback('Received MQTT Connection Callback');
+        }
+      }
+    );
+
+    // Generate unique client ID to avoid conflicts when multiple devices connect
+    const generateClientId = () => {
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      return `attendant-flow-${attendantInfo.id}-${timestamp}-${random}`;
+    };
+
+    // MQTT configuration matching your credentials
+    const mqttConfig: MqttConfig = {
+      username: 'Admin',
+      password: '7xzUV@MT',
+      clientId: generateClientId(),
+      hostname: 'mqtt.omnivoltaic.com',
+      port: 1883,
+    };
+
+    console.info('=== Initiating MQTT Connection ===');
+    console.info('MQTT Config:', { ...mqttConfig, password: '***' });
+
+    // Connect to MQTT
+    bridge.callHandler('connectMqtt', mqttConfig, (resp: string) => {
+      try {
+        const p = typeof resp === 'string' ? JSON.parse(resp) : resp;
+        console.info('=== MQTT Connect Response ===');
+        console.info('Connect Response:', JSON.stringify(p, null, 2));
+
+        if (p.error) {
+          console.error('MQTT connection error:', p.error.message || p.error);
+          setIsMqttConnected(false);
+          toast.error('Failed to connect to MQTT server');
+        } else if (p.respCode === '200' || p.success === true) {
+          console.info('MQTT connection initiated successfully');
+          // Connection state will be confirmed by connectMqttCallBack
+        } else {
+          console.warn('MQTT connection response indicates potential issue:', p);
+        }
+      } catch (err) {
+        console.error('Error parsing MQTT response:', err);
+        // Don't set connection to false on parse error, wait for callback
+      }
+    });
+
+    // Cleanup function
+    return () => {
+      console.info('Cleaning up MQTT connection handlers');
+    };
+  }, [bridge, attendantInfo.id]);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<AttendantStep>(1);
@@ -104,6 +204,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
+  
+  // MQTT connection state
+  const [isMqttConnected, setIsMqttConnected] = useState(false);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
@@ -119,6 +222,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const handleScanCustomer = useCallback(async () => {
     if (!bridge) {
       toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
+    if (!isMqttConnected) {
+      toast.error('MQTT not connected. Please wait a moment and try again.');
+      console.error('Attempted to scan customer but MQTT is not connected');
       return;
     }
 
@@ -437,7 +546,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       clearTimeout(timeoutId);
       setIsScanning(false);
     }
-  }, [bridge, attendantInfo]);
+  }, [bridge, attendantInfo, isMqttConnected]);
 
   // Step 1: Manual lookup - also uses MQTT
   const handleManualLookup = useCallback(async () => {
@@ -448,6 +557,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
     if (!bridge) {
       toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
+    if (!isMqttConnected) {
+      toast.error('MQTT not connected. Please wait a moment and try again.');
+      console.error('Attempted manual lookup but MQTT is not connected');
       return;
     }
     
@@ -693,7 +808,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         }
       }
     );
-  }, [bridge, manualSubscriptionId, attendantInfo]);
+  }, [bridge, manualSubscriptionId, attendantInfo, isMqttConnected]);
 
   // Step 2: Scan Old Battery
   const handleScanOldBattery = useCallback(async () => {
