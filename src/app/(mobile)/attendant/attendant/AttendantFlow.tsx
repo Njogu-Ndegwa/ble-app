@@ -22,6 +22,7 @@ import {
   BatteryData,
   SwapData,
   AttendantStep,
+  FlowError,
 } from './components';
 
 // Define WebViewJavascriptBridge type for window
@@ -109,6 +110,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Phase states
   const [paymentAndServiceStatus, setPaymentAndServiceStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   
+  // Flow error state - tracks failures that end the process
+  const [flowError, setFlowError] = useState<FlowError | null>(null);
+  
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
 
@@ -125,8 +129,23 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const bridgeHandlersRegisteredRef = useRef<boolean>(false);
   const bridgeInitRef = useRef<boolean>(false);
   
-  // Timeout ref for scan operations
+  // Timeout ref for scan operations (customer identification, battery scans)
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Helper to clear scan timeout safely
+  const clearScanTimeout = useCallback(() => {
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
+  }, []);
+  
+  // Helper to cancel any ongoing scan and reset state
+  const cancelOngoingScan = useCallback(() => {
+    clearScanTimeout();
+    setIsScanning(false);
+    scanTypeRef.current = null;
+  }, [clearScanTimeout]);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
@@ -403,8 +422,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     );
   }, [bridge, attendantInfo]);
 
-  // Process old battery QR code data
+  // Process old battery QR code data - validates against customer's current battery
   const processOldBatteryQRData = useCallback((qrCodeData: string) => {
+    // Clear any pending timeout
+    clearScanTimeout();
+    
     let batteryData: any;
     try {
       batteryData = typeof qrCodeData === 'string' ? JSON.parse(qrCodeData) : qrCodeData;
@@ -412,9 +434,49 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       batteryData = { id: qrCodeData };
     }
     
+    const scannedBatteryId = batteryData.battery_id || batteryData.id || qrCodeData;
+    
+    // For returning customers, validate the scanned battery matches their assigned battery
+    if (customerType === 'returning' && customerData?.currentBatteryId) {
+      const expectedBatteryId = customerData.currentBatteryId;
+      
+      // Normalize IDs for comparison (remove prefixes, compare last 6 chars, case insensitive)
+      const normalizeId = (id: string) => {
+        // Remove common prefixes like "BAT_NEW_", "BAT_RETURN_ATT_", etc.
+        const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_)/i, '');
+        return cleaned.toLowerCase();
+      };
+      
+      const scannedNormalized = normalizeId(String(scannedBatteryId));
+      const expectedNormalized = normalizeId(String(expectedBatteryId));
+      
+      // Check if IDs match (exact match or one contains the other)
+      const isMatch = scannedNormalized === expectedNormalized ||
+        scannedNormalized.includes(expectedNormalized) ||
+        expectedNormalized.includes(scannedNormalized) ||
+        scannedNormalized.slice(-6) === expectedNormalized.slice(-6);
+      
+      if (!isMatch) {
+        // Battery doesn't match - show error and stop process
+        console.error(`Battery mismatch: scanned ${scannedBatteryId}, expected ${expectedBatteryId}`);
+        
+        setFlowError({
+          step: 2,
+          message: 'Battery does not belong to this customer',
+          details: `Scanned: ...${String(scannedBatteryId).slice(-6)} | Expected: ...${String(expectedBatteryId).slice(-6)}`,
+        });
+        
+        toast.error('Wrong battery! This battery does not belong to the customer.');
+        setIsScanning(false);
+        scanTypeRef.current = null;
+        return; // Don't proceed to next step
+      }
+    }
+    
+    // Battery validated (or first-time customer) - proceed
     const oldBattery: BatteryData = {
-      id: batteryData.battery_id || batteryData.id || qrCodeData,
-      shortId: (batteryData.battery_id || batteryData.id || qrCodeData).toString().slice(-6),
+      id: scannedBatteryId,
+      shortId: String(scannedBatteryId).slice(-6),
       chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 0,
       energy: batteryData.energy || batteryData.kwh || 0,
     };
@@ -424,10 +486,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     toast.success('Old battery scanned');
     setIsScanning(false);
     scanTypeRef.current = null;
-  }, []);
+  }, [customerType, customerData?.currentBatteryId, clearScanTimeout]);
 
   // Process new battery QR code data
   const processNewBatteryQRData = useCallback((qrCodeData: string) => {
+    // Clear any pending timeout
+    clearScanTimeout();
+    
     let batteryData: any;
     try {
       batteryData = typeof qrCodeData === 'string' ? JSON.parse(qrCodeData) : qrCodeData;
@@ -459,7 +524,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     toast.success('New battery scanned');
     setIsScanning(false);
     scanTypeRef.current = null;
-  }, [swapData.oldBattery, swapData.rate, electricityService?.usageUnitPrice]);
+  }, [swapData.oldBattery, swapData.rate, electricityService?.usageUnitPrice, clearScanTimeout]);
 
   // Process payment QR code data
   const processPaymentQRData = useCallback((qrCodeData: string) => {
@@ -535,7 +600,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           console.info("QR code scanned:", qrVal);
           
           if (!qrVal) {
-            throw new Error("No QR code value provided");
+            // User cancelled scan (no QR value) - just reset state silently
+            console.info("QR scan cancelled or empty - resetting state");
+            clearScanTimeout();
+            setIsScanning(false);
+            scanTypeRef.current = null;
+            resp({ success: false, cancelled: true });
+            return;
           }
 
           // Use ref to determine which scan type is active
@@ -553,11 +624,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             processPaymentQRData(qrVal);
           } else {
             console.warn("QR code scanned but no active scan type:", scanTypeRef.current);
+            // No active scan type - reset state
+            clearScanTimeout();
+            setIsScanning(false);
           }
 
           resp({ success: true });
         } catch (err) {
           console.error("Error processing QR code data:", err);
+          clearScanTimeout();
           setIsScanning(false);
           scanTypeRef.current = null;
           resp({ success: false, error: String(err) });
@@ -568,7 +643,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     return () => {
       offQr();
     };
-  }, [processCustomerQRData, processOldBatteryQRData, processNewBatteryQRData, processPaymentQRData]);
+  }, [processCustomerQRData, processOldBatteryQRData, processNewBatteryQRData, processPaymentQRData, clearScanTimeout]);
 
   // Setup bridge when ready
   useEffect(() => {
@@ -876,10 +951,22 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return;
     }
 
+    // Clear any existing flow error when retrying
+    setFlowError(null);
+    
     setIsScanning(true);
     scanTypeRef.current = 'old_battery';
+    
+    // Set timeout for battery scan (15 seconds - shorter than customer identification)
+    clearScanTimeout();
+    scanTimeoutRef.current = setTimeout(() => {
+      console.warn("Old battery scan timed out after 15 seconds");
+      toast.error("Scan timed out. Please try again.");
+      cancelOngoingScan();
+    }, 15000);
+    
     startQrCodeScan();
-  }, [startQrCodeScan]);
+  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan]);
 
   // Step 3: Scan New Battery
   const handleScanNewBattery = useCallback(async () => {
@@ -890,8 +977,17 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
     setIsScanning(true);
     scanTypeRef.current = 'new_battery';
+    
+    // Set timeout for battery scan (15 seconds - shorter than customer identification)
+    clearScanTimeout();
+    scanTimeoutRef.current = setTimeout(() => {
+      console.warn("New battery scan timed out after 15 seconds");
+      toast.error("Scan timed out. Please try again.");
+      cancelOngoingScan();
+    }, 15000);
+    
     startQrCodeScan();
-  }, [startQrCodeScan]);
+  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan]);
 
   // Step 4: Proceed to payment
   const handleProceedToPayment = useCallback(() => {
@@ -1254,14 +1350,31 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     setPaymentConfirmed(false);
     setPaymentReceipt(null);
     setPaymentAndServiceStatus('idle');
-  }, []);
+    setFlowError(null); // Clear any flow errors
+    cancelOngoingScan(); // Clear any pending timeouts
+  }, [cancelOngoingScan]);
 
   // Go back one step
   const handleBack = useCallback(() => {
+    // If currently scanning, cancel the scan first
+    if (isScanning) {
+      console.info("Cancelling ongoing scan due to back navigation");
+      cancelOngoingScan();
+      // Don't change step - just cancel scan and stay on current step
+      return;
+    }
+    
+    // If there's a flow error, clear it and allow retry
+    if (flowError) {
+      setFlowError(null);
+      // Stay on current step to allow retry
+      return;
+    }
+    
     if (currentStep > 1) {
       setCurrentStep((prev) => (prev - 1) as AttendantStep);
     }
-  }, [currentStep]);
+  }, [currentStep, isScanning, flowError, cancelOngoingScan]);
 
   // Handle back to roles (don't logout - shared between Attendant & Sales)
   const handleBackToRoles = useCallback(() => {
@@ -1324,7 +1437,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           />
         );
       case 2:
-        return <Step2OldBattery onScanOldBattery={handleScanOldBattery} />;
+        return (
+          <Step2OldBattery 
+            onScanOldBattery={handleScanOldBattery}
+            expectedBatteryId={customerData?.currentBatteryId}
+            isFirstTimeCustomer={customerType === 'first-time'}
+          />
+        );
       case 3:
         return (
           <Step3NewBattery 
@@ -1379,6 +1498,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       <Timeline 
         currentStep={currentStep} 
         onStepClick={handleTimelineClick}
+        flowError={flowError}
       />
 
       {/* Customer State Panel - Shows after customer identified */}
