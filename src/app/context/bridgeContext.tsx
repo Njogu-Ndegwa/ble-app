@@ -91,12 +91,28 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
           console.info('=== Global MQTT Connection Callback ===');
           console.info('Connection Callback Data:', JSON.stringify(parsedData, null, 2));
 
-          // Check if connection was successful
+          // Handle nested data structure - the actual response may be inside a 'data' field as a string
+          let actualData = parsedData;
+          if (parsedData?.data && typeof parsedData.data === 'string') {
+            try {
+              actualData = JSON.parse(parsedData.data);
+              console.info('Parsed nested data:', JSON.stringify(actualData, null, 2));
+            } catch {
+              // If nested data parsing fails, use the original
+              actualData = parsedData;
+            }
+          }
+
+          // Check if connection was successful - check both outer and inner data
           const isConnected =
             parsedData?.connected === true ||
             parsedData?.status === 'connected' ||
             parsedData?.respCode === '200' ||
-            (parsedData && !parsedData.error);
+            actualData?.connected === true ||
+            actualData?.status === 'connected' ||
+            actualData?.respCode === '200' ||
+            actualData?.respData === true ||
+            (actualData && !actualData.error && !parsedData.error);
 
           if (isConnected) {
             console.info('Global MQTT connection confirmed as connected');
@@ -142,10 +158,22 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
         console.info('=== Global MQTT Connect Response ===');
         console.info('Connect Response:', JSON.stringify(p, null, 2));
 
-        if (p.error) {
-          console.error('Global MQTT connection error:', p.error.message || p.error);
+        // Handle nested data structure
+        let actualResp = p;
+        if (p?.responseData && typeof p.responseData === 'string') {
+          try {
+            actualResp = JSON.parse(p.responseData);
+            console.info('Parsed nested responseData:', JSON.stringify(actualResp, null, 2));
+          } catch {
+            actualResp = p;
+          }
+        }
+
+        if (p.error || actualResp.error) {
+          const errorMsg = p.error?.message || p.error || actualResp.error?.message || actualResp.error;
+          console.error('Global MQTT connection error:', errorMsg);
           setIsMqttConnected(false);
-        } else if (p.respCode === '200' || p.success === true) {
+        } else if (p.respCode === '200' || actualResp.respCode === '200' || p.success === true || actualResp.respData === true) {
           console.info('Global MQTT connection initiated successfully');
           // Connection state will be confirmed by connectMqttCallBack
         } else {
