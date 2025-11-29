@@ -24,6 +24,19 @@ import {
   AttendantStep,
 } from './components';
 
+// Define WebViewJavascriptBridge type for window
+interface WebViewJavascriptBridge {
+  init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
+  registerHandler: (handlerName: string, handler: (data: string, responseCallback: (response: any) => void) => void) => void;
+  callHandler: (handlerName: string, data: any, callback: (responseData: string) => void) => void;
+}
+
+declare global {
+  interface Window {
+    WebViewJavascriptBridge?: WebViewJavascriptBridge;
+  }
+}
+
 // Constants
 const PAYMENT_CONFIRMATION_ENDPOINT = "https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm";
 
@@ -104,6 +117,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
+  
+  // Ref for tracking current scan type
+  const scanTypeRef = useRef<'customer' | 'old_battery' | 'new_battery' | 'payment' | null>(null);
+  
+  // Bridge initialization ref
+  const bridgeHandlersRegisteredRef = useRef<boolean>(false);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
