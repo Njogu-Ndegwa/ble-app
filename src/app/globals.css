@@ -367,6 +367,41 @@ html.theme-transition *::after {
   50% { opacity: 1; transform: scale(1); }
 }
 
+/* Splash Status Indicators */
+.splash-status {
+  display: flex;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.splash-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.splash-status-item.ready {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.splash-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.splash-status-item.ready .splash-status-dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
 /* ===================== */
 /* ONBOARDING STYLES     */
 /* ===================== */
