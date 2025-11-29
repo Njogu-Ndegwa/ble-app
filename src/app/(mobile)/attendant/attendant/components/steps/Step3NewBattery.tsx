@@ -11,7 +11,8 @@ interface Step3Props {
 
 export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3Props) {
   const chargeLevel = oldBattery?.chargeLevel || 0;
-  const energy = oldBattery?.energy || 0;
+  const energyWh = oldBattery?.energy || 0;
+  const energyKwh = energyWh / 1000; // Convert to kWh for display
   const batteryClass = getBatteryClass(chargeLevel);
 
   return (
@@ -31,7 +32,7 @@ export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3P
                 style={{ '--level': `${chargeLevel}%` } as React.CSSProperties}
               ></div>
             </div>
-            <span className="battery-return-percent">{energy.toFixed(1)} Wh</span>
+            <span className="battery-return-percent">{energyKwh.toFixed(3)} kWh</span>
             <span className="battery-return-unit">Energy</span>
           </div>
         </div>

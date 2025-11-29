@@ -31,11 +31,11 @@ export default function Step4Review({ swapData, customerData }: Step4Props) {
         <div className="cost-title">Cost Breakdown</div>
         <div className="cost-row">
           <span className="cost-label">Old Battery</span>
-          <span className="cost-value">{(swapData.oldBattery?.energy || 0).toFixed(1)} Wh</span>
+          <span className="cost-value">{((swapData.oldBattery?.energy || 0) / 1000).toFixed(3)} kWh</span>
         </div>
         <div className="cost-row">
           <span className="cost-label">New Battery</span>
-          <span className="cost-value">{(swapData.newBattery?.energy || 0).toFixed(1)} Wh</span>
+          <span className="cost-value">{((swapData.newBattery?.energy || 0) / 1000).toFixed(3)} kWh</span>
         </div>
         <div className="cost-row">
           <span className="cost-label">Energy Transferred</span>

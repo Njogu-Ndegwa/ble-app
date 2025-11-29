@@ -1032,7 +1032,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 
                 setSwapData(prev => ({ ...prev, oldBattery }));
                 setCurrentStep(3);
-                toast.success(`Old battery scanned: ${energy.toFixed(2)} Wh`);
+                toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh`);
               } else if (scanType === 'new_battery') {
                 // Create new battery data and calculate differential
                 const newBattery: BatteryData = {
@@ -1070,7 +1070,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 });
                 
                 setCurrentStep(4);
-                toast.success(`New battery scanned: ${energy.toFixed(2)} Wh`);
+                toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh`);
               }
             } else {
               console.warn("Could not calculate energy from DTA data or missing battery ID");
