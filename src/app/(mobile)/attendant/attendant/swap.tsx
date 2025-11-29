@@ -29,6 +29,10 @@ interface MqttConfig {
   clientId: string;
   hostname: string;
   port: number;
+  protocol?: string;
+  clean?: boolean;
+  connectTimeout?: number;
+  reconnectPeriod?: number;
 }
 
 interface WebViewJavascriptBridge {
@@ -1924,6 +1928,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         clientId: generateClientId(),
         hostname: "mqtt.omnivoltaic.com",
         port: 1883,
+        protocol: "mqtt",
+        clean: true,
+        connectTimeout: 40000,
+        reconnectPeriod: 1000,
       };
 
       console.info("=== Initiating MQTT Connection ===");
