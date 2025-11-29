@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 
 // Define the WebViewJavascriptBridge type as per your app
 interface WebViewJavascriptBridge {
@@ -26,6 +26,7 @@ interface BridgeContextProps {
   bridge: WebViewJavascriptBridge | null;
   setBridge: React.Dispatch<React.SetStateAction<WebViewJavascriptBridge | null>>;
   isMqttConnected: boolean;
+  isBridgeReady: boolean;
 }
 
 // Create a context for the Bridge
@@ -47,43 +48,67 @@ interface BridgeProviderProps {
 
 export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
   const [bridge, setBridge] = useState<WebViewJavascriptBridge | null>(null);
+  const [isBridgeReady, setIsBridgeReady] = useState<boolean>(false);
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   const mqttInitializedRef = useRef<boolean>(false);
+  const bridgeInitializedRef = useRef<boolean>(false);
 
-  // Initialize Bridge
+  // Initialize Bridge - Step 1: Get the bridge object
   useEffect(() => {
-    const initializeBridge = () => {
-      const ready = () => {
-        if (window.WebViewJavascriptBridge) {
-          setBridge(window.WebViewJavascriptBridge);
-        }
-      };
-
-      if (window.WebViewJavascriptBridge) {
-        ready();
-      } else {
-        document.addEventListener('WebViewJavascriptBridgeReady', ready, false);
+    console.info('=== Bridge Provider: Looking for WebViewJavascriptBridge ===');
+    
+    const setupBridge = (b: WebViewJavascriptBridge) => {
+      if (bridgeInitializedRef.current) {
+        console.info('Bridge already initialized, skipping');
+        return;
       }
-
-      return () => {
-        document.removeEventListener('WebViewJavascriptBridgeReady', ready);
-      };
+      
+      console.info('=== Bridge Found, Initializing... ===');
+      bridgeInitializedRef.current = true;
+      
+      // CRITICAL: Call bridge.init() before using any other methods
+      b.init((message: any, responseCallback: (response: any) => void) => {
+        console.info('Bridge default handler received message:', message);
+        responseCallback({ success: true });
+      });
+      
+      console.info('=== Bridge Initialized Successfully ===');
+      setBridge(b);
+      setIsBridgeReady(true);
     };
 
-    initializeBridge();
+    const ready = () => {
+      if (window.WebViewJavascriptBridge) {
+        console.info('WebViewJavascriptBridge is available on window');
+        setupBridge(window.WebViewJavascriptBridge);
+      }
+    };
+
+    if (window.WebViewJavascriptBridge) {
+      console.info('WebViewJavascriptBridge already exists on window');
+      ready();
+    } else {
+      console.info('Waiting for WebViewJavascriptBridgeReady event...');
+      document.addEventListener('WebViewJavascriptBridgeReady', ready, false);
+    }
 
     return () => {
-      // Cleanup if necessary
+      document.removeEventListener('WebViewJavascriptBridgeReady', ready);
     };
   }, []);
 
-  // Initialize MQTT connection when bridge becomes available
+  // Initialize MQTT connection when bridge is FULLY ready (after init() is called)
   useEffect(() => {
-    if (!bridge || mqttInitializedRef.current) {
+    if (!bridge || !isBridgeReady || mqttInitializedRef.current) {
+      if (!bridge) {
+        console.info('MQTT: Waiting for bridge...');
+      } else if (!isBridgeReady) {
+        console.info('MQTT: Bridge exists but not yet initialized...');
+      }
       return;
     }
 
-    console.info('=== Initializing Global MQTT Connection ===');
+    console.info('=== Bridge is Ready, Initializing MQTT Connection ===');
     mqttInitializedRef.current = true;
 
     let retryCount = 0;
@@ -218,10 +243,11 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       });
     };
 
-    // Initial connection attempt (small delay to ensure callback is registered)
+    // Initial connection attempt (small delay to ensure callback handler is registered first)
     setTimeout(() => {
+      console.info('=== Starting MQTT Connection (after 500ms delay) ===');
       connectToMqtt();
-    }, 100);
+    }, 500);
 
     // Cleanup function
     return () => {
@@ -231,10 +257,10 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
         clearTimeout(retryTimeoutId);
       }
     };
-  }, [bridge]);
+  }, [bridge, isBridgeReady]);
 
   return (
-    <BridgeContext.Provider value={{ bridge, setBridge, isMqttConnected }}>
+    <BridgeContext.Provider value={{ bridge, setBridge, isMqttConnected, isBridgeReady }}>
       {children}
     </BridgeContext.Provider>
   );

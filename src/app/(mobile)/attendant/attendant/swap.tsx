@@ -68,7 +68,7 @@ interface SwapProps {
 
 const Swap: React.FC<SwapProps> = ({ customer }) => {
   const { t } = useI18n();
-  const { bridge } = useBridge();
+  const { bridge, isBridgeReady, isMqttConnected: globalMqttConnected } = useBridge();
   const [currentPhase, setCurrentPhase] = useState<"A1" | "A3">("A1");
   const [customerType, setCustomerType] = useState<
     "first-time" | "returning" | null
@@ -1993,10 +1993,14 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   );
 
   useEffect(() => {
-    if (bridge) {
+    // CRITICAL: Only setup bridge handlers AFTER bridge is fully initialized
+    if (bridge && isBridgeReady) {
+      console.info('=== Swap: Bridge is ready, setting up handlers ===');
       return setupBridge(bridge as unknown as WebViewJavascriptBridge);
+    } else {
+      console.info('=== Swap: Waiting for bridge to be ready ===', { bridge: !!bridge, isBridgeReady });
     }
-  }, [bridge, setupBridge]);
+  }, [bridge, isBridgeReady, setupBridge]);
 
   const startQrCodeScan = useCallback(() => {
     if (!window.WebViewJavascriptBridge) {
