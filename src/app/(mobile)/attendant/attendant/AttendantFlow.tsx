@@ -33,7 +33,7 @@ interface AttendantFlowProps {
 
 export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const router = useRouter();
-  const { bridge, isMqttConnected } = useBridge();
+  const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   
   // Attendant info from login
   const [attendantInfo, setAttendantInfo] = useState<{ id: string; station: string }>({
@@ -117,8 +117,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
   // Step 1: Scan Customer QR - with MQTT identify_customer
   const handleScanCustomer = useCallback(async () => {
-    if (!bridge) {
-      toast.error('Bridge not available. Please restart the app.');
+    if (!bridge || !isBridgeReady) {
+      toast.error('Bridge not available. Please wait for initialization...');
+      console.error('Attempted to scan customer but bridge is not ready. bridge:', !!bridge, 'isBridgeReady:', isBridgeReady);
       return;
     }
 
@@ -443,7 +444,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       clearTimeout(timeoutId);
       setIsScanning(false);
     }
-  }, [bridge, attendantInfo, isMqttConnected]);
+  }, [bridge, isBridgeReady, attendantInfo, isMqttConnected]);
 
   // Step 1: Manual lookup - also uses MQTT
   const handleManualLookup = useCallback(async () => {
@@ -452,8 +453,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return;
     }
 
-    if (!bridge) {
-      toast.error('Bridge not available. Please restart the app.');
+    if (!bridge || !isBridgeReady) {
+      toast.error('Bridge not available. Please wait for initialization...');
+      console.error('Attempted manual lookup but bridge is not ready. bridge:', !!bridge, 'isBridgeReady:', isBridgeReady);
       return;
     }
 
