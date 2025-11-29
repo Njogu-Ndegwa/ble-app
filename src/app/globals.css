@@ -3108,6 +3108,39 @@ html.theme-transition *::after {
   line-height: 1.4;
 }
 
+/* BLE Scanning Active State */
+.ble-scanning-active {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: linear-gradient(135deg, 
+    rgba(34, 197, 94, 0.1) 0%, 
+    rgba(59, 130, 246, 0.08) 100%);
+}
+
+.ble-scanning-active .bluetooth-notice-icon {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1));
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.ble-scanning-active .bluetooth-notice-title {
+  color: #22c55e;
+}
+
+.ble-scanning-icon {
+  animation: ble-pulse 1.5s ease-in-out infinite;
+  color: #22c55e !important;
+}
+
+@keyframes ble-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
 /* ===================== */
 /* BLE PROGRESS OVERLAY  */
 /* ===================== */

@@ -3,14 +3,21 @@
 import React from 'react';
 import ScannerArea from '../ScannerArea';
 import { BatteryData, getBatteryClass } from '../types';
-import { Bluetooth } from 'lucide-react';
+import { Bluetooth, Radio } from 'lucide-react';
 
 interface Step3Props {
   oldBattery: BatteryData | null;
   onScanNewBattery: () => void;
+  isBleScanning?: boolean;
+  detectedDevicesCount?: number;
 }
 
-export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3Props) {
+export default function Step3NewBattery({ 
+  oldBattery, 
+  onScanNewBattery,
+  isBleScanning = false,
+  detectedDevicesCount = 0,
+}: Step3Props) {
   const chargeLevel = oldBattery?.chargeLevel || 0;
   const energyWh = oldBattery?.energy || 0;
   const energyKwh = energyWh / 1000; // Convert to kWh for display
@@ -43,15 +50,23 @@ export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3P
         <h1 className="scan-title">Scan New Battery</h1>
         <p className="scan-subtitle">Scan the fresh battery to give customer</p>
         
-        {/* Bluetooth Required Notice */}
-        <div className="bluetooth-notice">
+        {/* BLE Scanning Status - Shows nearby batteries being detected */}
+        <div className={`bluetooth-notice ${isBleScanning ? 'ble-scanning-active' : ''}`}>
           <div className="bluetooth-notice-icon">
-            <Bluetooth size={20} />
+            {isBleScanning ? (
+              <Radio size={20} className="ble-scanning-icon" />
+            ) : (
+              <Bluetooth size={20} />
+            )}
           </div>
           <div className="bluetooth-notice-content">
-            <span className="bluetooth-notice-title">Bluetooth Required</span>
+            <span className="bluetooth-notice-title">
+              {isBleScanning ? 'Scanning for Batteries...' : 'Bluetooth Required'}
+            </span>
             <span className="bluetooth-notice-text">
-              Please ensure Bluetooth is turned ON on this device to read battery energy levels
+              {isBleScanning 
+                ? `${detectedDevicesCount} ${detectedDevicesCount === 1 ? 'battery' : 'batteries'} detected nearby`
+                : 'Please ensure Bluetooth is turned ON on this device to read battery energy levels'}
             </span>
           </div>
         </div>
