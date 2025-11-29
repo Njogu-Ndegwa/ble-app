@@ -7,10 +7,14 @@ const STORAGE_KEYS = {
 } as const;
 
 export interface AttendantUser {
-  id: number;
+  id: string | number;
   name: string;
   email: string;
   phone?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  accessToken?: string;
 }
 
 /**

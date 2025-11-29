@@ -2018,7 +2018,7 @@ html.theme-transition *::after {
   position: relative;
 }
 
-.input-with-icon svg {
+.input-with-icon > svg {
   position: absolute;
   left: 12px;
   top: 50%;
@@ -2027,6 +2027,40 @@ html.theme-transition *::after {
   height: 18px;
   color: var(--text-muted);
   pointer-events: none;
+}
+
+/* Password toggle button inside input-with-icon */
+.input-with-icon .password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  z-index: 1;
+}
+
+.input-with-icon .password-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.input-with-icon .password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.input-with-icon .password-toggle svg {
+  position: static;
+  transform: none;
+  width: 20px;
+  height: 20px;
+  pointer-events: auto;
 }
 
 .input-with-icon .form-input {
