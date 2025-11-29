@@ -210,6 +210,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   }, []);
 
   // Start BLE scanning for nearby devices
+  // NOTE: This does NOT clear detected devices - devices accumulate over time
+  // This mirrors keypad behavior where BLE scan runs continuously and devices build up
   const startBleScan = useCallback(() => {
     if (!window.WebViewJavascriptBridge) {
       console.error('WebViewJavascriptBridge not available for BLE scan');
@@ -224,13 +226,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
     
+    // Just set isScanning flag - DON'T clear detected devices
+    // Devices accumulate over time for better matching
     setBleScanState(prev => ({
       ...prev,
       isScanning: true,
-      detectedDevices: [],
       error: null,
     }));
-    detectedBleDevicesRef.current = [];
   }, []);
 
   // Stop BLE scanning
@@ -1168,6 +1170,31 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [bridge, isBridgeReady, setupBridge]);
 
+  // Start BLE scanning when user reaches battery scanning steps (Step 2 or 3)
+  // This mirrors the keypad behavior where BLE scan runs continuously
+  // Gives devices time to be discovered BEFORE user scans QR code
+  useEffect(() => {
+    // Only start BLE scanning on battery scan steps and when bridge is ready
+    if (!isBridgeReady || !window.WebViewJavascriptBridge) return;
+    
+    const isBatteryScanStep = currentStep === 2 || currentStep === 3;
+    
+    if (isBatteryScanStep) {
+      console.info(`=== Starting BLE scan for Step ${currentStep} (battery scanning) ===`);
+      
+      // Small delay to ensure native layer is ready (same pattern as keypad)
+      const timeoutId = setTimeout(() => {
+        startBleScan();
+      }, 300);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        // Stop BLE scan when leaving battery scan steps
+        stopBleScan();
+      };
+    }
+  }, [currentStep, isBridgeReady, startBleScan, stopBleScan]);
+
   // Step 1: Scan Customer QR - with MQTT identify_customer
   const handleScanCustomer = useCallback(async () => {
     if (!window.WebViewJavascriptBridge) {
@@ -1467,39 +1494,39 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     // Clear any existing flow error when retrying
     setFlowError(null);
     
-    // Reset BLE state but DON'T show scanning modal yet - it should only show after QR is scanned
-    // The BLE scanning will happen in background while QR scanner is open
-    setBleScanState({
-      isScanning: false, // Don't show modal yet - we haven't scanned QR code
+    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
+    // This preserves devices that were discovered while user was viewing Step 2
+    setBleScanState(prev => ({
+      ...prev,
       isConnecting: false,
       isReadingEnergy: false,
       connectedDevice: null,
-      detectedDevices: [],
       connectionProgress: 0,
       error: null,
-    });
-    detectedBleDevicesRef.current = [];
+    }));
+    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
     pendingBatteryQrCodeRef.current = null;
     pendingBatteryScanTypeRef.current = null;
     
     setIsScanning(true);
     scanTypeRef.current = 'old_battery';
     
-    // Start BLE scanning in background to discover nearby devices (no modal shown yet)
-    startBleScan();
+    // BLE scanning is already running from useEffect when we reached Step 2
+    // Log current discovered devices for debugging
+    console.info(`=== Scanning Old Battery - ${detectedBleDevicesRef.current.length} BLE devices already discovered ===`);
+    console.info('Discovered devices:', detectedBleDevicesRef.current.map(d => d.name));
     
     // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
     clearScanTimeout();
     scanTimeoutRef.current = setTimeout(() => {
       console.warn("Old battery scan-to-bind timed out after 30 seconds");
       toast.error("Scan timed out. Please try again.");
-      stopBleScan();
       cancelOngoingScan();
     }, 30000);
     
-    // Start QR code scan immediately - BLE devices will be discovered while user scans QR
+    // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, startBleScan, stopBleScan]);
+  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan]);
 
   // Step 3: Scan New Battery with Scan-to-Bind
   const handleScanNewBattery = useCallback(async () => {
@@ -1508,38 +1535,39 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return;
     }
 
-    // Reset BLE state but DON'T show scanning modal yet - it should only show after QR is scanned
-    setBleScanState({
-      isScanning: false, // Don't show modal yet - we haven't scanned QR code
+    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
+    // This preserves devices that were discovered while user was viewing Step 3
+    setBleScanState(prev => ({
+      ...prev,
       isConnecting: false,
       isReadingEnergy: false,
       connectedDevice: null,
-      detectedDevices: [],
       connectionProgress: 0,
       error: null,
-    });
-    detectedBleDevicesRef.current = [];
+    }));
+    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
     pendingBatteryQrCodeRef.current = null;
     pendingBatteryScanTypeRef.current = null;
     
     setIsScanning(true);
     scanTypeRef.current = 'new_battery';
     
-    // Start BLE scanning in background to discover nearby devices (no modal shown yet)
-    startBleScan();
+    // BLE scanning is already running from useEffect when we reached Step 3
+    // Log current discovered devices for debugging
+    console.info(`=== Scanning New Battery - ${detectedBleDevicesRef.current.length} BLE devices already discovered ===`);
+    console.info('Discovered devices:', detectedBleDevicesRef.current.map(d => d.name));
     
     // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
     clearScanTimeout();
     scanTimeoutRef.current = setTimeout(() => {
       console.warn("New battery scan-to-bind timed out after 30 seconds");
       toast.error("Scan timed out. Please try again.");
-      stopBleScan();
       cancelOngoingScan();
     }, 30000);
     
-    // Start QR code scan immediately - BLE devices will be discovered while user scans QR
+    // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, startBleScan, stopBleScan]);
+  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan]);
 
   // Step 4: Proceed to payment
   const handleProceedToPayment = useCallback(() => {
@@ -1904,6 +1932,20 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     setPaymentAndServiceStatus('idle');
     setFlowError(null); // Clear any flow errors
     cancelOngoingScan(); // Clear any pending timeouts
+    
+    // Clear BLE state for fresh start - devices will be rediscovered when reaching Step 2
+    setBleScanState({
+      isScanning: false,
+      isConnecting: false,
+      isReadingEnergy: false,
+      connectedDevice: null,
+      detectedDevices: [],
+      connectionProgress: 0,
+      error: null,
+    });
+    detectedBleDevicesRef.current = [];
+    pendingBatteryQrCodeRef.current = null;
+    pendingBatteryScanTypeRef.current = null;
   }, [cancelOngoingScan]);
 
   // Go back one step
@@ -1993,13 +2035,17 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           <Step2OldBattery 
             onScanOldBattery={handleScanOldBattery}
             isFirstTimeCustomer={customerType === 'first-time'}
+            isBleScanning={bleScanState.isScanning}
+            detectedDevicesCount={bleScanState.detectedDevices.length}
           />
         );
       case 3:
         return (
           <Step3NewBattery 
             oldBattery={swapData.oldBattery} 
-            onScanNewBattery={handleScanNewBattery} 
+            onScanNewBattery={handleScanNewBattery}
+            isBleScanning={bleScanState.isScanning}
+            detectedDevicesCount={bleScanState.detectedDevices.length}
           />
         );
       case 4:

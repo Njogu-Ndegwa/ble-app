@@ -2,14 +2,21 @@
 
 import React from 'react';
 import ScannerArea from '../ScannerArea';
-import { Bluetooth } from 'lucide-react';
+import { Bluetooth, Radio } from 'lucide-react';
 
 interface Step2Props {
   onScanOldBattery: () => void;
   isFirstTimeCustomer?: boolean;
+  isBleScanning?: boolean;
+  detectedDevicesCount?: number;
 }
 
-export default function Step2OldBattery({ onScanOldBattery, isFirstTimeCustomer }: Step2Props) {
+export default function Step2OldBattery({ 
+  onScanOldBattery, 
+  isFirstTimeCustomer,
+  isBleScanning = false,
+  detectedDevicesCount = 0,
+}: Step2Props) {
   return (
     <div className="screen active">
       <div className="scan-prompt">
@@ -22,15 +29,23 @@ export default function Step2OldBattery({ onScanOldBattery, isFirstTimeCustomer 
             : 'Scan the battery the customer brought in'}
         </p>
         
-        {/* Bluetooth Required Notice */}
-        <div className="bluetooth-notice">
+        {/* BLE Scanning Status - Shows nearby batteries being detected */}
+        <div className={`bluetooth-notice ${isBleScanning ? 'ble-scanning-active' : ''}`}>
           <div className="bluetooth-notice-icon">
-            <Bluetooth size={20} />
+            {isBleScanning ? (
+              <Radio size={20} className="ble-scanning-icon" />
+            ) : (
+              <Bluetooth size={20} />
+            )}
           </div>
           <div className="bluetooth-notice-content">
-            <span className="bluetooth-notice-title">Bluetooth Required</span>
+            <span className="bluetooth-notice-title">
+              {isBleScanning ? 'Scanning for Batteries...' : 'Bluetooth Required'}
+            </span>
             <span className="bluetooth-notice-text">
-              Please ensure Bluetooth is turned ON on this device to read battery energy levels
+              {isBleScanning 
+                ? `${detectedDevicesCount} ${detectedDevicesCount === 1 ? 'battery' : 'batteries'} detected nearby`
+                : 'Please ensure Bluetooth is turned ON on this device to read battery energy levels'}
             </span>
           </div>
         </div>
