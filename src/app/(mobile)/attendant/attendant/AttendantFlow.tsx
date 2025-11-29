@@ -1044,24 +1044,27 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 };
                 
                 // Calculate energy difference and cost using actual energy values
+                // Energy from BLE is in Wh, but rate is per kWh - convert Wh to kWh
                 setSwapData(prev => {
                   const oldEnergy = prev.oldBattery?.energy || 0;
-                  const energyDiff = energy - oldEnergy;
+                  const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
+                  const energyDiffKwh = energyDiffWh / 1000; // Convert to kWh for billing
                   const rate = electricityService?.usageUnitPrice || prev.rate;
-                  const cost = Math.round(energyDiff * rate * 100) / 100;
+                  const cost = Math.round(energyDiffKwh * rate * 100) / 100; // Cost based on kWh
                   
                   console.info('Energy differential calculated:', {
-                    oldEnergy,
-                    newEnergy: energy,
-                    energyDiff,
-                    rate,
+                    oldEnergyWh: oldEnergy,
+                    newEnergyWh: energy,
+                    energyDiffWh,
+                    energyDiffKwh,
+                    ratePerKwh: rate,
                     cost,
                   });
                   
                   return {
                     ...prev,
                     newBattery,
-                    energyDiff: Math.round(energyDiff * 100) / 100,
+                    energyDiff: Math.round(energyDiffKwh * 1000) / 1000, // Store in kWh with 3 decimal places
                     cost: cost > 0 ? cost : 0,
                   };
                 });
