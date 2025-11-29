@@ -6,11 +6,10 @@ import { Bluetooth } from 'lucide-react';
 
 interface Step2Props {
   onScanOldBattery: () => void;
-  expectedBatteryId?: string;
   isFirstTimeCustomer?: boolean;
 }
 
-export default function Step2OldBattery({ onScanOldBattery, expectedBatteryId, isFirstTimeCustomer }: Step2Props) {
+export default function Step2OldBattery({ onScanOldBattery, isFirstTimeCustomer }: Step2Props) {
   return (
     <div className="screen active">
       <div className="scan-prompt">
@@ -37,21 +36,6 @@ export default function Step2OldBattery({ onScanOldBattery, expectedBatteryId, i
         </div>
         
         <ScannerArea onClick={onScanOldBattery} type="battery" size="small" />
-        
-        {/* Show expected battery ID for returning customers */}
-        {expectedBatteryId && !isFirstTimeCustomer && (
-          <div className="expected-battery-info">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="7" width="16" height="10" rx="2"/>
-              <path d="M22 11v2"/>
-              <path d="M6 11v2"/>
-            </svg>
-            <div className="expected-battery-details">
-              <span className="expected-label">Expected Battery</span>
-              <span className="expected-id">...{expectedBatteryId.slice(-6)}</span>
-            </div>
-          </div>
-        )}
         
         <p className="scan-hint">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

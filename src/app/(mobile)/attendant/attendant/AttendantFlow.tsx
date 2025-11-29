@@ -1975,7 +1975,6 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         return (
           <Step2OldBattery 
             onScanOldBattery={handleScanOldBattery}
-            expectedBatteryId={customerData?.currentBatteryId}
             isFirstTimeCustomer={customerType === 'first-time'}
           />
         );
