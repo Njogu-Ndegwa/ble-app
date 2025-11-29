@@ -4,13 +4,81 @@ import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
 import { saveAttendantLogin, getStoredEmail } from '@/lib/attendant-auth';
+import { useMutation, gql } from '@apollo/client';
+
+// GraphQL mutation for signing in via ERM
+const SIGN_IN_USER_MUTATION = gql`
+  fragment AuthToken on AuthToken {
+    _id
+    accessToken
+    actionScope
+    agentId
+    agentType
+    authenticationInstance {
+      _id
+      name
+      __typename
+    }
+    birthDate
+    createdAt
+    deleteAt
+    deleteStatus
+    email
+    firstName
+    hireDate
+    idString
+    idType
+    lastName
+    name
+    officeAddress {
+      _id
+      city
+      country
+      createdAt
+      deleteAt
+      deleteStatus
+      postcode
+      srpc
+      street
+      unit
+      updatedAt
+      __typename
+    }
+    profile
+    role {
+      _id
+      name
+      __typename
+    }
+    roleName
+    subrole {
+      _id
+      name
+      __typename
+    }
+    type
+    updatedAt
+    __typename
+  }
+
+  mutation SignInLoginUser($signInCredentials: SignInCredentialsDto!) {
+    signInUser(signInCredentials: $signInCredentials) {
+      ...AuthToken
+      __typename
+    }
+  }
+`;
 
 // Define interfaces
 interface Customer {
-  id: number;
+  id: string;
   name: string;
   email: string;
   phone: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  accessToken?: string;
 }
 
 interface LoginProps {
@@ -37,6 +105,7 @@ interface FormErrors {
   country?: string;
 }
 
+// Keep API_BASE for registration (still uses Odoo)
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
@@ -46,6 +115,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
+
+  // GraphQL mutation hook for ERM login
+  const [signInUserMutation] = useMutation(SIGN_IN_USER_MUTATION);
   
   // Pre-fill email from stored value
   useEffect(() => {
@@ -151,59 +223,66 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
       console.log("Attempting login with email:", email);
-      const response = await fetch(
-        `${API_BASE}/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
+      
+      // Use GraphQL ERM endpoint for authentication
+      const { data } = await signInUserMutation({
+        variables: {
+          signInCredentials: {
+            email: email.trim(),
+            password: password,
           },
-          body: JSON.stringify({ email, password }),
+        },
+      });
+
+      console.log("GraphQL Response:", data);
+
+      if (data?.signInUser) {
+        const user = data.signInUser;
+        console.log("Login successful:", user);
+        
+        // Store the access token for future API calls
+        if (user.accessToken) {
+          localStorage.setItem('attendant_access_token', user.accessToken);
         }
-      );
-
-      const data = await response.json();
-      console.log("API Response:", { status: response.status, data });
-
-      if (response.status === 200) {
-        console.log("Login successful");
-        // Extract customer data from session.user or fallback to data.customer
-        const sessionUser = data.session?.user;
-        const fallbackCustomer = data.customer;
         
-        const customerData = sessionUser ? {
-          id: sessionUser.id || 0,
-          name: sessionUser.name || "",
-          email: sessionUser.email || email,
-          phone: sessionUser.phone || "",
-        } : fallbackCustomer ? {
-          id: fallbackCustomer.id || 0,
-          name: fallbackCustomer.name || "",
-          email: fallbackCustomer.email || email,
-          phone: fallbackCustomer.phone || "",
-        } : null;
+        // Build customer data from the response
+        const customerData: Customer = {
+          id: user._id || "",
+          name: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "",
+          email: user.email || email,
+          phone: "", // Phone not provided in AuthToken
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role?.name || user.roleName,
+          accessToken: user.accessToken,
+        };
         
-        if (!customerData) {
-          throw new Error(t("No customer data found in response"));
+        if (!customerData.id && !customerData.name) {
+          throw new Error(t("No user data found in response"));
         }
         
         saveAttendantLogin(customerData);
         onLoginSuccess(customerData);
-      } else if (response.status === 404) {
-        toast.error(t("User not found. Would you like to create an account?"));
-        setFormData(prev => ({ ...prev, email }));
-        setTimeout(() => setShowRegister(true), 1500);
-      } else if (response.status === 400) {
-        throw new Error(t("Invalid request. Please ensure your credentials are correct."));
-      } else if (response.status === 401) {
-        throw new Error(t("Invalid email or password. Please try again."));
       } else {
-        throw new Error(data.message || t("Login failed. Please try again."));
+        throw new Error(t("Login failed. Please try again."));
       }
     } catch (error: any) {
       console.error("Sign-in error:", error);
-      toast.error(error.message || t("Sign-in failed. Please try again."));
+      
+      // Handle GraphQL errors
+      const errorMessage = error.graphQLErrors?.[0]?.message 
+        || error.message 
+        || t("Sign-in failed. Please try again.");
+      
+      if (errorMessage.toLowerCase().includes("not found") || errorMessage.toLowerCase().includes("user")) {
+        toast.error(t("User not found. Would you like to create an account?"));
+        setFormData(prev => ({ ...prev, email }));
+        setTimeout(() => setShowRegister(true), 1500);
+      } else if (errorMessage.toLowerCase().includes("password") || errorMessage.toLowerCase().includes("credentials")) {
+        toast.error(t("Invalid email or password. Please try again."));
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsSigningIn(false);
     }
@@ -556,7 +635,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Password Input */}
         <div className="form-group">
           <label className="form-label">{t('Password')}</label>
-          <div className="input-with-icon" style={{ position: 'relative' }}>
+          <div className="input-with-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -573,31 +652,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             />
             <button
               type="button"
+              className="password-toggle"
               onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-muted)',
-              }}
               aria-label={showPassword ? t('Hide password') : t('Show password')}
               disabled={isSigningIn}
             >
               {showPassword ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
                   <line x1="1" y1="1" x2="23" y2="23"/>
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
