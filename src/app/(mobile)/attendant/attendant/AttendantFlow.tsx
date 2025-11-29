@@ -145,9 +145,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Ref for tracking current scan type
   const scanTypeRef = useRef<'customer' | 'old_battery' | 'new_battery' | 'payment' | null>(null);
   
-  // Bridge initialization ref
-  const bridgeHandlersRegisteredRef = useRef<boolean>(false);
+  // Bridge initialization ref (for preventing double init() calls)
   const bridgeInitRef = useRef<boolean>(false);
+  
+  // BLE handlers ready flag - ensures we don't start scanning before handlers are registered
+  const [bleHandlersReady, setBleHandlersReady] = useState<boolean>(false);
   
   // Timeout ref for scan operations (customer identification, battery scans)
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -815,6 +817,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     populateEnergyFromDtaRef.current = populateEnergyFromDta;
   }, [populateEnergyFromDta]);
 
+  // Ref for electricityService to avoid re-registering handlers when service data changes
+  const electricityServiceRef = useRef(electricityService);
+  useEffect(() => {
+    electricityServiceRef.current = electricityService;
+  }, [electricityService]);
+
   // Setup bridge handlers for QR code scanning and BLE (follows pattern from swap.tsx)
   const setupBridge = useCallback((b: WebViewJavascriptBridge) => {
     const noop = () => {};
@@ -890,6 +898,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       (data: string, resp: (r: { success: boolean; error?: string }) => void) => {
         try {
           const d: any = JSON.parse(data);
+          
+          // Log ALL incoming BLE devices for debugging (even non-OVES)
+          console.info(`[BLE] Device found: ${d.name || 'unnamed'} (${d.macAddress}) RSSI: ${d.rssi}`);
+          
           // Only process OVES devices (same filter as swap.tsx)
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
             const raw = Number(d.rssi);
@@ -909,6 +921,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 p.macAddress === d.macAddress ? { ...p, rssi: formattedRssi, rawRssi: raw } : p
               );
             } else {
+              console.info(`[BLE] New OVES device added: ${d.name} - Total: ${detectedBleDevicesRef.current.length + 1}`);
               detectedBleDevicesRef.current = [...detectedBleDevicesRef.current, device];
             }
             
@@ -1072,7 +1085,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   const oldEnergy = prev.oldBattery?.energy || 0;
                   const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
                   const energyDiffKwh = energyDiffWh / 1000; // Convert to kWh for billing
-                  const rate = electricityService?.usageUnitPrice || prev.rate;
+                  // Use ref to get latest electricityService value without causing callback recreation
+                  const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
                   const cost = Math.round(energyDiffKwh * rate * 100) / 100; // Cost based on kWh
                   
                   console.info('Energy differential calculated:', {
@@ -1143,6 +1157,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
 
+    // Signal that BLE handlers are now registered and ready
+    // This is crucial - the scan effect should not start BLE scanning until this is set
+    console.info('=== BLE handlers registered, setting bleHandlersReady = true ===');
+    setBleHandlersReady(true);
+
     return () => {
       offQr();
       offFindBle();
@@ -1155,35 +1174,63 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       if (window.WebViewJavascriptBridge) {
         window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
       }
+      // Reset the flag on cleanup
+      setBleHandlersReady(false);
     };
   // Note: We removed the processing callback functions from dependencies since we now use refs
   // The refs are always up-to-date via useEffect hooks, so the bridge handler always calls the latest version
-  }, [clearScanTimeout, electricityService?.usageUnitPrice]);
+  // electricityService is also accessed via ref to prevent handler re-registration when service data loads
+  }, [clearScanTimeout]);
 
   // Setup bridge when ready
+  // NOTE: We intentionally DON'T use a ref to track registration because:
+  // 1. The setupBridge callback may change when dependencies change
+  // 2. When it changes, the cleanup runs (unregistering handlers)
+  // 3. We need to re-register handlers with the new callback
+  // React's useEffect cleanup mechanism handles this correctly
   useEffect(() => {
-    if (bridge && isBridgeReady && !bridgeHandlersRegisteredRef.current) {
-      console.info('=== AttendantFlow: Setting up bridge handlers ===');
-      bridgeHandlersRegisteredRef.current = true;
-      const cleanup = setupBridge(bridge as unknown as WebViewJavascriptBridge);
-      return cleanup;
+    if (!bridge || !isBridgeReady) {
+      console.info('AttendantFlow: Waiting for bridge...', { bridge: !!bridge, isBridgeReady });
+      return;
     }
+    
+    console.info('=== AttendantFlow: Setting up bridge handlers ===');
+    const cleanup = setupBridge(bridge as unknown as WebViewJavascriptBridge);
+    
+    return () => {
+      console.info('=== AttendantFlow: Cleaning up bridge handlers ===');
+      cleanup();
+    };
   }, [bridge, isBridgeReady, setupBridge]);
 
   // Start BLE scanning when user reaches battery scanning steps (Step 2 or 3)
   // This mirrors the keypad behavior where BLE scan runs continuously
   // Gives devices time to be discovered BEFORE user scans QR code
+  // CRITICAL: Must wait for bleHandlersReady (not just isBridgeReady) to ensure
+  // findBleDeviceCallBack handler is registered before we start scanning
   useEffect(() => {
-    // Only start BLE scanning on battery scan steps and when bridge is ready
-    if (!isBridgeReady || !window.WebViewJavascriptBridge) return;
+    // Only start BLE scanning on battery scan steps and when BLE handlers are ready
+    // bleHandlersReady is set AFTER handlers are registered in setupBridge
+    if (!bleHandlersReady || !window.WebViewJavascriptBridge) {
+      if (!bleHandlersReady) {
+        console.info('BLE scan waiting for handlers to be registered...');
+      }
+      return;
+    }
     
     const isBatteryScanStep = currentStep === 2 || currentStep === 3;
     
     if (isBatteryScanStep) {
-      console.info(`=== Starting BLE scan for Step ${currentStep} (battery scanning) ===`);
+      console.info(`=== Starting BLE scan cycle for Step ${currentStep} (battery scanning) ===`);
+      console.info(`Detected devices before scan: ${detectedBleDevicesRef.current.length}`);
       
-      // Small delay to ensure native layer is ready (same pattern as keypad)
+      // IMPORTANT: Stop-before-start pattern (matches keypad behavior)
+      // The native BLE layer needs a clean stop before starting a fresh scan cycle
+      stopBleScan();
+      
+      // Small delay after stop to ensure native layer is ready, then start
       const timeoutId = setTimeout(() => {
+        console.info('=== BLE scan starting after 300ms delay ===');
         startBleScan();
       }, 300);
       
@@ -1193,7 +1240,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         stopBleScan();
       };
     }
-  }, [currentStep, isBridgeReady, startBleScan, stopBleScan]);
+  }, [currentStep, bleHandlersReady, startBleScan, stopBleScan]);
 
   // Step 1: Scan Customer QR - with MQTT identify_customer
   const handleScanCustomer = useCallback(async () => {
@@ -1513,8 +1560,16 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // BLE scanning is already running from useEffect when we reached Step 2
     // Log current discovered devices for debugging
-    console.info(`=== Scanning Old Battery - ${detectedBleDevicesRef.current.length} BLE devices already discovered ===`);
-    console.info('Discovered devices:', detectedBleDevicesRef.current.map(d => d.name));
+    console.info(`=== Scanning Old Battery ===`);
+    console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
+    console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
+    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
+    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    
+    // If no devices detected yet, warn the user
+    if (detectedBleDevicesRef.current.length === 0) {
+      console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
+    }
     
     // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
     clearScanTimeout();
@@ -1526,7 +1581,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan]);
+  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
 
   // Step 3: Scan New Battery with Scan-to-Bind
   const handleScanNewBattery = useCallback(async () => {
@@ -1554,8 +1609,16 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // BLE scanning is already running from useEffect when we reached Step 3
     // Log current discovered devices for debugging
-    console.info(`=== Scanning New Battery - ${detectedBleDevicesRef.current.length} BLE devices already discovered ===`);
-    console.info('Discovered devices:', detectedBleDevicesRef.current.map(d => d.name));
+    console.info(`=== Scanning New Battery ===`);
+    console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
+    console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
+    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
+    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    
+    // If no devices detected yet, warn the user
+    if (detectedBleDevicesRef.current.length === 0) {
+      console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
+    }
     
     // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
     clearScanTimeout();
@@ -1567,7 +1630,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan]);
+  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
 
   // Step 4: Proceed to payment
   const handleProceedToPayment = useCallback(() => {
