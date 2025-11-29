@@ -123,6 +123,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   
   // Bridge initialization ref
   const bridgeHandlersRegisteredRef = useRef<boolean>(false);
+  const bridgeInitRef = useRef<boolean>(false);
+  
+  // Timeout ref for scan operations
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
@@ -134,103 +138,107 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
   );
 
-  // Step 1: Scan Customer QR - with MQTT identify_customer
-  const handleScanCustomer = useCallback(async () => {
-    if (!bridge || !isBridgeReady) {
-      toast.error('Bridge not available. Please wait for initialization...');
-      console.error('Attempted to scan customer but bridge is not ready. bridge:', !!bridge, 'isBridgeReady:', isBridgeReady);
+  // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
+  const startQrCodeScan = useCallback(() => {
+    if (!window.WebViewJavascriptBridge) {
+      toast.error('Unable to access camera');
       return;
     }
 
-    if (!isMqttConnected) {
-      toast.error('MQTT not connected. Please wait a moment and try again.');
-      console.error('Attempted to scan customer but MQTT is not connected');
+    window.WebViewJavascriptBridge.callHandler(
+      'startQrCodeScan',
+      999,
+      (responseData: string) => {
+        console.info('QR Code Scan initiated:', responseData);
+      }
+    );
+  }, []);
+
+  // Process customer QR code data and send MQTT identify_customer
+  const processCustomerQRData = useCallback((qrCodeData: string) => {
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(qrCodeData);
+    } catch {
+      parsedData = qrCodeData;
+    }
+
+    const normalizedData: any = {
+      customer_id: typeof parsedData === 'object'
+        ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
+        : qrCodeData,
+      subscription_code: typeof parsedData === 'object'
+        ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
+        : undefined,
+      name: typeof parsedData === 'object'
+        ? parsedData.name || parsedData.customer_name
+        : undefined,
+      raw: qrCodeData,
+    };
+
+    // Extract subscription_code as plan_id
+    const subscriptionCode = normalizedData.subscription_code;
+    if (!subscriptionCode) {
+      console.error("No subscription_code found in QR code");
+      toast.error("QR code missing subscription_code");
+      setIsScanning(false);
+      scanTypeRef.current = null;
       return;
     }
 
-    setIsScanning(true);
-    
-    // Set a timeout to prevent infinite loading (30 seconds)
-    const timeoutId = setTimeout(() => {
-      console.error("QR scan lookup timed out after 30 seconds");
+    setDynamicPlanId(subscriptionCode);
+    console.info("Using subscription_code as plan_id:", subscriptionCode);
+
+    const currentPlanId = subscriptionCode;
+    const customerId = normalizedData.customer_id;
+    const formattedQrCodeData = `QR_CUSTOMER_TEST_${customerId}`;
+
+    // Generate correlation ID
+    const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    correlationIdRef.current = correlationId;
+    (window as any).__customerIdentificationCorrelationId = correlationId;
+
+    // Build MQTT payload
+    const requestTopic = `emit/uxi/attendant/plan/${currentPlanId}/identify_customer`;
+    const responseTopic = `echo/abs/attendant/plan/${currentPlanId}/identify_customer`;
+
+    const payload = {
+      timestamp: new Date().toISOString(),
+      plan_id: currentPlanId,
+      correlation_id: correlationId,
+      actor: { type: "attendant", id: attendantInfo.id },
+      data: {
+        action: "IDENTIFY_CUSTOMER",
+        qr_code_data: formattedQrCodeData,
+        attendant_station: attendantInfo.station,
+      },
+    };
+
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content: payload,
+    };
+
+    console.info("=== Customer Identification MQTT (QR Scan) ===");
+    console.info("Request Topic:", requestTopic);
+    console.info("Response Topic:", responseTopic);
+    console.info("Correlation ID:", correlationId);
+    console.info("Payload:", JSON.stringify(payload, null, 2));
+
+    // Set timeout for the operation
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
+    scanTimeoutRef.current = setTimeout(() => {
+      console.error("Customer identification timed out after 30 seconds");
       toast.error("Request timed out. Please try again.");
       setIsScanning(false);
+      scanTypeRef.current = null;
     }, 30000);
-    
-    const processQRData = (qrCodeData: string) => {
-      let parsedData: any;
-      try {
-        parsedData = JSON.parse(qrCodeData);
-      } catch {
-        parsedData = qrCodeData;
-      }
-
-      const normalizedData: any = {
-        customer_id: typeof parsedData === 'object'
-          ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
-          : qrCodeData,
-        subscription_code: typeof parsedData === 'object'
-          ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
-          : undefined,
-        name: typeof parsedData === 'object'
-          ? parsedData.name || parsedData.customer_name
-          : undefined,
-        raw: qrCodeData,
-      };
-
-      // Extract subscription_code as plan_id
-      const subscriptionCode = normalizedData.subscription_code;
-      if (!subscriptionCode) {
-        console.error("No subscription_code found in QR code");
-        toast.error("QR code missing subscription_code");
-        clearTimeout(timeoutId);
-        setIsScanning(false);
-        return;
-      }
-
-      setDynamicPlanId(subscriptionCode);
-      console.info("Using subscription_code as plan_id:", subscriptionCode);
-
-      const currentPlanId = subscriptionCode;
-      const customerId = normalizedData.customer_id;
-      const formattedQrCodeData = `QR_CUSTOMER_TEST_${customerId}`;
-
-      // Generate correlation ID
-      const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      correlationIdRef.current = correlationId;
-      (window as any).__customerIdentificationCorrelationId = correlationId;
-
-      // Build MQTT payload
-      const requestTopic = `emit/uxi/attendant/plan/${currentPlanId}/identify_customer`;
-      // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
-      const responseTopic = `echo/abs/attendant/plan/${currentPlanId}/identify_customer`;
-
-      const payload = {
-        timestamp: new Date().toISOString(),
-        plan_id: currentPlanId,
-        correlation_id: correlationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "IDENTIFY_CUSTOMER",
-          qr_code_data: formattedQrCodeData,
-          attendant_station: attendantInfo.station,
-        },
-      };
-
-      const dataToPublish = {
-        topic: requestTopic,
-        qos: 0,
-        content: payload,
-      };
-
-      console.info("=== Customer Identification MQTT (QR Scan) ===");
-      console.info("Request Topic:", requestTopic);
-      console.info("Response Topic:", responseTopic);
-      console.info("Correlation ID:", correlationId);
-      console.info("Payload:", JSON.stringify(payload, null, 2));
 
     // Register response handler
-    bridge.registerHandler(
+    bridge?.registerHandler(
       "mqttMsgArrivedCallBack",
       (data: string, responseCallback: (response: any) => void) => {
         try {
@@ -238,15 +246,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           const topic = parsedMqttData.topic;
           const rawMessageContent = parsedMqttData.message;
 
-          console.info("=== MQTT Message Arrived (QR Scan Flow) ===");
-          console.info("Received topic:", topic);
-          console.info("Expected topic:", responseTopic);
-          console.info("Topic match:", topic === responseTopic);
-
-          // Check if this is our response topic
           if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing identify_customer response (QR)");
-            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
+            console.info("✅ Topic MATCHED! Processing identify_customer response");
 
             let responseData: any;
             try {
@@ -255,7 +256,6 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               responseData = rawMessageContent;
             }
 
-            // Check correlation ID
             const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
             const responseCorrelationId = responseData?.correlation_id;
 
@@ -267,40 +267,30 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 storedCorrelationId.startsWith(responseCorrelationId));
 
             if (correlationMatches) {
-              // Clear the timeout since we got a response
-              clearTimeout(timeoutId);
+              if (scanTimeoutRef.current) {
+                clearTimeout(scanTimeoutRef.current);
+              }
               
-              // Parse response structure: data.success, data.signals, data.metadata
               const success = responseData?.data?.success ?? false;
               const signals = responseData?.data?.signals || [];
 
-              console.info("Response success:", success, "signals:", signals);
-
-              // Check for both CUSTOMER_IDENTIFIED_SUCCESS and IDEMPOTENT_OPERATION_DETECTED
               const hasSuccessSignal = success === true && 
                 Array.isArray(signals) && 
                 (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
 
               if (hasSuccessSignal) {
-                console.info("Customer identification successful (QR)!");
-                
-                // Handle both fresh and idempotent (cached) responses
                 const metadata = responseData?.data?.metadata;
                 const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-                
-                // For idempotent responses, data is in cached_result
                 const sourceData = isIdempotent ? metadata?.cached_result : metadata;
                 const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
                 const serviceBundle = sourceData?.service_bundle;
                 const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
                 
                 if (servicePlanData) {
-                  // Extract service states
                   const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
                     (service: any) => typeof service?.service_id === 'string'
                   );
                   
-                  // Enrich with service bundle info (usageUnitPrice, name)
                   const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
                     const matchingService = serviceBundle?.services?.find(
                       (svc: any) => svc.serviceId === serviceState.service_id
@@ -314,29 +304,22 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   
                   setServiceStates(enrichedServiceStates);
                   
-                  // Determine customer type from battery fleet service current_asset
                   const batteryFleet = enrichedServiceStates.find(
                     (s: any) => s.service_id?.includes('service-battery-fleet')
                   );
-                  const inferredType = batteryFleet?.current_asset ? 'returning' : 'first-time';
-                  setCustomerType(inferredType);
+                  setCustomerType(batteryFleet?.current_asset ? 'returning' : 'first-time');
                   
-                  // Find electricity service for rate and quotas
                   const elecService = enrichedServiceStates.find(
                     (s: any) => s.service_id?.includes('service-electricity')
                   );
-                  
-                  // Find swap count service for swap quotas
                   const swapCountService = enrichedServiceStates.find(
                     (s: any) => s.service_id?.includes('service-swap-count')
                   );
                   
-                  // Update rate from service
                   if (elecService?.usageUnitPrice) {
                     setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
                   }
                   
-                  // Set customer data from response
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId || customerId,
                     name: normalizedData.name || identifiedCustomerId || 'Customer',
@@ -348,7 +331,6 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     energyTotal: elecService?.quota || 0,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
-                    // FSM states from response
                     paymentState: servicePlanData.paymentState || 'INITIAL',
                     serviceState: servicePlanData.serviceState || 'INITIAL',
                     currentBatteryId: batteryFleet?.current_asset || undefined,
@@ -356,121 +338,266 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   
                   setCurrentStep(2);
                   toast.success(isIdempotent ? 'Customer identified (cached)' : 'Customer identified');
-                  setIsScanning(false);
                 } else {
-                  console.error("No service_plan_data in response:", responseData);
                   toast.error("Invalid customer data received");
-                  setIsScanning(false);
                 }
               } else {
-                console.error("Customer identification failed - success:", success, "signals:", signals);
-                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || responseData?.error || "Customer identification failed";
+                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Customer identification failed";
                 toast.error(errorMsg);
-                setIsScanning(false);
               }
+              setIsScanning(false);
+              scanTypeRef.current = null;
             }
           }
           responseCallback({});
         } catch (err) {
           console.error("Error processing MQTT response:", err);
-          clearTimeout(timeoutId);
-          setIsScanning(false);
         }
       }
     );
 
     // Subscribe to response topic first, then publish
-    console.info("=== Subscribing to response topic (QR scan) ===");
-    console.info("Subscribing to topic:", responseTopic);
-    
-    bridge.callHandler(
+    bridge?.callHandler(
       "mqttSubTopic",
       { topic: responseTopic, qos: 0 },
       (subscribeResponse: string) => {
-        console.info("mqttSubTopic callback received:", subscribeResponse);
         try {
           const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
           
           if (subResp?.respCode === "200") {
-            console.info("✅ Successfully subscribed to:", responseTopic);
-            console.info("Now publishing identify_customer request...");
-            
-            // Wait a moment after subscribe before publishing
             setTimeout(() => {
-              try {
-                bridge.callHandler(
-                  "mqttPublishMsg",
-                  JSON.stringify(dataToPublish),
-                  (publishResponse: string) => {
-                    console.info("mqttPublishMsg callback received:", publishResponse);
-                    try {
-                      const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                      if (pubResp?.error || pubResp?.respCode !== "200") {
-                        console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
-                        toast.error("Failed to identify customer");
-                        clearTimeout(timeoutId);
-                        setIsScanning(false);
-                      } else {
-                        console.info("identify_customer published successfully (QR), waiting for response...");
-                      }
-                    } catch (err) {
-                      console.error("Error parsing publish response:", err);
-                      toast.error("Error identifying customer");
-                      clearTimeout(timeoutId);
+              bridge?.callHandler(
+                "mqttPublishMsg",
+                JSON.stringify(dataToPublish),
+                (publishResponse: string) => {
+                  try {
+                    const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
+                    if (pubResp?.error || pubResp?.respCode !== "200") {
+                      toast.error("Failed to identify customer");
+                      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
                       setIsScanning(false);
+                      scanTypeRef.current = null;
                     }
+                  } catch (err) {
+                    toast.error("Error identifying customer");
+                    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+                    setIsScanning(false);
+                    scanTypeRef.current = null;
                   }
-                );
-                console.info("bridge.callHandler('mqttPublishMsg') called successfully");
-              } catch (err) {
-                console.error("Exception calling bridge.callHandler for publish:", err);
-                toast.error("Error sending request. Please try again.");
-                clearTimeout(timeoutId);
-                setIsScanning(false);
-              }
+                }
+              );
             }, 300);
           } else {
-            console.error("Failed to subscribe to response topic:", subResp?.respDesc || subResp?.error);
             toast.error("Failed to connect. Please try again.");
-            clearTimeout(timeoutId);
+            if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
             setIsScanning(false);
+            scanTypeRef.current = null;
           }
         } catch (err) {
-          console.error("Error parsing subscribe response:", err);
           toast.error("Error connecting. Please try again.");
-          clearTimeout(timeoutId);
+          if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
           setIsScanning(false);
+          scanTypeRef.current = null;
         }
       }
     );
-  };
+  }, [bridge, attendantInfo]);
 
+  // Process old battery QR code data
+  const processOldBatteryQRData = useCallback((qrCodeData: string) => {
+    let batteryData: any;
     try {
-      bridge.callHandler('scanQRCode', {}, (responseData: string) => {
-        try {
-          const result = JSON.parse(responseData);
-          if (result.success && result.data) {
-            const qrData = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
-            processQRData(qrData);
-          } else {
-            toast.error('Failed to scan QR code');
-            clearTimeout(timeoutId);
-            setIsScanning(false);
-          }
-        } catch (e) {
-          console.error('Error parsing QR data:', e);
-          toast.error('Failed to read QR code');
-          clearTimeout(timeoutId);
-          setIsScanning(false);
-        }
-      });
-    } catch (error) {
-      console.error('Scan error:', error);
-      toast.error('Scan failed');
-      clearTimeout(timeoutId);
-      setIsScanning(false);
+      batteryData = typeof qrCodeData === 'string' ? JSON.parse(qrCodeData) : qrCodeData;
+    } catch {
+      batteryData = { id: qrCodeData };
     }
-  }, [bridge, isBridgeReady, attendantInfo, isMqttConnected]);
+    
+    const oldBattery: BatteryData = {
+      id: batteryData.battery_id || batteryData.id || qrCodeData,
+      shortId: (batteryData.battery_id || batteryData.id || qrCodeData).toString().slice(-6),
+      chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 0,
+      energy: batteryData.energy || batteryData.kwh || 0,
+    };
+    
+    setSwapData(prev => ({ ...prev, oldBattery }));
+    setCurrentStep(3);
+    toast.success('Old battery scanned');
+    setIsScanning(false);
+    scanTypeRef.current = null;
+  }, []);
+
+  // Process new battery QR code data
+  const processNewBatteryQRData = useCallback((qrCodeData: string) => {
+    let batteryData: any;
+    try {
+      batteryData = typeof qrCodeData === 'string' ? JSON.parse(qrCodeData) : qrCodeData;
+    } catch {
+      batteryData = { id: qrCodeData };
+    }
+    
+    const newBattery: BatteryData = {
+      id: batteryData.battery_id || batteryData.id || qrCodeData,
+      shortId: (batteryData.battery_id || batteryData.id || qrCodeData).toString().slice(-6),
+      chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 100,
+      energy: batteryData.energy || batteryData.kwh || 0,
+    };
+    
+    // Calculate energy difference and cost
+    const oldEnergy = swapData.oldBattery?.energy || 0;
+    const newEnergy = newBattery.energy || 0;
+    const energyDiff = newEnergy - oldEnergy;
+    const rate = electricityService?.usageUnitPrice || swapData.rate;
+    const cost = Math.round(energyDiff * rate * 100) / 100;
+    
+    setSwapData(prev => ({ 
+      ...prev, 
+      newBattery,
+      energyDiff: Math.round(energyDiff * 100) / 100,
+      cost: cost > 0 ? cost : 0,
+    }));
+    setCurrentStep(4);
+    toast.success('New battery scanned');
+    setIsScanning(false);
+    scanTypeRef.current = null;
+  }, [swapData.oldBattery, swapData.rate, electricityService?.usageUnitPrice]);
+
+  // Process payment QR code data
+  const processPaymentQRData = useCallback((qrCodeData: string) => {
+    let qrData: any;
+    try {
+      qrData = typeof qrCodeData === 'string' ? JSON.parse(qrCodeData) : qrCodeData;
+    } catch {
+      qrData = { transaction_id: qrCodeData };
+    }
+    const txnId = qrData.transaction_id || qrData.txn_id || qrData.id || qrCodeData;
+    
+    // Call HTTP endpoint for payment confirmation
+    const confirmPayment = async () => {
+      try {
+        const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transaction_id: txnId,
+            plan_id: dynamicPlanId,
+            amount: swapData.cost,
+          }),
+        });
+        
+        if (response.ok) {
+          setPaymentConfirmed(true);
+          setPaymentReceipt(txnId);
+          setTransactionId(txnId);
+          toast.success('Payment confirmed');
+          publishPaymentAndService(txnId);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          toast.error(errorData.message || 'Payment confirmation failed');
+          setIsScanning(false);
+          scanTypeRef.current = null;
+        }
+      } catch (err) {
+        console.error('Payment confirmation error:', err);
+        toast.error('Payment confirmation failed. Check network connection.');
+        setIsScanning(false);
+        scanTypeRef.current = null;
+      }
+    };
+    
+    confirmPayment();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dynamicPlanId, swapData.cost]);
+
+  // Setup bridge handlers for QR code scanning (follows pattern from swap.tsx)
+  const setupBridge = useCallback((b: WebViewJavascriptBridge) => {
+    const noop = () => {};
+    const reg = (name: string, handler: any) => {
+      b.registerHandler(name, handler);
+      return () => b.registerHandler(name, noop);
+    };
+
+    if (!bridgeInitRef.current) {
+      bridgeInitRef.current = true;
+      try {
+        b.init((_m, r) => r("js success!"));
+      } catch (err) {
+        console.error("Bridge init error", err);
+      }
+    }
+
+    // QR code scan callback - follows existing pattern from swap.tsx
+    const offQr = reg(
+      "scanQrcodeResultCallBack",
+      (data: string, resp: any) => {
+        try {
+          const p = JSON.parse(data);
+          const qrVal = p.respData?.value || "";
+          console.info("QR code scanned:", qrVal);
+          
+          if (!qrVal) {
+            throw new Error("No QR code value provided");
+          }
+
+          // Use ref to determine which scan type is active
+          if (scanTypeRef.current === "customer") {
+            console.info("Processing customer QR code:", qrVal);
+            processCustomerQRData(qrVal);
+          } else if (scanTypeRef.current === "old_battery") {
+            console.info("Processing old battery QR code:", qrVal);
+            processOldBatteryQRData(qrVal);
+          } else if (scanTypeRef.current === "new_battery") {
+            console.info("Processing new battery QR code:", qrVal);
+            processNewBatteryQRData(qrVal);
+          } else if (scanTypeRef.current === "payment") {
+            console.info("Processing payment QR code:", qrVal);
+            processPaymentQRData(qrVal);
+          } else {
+            console.warn("QR code scanned but no active scan type:", scanTypeRef.current);
+          }
+
+          resp({ success: true });
+        } catch (err) {
+          console.error("Error processing QR code data:", err);
+          setIsScanning(false);
+          scanTypeRef.current = null;
+          resp({ success: false, error: String(err) });
+        }
+      }
+    );
+
+    return () => {
+      offQr();
+    };
+  }, [processCustomerQRData, processOldBatteryQRData, processNewBatteryQRData, processPaymentQRData]);
+
+  // Setup bridge when ready
+  useEffect(() => {
+    if (bridge && isBridgeReady && !bridgeHandlersRegisteredRef.current) {
+      console.info('=== AttendantFlow: Setting up bridge handlers ===');
+      bridgeHandlersRegisteredRef.current = true;
+      const cleanup = setupBridge(bridge as unknown as WebViewJavascriptBridge);
+      return cleanup;
+    }
+  }, [bridge, isBridgeReady, setupBridge]);
+
+  // Step 1: Scan Customer QR - with MQTT identify_customer
+  const handleScanCustomer = useCallback(async () => {
+    if (!window.WebViewJavascriptBridge) {
+      toast.error('Bridge not available. Please wait for initialization...');
+      console.error('Attempted to scan customer but bridge is not ready');
+      return;
+    }
+
+    if (!isMqttConnected) {
+      toast.error('MQTT not connected. Please wait a moment and try again.');
+      console.error('Attempted to scan customer but MQTT is not connected');
+      return;
+    }
+
+    setIsScanning(true);
+    scanTypeRef.current = 'customer';
+    startQrCodeScan();
+  }, [isMqttConnected, startQrCodeScan]);
 
   // Step 1: Manual lookup - also uses MQTT
   const handleManualLookup = useCallback(async () => {
@@ -740,113 +867,31 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         }
       }
     );
-  }, [bridge, manualSubscriptionId, attendantInfo, isMqttConnected]);
+  }, [bridge, manualSubscriptionId, attendantInfo, isMqttConnected, isBridgeReady]);
 
   // Step 2: Scan Old Battery
   const handleScanOldBattery = useCallback(async () => {
-    if (!bridge) {
+    if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please restart the app.');
       return;
     }
 
     setIsScanning(true);
-    
-    try {
-      bridge.callHandler('scanQRCode', {}, (responseData: string) => {
-        try {
-          const result = JSON.parse(responseData);
-          if (result.success && result.data) {
-            let batteryData: any;
-            try {
-              batteryData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-            } catch {
-              batteryData = { id: result.data };
-            }
-            
-            const oldBattery: BatteryData = {
-              id: batteryData.battery_id || batteryData.id || batteryData,
-              shortId: (batteryData.battery_id || batteryData.id || batteryData).toString().slice(-6),
-              chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 0,
-              energy: batteryData.energy || batteryData.kwh || 0,
-            };
-            
-            setSwapData(prev => ({ ...prev, oldBattery }));
-            setCurrentStep(3);
-            toast.success('Old battery scanned');
-          } else {
-            toast.error('Failed to scan battery QR');
-          }
-        } catch (e) {
-          console.error('Error parsing battery data:', e);
-          toast.error('Failed to read battery');
-        }
-        setIsScanning(false);
-      });
-    } catch (error) {
-      console.error('Scan error:', error);
-      toast.error('Scan failed');
-      setIsScanning(false);
-    }
-  }, [bridge]);
+    scanTypeRef.current = 'old_battery';
+    startQrCodeScan();
+  }, [startQrCodeScan]);
 
   // Step 3: Scan New Battery
   const handleScanNewBattery = useCallback(async () => {
-    if (!bridge) {
+    if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please restart the app.');
       return;
     }
 
     setIsScanning(true);
-    
-    try {
-      bridge.callHandler('scanQRCode', {}, (responseData: string) => {
-        try {
-          const result = JSON.parse(responseData);
-          if (result.success && result.data) {
-            let batteryData: any;
-            try {
-              batteryData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-            } catch {
-              batteryData = { id: result.data };
-            }
-            
-            const newBattery: BatteryData = {
-              id: batteryData.battery_id || batteryData.id || batteryData,
-              shortId: (batteryData.battery_id || batteryData.id || batteryData).toString().slice(-6),
-              chargeLevel: batteryData.charge_level || batteryData.soc || batteryData.chargeLevel || 100,
-              energy: batteryData.energy || batteryData.kwh || 0,
-            };
-            
-            // Calculate energy difference and cost
-            const oldEnergy = swapData.oldBattery?.energy || 0;
-            const newEnergy = newBattery.energy || 0;
-            const energyDiff = newEnergy - oldEnergy;
-            const rate = electricityService?.usageUnitPrice || swapData.rate;
-            const cost = Math.round(energyDiff * rate * 100) / 100;
-            
-            setSwapData(prev => ({ 
-              ...prev, 
-              newBattery,
-              energyDiff: Math.round(energyDiff * 100) / 100,
-              cost: cost > 0 ? cost : 0,
-            }));
-            setCurrentStep(4);
-            toast.success('New battery scanned');
-          } else {
-            toast.error('Failed to scan battery QR');
-          }
-        } catch (e) {
-          console.error('Error parsing battery data:', e);
-          toast.error('Failed to read battery');
-        }
-        setIsScanning(false);
-      });
-    } catch (error) {
-      console.error('Scan error:', error);
-      toast.error('Scan failed');
-      setIsScanning(false);
-    }
-  }, [bridge, swapData.oldBattery, swapData.rate, electricityService?.usageUnitPrice]);
+    scanTypeRef.current = 'new_battery';
+    startQrCodeScan();
+  }, [startQrCodeScan]);
 
   // Step 4: Proceed to payment
   const handleProceedToPayment = useCallback(() => {
@@ -855,69 +900,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
   // Step 5: Confirm Payment via HTTP
   const handleConfirmPayment = useCallback(async () => {
-    if (!bridge) {
+    if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please restart the app.');
       return;
     }
 
     setIsScanning(true);
-    
-    // Scan customer QR for payment confirmation
-    bridge.callHandler('scanQRCode', {}, async (responseData: string) => {
-      try {
-        const result = JSON.parse(responseData);
-        if (result.success && result.data) {
-          // Extract transaction ID from QR
-          let qrData: any;
-          try {
-            qrData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-          } catch {
-            qrData = { transaction_id: result.data };
-          }
-          const txnId = qrData.transaction_id || qrData.txn_id || qrData.id || result.data;
-          
-          // Call HTTP endpoint for payment confirmation
-          try {
-            const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                transaction_id: txnId,
-                plan_id: dynamicPlanId,
-                amount: swapData.cost,
-              }),
-            });
-            
-            if (response.ok) {
-              setPaymentConfirmed(true);
-              setPaymentReceipt(txnId);
-              setTransactionId(txnId);
-              toast.success('Payment confirmed');
-              
-              // Now publish payment_and_service
-              publishPaymentAndService(txnId);
-            } else {
-              const errorData = await response.json().catch(() => ({}));
-              toast.error(errorData.message || 'Payment confirmation failed');
-              setIsScanning(false);
-            }
-          } catch (err) {
-            console.error('Payment confirmation error:', err);
-            toast.error('Payment confirmation failed. Check network connection.');
-            setIsScanning(false);
-          }
-        } else {
-          toast.error('Failed to scan payment QR');
-          setIsScanning(false);
-        }
-      } catch (e) {
-        console.error('Payment error:', e);
-        toast.error('Payment confirmation failed');
-        setIsScanning(false);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridge, dynamicPlanId, swapData.cost]);
+    scanTypeRef.current = 'payment';
+    startQrCodeScan();
+  }, [startQrCodeScan]);
 
   // Step 5: Manual payment confirmation
   const handleManualPayment = useCallback((paymentId: string) => {
