@@ -8,6 +8,7 @@ interface ActionBarProps {
   onBack: () => void;
   onMainAction: () => void;
   isLoading: boolean;
+  inputMode?: 'scan' | 'manual';
 }
 
 // Icon components for action bar
@@ -20,6 +21,11 @@ const ActionIcons = {
   scan: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
+    </svg>
+  ),
+  search: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
     </svg>
   ),
   arrow: (
@@ -46,9 +52,13 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): StepActionConfig => {
   switch (step) {
     case 1:
+      // Show different text/icon based on input mode
+      if (inputMode === 'manual') {
+        return { showBack: false, mainText: 'Look Up Customer', mainIcon: 'search' };
+      }
       return { showBack: false, mainText: 'Scan Customer', mainIcon: 'qr' };
     case 2:
       return { showBack: true, mainText: 'Scan Old Battery', mainIcon: 'scan' };
@@ -65,8 +75,11 @@ const getStepConfig = (step: AttendantStep): StepActionConfig => {
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading }: ActionBarProps) {
-  const config = getStepConfig(currentStep);
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode }: ActionBarProps) {
+  const config = getStepConfig(currentStep, inputMode);
+
+  // Don't show the action bar button for step 1 in manual mode - button is in the form
+  const hideMainButton = currentStep === 1 && inputMode === 'manual';
 
   return (
     <div className="action-bar">
@@ -77,14 +90,16 @@ export default function ActionBar({ currentStep, onBack, onMainAction, isLoading
             Back
           </button>
         )}
-        <button 
-          className={`btn ${config.mainClass || 'btn-primary'}`}
-          onClick={onMainAction}
-          disabled={isLoading}
-        >
-          {ActionIcons[config.mainIcon]}
-          <span>{isLoading ? 'Processing...' : config.mainText}</span>
-        </button>
+        {!hideMainButton && (
+          <button 
+            className={`btn ${config.mainClass || 'btn-primary'}`}
+            onClick={onMainAction}
+            disabled={isLoading}
+          >
+            {ActionIcons[config.mainIcon]}
+            <span>{isLoading ? 'Processing...' : config.mainText}</span>
+          </button>
+        )}
       </div>
     </div>
   );

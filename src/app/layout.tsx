@@ -3,6 +3,7 @@
 // import type { Metadata } from "next";
 import { Outfit, DM_Mono } from "next/font/google";
 import "./globals.css";
+import { useEffect } from "react";
 
 // Oves Design System fonts
 const outfit = Outfit({
@@ -29,12 +30,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole();
-  //   });
-  // }, []);
+  // Enable VConsole for mobile debugging
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
   return (
     <html lang="en">
       <body
