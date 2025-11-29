@@ -33,7 +33,27 @@ export interface BatteryData {
   id: string;
   shortId: string;
   chargeLevel: number;
-  energy?: number;
+  energy: number; // Energy in Wh computed from BLE (rcap * pckv / 100)
+  macAddress?: string; // BLE MAC address used for connection
+}
+
+// BLE Device interface for scan-to-bind functionality
+export interface BleDevice {
+  macAddress: string;
+  name: string;
+  rssi: string;
+  rawRssi: number;
+}
+
+// BLE scan state for battery binding
+export interface BleScanState {
+  isScanning: boolean;
+  isConnecting: boolean;
+  isReadingEnergy: boolean;
+  connectedDevice: string | null;
+  detectedDevices: BleDevice[];
+  connectionProgress: number;
+  error: string | null;
 }
 
 export interface SwapData {

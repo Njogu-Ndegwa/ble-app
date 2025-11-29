@@ -23,15 +23,23 @@ export default function Step4Review({ swapData, customerData }: Step4Props) {
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
-        <span>+{swapData.energyDiff} kWh</span>
+        <span>+{swapData.energyDiff.toFixed(3)} kWh</span>
       </div>
 
       {/* Cost Breakdown */}
       <div className="cost-card">
         <div className="cost-title">Cost Breakdown</div>
         <div className="cost-row">
-          <span className="cost-label">Energy Received</span>
-          <span className="cost-value">{swapData.energyDiff} kWh</span>
+          <span className="cost-label">Old Battery</span>
+          <span className="cost-value">{((swapData.oldBattery?.energy || 0) / 1000).toFixed(3)} kWh</span>
+        </div>
+        <div className="cost-row">
+          <span className="cost-label">New Battery</span>
+          <span className="cost-value">{((swapData.newBattery?.energy || 0) / 1000).toFixed(3)} kWh</span>
+        </div>
+        <div className="cost-row">
+          <span className="cost-label">Energy Transferred</span>
+          <span className="cost-value">{swapData.energyDiff.toFixed(3)} kWh</span>
         </div>
         <div className="cost-row">
           <span className="cost-label">Rate</span>
@@ -39,7 +47,7 @@ export default function Step4Review({ swapData, customerData }: Step4Props) {
         </div>
         <div className="cost-total">
           <span className="cost-total-label">Total Due</span>
-          <span className="cost-total-value">KES {swapData.cost}</span>
+          <span className="cost-total-value">KES {swapData.cost.toFixed(2)}</span>
         </div>
       </div>
 
