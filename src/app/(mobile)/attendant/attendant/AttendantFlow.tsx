@@ -183,7 +183,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
       // Build MQTT payload
       const requestTopic = `emit/uxi/attendant/plan/${currentPlanId}/identify_customer`;
-      const responseTopic = `echo/abs/service/plan/${currentPlanId}/identify_customer`;
+      // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
+      const responseTopic = `echo/abs/attendant/plan/${currentPlanId}/identify_customer`;
 
       const payload = {
         timestamp: new Date().toISOString(),
@@ -218,11 +219,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           const topic = parsedMqttData.topic;
           const rawMessageContent = parsedMqttData.message;
 
-          console.info("MQTT message received on topic:", topic);
+          console.info("=== MQTT Message Arrived (QR Scan Flow) ===");
+          console.info("Received topic:", topic);
+          console.info("Expected topic:", responseTopic);
+          console.info("Topic match:", topic === responseTopic);
 
           // Check if this is our response topic
           if (topic === responseTopic) {
-            console.info("Response received from identify_customer (QR):", JSON.stringify(parsedMqttData, null, 2));
+            console.info("✅ Topic MATCHED! Processing identify_customer response (QR)");
+            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
 
             let responseData: any;
             try {
@@ -356,7 +361,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
     // Subscribe to response topic first, then publish
     console.info("=== Subscribing to response topic (QR scan) ===");
-    console.info("Response Topic:", responseTopic);
+    console.info("Subscribing to topic:", responseTopic);
     
     bridge.callHandler(
       "mqttSubTopic",
@@ -367,7 +372,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
           
           if (subResp?.respCode === "200") {
-            console.info("Subscribed to response topic successfully, now publishing...");
+            console.info("✅ Successfully subscribed to:", responseTopic);
+            console.info("Now publishing identify_customer request...");
             
             // Wait a moment after subscribe before publishing
             setTimeout(() => {
@@ -485,7 +491,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
     // Build MQTT payload for manual lookup
     const requestTopic = `emit/uxi/attendant/plan/${subscriptionCode}/identify_customer`;
-    const responseTopic = `echo/abs/service/plan/${subscriptionCode}/identify_customer`;
+    // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
+    const responseTopic = `echo/abs/attendant/plan/${subscriptionCode}/identify_customer`;
 
     const payload = {
       timestamp: new Date().toISOString(),
@@ -520,10 +527,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           const topic = parsedMqttData.topic;
           const rawMessageContent = parsedMqttData.message;
 
-          console.info("MQTT message received on topic:", topic);
+          console.info("=== MQTT Message Arrived (Manual Lookup Flow) ===");
+          console.info("Received topic:", topic);
+          console.info("Expected topic:", responseTopic);
+          console.info("Topic match:", topic === responseTopic);
 
           if (topic === responseTopic) {
-            console.info("Response received for identify_customer (manual):", JSON.stringify(parsedMqttData, null, 2));
+            console.info("✅ Topic MATCHED! Processing identify_customer response (manual)");
+            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
             
             let responseData: any;
             try {
@@ -646,7 +657,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
     // Subscribe to response topic first, then publish
     console.info("=== Subscribing to response topic (manual lookup) ===");
-    console.info("Response Topic:", responseTopic);
+    console.info("Subscribing to topic:", responseTopic);
     
     bridge.callHandler(
       "mqttSubTopic",
@@ -657,7 +668,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
           
           if (subResp?.respCode === "200") {
-            console.info("Subscribed to response topic successfully, now publishing...");
+            console.info("✅ Successfully subscribed to:", responseTopic);
+            console.info("Now publishing identify_customer request (manual)...");
             
             // Wait a moment after subscribe before publishing
             setTimeout(() => {
@@ -1035,7 +1047,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
 
     const requestTopic = `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`;
-    const responseTopic = `echo/abs/service/plan/${dynamicPlanId}/payment_and_service`;
+    // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
+    const responseTopic = `echo/abs/attendant/plan/${dynamicPlanId}/payment_and_service`;
     
     const dataToPublish = {
       topic: requestTopic,
@@ -1061,11 +1074,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           const topic = parsedMqttData.topic;
           const rawMessageContent = parsedMqttData.message;
 
-          console.info("MQTT message received on topic:", topic);
+          console.info("=== MQTT Message Arrived (Payment & Service Flow) ===");
+          console.info("Received topic:", topic);
+          console.info("Expected topic:", responseTopic);
+          console.info("Topic match:", topic === responseTopic);
 
           // Check if this is our response topic
           if (topic === responseTopic) {
-            console.info("Response received for payment_and_service:", JSON.stringify(parsedMqttData, null, 2));
+            console.info("✅ Topic MATCHED! Processing payment_and_service response");
+            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
 
             let responseData: any;
             try {
