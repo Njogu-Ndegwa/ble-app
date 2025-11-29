@@ -868,6 +868,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
 
     setPaymentAndServiceStatus('pending');
+    
+    // Set a timeout to prevent infinite loading (30 seconds)
+    const timeoutId = setTimeout(() => {
+      console.error("payment_and_service timed out after 30 seconds");
+      toast.error("Request timed out. Please try again.");
+      setPaymentAndServiceStatus('error');
+      setIsScanning(false);
+      setIsProcessing(false);
+    }, 30000);
 
     const formattedCheckoutId = swapData.newBattery?.id 
       ? `BAT_NEW_${swapData.newBattery.id}` 
@@ -949,12 +958,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       console.error("Unable to build payment_and_service payload - missing battery data");
       toast.error("Unable to complete swap - missing battery data");
       setPaymentAndServiceStatus('error');
+      clearTimeout(timeoutId);
       setIsScanning(false);
       setIsProcessing(false);
       return;
     }
 
     const requestTopic = `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`;
+    const responseTopic = `echo/abs/service/plan/${dynamicPlanId}/payment_and_service`;
     
     const dataToPublish = {
       topic: requestTopic,
@@ -963,37 +974,155 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     };
 
     console.info("=== Publishing payment_and_service ===");
-    console.info("Topic:", requestTopic);
+    console.info("Request Topic:", requestTopic);
+    console.info("Response Topic:", responseTopic);
+    console.info("Correlation ID:", paymentCorrelationId);
     console.info("Payload:", JSON.stringify(paymentAndServicePayload, null, 2));
 
-    bridge.callHandler(
-      "mqttPublishMsg",
-      JSON.stringify(dataToPublish),
-      (publishResponse: any) => {
+    // Store correlation ID for response matching
+    (window as any).__paymentAndServiceCorrelationId = paymentCorrelationId;
+
+    // Register response handler to handle idempotent responses gracefully
+    bridge.registerHandler(
+      "mqttMsgArrivedCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
         try {
-          const pubResp = typeof publishResponse === 'string' 
-            ? JSON.parse(publishResponse) 
-            : publishResponse;
-          
-          if (pubResp?.error || pubResp?.respCode !== "200") {
-            console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
-            toast.error("Failed to complete swap");
-            setPaymentAndServiceStatus('error');
-          } else {
-            console.info("payment_and_service published successfully");
-            setPaymentAndServiceStatus('success');
-            setCurrentStep(6);
-            toast.success('Swap completed!');
+          const parsedMqttData = JSON.parse(data);
+          const topic = parsedMqttData.topic;
+          const rawMessageContent = parsedMqttData.message;
+
+          console.info("MQTT message received on topic:", topic);
+
+          // Check if this is our response topic
+          if (topic === responseTopic) {
+            console.info("Response received for payment_and_service:", JSON.stringify(parsedMqttData, null, 2));
+
+            let responseData: any;
+            try {
+              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+            } catch {
+              responseData = rawMessageContent;
+            }
+
+            // Check correlation ID
+            const storedCorrelationId = (window as any).__paymentAndServiceCorrelationId;
+            const responseCorrelationId = responseData?.correlation_id;
+
+            const correlationMatches =
+              Boolean(storedCorrelationId) &&
+              Boolean(responseCorrelationId) &&
+              (responseCorrelationId === storedCorrelationId ||
+                responseCorrelationId.startsWith(storedCorrelationId) ||
+                storedCorrelationId.startsWith(responseCorrelationId));
+
+            if (correlationMatches) {
+              clearTimeout(timeoutId);
+              
+              const success = responseData?.data?.success ?? false;
+              const signals = responseData?.data?.signals || [];
+
+              console.info("payment_and_service response - success:", success, "signals:", signals);
+
+              // Handle both fresh success and idempotent (cached) responses
+              const hasSuccessSignal = success === true && 
+                Array.isArray(signals) && 
+                (signals.includes("PAYMENT_AND_SERVICE_RECORDED") || 
+                 signals.includes("IDEMPOTENT_OPERATION_DETECTED") ||
+                 signals.includes("SERVICE_COMPLETION_RECORDED"));
+
+              if (hasSuccessSignal) {
+                const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
+                console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
+                
+                setPaymentAndServiceStatus('success');
+                setCurrentStep(6);
+                toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
+              } else if (success) {
+                // Success without specific signal - still treat as success
+                console.info("payment_and_service completed (generic success)");
+                setPaymentAndServiceStatus('success');
+                setCurrentStep(6);
+                toast.success('Swap completed!');
+              } else {
+                // Response received but not successful
+                console.error("payment_and_service failed - success:", success, "signals:", signals);
+                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Failed to record swap";
+                toast.error(errorMsg);
+                setPaymentAndServiceStatus('error');
+              }
+              
+              setIsScanning(false);
+              setIsProcessing(false);
+            }
           }
+          responseCallback({});
         } catch (err) {
-          console.error("Error parsing publish response:", err);
-          toast.error("Error completing swap");
-          setPaymentAndServiceStatus('error');
+          console.error("Error processing payment_and_service MQTT response:", err);
         }
-        setIsScanning(false);
-        setIsProcessing(false);
       }
     );
+
+    // Publish the request
+    console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
+    
+    try {
+      bridge.callHandler(
+        "mqttPublishMsg",
+        JSON.stringify(dataToPublish),
+        (publishResponse: any) => {
+          console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
+          try {
+            const pubResp = typeof publishResponse === 'string' 
+              ? JSON.parse(publishResponse) 
+              : publishResponse;
+            
+            if (pubResp?.error || pubResp?.respCode !== "200") {
+              console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
+              toast.error("Failed to complete swap");
+              setPaymentAndServiceStatus('error');
+              clearTimeout(timeoutId);
+              setIsScanning(false);
+              setIsProcessing(false);
+            } else {
+              console.info("payment_and_service published successfully, waiting for response...");
+              // Don't complete yet - wait for response handler or timeout
+              // If backend doesn't send response, timeout will handle it
+              // For backward compatibility, also set success after a short delay
+              // in case no response comes (fire-and-forget fallback)
+              setTimeout(() => {
+                // Only complete if still pending (no response received yet)
+                if ((window as any).__paymentAndServiceCorrelationId === paymentCorrelationId) {
+                  console.info("No response received for payment_and_service, assuming success (fire-and-forget)");
+                  clearTimeout(timeoutId);
+                  setPaymentAndServiceStatus('success');
+                  setCurrentStep(6);
+                  toast.success('Swap completed!');
+                  setIsScanning(false);
+                  setIsProcessing(false);
+                  // Clear the correlation ID
+                  (window as any).__paymentAndServiceCorrelationId = null;
+                }
+              }, 5000); // 5 second grace period for response
+            }
+          } catch (err) {
+            console.error("Error parsing payment_and_service publish response:", err);
+            toast.error("Error completing swap");
+            setPaymentAndServiceStatus('error');
+            clearTimeout(timeoutId);
+            setIsScanning(false);
+            setIsProcessing(false);
+          }
+        }
+      );
+      console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
+    } catch (err) {
+      console.error("Exception calling bridge.callHandler for payment_and_service:", err);
+      toast.error("Error sending request. Please try again.");
+      setPaymentAndServiceStatus('error');
+      clearTimeout(timeoutId);
+      setIsScanning(false);
+      setIsProcessing(false);
+    }
   }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
 
   // Step 6: Start new swap
