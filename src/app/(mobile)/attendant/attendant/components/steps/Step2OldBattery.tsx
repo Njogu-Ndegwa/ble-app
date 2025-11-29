@@ -46,7 +46,7 @@ export default function Step2OldBattery({ onScanOldBattery, expectedBatteryId, i
           </svg>
           {isFirstTimeCustomer 
             ? 'Skip if no battery to return'
-            : 'Verify battery belongs to customer'}
+            : 'Battery energy will be read via Bluetooth'}
         </p>
       </div>
     </div>

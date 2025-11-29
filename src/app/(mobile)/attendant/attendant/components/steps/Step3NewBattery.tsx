@@ -11,6 +11,7 @@ interface Step3Props {
 
 export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3Props) {
   const chargeLevel = oldBattery?.chargeLevel || 0;
+  const energy = oldBattery?.energy || 0;
   const batteryClass = getBatteryClass(chargeLevel);
 
   return (
@@ -19,10 +20,10 @@ export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3P
       <div className="battery-return-card">
         <div className="battery-return-header">
           <span className="battery-return-label">OLD BATTERY</span>
-          <span className="battery-return-status">Matched</span>
+          <span className="battery-return-status">✓ Connected</span>
         </div>
         <div className="battery-return-content">
-          <div className="battery-return-id">{oldBattery?.id || '---'}</div>
+          <div className="battery-return-id">{oldBattery?.shortId || '---'}</div>
           <div className="battery-return-charge">
             <div className={`battery-return-icon ${batteryClass}`}>
               <div 
@@ -30,8 +31,8 @@ export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3P
                 style={{ '--level': `${chargeLevel}%` } as React.CSSProperties}
               ></div>
             </div>
-            <span className="battery-return-percent">{chargeLevel}%</span>
-            <span className="battery-return-unit">Charge</span>
+            <span className="battery-return-percent">{energy.toFixed(1)} Wh</span>
+            <span className="battery-return-unit">Energy</span>
           </div>
         </div>
       </div>
@@ -41,6 +42,14 @@ export default function Step3NewBattery({ oldBattery, onScanNewBattery }: Step3P
         <p className="scan-subtitle">Scan the fresh battery to give customer</p>
         
         <ScannerArea onClick={onScanNewBattery} type="battery" size="small" />
+        
+        <p className="scan-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4M12 8h.01"/>
+          </svg>
+          Battery energy will be read via Bluetooth
+        </p>
       </div>
     </div>
   );

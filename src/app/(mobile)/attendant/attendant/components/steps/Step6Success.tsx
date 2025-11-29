@@ -33,18 +33,18 @@ export default function Step6Success({ swapData, customerData, transactionId }: 
           <div className="receipt-row">
             <span className="receipt-label">Returned</span>
             <span className="receipt-value">
-              {swapData.oldBattery?.id || '---'} ({swapData.oldBattery?.chargeLevel || 0}%)
+              {swapData.oldBattery?.shortId || '---'} ({(swapData.oldBattery?.energy || 0).toFixed(1)} Wh)
             </span>
           </div>
           <div className="receipt-row">
             <span className="receipt-label">Issued</span>
             <span className="receipt-value">
-              {swapData.newBattery?.id || '---'} ({swapData.newBattery?.chargeLevel || 100}%)
+              {swapData.newBattery?.shortId || '---'} ({(swapData.newBattery?.energy || 0).toFixed(1)} Wh)
             </span>
           </div>
           <div className="receipt-row">
-            <span className="receipt-label">Energy</span>
-            <span className="receipt-value">{swapData.energyDiff} kWh</span>
+            <span className="receipt-label">Energy Diff</span>
+            <span className="receipt-value">{swapData.energyDiff.toFixed(1)} Wh</span>
           </div>
           <div className="receipt-row">
             <span className="receipt-label">Amount Paid</span>

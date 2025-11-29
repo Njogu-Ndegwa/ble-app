@@ -11,6 +11,8 @@ interface BatterySwapVisualProps {
 export default function BatterySwapVisual({ oldBattery, newBattery }: BatterySwapVisualProps) {
   const oldLevel = oldBattery?.chargeLevel || 0;
   const newLevel = newBattery?.chargeLevel || 100;
+  const oldEnergy = oldBattery?.energy || 0;
+  const newEnergy = newBattery?.energy || 0;
 
   return (
     <div className="battery-swap-visual">
@@ -21,7 +23,7 @@ export default function BatterySwapVisual({ oldBattery, newBattery }: BatterySwa
             className="battery-level-swap" 
             style={{ '--level': `${oldLevel}%` } as React.CSSProperties}
           ></div>
-          <span className="battery-percent">{oldLevel}%</span>
+          <span className="battery-percent">{oldEnergy.toFixed(0)} Wh</span>
         </div>
         <div className="battery-swap-label">RETURNING</div>
         <div className="battery-swap-id">{oldBattery?.shortId || '---'}</div>
@@ -41,7 +43,7 @@ export default function BatterySwapVisual({ oldBattery, newBattery }: BatterySwa
             className="battery-level-swap" 
             style={{ '--level': `${newLevel}%` } as React.CSSProperties}
           ></div>
-          <span className="battery-percent">{newLevel}%</span>
+          <span className="battery-percent">{newEnergy.toFixed(0)} Wh</span>
         </div>
         <div className="battery-swap-label">RECEIVING</div>
         <div className="battery-swap-id">{newBattery?.shortId || '---'}</div>
