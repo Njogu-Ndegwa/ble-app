@@ -33,7 +33,7 @@ interface AttendantFlowProps {
 
 export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const router = useRouter();
-  const { bridge } = useBridge();
+  const { bridge, isMqttConnected } = useBridge();
   
   // Attendant info from login
   const [attendantInfo, setAttendantInfo] = useState<{ id: string; station: string }>({
@@ -119,6 +119,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const handleScanCustomer = useCallback(async () => {
     if (!bridge) {
       toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
+    if (!isMqttConnected) {
+      toast.error('MQTT not connected. Please wait a moment and try again.');
+      console.error('Attempted to scan customer but MQTT is not connected');
       return;
     }
 
@@ -437,7 +443,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       clearTimeout(timeoutId);
       setIsScanning(false);
     }
-  }, [bridge, attendantInfo]);
+  }, [bridge, attendantInfo, isMqttConnected]);
 
   // Step 1: Manual lookup - also uses MQTT
   const handleManualLookup = useCallback(async () => {
@@ -448,6 +454,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
     if (!bridge) {
       toast.error('Bridge not available. Please restart the app.');
+      return;
+    }
+
+    if (!isMqttConnected) {
+      toast.error('MQTT not connected. Please wait a moment and try again.');
+      console.error('Attempted manual lookup but MQTT is not connected');
       return;
     }
     
@@ -693,7 +705,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         }
       }
     );
-  }, [bridge, manualSubscriptionId, attendantInfo]);
+  }, [bridge, manualSubscriptionId, attendantInfo, isMqttConnected]);
 
   // Step 2: Scan Old Battery
   const handleScanOldBattery = useCallback(async () => {
