@@ -8,41 +8,41 @@ interface CustomerStatePanelProps {
   visible: boolean;
 }
 
-// Service Cycle FSM state styling
-const getServiceStateConfig = (state?: string): { className: string; label: string } => {
+// Service Cycle FSM state styling - uses cyan/teal palette
+const getServiceStateConfig = (state?: string): { className: string; label: string; shortLabel: string } => {
   switch (state) {
     case 'BATTERY_ISSUED':
-      return { className: 'service-battery-issued', label: 'Battery Issued' };
+      return { className: 'service-battery-issued', label: 'Battery Issued', shortLabel: 'Issued' };
     case 'WAIT_BATTERY_ISSUE':
-      return { className: 'service-wait-battery', label: 'Awaiting Battery' };
+      return { className: 'service-wait-battery', label: 'Awaiting Battery', shortLabel: 'Awaiting' };
     case 'BATTERY_RETURNED':
-      return { className: 'service-battery-returned', label: 'Battery Returned' };
+      return { className: 'service-battery-returned', label: 'Battery Returned', shortLabel: 'Returned' };
     case 'BATTERY_LOST':
-      return { className: 'service-battery-lost', label: 'Battery Lost' };
+      return { className: 'service-battery-lost', label: 'Battery Lost', shortLabel: 'Lost' };
     case 'COMPLETE':
-      return { className: 'service-complete', label: 'Complete' };
+      return { className: 'service-complete', label: 'Complete', shortLabel: 'Done' };
     case 'INITIAL':
     default:
-      return { className: 'service-initial', label: 'Initial' };
+      return { className: 'service-initial', label: 'Initial', shortLabel: 'New' };
   }
 };
 
-// Payment Cycle FSM state styling
-const getPaymentStateConfig = (state?: string): { className: string; label: string } => {
+// Payment Cycle FSM state styling - uses green/orange/red palette
+const getPaymentStateConfig = (state?: string): { className: string; label: string; shortLabel: string } => {
   switch (state) {
     case 'CURRENT':
-      return { className: 'payment-current', label: 'Current' };
+      return { className: 'payment-current', label: 'Current', shortLabel: 'Paid' };
     case 'DEPOSIT_DUE':
-      return { className: 'payment-deposit-due', label: 'Deposit Due' };
+      return { className: 'payment-deposit-due', label: 'Deposit Due', shortLabel: 'Deposit' };
     case 'RENEWAL_DUE':
-      return { className: 'payment-renewal-due', label: 'Renewal Due' };
+      return { className: 'payment-renewal-due', label: 'Renewal Due', shortLabel: 'Renew' };
     case 'FINAL_DUE':
-      return { className: 'payment-final-due', label: 'Final Due' };
+      return { className: 'payment-final-due', label: 'Final Due', shortLabel: 'Final' };
     case 'COMPLETE':
-      return { className: 'payment-complete', label: 'Complete' };
+      return { className: 'payment-complete', label: 'Complete', shortLabel: 'Done' };
     case 'INITIAL':
     default:
-      return { className: 'payment-initial', label: 'Initial' };
+      return { className: 'payment-initial', label: 'Initial', shortLabel: 'New' };
   }
 };
 
@@ -78,13 +78,19 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
               <div className="state-plan-row">
                 <span className="state-plan-name">{customer.subscriptionType}</span>
                 {customer.serviceState && (
-                  <span className={`state-badge ${serviceConfig.className}`}>
-                    {serviceConfig.label}
+                  <span className={`state-badge-group service`}>
+                    <span className="state-badge-label">Service</span>
+                    <span className={`state-badge ${serviceConfig.className}`}>
+                      {serviceConfig.shortLabel}
+                    </span>
                   </span>
                 )}
                 {customer.paymentState && (
-                  <span className={`state-badge ${paymentConfig.className}`}>
-                    {paymentConfig.label}
+                  <span className={`state-badge-group payment`}>
+                    <span className="state-badge-label">Payment</span>
+                    <span className={`state-badge ${paymentConfig.className}`}>
+                      {paymentConfig.shortLabel}
+                    </span>
                   </span>
                 )}
               </div>

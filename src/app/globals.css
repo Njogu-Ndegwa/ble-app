@@ -2464,15 +2464,45 @@ html.theme-transition *::after {
 .state-plan-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 10px;
   color: var(--text-secondary);
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .state-plan-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 90px;
+  flex-shrink: 1;
+}
+
+/* State badge groups - contains label + badge */
+.state-badge-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  max-width: 100px;
+}
+
+.state-badge-label {
+  font-size: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.state-badge-group.service .state-badge-label {
+  color: var(--accent);
+}
+
+.state-badge-group.payment .state-badge-label {
+  color: var(--success);
 }
 
 /* Status badges */
@@ -2486,22 +2516,26 @@ html.theme-transition *::after {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  white-space: nowrap;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Service Cycle FSM States */
+/* Service Cycle FSM States - Cyan/Teal palette */
 .state-badge.service-battery-issued {
-  background: var(--success-soft);
-  color: var(--success);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .state-badge.service-wait-battery {
-  background: rgba(240, 165, 0, 0.15);
-  color: #f0a500;
+  background: rgba(147, 112, 219, 0.15);
+  color: #9370db;
 }
 
 .state-badge.service-battery-returned {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: rgba(100, 149, 237, 0.15);
+  color: #6495ed;
 }
 
 .state-badge.service-battery-lost {
@@ -2519,7 +2553,7 @@ html.theme-transition *::after {
   color: var(--text-tertiary);
 }
 
-/* Payment Cycle FSM States */
+/* Payment Cycle FSM States - Green/Orange/Red palette */
 .state-badge.payment-current {
   background: var(--success-soft);
   color: var(--success);
