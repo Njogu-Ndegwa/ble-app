@@ -323,6 +323,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       detectedDevices: devices.length,
     });
 
+    // Immediately show connecting modal with the battery ID we're looking for
+    // This provides feedback to the user that we're working on connecting
+    setBleScanState(prev => ({
+      ...prev,
+      isConnecting: true,
+      connectionProgress: 5, // Show minimal progress to indicate work is happening
+      error: null,
+    }));
+
     // Find device where last 6 chars of name match
     const matchedDevice = devices.find(device => {
       const deviceLast6 = (device.name || '').toLowerCase().slice(-6);
@@ -337,6 +346,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     } else {
       console.warn('No matching BLE device found for QR code:', last6);
       console.info('Available devices:', devices.map(d => d.name));
+      
+      // Update progress to show we're searching
+      setBleScanState(prev => ({
+        ...prev,
+        connectionProgress: 10,
+      }));
       
       // Keep scanning and set timeout to retry matching
       // The device might not have been detected yet
@@ -356,7 +371,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           toast.error('No matching battery found nearby. Ensure battery is powered on and try again.');
           setBleScanState(prev => ({
             ...prev,
+            isConnecting: false,
             isScanning: false,
+            connectionProgress: 0,
             error: 'No matching battery found',
           }));
           setIsScanning(false);
@@ -966,19 +983,22 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
 
-    // BLE connection progress callback
-    const offBleConnectProgress = reg(
-      "bleInitDataOnProgressCallBack",
+    // BLE service data progress callback - used when reading service data (DTA for energy)
+    // IMPORTANT: This is bleInitServiceDataOnProgressCallBack, NOT bleInitDataOnProgressCallBack
+    // The former is for initServiceBleData (specific service), the latter is for initBleData (all data)
+    const offBleServiceProgress = reg(
+      "bleInitServiceDataOnProgressCallBack",
       (data: string) => {
         try {
           const p = JSON.parse(data);
           const progress = Math.round((p.progress / p.total) * 100);
+          console.info("BLE service data progress:", progress, "%");
           setBleScanState(prev => ({
             ...prev,
             connectionProgress: progress,
           }));
         } catch (err) {
-          console.error("Progress callback error:", err);
+          console.error("Service progress callback error:", err);
         }
       }
     );
@@ -1126,7 +1146,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       offFindBle();
       offBleConnectSuccess();
       offBleConnectFail();
-      offBleConnectProgress();
+      offBleServiceProgress();
       offBleInitServiceComplete();
       offBleInitServiceFail();
       // Stop BLE scan on cleanup
@@ -1447,9 +1467,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     // Clear any existing flow error when retrying
     setFlowError(null);
     
-    // Reset BLE state and clear previous scan data
+    // Reset BLE state but DON'T show scanning modal yet - it should only show after QR is scanned
+    // The BLE scanning will happen in background while QR scanner is open
     setBleScanState({
-      isScanning: true,
+      isScanning: false, // Don't show modal yet - we haven't scanned QR code
       isConnecting: false,
       isReadingEnergy: false,
       connectedDevice: null,
@@ -1464,7 +1485,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     setIsScanning(true);
     scanTypeRef.current = 'old_battery';
     
-    // Start BLE scanning first to discover nearby devices
+    // Start BLE scanning in background to discover nearby devices (no modal shown yet)
     startBleScan();
     
     // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
@@ -1476,10 +1497,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       cancelOngoingScan();
     }, 30000);
     
-    // Then start QR code scan after a short delay to allow BLE devices to be discovered
-    setTimeout(() => {
-      startQrCodeScan();
-    }, 500);
+    // Start QR code scan immediately - BLE devices will be discovered while user scans QR
+    startQrCodeScan();
   }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, startBleScan, stopBleScan]);
 
   // Step 3: Scan New Battery with Scan-to-Bind
@@ -1489,9 +1508,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return;
     }
 
-    // Reset BLE state and clear previous scan data
+    // Reset BLE state but DON'T show scanning modal yet - it should only show after QR is scanned
     setBleScanState({
-      isScanning: true,
+      isScanning: false, // Don't show modal yet - we haven't scanned QR code
       isConnecting: false,
       isReadingEnergy: false,
       connectedDevice: null,
@@ -1506,7 +1525,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     setIsScanning(true);
     scanTypeRef.current = 'new_battery';
     
-    // Start BLE scanning first to discover nearby devices
+    // Start BLE scanning in background to discover nearby devices (no modal shown yet)
     startBleScan();
     
     // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
@@ -1518,10 +1537,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       cancelOngoingScan();
     }, 30000);
     
-    // Then start QR code scan after a short delay to allow BLE devices to be discovered
-    setTimeout(() => {
-      startQrCodeScan();
-    }, 500);
+    // Start QR code scan immediately - BLE devices will be discovered while user scans QR
+    startQrCodeScan();
   }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, startBleScan, stopBleScan]);
 
   // Step 4: Proceed to payment
@@ -2072,9 +2089,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         </div>
       )}
 
-      {/* BLE Scan-to-Bind Progress Overlay */}
-      {(bleScanState.isConnecting || bleScanState.isReadingEnergy || 
-        (bleScanState.isScanning && (scanTypeRef.current === 'old_battery' || scanTypeRef.current === 'new_battery'))) && (
+      {/* BLE Connection Progress Overlay - Shows when connecting to a specific scanned battery */}
+      {(bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
           <div className="w-full max-w-md px-4">
             <div className="ble-progress-container">
@@ -2088,51 +2104,51 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 <div className="ble-progress-title">
                   {bleScanState.isReadingEnergy 
                     ? 'Reading Battery Data' 
-                    : bleScanState.isConnecting 
-                    ? 'Connecting to Battery'
-                    : 'Scanning for Battery'}
+                    : 'Connecting to Battery'}
                 </div>
               </div>
+
+              {/* Battery ID Display - Show which battery we're connecting to */}
+              {pendingBatteryQrCodeRef.current && (
+                <div className="ble-battery-id">
+                  <span className="ble-battery-id-label">Battery ID:</span>
+                  <span className="ble-battery-id-value">
+                    ...{String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase()}
+                  </span>
+                </div>
+              )}
 
               {/* Progress Bar */}
               <div className="ble-progress-bar-container">
                 <div className="ble-progress-bar-bg">
                   <div 
                     className="ble-progress-bar-fill"
-                    style={{ 
-                      width: `${bleScanState.isScanning && !bleScanState.isConnecting 
-                        ? Math.min(bleScanState.detectedDevices.length * 15 + 10, 40) 
-                        : bleScanState.connectionProgress}%` 
-                    }}
+                    style={{ width: `${bleScanState.connectionProgress}%` }}
                   />
                 </div>
                 <div className="ble-progress-percent">
-                  {bleScanState.isScanning && !bleScanState.isConnecting 
-                    ? Math.min(bleScanState.detectedDevices.length * 15 + 10, 40)
-                    : bleScanState.connectionProgress}%
+                  {bleScanState.connectionProgress}%
                 </div>
               </div>
 
-              {/* Status Message */}
+              {/* Status Message - More specific messages about what's happening */}
               <div className="ble-progress-status">
                 {bleScanState.isReadingEnergy 
-                  ? 'Reading energy data from battery...'
+                  ? 'Reading energy level from battery...'
                   : bleScanState.connectionProgress >= 75
-                  ? 'Almost connected...'
+                  ? 'Finalizing connection...'
                   : bleScanState.connectionProgress >= 50
-                  ? 'Establishing connection...'
+                  ? 'Establishing secure connection...'
                   : bleScanState.connectionProgress >= 25
-                  ? 'Authenticating device...'
-                  : bleScanState.isConnecting
-                  ? 'Initializing Bluetooth connection...'
-                  : bleScanState.detectedDevices.length > 0
-                  ? `Found ${bleScanState.detectedDevices.length} device(s) nearby`
-                  : 'Searching for nearby batteries...'}
+                  ? 'Authenticating with battery...'
+                  : bleScanState.connectionProgress >= 10
+                  ? 'Locating battery via Bluetooth...'
+                  : `Connecting to battery ${pendingBatteryQrCodeRef.current ? '...' + String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase() : ''}...`}
               </div>
 
               {/* Step Indicators */}
               <div className="ble-progress-steps">
-                <div className={`ble-step ${bleScanState.isScanning || bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'completed' : ''}`}>
+                <div className={`ble-step active completed`}>
                   <div className="ble-step-dot" />
                   <span>Scan</span>
                 </div>
