@@ -1263,6 +1263,48 @@ html.theme-transition *::after {
   height: 16px;
 }
 
+/* Expected Battery Info (for returning customers) */
+.expected-battery-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px auto;
+  padding: 10px 16px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  max-width: 220px;
+}
+
+.expected-battery-info > svg {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.expected-battery-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.expected-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.expected-id {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
 /* Input Toggle (Scan vs Manual) */
 .input-toggle {
   display: flex;
@@ -2362,6 +2404,81 @@ html.theme-transition *::after {
 .timeline-step.success .timeline-label {
   color: var(--success);
   font-weight: 600;
+}
+
+/* Failed state for steps that encountered an error */
+.timeline-step.failed .timeline-dot {
+  background: var(--error, #dc2626);
+  border-color: var(--error, #dc2626);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15), 0 0 20px -4px rgba(220, 38, 38, 0.4);
+}
+
+.timeline-step.failed .timeline-dot svg {
+  color: white;
+}
+
+.timeline-step.failed .timeline-label {
+  color: var(--error, #dc2626);
+  font-weight: 600;
+}
+
+/* Failed connector */
+.timeline-connector.failed {
+  background: var(--error, #dc2626);
+}
+
+/* Flow error banner */
+.flow-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--radius-md);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.flow-error-banner > svg {
+  width: 20px;
+  height: 20px;
+  color: var(--error, #dc2626);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.flow-error-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.flow-error-message {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--error, #dc2626);
+  line-height: 1.3;
+}
+
+.flow-error-details {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 /* Hover effect for clickable steps */

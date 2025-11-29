@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { AttendantStep, STEP_CONFIGS } from './types';
+import { AttendantStep, STEP_CONFIGS, FlowError } from './types';
 
 interface TimelineProps {
   currentStep: AttendantStep;
   onStepClick?: (step: AttendantStep) => void;
+  flowError?: FlowError | null;
 }
 
 // Step icons as SVG components
@@ -48,10 +49,20 @@ const StepIcons = {
       <path d="M20 6L9 17l-5-5"/>
     </svg>
   ),
+  error: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M15 9l-6 6M9 9l6 6"/>
+    </svg>
+  ),
 };
 
-export default function Timeline({ currentStep, onStepClick }: TimelineProps) {
+export default function Timeline({ currentStep, onStepClick, flowError }: TimelineProps) {
   const getStepClass = (step: number): string => {
+    // If there's a flow error at this step, show it as failed
+    if (flowError && flowError.step === step) {
+      return 'failed';
+    }
     if (step === currentStep) {
       return step === 6 ? 'success' : 'active';
     }
@@ -60,34 +71,66 @@ export default function Timeline({ currentStep, onStepClick }: TimelineProps) {
   };
 
   const handleStepClick = (step: number) => {
-    // Only allow clicking on completed steps
-    if (step < currentStep && onStepClick) {
+    // Only allow clicking on completed steps (but not failed steps or steps after failure)
+    if (step < currentStep && !flowError && onStepClick) {
       onStepClick(step as AttendantStep);
     }
+  };
+
+  // Determine if we should show connector as failed
+  const getConnectorClass = (stepNum: number): string => {
+    // If there's a flow error, connectors after the error step stay uncolored
+    if (flowError && stepNum >= flowError.step) {
+      return flowError.step === stepNum ? 'failed' : '';
+    }
+    return stepNum < currentStep ? 'completed' : '';
   };
 
   return (
     <div className="flow-timeline">
       <div className="timeline-track">
-        {STEP_CONFIGS.map((config, index) => (
-          <React.Fragment key={config.step}>
-            <div 
-              className={`timeline-step ${getStepClass(config.step)}`}
-              onClick={() => handleStepClick(config.step)}
-            >
-              <div className="timeline-dot">
-                {StepIcons[config.icon]}
-              </div>
-              <span className="timeline-label">{config.label}</span>
-            </div>
-            {index < STEP_CONFIGS.length - 1 && (
+        {STEP_CONFIGS.map((config, index) => {
+          const stepClass = getStepClass(config.step);
+          const isFailed = stepClass === 'failed';
+          
+          return (
+            <React.Fragment key={config.step}>
               <div 
-                className={`timeline-connector ${config.step < currentStep ? 'completed' : ''}`}
-              />
-            )}
-          </React.Fragment>
-        ))}
+                className={`timeline-step ${stepClass}`}
+                onClick={() => handleStepClick(config.step)}
+              >
+                <div className="timeline-dot">
+                  {isFailed ? StepIcons.error : StepIcons[config.icon]}
+                </div>
+                <span className="timeline-label">
+                  {isFailed ? 'Failed' : config.label}
+                </span>
+              </div>
+              {index < STEP_CONFIGS.length - 1 && (
+                <div 
+                  className={`timeline-connector ${getConnectorClass(config.step)}`}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
       </div>
+      
+      {/* Error message display */}
+      {flowError && (
+        <div className="flow-error-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+          <div className="flow-error-content">
+            <span className="flow-error-message">{flowError.message}</span>
+            {flowError.details && (
+              <span className="flow-error-details">{flowError.details}</span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

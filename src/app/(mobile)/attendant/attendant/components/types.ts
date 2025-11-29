@@ -19,6 +19,16 @@ export interface CustomerData {
   currentBatteryId?: string;
 }
 
+// Step status for tracking failures
+export type StepStatus = 'pending' | 'active' | 'completed' | 'failed';
+
+// Flow error information
+export interface FlowError {
+  step: AttendantStep;
+  message: string;
+  details?: string;
+}
+
 export interface BatteryData {
   id: string;
   shortId: string;
