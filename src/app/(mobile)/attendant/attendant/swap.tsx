@@ -459,7 +459,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
 
             // Check if this is the specific customer identification response topic
             // Use currentPlanId from closure (subscriptionCode || dynamicPlanId)
-            const expectedResponseTopic = `echo/abs/service/plan/${currentPlanId}/identify_customer`;
+            const expectedResponseTopic = `echo/abs/attendant/plan/${currentPlanId}/identify_customer`;
             if (topic && topic === expectedResponseTopic) {
               console.info(
                 "Response received from customer identification topic:",
@@ -516,10 +516,12 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                 console.info("Response signals:", signals);
 
                 // Check if response contains success: true and required signal
+                // IDEMPOTENT_OPERATION_DETECTED indicates a cached successful result
                 const hasRequiredSignal =
                   success === true &&
                   Array.isArray(signals) &&
-                  signals.includes("CUSTOMER_IDENTIFIED_SUCCESS");
+                  (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") ||
+                    signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
 
                 console.info(
                   "Response has required signal:",
@@ -1409,10 +1411,12 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                 console.info("Response signals:", signals);
 
                 // Check if response contains required signals
+                // IDEMPOTENT_OPERATION_DETECTED indicates a cached successful result
                 const hasRequiredSignal =
                   Array.isArray(signals) &&
                   (signals.includes("CUSTOMER_IDENTIFICATION_REQUESTED") ||
-                    signals.includes("CUSTOMER_IDENTIFIED_SUCCESS"));
+                    signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") ||
+                    signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
 
                 console.info(
                   "Response has required signal:",
