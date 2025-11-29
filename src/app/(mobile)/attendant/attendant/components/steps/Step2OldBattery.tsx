@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ScannerArea from '../ScannerArea';
+import { Bluetooth } from 'lucide-react';
 
 interface Step2Props {
   onScanOldBattery: () => void;
@@ -21,6 +22,19 @@ export default function Step2OldBattery({ onScanOldBattery, expectedBatteryId, i
             ? 'First-time customer - scan battery if returning one'
             : 'Scan the battery the customer brought in'}
         </p>
+        
+        {/* Bluetooth Required Notice */}
+        <div className="bluetooth-notice">
+          <div className="bluetooth-notice-icon">
+            <Bluetooth size={20} />
+          </div>
+          <div className="bluetooth-notice-content">
+            <span className="bluetooth-notice-title">Bluetooth Required</span>
+            <span className="bluetooth-notice-text">
+              Please ensure Bluetooth is turned ON on this device to read battery energy levels
+            </span>
+          </div>
+        </div>
         
         <ScannerArea onClick={onScanOldBattery} type="battery" size="small" />
         
