@@ -1282,7 +1282,6 @@ html.theme-transition *::after {
 
 .manual-id-input {
   font-family: 'DM Mono', monospace;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
