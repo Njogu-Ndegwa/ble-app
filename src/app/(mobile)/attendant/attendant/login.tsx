@@ -42,6 +42,8 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const { t } = useI18n();
   const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
   
@@ -140,20 +142,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       toast.error(t("Please enter your email"));
       return;
     }
+    if (!password.trim()) {
+      toast.error(t("Please enter your password"));
+      return;
+    }
 
     setIsSigningIn(true);
 
     try {
       console.log("Attempting login with email:", email);
       const response = await fetch(
-        `${API_BASE}/customers/login`,
+        `${API_BASE}/auth/login`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, password }),
         }
       );
 
@@ -162,19 +168,36 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       if (response.status === 200) {
         console.log("Login successful");
-        saveAttendantLogin({
-          id: data.customer.id,
-          name: data.customer.name,
-          email: data.customer.email || email,
-          phone: data.customer.phone,
-        });
-        onLoginSuccess(data.customer);
+        // Extract customer data from session.user or fallback to data.customer
+        const sessionUser = data.session?.user;
+        const fallbackCustomer = data.customer;
+        
+        const customerData = sessionUser ? {
+          id: sessionUser.id || 0,
+          name: sessionUser.name || "",
+          email: sessionUser.email || email,
+          phone: sessionUser.phone || "",
+        } : fallbackCustomer ? {
+          id: fallbackCustomer.id || 0,
+          name: fallbackCustomer.name || "",
+          email: fallbackCustomer.email || email,
+          phone: fallbackCustomer.phone || "",
+        } : null;
+        
+        if (!customerData) {
+          throw new Error(t("No customer data found in response"));
+        }
+        
+        saveAttendantLogin(customerData);
+        onLoginSuccess(customerData);
       } else if (response.status === 404) {
         toast.error(t("User not found. Would you like to create an account?"));
         setFormData(prev => ({ ...prev, email }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
-        throw new Error(t("Invalid request. Please ensure your email is correct."));
+        throw new Error(t("Invalid request. Please ensure your credentials are correct."));
+      } else if (response.status === 401) {
+        throw new Error(t("Invalid email or password. Please try again."));
       } else {
         throw new Error(data.message || t("Login failed. Please try again."));
       }
@@ -268,6 +291,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -526,11 +553,64 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </div>
         </div>
 
+        {/* Password Input */}
+        <div className="form-group">
+          <label className="form-label">{t('Password')}</label>
+          <div className="input-with-icon" style={{ position: 'relative' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <input
+              type={showPassword ? "text" : "password"}
+              className="form-input"
+              value={password}
+              onChange={handlePasswordChange}
+              onKeyPress={handleKeyPress}
+              placeholder={t('Enter your password')}
+              disabled={isSigningIn}
+              style={{ paddingRight: 44 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)',
+              }}
+              aria-label={showPassword ? t('Hide password') : t('Show password')}
+              disabled={isSigningIn}
+            >
+              {showPassword ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Sign In Button */}
         <button
           className="btn btn-primary login-btn"
           onClick={handleSignIn}
-          disabled={isSigningIn || !email.trim()}
+          disabled={isSigningIn || !email.trim() || !password.trim()}
         >
           {isSigningIn ? (
             <>
