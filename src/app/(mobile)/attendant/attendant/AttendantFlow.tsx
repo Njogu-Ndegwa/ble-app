@@ -132,6 +132,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Timeout ref for scan operations (customer identification, battery scans)
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Refs for processing functions to avoid stale closures in bridge handlers
+  // These refs are updated whenever the callbacks change, and the bridge handler
+  // calls ref.current to always get the latest version
+  const processCustomerQRDataRef = useRef<(data: string) => void>(() => {});
+  const processOldBatteryQRDataRef = useRef<(data: string) => void>(() => {});
+  const processNewBatteryQRDataRef = useRef<(data: string) => void>(() => {});
+  const processPaymentQRDataRef = useRef<(data: string) => void>(() => {});
+  
   // Helper to clear scan timeout safely
   const clearScanTimeout = useCallback(() => {
     if (scanTimeoutRef.current) {
@@ -573,6 +581,24 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dynamicPlanId, swapData.cost]);
 
+  // Keep processing function refs up to date to avoid stale closures in bridge handlers
+  // This ensures the bridge callback always calls the latest version of each processing function
+  useEffect(() => {
+    processCustomerQRDataRef.current = processCustomerQRData;
+  }, [processCustomerQRData]);
+
+  useEffect(() => {
+    processOldBatteryQRDataRef.current = processOldBatteryQRData;
+  }, [processOldBatteryQRData]);
+
+  useEffect(() => {
+    processNewBatteryQRDataRef.current = processNewBatteryQRData;
+  }, [processNewBatteryQRData]);
+
+  useEffect(() => {
+    processPaymentQRDataRef.current = processPaymentQRData;
+  }, [processPaymentQRData]);
+
   // Setup bridge handlers for QR code scanning (follows pattern from swap.tsx)
   const setupBridge = useCallback((b: WebViewJavascriptBridge) => {
     const noop = () => {};
@@ -610,18 +636,20 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           }
 
           // Use ref to determine which scan type is active
+          // IMPORTANT: We call ref.current instead of the function directly to avoid stale closures
+          // The refs are kept up to date via useEffect hooks, ensuring we always call the latest version
           if (scanTypeRef.current === "customer") {
             console.info("Processing customer QR code:", qrVal);
-            processCustomerQRData(qrVal);
+            processCustomerQRDataRef.current(qrVal);
           } else if (scanTypeRef.current === "old_battery") {
             console.info("Processing old battery QR code:", qrVal);
-            processOldBatteryQRData(qrVal);
+            processOldBatteryQRDataRef.current(qrVal);
           } else if (scanTypeRef.current === "new_battery") {
             console.info("Processing new battery QR code:", qrVal);
-            processNewBatteryQRData(qrVal);
+            processNewBatteryQRDataRef.current(qrVal);
           } else if (scanTypeRef.current === "payment") {
             console.info("Processing payment QR code:", qrVal);
-            processPaymentQRData(qrVal);
+            processPaymentQRDataRef.current(qrVal);
           } else {
             console.warn("QR code scanned but no active scan type:", scanTypeRef.current);
             // No active scan type - reset state
@@ -643,7 +671,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     return () => {
       offQr();
     };
-  }, [processCustomerQRData, processOldBatteryQRData, processNewBatteryQRData, processPaymentQRData, clearScanTimeout]);
+  // Note: We removed the processing callback functions from dependencies since we now use refs
+  // The refs are always up-to-date via useEffect hooks, so the bridge handler always calls the latest version
+  }, [clearScanTimeout]);
 
   // Setup bridge when ready
   useEffect(() => {
