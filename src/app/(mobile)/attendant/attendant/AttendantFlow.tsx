@@ -1296,7 +1296,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           
           readEnergyCharacteristics(
             macAddress,
-            (energyData, error) => {
+            (energyData: { energy: number; chargePercent: number; rcap: number; pckv: number; fccp?: number; rsoc?: number; fullCapacity: number } | null, error?: string) => {
               // Clear data reading timeout
               if (bleOperationTimeoutRef.current) {
                 clearTimeout(bleOperationTimeoutRef.current);
@@ -1398,7 +1398,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               pendingBatteryQrCodeRef.current = null;
               pendingBatteryScanTypeRef.current = null;
             },
-            (progress) => {
+            (progress: number) => {
               // Progress callback
               setBleScanState(prev => ({
                 ...prev,
