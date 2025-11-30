@@ -165,7 +165,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
-          console.info(data.realVal, "Value of Field");
           toast.success(`${name} read successfully`);
           setUpdatedValues((prev) => ({
             ...prev,
@@ -201,15 +200,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       return;
     }
     
-    console.info({
-      action: "write",
-      serviceUuid: activeService.uuid,
-      characteristicUuid: activeCharacteristic.uuid,
-      macAddress: device.macAddress,
-      name: device.name,
-      value: value,
-    });
-    
     // Set loading state
     setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: true }));
     
@@ -220,7 +210,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       device.macAddress,
       (responseData: any) => {
         setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: false }));
-        console.info({ writeResponse: responseData });
         
         // Parse response to check if write succeeded
         let writeSuccess = false;

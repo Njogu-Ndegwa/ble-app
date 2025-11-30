@@ -383,6 +383,9 @@ const AppContainer = () => {
       "bleInitServiceDataOnCompleteCallBack",
       (data: string, resp: any) => {
         const parsedData = JSON.parse(data);
+        // Log individual service content when loaded
+        const serviceName = parsedData.serviceNameEnum?.replace('_SERVICE', '') || 'Unknown';
+        console.info(`[${serviceName} Service]`, parsedData);
         setServiceAttrList((prev: any) => {
           if (!prev || prev.length === 0) return [parsedData];
           const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
@@ -459,14 +462,11 @@ const AppContainer = () => {
   console.error(detectedDevices, "Detected Devices-----468");
 
   const startQrCodeScan = () => {
-    console.info("Start QR Code Scan");
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler(
         "startQrCodeScan",
         999,
-        (responseData) => {
-          console.info(responseData);
-        }
+        () => {}
       );
     }
   };
@@ -485,7 +485,6 @@ const AppContainer = () => {
     initServiceBleData(data);
   };
 
-  console.info(isMqttConnected, "Is Mqtt Connected");
   useEffect(() => {
     if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false); // Connection process complete
@@ -657,7 +656,6 @@ const AppContainer = () => {
       },
     };
 
-    console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
     // toast(`Preparing to publish ${serviceType} data`, {
     //   duration: 2000, // Show for 2 seconds
     // });
@@ -666,10 +664,7 @@ const AppContainer = () => {
       window.WebViewJavascriptBridge.callHandler(
         "mqttPublishMsg",
         JSON.stringify(dataToPublish),
-        (response) => {
-          console.info(`MQTT Response for ${serviceType}:`, response);
-          // toast.success(t('{service} data published successfully', { service: serviceType }));
-        }
+        () => {}
       );
     } catch (error) {
       console.error(`Error publishing ${serviceType} data:`, error);
@@ -750,7 +745,6 @@ const AppContainer = () => {
       }, index * 500); // 500ms delay between each publish
     });
 
-    console.info("Publishing services:", availableServices);
   };
 
   const bleLoadingSteps = [
