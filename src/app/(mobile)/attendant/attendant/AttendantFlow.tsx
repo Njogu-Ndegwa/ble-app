@@ -205,7 +205,16 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   }, []);
 
   // Cancel ongoing BLE operation - allows user to escape stuck states
+  // NOTE: Cancellation is blocked when already connected and reading data to prevent orphaned connections
   const cancelBleOperation = useCallback(() => {
+    // SAFETY CHECK: Don't allow cancellation if we've successfully connected
+    // and are reading energy data - this would leave the device in a bad state
+    if (isConnectionSuccessfulRef.current) {
+      console.warn('=== Cancel blocked: Battery is already connected and reading data ===');
+      toast('Please wait while reading battery data...', { icon: '⏳' });
+      return;
+    }
+    
     console.info('=== Cancelling BLE operation ===');
     
     // Clear all timeouts
@@ -2599,14 +2608,17 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               </div>
 
               {/* Cancel Button - Allows users to exit stuck states */}
+              {/* Disabled when connected and reading energy to prevent orphaned connections */}
               <button
                 onClick={cancelBleOperation}
                 className="ble-cancel-button"
+                disabled={bleScanState.isReadingEnergy}
+                title={bleScanState.isReadingEnergy ? "Please wait while reading battery data..." : "Cancel connection"}
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
-                Cancel
+                {bleScanState.isReadingEnergy ? 'Please wait...' : 'Cancel'}
               </button>
               
               {/* Help Text */}
