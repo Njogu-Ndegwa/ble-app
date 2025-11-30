@@ -267,8 +267,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     });
   }, []);
 
-  // Extract energy from DTA service data (rcap * pckv / 100)
-  const populateEnergyFromDta = useCallback((serviceData: any): number | null => {
+  // Extract energy from DTA service data
+  // rcap = Remaining Capacity in mAh (milliamp-hours)
+  // fccp = Full Charge Capacity in mAh
+  // pckv = Pack Voltage in mV (millivolts)
+  // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+  // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null on failure
+  const populateEnergyFromDta = useCallback((serviceData: any): { energy: number; fullCapacity: number; chargePercent: number } | null => {
     if (!serviceData || !Array.isArray(serviceData.characteristicList)) {
       console.warn('Invalid DTA service data for energy calculation');
       return null;
@@ -281,39 +286,69 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return char?.realVal ?? null;
     };
 
-    const rcapRaw = getCharValue('rcap');
-    const pckvRaw = getCharValue('pckv');
+    const rcapRaw = getCharValue('rcap');  // Remaining Capacity in mAh
+    const fccpRaw = getCharValue('fccp');  // Full Charge Capacity in mAh
+    const pckvRaw = getCharValue('pckv');  // Pack Voltage in mV
+    const rsocRaw = getCharValue('rsoc');  // Relative State of Charge (%)
 
     const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
+    const fccp = fccpRaw !== null ? parseFloat(fccpRaw) : NaN;
     const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
+    const rsoc = rsocRaw !== null ? parseFloat(rsocRaw) : NaN;
 
     if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
-      console.warn('Unable to parse rcap/pckv values from DTA service', {
+      console.warn('Unable to parse rcap/pckv from DTA service', {
         rcapRaw,
         pckvRaw,
       });
       return null;
     }
 
-    // Energy = (rcap * pckv) / 100 in Wh
-    const computedEnergy = (rcap * pckv) / 100;
+    // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+    // Example: 15290 mAh × 75470 mV / 1,000,000 = 1,154 Wh = 1.15 kWh
+    const energy = (rcap * pckv) / 1_000_000;
+    const fullCapacity = Number.isFinite(fccp) ? (fccp * pckv) / 1_000_000 : 0;
 
-    if (!Number.isFinite(computedEnergy)) {
+    if (!Number.isFinite(energy)) {
       console.warn('Computed energy is not a finite number', {
         rcap,
         pckv,
-        computedEnergy,
+        energy,
       });
       return null;
     }
 
-    console.info('Energy computed from DTA service:', {
-      rcap,
-      pckv,
-      energy: computedEnergy,
+    // Calculate charge percentage from rcap/fccp, fallback to rsoc if fccp unavailable
+    let chargePercent: number;
+    if (Number.isFinite(fccp) && fccp > 0) {
+      chargePercent = Math.round((rcap / fccp) * 100);
+    } else if (Number.isFinite(rsoc)) {
+      chargePercent = Math.round(rsoc);
+    } else {
+      chargePercent = 0;
+    }
+
+    // Clamp charge percent to 0-100
+    chargePercent = Math.max(0, Math.min(100, chargePercent));
+
+    console.info('Energy calculated from DTA service:', {
+      rcap_mAh: rcap,
+      fccp_mAh: fccp,
+      pckv_mV: pckv,
+      pckv_V: pckv / 1000,
+      rsoc_percent: rsoc,
+      computed_energy_Wh: energy,
+      computed_energy_kWh: energy / 1000,
+      computed_fullCapacity_Wh: fullCapacity,
+      computed_fullCapacity_kWh: fullCapacity / 1000,
+      computed_chargePercent: chargePercent,
     });
 
-    return Math.round(computedEnergy * 100) / 100; // Round to 2 decimal places
+    return {
+      energy: Math.round(energy * 100) / 100, // Round to 2 decimal places (Wh)
+      fullCapacity: Math.round(fullCapacity * 100) / 100,
+      chargePercent,
+    };
   }, []);
 
   // Handle matching QR code to detected BLE device and initiate connection
@@ -1029,8 +1064,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           if (parsedData?.serviceNameEnum === "DTA_SERVICE") {
             console.info("DTA service data received:", parsedData);
             
-            // Calculate energy from DTA data
-            const energy = populateEnergyFromDtaRef.current(parsedData);
+            // Extract energy data from DTA service
+            // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null
+            const energyData = populateEnergyFromDtaRef.current(parsedData);
             const scannedBatteryId = pendingBatteryQrCodeRef.current;
             const scanType = pendingBatteryScanTypeRef.current;
             
@@ -1049,38 +1085,35 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               connectedDevice: null,
             }));
             
-            if (energy !== null && scannedBatteryId) {
-              console.info(`Battery energy read: ${energy} Wh for ${scanType}`);
-              
-              // Calculate charge level percentage (assume 1000Wh max capacity for now)
-              // This can be refined based on actual battery specs
-              const chargeLevel = Math.min(Math.round((energy / 1000) * 100), 100);
+            if (energyData !== null && scannedBatteryId) {
+              const { energy, chargePercent } = energyData;
+              console.info(`Battery energy read: ${energy} Wh (${(energy / 1000).toFixed(3)} kWh) at ${chargePercent}% for ${scanType}`);
               
               if (scanType === 'old_battery') {
-                // Create old battery data with actual energy
+                // Create old battery data with actual energy from rcap (in Wh)
                 const oldBattery: BatteryData = {
                   id: scannedBatteryId,
                   shortId: String(scannedBatteryId).slice(-6),
-                  chargeLevel: chargeLevel,
-                  energy: energy,
+                  chargeLevel: chargePercent,
+                  energy: energy, // rcap in Wh
                   macAddress: sessionStorage.getItem("connectedDeviceMac") || undefined,
                 };
                 
                 setSwapData(prev => ({ ...prev, oldBattery }));
                 setCurrentStep(3);
-                toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh`);
+                toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
               } else if (scanType === 'new_battery') {
                 // Create new battery data and calculate differential
                 const newBattery: BatteryData = {
                   id: scannedBatteryId,
                   shortId: String(scannedBatteryId).slice(-6),
-                  chargeLevel: chargeLevel,
-                  energy: energy,
+                  chargeLevel: chargePercent,
+                  energy: energy, // rcap in Wh
                   macAddress: sessionStorage.getItem("connectedDeviceMac") || undefined,
                 };
                 
                 // Calculate energy difference and cost using actual energy values
-                // Energy from BLE is in Wh, but rate is per kWh - convert Wh to kWh
+                // Energy from BLE (rcap) is in Wh, rate is per kWh - convert Wh to kWh
                 setSwapData(prev => {
                   const oldEnergy = prev.oldBattery?.energy || 0;
                   const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
@@ -1091,7 +1124,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   
                   console.info('Energy differential calculated:', {
                     oldEnergyWh: oldEnergy,
+                    oldEnergyKwh: oldEnergy / 1000,
                     newEnergyWh: energy,
+                    newEnergyKwh: energy / 1000,
                     energyDiffWh,
                     energyDiffKwh,
                     ratePerKwh: rate,
@@ -1107,10 +1142,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 });
                 
                 setCurrentStep(4);
-                toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh`);
+                toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
               }
             } else {
-              console.warn("Could not calculate energy from DTA data or missing battery ID");
+              console.warn("Could not extract energy from DTA data or missing battery ID");
               toast.error('Could not read battery energy. Please try again.');
             }
             

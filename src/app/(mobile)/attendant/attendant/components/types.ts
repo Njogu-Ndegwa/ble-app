@@ -32,8 +32,8 @@ export interface FlowError {
 export interface BatteryData {
   id: string;
   shortId: string;
-  chargeLevel: number;
-  energy: number; // Energy in Wh computed from BLE (rcap * pckv / 100)
+  chargeLevel: number; // Charge percentage (0-100) from rsoc or calculated from rcap/fccp
+  energy: number; // Remaining energy in Wh = (rcap_mAh × pckv_mV) / 1,000,000
   macAddress?: string; // BLE MAC address used for connection
 }
 
