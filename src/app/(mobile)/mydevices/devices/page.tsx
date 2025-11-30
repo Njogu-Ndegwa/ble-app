@@ -388,15 +388,20 @@ const AppContainer = () => {
       "bleInitServiceDataOnCompleteCallBack",
       (data: string, resp: any) => {
         const parsedData = JSON.parse(data);
+        console.info("Device Service Data Received:", parsedData);
         setServiceAttrList((prev: any) => {
-          if (!prev || prev.length === 0) return [parsedData];
-          const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
-          if (idx >= 0) {
-            const u = [...prev];
-            u[idx] = parsedData;
-            return u;
-          }
-          return [...prev, parsedData];
+          const updatedList = (() => {
+            if (!prev || prev.length === 0) return [parsedData];
+            const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
+            if (idx >= 0) {
+              const u = [...prev];
+              u[idx] = parsedData;
+              return u;
+            }
+            return [...prev, parsedData];
+          })();
+          console.info("All Device Services (attributeList):", updatedList);
+          return updatedList;
         });
         setTimeout(() => setLoadingService(null), 100);
         resp(data);
