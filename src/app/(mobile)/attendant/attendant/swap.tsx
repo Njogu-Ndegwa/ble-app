@@ -3015,61 +3015,43 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                   <span className="font-medium">{t("Customer Identified")}</span>
                 </div>
                 {customerData && (
-                  <div className="bg-gray-600 rounded-lg p-4 space-y-3">
-                    <p className="text-sm text-gray-300">
-                      <span className="font-medium text-white">
-                        {t("Customer ID")}:
-                      </span>{" "}
-                      {formatDisplayValue(customerData.customer_id)}
-                    </p>
+                  <div className="bg-gray-600 rounded-lg p-3 space-y-2">
+                    {/* Row 1: Customer Name */}
                     <p className="text-sm text-gray-300">
                       <span className="font-medium text-white">{t("Name")}:</span>{" "}
                       {formatDisplayValue(
                         customerData.name || customerData.product_name
                       )}
+                      <span className="text-gray-400 ml-2 text-xs">
+                        ({formatDisplayValue(customerData.customer_id)})
+                      </span>
                     </p>
                     
-                    {/* Payment State */}
-                    {paymentState && (
-                      <div className="pt-2 border-t border-gray-500">
-                        <p className="text-sm text-gray-300">
-                          <span className="font-medium text-white">{t("Payment State")}:</span>{" "}
-                          <span className={`font-semibold ${
-                            paymentState === "CURRENT" ? "text-green-400" :
-                            paymentState === "OVERDUE" ? "text-red-400" :
-                            "text-yellow-400"
-                          }`}>
-                            {paymentState}
-                          </span>
-                    </p>
-                  </div>
-                    )}
-                    
-                    {/* Service Plan Status and Service State */}
-                    {(servicePlanStatus || serviceState) && (
-                      <div className="pt-2 border-t border-gray-500">
-                        {servicePlanStatus && (
-                          <p className="text-sm text-gray-300 mb-1">
-                            <span className="font-medium text-white">{t("Status")}:</span>{" "}
-                            <span className={`font-semibold ${
-                              servicePlanStatus === "ACTIVE" ? "text-green-400" :
-                              servicePlanStatus === "INACTIVE" ? "text-red-400" :
-                              "text-yellow-400"
-                            }`}>
-                              {servicePlanStatus}
-                            </span>
-                          </p>
-                        )}
-                        {serviceState && (
-                          <p className="text-sm text-gray-300">
-                            <span className="font-medium text-white">{t("Service State")}:</span>{" "}
-                            <span className="font-semibold text-blue-400">
-                              {serviceState}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {/* Row 2: Plan ID + Payment State + Service State */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Plan identifier */}
+                      {(servicePlanIdentifier || dynamicPlanId) && (
+                        <span className="text-[11px] text-gray-300 bg-gray-700 px-1.5 py-0.5 rounded truncate max-w-[120px]">
+                          {servicePlanIdentifier || dynamicPlanId}
+                        </span>
+                      )}
+                      
+                      {paymentState && (
+                        <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${
+                          paymentState === "CURRENT" ? "bg-green-900/50 text-green-400" :
+                          paymentState === "OVERDUE" ? "bg-red-900/50 text-red-400" :
+                          "bg-yellow-900/50 text-yellow-400"
+                        }`}>
+                          {paymentState}
+                        </span>
+                      )}
+                      
+                      {serviceState && (
+                        <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-400">
+                          {serviceState}
+                        </span>
+                      )}
+                    </div>
                     
                     {/* Service States */}
                     {serviceStates && serviceStates.length > 0 && (
