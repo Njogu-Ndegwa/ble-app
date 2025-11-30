@@ -435,13 +435,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       parsedData = qrCodeData;
     }
 
+    // If the QR code is a plain string (not JSON object), treat it as the subscription code directly
+    // This allows scanning a QR code that IS the subscription code (e.g., "SUB-8847-KE")
     const normalizedData: any = {
       customer_id: typeof parsedData === 'object'
         ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
         : qrCodeData,
       subscription_code: typeof parsedData === 'object'
         ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
-        : undefined,
+        : qrCodeData, // Plain string QR code IS the subscription code
       name: typeof parsedData === 'object'
         ? parsedData.name || parsedData.customer_name
         : undefined,
