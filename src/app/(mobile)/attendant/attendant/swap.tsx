@@ -131,6 +131,17 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const [dtaServiceData, setDtaServiceData] = useState<any | null>(null);
   const detectedBleDevicesRef = useRef<BleDevice[]>([]);
   const autoFilledCheckinEnergyRef = useRef(false);
+  
+  // BLE scanning states for checkout
+  const [checkoutDetectedBleDevices, setCheckoutDetectedBleDevices] = useState<BleDevice[]>([]);
+  const [isCheckoutScanningBle, setIsCheckoutScanningBle] = useState<boolean>(false);
+  const [isCheckoutConnectingBle, setIsCheckoutConnectingBle] = useState<boolean>(false);
+  const [checkoutConnectedBleDevice, setCheckoutConnectedBleDevice] = useState<string | null>(null);
+  const [checkoutBleConnectionProgress, setCheckoutBleConnectionProgress] = useState<number>(0);
+  const [checkoutDtaServiceData, setCheckoutDtaServiceData] = useState<any | null>(null);
+  const checkoutDetectedBleDevicesRef = useRef<BleDevice[]>([]);
+  const autoFilledCheckoutEnergyRef = useRef(false);
+  const [isComputingCheckoutEnergy, setIsComputingCheckoutEnergy] = useState<boolean>(false);
   const [paymentState, setPaymentState] = useState<string | null>(null);
   const [serviceState, setServiceState] = useState<string | null>(null);
   const [servicePlanStatus, setServicePlanStatus] = useState<string | null>(null);
@@ -231,6 +242,8 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const scanTypeRef = useRef<
     "customer" | "equipment" | "checkin" | "checkout" | "payment" | null
   >(null);
+  // Track which battery type the current BLE/DTA request is for (persists through async callbacks)
+  const currentBleRequestTypeRef = useRef<"checkin" | "checkout" | null>(null);
   const modalScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const equipmentSectionRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledToEquipmentRef = useRef<boolean>(false);
@@ -1265,7 +1278,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         return;
       }
 
-      const computedEnergy = (rcap * pckv) / 100;
+      // Energy (kWh) = rcap (mAh) × pckv (mV) / 1,000,000,000
+      // rcap = Remaining Capacity in mAh
+      // pckv = Pack Voltage in mV
+      const computedEnergy = (rcap * pckv) / 1_000_000_000;
 
       if (!Number.isFinite(computedEnergy)) {
         console.warn("Computed energy is not a finite number", {
@@ -1284,6 +1300,66 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       setIsComputingEnergy(false); // Energy computation complete
       toast.success(t("Energy auto-filled from BLE device data"), {
         id: "checkin-energy-autofill",
+      });
+    },
+    [t]
+  );
+
+  // Populate checkout energy from DTA service data
+  const populateEnergyFromDtaCheckout = useCallback(
+    (serviceData: any) => {
+      if (
+        !serviceData ||
+        !Array.isArray(serviceData.characteristicList)
+      ) {
+        setIsComputingCheckoutEnergy(false); // Energy computation failed - invalid data
+        return;
+      }
+
+      const getCharValue = (name: string) => {
+        const char = serviceData.characteristicList.find(
+          (c: any) => c.name?.toLowerCase() === name.toLowerCase()
+        );
+        return char?.realVal ?? null;
+      };
+
+      const rcapRaw = getCharValue("rcap");
+      const pckvRaw = getCharValue("pckv");
+
+      const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
+      const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
+
+      if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
+        console.warn("Unable to parse rcap/pckv values from DTA service for checkout", {
+          rcapRaw,
+          pckvRaw,
+        });
+        setIsComputingCheckoutEnergy(false); // Energy computation failed
+        return;
+      }
+
+      // Energy (kWh) = rcap (mAh) × pckv (mV) / 1,000,000,000
+      // rcap = Remaining Capacity in mAh
+      // pckv = Pack Voltage in mV
+      const computedEnergy = (rcap * pckv) / 1_000_000_000;
+
+      if (!Number.isFinite(computedEnergy)) {
+        console.warn("Computed checkout energy is not a finite number", {
+          rcap,
+          pckv,
+          computedEnergy,
+        });
+        setIsComputingCheckoutEnergy(false); // Energy computation failed
+        return;
+      }
+
+      // Always populate energy from computedEnergy, overwriting any manual input
+      const formattedEnergy = computedEnergy.toFixed(2);
+      setCheckoutEnergyTransferred(formattedEnergy);
+      autoFilledCheckoutEnergyRef.current = true;
+      setIsComputingCheckoutEnergy(false); // Energy computation complete
+      toast.success(t("Checkout energy auto-filled from BLE device data"), {
+        id: "checkout-energy-autofill",
       });
     },
     [t]
@@ -1768,46 +1844,79 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         }
       );
 
-      // BLE connection success handler
+      // BLE connection success handler - handles both checkin and checkout
       const offBleConnectSuccess = reg(
         "bleConnectSuccessCallBack",
         (macAddress: string, resp: any) => {
-          console.info("BLE connection successful for check-in:", macAddress);
+          const isCheckout = scanTypeRef.current === "checkout";
+          const scanType = isCheckout ? "checkout" : "checkin";
+          console.info(`BLE connection successful for ${scanType}:`, macAddress);
           sessionStorage.setItem("connectedDeviceMac", macAddress);
-          setConnectedBleDevice(macAddress);
-          setIsConnectingBle(false);
-          setBleConnectionProgress(100);
-          setIsScanningCheckin(false);
-          stopBleScan();
-          scanTypeRef.current = null;
-          toast.success(t("BLE device connected successfully"));
-          setDtaServiceData(null);
-          autoFilledCheckinEnergyRef.current = false;
-          setIsComputingEnergy(true); // Start computing energy from BLE device
+          
+          // Store the request type before clearing scanTypeRef
+          currentBleRequestTypeRef.current = scanType;
+          
+          if (isCheckout) {
+            // Checkout flow
+            setCheckoutConnectedBleDevice(macAddress);
+            setIsCheckoutConnectingBle(false);
+            setCheckoutBleConnectionProgress(100);
+            setIsScanningCheckout(false);
+            stopBleScan();
+            scanTypeRef.current = null;
+            toast.success(t("BLE device connected successfully"));
+            setCheckoutDtaServiceData(null);
+            autoFilledCheckoutEnergyRef.current = false;
+            setIsComputingCheckoutEnergy(true); // Start computing energy from BLE device
+          } else {
+            // Checkin flow
+            setConnectedBleDevice(macAddress);
+            setIsConnectingBle(false);
+            setBleConnectionProgress(100);
+            setIsScanningCheckin(false);
+            stopBleScan();
+            scanTypeRef.current = null;
+            toast.success(t("BLE device connected successfully"));
+            setDtaServiceData(null);
+            autoFilledCheckinEnergyRef.current = false;
+            setIsComputingEnergy(true); // Start computing energy from BLE device
+          }
+          
           initServiceBleData(
             {
               serviceName: "DTA",
               macAddress,
             },
             () => {
-              console.info("Requested DTA service data for mac:", macAddress);
+              console.info(`Requested DTA service data for ${scanType}, mac:`, macAddress);
             }
           );
           resp(macAddress);
         }
       );
 
-      // BLE connection failure handler
+      // BLE connection failure handler - handles both checkin and checkout
       const offBleConnectFail = reg(
         "bleConnectFailCallBack",
         (data: string, resp: any) => {
-          console.error("BLE connection failed:", data);
-          setIsConnectingBle(false);
-          setBleConnectionProgress(0);
-          setIsScanningCheckin(false);
-          setIsComputingEnergy(false); // Energy computation failed
+          const isCheckout = scanTypeRef.current === "checkout";
+          console.error(`BLE connection failed for ${isCheckout ? "checkout" : "checkin"}:`, data);
+          
+          if (isCheckout) {
+            setIsCheckoutConnectingBle(false);
+            setCheckoutBleConnectionProgress(0);
+            setIsScanningCheckout(false);
+            setIsComputingCheckoutEnergy(false);
+          } else {
+            setIsConnectingBle(false);
+            setBleConnectionProgress(0);
+            setIsScanningCheckin(false);
+            setIsComputingEnergy(false);
+          }
+          
           stopBleScan();
           scanTypeRef.current = null;
+          currentBleRequestTypeRef.current = null;
           toast.error(t("BLE connection failed. Please try again."));
           resp(data);
         }
@@ -1833,13 +1942,30 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           try {
             const parsedData = typeof data === "string" ? JSON.parse(data) : data;
             if (parsedData?.serviceNameEnum === "DTA_SERVICE") {
-              setDtaServiceData(parsedData);
-              populateEnergyFromDta(parsedData);
+              const isCheckout = currentBleRequestTypeRef.current === "checkout";
+              console.info(`DTA service data received for ${isCheckout ? "checkout" : "checkin"}`);
+              
+              if (isCheckout) {
+                setCheckoutDtaServiceData(parsedData);
+                populateEnergyFromDtaCheckout(parsedData);
+              } else {
+                setDtaServiceData(parsedData);
+                populateEnergyFromDta(parsedData);
+              }
+              
+              // Clear the request type ref after processing
+              currentBleRequestTypeRef.current = null;
             }
             resp(parsedData);
           } catch (err) {
             console.error("Error parsing BLE service data:", err);
-            setIsComputingEnergy(false); // Energy computation failed
+            const isCheckout = currentBleRequestTypeRef.current === "checkout";
+            if (isCheckout) {
+              setIsComputingCheckoutEnergy(false);
+            } else {
+              setIsComputingEnergy(false);
+            }
+            currentBleRequestTypeRef.current = null;
             resp({ success: false, error: String(err) });
           }
         }
@@ -1848,8 +1974,16 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       const offBleInitServiceFail = reg(
         "bleInitServiceDataFailureCallBack",
         (data: string) => {
-          console.error("Failed to initialize DTA service:", data);
-          setIsComputingEnergy(false); // Energy computation failed
+          const isCheckout = currentBleRequestTypeRef.current === "checkout";
+          console.error(`Failed to initialize DTA service for ${isCheckout ? "checkout" : "checkin"}:`, data);
+          
+          if (isCheckout) {
+            setIsComputingCheckoutEnergy(false);
+          } else {
+            setIsComputingEnergy(false);
+          }
+          
+          currentBleRequestTypeRef.current = null;
           toast.error(t("Unable to read device energy data. Please try again."));
         }
       );
@@ -2002,6 +2136,11 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     detectedBleDevicesRef.current = detectedBleDevices;
   }, [detectedBleDevices]);
 
+  // Update ref when checkoutDetectedBleDevices changes
+  useEffect(() => {
+    checkoutDetectedBleDevicesRef.current = checkoutDetectedBleDevices;
+  }, [checkoutDetectedBleDevices]);
+
   const handleStartCheckinScan = () => {
     setCheckinEquipmentId(null);
     setCheckinEquipmentIdFull(null);
@@ -2025,9 +2164,22 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
 
   const handleStartCheckoutScan = () => {
     setCheckoutEquipmentId(null);
+    setCheckoutDetectedBleDevices([]);
+    setCheckoutConnectedBleDevice(null);
+    setIsCheckoutConnectingBle(false);
+    setCheckoutBleConnectionProgress(0);
+    setCheckoutEnergyTransferred("");
+    setCheckoutDtaServiceData(null);
+    setIsComputingCheckoutEnergy(false); // Reset checkout energy computation state
+    autoFilledCheckoutEnergyRef.current = false;
     scanTypeRef.current = "checkout";
     setIsScanningCheckout(true);
-    startQrCodeScan();
+    // Start BLE scanning first
+    startBleScan();
+    // Then start QR scan after a short delay to allow BLE devices to be discovered
+    setTimeout(() => {
+      startQrCodeScan();
+    }, 500);
   };
 
   const handleStartSwap = () => {
@@ -2079,7 +2231,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     setCheckoutEquipmentId(null);
     setCheckoutEnergyTransferred("");
     setCheckinEnergyTransferred("");
-    setIsComputingEnergy(false); // Reset energy computation state
+    setIsComputingEnergy(false); // Reset checkin energy computation state
     setDetectedBleDevices([]);
     setIsScanningBle(false);
     setIsConnectingBle(false);
@@ -2087,6 +2239,16 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     setBleConnectionProgress(0);
     setDtaServiceData(null);
     autoFilledCheckinEnergyRef.current = false;
+    // Reset checkout BLE states
+    setCheckoutDetectedBleDevices([]);
+    setIsCheckoutScanningBle(false);
+    setIsCheckoutConnectingBle(false);
+    setCheckoutConnectedBleDevice(null);
+    setCheckoutBleConnectionProgress(0);
+    setCheckoutDtaServiceData(null);
+    autoFilledCheckoutEnergyRef.current = false;
+    setIsComputingCheckoutEnergy(false); // Reset checkout energy computation state
+    currentBleRequestTypeRef.current = null;
     setDynamicPlanId(""); // Reset plan_id
     scanTypeRef.current = null;
     setCurrentPhase("A1");
@@ -3261,20 +3423,27 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                         ? t("Energy at Checkout (kWh)")
                         : t("Energy Transferred (kWh)")}
                     </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={checkoutEnergyTransferred}
-                      onChange={(e) => setCheckoutEnergyTransferred(e.target.value)}
-                      className="w-full bg-gray-600 border border-gray-500 rounded-lg p-2 text-white"
-                      placeholder="0.00"
-                    />
+                    {isComputingCheckoutEnergy ? (
+                      <div className="w-full bg-gray-700 border border-gray-500 rounded-lg p-3 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                        <span className="text-sm text-gray-300">{t("Computing energy from battery...")}</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={checkoutEnergyTransferred}
+                        readOnly
+                        disabled
+                        className="w-full bg-gray-700 border border-gray-500 rounded-lg p-2 text-gray-400 cursor-not-allowed"
+                        placeholder="0.00"
+                      />
+                    )}
                     <p className="text-xs text-gray-400 mt-1">
-                      {customerType === "returning"
-                      ? t(
-                          "Enter the energy level of the new battery. Energy transferred will be calculated as: Checkout - Check-in"
-                        )
-                        : t("Enter the energy level of the new battery")}
+                      {isComputingCheckoutEnergy 
+                        ? t("Please wait while energy is being calculated...")
+                        : t("Energy is automatically calculated from BLE device data")
+                      }
                     </p>
                   </div>
                 )}
@@ -3368,10 +3537,17 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                       phase3Status.checkout === undefined) && (
                       <button
                         onClick={handleEquipmentCheckout}
-                        disabled={isRunningPhase3 || !paymentConfirmed}
+                        disabled={isRunningPhase3 || isComputingCheckoutEnergy || !paymentConfirmed || !checkoutEnergyTransferred}
                         className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all text-sm"
                       >
-                        <span className="whitespace-nowrap">{t("Process Checkout")}</span>
+                        {isComputingCheckoutEnergy ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                            <span className="whitespace-nowrap">{t("Computing energy...")}</span>
+                          </>
+                        ) : (
+                          <span className="whitespace-nowrap">{t("Process Checkout")}</span>
+                        )}
                       </button>
                     )}
                     {checkoutErrorMessage && (
