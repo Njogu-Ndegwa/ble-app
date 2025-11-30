@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantUser } from '@/lib/attendant-auth';
-import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
+import { 
+  connBleByMacAddress, 
+  initServiceBleData, 
+  readEnergyCharacteristics,
+  DTA_SERVICE_UUID,
+  DTA_CHARACTERISTIC_UUIDS,
+} from '@/app/utils';
 
 // Import components
 import {
@@ -144,6 +150,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const MAX_BLE_RETRIES = 3;
   const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds for connection
   const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds for data reading
+  
+  // Optimized energy reading mode - when true, only reads 4 characteristics instead of all 22+
+  // This is significantly faster for the attendant workflow where we only need energy data
+  const USE_OPTIMIZED_ENERGY_READING = true;
   
   // Device freshness configuration
   // Devices not seen within this time window are considered stale and removed
@@ -1279,13 +1289,133 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         }, BLE_DATA_READ_TIMEOUT);
         
         // Request DTA service to read energy data
-        console.info("Requesting DTA service data for energy calculation...");
-        initServiceBleData(
-          { serviceName: "DTA", macAddress },
-          () => {
-            console.info("DTA service data requested for:", macAddress);
-          }
-        );
+        // OPTIMIZED MODE: Read only 4 energy-related characteristics instead of all 22+
+        // LEGACY MODE: Read all DTA service characteristics
+        if (USE_OPTIMIZED_ENERGY_READING) {
+          console.info("[OPTIMIZED] Reading only energy characteristics (rcap, pckv, fccp, rsoc)...");
+          
+          readEnergyCharacteristics(
+            macAddress,
+            (energyData, error) => {
+              // Clear data reading timeout
+              if (bleOperationTimeoutRef.current) {
+                clearTimeout(bleOperationTimeoutRef.current);
+                bleOperationTimeoutRef.current = null;
+              }
+              
+              if (error || !energyData) {
+                console.error("[OPTIMIZED] Failed to read energy characteristics:", error);
+                toast.error('Could not read battery energy. Please try again.');
+                
+                setBleScanState(prev => ({
+                  ...prev,
+                  isReadingEnergy: false,
+                  error: 'Failed to read energy data',
+                }));
+                setIsScanning(false);
+                scanTypeRef.current = null;
+                pendingBatteryQrCodeRef.current = null;
+                pendingBatteryScanTypeRef.current = null;
+                
+                // Disconnect
+                if (window.WebViewJavascriptBridge) {
+                  window.WebViewJavascriptBridge.callHandler("disconnectBle", macAddress, () => {});
+                }
+                return;
+              }
+              
+              const { energy, chargePercent } = energyData;
+              const scannedBatteryId = pendingBatteryQrCodeRef.current;
+              const scanType = pendingBatteryScanTypeRef.current;
+              
+              console.info(`[OPTIMIZED] Battery energy read: ${energy} Wh (${(energy / 1000).toFixed(3)} kWh) at ${chargePercent}% for ${scanType}`);
+              
+              // Disconnect from BLE device
+              if (window.WebViewJavascriptBridge) {
+                window.WebViewJavascriptBridge.callHandler("disconnectBle", macAddress, () => {});
+              }
+              
+              // Reset BLE state
+              setBleScanState(prev => ({
+                ...prev,
+                isReadingEnergy: false,
+                connectedDevice: null,
+              }));
+              
+              if (scannedBatteryId) {
+                if (scanType === 'old_battery') {
+                  const oldBattery: BatteryData = {
+                    id: scannedBatteryId,
+                    shortId: String(scannedBatteryId).slice(-6),
+                    chargeLevel: chargePercent,
+                    energy: energy,
+                    macAddress: macAddress,
+                  };
+                  
+                  setSwapData(prev => ({ ...prev, oldBattery }));
+                  advanceToStep(3);
+                  toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
+                } else if (scanType === 'new_battery') {
+                  const newBattery: BatteryData = {
+                    id: scannedBatteryId,
+                    shortId: String(scannedBatteryId).slice(-6),
+                    chargeLevel: chargePercent,
+                    energy: energy,
+                    macAddress: macAddress,
+                  };
+                  
+                  setSwapData(prev => {
+                    const oldEnergy = prev.oldBattery?.energy || 0;
+                    const energyDiffWh = energy - oldEnergy;
+                    const energyDiffKwh = energyDiffWh / 1000;
+                    const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
+                    const cost = Math.round(energyDiffKwh * rate * 100) / 100;
+                    
+                    console.info('[OPTIMIZED] Energy differential calculated:', {
+                      oldEnergyWh: oldEnergy,
+                      newEnergyWh: energy,
+                      energyDiffKwh,
+                      ratePerKwh: rate,
+                      cost,
+                    });
+                    
+                    return {
+                      ...prev,
+                      newBattery,
+                      energyDiff: Math.round(energyDiffKwh * 1000) / 1000,
+                      cost: cost > 0 ? cost : 0,
+                    };
+                  });
+                  
+                  advanceToStep(4);
+                  toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
+                }
+              }
+              
+              // Clear pending state
+              setIsScanning(false);
+              scanTypeRef.current = null;
+              pendingBatteryQrCodeRef.current = null;
+              pendingBatteryScanTypeRef.current = null;
+            },
+            (progress) => {
+              // Progress callback
+              setBleScanState(prev => ({
+                ...prev,
+                connectionProgress: progress,
+              }));
+            }
+          );
+        } else {
+          // LEGACY MODE: Read all DTA service characteristics (22+ attributes)
+          console.info("[LEGACY] Requesting all DTA service data for energy calculation...");
+          initServiceBleData(
+            { serviceName: "DTA", macAddress },
+            () => {
+              console.info("[LEGACY] DTA service data requested for:", macAddress);
+            }
+          );
+        }
         
         resp(macAddress);
       }
