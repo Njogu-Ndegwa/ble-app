@@ -5,6 +5,7 @@ import { AttendantStep, STEP_CONFIGS, FlowError } from './types';
 
 interface TimelineProps {
   currentStep: AttendantStep;
+  maxStepReached?: AttendantStep; // The furthest step the user has reached
   onStepClick?: (step: AttendantStep) => void;
   flowError?: FlowError | null;
 }
@@ -57,7 +58,7 @@ const StepIcons = {
   ),
 };
 
-export default function Timeline({ currentStep, onStepClick, flowError }: TimelineProps) {
+export default function Timeline({ currentStep, maxStepReached = currentStep, onStepClick, flowError }: TimelineProps) {
   const getStepClass = (step: number): string => {
     // If there's a flow error at this step, show it as failed
     if (flowError && flowError.step === step) {
@@ -66,24 +67,29 @@ export default function Timeline({ currentStep, onStepClick, flowError }: Timeli
     if (step === currentStep) {
       return step === 6 ? 'success' : 'active';
     }
+    // Steps before current are completed
     if (step < currentStep) return 'completed';
+    // Steps after current but within maxStepReached are "reachable" (can navigate back to them)
+    if (step <= maxStepReached) return 'reachable';
     return 'disabled';
   };
 
   const handleStepClick = (step: number) => {
-    // Only allow clicking on completed steps (but not failed steps or steps after failure)
-    if (step < currentStep && !flowError && onStepClick) {
+    // Allow clicking on any step up to maxStepReached (not just completed steps)
+    // This allows users to go back and forth without losing progress
+    if (step <= maxStepReached && step !== currentStep && !flowError && onStepClick) {
       onStepClick(step as AttendantStep);
     }
   };
 
-  // Determine if we should show connector as failed
+  // Determine if we should show connector as failed or completed
   const getConnectorClass = (stepNum: number): string => {
     // If there's a flow error, connectors after the error step stay uncolored
     if (flowError && stepNum >= flowError.step) {
       return flowError.step === stepNum ? 'failed' : '';
     }
-    return stepNum < currentStep ? 'completed' : '';
+    // Show connector as completed if the step after it is within maxStepReached
+    return stepNum < maxStepReached ? 'completed' : '';
   };
 
   return (
