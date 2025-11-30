@@ -79,7 +79,8 @@ export default function ActionBar({ currentStep, onBack, onMainAction, isLoading
   const config = getStepConfig(currentStep, inputMode);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
-  const hideMainButton = currentStep === 1 && inputMode === 'manual';
+  // Don't show for step 5 either - Step5Payment has its own action buttons for both scan and manual modes
+  const hideMainButton = (currentStep === 1 && inputMode === 'manual') || currentStep === 5;
 
   return (
     <div className="action-bar">

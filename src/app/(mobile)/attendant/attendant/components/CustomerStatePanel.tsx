@@ -77,22 +77,18 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
               <div className="state-customer-name">{customer.name}</div>
               <div className="state-plan-row">
                 <span className="state-plan-name">{customer.subscriptionType}</span>
-                {customer.serviceState && (
-                  <span className={`state-badge-group service`}>
-                    <span className="state-badge-label">Service</span>
+                <div className="state-badges">
+                  {customer.serviceState && (
                     <span className={`state-badge ${serviceConfig.className}`}>
                       {serviceConfig.shortLabel}
                     </span>
-                  </span>
-                )}
-                {customer.paymentState && (
-                  <span className={`state-badge-group payment`}>
-                    <span className="state-badge-label">Payment</span>
+                  )}
+                  {customer.paymentState && (
                     <span className={`state-badge ${paymentConfig.className}`}>
                       {paymentConfig.shortLabel}
                     </span>
-                  </span>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>
