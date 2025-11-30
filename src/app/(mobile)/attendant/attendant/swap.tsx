@@ -3015,61 +3015,54 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                   <span className="font-medium">{t("Customer Identified")}</span>
                 </div>
                 {customerData && (
-                  <div className="bg-gray-600 rounded-lg p-4 space-y-3">
-                    <p className="text-sm text-gray-300">
-                      <span className="font-medium text-white">
-                        {t("Customer ID")}:
-                      </span>{" "}
-                      {formatDisplayValue(customerData.customer_id)}
-                    </p>
+                  <div className="bg-gray-600 rounded-lg p-4 space-y-2">
+                    {/* Row 1: Customer Name */}
                     <p className="text-sm text-gray-300">
                       <span className="font-medium text-white">{t("Name")}:</span>{" "}
                       {formatDisplayValue(
                         customerData.name || customerData.product_name
                       )}
+                      <span className="text-gray-400 ml-2 text-xs">
+                        ({formatDisplayValue(customerData.customer_id)})
+                      </span>
                     </p>
                     
-                    {/* Payment State */}
-                    {paymentState && (
-                      <div className="pt-2 border-t border-gray-500">
-                        <p className="text-sm text-gray-300">
-                          <span className="font-medium text-white">{t("Payment State")}:</span>{" "}
-                          <span className={`font-semibold ${
-                            paymentState === "CURRENT" ? "text-green-400" :
-                            paymentState === "OVERDUE" ? "text-red-400" :
-                            "text-yellow-400"
-                          }`}>
-                            {paymentState}
-                          </span>
-                    </p>
-                  </div>
-                    )}
-                    
-                    {/* Service Plan Status and Service State */}
-                    {(servicePlanStatus || serviceState) && (
-                      <div className="pt-2 border-t border-gray-500">
-                        {servicePlanStatus && (
-                          <p className="text-sm text-gray-300 mb-1">
-                            <span className="font-medium text-white">{t("Status")}:</span>{" "}
-                            <span className={`font-semibold ${
-                              servicePlanStatus === "ACTIVE" ? "text-green-400" :
-                              servicePlanStatus === "INACTIVE" ? "text-red-400" :
-                              "text-yellow-400"
-                            }`}>
-                              {servicePlanStatus}
-                            </span>
-                          </p>
-                        )}
-                        {serviceState && (
-                          <p className="text-sm text-gray-300">
-                            <span className="font-medium text-white">{t("Service State")}:</span>{" "}
-                            <span className="font-semibold text-blue-400">
-                              {serviceState}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    {/* Row 2: Plan + Status Badges */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Plan identifier */}
+                      {(servicePlanIdentifier || dynamicPlanId) && (
+                        <span className="text-xs text-gray-300 bg-gray-700 px-2 py-1 rounded">
+                          {servicePlanIdentifier || dynamicPlanId}
+                        </span>
+                      )}
+                      
+                      {/* Status badges */}
+                      {servicePlanStatus && (
+                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                          servicePlanStatus === "ACTIVE" ? "bg-green-900/50 text-green-400 border border-green-700" :
+                          servicePlanStatus === "INACTIVE" ? "bg-red-900/50 text-red-400 border border-red-700" :
+                          "bg-yellow-900/50 text-yellow-400 border border-yellow-700"
+                        }`}>
+                          {servicePlanStatus}
+                        </span>
+                      )}
+                      
+                      {paymentState && (
+                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                          paymentState === "CURRENT" ? "bg-green-900/50 text-green-400 border border-green-700" :
+                          paymentState === "OVERDUE" ? "bg-red-900/50 text-red-400 border border-red-700" :
+                          "bg-yellow-900/50 text-yellow-400 border border-yellow-700"
+                        }`}>
+                          {paymentState}
+                        </span>
+                      )}
+                      
+                      {serviceState && (
+                        <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-900/50 text-blue-400 border border-blue-700">
+                          {serviceState}
+                        </span>
+                      )}
+                    </div>
                     
                     {/* Service States */}
                     {serviceStates && serviceStates.length > 0 && (
