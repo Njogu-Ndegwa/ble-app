@@ -72,6 +72,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   
   // Step management
   const [currentStep, setCurrentStep] = useState<AttendantStep>(1);
+  // Track the furthest step reached to allow navigation back and forth without losing state
+  const [maxStepReached, setMaxStepReached] = useState<AttendantStep>(1);
+
+  // Helper to advance to a new step - updates maxStepReached if moving forward
+  const advanceToStep = useCallback((step: AttendantStep) => {
+    setCurrentStep(step);
+    setMaxStepReached(prev => Math.max(prev, step) as AttendantStep);
+  }, []);
   
   // Input mode for step 1
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
@@ -610,7 +618,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     currentBatteryId: batteryFleet?.current_asset || undefined,
                   });
                   
-                  setCurrentStep(2);
+                  advanceToStep(2);
                   toast.success(isIdempotent ? 'Customer identified (cached)' : 'Customer identified');
                 } else {
                   toast.error("Invalid customer data received");
@@ -1113,7 +1121,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 };
                 
                 setSwapData(prev => ({ ...prev, oldBattery }));
-                setCurrentStep(3);
+                advanceToStep(3);
                 toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
               } else if (scanType === 'new_battery') {
                 // Create new battery data and calculate differential
@@ -1154,7 +1162,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   };
                 });
                 
-                setCurrentStep(4);
+                advanceToStep(4);
                 toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
               }
             } else {
@@ -1488,7 +1496,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     currentBatteryId: batteryFleet?.current_asset || undefined,
                   });
                   
-                  setCurrentStep(2);
+                  advanceToStep(2);
                   toast.success(isIdempotent ? 'Customer found (cached)' : 'Customer found');
                   setIsProcessing(false);
                 } else {
@@ -1693,8 +1701,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
   // Step 4: Proceed to payment
   const handleProceedToPayment = useCallback(() => {
-    setCurrentStep(5);
-  }, []);
+    advanceToStep(5);
+  }, [advanceToStep]);
 
   // Step 5: Confirm Payment via HTTP
   const handleConfirmPayment = useCallback(async () => {
@@ -1938,7 +1946,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
-                setCurrentStep(6);
+                advanceToStep(6);
                 toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
               } else if (success) {
                 // Success without specific signal - still treat as success
@@ -1948,7 +1956,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
-                setCurrentStep(6);
+                advanceToStep(6);
                 toast.success('Swap completed!');
               } else {
                 // Response received but not successful
@@ -2002,7 +2010,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   console.info("No response received for payment_and_service, assuming success (fire-and-forget)");
                   clearTimeout(timeoutId);
                   setPaymentAndServiceStatus('success');
-                  setCurrentStep(6);
+                  advanceToStep(6);
                   toast.success('Swap completed!');
                   setIsScanning(false);
                   setIsProcessing(false);
@@ -2035,6 +2043,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
     setCurrentStep(1);
+    setMaxStepReached(1); // Reset max step when starting fresh
     setCustomerData(null);
     setSwapData({
       oldBattery: null,
@@ -2101,12 +2110,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [onBack, router]);
 
-  // Handle timeline step click (go back to previous steps)
+  // Handle timeline step click - allow navigation to any step up to maxStepReached
+  // This lets users go back to check something and return without losing progress
   const handleTimelineClick = useCallback((step: AttendantStep) => {
-    if (step < currentStep) {
+    if (step <= maxStepReached && step !== currentStep) {
       setCurrentStep(step);
     }
-  }, [currentStep]);
+  }, [currentStep, maxStepReached]);
 
   // Get main action based on current step
   const handleMainAction = useCallback(() => {
@@ -2217,6 +2227,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       {/* Interactive Timeline */}
       <Timeline 
         currentStep={currentStep} 
+        maxStepReached={maxStepReached}
         onStepClick={handleTimelineClick}
         flowError={flowError}
       />
