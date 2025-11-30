@@ -77,31 +77,36 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
               <div className="state-customer-name">{customer.name}</div>
               <div className="state-plan-row">
                 <span className="state-plan-name">{customer.subscriptionType}</span>
-                <div className="state-badges">
-                  {customer.serviceState && (
-                    <span className={`state-badge ${serviceConfig.className}`}>
-                      {serviceConfig.shortLabel}
-                    </span>
-                  )}
-                  {customer.paymentState && (
-                    <span className={`state-badge ${paymentConfig.className}`}>
-                      {paymentConfig.shortLabel}
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
           </div>
           
-          {/* Current Battery */}
-          {customer.currentBatteryId && (
-            <div className="state-battery">
-              <div className="state-battery-icon">
-                <div className="state-battery-fill" style={{ '--level': '100%' } as React.CSSProperties}></div>
-              </div>
-              <span className="state-battery-id">{customer.currentBatteryId}</span>
+          {/* Right side: States + Battery */}
+          <div className="state-right-section">
+            {/* State Badges */}
+            <div className="state-badges-vertical">
+              {customer.paymentState && (
+                <span className={`state-badge ${paymentConfig.className}`}>
+                  {paymentConfig.shortLabel}
+                </span>
+              )}
+              {customer.serviceState && (
+                <span className={`state-badge ${serviceConfig.className}`}>
+                  {serviceConfig.shortLabel}
+                </span>
+              )}
             </div>
-          )}
+            
+            {/* Current Battery */}
+            {customer.currentBatteryId && (
+              <div className="state-battery">
+                <div className="state-battery-icon">
+                  <div className="state-battery-fill" style={{ '--level': '100%' } as React.CSSProperties}></div>
+                </div>
+                <span className="state-battery-id">{customer.currentBatteryId}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

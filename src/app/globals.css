@@ -2620,6 +2620,23 @@ html.theme-transition *::after {
   flex-shrink: 0;
 }
 
+/* Right section container - groups badges and battery on right */
+.state-right-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Horizontal badges for right side layout */
+.state-badges-vertical {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
 /* State badge groups - contains label + badge (legacy) */
 .state-badge-group {
   display: inline-flex;
@@ -2910,6 +2927,14 @@ html.theme-transition *::after {
   
   .state-plan-row {
     font-size: 9px;
+  }
+  
+  .state-right-section {
+    gap: 6px;
+  }
+  
+  .state-badges-vertical {
+    gap: 3px;
   }
   
   .state-quotas {
