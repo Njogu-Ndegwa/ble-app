@@ -2180,7 +2180,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       case 5:
         return (
           <Step5Payment 
-            swapData={swapData} 
+            swapData={swapData}
+            customerData={customerData}
             onConfirmPayment={handleConfirmPayment}
             onManualPayment={handleManualPayment}
             isProcessing={isProcessing || paymentAndServiceStatus === 'pending'}
@@ -2220,10 +2221,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         flowError={flowError}
       />
 
-      {/* Customer State Panel - Shows after customer identified */}
+      {/* Customer State Panel - Shows after customer identified, hidden on payment/success steps */}
       <CustomerStatePanel 
         customer={customerData} 
-        visible={currentStep > 1}
+        visible={currentStep > 1 && currentStep < 5}
       />
 
       {/* Main Content */}

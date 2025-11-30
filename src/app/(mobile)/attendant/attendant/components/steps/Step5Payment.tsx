@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SwapData } from '../types';
+import { SwapData, CustomerData, getInitials } from '../types';
 
 interface Step5Props {
   swapData: SwapData;
+  customerData?: CustomerData | null;
   onConfirmPayment: () => void;
   onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
 }
 
-export default function Step5Payment({ swapData, onConfirmPayment, onManualPayment, isProcessing }: Step5Props) {
+export default function Step5Payment({ swapData, customerData, onConfirmPayment, onManualPayment, isProcessing }: Step5Props) {
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
 
@@ -29,12 +30,15 @@ export default function Step5Payment({ swapData, onConfirmPayment, onManualPayme
 
   return (
     <div className="screen active">
-      {/* Amount to Collect */}
-      <div className="cost-card" style={{ marginBottom: '8px' }}>
-        <div className="cost-total" style={{ marginTop: 0 }}>
-          <span className="cost-total-label">Amount to Collect</span>
-          <span className="cost-total-value">KES {swapData.cost}</span>
-        </div>
+      {/* Compact Customer + Amount Header */}
+      <div className="payment-header-compact">
+        {customerData && (
+          <div className="payment-customer-mini">
+            <div className="payment-customer-avatar">{getInitials(customerData.name)}</div>
+            <span className="payment-customer-name">{customerData.name}</span>
+          </div>
+        )}
+        <div className="payment-amount-large">KES {swapData.cost}</div>
       </div>
 
       <div className="payment-scan">
@@ -81,13 +85,10 @@ export default function Step5Payment({ swapData, onConfirmPayment, onManualPayme
               </div>
             </div>
             
-            <div className="payment-amount">KES {swapData.cost.toFixed(2)}</div>
             <div className="payment-status">Tap to scan customer QR</div>
           </div>
         ) : (
-          <div className="payment-input-mode">
-            <p className="payment-subtitle">Enter payment transaction ID</p>
-            
+          <div className="payment-input-mode payment-input-mode-manual">
             <div className="manual-entry-form">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Payment / Transaction ID</label>
@@ -114,8 +115,7 @@ export default function Step5Payment({ swapData, onConfirmPayment, onManualPayme
               </button>
             </div>
             
-            <div className="payment-amount" style={{ marginTop: '8px' }}>KES {swapData.cost.toFixed(2)}</div>
-            <p className="scan-hint" style={{ marginTop: '4px' }}>
+            <p className="scan-hint" style={{ marginTop: '8px' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
