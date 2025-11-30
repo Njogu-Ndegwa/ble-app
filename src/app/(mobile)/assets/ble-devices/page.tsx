@@ -459,14 +459,11 @@ const AppContainer = () => {
   console.error(detectedDevices, "Detected Devices-----468");
 
   const startQrCodeScan = () => {
-    console.info("Start QR Code Scan");
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler(
         "startQrCodeScan",
         999,
-        (responseData) => {
-          console.info(responseData);
-        }
+        () => {}
       );
     }
   };
@@ -485,7 +482,6 @@ const AppContainer = () => {
     initServiceBleData(data);
   };
 
-  console.info(isMqttConnected, "Is Mqtt Connected");
   useEffect(() => {
     if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false); // Connection process complete
@@ -657,7 +653,7 @@ const AppContainer = () => {
       },
     };
 
-    console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
+    console.info(`[BLE Device] Individual Service Data - ${serviceType}:`, dataToPublish);
     // toast(`Preparing to publish ${serviceType} data`, {
     //   duration: 2000, // Show for 2 seconds
     // });
@@ -666,10 +662,7 @@ const AppContainer = () => {
       window.WebViewJavascriptBridge.callHandler(
         "mqttPublishMsg",
         JSON.stringify(dataToPublish),
-        (response) => {
-          console.info(`MQTT Response for ${serviceType}:`, response);
-          // toast.success(t('{service} data published successfully', { service: serviceType }));
-        }
+        () => {}
       );
     } catch (error) {
       console.error(`Error publishing ${serviceType} data:`, error);
@@ -750,7 +743,27 @@ const AppContainer = () => {
       }, index * 500); // 500ms delay between each publish
     });
 
-    console.info("Publishing services:", availableServices);
+    // Build combined device details object for logging
+    const allDeviceDetails: { [key: string]: any } = {};
+    availableServices.forEach((serviceType) => {
+      const serviceNameEnum = `${serviceType}_SERVICE`;
+      const service = attributeList.find(
+        (s: any) => s.serviceNameEnum === serviceNameEnum
+      );
+      if (service) {
+        allDeviceDetails[serviceType] = service.characteristicList.reduce(
+          (acc: any, char: any) => {
+            if (char.realVal !== null && char.realVal !== undefined) {
+              acc[char.name] = char.realVal;
+            }
+            return acc;
+          },
+          {}
+        );
+      }
+    });
+
+    console.info("[BLE Device] All Device Details Combined:", allDeviceDetails);
   };
 
   const bleLoadingSteps = [
