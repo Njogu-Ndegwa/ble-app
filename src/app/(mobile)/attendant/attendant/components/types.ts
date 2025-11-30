@@ -43,6 +43,7 @@ export interface BleDevice {
   name: string;
   rssi: string;
   rawRssi: number;
+  lastSeen?: number; // Timestamp of when device was last detected (for freshness check)
 }
 
 // BLE scan state for battery binding
