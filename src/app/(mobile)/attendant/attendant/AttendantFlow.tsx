@@ -134,6 +134,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     detectedDevices: [],
     connectionProgress: 0,
     error: null,
+    connectionFailed: false,
   });
   
   // BLE operation timeout ref - for cancelling stuck operations
@@ -151,6 +152,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const detectedBleDevicesRef = useRef<BleDevice[]>([]);
   const pendingBatteryQrCodeRef = useRef<string | null>(null);
   const pendingBatteryScanTypeRef = useRef<'old_battery' | 'new_battery' | null>(null);
+  const pendingConnectionMacRef = useRef<string | null>(null); // MAC address we're attempting to connect to
   
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
@@ -204,7 +206,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, []);
 
-  // Cancel ongoing BLE operation - allows user to escape stuck states
+  // Cancel/Close ongoing BLE operation - allows user to dismiss failure state and try again
   // NOTE: Cancellation is blocked when already connected and reading data to prevent orphaned connections
   const cancelBleOperation = useCallback(() => {
     // SAFETY CHECK: Don't allow cancellation if we've successfully connected
@@ -215,7 +217,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return;
     }
     
-    console.info('=== Cancelling BLE operation ===');
+    console.info('=== Closing/Cancelling BLE operation ===');
     
     // Clear all timeouts
     clearBleOperationTimeout();
@@ -242,6 +244,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       detectedDevices: [],
       connectionProgress: 0,
       error: null,
+      connectionFailed: false,
     });
     
     // Reset scan state
@@ -249,10 +252,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     scanTypeRef.current = null;
     pendingBatteryQrCodeRef.current = null;
     pendingBatteryScanTypeRef.current = null;
+    pendingConnectionMacRef.current = null;
     bleRetryCountRef.current = 0;
     isConnectionSuccessfulRef.current = false;
-    
-    toast('BLE operation cancelled', { icon: '⚠️' });
   }, [clearBleOperationTimeout, clearScanTimeout]);
 
   // Get electricity service from service states
@@ -337,87 +339,28 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     clearBleOperationTimeout();
     
     // Reset connection success flag - this will be set to true in bleConnectSuccessCallBack
-    // We check this flag before retrying to avoid retrying when already connected
     isConnectionSuccessfulRef.current = false;
+    
+    // Reset retry count when starting a fresh connection
+    bleRetryCountRef.current = 0;
+    
+    // Store the MAC address we're trying to connect to (for retry logic in failure callback)
+    pendingConnectionMacRef.current = macAddress;
     
     setBleScanState(prev => ({
       ...prev,
       isConnecting: true,
       connectionProgress: 0,
       error: null,
+      connectionFailed: false,
     }));
 
-    // Set timeout for connection - if no response within timeout, allow retry or cancel
-    bleOperationTimeoutRef.current = setTimeout(() => {
-      // CRITICAL: Check if connection was already successful
-      // This can happen when we've connected but are still waiting for DTA service initialization
-      // In this case, we should NOT retry as we're already connected
-      if (isConnectionSuccessfulRef.current) {
-        console.info('Connection timeout fired but connection was already successful - skipping retry (likely waiting for DTA service)');
-        return;
-      }
-      
-      console.warn('BLE connection timed out after', BLE_CONNECTION_TIMEOUT, 'ms');
-      
-      // Check if we should retry
-      if (bleRetryCountRef.current < MAX_BLE_RETRIES) {
-        bleRetryCountRef.current += 1;
-        console.info(`Retrying BLE connection (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
-        
-        // Show retry progress to user
-        setBleScanState(prev => ({
-          ...prev,
-          connectionProgress: 0,
-          error: `Connection attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES}...`,
-        }));
-        
-        // Retry connection with exponential backoff
-        setTimeout(() => {
-          // Double-check we haven't connected in the meantime
-          if (isConnectionSuccessfulRef.current) {
-            console.info('Connection succeeded during backoff delay - cancelling retry');
-            return;
-          }
-          
-          connBleByMacAddress(macAddress, (responseData: string) => {
-            console.info('BLE connection retry initiated:', responseData);
-          });
-          
-          // Set new timeout for retry
-          bleOperationTimeoutRef.current = setTimeout(() => {
-            // Again check if we connected successfully
-            if (isConnectionSuccessfulRef.current) {
-              console.info('Connection succeeded - skipping further retry timeout handling');
-              return;
-            }
-            
-            if (bleRetryCountRef.current >= MAX_BLE_RETRIES) {
-              console.error('BLE connection failed after all retries');
-              setBleScanState(prev => ({
-                ...prev,
-                isConnecting: false,
-                error: 'Connection timed out. Please try again.',
-              }));
-              toast.error('Connection timed out. Please try again or check if the battery is nearby.');
-            }
-          }, BLE_CONNECTION_TIMEOUT);
-        }, 1000 * bleRetryCountRef.current); // Exponential backoff
-      } else {
-        // All retries exhausted
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          error: 'Connection failed after multiple attempts',
-        }));
-        toast.error('Unable to connect to battery. Please ensure it is powered on and nearby.');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        bleRetryCountRef.current = 0;
-        isConnectionSuccessfulRef.current = false;
-      }
-    }, BLE_CONNECTION_TIMEOUT);
+    // NOTE: We intentionally do NOT set a timeout for retries here.
+    // Retries should ONLY happen when we receive an actual failure callback
+    // from bleConnectFailCallBack. This prevents retrying during normal
+    // connection + initialization time which can take longer than expected.
+    // The bleConnectFailCallBack and bleConnectSuccessCallBack will handle
+    // all connection state updates.
 
     connBleByMacAddress(macAddress, (responseData: string) => {
       console.info('BLE connection initiated:', responseData);
@@ -1169,16 +1112,17 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         
         // CRITICAL: Mark connection as successful FIRST
-        // This prevents the connection timeout from triggering a retry
+        // This prevents the failure callback from triggering a retry
         // when we're already connected and waiting for DTA service data
         isConnectionSuccessfulRef.current = true;
         
-        // Clear connection timeout since we connected successfully
+        // Clear any pending timeout since we connected successfully
         if (bleOperationTimeoutRef.current) {
           clearTimeout(bleOperationTimeoutRef.current);
           bleOperationTimeoutRef.current = null;
         }
         bleRetryCountRef.current = 0; // Reset retry count
+        pendingConnectionMacRef.current = null; // Clear pending MAC since we're now connected
         
         setBleScanState(prev => ({
           ...prev,
@@ -1187,6 +1131,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           connectedDevice: macAddress,
           connectionProgress: 100,
           error: null,
+          connectionFailed: false, // Explicitly mark as not failed
         }));
         
         // Set timeout for data reading phase
@@ -1225,13 +1170,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
 
-    // BLE connection failure callback
+    // BLE connection failure callback - ONLY place where retries should happen
+    // This is triggered when the native BLE code explicitly reports a connection failure
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
         console.error("BLE connection failed:", data);
         
-        // Clear timeout since we got a response (even if failure)
+        // Clear any existing timeout since we got an explicit response
         if (bleOperationTimeoutRef.current) {
           clearTimeout(bleOperationTimeoutRef.current);
           bleOperationTimeoutRef.current = null;
@@ -1244,8 +1190,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           return;
         }
         
-        // Check if we should auto-retry
-        if (bleRetryCountRef.current < MAX_BLE_RETRIES) {
+        // Get the MAC address we were trying to connect to from our ref
+        const pendingMac = pendingConnectionMacRef.current;
+        
+        // Check if we should auto-retry (only on explicit failure callback)
+        if (bleRetryCountRef.current < MAX_BLE_RETRIES && pendingMac) {
           bleRetryCountRef.current += 1;
           console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
           
@@ -1253,39 +1202,38 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             ...prev,
             connectionProgress: 10,
             error: `Retrying connection (${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`,
+            connectionFailed: false, // Not yet failed, still retrying
           }));
           
-          // Try to reconnect after a short delay
-          const pendingMac = sessionStorage.getItem("connectedDeviceMac") || 
-            bleScanState.connectedDevice;
-          
-          if (pendingMac) {
-            setTimeout(() => {
-              // Double-check we haven't connected successfully in the meantime
-              if (isConnectionSuccessfulRef.current) {
-                console.info("Connection succeeded during retry delay - cancelling retry from failure handler");
-                return;
-              }
-              connBleByMacAddress(pendingMac, () => {
-                console.info("BLE retry connection initiated");
-              });
-            }, 1000 * bleRetryCountRef.current);
-          }
+          // Retry connection with exponential backoff delay
+          setTimeout(() => {
+            // Double-check we haven't connected successfully in the meantime
+            if (isConnectionSuccessfulRef.current) {
+              console.info("Connection succeeded during retry delay - cancelling retry from failure handler");
+              return;
+            }
+            connBleByMacAddress(pendingMac, () => {
+              console.info("BLE retry connection initiated");
+            });
+          }, 1000 * bleRetryCountRef.current); // Exponential backoff
           
           resp(data);
           return;
         }
         
-        // All retries failed
+        // All retries exhausted - mark as definitively failed
+        console.error("BLE connection failed after all retries or no MAC address available");
         bleRetryCountRef.current = 0;
         isConnectionSuccessfulRef.current = false;
+        pendingConnectionMacRef.current = null;
         
         setBleScanState(prev => ({
           ...prev,
           isConnecting: false,
           isReadingEnergy: false,
           connectionProgress: 0,
-          error: 'Connection failed',
+          error: 'Connection failed. Please try again.',
+          connectionFailed: true, // Mark as definitively failed
         }));
         
         toast.error('Battery connection failed. Please try again.');
@@ -2336,10 +2284,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       detectedDevices: [],
       connectionProgress: 0,
       error: null,
+      connectionFailed: false,
     });
     detectedBleDevicesRef.current = [];
     pendingBatteryQrCodeRef.current = null;
     pendingBatteryScanTypeRef.current = null;
+    pendingConnectionMacRef.current = null;
   }, [cancelOngoingScan]);
 
   // Go back one step
@@ -2532,8 +2482,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         </div>
       )}
 
-      {/* BLE Connection Progress Overlay - Shows when connecting to a specific scanned battery */}
-      {(bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
+      {/* BLE Connection Progress Overlay - Shows when connecting, reading energy, or when connection failed */}
+      {(bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed) && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
           <div className="w-full max-w-md px-4">
             <div className="ble-progress-container">
@@ -2607,23 +2557,26 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 </div>
               </div>
 
-              {/* Cancel Button - Allows users to exit stuck states */}
-              {/* Disabled when connected and reading energy to prevent orphaned connections */}
-              <button
-                onClick={cancelBleOperation}
-                className="ble-cancel-button"
-                disabled={bleScanState.isReadingEnergy}
-                title={bleScanState.isReadingEnergy ? "Please wait while reading battery data..." : "Cancel connection"}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-                {bleScanState.isReadingEnergy ? 'Please wait...' : 'Cancel'}
-              </button>
+              {/* Cancel Button - Only shown when connection has definitively failed */}
+              {/* This prevents users from cancelling during normal connection/initialization which can take time */}
+              {bleScanState.connectionFailed && (
+                <button
+                  onClick={cancelBleOperation}
+                  className="ble-cancel-button"
+                  title="Close and try again"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                  Close
+                </button>
+              )}
               
-              {/* Help Text */}
+              {/* Help Text - Show different message based on failure state */}
               <p className="ble-progress-help">
-                Having trouble? Make sure the battery is powered on and within 2 meters.
+                {bleScanState.connectionFailed 
+                  ? 'Connection failed. Please ensure the battery is powered on and nearby, then try again.'
+                  : 'Please wait while connecting. Make sure the battery is powered on and within 2 meters.'}
               </p>
             </div>
           </div>

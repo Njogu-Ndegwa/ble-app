@@ -54,6 +54,7 @@ export interface BleScanState {
   detectedDevices: BleDevice[];
   connectionProgress: number;
   error: string | null;
+  connectionFailed: boolean; // True when we receive an actual failure callback (not timeout)
 }
 
 export interface SwapData {
