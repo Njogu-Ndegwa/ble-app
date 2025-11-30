@@ -1768,6 +1768,65 @@ html.theme-transition *::after {
   color: var(--accent);
 }
 
+/* Compact Payment Header - Shows customer and amount when full panel is hidden */
+.payment-header-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+
+.payment-customer-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.payment-customer-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.payment-customer-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-amount-large {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* Manual entry mode optimizations for keyboard visibility */
+.payment-input-mode-manual {
+  padding-bottom: 0;
+}
+
+.payment-input-mode-manual .manual-entry-form {
+  margin-bottom: 0;
+}
+
 /* Payment Scan */
 .payment-scan {
   text-align: center;
