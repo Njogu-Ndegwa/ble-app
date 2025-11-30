@@ -474,7 +474,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       ...prev,
       isConnecting: true,
       connectionProgress: progressPercent,
-      error: retryAttempt > 0 ? `Searching... (attempt ${retryAttempt + 1}/${MAX_MATCH_RETRIES + 1})` : null,
+      error: null, // Silently retry without affecting user confidence
     }));
 
     // Find device where last 6 chars of name match
@@ -498,11 +498,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         const delay = RETRY_DELAYS[retryAttempt] || 5000;
         console.info(`Will retry in ${delay}ms...`);
         
-        // Update UI to show searching progress
+        // Update UI to show searching progress (silently retry without showing attempt count)
         setBleScanState(prev => ({
           ...prev,
           connectionProgress: progressPercent + 5,
-          error: `Searching for battery... (${retryAttempt + 1}/${MAX_MATCH_RETRIES + 1})`,
+          error: null, // Silently retry without affecting user confidence
         }));
         
         // Schedule retry with exponential backoff
@@ -1203,10 +1203,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           bleRetryCountRef.current += 1;
           console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
           
+          // Silently retry without showing retry count to user (to maintain user confidence)
           setBleScanState(prev => ({
             ...prev,
             connectionProgress: 10,
-            error: `Retrying connection (${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`,
+            error: null, // Silently retry without affecting user confidence
             connectionFailed: false, // Not yet failed, still retrying
           }));
           
