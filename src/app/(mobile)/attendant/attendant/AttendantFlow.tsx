@@ -154,6 +154,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const pendingBatteryScanTypeRef = useRef<'old_battery' | 'new_battery' | null>(null);
   const pendingConnectionMacRef = useRef<string | null>(null); // MAC address we're attempting to connect to
   
+  // DTA refresh retry state - for retrying when DTA values are missing/invalid
+  const dtaRefreshRetryCountRef = useRef<number>(0);
+  const MAX_DTA_REFRESH_RETRIES = 2; // Retry up to 2 times (total 3 attempts)
+  const DTA_REFRESH_DELAY = 1500; // 1.5 seconds delay between DTA refresh retries
+  
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
 
@@ -1294,23 +1299,23 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             const energyData = populateEnergyFromDtaRef.current(parsedData);
             const scannedBatteryId = pendingBatteryQrCodeRef.current;
             const scanType = pendingBatteryScanTypeRef.current;
+            const connectedMac = sessionStorage.getItem("connectedDeviceMac");
             
-            // Disconnect from BLE device
-            if (window.WebViewJavascriptBridge) {
-              const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-              if (connectedMac) {
+            // Helper function to disconnect and reset BLE state
+            const disconnectAndResetBleState = () => {
+              if (window.WebViewJavascriptBridge && connectedMac) {
                 window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {});
               }
-            }
-            
-            // Reset BLE state
-            setBleScanState(prev => ({
-              ...prev,
-              isReadingEnergy: false,
-              connectedDevice: null,
-            }));
+              setBleScanState(prev => ({
+                ...prev,
+                isReadingEnergy: false,
+                connectedDevice: null,
+              }));
+            };
             
             if (energyData !== null && scannedBatteryId) {
+              // Success - disconnect now
+              disconnectAndResetBleState();
               const { energy, chargePercent } = energyData;
               console.info(`Battery energy read: ${energy} Wh (${(energy / 1000).toFixed(3)} kWh) at ${chargePercent}% for ${scanType}`);
               
@@ -1370,16 +1375,92 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
               }
             } else {
-              console.warn("Could not extract energy from DTA data or missing battery ID");
-              toast.error('Could not read battery energy. Please try again.');
+              // DTA data received but energy values are missing/invalid
+              // Implement refresh mechanism similar to BLE Details Page
+              
+              if (!scannedBatteryId) {
+                // No battery ID - this is a different error, don't retry
+                console.warn("Missing battery ID - cannot proceed");
+                toast.error('Could not identify battery. Please try again.');
+                
+                // Disconnect and reset
+                disconnectAndResetBleState();
+                dtaRefreshRetryCountRef.current = 0;
+                setIsScanning(false);
+                scanTypeRef.current = null;
+                pendingBatteryQrCodeRef.current = null;
+                pendingBatteryScanTypeRef.current = null;
+                isConnectionSuccessfulRef.current = false;
+              } else if (dtaRefreshRetryCountRef.current < MAX_DTA_REFRESH_RETRIES && connectedMac) {
+                // Energy values missing but we have battery ID and connection
+                // Retry by refreshing DTA service (like the refresh button in BLE Details Page)
+                dtaRefreshRetryCountRef.current += 1;
+                console.info(
+                  `DTA data incomplete, refreshing DTA service (attempt ${dtaRefreshRetryCountRef.current}/${MAX_DTA_REFRESH_RETRIES})...`,
+                  { scannedBatteryId, connectedMac }
+                );
+                
+                // Show user feedback that we're retrying
+                toast.loading('Reading battery energy...', { id: 'dta-refresh' });
+                
+                // Keep reading state active - DON'T disconnect, we need to stay connected
+                setBleScanState(prev => ({
+                  ...prev,
+                  isReadingEnergy: true,
+                  connectionProgress: 50 + (dtaRefreshRetryCountRef.current * 15), // Progress feedback
+                }));
+                
+                // Delay before retry to allow device to stabilize
+                setTimeout(() => {
+                  console.info("Refreshing DTA service data...");
+                  initServiceBleData(
+                    { serviceName: "DTA", macAddress: connectedMac },
+                    () => {
+                      console.info("DTA service refresh requested for:", connectedMac);
+                    }
+                  );
+                }, DTA_REFRESH_DELAY);
+                
+                // Don't clear state - we're retrying
+                // Return early to prevent state cleanup below
+                resp(parsedData);
+                return;
+              } else {
+                // Exceeded retry limit or no connection - fail gracefully
+                console.warn(
+                  "Could not extract energy from DTA data after all retries",
+                  { retryCount: dtaRefreshRetryCountRef.current, maxRetries: MAX_DTA_REFRESH_RETRIES }
+                );
+                toast.dismiss('dta-refresh'); // Dismiss loading toast
+                toast.error('Could not read battery energy values. Please try again.');
+                
+                // Disconnect and reset
+                disconnectAndResetBleState();
+                dtaRefreshRetryCountRef.current = 0;
+                setBleScanState(prev => ({
+                  ...prev,
+                  error: 'Could not read energy values',
+                }));
+                setIsScanning(false);
+                scanTypeRef.current = null;
+                pendingBatteryQrCodeRef.current = null;
+                pendingBatteryScanTypeRef.current = null;
+                isConnectionSuccessfulRef.current = false;
+              }
             }
             
-            // Clear pending state - reset connection flag for next operation
-            setIsScanning(false);
-            scanTypeRef.current = null;
-            pendingBatteryQrCodeRef.current = null;
-            pendingBatteryScanTypeRef.current = null;
-            isConnectionSuccessfulRef.current = false;
+            // Success path - reset DTA retry count and clear pending state
+            if (energyData !== null && scannedBatteryId) {
+              dtaRefreshRetryCountRef.current = 0;
+              toast.dismiss('dta-refresh'); // Dismiss loading toast if any
+              
+              // Clear pending state - reset connection flag for next operation
+              setIsScanning(false);
+              scanTypeRef.current = null;
+              pendingBatteryQrCodeRef.current = null;
+              pendingBatteryScanTypeRef.current = null;
+              isConnectionSuccessfulRef.current = false;
+            }
           }
           
           resp(parsedData);
@@ -1390,6 +1471,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             isReadingEnergy: false,
             error: 'Failed to read energy data',
           }));
+          // Reset DTA retry count on error
+          dtaRefreshRetryCountRef.current = 0;
+          toast.dismiss('dta-refresh');
           setIsScanning(false);
           scanTypeRef.current = null;
           pendingBatteryQrCodeRef.current = null;
@@ -1411,6 +1495,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           isReadingEnergy: false,
           error: 'Failed to read energy data',
         }));
+        // Reset DTA retry count on failure
+        dtaRefreshRetryCountRef.current = 0;
+        toast.dismiss('dta-refresh');
         setIsScanning(false);
         scanTypeRef.current = null;
         pendingBatteryQrCodeRef.current = null;
