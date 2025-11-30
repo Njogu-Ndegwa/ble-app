@@ -616,7 +616,18 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   toast.error("Invalid customer data received");
                 }
               } else {
-                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Customer identification failed";
+                // Provide specific error messages based on failure signals
+                let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
+                if (!errorMsg) {
+                  // Check for specific failure signals to provide better error messages
+                  if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
+                    errorMsg = "Customer not found. Please check the subscription ID.";
+                  } else if (signals.includes("INVALID_QR_CODE")) {
+                    errorMsg = "Invalid QR code. Please scan a valid customer QR code.";
+                  } else {
+                    errorMsg = "Customer not found";
+                  }
+                }
                 toast.error(errorMsg);
               }
               setIsScanning(false);
@@ -1487,7 +1498,18 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 }
               } else {
                 console.error("Customer identification failed - success:", success, "signals:", signals);
-                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Customer not found";
+                // Provide specific error messages based on failure signals
+                let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
+                if (!errorMsg) {
+                  // Check for specific failure signals to provide better error messages
+                  if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
+                    errorMsg = "Customer not found. Please check the subscription ID.";
+                  } else if (signals.includes("INVALID_SUBSCRIPTION_ID")) {
+                    errorMsg = "Invalid subscription ID format.";
+                  } else {
+                    errorMsg = "Customer not found";
+                  }
+                }
                 toast.error(errorMsg);
                 setIsProcessing(false);
               }
