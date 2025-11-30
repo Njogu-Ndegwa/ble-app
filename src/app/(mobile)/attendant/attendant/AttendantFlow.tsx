@@ -1104,16 +1104,18 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
 
-    // BLE connection success callback
+    // BLE connection success callback - This fires when step 2 (BLE connection) succeeds
+    // FLOW: Scan → Connect (step 2) → Init/Read DTA data (step 3)
+    // Step 3 takes longer, so we must NOT allow retries during it
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
-        console.info("BLE connection successful:", macAddress);
+        console.info("BLE connection successful (step 2 complete):", macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         
-        // CRITICAL: Mark connection as successful FIRST
-        // This prevents the failure callback from triggering a retry
-        // when we're already connected and waiting for DTA service data
+        // CRITICAL: Mark connection as successful IMMEDIATELY before starting step 3
+        // This prevents bleConnectFailCallBack from triggering retries during step 3 (init/read)
+        // which can take a long time. Any failure callback after this point is ignored.
         isConnectionSuccessfulRef.current = true;
         
         // Clear any pending timeout since we connected successfully
@@ -1171,11 +1173,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     );
 
     // BLE connection failure callback - ONLY place where retries should happen
-    // This is triggered when the native BLE code explicitly reports a connection failure
+    // This fires when step 2 (BLE connection) explicitly fails
+    // IMPORTANT: We ONLY retry here on actual failure callbacks, NOT on timeouts
+    // FLOW: Scan → Connect (step 2) → Init/Read DTA data (step 3)
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
-        console.error("BLE connection failed:", data);
+        console.error("BLE connection failed (step 2):", data);
         
         // Clear any existing timeout since we got an explicit response
         if (bleOperationTimeoutRef.current) {
@@ -1183,9 +1187,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           bleOperationTimeoutRef.current = null;
         }
         
-        // If we've already marked connection as successful (e.g., race condition), don't retry
+        // CRITICAL: If step 2 already succeeded and we're now in step 3 (init/read),
+        // ignore this callback - it's likely a stale/delayed failure from an earlier attempt
         if (isConnectionSuccessfulRef.current) {
-          console.info("Connection failure callback received but connection was already successful - ignoring");
+          console.info("Connection failure callback received but step 2 already succeeded (now in step 3) - ignoring");
           resp(data);
           return;
         }
