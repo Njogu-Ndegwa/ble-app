@@ -85,12 +85,16 @@ export const disconnectBle = (macAddress, callback) => {
 
 // Timeout for individual characteristic reads (in ms)
 const CHARACTERISTIC_READ_TIMEOUT = 5000;
+// Timeout for initBleData (service discovery) in ms
+const INIT_BLE_DATA_TIMEOUT = 10000;
 
 /**
  * Read only energy-related characteristics from a battery device.
  * This is optimized for the attendant workflow where we only need:
  * - rcap (Remaining Capacity) + pckv (Pack Voltage) for energy calculation
  * - fccp (Full Charge Capacity) / rsoc (State of Charge) for charge percentage
+ * 
+ * IMPORTANT: This function first calls initBleData to discover services before reading.
  * 
  * @param {string} macAddress - The MAC address of the connected BLE device
  * @param {function} callback - Called with { rcap, pckv, fccp, rsoc, energy, chargePercent } or null on error
@@ -103,12 +107,67 @@ export const readEnergyCharacteristics = (macAddress, callback, progressCallback
     return;
   }
 
+  if (!macAddress) {
+    console.error("[readEnergyCharacteristics] No MAC address provided");
+    if (callback) callback(null, "No MAC address provided");
+    return;
+  }
+
+  console.info(`[readEnergyCharacteristics] Starting energy read for device: ${macAddress}`);
+  
+  // Step 1: Initialize BLE data (discover services) before reading characteristics
+  // This is REQUIRED before individual characteristic reads can work
+  console.info("[readEnergyCharacteristics] Step 1: Initializing BLE data (service discovery)...");
+  
+  if (progressCallback) {
+    progressCallback(5); // Show some initial progress
+  }
+  
+  let initCompleted = false;
+  const initTimeoutId = setTimeout(() => {
+    if (initCompleted) return;
+    initCompleted = true;
+    
+    console.error("[readEnergyCharacteristics] initBleData timed out after", INIT_BLE_DATA_TIMEOUT, "ms");
+    
+    // Disconnect and fail
+    disconnectBle(macAddress, () => {
+      console.info("[readEnergyCharacteristics] Disconnected after initBleData timeout");
+    });
+    
+    if (callback) callback(null, "Service discovery timed out");
+  }, INIT_BLE_DATA_TIMEOUT);
+  
+  initBleData(macAddress, (initResponse) => {
+    if (initCompleted) {
+      console.warn("[readEnergyCharacteristics] Ignoring late initBleData response");
+      return;
+    }
+    initCompleted = true;
+    clearTimeout(initTimeoutId);
+    
+    console.info("[readEnergyCharacteristics] initBleData completed:", initResponse);
+    
+    if (progressCallback) {
+      progressCallback(15); // Service discovery done
+    }
+    
+    // Step 2: Now read the individual characteristics
+    startCharacteristicReads(macAddress, callback, progressCallback);
+  });
+};
+
+/**
+ * Internal function to read characteristics after service discovery.
+ * Called by readEnergyCharacteristics after initBleData completes.
+ */
+const startCharacteristicReads = (macAddress, callback, progressCallback) => {
   const characteristics = ENERGY_CALC_CHARACTERISTICS;
   const results = {};
   let isAborted = false;
   let currentTimeoutId = null;
 
-  console.info(`[readEnergyCharacteristics] Reading ${characteristics.length} characteristics for energy calculation...`);
+  console.info(`[readEnergyCharacteristics] Step 2: Reading ${characteristics.length} characteristics...`);
 
   // Helper to handle failure and disconnect
   const handleFailure = (errorMessage) => {
@@ -186,7 +245,9 @@ export const readEnergyCharacteristics = (macAddress, callback, progressCallback
     const char = characteristics[index];
     
     if (progressCallback) {
-      progressCallback(Math.round((index / characteristics.length) * 100));
+      // Progress: 15% for init, then 15-95% for reading (4 characteristics)
+      const readProgress = 15 + Math.round(((index + 1) / characteristics.length) * 80);
+      progressCallback(readProgress);
     }
 
     console.info(`[readEnergyCharacteristics] Reading ${char.name} (${index + 1}/${characteristics.length})...`);
