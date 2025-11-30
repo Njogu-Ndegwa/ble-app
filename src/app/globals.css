@@ -2629,12 +2629,12 @@ html.theme-transition *::after {
   flex-shrink: 0;
 }
 
-/* Vertical stacked badges for right side layout */
+/* Horizontal badges for right side layout */
 .state-badges-vertical {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
 }
 
 /* State badge groups - contains label + badge (legacy) */
@@ -2930,11 +2930,11 @@ html.theme-transition *::after {
   }
   
   .state-right-section {
-    gap: 8px;
+    gap: 6px;
   }
   
   .state-badges-vertical {
-    gap: 2px;
+    gap: 3px;
   }
   
   .state-quotas {
