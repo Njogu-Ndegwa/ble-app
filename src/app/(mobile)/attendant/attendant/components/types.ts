@@ -33,7 +33,7 @@ export interface BatteryData {
   id: string;
   shortId: string;
   chargeLevel: number; // Charge percentage (0-100) from rsoc or calculated from rcap/fccp
-  energy: number; // Remaining energy in Wh from BLE DTA service (rcap field - already in Watt-hours)
+  energy: number; // Remaining energy in Wh = (rcap_mAh × pckv_mV) / 1,000,000
   macAddress?: string; // BLE MAC address used for connection
 }
 

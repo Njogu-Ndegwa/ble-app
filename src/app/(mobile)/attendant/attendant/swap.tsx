@@ -1256,37 +1256,49 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         return char?.realVal ?? null;
       };
 
-      // rcap = Remaining Capacity in Whs (already in Watt-hours!)
-      // No need to multiply by pckv - that was incorrect
+      // rcap = Remaining Capacity in mAh (milliamp-hours)
+      // pckv = Pack Voltage in mV (millivolts)
+      // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
       const rcapRaw = getCharValue("rcap");
-      const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
+      const pckvRaw = getCharValue("pckv");
 
-      if (!Number.isFinite(rcap)) {
-        console.warn("Unable to parse rcap (Remaining Capacity) from DTA service", {
+      const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
+      const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
+
+      if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
+        console.warn("Unable to parse rcap/pckv from DTA service", {
           rcapRaw,
+          pckvRaw,
         });
         setIsComputingEnergy(false); // Energy computation failed
         return;
       }
 
-      // rcap is ALREADY in Watt-hours, convert to kWh for the form
-      const energyKwh = rcap / 1000;
+      // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+      // Example: 15290 mAh × 75470 mV / 1,000,000 = 1,154 Wh = 1.15 kWh
+      const energyWh = (rcap * pckv) / 1_000_000;
+      const energyKwh = energyWh / 1000;
 
       if (!Number.isFinite(energyKwh)) {
         console.warn("Computed energy is not a finite number", {
           rcap,
+          pckv,
+          energyWh,
           energyKwh,
         });
         setIsComputingEnergy(false); // Energy computation failed
         return;
       }
 
-      console.info("Energy extracted from DTA service:", {
-        rcap_Wh: rcap,
+      console.info("Energy calculated from DTA service:", {
+        rcap_mAh: rcap,
+        pckv_mV: pckv,
+        pckv_V: pckv / 1000,
+        energy_Wh: energyWh,
         energy_kWh: energyKwh,
       });
 
-      // Always populate energy from rcap, overwriting any manual input
+      // Always populate energy from calculated value, overwriting any manual input
       const formattedEnergy = energyKwh.toFixed(2);
       setCheckinEnergyTransferred(formattedEnergy);
       autoFilledCheckinEnergyRef.current = true;

@@ -268,8 +268,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   }, []);
 
   // Extract energy from DTA service data
-  // rcap = Remaining Capacity in Whs (already in Watt-hours!)
-  // fccp = Full Charge Capacity in Whs (for calculating charge percentage)
+  // rcap = Remaining Capacity in mAh (milliamp-hours)
+  // fccp = Full Charge Capacity in mAh
+  // pckv = Pack Voltage in mV (millivolts)
+  // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
   // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null on failure
   const populateEnergyFromDta = useCallback((serviceData: any): { energy: number; fullCapacity: number; chargePercent: number } | null => {
     if (!serviceData || !Array.isArray(serviceData.characteristicList)) {
@@ -284,23 +286,37 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return char?.realVal ?? null;
     };
 
-    const rcapRaw = getCharValue('rcap');  // Remaining Capacity in Whs
-    const fccpRaw = getCharValue('fccp');  // Full Charge Capacity in Whs
+    const rcapRaw = getCharValue('rcap');  // Remaining Capacity in mAh
+    const fccpRaw = getCharValue('fccp');  // Full Charge Capacity in mAh
+    const pckvRaw = getCharValue('pckv');  // Pack Voltage in mV
     const rsocRaw = getCharValue('rsoc');  // Relative State of Charge (%)
 
     const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
     const fccp = fccpRaw !== null ? parseFloat(fccpRaw) : NaN;
+    const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
     const rsoc = rsocRaw !== null ? parseFloat(rsocRaw) : NaN;
 
-    if (!Number.isFinite(rcap)) {
-      console.warn('Unable to parse rcap (Remaining Capacity) from DTA service', {
+    if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
+      console.warn('Unable to parse rcap/pckv from DTA service', {
         rcapRaw,
+        pckvRaw,
       });
       return null;
     }
 
-    // rcap is ALREADY in Watt-hours! No calculation needed.
-    const energy = rcap;
+    // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+    // Example: 15290 mAh × 75470 mV / 1,000,000 = 1,154 Wh = 1.15 kWh
+    const energy = (rcap * pckv) / 1_000_000;
+    const fullCapacity = Number.isFinite(fccp) ? (fccp * pckv) / 1_000_000 : 0;
+
+    if (!Number.isFinite(energy)) {
+      console.warn('Computed energy is not a finite number', {
+        rcap,
+        pckv,
+        energy,
+      });
+      return null;
+    }
 
     // Calculate charge percentage from rcap/fccp, fallback to rsoc if fccp unavailable
     let chargePercent: number;
@@ -309,25 +325,28 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     } else if (Number.isFinite(rsoc)) {
       chargePercent = Math.round(rsoc);
     } else {
-      // Default to 0 if we can't calculate
       chargePercent = 0;
     }
 
     // Clamp charge percent to 0-100
     chargePercent = Math.max(0, Math.min(100, chargePercent));
 
-    console.info('Energy extracted from DTA service:', {
-      rcap_Wh: rcap,
-      fccp_Wh: fccp,
+    console.info('Energy calculated from DTA service:', {
+      rcap_mAh: rcap,
+      fccp_mAh: fccp,
+      pckv_mV: pckv,
+      pckv_V: pckv / 1000,
       rsoc_percent: rsoc,
       computed_energy_Wh: energy,
       computed_energy_kWh: energy / 1000,
+      computed_fullCapacity_Wh: fullCapacity,
+      computed_fullCapacity_kWh: fullCapacity / 1000,
       computed_chargePercent: chargePercent,
     });
 
     return {
       energy: Math.round(energy * 100) / 100, // Round to 2 decimal places (Wh)
-      fullCapacity: Number.isFinite(fccp) ? Math.round(fccp * 100) / 100 : 0,
+      fullCapacity: Math.round(fullCapacity * 100) / 100,
       chargePercent,
     };
   }, []);
