@@ -2596,7 +2596,15 @@ html.theme-transition *::after {
   flex-shrink: 1;
 }
 
-/* State badge groups - contains label + badge */
+/* State badges container - simple side-by-side layout */
+.state-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* State badge groups - contains label + badge (legacy) */
 .state-badge-group {
   display: inline-flex;
   align-items: center;

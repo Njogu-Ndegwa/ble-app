@@ -16,7 +16,14 @@ export default function Step5Payment({ swapData, onConfirmPayment, onManualPayme
 
   const handleManualConfirm = () => {
     if (paymentId.trim()) {
-      onManualPayment(paymentId);
+      onManualPayment(paymentId.trim());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && paymentId.trim() && !isProcessing) {
+      e.preventDefault();
+      handleManualConfirm();
     }
   };
 
@@ -90,6 +97,7 @@ export default function Step5Payment({ swapData, onConfirmPayment, onManualPayme
                   placeholder="e.g. TXN-892741 or M-PESA code"
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   autoComplete="off"
                 />
               </div>
