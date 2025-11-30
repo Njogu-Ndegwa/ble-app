@@ -1162,15 +1162,15 @@ html.theme-transition *::after {
 
 .scanner-corners {
   position: absolute;
-  inset: 20px;
+  inset: 14px;
 }
 
 .scanner-corners::before,
 .scanner-corners::after {
   content: '';
   position: absolute;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border-color: var(--accent);
   border-style: solid;
   border-width: 0;
@@ -1195,8 +1195,8 @@ html.theme-transition *::after {
 .scanner-corner-bl,
 .scanner-corner-br {
   position: absolute;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border-color: var(--accent);
   border-style: solid;
   border-width: 0;
@@ -1244,22 +1244,22 @@ html.theme-transition *::after {
 }
 
 .scanner-icon svg {
-  width: 64px;
-  height: 64px;
-  stroke-width: 1;
+  width: 48px;
+  height: 48px;
+  stroke-width: 1.5;
 }
 
 /* Tap to scan prompt - clear call-to-action for users */
 .scanner-tap-prompt {
   position: absolute;
-  bottom: 20px;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: var(--radius-sm);
   text-transform: uppercase;
   letter-spacing: 0.5px;
