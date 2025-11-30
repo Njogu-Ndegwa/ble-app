@@ -26,12 +26,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole();
-  //   });
-  // }, []);
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
   return (
     <html lang="en">
       <body
