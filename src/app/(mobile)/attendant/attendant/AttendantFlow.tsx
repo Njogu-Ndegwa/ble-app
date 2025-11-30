@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantUser } from '@/lib/attendant-auth';
-import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
+import { 
+  connBleByMacAddress, 
+  initServiceBleData, 
+  readEnergyCharacteristics,
+  DTA_SERVICE_UUID,
+  DTA_CHARACTERISTIC_UUIDS,
+} from '@/app/utils';
 
 // Import components
 import {
@@ -145,6 +151,16 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds for connection
   const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds for data reading
   
+  // Optimized energy reading mode - when true, only reads 4 characteristics instead of all 22+
+  // This is significantly faster for the attendant workflow where we only need energy data
+  const USE_OPTIMIZED_ENERGY_READING = true;
+  
+  // Device freshness configuration
+  // Devices not seen within this time window are considered stale and removed
+  const DEVICE_FRESHNESS_WINDOW_MS = 10000; // 10 seconds
+  // Interval for cleaning up stale devices
+  const deviceCleanupIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Refs for BLE scanning
   const detectedBleDevicesRef = useRef<BleDevice[]>([]);
   const pendingBatteryQrCodeRef = useRef<string | null>(null);
@@ -202,6 +218,30 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, []);
 
+  // Helper function to remove stale devices from the detected list
+  // This prevents "Mac Address is not match" errors caused by trying to connect
+  // to devices that are no longer nearby or whose MAC address has changed
+  const cleanStaleDevices = useCallback(() => {
+    const now = Date.now();
+    const freshDevices = detectedBleDevicesRef.current.filter(device => {
+      const lastSeen = device.lastSeen || 0;
+      const isFresh = (now - lastSeen) < DEVICE_FRESHNESS_WINDOW_MS;
+      if (!isFresh) {
+        console.info(`[BLE] Removing stale device: ${device.name} (last seen ${Math.round((now - lastSeen) / 1000)}s ago)`);
+      }
+      return isFresh;
+    });
+    
+    if (freshDevices.length !== detectedBleDevicesRef.current.length) {
+      console.info(`[BLE] Cleaned ${detectedBleDevicesRef.current.length - freshDevices.length} stale devices. Fresh devices: ${freshDevices.length}`);
+      detectedBleDevicesRef.current = freshDevices;
+      setBleScanState(prev => ({
+        ...prev,
+        detectedDevices: [...freshDevices],
+      }));
+    }
+  }, []);
+
   // Cancel ongoing BLE operation - allows user to escape stuck states
   const cancelBleOperation = useCallback(() => {
     console.info('=== Cancelling BLE operation ===');
@@ -209,6 +249,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     // Clear all timeouts
     clearBleOperationTimeout();
     clearScanTimeout();
+    
+    // Clear device cleanup interval
+    if (deviceCleanupIntervalRef.current) {
+      clearInterval(deviceCleanupIntervalRef.current);
+      deviceCleanupIntervalRef.current = null;
+    }
     
     // Stop BLE scan if running
     if (window.WebViewJavascriptBridge) {
@@ -232,6 +278,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       connectionProgress: 0,
       error: null,
     });
+    
+    // Clear detected devices ref
+    detectedBleDevicesRef.current = [];
     
     // Reset scan state
     setIsScanning(false);
@@ -280,6 +329,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Start BLE scanning for nearby devices
   // NOTE: This does NOT clear detected devices - devices accumulate over time
   // This mirrors keypad behavior where BLE scan runs continuously and devices build up
+  // However, we now track lastSeen timestamps and periodically clean stale devices
   const startBleScan = useCallback(() => {
     if (!window.WebViewJavascriptBridge) {
       console.error('WebViewJavascriptBridge not available for BLE scan');
@@ -294,20 +344,36 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
     
+    // Start periodic cleanup of stale devices
+    // This prevents "Mac Address is not match" errors from stale entries
+    if (deviceCleanupIntervalRef.current) {
+      clearInterval(deviceCleanupIntervalRef.current);
+    }
+    deviceCleanupIntervalRef.current = setInterval(() => {
+      cleanStaleDevices();
+    }, 3000); // Clean every 3 seconds
+    
     // Just set isScanning flag - DON'T clear detected devices
-    // Devices accumulate over time for better matching
+    // Devices accumulate over time for better matching, but stale ones get cleaned
     setBleScanState(prev => ({
       ...prev,
       isScanning: true,
       error: null,
     }));
-  }, []);
+  }, [cleanStaleDevices]);
 
   // Stop BLE scanning
   const stopBleScan = useCallback(() => {
     if (!window.WebViewJavascriptBridge) return;
 
     window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
+    
+    // Clear the device cleanup interval
+    if (deviceCleanupIntervalRef.current) {
+      clearInterval(deviceCleanupIntervalRef.current);
+      deviceCleanupIntervalRef.current = null;
+    }
+    
     setBleScanState(prev => ({
       ...prev,
       isScanning: false,
@@ -473,17 +539,31 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
   // Handle matching QR code to detected BLE device and initiate connection
   // Uses exponential backoff retry strategy for better reliability
+  // IMPORTANT: Only considers "fresh" devices (seen recently) to prevent
+  // "Mac Address is not match" errors caused by stale device entries
   const handleBleDeviceMatch = useCallback((qrCode: string, retryAttempt: number = 0) => {
     const MAX_MATCH_RETRIES = 4; // Total 5 attempts (0-4)
     const RETRY_DELAYS = [2000, 3000, 4000, 5000]; // Exponential backoff delays
     
+    // First, clean stale devices to ensure we only match against devices
+    // that are actually present and connectable
+    cleanStaleDevices();
+    
     const last6 = qrCode.slice(-6).toLowerCase();
-    const devices = detectedBleDevicesRef.current;
+    const now = Date.now();
+    
+    // Only consider devices seen within the freshness window
+    // This is critical for preventing "Mac Address is not match" errors
+    const freshDevices = detectedBleDevicesRef.current.filter(device => {
+      const lastSeen = device.lastSeen || 0;
+      return (now - lastSeen) < DEVICE_FRESHNESS_WINDOW_MS;
+    });
     
     console.info('Attempting to match QR code to BLE device:', {
       qrCode,
       last6,
-      detectedDevices: devices.length,
+      totalDetectedDevices: detectedBleDevicesRef.current.length,
+      freshDevices: freshDevices.length,
       attempt: retryAttempt + 1,
       maxAttempts: MAX_MATCH_RETRIES + 1,
     });
@@ -497,64 +577,84 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       error: retryAttempt > 0 ? `Searching... (attempt ${retryAttempt + 1}/${MAX_MATCH_RETRIES + 1})` : null,
     }));
 
-    // Find device where last 6 chars of name match
-    const matchedDevice = devices.find(device => {
+    // Find device where last 6 chars of name match - ONLY among fresh devices
+    const matchedDevice = freshDevices.find(device => {
       const deviceLast6 = (device.name || '').toLowerCase().slice(-6);
       return deviceLast6 === last6;
     });
 
     if (matchedDevice) {
-      console.info('Found matching BLE device:', matchedDevice);
-      stopBleScan();
-      bleRetryCountRef.current = 0; // Reset retry count for connection phase
-      connectBleDevice(matchedDevice.macAddress);
-      return true;
-    } else {
-      console.warn(`No matching BLE device found (attempt ${retryAttempt + 1}). Available devices:`, 
-        devices.map(d => `${d.name} (${d.rssi})`));
-      
-      // Check if we should retry
-      if (retryAttempt < MAX_MATCH_RETRIES) {
-        const delay = RETRY_DELAYS[retryAttempt] || 5000;
-        console.info(`Will retry in ${delay}ms...`);
+      // Double-check freshness before connecting (extra safety)
+      const deviceAge = now - (matchedDevice.lastSeen || 0);
+      if (deviceAge < DEVICE_FRESHNESS_WINDOW_MS) {
+        console.info('Found fresh matching BLE device:', {
+          name: matchedDevice.name,
+          macAddress: matchedDevice.macAddress,
+          rssi: matchedDevice.rssi,
+          lastSeenSecondsAgo: Math.round(deviceAge / 1000),
+        });
         
-        // Update UI to show searching progress
-        setBleScanState(prev => ({
-          ...prev,
-          connectionProgress: progressPercent + 5,
-          error: `Searching for battery... (${retryAttempt + 1}/${MAX_MATCH_RETRIES + 1})`,
-        }));
+        // IMPORTANT: Do NOT call stopBleScan() before connecting!
+        // Stopping the scan clears the native layer's internal device cache,
+        // which causes "Mac Address is not match" errors when we try to connect.
+        // The scan will be stopped in the success/failure callbacks instead.
         
-        // Schedule retry with exponential backoff
-        setTimeout(() => {
-          handleBleDeviceMatch(qrCode, retryAttempt + 1);
-        }, delay);
-        
-        return false;
+        bleRetryCountRef.current = 0; // Reset retry count for connection phase
+        connectBleDevice(matchedDevice.macAddress);
+        return true;
       } else {
-        // All retries exhausted
-        console.error('No matching BLE device found after all retries');
-        toast.error('Battery not found nearby. Please ensure the battery is powered on and close to this device.');
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isScanning: false,
-          connectionProgress: 0,
-          error: 'Battery not found',
-        }));
-        
-        // Reset state to allow user to try again
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        stopBleScan();
-        
-        return false;
+        console.warn('Matched device is stale, treating as not found:', {
+          name: matchedDevice.name,
+          lastSeenSecondsAgo: Math.round(deviceAge / 1000),
+        });
       }
     }
-  }, [stopBleScan, connectBleDevice]);
+    
+    // No fresh match found
+    console.warn(`No fresh matching BLE device found (attempt ${retryAttempt + 1}). Fresh devices:`, 
+      freshDevices.map(d => `${d.name} (${d.rssi}, age: ${Math.round((now - (d.lastSeen || 0)) / 1000)}s)`));
+    
+    // Check if we should retry
+    if (retryAttempt < MAX_MATCH_RETRIES) {
+      const delay = RETRY_DELAYS[retryAttempt] || 5000;
+      console.info(`Will retry in ${delay}ms...`);
+      
+      // Update UI to show searching progress
+      setBleScanState(prev => ({
+        ...prev,
+        connectionProgress: progressPercent + 5,
+        error: `Searching for battery... (${retryAttempt + 1}/${MAX_MATCH_RETRIES + 1})`,
+      }));
+      
+      // Schedule retry with exponential backoff
+      setTimeout(() => {
+        handleBleDeviceMatch(qrCode, retryAttempt + 1);
+      }, delay);
+      
+      return false;
+    } else {
+      // All retries exhausted
+      console.error('No fresh matching BLE device found after all retries');
+      toast.error('Battery not found nearby. Please ensure the battery is powered on and close to this device.');
+      
+      setBleScanState(prev => ({
+        ...prev,
+        isConnecting: false,
+        isScanning: false,
+        connectionProgress: 0,
+        error: 'Battery not found',
+      }));
+      
+      // Reset state to allow user to try again
+      setIsScanning(false);
+      scanTypeRef.current = null;
+      pendingBatteryQrCodeRef.current = null;
+      pendingBatteryScanTypeRef.current = null;
+      stopBleScan();
+      
+      return false;
+    }
+  }, [stopBleScan, connectBleDevice, cleanStaleDevices]);
 
   // Process customer QR code data and send MQTT identify_customer
   const processCustomerQRData = useCallback((qrCodeData: string) => {
@@ -1071,11 +1171,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     );
 
     // BLE device discovery callback - for scan-to-bind functionality
+    // IMPORTANT: We track `lastSeen` timestamp on each device to enable
+    // freshness-based filtering, which prevents "Mac Address is not match" errors
     const offFindBle = reg(
       "findBleDeviceCallBack",
       (data: string, resp: (r: { success: boolean; error?: string }) => void) => {
         try {
           const d: any = JSON.parse(data);
+          const now = Date.now();
           
           // Log ALL incoming BLE devices for debugging (even non-OVES)
           console.info(`[BLE] Device found: ${d.name || 'unnamed'} (${d.macAddress}) RSSI: ${d.rssi}`);
@@ -1090,14 +1193,19 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               name: d.name,
               rssi: formattedRssi,
               rawRssi: raw,
+              lastSeen: now, // Track when this device was last seen
             };
             
             // Update detected devices ref for immediate matching
-            const exists = detectedBleDevicesRef.current.some(p => p.macAddress === d.macAddress);
-            if (exists) {
-              detectedBleDevicesRef.current = detectedBleDevicesRef.current.map(p =>
-                p.macAddress === d.macAddress ? { ...p, rssi: formattedRssi, rawRssi: raw } : p
-              );
+            const existingIndex = detectedBleDevicesRef.current.findIndex(p => p.macAddress === d.macAddress);
+            if (existingIndex >= 0) {
+              // Update existing device with fresh data and timestamp
+              detectedBleDevicesRef.current[existingIndex] = {
+                ...detectedBleDevicesRef.current[existingIndex],
+                rssi: formattedRssi,
+                rawRssi: raw,
+                lastSeen: now, // Update timestamp on every detection
+              };
             } else {
               console.info(`[BLE] New OVES device added: ${d.name} - Total: ${detectedBleDevicesRef.current.length + 1}`);
               detectedBleDevicesRef.current = [...detectedBleDevicesRef.current, device];
@@ -1131,6 +1239,16 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         console.info("BLE connection successful:", macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         
+        // NOW we can safely stop the BLE scan - connection is established
+        // We don't stop before connecting because that clears the native device cache
+        if (window.WebViewJavascriptBridge) {
+          window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
+        }
+        if (deviceCleanupIntervalRef.current) {
+          clearInterval(deviceCleanupIntervalRef.current);
+          deviceCleanupIntervalRef.current = null;
+        }
+        
         // Clear connection timeout since we connected successfully
         if (bleOperationTimeoutRef.current) {
           clearTimeout(bleOperationTimeoutRef.current);
@@ -1140,6 +1258,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         
         setBleScanState(prev => ({
           ...prev,
+          isScanning: false, // Mark scan as stopped
           isConnecting: false,
           isReadingEnergy: true,
           connectedDevice: macAddress,
@@ -1170,19 +1289,140 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         }, BLE_DATA_READ_TIMEOUT);
         
         // Request DTA service to read energy data
-        console.info("Requesting DTA service data for energy calculation...");
-        initServiceBleData(
-          { serviceName: "DTA", macAddress },
-          () => {
-            console.info("DTA service data requested for:", macAddress);
-          }
-        );
+        // OPTIMIZED MODE: Read only 4 energy-related characteristics instead of all 22+
+        // LEGACY MODE: Read all DTA service characteristics
+        if (USE_OPTIMIZED_ENERGY_READING) {
+          console.info("[OPTIMIZED] Reading only energy characteristics (rcap, pckv, fccp, rsoc)...");
+          
+          readEnergyCharacteristics(
+            macAddress,
+            (energyData: { energy: number; chargePercent: number; rcap: number; pckv: number; fccp?: number; rsoc?: number; fullCapacity: number } | null, error?: string) => {
+              // Clear data reading timeout
+              if (bleOperationTimeoutRef.current) {
+                clearTimeout(bleOperationTimeoutRef.current);
+                bleOperationTimeoutRef.current = null;
+              }
+              
+              if (error || !energyData) {
+                console.error("[OPTIMIZED] Failed to read energy characteristics:", error);
+                toast.error('Could not read battery energy. Please try again.');
+                
+                setBleScanState(prev => ({
+                  ...prev,
+                  isReadingEnergy: false,
+                  error: 'Failed to read energy data',
+                }));
+                setIsScanning(false);
+                scanTypeRef.current = null;
+                pendingBatteryQrCodeRef.current = null;
+                pendingBatteryScanTypeRef.current = null;
+                
+                // Disconnect
+                if (window.WebViewJavascriptBridge) {
+                  window.WebViewJavascriptBridge.callHandler("disconnectBle", macAddress, () => {});
+                }
+                return;
+              }
+              
+              const { energy, chargePercent } = energyData;
+              const scannedBatteryId = pendingBatteryQrCodeRef.current;
+              const scanType = pendingBatteryScanTypeRef.current;
+              
+              console.info(`[OPTIMIZED] Battery energy read: ${energy} Wh (${(energy / 1000).toFixed(3)} kWh) at ${chargePercent}% for ${scanType}`);
+              
+              // Disconnect from BLE device
+              if (window.WebViewJavascriptBridge) {
+                window.WebViewJavascriptBridge.callHandler("disconnectBle", macAddress, () => {});
+              }
+              
+              // Reset BLE state
+              setBleScanState(prev => ({
+                ...prev,
+                isReadingEnergy: false,
+                connectedDevice: null,
+              }));
+              
+              if (scannedBatteryId) {
+                if (scanType === 'old_battery') {
+                  const oldBattery: BatteryData = {
+                    id: scannedBatteryId,
+                    shortId: String(scannedBatteryId).slice(-6),
+                    chargeLevel: chargePercent,
+                    energy: energy,
+                    macAddress: macAddress,
+                  };
+                  
+                  setSwapData(prev => ({ ...prev, oldBattery }));
+                  advanceToStep(3);
+                  toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
+                } else if (scanType === 'new_battery') {
+                  const newBattery: BatteryData = {
+                    id: scannedBatteryId,
+                    shortId: String(scannedBatteryId).slice(-6),
+                    chargeLevel: chargePercent,
+                    energy: energy,
+                    macAddress: macAddress,
+                  };
+                  
+                  setSwapData(prev => {
+                    const oldEnergy = prev.oldBattery?.energy || 0;
+                    const energyDiffWh = energy - oldEnergy;
+                    const energyDiffKwh = energyDiffWh / 1000;
+                    const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
+                    const cost = Math.round(energyDiffKwh * rate * 100) / 100;
+                    
+                    console.info('[OPTIMIZED] Energy differential calculated:', {
+                      oldEnergyWh: oldEnergy,
+                      newEnergyWh: energy,
+                      energyDiffKwh,
+                      ratePerKwh: rate,
+                      cost,
+                    });
+                    
+                    return {
+                      ...prev,
+                      newBattery,
+                      energyDiff: Math.round(energyDiffKwh * 1000) / 1000,
+                      cost: cost > 0 ? cost : 0,
+                    };
+                  });
+                  
+                  advanceToStep(4);
+                  toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
+                }
+              }
+              
+              // Clear pending state
+              setIsScanning(false);
+              scanTypeRef.current = null;
+              pendingBatteryQrCodeRef.current = null;
+              pendingBatteryScanTypeRef.current = null;
+            },
+            (progress: number) => {
+              // Progress callback
+              setBleScanState(prev => ({
+                ...prev,
+                connectionProgress: progress,
+              }));
+            }
+          );
+        } else {
+          // LEGACY MODE: Read all DTA service characteristics (22+ attributes)
+          console.info("[LEGACY] Requesting all DTA service data for energy calculation...");
+          initServiceBleData(
+            { serviceName: "DTA", macAddress },
+            () => {
+              console.info("[LEGACY] DTA service data requested for:", macAddress);
+            }
+          );
+        }
         
         resp(macAddress);
       }
     );
 
     // BLE connection failure callback
+    // Handles "Mac Address is not match" error specially by re-matching from fresh scan
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
@@ -1194,27 +1434,95 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           bleOperationTimeoutRef.current = null;
         }
         
+        // Parse the error to check for "Mac Address is not match"
+        let errorMessage = '';
+        try {
+          const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+          errorMessage = parsedData?.message || parsedData?.error || parsedData?.respDesc || String(data);
+        } catch {
+          errorMessage = String(data);
+        }
+        
+        const isMacMismatchError = errorMessage.toLowerCase().includes('mac address') || 
+                                    errorMessage.toLowerCase().includes('not match') ||
+                                    errorMessage.toLowerCase().includes('mismatch');
+        
         // Check if we should auto-retry
         if (bleRetryCountRef.current < MAX_BLE_RETRIES) {
           bleRetryCountRef.current += 1;
-          console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
           
-          setBleScanState(prev => ({
-            ...prev,
-            connectionProgress: 10,
-            error: `Retrying connection (${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`,
-          }));
-          
-          // Try to reconnect after a short delay
-          const pendingMac = sessionStorage.getItem("connectedDeviceMac") || 
-            bleScanState.connectedDevice;
-          
-          if (pendingMac) {
+          if (isMacMismatchError && pendingBatteryQrCodeRef.current) {
+            // Special handling for MAC address mismatch:
+            // The native cache has different info than our JS list.
+            // Re-scan and re-match to get fresh MAC address.
+            console.info(`MAC address mismatch detected. Re-scanning and re-matching (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
+            
+            setBleScanState(prev => ({
+              ...prev,
+              connectionProgress: 5,
+              error: `Re-scanning for device (${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`,
+            }));
+            
+            // Clear stale devices since native cache doesn't match
+            detectedBleDevicesRef.current = [];
+            
+            // Restart BLE scan to get fresh device list
+            if (window.WebViewJavascriptBridge) {
+              window.WebViewJavascriptBridge.callHandler('startBleScan', '', () => {});
+            }
+            
+            // Wait for fresh scan results, then re-match
             setTimeout(() => {
-              connBleByMacAddress(pendingMac, () => {
-                console.info("BLE retry connection initiated");
-              });
-            }, 1000 * bleRetryCountRef.current);
+              const qrCode = pendingBatteryQrCodeRef.current;
+              if (qrCode) {
+                // Re-match will use fresh devices from new scan
+                const last6 = qrCode.slice(-6).toLowerCase();
+                const freshDevices = detectedBleDevicesRef.current;
+                const matchedDevice = freshDevices.find(d => 
+                  (d.name || '').toLowerCase().slice(-6) === last6
+                );
+                
+                if (matchedDevice) {
+                  console.info('Re-matched device after MAC mismatch:', matchedDevice);
+                  connBleByMacAddress(matchedDevice.macAddress, () => {
+                    console.info("BLE retry connection with fresh MAC initiated");
+                  });
+                } else {
+                  console.warn('Device not found in fresh scan, waiting longer...');
+                  // Give more time for device to appear
+                  setTimeout(() => {
+                    const devices = detectedBleDevicesRef.current;
+                    const device = devices.find(d => 
+                      (d.name || '').toLowerCase().slice(-6) === last6
+                    );
+                    if (device) {
+                      connBleByMacAddress(device.macAddress, () => {});
+                    }
+                  }, 2000);
+                }
+              }
+            }, 2000); // Wait 2 seconds for fresh scan results
+          } else {
+            // Regular retry - just try connecting again with same MAC
+            console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
+            
+            setBleScanState(prev => ({
+              ...prev,
+              connectionProgress: 10,
+              error: `Retrying connection (${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`,
+            }));
+            
+            // Try to reconnect after a short delay
+            const pendingMac = sessionStorage.getItem("connectedDeviceMac") || 
+              bleScanState.connectedDevice;
+            
+            if (pendingMac) {
+              setTimeout(() => {
+                connBleByMacAddress(pendingMac, () => {
+                  console.info("BLE retry connection initiated");
+                });
+              }, 1000 * bleRetryCountRef.current);
+            }
           }
           
           resp(data);
@@ -1232,7 +1540,13 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           error: 'Connection failed',
         }));
         
-        toast.error('Battery connection failed. Please try again.');
+        // Give more specific error message for MAC mismatch
+        if (isMacMismatchError) {
+          toast.error('Could not connect to battery. Please try scanning again.');
+        } else {
+          toast.error('Battery connection failed. Please try again.');
+        }
+        
         setIsScanning(false);
         scanTypeRef.current = null;
         pendingBatteryQrCodeRef.current = null;

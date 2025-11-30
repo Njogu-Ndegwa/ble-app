@@ -1632,8 +1632,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
               
               if (matches.length === 1) {
                 console.info("BLE device matched! Connecting to:", matches[0].macAddress);
-                // Stop BLE scanning
-                stopBleScan();
+                // IMPORTANT: Do NOT call stopBleScan() before connecting!
+                // Stopping the scan clears the native layer's internal device cache,
+                // which causes "Mac Address is not match" errors when we try to connect.
+                // The scan will be stopped in the success callback instead.
                 // Connect to the matched BLE device
                 connectBleDevice(matches[0].macAddress);
                 // Store the last 6 characters for BLE reference (kept for compatibility)

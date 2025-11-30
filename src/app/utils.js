@@ -1,3 +1,31 @@
+// ============================================================
+// DTA Service UUIDs - Standardized across all battery devices
+// ============================================================
+export const DTA_SERVICE_UUID = "9b074000-d1ec-4451-be62-f86a05dd9b47";
+
+// Energy-related characteristic UUIDs (only what's needed for billing)
+export const DTA_CHARACTERISTIC_UUIDS = {
+  // Required for energy calculation
+  RCAP: "9b074008-d1ec-4451-be62-f86a05dd9b47", // Remaining Capacity in Wh
+  PCKV: "9b074005-d1ec-4451-be62-f86a05dd9b47", // Pack Voltage in mV
+  // Optional for charge percentage
+  FCCP: "9b074009-d1ec-4451-be62-f86a05dd9b47", // Full Charge Capacity in Wh
+  RSOC: "9b074007-d1ec-4451-be62-f86a05dd9b47", // Relative State of Charge (%)
+  // Other commonly used characteristics (for reference)
+  PCKC: "9b074006-d1ec-4451-be62-f86a05dd9b47", // Pack Current in mA
+  PCKT: "9b07400a-d1ec-4451-be62-f86a05dd9b47", // Pack Temperature in Celsius
+  AENG: "9b074004-d1ec-4451-be62-f86a05dd9b47", // Accumulated Energy Output in Wh
+  ACYC: "9b074011-d1ec-4451-be62-f86a05dd9b47", // Accumulated Cycles
+};
+
+// Energy calculation characteristics - minimal set for attendant workflow
+export const ENERGY_CALC_CHARACTERISTICS = [
+  { name: 'rcap', uuid: DTA_CHARACTERISTIC_UUIDS.RCAP, desc: 'Remaining Capacity (Wh)' },
+  { name: 'pckv', uuid: DTA_CHARACTERISTIC_UUIDS.PCKV, desc: 'Pack Voltage (mV)' },
+  { name: 'fccp', uuid: DTA_CHARACTERISTIC_UUIDS.FCCP, desc: 'Full Charge Capacity (Wh)' },
+  { name: 'rsoc', uuid: DTA_CHARACTERISTIC_UUIDS.RSOC, desc: 'State of Charge (%)' },
+];
+
 export const connBleByMacAddress = (macAddress, callback) => {
     window.WebViewJavascriptBridge.callHandler('connBleByMacAddress', macAddress, (responseData) => {
         console.info(responseData);
@@ -21,6 +49,292 @@ export const initServiceBleData = (data, callback) => {
           if (callback) callback(responseData);
       }
   );
+};
+
+/**
+ * Disconnect from a BLE device.
+ * This should be called on errors or when done reading to ensure the device can be reconnected.
+ * 
+ * @param {string} macAddress - The MAC address of the device to disconnect from
+ * @param {function} callback - Optional callback when disconnect completes
+ */
+export const disconnectBle = (macAddress, callback) => {
+  if (!window.WebViewJavascriptBridge) {
+    console.warn("[disconnectBle] WebViewJavascriptBridge is not available");
+    if (callback) callback(null);
+    return;
+  }
+  
+  if (!macAddress) {
+    console.warn("[disconnectBle] No MAC address provided");
+    if (callback) callback(null);
+    return;
+  }
+  
+  console.info(`[disconnectBle] Disconnecting from device: ${macAddress}`);
+  
+  window.WebViewJavascriptBridge.callHandler(
+    'disconnectBle',
+    macAddress,
+    (responseData) => {
+      console.info(`[disconnectBle] Disconnect response for ${macAddress}:`, responseData);
+      if (callback) callback(responseData);
+    }
+  );
+};
+
+// Timeout for individual characteristic reads (in ms)
+const CHARACTERISTIC_READ_TIMEOUT = 5000;
+// Timeout for initBleData (service discovery) in ms
+const INIT_BLE_DATA_TIMEOUT = 10000;
+
+/**
+ * Read only energy-related characteristics from a battery device.
+ * This is optimized for the attendant workflow where we only need:
+ * - rcap (Remaining Capacity) + pckv (Pack Voltage) for energy calculation
+ * - fccp (Full Charge Capacity) / rsoc (State of Charge) for charge percentage
+ * 
+ * IMPORTANT: This function first calls initBleData to discover services before reading.
+ * 
+ * @param {string} macAddress - The MAC address of the connected BLE device
+ * @param {function} callback - Called with { rcap, pckv, fccp, rsoc, energy, chargePercent } or null on error
+ * @param {function} progressCallback - Optional callback for progress updates (0-100)
+ */
+export const readEnergyCharacteristics = (macAddress, callback, progressCallback) => {
+  if (!window.WebViewJavascriptBridge) {
+    console.error("[readEnergyCharacteristics] WebViewJavascriptBridge is not available");
+    if (callback) callback(null, "WebView bridge not initialized");
+    return;
+  }
+
+  if (!macAddress) {
+    console.error("[readEnergyCharacteristics] No MAC address provided");
+    if (callback) callback(null, "No MAC address provided");
+    return;
+  }
+
+  console.info(`[readEnergyCharacteristics] Starting energy read for device: ${macAddress}`);
+  
+  // Step 1: Initialize BLE data (discover services) before reading characteristics
+  // This is REQUIRED before individual characteristic reads can work
+  console.info("[readEnergyCharacteristics] Step 1: Initializing BLE data (service discovery)...");
+  
+  if (progressCallback) {
+    progressCallback(5); // Show some initial progress
+  }
+  
+  let initCompleted = false;
+  const initTimeoutId = setTimeout(() => {
+    if (initCompleted) return;
+    initCompleted = true;
+    
+    console.error("[readEnergyCharacteristics] initBleData timed out after", INIT_BLE_DATA_TIMEOUT, "ms");
+    
+    // Disconnect and fail
+    disconnectBle(macAddress, () => {
+      console.info("[readEnergyCharacteristics] Disconnected after initBleData timeout");
+    });
+    
+    if (callback) callback(null, "Service discovery timed out");
+  }, INIT_BLE_DATA_TIMEOUT);
+  
+  initBleData(macAddress, (initResponse) => {
+    if (initCompleted) {
+      console.warn("[readEnergyCharacteristics] Ignoring late initBleData response");
+      return;
+    }
+    initCompleted = true;
+    clearTimeout(initTimeoutId);
+    
+    console.info("[readEnergyCharacteristics] initBleData completed:", initResponse);
+    
+    if (progressCallback) {
+      progressCallback(15); // Service discovery done
+    }
+    
+    // Step 2: Now read the individual characteristics
+    startCharacteristicReads(macAddress, callback, progressCallback);
+  });
+};
+
+/**
+ * Internal function to read characteristics after service discovery.
+ * Called by readEnergyCharacteristics after initBleData completes.
+ */
+const startCharacteristicReads = (macAddress, callback, progressCallback) => {
+  const characteristics = ENERGY_CALC_CHARACTERISTICS;
+  const results = {};
+  let isAborted = false;
+  let currentTimeoutId = null;
+
+  console.info(`[readEnergyCharacteristics] Step 2: Reading ${characteristics.length} characteristics...`);
+
+  // Helper to handle failure and disconnect
+  const handleFailure = (errorMessage) => {
+    if (isAborted) return; // Already handled
+    isAborted = true;
+    
+    // Clear any pending timeout
+    if (currentTimeoutId) {
+      clearTimeout(currentTimeoutId);
+      currentTimeoutId = null;
+    }
+    
+    console.error(`[readEnergyCharacteristics] Failed: ${errorMessage}`);
+    
+    // Disconnect from the device to allow reconnection
+    disconnectBle(macAddress, () => {
+      console.info("[readEnergyCharacteristics] Disconnected after failure");
+    });
+    
+    if (callback) callback(null, errorMessage);
+  };
+
+  // Read each characteristic sequentially to avoid overwhelming the BLE stack
+  const readNext = (index) => {
+    if (isAborted) return; // Stop if aborted
+    
+    if (index >= characteristics.length) {
+      // All reads complete - calculate energy
+      const { rcap, pckv, fccp, rsoc } = results;
+      
+      console.info("[readEnergyCharacteristics] All reads complete. Results:", results);
+      
+      if (rcap === undefined || pckv === undefined) {
+        console.warn("[readEnergyCharacteristics] Missing required values:", { rcap, pckv, allResults: results });
+        handleFailure("Missing required energy values (rcap/pckv)");
+        return;
+      }
+
+      // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+      const energy = (rcap * pckv) / 1_000_000;
+      const fullCapacity = fccp !== undefined ? (fccp * pckv) / 1_000_000 : 0;
+      
+      // Calculate charge percentage
+      let chargePercent;
+      if (fccp !== undefined && fccp > 0) {
+        chargePercent = Math.round((rcap / fccp) * 100);
+      } else if (rsoc !== undefined) {
+        chargePercent = Math.round(rsoc);
+      } else {
+        chargePercent = 0;
+      }
+      chargePercent = Math.max(0, Math.min(100, chargePercent));
+
+      console.info("[readEnergyCharacteristics] Energy calculated:", {
+        rcap, pckv, fccp, rsoc,
+        energy_Wh: energy,
+        energy_kWh: energy / 1000,
+        chargePercent
+      });
+
+      if (callback) {
+        callback({
+          rcap,
+          pckv,
+          fccp,
+          rsoc,
+          energy: Math.round(energy * 100) / 100,
+          fullCapacity: Math.round(fullCapacity * 100) / 100,
+          chargePercent
+        });
+      }
+      return;
+    }
+
+    const char = characteristics[index];
+    
+    if (progressCallback) {
+      // Progress: 15% for init, then 15-95% for reading (4 characteristics)
+      const readProgress = 15 + Math.round(((index + 1) / characteristics.length) * 80);
+      progressCallback(readProgress);
+    }
+
+    console.info(`[readEnergyCharacteristics] Reading ${char.name} (${index + 1}/${characteristics.length})...`);
+
+    // Set timeout for this read
+    let readCompleted = false;
+    currentTimeoutId = setTimeout(() => {
+      if (readCompleted || isAborted) return;
+      
+      console.warn(`[readEnergyCharacteristics] Timeout reading ${char.name} after ${CHARACTERISTIC_READ_TIMEOUT}ms`);
+      
+      // For required characteristics, fail immediately
+      if (char.name === 'rcap' || char.name === 'pckv') {
+        handleFailure(`Timeout reading required characteristic: ${char.name}`);
+      } else {
+        // For optional characteristics, continue to next
+        console.warn(`[readEnergyCharacteristics] Skipping optional ${char.name} due to timeout`);
+        readCompleted = true;
+        setTimeout(() => readNext(index + 1), 50);
+      }
+    }, CHARACTERISTIC_READ_TIMEOUT);
+
+    readBleCharacteristic(
+      DTA_SERVICE_UUID,
+      char.uuid,
+      macAddress,
+      (data, error) => {
+        // Guard against duplicate callbacks or callbacks after abort/timeout
+        if (readCompleted || isAborted) {
+          console.warn(`[readEnergyCharacteristics] Ignoring late callback for ${char.name}`);
+          return;
+        }
+        readCompleted = true;
+        
+        // Clear the timeout
+        if (currentTimeoutId) {
+          clearTimeout(currentTimeoutId);
+          currentTimeoutId = null;
+        }
+        
+        if (error) {
+          console.warn(`[readEnergyCharacteristics] Error reading ${char.name}:`, error);
+          // For required characteristics, fail immediately
+          if (char.name === 'rcap' || char.name === 'pckv') {
+            handleFailure(`Error reading required characteristic ${char.name}: ${error}`);
+            return;
+          }
+          // Continue reading other characteristics even if optional ones fail
+        } else if (data !== null && data !== undefined) {
+          // Parse the value - handle different formats
+          let value;
+          if (typeof data === 'object' && data.realVal !== undefined) {
+            value = parseFloat(data.realVal);
+          } else if (typeof data === 'number') {
+            value = data;
+          } else {
+            value = parseFloat(data);
+          }
+          
+          if (Number.isFinite(value)) {
+            results[char.name] = value;
+            console.info(`[readEnergyCharacteristics] ${char.name} = ${value}`);
+          } else {
+            console.warn(`[readEnergyCharacteristics] ${char.name} returned non-finite value:`, data);
+            // For required characteristics, this is an error
+            if (char.name === 'rcap' || char.name === 'pckv') {
+              handleFailure(`Invalid value for required characteristic ${char.name}`);
+              return;
+            }
+          }
+        } else {
+          console.warn(`[readEnergyCharacteristics] ${char.name} returned null/undefined`);
+          // For required characteristics, this is an error
+          if (char.name === 'rcap' || char.name === 'pckv') {
+            handleFailure(`No data returned for required characteristic ${char.name}`);
+            return;
+          }
+        }
+        
+        // Read next characteristic after a small delay to prevent BLE congestion
+        setTimeout(() => readNext(index + 1), 50);
+      }
+    );
+  };
+
+  // Start reading
+  readNext(0);
 };
 
 export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddress, callback) => {
