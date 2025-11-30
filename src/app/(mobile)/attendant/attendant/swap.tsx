@@ -1256,35 +1256,38 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         return char?.realVal ?? null;
       };
 
+      // rcap = Remaining Capacity in Whs (already in Watt-hours!)
+      // No need to multiply by pckv - that was incorrect
       const rcapRaw = getCharValue("rcap");
-      const pckvRaw = getCharValue("pckv");
-
       const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
-      const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
 
-      if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
-        console.warn("Unable to parse rcap/pckv values from DTA service", {
+      if (!Number.isFinite(rcap)) {
+        console.warn("Unable to parse rcap (Remaining Capacity) from DTA service", {
           rcapRaw,
-          pckvRaw,
         });
         setIsComputingEnergy(false); // Energy computation failed
         return;
       }
 
-      const computedEnergy = (rcap * pckv) / 100;
+      // rcap is ALREADY in Watt-hours, convert to kWh for the form
+      const energyKwh = rcap / 1000;
 
-      if (!Number.isFinite(computedEnergy)) {
+      if (!Number.isFinite(energyKwh)) {
         console.warn("Computed energy is not a finite number", {
           rcap,
-          pckv,
-          computedEnergy,
+          energyKwh,
         });
         setIsComputingEnergy(false); // Energy computation failed
         return;
       }
 
-      // Always populate energy from computedEnergy, overwriting any manual input
-      const formattedEnergy = computedEnergy.toFixed(2);
+      console.info("Energy extracted from DTA service:", {
+        rcap_Wh: rcap,
+        energy_kWh: energyKwh,
+      });
+
+      // Always populate energy from rcap, overwriting any manual input
+      const formattedEnergy = energyKwh.toFixed(2);
       setCheckinEnergyTransferred(formattedEnergy);
       autoFilledCheckinEnergyRef.current = true;
       setIsComputingEnergy(false); // Energy computation complete
