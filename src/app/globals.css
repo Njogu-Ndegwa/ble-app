@@ -3504,6 +3504,49 @@ html.theme-transition *::after {
   color: var(--success);
 }
 
+/* BLE Cancel Button */
+.ble-cancel-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 12px 24px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.ble-cancel-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.ble-cancel-button:active {
+  transform: scale(0.98);
+}
+
+.ble-cancel-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* BLE Progress Help Text */
+.ble-progress-help {
+  margin-top: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  line-height: 1.5;
+}
+
 /* Small screen adjustments for BLE progress */
 @media (max-height: 650px) {
   .ble-progress-container {
@@ -3544,5 +3587,16 @@ html.theme-transition *::after {
   
   .ble-step span {
     font-size: 9px;
+  }
+  
+  .ble-cancel-button {
+    margin-top: 14px;
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+  
+  .ble-progress-help {
+    margin-top: 12px;
+    font-size: 11px;
   }
 }

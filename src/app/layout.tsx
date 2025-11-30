@@ -23,6 +23,7 @@ import { AuthProvider } from "./(auth)/context/auth-context";
 import apolloClient from "@/lib/apollo-client";
 import { ApolloProvider } from "@apollo/client";
 import { I18nProvider } from "@/i18n";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function RootLayout({
   children,
@@ -42,15 +43,17 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} ${dmMono.variable} antialiased`}
       >
-        <ApolloProvider client={apolloClient}>
-          <BridgeProvider>
-            <AuthProvider>
-              <I18nProvider>
-                {children}
-              </I18nProvider>
-            </AuthProvider>
-          </BridgeProvider>
-        </ApolloProvider>
+        <ErrorBoundary>
+          <ApolloProvider client={apolloClient}>
+            <BridgeProvider>
+              <AuthProvider>
+                <I18nProvider>
+                  {children}
+                </I18nProvider>
+              </AuthProvider>
+            </BridgeProvider>
+          </ApolloProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
