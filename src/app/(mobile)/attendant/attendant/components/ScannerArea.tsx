@@ -20,7 +20,7 @@ export default function ScannerArea({ onClick, type = 'qr', size = 'normal' }: S
           <div className="scanner-corner-bl"></div>
           <div className="scanner-corner-br"></div>
         </div>
-        <div className="scanner-line"></div>
+        {/* No animated scanner line - it was misleading users into thinking scanning was active */}
         <div className="scanner-icon">
           {type === 'qr' ? (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -35,6 +35,10 @@ export default function ScannerArea({ onClick, type = 'qr', size = 'normal' }: S
               <path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
             </svg>
           )}
+        </div>
+        {/* Clear prompt so users know to tap */}
+        <div className="scanner-tap-prompt">
+          <span>Tap to scan</span>
         </div>
       </div>
     </div>

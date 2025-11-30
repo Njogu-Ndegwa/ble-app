@@ -1249,6 +1249,22 @@ html.theme-transition *::after {
   stroke-width: 1;
 }
 
+/* Tap to scan prompt - clear call-to-action for users */
+.scanner-tap-prompt {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .scan-hint {
   display: flex;
   align-items: center;
