@@ -6,21 +6,23 @@ interface ScannerAreaProps {
   onClick: () => void;
   type?: 'qr' | 'battery';
   size?: 'normal' | 'small';
+  isScanning?: boolean;
 }
 
-export default function ScannerArea({ onClick, type = 'qr', size = 'normal' }: ScannerAreaProps) {
+export default function ScannerArea({ onClick, type = 'qr', size = 'normal', isScanning = false }: ScannerAreaProps) {
   const sizeStyle = size === 'small' 
     ? { width: '120px', height: '120px', margin: '12px auto' } 
     : {};
 
   return (
-    <div className="scanner-area" onClick={onClick} style={sizeStyle}>
+    <div className={`scanner-area ${isScanning ? 'scanning' : ''}`} onClick={onClick} style={sizeStyle}>
       <div className="scanner-frame">
         <div className="scanner-corners">
           <div className="scanner-corner-bl"></div>
           <div className="scanner-corner-br"></div>
         </div>
-        <div className="scanner-line"></div>
+        {/* Scanner line - only visible and animated when actively scanning */}
+        {isScanning && <div className="scanner-line"></div>}
         <div className="scanner-icon">
           {type === 'qr' ? (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -36,6 +38,12 @@ export default function ScannerArea({ onClick, type = 'qr', size = 'normal' }: S
             </svg>
           )}
         </div>
+        {/* Tap to scan prompt - only visible when NOT scanning */}
+        {!isScanning && (
+          <div className="scanner-tap-prompt">
+            <span>Tap to scan</span>
+          </div>
+        )}
       </div>
     </div>
   );

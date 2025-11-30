@@ -1249,6 +1249,38 @@ html.theme-transition *::after {
   stroke-width: 1;
 }
 
+/* Tap to scan prompt - shown when scanner is idle */
+.scanner-tap-prompt {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  animation: tapPromptPulse 2s ease-in-out infinite;
+}
+
+@keyframes tapPromptPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Active scanning state */
+.scanner-area.scanning .scanner-frame {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.scanner-area.scanning .scanner-icon {
+  opacity: 0.5;
+}
+
 .scan-hint {
   display: flex;
   align-items: center;
