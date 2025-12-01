@@ -195,6 +195,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Bridge initialization ref (for preventing double init() calls)
   const bridgeInitRef = useRef<boolean>(false);
   
+  // Track if QR scan was initiated to detect when user returns without scanning
+  const qrScanInitiatedRef = useRef<boolean>(false);
+  
   // BLE handlers ready flag - ensures we don't start scanning before handlers are registered
   const [bleHandlersReady, setBleHandlersReady] = useState<boolean>(false);
   
@@ -315,6 +318,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       toast.error('Unable to access camera');
       return;
     }
+
+    // Mark that we initiated a QR scan - used to detect when user returns without scanning
+    qrScanInitiatedRef.current = true;
 
     window.WebViewJavascriptBridge.callHandler(
       'startQrCodeScan',
@@ -1101,6 +1107,34 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
 
+  // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        // User returned to page - give a small delay to allow QR callback to fire first if scan was successful
+        const timeoutId = setTimeout(() => {
+          // If scanning state is still true after returning, reset it
+          // This happens when user pressed back on QR scanner without scanning
+          if (isScanning) {
+            console.info('Resetting scanning state - user returned without scanning');
+            setIsScanning(false);
+            scanTypeRef.current = null;
+            clearScanTimeout();
+            stopBleScan();
+          }
+          qrScanInitiatedRef.current = false;
+        }, 500); // 500ms delay to allow QR callback to fire first
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isScanning, clearScanTimeout, stopBleScan]);
+
   // Setup bridge handlers for QR code scanning and BLE (follows pattern from swap.tsx)
   const setupBridge = useCallback((b: WebViewJavascriptBridge) => {
     const noop = () => {};
@@ -1122,6 +1156,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     const offQr = reg(
       "scanQrcodeResultCallBack",
       (data: string, resp: any) => {
+        // QR callback received - reset the initiated flag since scanner is now closed
+        qrScanInitiatedRef.current = false;
+        
         try {
           const p = JSON.parse(data);
           const qrVal = p.respData?.value || "";
