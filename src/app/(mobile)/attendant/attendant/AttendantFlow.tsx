@@ -141,6 +141,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // BLE operation timeout ref - for cancelling stuck operations
   const bleOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Global BLE timeout ref - last resort when connection hangs without error callbacks
+  const bleGlobalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // BLE retry state
   const bleRetryCountRef = useRef<number>(0);
   // Track whether connection was successful - prevents retrying when already connected but initializing services
@@ -148,6 +151,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const MAX_BLE_RETRIES = 3;
   const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds for connection
   const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds for data reading
+  const BLE_GLOBAL_TIMEOUT = 90000; // 90 seconds (1m 30s) - last resort timeout when no error callbacks received
   
   // Refs for BLE scanning
   const detectedBleDevicesRef = useRef<BleDevice[]>([]);
@@ -212,6 +216,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, []);
 
+  // Helper to clear global BLE timeout (90s last resort)
+  const clearBleGlobalTimeout = useCallback(() => {
+    if (bleGlobalTimeoutRef.current) {
+      clearTimeout(bleGlobalTimeoutRef.current);
+      bleGlobalTimeoutRef.current = null;
+    }
+  }, []);
+
   // Cancel/Close ongoing BLE operation - allows user to dismiss failure state and try again
   // NOTE: Cancellation is blocked when already connected and reading data to prevent orphaned connections
   const cancelBleOperation = useCallback(() => {
@@ -227,6 +239,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // Clear all timeouts
     clearBleOperationTimeout();
+    clearBleGlobalTimeout();
     clearScanTimeout();
     
     // Stop BLE scan if running
@@ -262,7 +275,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     pendingConnectionMacRef.current = null;
     bleRetryCountRef.current = 0;
     isConnectionSuccessfulRef.current = false;
-  }, [clearBleOperationTimeout, clearScanTimeout]);
+  }, [clearBleOperationTimeout, clearBleGlobalTimeout, clearScanTimeout]);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
@@ -476,6 +489,43 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       maxAttempts: MAX_MATCH_RETRIES + 1,
     });
 
+    // Start global timeout on first attempt (when modal first appears)
+    // This is a last resort safety net - if no success or error after 90 seconds,
+    // show user instructions to toggle Bluetooth
+    if (retryAttempt === 0) {
+      clearBleGlobalTimeout();
+      bleGlobalTimeoutRef.current = setTimeout(() => {
+        console.warn('=== BLE GLOBAL TIMEOUT (90s) - Connection hung without error callback ===');
+        
+        // Clear other timeouts
+        clearBleOperationTimeout();
+        clearScanTimeout();
+        
+        // Stop BLE scan
+        if (window.WebViewJavascriptBridge) {
+          window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
+        }
+        
+        // Show the Bluetooth reset instructions modal
+        setBleScanState(prev => ({
+          ...prev,
+          isConnecting: false,
+          isReadingEnergy: false,
+          connectionProgress: 0,
+          error: 'Connection timed out',
+          connectionFailed: true,
+          requiresBluetoothReset: true,
+        }));
+        
+        toast.error('Connection timed out. Please toggle Bluetooth and try again.');
+        
+        // Reset scan state
+        setIsScanning(false);
+        scanTypeRef.current = null;
+        isConnectionSuccessfulRef.current = false;
+      }, BLE_GLOBAL_TIMEOUT);
+    }
+
     // Show connecting modal with progress based on retry attempt
     const progressPercent = Math.min(5 + (retryAttempt * 15), 60);
     setBleScanState(prev => ({
@@ -524,6 +574,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         console.error('No matching BLE device found after all retries');
         toast.error('Battery not found nearby. Please ensure the battery is powered on and close to this device.');
         
+        // Clear global timeout since we've reached an error state
+        clearBleGlobalTimeout();
+        
         setBleScanState(prev => ({
           ...prev,
           isConnecting: false,
@@ -542,7 +595,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         return false;
       }
     }
-  }, [stopBleScan, connectBleDevice]);
+  }, [stopBleScan, connectBleDevice, clearBleGlobalTimeout, clearBleOperationTimeout, clearScanTimeout]);
 
   // Process customer QR code data and send MQTT identify_customer
   const processCustomerQRData = useCallback((qrCodeData: string) => {
@@ -1279,6 +1332,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         isConnectionSuccessfulRef.current = false;
         pendingConnectionMacRef.current = null;
         
+        // Clear global timeout since we've reached an error state
+        if (bleGlobalTimeoutRef.current) {
+          clearTimeout(bleGlobalTimeoutRef.current);
+          bleGlobalTimeoutRef.current = null;
+        }
+        
         setBleScanState(prev => ({
           ...prev,
           isConnecting: false,
@@ -1344,6 +1403,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             
             if (isBluetoothDisconnected) {
               console.warn("Detected 'Bluetooth device not connected' in DTA response - requiring Bluetooth reset");
+              
+              // Clear global timeout since we've reached an error state
+              if (bleGlobalTimeoutRef.current) {
+                clearTimeout(bleGlobalTimeoutRef.current);
+                bleGlobalTimeoutRef.current = null;
+              }
               
               setBleScanState(prev => ({
                 ...prev,
@@ -1538,6 +1603,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               dtaRefreshRetryCountRef.current = 0;
               toast.dismiss('dta-refresh'); // Dismiss loading toast if any
               
+              // Clear global timeout since operation completed successfully
+              if (bleGlobalTimeoutRef.current) {
+                clearTimeout(bleGlobalTimeoutRef.current);
+                bleGlobalTimeoutRef.current = null;
+              }
+              
               // Clear pending state - reset connection flag for next operation
               setIsScanning(false);
               scanTypeRef.current = null;
@@ -1646,6 +1717,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       if (bleOperationTimeoutRef.current) {
         clearTimeout(bleOperationTimeoutRef.current);
         bleOperationTimeoutRef.current = null;
+      }
+      // Clear global timeout
+      if (bleGlobalTimeoutRef.current) {
+        clearTimeout(bleGlobalTimeoutRef.current);
+        bleGlobalTimeoutRef.current = null;
       }
       // Stop BLE scan on cleanup
       if (window.WebViewJavascriptBridge) {
