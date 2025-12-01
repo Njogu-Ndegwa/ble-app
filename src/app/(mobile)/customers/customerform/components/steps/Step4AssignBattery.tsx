@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Bluetooth, Radio } from 'lucide-react';
+import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
   PlanData, 
@@ -25,14 +26,15 @@ export default function Step4AssignBattery({
   isBleScanning = false,
   detectedDevicesCount = 0,
 }: Step4Props) {
+  const { t } = useI18n();
   const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
 
   return (
     <div className="screen active">
-      <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>Assign Battery</h2>
-      <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '10px' }}>Scan a battery to assign to customer</p>
+      <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>{t('sales.assignBattery')}</h2>
+      <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '10px' }}>{t('sales.scanBatteryQr')}</p>
 
       {/* Customer Preview Card */}
       <div className="preview-card">
@@ -46,11 +48,11 @@ export default function Step4AssignBattery({
         </div>
         <div className="preview-details">
           <div className="detail-item">
-            <div className="detail-label">Vehicle</div>
+            <div className="detail-label">{t('sales.vehicleReg')}</div>
             <div className="detail-value">{formData.vehicleReg || 'N/A'}</div>
           </div>
           <div className="detail-item">
-            <div className="detail-label">National ID</div>
+            <div className="detail-label">{t('sales.nationalId')}</div>
             <div className="detail-value">{maskNationalId(formData.nationalId) || 'N/A'}</div>
           </div>
         </div>
@@ -67,12 +69,12 @@ export default function Step4AssignBattery({
         </div>
         <div className="bluetooth-notice-content">
           <span className="bluetooth-notice-title">
-            {isBleScanning ? 'Scanning for Batteries...' : 'Bluetooth Required'}
+            {isBleScanning ? t('sales.scanningForDevices') : 'Bluetooth'}
           </span>
           <span className="bluetooth-notice-text">
             {isBleScanning 
-              ? `${detectedDevicesCount} ${detectedDevicesCount === 1 ? 'battery' : 'batteries'} detected nearby`
-              : 'Please ensure Bluetooth is ON to read battery levels'}
+              ? `${detectedDevicesCount} ${t('sales.devicesFound')}`
+              : t('sales.scanBatteryQr')}
           </span>
         </div>
       </div>
@@ -93,7 +95,7 @@ export default function Step4AssignBattery({
             </svg>
           </div>
           <div className="scanner-tap-prompt">
-            <span>Tap to scan</span>
+            <span>{t('sales.tapToScan')}</span>
           </div>
         </div>
       </div>
@@ -103,7 +105,7 @@ export default function Step4AssignBattery({
           <circle cx="12" cy="12" r="10"/>
           <path d="M12 16v-4M12 8h.01"/>
         </svg>
-        Battery energy will be read via Bluetooth
+        {t('sales.scanBatteryQr')}
       </p>
     </div>
   );

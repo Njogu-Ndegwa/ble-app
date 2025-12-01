@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import ScannerArea from '../ScannerArea';
 import { BatteryData, getBatteryClass } from '../types';
 import { Bluetooth, Radio } from 'lucide-react';
@@ -18,6 +19,7 @@ export default function Step3NewBattery({
   isBleScanning = false,
   detectedDevicesCount = 0,
 }: Step3Props) {
+  const { t } = useI18n();
   const chargeLevel = oldBattery?.chargeLevel ?? 0;
   const energyWh = oldBattery?.energy ?? 0;
   const energyKwh = energyWh / 1000; // Convert to kWh for display
@@ -28,7 +30,7 @@ export default function Step3NewBattery({
       {/* Compact Old Battery Card */}
       <div className="battery-return-card">
         <div className="battery-return-header">
-          <span className="battery-return-label">OLD BATTERY</span>
+          <span className="battery-return-label">{t('attendant.returnedBattery')}</span>
           <span className="battery-return-status">✓ Connected</span>
         </div>
         <div className="battery-return-content">
@@ -41,14 +43,14 @@ export default function Step3NewBattery({
               ></div>
             </div>
             <span className="battery-return-percent">{energyKwh.toFixed(3)} kWh</span>
-            <span className="battery-return-unit">Energy</span>
+            <span className="battery-return-unit">{t('attendant.energyRemaining')}</span>
           </div>
         </div>
       </div>
 
       <div className="scan-prompt">
-        <h1 className="scan-title">Scan New Battery</h1>
-        <p className="scan-subtitle">Scan the fresh battery to give customer</p>
+        <h1 className="scan-title">{t('attendant.issueNewBattery')}</h1>
+        <p className="scan-subtitle">{t('attendant.scanNewBattery')}</p>
         
         {/* BLE Scanning Status - Shows nearby batteries being detected */}
         <div className={`bluetooth-notice ${isBleScanning ? 'ble-scanning-active' : ''}`}>
@@ -61,12 +63,12 @@ export default function Step3NewBattery({
           </div>
           <div className="bluetooth-notice-content">
             <span className="bluetooth-notice-title">
-              {isBleScanning ? 'Scanning for Batteries...' : 'Bluetooth Required'}
+              {isBleScanning ? t('sales.scanningForDevices') : 'Bluetooth'}
             </span>
             <span className="bluetooth-notice-text">
               {isBleScanning 
-                ? `${detectedDevicesCount} ${detectedDevicesCount === 1 ? 'battery' : 'batteries'} detected nearby`
-                : 'Please ensure Bluetooth is turned ON on this device to read battery energy levels'}
+                ? `${detectedDevicesCount} ${t('sales.devicesFound')}`
+                : t('attendant.scanNewBattery')}
             </span>
           </div>
         </div>
@@ -78,7 +80,7 @@ export default function Step3NewBattery({
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 16v-4M12 8h.01"/>
           </svg>
-          Battery energy will be read via Bluetooth
+          {t('attendant.scanNewBattery')}
         </p>
       </div>
     </div>

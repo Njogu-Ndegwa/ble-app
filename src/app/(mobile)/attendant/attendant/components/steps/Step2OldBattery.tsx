@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import ScannerArea from '../ScannerArea';
 import { Bluetooth, Radio } from 'lucide-react';
 
@@ -17,16 +18,18 @@ export default function Step2OldBattery({
   isBleScanning = false,
   detectedDevicesCount = 0,
 }: Step2Props) {
+  const { t } = useI18n();
+  
   return (
     <div className="screen active">
       <div className="scan-prompt">
         <h1 className="scan-title">
-          {isFirstTimeCustomer ? 'Scan Battery (Optional)' : 'Scan Old Battery'}
+          {isFirstTimeCustomer ? t('attendant.skipReturn') : t('attendant.returnBattery')}
         </h1>
         <p className="scan-subtitle">
           {isFirstTimeCustomer 
-            ? 'First-time customer - scan battery if returning one'
-            : 'Scan the battery the customer brought in'}
+            ? t('attendant.firstTimeCustomer')
+            : t('attendant.scanReturnBattery')}
         </p>
         
         {/* BLE Scanning Status - Shows nearby batteries being detected */}
@@ -40,12 +43,12 @@ export default function Step2OldBattery({
           </div>
           <div className="bluetooth-notice-content">
             <span className="bluetooth-notice-title">
-              {isBleScanning ? 'Scanning for Batteries...' : 'Bluetooth Required'}
+              {isBleScanning ? t('sales.scanningForDevices') : 'Bluetooth'}
             </span>
             <span className="bluetooth-notice-text">
               {isBleScanning 
-                ? `${detectedDevicesCount} ${detectedDevicesCount === 1 ? 'battery' : 'batteries'} detected nearby`
-                : 'Please ensure Bluetooth is turned ON on this device to read battery energy levels'}
+                ? `${detectedDevicesCount} ${t('sales.devicesFound')}`
+                : t('attendant.scanReturnBattery')}
             </span>
           </div>
         </div>
@@ -58,8 +61,8 @@ export default function Step2OldBattery({
             <path d="M12 16v-4M12 8h.01"/>
           </svg>
           {isFirstTimeCustomer 
-            ? 'Skip if no battery to return'
-            : 'Battery energy will be read via Bluetooth'}
+            ? t('attendant.firstTimeCustomer')
+            : t('attendant.scanReturnBattery')}
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import { SalesStep, STEP_CONFIGS } from './types';
 
 interface SalesTimelineProps {
@@ -8,6 +9,15 @@ interface SalesTimelineProps {
   maxStepReached?: SalesStep;
   onStepClick?: (step: SalesStep) => void;
 }
+
+// Map step icons to translation keys
+const STEP_LABEL_KEYS: Record<string, string> = {
+  customer: 'sales.step.customer',
+  plan: 'sales.step.plan',
+  payment: 'sales.step.payment',
+  battery: 'sales.step.battery',
+  done: 'sales.step.done',
+};
 
 // Step icons as SVG components
 const StepIcons = {
@@ -45,6 +55,8 @@ const StepIcons = {
 };
 
 export default function SalesTimeline({ currentStep, maxStepReached = currentStep, onStepClick }: SalesTimelineProps) {
+  const { t } = useI18n();
+  
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
       return step === 5 ? 'success' : 'active';
@@ -69,6 +81,7 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
       <div className="timeline-track">
         {STEP_CONFIGS.map((config, index) => {
           const stepClass = getStepClass(config.step);
+          const labelKey = STEP_LABEL_KEYS[config.icon];
           
           return (
             <React.Fragment key={config.step}>
@@ -79,7 +92,7 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
                 <div className="timeline-dot">
                   {StepIcons[config.icon]}
                 </div>
-                <span className="timeline-label">{config.label}</span>
+                <span className="timeline-label">{labelKey ? t(labelKey) : config.label}</span>
               </div>
               {index < STEP_CONFIGS.length - 1 && (
                 <div className={`timeline-connector ${getConnectorClass(config.step)}`} />
