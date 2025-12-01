@@ -923,6 +923,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     }
     
+    // Valid new battery detected - clear any previous flow error
+    setFlowError(null);
+    
     // Store the scanned battery ID for later use after BLE connection
     pendingBatteryQrCodeRef.current = scannedBatteryId;
     pendingBatteryScanTypeRef.current = 'new_battery';
@@ -1994,6 +1997,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       toast.error('Bridge not available. Please restart the app.');
       return;
     }
+
+    // Clear any existing flow error when retrying (e.g., after scanning old battery as new by mistake)
+    setFlowError(null);
 
     // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
     // This preserves devices that were discovered while user was viewing Step 3
