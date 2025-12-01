@@ -5,11 +5,11 @@ import { Bluetooth, Radio } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
-  PlanData, 
   AVAILABLE_PLANS, 
   getInitials, 
   maskNationalId 
 } from '../types';
+import ScannerArea from '@/app/(mobile)/attendant/attendant/components/ScannerArea';
 
 interface Step4Props {
   formData: CustomerFormData;
@@ -17,6 +17,7 @@ interface Step4Props {
   onScanBattery: () => void;
   isBleScanning?: boolean;
   detectedDevicesCount?: number;
+  isScannerOpening?: boolean; // Prevents multiple scanner opens
 }
 
 export default function Step4AssignBattery({ 
@@ -25,6 +26,7 @@ export default function Step4AssignBattery({
   onScanBattery,
   isBleScanning = false,
   detectedDevicesCount = 0,
+  isScannerOpening = false,
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
@@ -80,25 +82,7 @@ export default function Step4AssignBattery({
       </div>
 
       {/* Battery Scanner */}
-      <div className="scanner-area" onClick={onScanBattery} style={{ width: '140px', height: '140px', margin: '10px auto' }}>
-        <div className="scanner-frame">
-          <div className="scanner-corners" style={{ inset: '12px' }}>
-            <div className="scanner-corner-bl"></div>
-            <div className="scanner-corner-br"></div>
-          </div>
-          <div className="scanner-line"></div>
-          <div className="scanner-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '36px', height: '36px' }}>
-              <rect x="2" y="6" width="20" height="12" rx="2"/>
-              <path d="M22 10v4"/>
-              <path d="M6 10v4"/>
-            </svg>
-          </div>
-          <div className="scanner-tap-prompt">
-            <span>{t('sales.tapToScan')}</span>
-          </div>
-        </div>
-      </div>
+      <ScannerArea onClick={onScanBattery} type="battery" disabled={isScannerOpening} />
 
       <p className="scan-hint">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

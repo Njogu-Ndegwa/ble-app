@@ -1271,6 +1271,46 @@ html.theme-transition *::after {
   letter-spacing: 0.5px;
 }
 
+/* Scanner disabled state - prevents multiple scanner opens */
+.scanner-area-disabled {
+  cursor: not-allowed;
+}
+
+.scanner-area-disabled .scanner-frame {
+  border-color: var(--border);
+}
+
+.scanner-area-disabled:hover .scanner-frame {
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.scanner-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.scanner-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: scanner-spin 0.8s linear infinite;
+}
+
+@keyframes scanner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .scan-hint {
   display: flex;
   align-items: center;

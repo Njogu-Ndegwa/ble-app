@@ -7,6 +7,7 @@ import {
   AVAILABLE_PLANS, 
   getInitials 
 } from '../types';
+import ScannerArea from '@/app/(mobile)/attendant/attendant/components/ScannerArea';
 
 interface Step3Props {
   formData: CustomerFormData;
@@ -14,6 +15,7 @@ interface Step3Props {
   onConfirmPayment: () => void;
   onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
+  isScannerOpening?: boolean; // Prevents multiple scanner opens
 }
 
 export default function Step3Payment({ 
@@ -21,7 +23,8 @@ export default function Step3Payment({
   selectedPlanId, 
   onConfirmPayment, 
   onManualPayment, 
-  isProcessing 
+  isProcessing,
+  isScannerOpening = false,
 }: Step3Props) {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
@@ -92,30 +95,7 @@ export default function Step3Payment({
           <div className="payment-input-mode">
             <p className="payment-subtitle">{t('sales.scanMpesaQr')}</p>
             
-            {/* Scanner Area - matching Attendant workflow style */}
-            <div 
-              className="scanner-area" 
-              onClick={onConfirmPayment} 
-              style={{ width: '140px', height: '140px', margin: '16px auto' }}
-            >
-              <div className="scanner-frame">
-                <div className="scanner-corners">
-                  <div className="scanner-corner-bl"></div>
-                  <div className="scanner-corner-br"></div>
-                </div>
-                <div className="scanner-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                  </svg>
-                </div>
-                <div className="scanner-tap-prompt">
-                  <span>{t('sales.tapToScan')}</span>
-                </div>
-              </div>
-            </div>
+            <ScannerArea onClick={onConfirmPayment} type="qr" disabled={isScannerOpening} />
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
