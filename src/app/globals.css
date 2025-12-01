@@ -3686,16 +3686,15 @@ html.theme-transition *::after {
 /* ===================== */
 
 .sales-flow-container {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-primary);
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: var(--bg-primary);
-  position: relative;
+  overflow: hidden;
 }
 
-/* Background gradient for sales flow */
-.sales-flow-container::before {
-  content: '';
+.sales-bg-gradient {
   position: absolute;
   top: 0;
   left: 0;
@@ -3704,6 +3703,19 @@ html.theme-transition *::after {
   background: radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-soft) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
+}
+
+/* Sales Main Content */
+.sales-main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 16px 100px;
+  position: relative;
+  z-index: 5;
+  max-width: 430px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* Product Selection Grid */
@@ -4038,7 +4050,7 @@ html.theme-transition *::after {
 
 /* Small screen adjustments for Sales Flow */
 @media (max-height: 700px) {
-  .sales-flow-container::before {
+  .sales-bg-gradient {
     height: 200px;
   }
   

@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
 
@@ -697,10 +696,16 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
   return (
     <div className="sales-flow-container">
+      <div className="sales-bg-gradient" />
+      
       {/* Back to Roles */}
-      <div className="back-to-roles" onClick={handleBackToRoles}>
-        <ArrowLeft size={14} />
-        Change Role
+      <div style={{ padding: '8px 16px 0' }}>
+        <button className="back-to-roles" onClick={handleBackToRoles}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Change Role
+        </button>
       </div>
 
       {/* Timeline */}
@@ -711,7 +716,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       />
 
       {/* Main Content */}
-      <main className="main">
+      <main className="sales-main">
         {renderStepContent()}
       </main>
 
