@@ -1,58 +1,89 @@
 'use client';
 
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { Globe } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface RoleConfig {
   id: string;
-  label: string;
+  labelKey: string;
   image: string;
   path: string;
   disabled?: boolean;
-  badge?: string;
+  badgeKey?: string;
 }
 
 const roles: RoleConfig[] = [
   {
     id: 'attendant',
-    label: 'Attendant',
+    labelKey: 'role.attendant',
     image: '/assets/Attendant.png',
     path: '/attendant/attendant',
   },
   {
     id: 'sales',
-    label: 'Sales Rep',
+    labelKey: 'role.salesRep',
     image: '/assets/Sales.png',
     path: '/customers/customerform',
   },
   {
     id: 'keypad',
-    label: 'Keypad',
+    labelKey: 'role.keypad',
     image: '/assets/Keypad.png',
     path: '/keypad/keypad',
   },
   {
     id: 'rider',
-    label: 'Rider',
+    labelKey: 'role.rider',
     image: '/assets/Rider.png',
     path: '/rider/serviceplan1',
     disabled: true,
-    badge: 'Coming Soon',
+    badgeKey: 'role.comingSoon',
   },
 ];
 
 export default function SelectRole() {
   const router = useRouter();
+  const { locale, setLocale, t } = useI18n();
+
+  // Lock body overflow for fixed container
+  useEffect(() => {
+    document.body.classList.add('overflow-locked');
+    return () => {
+      document.body.classList.remove('overflow-locked');
+    };
+  }, []);
 
   const handleRoleClick = (role: RoleConfig) => {
     if (role.disabled) return;
     router.push(role.path);
   };
 
+  const toggleLocale = () => {
+    setLocale(locale === 'en' ? 'fr' : 'en');
+  };
+
   return (
     <div className="select-role-container">
       {/* Background gradient */}
       <div className="select-role-bg-gradient" />
+
+      {/* Language Switcher Header */}
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          <div className="flow-header-spacer" />
+          <button
+            className="flow-header-lang"
+            onClick={toggleLocale}
+            aria-label={t('role.switchLanguage')}
+          >
+            <Globe size={16} />
+            <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+          </button>
+        </div>
+      </header>
 
       <main className="select-role-main">
         <div className="role-selection">
@@ -75,9 +106,9 @@ export default function SelectRole() {
 
           {/* Title Section */}
           <div className="role-header">
-            <h1 className="role-title">Select Your Role</h1>
+            <h1 className="role-title">{t('role.selectTitle')}</h1>
             <p className="role-description">
-              Choose <strong>your role</strong> to access the right tools for your daily tasks.
+              {t('role.selectDescription')}
             </p>
           </div>
 
@@ -92,15 +123,15 @@ export default function SelectRole() {
                 <div className="role-applet-image">
                   <Image
                     src={role.image}
-                    alt={role.label}
+                    alt={t(role.labelKey)}
                     width={100}
                     height={100}
                   />
                 </div>
-                <span className="role-applet-label">{role.label}</span>
+                <span className="role-applet-label">{t(role.labelKey)}</span>
                 
-                {role.badge && (
-                  <span className="role-applet-badge">{role.badge}</span>
+                {role.badgeKey && (
+                  <span className="role-applet-badge">{t(role.badgeKey)}</span>
                 )}
               </div>
             ))}
