@@ -1,13 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
-type RoleType = 'attendant' | 'sales' | 'keypad' | 'rider' | null;
-
 interface RoleConfig {
-  id: RoleType;
+  id: string;
   label: string;
   image: string;
   path: string;
@@ -46,18 +43,10 @@ const roles: RoleConfig[] = [
 
 export default function SelectRole() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<RoleType>(null);
 
   const handleRoleClick = (role: RoleConfig) => {
     if (role.disabled) return;
-    setSelectedRole(role.id);
-  };
-
-  const handleContinue = () => {
-    const role = roles.find(r => r.id === selectedRole);
-    if (role) {
-      router.push(role.path);
-    }
+    router.push(role.path);
   };
 
   return (
@@ -97,22 +86,9 @@ export default function SelectRole() {
             {roles.map((role) => (
               <div
                 key={role.id}
-                className={`role-applet ${selectedRole === role.id ? 'selected' : ''} ${role.disabled ? 'disabled' : ''}`}
+                className={`role-applet ${role.disabled ? 'disabled' : ''}`}
                 onClick={() => handleRoleClick(role)}
               >
-                {/* Check icon for selected state */}
-                <svg 
-                  className="check-icon" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="3" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-
                 <div className="role-applet-image">
                   <Image
                     src={role.image}
@@ -129,32 +105,8 @@ export default function SelectRole() {
               </div>
             ))}
           </div>
-
-          {/* Action Button */}
-          <div className="role-action">
-            <button 
-              className={`role-btn ${selectedRole ? 'ready' : ''}`}
-              onClick={handleContinue}
-              disabled={!selectedRole}
-            >
-              <span>Continue</span>
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-            </button>
-          </div>
         </div>
       </main>
     </div>
   );
 }
-
-
-
