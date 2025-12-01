@@ -10,6 +10,7 @@ interface Step2Props {
   isFirstTimeCustomer?: boolean;
   isBleScanning?: boolean;
   detectedDevicesCount?: number;
+  isScannerOpening?: boolean; // Prevents multiple scanner opens
 }
 
 export default function Step2OldBattery({ 
@@ -17,6 +18,7 @@ export default function Step2OldBattery({
   isFirstTimeCustomer,
   isBleScanning = false,
   detectedDevicesCount = 0,
+  isScannerOpening = false,
 }: Step2Props) {
   const { t } = useI18n();
   
@@ -53,7 +55,7 @@ export default function Step2OldBattery({
           </div>
         </div>
         
-        <ScannerArea onClick={onScanOldBattery} type="battery" size="small" />
+        <ScannerArea onClick={onScanOldBattery} type="battery" size="small" disabled={isScannerOpening} />
         
         <p className="scan-hint">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

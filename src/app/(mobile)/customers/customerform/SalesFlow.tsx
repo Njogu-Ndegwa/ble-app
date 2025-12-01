@@ -109,6 +109,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  
+  // Scanner opening state - prevents multiple scanner opens
+  const [isScannerOpening, setIsScannerOpening] = useState(false);
 
   // BLE Scan state for battery
   const [bleScanState, setBleScanState] = useState<BleScanState>({
@@ -177,13 +180,40 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     return `${rssi}db ~ ${distance.toFixed(0)}m`;
   }, []);
 
+  // Scanner timeout ref - resets isScannerOpening if no result received
+  const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Clear scanner timeout
+  const clearScannerTimeout = useCallback(() => {
+    if (scannerTimeoutRef.current) {
+      clearTimeout(scannerTimeoutRef.current);
+      scannerTimeoutRef.current = null;
+    }
+  }, []);
+  
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
+    // Prevent multiple scanner opens
+    if (isScannerOpening) {
+      console.info('Scanner already opening, ignoring duplicate request');
+      return;
+    }
+    
     if (!window.WebViewJavascriptBridge) {
       toast.error('Unable to access camera');
       return;
     }
 
+    setIsScannerOpening(true);
+    
+    // Safety timeout - reset isScannerOpening if no result after 60 seconds
+    // This handles cases where user cancels the scanner or there's an error
+    clearScannerTimeout();
+    scannerTimeoutRef.current = setTimeout(() => {
+      console.info('Scanner timeout - resetting isScannerOpening');
+      setIsScannerOpening(false);
+    }, 60000);
+    
     window.WebViewJavascriptBridge.callHandler(
       'startQrCodeScan',
       999,
@@ -191,7 +221,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         console.info('QR Code Scan initiated:', responseData);
       }
     );
-  }, []);
+  }, [isScannerOpening, clearScannerTimeout]);
 
   // Start BLE scanning
   const startBleScan = useCallback(() => {
@@ -367,6 +397,10 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         'qrCodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
           console.info('=== QR Code Result Received ===', data);
+          
+          // Reset scanner opening state and clear timeout when result is received
+          clearScannerTimeout();
+          setIsScannerOpening(false);
           
           if (scanTypeRef.current === 'battery') {
             processBatteryQRDataRef.current(data);
@@ -573,7 +607,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         };
       }
     }
-  }, [convertRssiToFormattedString, populateEnergyFromDta, advanceToStep]);
+  }, [convertRssiToFormattedString, populateEnergyFromDta, advanceToStep, clearScannerTimeout]);
 
   // Start BLE scanning when on step 4 (battery assignment)
   useEffect(() => {
@@ -858,6 +892,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             onConfirmPayment={handlePaymentQrScan}
             onManualPayment={handleManualPayment}
             isProcessing={isProcessing}
+            isScannerOpening={isScannerOpening}
           />
         );
       case 4:
@@ -868,6 +903,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             onScanBattery={handleScanBattery}
             isBleScanning={bleScanState.isScanning}
             detectedDevicesCount={bleScanState.detectedDevices.length}
+            isScannerOpening={isScannerOpening}
           />
         );
       case 5:

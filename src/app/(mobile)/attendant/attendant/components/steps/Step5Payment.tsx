@@ -11,9 +11,10 @@ interface Step5Props {
   onConfirmPayment: () => void;
   onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
+  isScannerOpening?: boolean; // Prevents multiple scanner opens
 }
 
-export default function Step5Payment({ swapData, customerData, onConfirmPayment, onManualPayment, isProcessing }: Step5Props) {
+export default function Step5Payment({ swapData, customerData, onConfirmPayment, onManualPayment, isProcessing, isScannerOpening = false }: Step5Props) {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
@@ -77,7 +78,7 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
           <div className="payment-input-mode">
             <p className="payment-subtitle">{t('attendant.enterMpesaCode')}</p>
             
-            <ScannerArea onClick={onConfirmPayment} type="qr" />
+            <ScannerArea onClick={onConfirmPayment} type="qr" disabled={isScannerOpening} />
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

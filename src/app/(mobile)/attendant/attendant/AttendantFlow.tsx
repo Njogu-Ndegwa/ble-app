@@ -305,6 +305,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
+    // Prevent multiple scanner opens - if already scanning, ignore duplicate requests
+    if (isScanning) {
+      console.info('Scanner already open, ignoring duplicate request');
+      return;
+    }
+    
     if (!window.WebViewJavascriptBridge) {
       toast.error('Unable to access camera');
       return;
@@ -317,7 +323,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         console.info('QR Code Scan initiated:', responseData);
       }
     );
-  }, []);
+  }, [isScanning]);
 
   // Convert RSSI to human-readable format (same as swap.tsx)
   const convertRssiToFormattedString = useCallback((rssi: number): string => {
@@ -2683,6 +2689,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             onScanCustomer={handleScanCustomer}
             onManualLookup={handleManualLookup}
             isProcessing={isProcessing}
+            isScannerOpening={isScanning}
             stats={stats}
           />
         );
@@ -2693,6 +2700,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             isFirstTimeCustomer={customerType === 'first-time'}
             isBleScanning={bleScanState.isScanning}
             detectedDevicesCount={bleScanState.detectedDevices.length}
+            isScannerOpening={isScanning}
           />
         );
       case 3:
@@ -2702,6 +2710,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             onScanNewBattery={handleScanNewBattery}
             isBleScanning={bleScanState.isScanning}
             detectedDevicesCount={bleScanState.detectedDevices.length}
+            isScannerOpening={isScanning}
           />
         );
       case 4:
@@ -2719,6 +2728,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             onConfirmPayment={handleConfirmPayment}
             onManualPayment={handleManualPayment}
             isProcessing={isProcessing || paymentAndServiceStatus === 'pending'}
+            isScannerOpening={isScanning}
           />
         );
       case 6:

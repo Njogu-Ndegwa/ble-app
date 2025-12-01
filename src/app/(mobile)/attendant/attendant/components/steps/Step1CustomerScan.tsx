@@ -12,6 +12,7 @@ interface Step1Props {
   onScanCustomer: () => void;
   onManualLookup: () => void;
   isProcessing: boolean;
+  isScannerOpening?: boolean; // Prevents multiple scanner opens
   stats: { today: number; thisWeek: number; successRate: number };
 }
 
@@ -23,6 +24,7 @@ export default function Step1CustomerScan({
   onScanCustomer,
   onManualLookup,
   isProcessing,
+  isScannerOpening = false,
   stats,
 }: Step1Props) {
   const { t } = useI18n();
@@ -61,7 +63,7 @@ export default function Step1CustomerScan({
         {inputMode === 'scan' ? (
           <div className="customer-input-mode">
             <p className="scan-subtitle">{t('attendant.scanCustomerQr')}</p>
-            <ScannerArea onClick={onScanCustomer} type="qr" />
+            <ScannerArea onClick={onScanCustomer} type="qr" disabled={isScannerOpening} />
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
