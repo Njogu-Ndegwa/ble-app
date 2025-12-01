@@ -1035,6 +1035,7 @@ html.theme-transition *::after {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  z-index: 100;
 }
 
 .attendant-bg-gradient {
@@ -3692,6 +3693,7 @@ html.theme-transition *::after {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  z-index: 100;
 }
 
 .sales-bg-gradient {
