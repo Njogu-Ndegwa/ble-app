@@ -3547,6 +3547,66 @@ html.theme-transition *::after {
   line-height: 1.5;
 }
 
+/* BLE Progress Icon Warning State */
+.ble-progress-icon-warning {
+  background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 100%);
+  border: 2px solid rgba(251, 191, 36, 0.5);
+  animation: none; /* Remove pulse for warning state */
+}
+
+.ble-progress-icon-warning svg {
+  color: #1c1c1e;
+}
+
+/* BLE Bluetooth Reset Instructions */
+.ble-reset-instructions {
+  margin: 16px 0;
+  padding: 16px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+}
+
+.ble-reset-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ble-reset-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ble-reset-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 100%);
+  color: #1c1c1e;
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* BLE Cancel Button Primary Variant (for Bluetooth reset) */
+.ble-cancel-button-primary {
+  background: linear-gradient(145deg, #3b82f6 0%, #2563eb 100%);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: white;
+}
+
+.ble-cancel-button-primary:hover {
+  background: linear-gradient(145deg, #60a5fa 0%, #3b82f6 100%);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
 /* Small screen adjustments for BLE progress */
 @media (max-height: 650px) {
   .ble-progress-container {
@@ -3598,5 +3658,25 @@ html.theme-transition *::after {
   .ble-progress-help {
     margin-top: 12px;
     font-size: 11px;
+  }
+  
+  .ble-reset-instructions {
+    margin: 12px 0;
+    padding: 12px;
+  }
+  
+  .ble-reset-steps {
+    gap: 10px;
+  }
+  
+  .ble-reset-step {
+    font-size: 13px;
+    gap: 10px;
+  }
+  
+  .ble-reset-step-number {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
   }
 }
