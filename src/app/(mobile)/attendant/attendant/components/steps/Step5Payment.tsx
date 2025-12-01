@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useI18n } from '@/i18n';
 import { SwapData, CustomerData, getInitials } from '../types';
 import ScannerArea from '../ScannerArea';
 
@@ -13,6 +14,7 @@ interface Step5Props {
 }
 
 export default function Step5Payment({ swapData, customerData, onConfirmPayment, onManualPayment, isProcessing }: Step5Props) {
+  const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
 
@@ -43,7 +45,7 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
       </div>
 
       <div className="payment-scan">
-        <h2 className="payment-title">Confirm Payment</h2>
+        <h2 className="payment-title">{t('attendant.collectPayment')}</h2>
         
         {/* Toggle between Scan and Manual */}
         <div className="input-toggle">
@@ -57,7 +59,7 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            Scan QR
+            {t('attendant.scanQr')}
           </button>
           <button 
             className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
@@ -67,13 +69,13 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
               <path d="M12 20h9"/>
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
-            Enter ID
+            {t('attendant.enterId')}
           </button>
         </div>
         
         {inputMode === 'scan' ? (
           <div className="payment-input-mode">
-            <p className="payment-subtitle">Scan customer&apos;s QR after payment</p>
+            <p className="payment-subtitle">{t('attendant.enterMpesaCode')}</p>
             
             <ScannerArea onClick={onConfirmPayment} type="qr" />
             
@@ -82,18 +84,18 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              Tap to scan payment confirmation QR
+              {t('sales.scanPaymentQrCode')}
             </p>
           </div>
         ) : (
           <div className="payment-input-mode payment-input-mode-manual">
             <div className="manual-entry-form">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Payment / Transaction ID</label>
+                <label className="form-label">{t('attendant.mpesaCode')}</label>
                 <input 
                   type="text" 
                   className="form-input manual-id-input" 
-                  placeholder="e.g. TXN-892741 or M-PESA code"
+                  placeholder={t('sales.enterTransactionId')}
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -109,7 +111,7 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 6L9 17l-5-5"/>
                 </svg>
-                {isProcessing ? 'Processing...' : 'Confirm Payment'}
+                {isProcessing ? t('attendant.confirmingPayment') : t('sales.confirmPayment')}
               </button>
             </div>
             
@@ -118,7 +120,7 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              Enter M-PESA code or receipt number
+              {t('attendant.enterMpesaCode')}
             </p>
           </div>
         )}

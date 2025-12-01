@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import ScannerArea from '../ScannerArea';
 
 interface Step1Props {
@@ -24,10 +25,12 @@ export default function Step1CustomerScan({
   isProcessing,
   stats,
 }: Step1Props) {
+  const { t } = useI18n();
+  
   return (
     <div className="screen active">
       <div className="scan-prompt">
-        <h1 className="scan-title">Identify Customer</h1>
+        <h1 className="scan-title">{t('attendant.identifyCustomer')}</h1>
         
         {/* Toggle between Scan and Manual */}
         <div className="input-toggle">
@@ -41,7 +44,7 @@ export default function Step1CustomerScan({
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            Scan QR
+            {t('attendant.scanQr')}
           </button>
           <button 
             className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
@@ -51,28 +54,28 @@ export default function Step1CustomerScan({
               <path d="M12 20h9"/>
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
-            Enter ID
+            {t('attendant.enterId')}
           </button>
         </div>
         
         {inputMode === 'scan' ? (
           <div className="customer-input-mode">
-            <p className="scan-subtitle">Scan customer&apos;s QR code</p>
+            <p className="scan-subtitle">{t('attendant.scanCustomerQr')}</p>
             <ScannerArea onClick={onScanCustomer} type="qr" />
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              Customer shows their app QR code
+              {t('attendant.customerShowsQr')}
             </p>
           </div>
         ) : (
           <div className="customer-input-mode">
-            <p className="scan-subtitle">Enter Subscription ID manually</p>
+            <p className="scan-subtitle">{t('attendant.enterSubIdManually')}</p>
             <div className="manual-entry-form">
               <div className="form-group">
-                <label className="form-label">Subscription ID</label>
+                <label className="form-label">{t('attendant.subscriptionId')}</label>
                 <input 
                   type="text" 
                   className="form-input manual-id-input" 
@@ -92,7 +95,7 @@ export default function Step1CustomerScan({
                   <circle cx="11" cy="11" r="8"/>
                   <path d="M21 21l-4.35-4.35"/>
                 </svg>
-                {isProcessing ? 'Looking up...' : 'Look Up Customer'}
+                {isProcessing ? t('attendant.lookingUp') : t('attendant.lookUpCustomer')}
               </button>
             </div>
             <p className="scan-hint">
@@ -100,7 +103,7 @@ export default function Step1CustomerScan({
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              Find ID on customer&apos;s account or receipt
+              {t('attendant.findIdOnReceipt')}
             </p>
           </div>
         )}
@@ -109,15 +112,15 @@ export default function Step1CustomerScan({
       <div className="stats-row">
         <div className="stat-card">
           <div className="stat-value">{stats.today}</div>
-          <div className="stat-label">Today</div>
+          <div className="stat-label">{t('attendant.today')}</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{stats.thisWeek}</div>
-          <div className="stat-label">This Week</div>
+          <div className="stat-label">{t('attendant.thisWeek')}</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{stats.successRate}%</div>
-          <div className="stat-label">Success</div>
+          <div className="stat-label">{t('attendant.success')}</div>
         </div>
       </div>
     </div>

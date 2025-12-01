@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
   AVAILABLE_PLANS, 
@@ -22,6 +23,7 @@ export default function Step3Payment({
   onManualPayment, 
   isProcessing 
 }: Step3Props) {
+  const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
 
@@ -55,9 +57,9 @@ export default function Step3Payment({
       </div>
 
       <div className="payment-scan">
-        <h2 className="payment-title">Confirm Payment</h2>
+        <h2 className="payment-title">{t('sales.confirmPayment')}</h2>
         <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '12px' }}>
-          {selectedPlan?.name || 'Subscription'} - First Payment
+          {selectedPlan?.name || 'Subscription'} - {t('sales.paymentTitle')}
         </p>
         
         {/* Toggle between Scan and Manual */}
@@ -72,7 +74,7 @@ export default function Step3Payment({
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            Scan QR
+            {t('attendant.scanQr')}
           </button>
           <button 
             className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
@@ -82,13 +84,13 @@ export default function Step3Payment({
               <path d="M12 20h9"/>
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
-            Enter ID
+            {t('attendant.enterId')}
           </button>
         </div>
         
         {inputMode === 'scan' ? (
           <div className="payment-input-mode">
-            <p className="payment-subtitle">Scan customer&apos;s payment QR</p>
+            <p className="payment-subtitle">{t('sales.scanMpesaQr')}</p>
             
             {/* Scanner Area - matching Attendant workflow style */}
             <div 
@@ -110,7 +112,7 @@ export default function Step3Payment({
                   </svg>
                 </div>
                 <div className="scanner-tap-prompt">
-                  <span>Tap to scan</span>
+                  <span>{t('sales.tapToScan')}</span>
                 </div>
               </div>
             </div>
@@ -120,18 +122,18 @@ export default function Step3Payment({
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              Tap to scan payment confirmation QR
+              {t('sales.scanPaymentQrCode')}
             </p>
           </div>
         ) : (
           <div className="payment-input-mode payment-input-mode-manual">
             <div className="manual-entry-form">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Payment / Transaction ID</label>
+                <label className="form-label">{t('sales.transactionId')}</label>
                 <input 
                   type="text" 
                   className="form-input manual-id-input" 
-                  placeholder="e.g. TXN-892741 or M-PESA code"
+                  placeholder={t('sales.enterTransactionId')}
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -147,7 +149,7 @@ export default function Step3Payment({
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 6L9 17l-5-5"/>
                 </svg>
-                {isProcessing ? 'Processing...' : 'Confirm Payment'}
+                {isProcessing ? t('sales.processing') : t('sales.confirmPayment')}
               </button>
             </div>
             
@@ -156,7 +158,7 @@ export default function Step3Payment({
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              Enter M-PESA code or receipt number
+              {t('sales.orEnterManually')}
             </p>
           </div>
         )}

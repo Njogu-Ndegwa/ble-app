@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import BatterySwapVisual from '../BatterySwapVisual';
 import { SwapData, CustomerData, getInitials } from '../types';
 
@@ -10,6 +11,8 @@ interface Step4Props {
 }
 
 export default function Step4Review({ swapData, customerData }: Step4Props) {
+  const { t } = useI18n();
+  
   return (
     <div className="screen active">
       {/* Visual Battery Comparison */}
@@ -28,25 +31,25 @@ export default function Step4Review({ swapData, customerData }: Step4Props) {
 
       {/* Cost Breakdown */}
       <div className="cost-card">
-        <div className="cost-title">Cost Breakdown</div>
+        <div className="cost-title">{t('attendant.costBreakdown')}</div>
         <div className="cost-row">
-          <span className="cost-label">Old Battery</span>
+          <span className="cost-label">{t('attendant.returnedBattery')}</span>
           <span className="cost-value">{((swapData.oldBattery?.energy || 0) / 1000).toFixed(3)} kWh</span>
         </div>
         <div className="cost-row">
-          <span className="cost-label">New Battery</span>
+          <span className="cost-label">{t('attendant.issuedBattery')}</span>
           <span className="cost-value">{((swapData.newBattery?.energy || 0) / 1000).toFixed(3)} kWh</span>
         </div>
         <div className="cost-row">
-          <span className="cost-label">Energy Transferred</span>
+          <span className="cost-label">{t('attendant.energyDiff')}</span>
           <span className="cost-value">{swapData.energyDiff.toFixed(3)} kWh</span>
         </div>
         <div className="cost-row">
-          <span className="cost-label">Rate</span>
+          <span className="cost-label">{t('attendant.rate')}</span>
           <span className="cost-value">KES {swapData.rate}/kWh</span>
         </div>
         <div className="cost-total">
-          <span className="cost-total-label">Total Due</span>
+          <span className="cost-total-label">{t('attendant.totalCost')}</span>
           <span className="cost-total-value">KES {swapData.cost.toFixed(2)}</span>
         </div>
       </div>

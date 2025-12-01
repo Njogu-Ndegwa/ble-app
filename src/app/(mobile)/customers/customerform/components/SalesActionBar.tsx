@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import { SalesStep } from './types';
 
 interface SalesActionBarProps {
@@ -37,7 +38,7 @@ const ActionIcons = {
 
 interface StepActionConfig {
   showBack: boolean;
-  mainText: string;
+  mainTextKey: string;
   mainIcon: keyof typeof ActionIcons;
   mainClass?: string;
 }
@@ -45,21 +46,22 @@ interface StepActionConfig {
 const getStepConfig = (step: SalesStep): StepActionConfig => {
   switch (step) {
     case 1:
-      return { showBack: false, mainText: 'Continue', mainIcon: 'arrow' };
+      return { showBack: false, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
     case 2:
-      return { showBack: true, mainText: 'Continue', mainIcon: 'arrow' };
+      return { showBack: true, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
     case 3:
-      return { showBack: true, mainText: 'Scan Payment QR', mainIcon: 'scan' };
+      return { showBack: true, mainTextKey: 'sales.scanPaymentQr', mainIcon: 'scan' };
     case 4:
-      return { showBack: true, mainText: 'Scan Battery', mainIcon: 'scan' };
+      return { showBack: true, mainTextKey: 'sales.scanBattery', mainIcon: 'scan' };
     case 5:
-      return { showBack: false, mainText: 'New Registration', mainIcon: 'plus', mainClass: 'btn-success' };
+      return { showBack: false, mainTextKey: 'sales.newRegistration', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
-      return { showBack: false, mainText: 'Continue', mainIcon: 'arrow' };
+      return { showBack: false, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
   }
 };
 
 export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled }: SalesActionBarProps) {
+  const { t } = useI18n();
   const config = getStepConfig(currentStep);
 
   return (
@@ -68,7 +70,7 @@ export default function SalesActionBar({ currentStep, onBack, onMainAction, isLo
         {config.showBack && (
           <button className="btn btn-secondary" onClick={onBack} disabled={isLoading}>
             {ActionIcons.back}
-            Back
+            {t('sales.back')}
           </button>
         )}
         <button 
@@ -77,7 +79,7 @@ export default function SalesActionBar({ currentStep, onBack, onMainAction, isLo
           disabled={isLoading || isDisabled}
         >
           {ActionIcons[config.mainIcon]}
-          <span>{isLoading ? 'Processing...' : config.mainText}</span>
+          <span>{isLoading ? t('sales.processing') : t(config.mainTextKey)}</span>
         </button>
       </div>
     </div>

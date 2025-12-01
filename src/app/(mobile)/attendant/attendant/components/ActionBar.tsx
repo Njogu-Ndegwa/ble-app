@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import { AttendantStep } from './types';
 
 interface ActionBarProps {
@@ -47,7 +48,7 @@ const ActionIcons = {
 
 interface StepActionConfig {
   showBack: boolean;
-  mainText: string;
+  mainTextKey: string;
   mainIcon: keyof typeof ActionIcons;
   mainClass?: string;
 }
@@ -57,25 +58,26 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): Step
     case 1:
       // Show different text/icon based on input mode
       if (inputMode === 'manual') {
-        return { showBack: false, mainText: 'Look Up Customer', mainIcon: 'search' };
+        return { showBack: false, mainTextKey: 'attendant.lookUpCustomer', mainIcon: 'search' };
       }
-      return { showBack: false, mainText: 'Scan Customer', mainIcon: 'qr' };
+      return { showBack: false, mainTextKey: 'attendant.scanQr', mainIcon: 'qr' };
     case 2:
-      return { showBack: true, mainText: 'Scan Old Battery', mainIcon: 'scan' };
+      return { showBack: true, mainTextKey: 'attendant.scanReturnBattery', mainIcon: 'scan' };
     case 3:
-      return { showBack: true, mainText: 'Scan New Battery', mainIcon: 'scan' };
+      return { showBack: true, mainTextKey: 'attendant.scanNewBattery', mainIcon: 'scan' };
     case 4:
-      return { showBack: true, mainText: 'Collect Payment', mainIcon: 'arrow' };
+      return { showBack: true, mainTextKey: 'attendant.collectPayment', mainIcon: 'arrow' };
     case 5:
-      return { showBack: true, mainText: 'Confirm Payment', mainIcon: 'qr' };
+      return { showBack: true, mainTextKey: 'attendant.confirmPayment', mainIcon: 'qr' };
     case 6:
-      return { showBack: false, mainText: 'New Swap', mainIcon: 'plus', mainClass: 'btn-success' };
+      return { showBack: false, mainTextKey: 'attendant.startNewSwap', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
-      return { showBack: false, mainText: 'Scan Customer', mainIcon: 'qr' };
+      return { showBack: false, mainTextKey: 'attendant.scanQr', mainIcon: 'qr' };
   }
 };
 
 export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode }: ActionBarProps) {
+  const { t } = useI18n();
   const config = getStepConfig(currentStep, inputMode);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
@@ -88,7 +90,7 @@ export default function ActionBar({ currentStep, onBack, onMainAction, isLoading
         {config.showBack && (
           <button className="btn btn-secondary" onClick={onBack} disabled={isLoading}>
             {ActionIcons.back}
-            Back
+            {t('sales.back')}
           </button>
         )}
         {!hideMainButton && (
@@ -98,7 +100,7 @@ export default function ActionBar({ currentStep, onBack, onMainAction, isLoading
             disabled={isLoading}
           >
             {ActionIcons[config.mainIcon]}
-            <span>{isLoading ? 'Processing...' : config.mainText}</span>
+            <span>{isLoading ? t('sales.processing') : t(config.mainTextKey)}</span>
           </button>
         )}
       </div>

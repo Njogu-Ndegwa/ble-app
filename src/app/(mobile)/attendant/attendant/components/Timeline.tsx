@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import { AttendantStep, STEP_CONFIGS, FlowError } from './types';
 
 interface TimelineProps {
@@ -9,6 +10,16 @@ interface TimelineProps {
   onStepClick?: (step: AttendantStep) => void;
   flowError?: FlowError | null;
 }
+
+// Map step icons to translation keys
+const STEP_LABEL_KEYS: Record<string, string> = {
+  customer: 'attendant.step.customer',
+  'battery-return': 'attendant.step.return',
+  'battery-new': 'attendant.step.new',
+  review: 'attendant.step.review',
+  payment: 'attendant.step.pay',
+  done: 'attendant.step.done',
+};
 
 // Step icons as SVG components
 const StepIcons = {
@@ -59,6 +70,8 @@ const StepIcons = {
 };
 
 export default function Timeline({ currentStep, maxStepReached = currentStep, onStepClick, flowError }: TimelineProps) {
+  const { t } = useI18n();
+  
   const getStepClass = (step: number): string => {
     // If there's a flow error at this step, show it as failed
     if (flowError && flowError.step === step) {
@@ -98,6 +111,7 @@ export default function Timeline({ currentStep, maxStepReached = currentStep, on
         {STEP_CONFIGS.map((config, index) => {
           const stepClass = getStepClass(config.step);
           const isFailed = stepClass === 'failed';
+          const labelKey = STEP_LABEL_KEYS[config.icon];
           
           return (
             <React.Fragment key={config.step}>
@@ -109,7 +123,7 @@ export default function Timeline({ currentStep, maxStepReached = currentStep, on
                   {isFailed ? StepIcons.error : StepIcons[config.icon]}
                 </div>
                 <span className="timeline-label">
-                  {isFailed ? 'Failed' : config.label}
+                  {isFailed ? t('attendant.step.failed') : (labelKey ? t(labelKey) : config.label)}
                 </span>
               </div>
               {index < STEP_CONFIGS.length - 1 && (

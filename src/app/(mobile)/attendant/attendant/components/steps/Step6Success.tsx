@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import { SwapData, CustomerData } from '../types';
 
 interface Step6Props {
@@ -10,6 +11,8 @@ interface Step6Props {
 }
 
 export default function Step6Success({ swapData, customerData, transactionId }: Step6Props) {
+  const { t } = useI18n();
+  
   return (
     <div className="screen active">
       <div className="success-screen">
@@ -18,36 +21,36 @@ export default function Step6Success({ swapData, customerData, transactionId }: 
             <path d="M20 6L9 17l-5-5"/>
           </svg>
         </div>
-        <h2 className="success-title">Swap Complete!</h2>
-        <p className="success-message">Hand over {swapData.newBattery?.id || 'battery'} to customer</p>
+        <h2 className="success-title">{t('attendant.swapComplete')}</h2>
+        <p className="success-message">{t('attendant.batteryIssued')}</p>
         
         <div className="receipt-card">
           <div className="receipt-header">
-            <span className="receipt-title">Transaction Receipt</span>
+            <span className="receipt-title">{t('attendant.transactionId')}</span>
             <span className="receipt-id">#{transactionId}</span>
           </div>
           <div className="receipt-row">
-            <span className="receipt-label">Customer</span>
+            <span className="receipt-label">{t('attendant.step.customer')}</span>
             <span className="receipt-value">{customerData?.name || 'Customer'}</span>
           </div>
           <div className="receipt-row">
-            <span className="receipt-label">Returned</span>
+            <span className="receipt-label">{t('attendant.returnedBattery')}</span>
             <span className="receipt-value">
               {swapData.oldBattery?.shortId || '---'} ({((swapData.oldBattery?.energy || 0) / 1000).toFixed(3)} kWh)
             </span>
           </div>
           <div className="receipt-row">
-            <span className="receipt-label">Issued</span>
+            <span className="receipt-label">{t('attendant.issuedBattery')}</span>
             <span className="receipt-value">
               {swapData.newBattery?.shortId || '---'} ({((swapData.newBattery?.energy || 0) / 1000).toFixed(3)} kWh)
             </span>
           </div>
           <div className="receipt-row">
-            <span className="receipt-label">Energy</span>
+            <span className="receipt-label">{t('attendant.energyDiff')}</span>
             <span className="receipt-value">{swapData.energyDiff.toFixed(3)} kWh</span>
           </div>
           <div className="receipt-row">
-            <span className="receipt-label">Amount Paid</span>
+            <span className="receipt-label">{t('sales.amountDue')}</span>
             <span className="receipt-value" style={{ color: 'var(--success)' }}>
               KES {swapData.cost.toFixed(2)}
             </span>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 import { CustomerFormData } from '../types';
 
 interface Step1Props {
@@ -10,17 +11,19 @@ interface Step1Props {
 }
 
 export default function Step1CustomerForm({ formData, onFormChange, errors = {} }: Step1Props) {
+  const { t } = useI18n();
+  
   return (
     <div className="screen active">
-      <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>New Customer</h2>
-      <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '12px' }}>Enter customer details to get started</p>
+      <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>{t('sales.newCustomer')}</h2>
+      <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '12px' }}>{t('sales.enterCustomerDetails')}</p>
 
       <div className="form-section">
-        <div className="form-section-title">Personal Information</div>
+        <div className="form-section-title">{t('sales.personalInfo')}</div>
         
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">First Name <span className="form-required">*</span></label>
+            <label className="form-label">{t('sales.firstName')} <span className="form-required">*</span></label>
             <input 
               type="text" 
               className={`form-input ${errors.firstName ? 'form-input-error' : ''}`}
@@ -31,7 +34,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
             {errors.firstName && <span className="form-error">{errors.firstName}</span>}
           </div>
           <div className="form-group">
-            <label className="form-label">Last Name <span className="form-required">*</span></label>
+            <label className="form-label">{t('sales.lastName')} <span className="form-required">*</span></label>
             <input 
               type="text" 
               className={`form-input ${errors.lastName ? 'form-input-error' : ''}`}
@@ -44,7 +47,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
         </div>
 
         <div className="form-group">
-          <label className="form-label">Email Address <span className="form-required">*</span></label>
+          <label className="form-label">{t('sales.emailAddress')} <span className="form-required">*</span></label>
           <input 
             type="email" 
             className={`form-input ${errors.email ? 'form-input-error' : ''}`}
@@ -56,7 +59,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
         </div>
 
         <div className="form-group">
-          <label className="form-label">Phone Number <span className="form-required">*</span></label>
+          <label className="form-label">{t('sales.phoneNumber')} <span className="form-required">*</span></label>
           <input 
             type="tel" 
             className={`form-input ${errors.phone ? 'form-input-error' : ''}`}
@@ -68,7 +71,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
         </div>
 
         <div className="form-group">
-          <label className="form-label">National ID <span className="form-required">*</span></label>
+          <label className="form-label">{t('sales.nationalId')} <span className="form-required">*</span></label>
           <input 
             type="text" 
             className={`form-input ${errors.nationalId ? 'form-input-error' : ''}`}
@@ -81,10 +84,10 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
       </div>
 
       <div className="form-section">
-        <div className="form-section-title">Address Information</div>
+        <div className="form-section-title">{t('sales.addressInfo')}</div>
         
         <div className="form-group">
-          <label className="form-label">Street Address <span className="form-required">*</span></label>
+          <label className="form-label">{t('sales.streetAddress')} <span className="form-required">*</span></label>
           <input 
             type="text" 
             className={`form-input ${errors.street ? 'form-input-error' : ''}`}
@@ -97,7 +100,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">City <span className="form-required">*</span></label>
+            <label className="form-label">{t('sales.city')} <span className="form-required">*</span></label>
             <input 
               type="text" 
               className={`form-input ${errors.city ? 'form-input-error' : ''}`}
@@ -108,7 +111,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
             {errors.city && <span className="form-error">{errors.city}</span>}
           </div>
           <div className="form-group">
-            <label className="form-label">Zip Code <span className="form-required">*</span></label>
+            <label className="form-label">{t('sales.zipCode')} <span className="form-required">*</span></label>
             <input 
               type="text" 
               className={`form-input ${errors.zip ? 'form-input-error' : ''}`}
@@ -122,10 +125,10 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
       </div>
 
       <div className="form-section">
-        <div className="form-section-title">Vehicle Information</div>
+        <div className="form-section-title">{t('sales.vehicleInfo')}</div>
         
         <div className="form-group">
-          <label className="form-label">Vehicle Registration <span className="form-required">*</span></label>
+          <label className="form-label">{t('sales.vehicleReg')} <span className="form-required">*</span></label>
           <input 
             type="text" 
             className={`form-input ${errors.vehicleReg ? 'form-input-error' : ''}`}
@@ -138,7 +141,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
 
         <div className="form-row">
           <div className="form-group">
-            <label className="form-label">Vehicle Type</label>
+            <label className="form-label">{t('sales.vehicleType')}</label>
             <input 
               type="text" 
               className={`form-input ${errors.vehicleType ? 'form-input-error' : ''}`}
@@ -148,7 +151,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Model</label>
+            <label className="form-label">{t('sales.model')}</label>
             <input 
               type="text" 
               className={`form-input ${errors.vehicleModel ? 'form-input-error' : ''}`}
