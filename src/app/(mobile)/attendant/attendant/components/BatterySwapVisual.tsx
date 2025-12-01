@@ -9,11 +9,13 @@ interface BatterySwapVisualProps {
 }
 
 export default function BatterySwapVisual({ oldBattery, newBattery }: BatterySwapVisualProps) {
-  const oldLevel = oldBattery?.chargeLevel || 0;
-  const newLevel = newBattery?.chargeLevel || 100;
+  // Use nullish coalescing (??) to correctly handle 0% charge levels
+  // The || operator treats 0 as falsy, incorrectly showing empty batteries as full
+  const oldLevel = oldBattery?.chargeLevel ?? 0;
+  const newLevel = newBattery?.chargeLevel ?? 0;
   // Convert Wh to kWh for display
-  const oldEnergyKwh = (oldBattery?.energy || 0) / 1000;
-  const newEnergyKwh = (newBattery?.energy || 0) / 1000;
+  const oldEnergyKwh = (oldBattery?.energy ?? 0) / 1000;
+  const newEnergyKwh = (newBattery?.energy ?? 0) / 1000;
 
   return (
     <div className="battery-swap-visual">

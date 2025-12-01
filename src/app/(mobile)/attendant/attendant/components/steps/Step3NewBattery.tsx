@@ -18,8 +18,8 @@ export default function Step3NewBattery({
   isBleScanning = false,
   detectedDevicesCount = 0,
 }: Step3Props) {
-  const chargeLevel = oldBattery?.chargeLevel || 0;
-  const energyWh = oldBattery?.energy || 0;
+  const chargeLevel = oldBattery?.chargeLevel ?? 0;
+  const energyWh = oldBattery?.energy ?? 0;
   const energyKwh = energyWh / 1000; // Convert to kWh for display
   const batteryClass = getBatteryClass(chargeLevel);
 
