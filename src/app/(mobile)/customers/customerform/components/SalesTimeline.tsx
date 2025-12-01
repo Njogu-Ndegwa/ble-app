@@ -24,6 +24,12 @@ const StepIcons = {
       <path d="M16 13H8M16 17H8M10 9H8"/>
     </svg>
   ),
+  payment: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+      <line x1="1" y1="10" x2="23" y2="10"/>
+    </svg>
+  ),
   battery: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="7" width="16" height="10" rx="2"/>
@@ -41,7 +47,7 @@ const StepIcons = {
 export default function SalesTimeline({ currentStep, maxStepReached = currentStep, onStepClick }: SalesTimelineProps) {
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
-      return step === 4 ? 'success' : 'active';
+      return step === 5 ? 'success' : 'active';
     }
     if (step < currentStep) return 'completed';
     if (step <= maxStepReached) return 'reachable';

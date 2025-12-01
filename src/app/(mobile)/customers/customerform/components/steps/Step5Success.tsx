@@ -5,23 +5,24 @@ import {
   CustomerFormData, 
   BatteryData,
   AVAILABLE_PLANS, 
-  generateRegistrationId,
   getBatteryClass 
 } from '../types';
 
-interface Step4Props {
+interface Step5Props {
   formData: CustomerFormData;
   selectedPlanId: string;
   battery: BatteryData | null;
   registrationId: string;
+  paymentReference?: string;
 }
 
-export default function Step4Success({ 
+export default function Step5Success({ 
   formData, 
   selectedPlanId, 
   battery, 
-  registrationId 
-}: Step4Props) {
+  registrationId,
+  paymentReference 
+}: Step5Props) {
   const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const batteryClass = battery ? getBatteryClass(battery.chargeLevel) : 'full';
@@ -35,7 +36,7 @@ export default function Step4Success({
           </svg>
         </div>
         <h2 className="success-title">Registration Complete!</h2>
-        <p className="success-message">Customer has been registered successfully</p>
+        <p className="success-message">Customer is ready for battery swaps</p>
         
         {/* Checkout Summary */}
         <div className="checkout-summary" style={{ textAlign: 'left' }}>
@@ -55,6 +56,12 @@ export default function Step4Success({
             <span className="checkout-item-label">Plan</span>
             <span className="checkout-item-value">{selectedPlan?.name || 'N/A'}</span>
           </div>
+          {paymentReference && (
+            <div className="checkout-item">
+              <span className="checkout-item-label">Payment Ref</span>
+              <span className="checkout-item-value font-mono-oves">{paymentReference}</span>
+            </div>
+          )}
           <div className="checkout-item">
             <span className="checkout-item-label">Battery Assigned</span>
             <span className="checkout-item-value font-mono-oves">{battery?.shortId || 'N/A'}</span>
@@ -66,8 +73,8 @@ export default function Step4Success({
             </span>
           </div>
           <div className="checkout-total">
-            <span className="checkout-total-label">Amount Due</span>
-            <span className="checkout-total-value font-mono-oves">
+            <span className="checkout-total-label">Amount Paid</span>
+            <span className="checkout-total-value font-mono-oves" style={{ color: 'var(--success)' }}>
               KES {selectedPlan?.price.toLocaleString() || '0'}
             </span>
           </div>

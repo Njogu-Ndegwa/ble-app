@@ -12,17 +12,26 @@ import {
   SalesActionBar,
   Step1CustomerForm,
   Step2SelectPlan,
-  Step3AssignBattery,
-  Step4Success,
+  Step3Payment,
+  Step4AssignBattery,
+  Step5Success,
   // Types
   CustomerFormData,
   BatteryData,
   BleDevice,
   BleScanState,
   SalesStep,
+  AVAILABLE_PLANS,
   generateRegistrationId,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
+
+// Odoo API endpoint for creating customers
+const ODOO_CUSTOMER_API = 'https://evans-musamia-odoorestapi.odoo.com/api/contacts';
+const ODOO_API_KEY = 'abs_connector_secret_key_2024';
+
+// Payment confirmation endpoint (same as Attendant workflow)
+const PAYMENT_CONFIRMATION_ENDPOINT = 'https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm';
 
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
@@ -54,6 +63,10 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     firstName: '',
     lastName: '',
     phone: '',
+    email: '',
+    street: '',
+    city: '',
+    zip: '',
     nationalId: '',
     vehicleReg: '',
     vehicleType: '',
@@ -64,6 +77,13 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   // Plan selection
   const [selectedPlanId, setSelectedPlanId] = useState<string>('weekly');
 
+  // Created customer ID from Odoo
+  const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
+
+  // Payment states
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string>('');
+
   // Battery data
   const [assignedBattery, setAssignedBattery] = useState<BatteryData | null>(null);
   
@@ -72,6 +92,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   // BLE Scan state for battery
   const [bleScanState, setBleScanState] = useState<BleScanState>({
@@ -99,7 +120,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   const detectedBleDevicesRef = useRef<BleDevice[]>([]);
   const pendingBatteryQrCodeRef = useRef<string | null>(null);
   const pendingConnectionMacRef = useRef<string | null>(null);
-  const scanTypeRef = useRef<'battery' | null>(null);
+  const scanTypeRef = useRef<'battery' | 'payment' | null>(null);
 
   // Bridge initialization ref
   const bridgeInitRef = useRef<boolean>(false);
@@ -107,6 +128,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
   // Process battery QR data ref
   const processBatteryQRDataRef = useRef<(data: string) => void>(() => {});
+  
+  // Process payment QR data ref
+  const processPaymentQRDataRef = useRef<(paymentId: string) => void>(() => {});
 
   // Advance to a new step
   const advanceToStep = useCallback((step: SalesStep) => {
@@ -330,6 +354,22 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           
           if (scanTypeRef.current === 'battery') {
             processBatteryQRDataRef.current(data);
+          } else if (scanTypeRef.current === 'payment') {
+            // Payment QR scanned - extract payment reference and confirm
+            console.info('Payment QR scanned:', data);
+            let paymentId = data;
+            try {
+              // Try to parse as JSON first (structured payment data)
+              const paymentData = JSON.parse(data);
+              paymentId = paymentData.transaction_id || paymentData.receipt || paymentData.id || data;
+            } catch {
+              // If not JSON, treat the entire string as payment reference
+              console.info('Using raw QR data as payment reference:', data);
+            }
+            // Trigger payment confirmation via ref
+            if (paymentId && processPaymentQRDataRef.current) {
+              processPaymentQRDataRef.current(paymentId);
+            }
           }
           
           responseCallback({ received: true });
@@ -490,7 +530,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
                   
                   // Advance to success step
                   toast.success(`Battery ${shortId} assigned successfully!`);
-                  advanceToStep(4);
+                  advanceToStep(5);
                 }
               }
             }
@@ -519,11 +559,11 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     }
   }, [convertRssiToFormattedString, populateEnergyFromDta, advanceToStep]);
 
-  // Start BLE scanning when on step 3
+  // Start BLE scanning when on step 4 (battery assignment)
   useEffect(() => {
-    if (currentStep === 3 && bleHandlersReady) {
+    if (currentStep === 4 && bleHandlersReady) {
       startBleScan();
-    } else if (currentStep !== 3) {
+    } else if (currentStep !== 4) {
       stopBleScan();
     }
     
@@ -542,6 +582,11 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     if (!formData.lastName.trim()) {
       errors.lastName = 'Last name is required';
     }
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
     if (!formData.phone.trim()) {
       errors.phone = 'Phone number is required';
     } else if (!/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone)) {
@@ -550,6 +595,15 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     if (!formData.nationalId.trim()) {
       errors.nationalId = 'National ID is required';
     }
+    if (!formData.street.trim()) {
+      errors.street = 'Street address is required';
+    }
+    if (!formData.city.trim()) {
+      errors.city = 'City is required';
+    }
+    if (!formData.zip.trim()) {
+      errors.zip = 'Zip code is required';
+    }
     if (!formData.vehicleReg.trim()) {
       errors.vehicleReg = 'Vehicle registration is required';
     }
@@ -557,6 +611,115 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   }, [formData]);
+
+  // Create customer in Odoo
+  const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
+    setIsCreatingCustomer(true);
+    
+    try {
+      const apiData = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        phone: formData.phone,
+        mobile: formData.phone,
+        street: formData.street,
+        city: formData.city,
+        zip: formData.zip,
+        is_company: false,
+        // Custom fields for Kenya market (if supported by Odoo)
+        // x_national_id: formData.nationalId,
+        // x_vehicle_reg: formData.vehicleReg,
+      };
+
+      console.log('Creating customer in Odoo:', apiData);
+
+      const response = await fetch(ODOO_CUSTOMER_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': ODOO_API_KEY,
+        },
+        body: JSON.stringify(apiData),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        const contentType = response.headers.get('content-type');
+
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          console.error('Odoo API Error:', errorData);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('Customer created successfully:', result);
+      
+      // Store the created customer ID
+      if (result.id) {
+        setCreatedCustomerId(result.id);
+      }
+      
+      toast.success('Customer created successfully!');
+      return true;
+    } catch (error: any) {
+      console.error('Failed to create customer:', error);
+      toast.error(error.message || 'Failed to create customer. Please try again.');
+      return false;
+    } finally {
+      setIsCreatingCustomer(false);
+    }
+  }, [formData]);
+
+  // Handle payment confirmation via QR scan
+  const handlePaymentQrScan = useCallback(() => {
+    scanTypeRef.current = 'payment';
+    startQrCodeScan();
+  }, [startQrCodeScan]);
+
+  // Handle manual payment entry
+  const handleManualPayment = useCallback(async (paymentId: string) => {
+    setIsProcessing(true);
+    
+    try {
+      const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
+      const amount = selectedPlan?.price || 0;
+
+      // Call payment confirmation endpoint
+      const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_id: paymentId,
+          plan_id: selectedPlanId,
+          amount: amount,
+          customer_id: createdCustomerId,
+        }),
+      });
+      
+      if (response.ok) {
+        setPaymentConfirmed(true);
+        setPaymentReference(paymentId);
+        toast.success('Payment confirmed!');
+        advanceToStep(4); // Move to battery assignment
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.message || 'Payment confirmation failed');
+      }
+    } catch (err) {
+      console.error('Payment confirmation error:', err);
+      toast.error('Payment confirmation failed. Check network connection.');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedPlanId, createdCustomerId, advanceToStep]);
+
+  // Update payment QR ref when handler changes
+  useEffect(() => {
+    processPaymentQRDataRef.current = handleManualPayment;
+  }, [handleManualPayment]);
 
   // Handle form field change
   const handleFormChange = useCallback((field: keyof CustomerFormData, value: string) => {
@@ -586,20 +749,30 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   }, [currentStep]);
 
   // Handle main action button
-  const handleMainAction = useCallback(() => {
+  const handleMainAction = useCallback(async () => {
     switch (currentStep) {
       case 1:
+        // Validate and create customer in Odoo
         if (validateForm()) {
-          advanceToStep(2);
+          const customerCreated = await createCustomerInOdoo();
+          if (customerCreated) {
+            advanceToStep(2);
+          }
         }
         break;
       case 2:
+        // Move to payment step
         advanceToStep(3);
         break;
       case 3:
-        handleScanBattery();
+        // Trigger payment QR scan
+        handlePaymentQrScan();
         break;
       case 4:
+        // Trigger battery scan
+        handleScanBattery();
+        break;
+      case 5:
         // Reset everything for new registration
         setCurrentStep(1);
         setMaxStepReached(1);
@@ -607,6 +780,10 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           firstName: '',
           lastName: '',
           phone: '',
+          email: '',
+          street: '',
+          city: '',
+          zip: '',
           nationalId: '',
           vehicleReg: '',
           vehicleType: '',
@@ -614,15 +791,18 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         });
         setFormErrors({});
         setSelectedPlanId('weekly');
+        setCreatedCustomerId(null);
+        setPaymentConfirmed(false);
+        setPaymentReference('');
         setAssignedBattery(null);
         setRegistrationId('');
         break;
     }
-  }, [currentStep, validateForm, advanceToStep, handleScanBattery]);
+  }, [currentStep, validateForm, createCustomerInOdoo, advanceToStep, handlePaymentQrScan, handleScanBattery]);
 
   // Handle step click in timeline
   const handleStepClick = useCallback((step: SalesStep) => {
-    if (step <= maxStepReached && step < 4) {
+    if (step <= maxStepReached && step < 5) {
       setCurrentStep(step);
     }
   }, [maxStepReached]);
@@ -656,7 +836,17 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         );
       case 3:
         return (
-          <Step3AssignBattery 
+          <Step3Payment 
+            formData={formData}
+            selectedPlanId={selectedPlanId}
+            onConfirmPayment={handlePaymentQrScan}
+            onManualPayment={handleManualPayment}
+            isProcessing={isProcessing}
+          />
+        );
+      case 4:
+        return (
+          <Step4AssignBattery 
             formData={formData}
             selectedPlanId={selectedPlanId}
             onScanBattery={handleScanBattery}
@@ -664,13 +854,14 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             detectedDevicesCount={bleScanState.detectedDevices.length}
           />
         );
-      case 4:
+      case 5:
         return (
-          <Step4Success 
+          <Step5Success 
             formData={formData}
             selectedPlanId={selectedPlanId}
             battery={assignedBattery}
             registrationId={registrationId}
+            paymentReference={paymentReference}
           />
         );
       default:
@@ -678,7 +869,22 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     }
   };
 
-  // Show loading overlay during BLE operations
+  // Show loading overlay during customer creation or BLE operations
+  if (isCreatingCustomer) {
+    return (
+      <ProgressiveLoading
+        initialMessage="Creating customer..."
+        progress={50}
+        autoProgress={true}
+        loadingSteps={[
+          { percentComplete: 20, message: 'Validating data...' },
+          { percentComplete: 50, message: 'Creating customer in Odoo...' },
+          { percentComplete: 90, message: 'Finalizing...' },
+        ]}
+      />
+    );
+  }
+
   if (bleScanState.isConnecting || bleScanState.isReadingEnergy) {
     return (
       <ProgressiveLoading

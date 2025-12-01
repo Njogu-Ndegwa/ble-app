@@ -10,7 +10,7 @@ import {
   maskNationalId 
 } from '../types';
 
-interface Step3Props {
+interface Step4Props {
   formData: CustomerFormData;
   selectedPlanId: string;
   onScanBattery: () => void;
@@ -18,13 +18,13 @@ interface Step3Props {
   detectedDevicesCount?: number;
 }
 
-export default function Step3AssignBattery({ 
+export default function Step4AssignBattery({ 
   formData, 
   selectedPlanId, 
   onScanBattery,
   isBleScanning = false,
   detectedDevicesCount = 0,
-}: Step3Props) {
+}: Step4Props) {
   const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
