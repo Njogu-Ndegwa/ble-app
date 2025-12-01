@@ -55,6 +55,7 @@ export interface BleScanState {
   connectionProgress: number;
   error: string | null;
   connectionFailed: boolean; // True when we receive an actual failure callback (not timeout)
+  requiresBluetoothReset: boolean; // True when we get "Bluetooth device not connected" error and user needs to toggle Bluetooth
 }
 
 export interface SwapData {

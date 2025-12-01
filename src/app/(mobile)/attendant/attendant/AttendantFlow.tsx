@@ -135,6 +135,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     connectionProgress: 0,
     error: null,
     connectionFailed: false,
+    requiresBluetoothReset: false,
   });
   
   // BLE operation timeout ref - for cancelling stuck operations
@@ -250,6 +251,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       connectionProgress: 0,
       error: null,
       connectionFailed: false,
+      requiresBluetoothReset: false,
     });
     
     // Reset scan state
@@ -358,6 +360,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       connectionProgress: 0,
       error: null,
       connectionFailed: false,
+      requiresBluetoothReset: false,
     }));
 
     // NOTE: We intentionally do NOT set a timeout for retries here.
@@ -1176,6 +1179,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           connectionProgress: 100,
           error: null,
           connectionFailed: false, // Explicitly mark as not failed
+          requiresBluetoothReset: false,
         }));
         
         // Set timeout for data reading phase
@@ -1282,6 +1286,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           connectionProgress: 0,
           error: 'Connection failed. Please try again.',
           connectionFailed: true, // Mark as definitively failed
+          requiresBluetoothReset: false,
         }));
         
         toast.error('Battery connection failed. Please try again.');
@@ -1320,6 +1325,48 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       (data: string, resp: any) => {
         try {
           const parsedData = typeof data === "string" ? JSON.parse(data) : data;
+          
+          // Check if this response indicates an error (e.g., "Bluetooth device not connected")
+          // This can happen when the DTA refresh is called but the device becomes unreachable
+          const respCode = parsedData?.respCode || parsedData?.responseData?.respCode;
+          const respDesc = parsedData?.respDesc || parsedData?.responseData?.respDesc || '';
+          
+          if (respCode && respCode !== "200" && respCode !== 200) {
+            console.error("DTA service returned error:", { respCode, respDesc, parsedData });
+            
+            // Check if this is a "Bluetooth device not connected" error
+            const isBluetoothDisconnected = 
+              typeof respDesc === 'string' && (
+                respDesc.toLowerCase().includes('bluetooth device not connected') ||
+                respDesc.toLowerCase().includes('device not connected') ||
+                respDesc.toLowerCase().includes('not connected')
+              );
+            
+            if (isBluetoothDisconnected) {
+              console.warn("Detected 'Bluetooth device not connected' in DTA response - requiring Bluetooth reset");
+              
+              setBleScanState(prev => ({
+                ...prev,
+                isReadingEnergy: false,
+                error: 'Bluetooth connection lost',
+                connectionFailed: true,
+                requiresBluetoothReset: true,
+              }));
+              
+              // Reset state
+              dtaRefreshRetryCountRef.current = 0;
+              toast.dismiss('dta-refresh');
+              setIsScanning(false);
+              scanTypeRef.current = null;
+              pendingBatteryQrCodeRef.current = null;
+              pendingBatteryScanTypeRef.current = null;
+              isConnectionSuccessfulRef.current = false;
+              
+              toast.error('Please turn Bluetooth OFF then ON and try again.');
+              resp({ success: false, error: respDesc });
+              return;
+            }
+          }
           
           // Only process DTA_SERVICE responses
           if (parsedData?.serviceNameEnum === "DTA_SERVICE") {
@@ -1527,11 +1574,44 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       "bleInitServiceDataFailureCallBack",
       (data: string) => {
         console.error("Failed to read DTA service:", data);
+        
+        // Check if this is a "Bluetooth device not connected" error
+        // This typically happens when the connection was established but the device becomes unreachable
+        // The solution is for the user to toggle Bluetooth off and on
+        let errorMessage = 'Failed to read energy data';
+        let requiresReset = false;
+        
+        try {
+          const parsedError = JSON.parse(data);
+          const respDesc = parsedError?.responseData?.respDesc || parsedError?.respDesc || '';
+          const errorStr = typeof respDesc === 'string' ? respDesc : '';
+          
+          if (errorStr.toLowerCase().includes('bluetooth device not connected') ||
+              errorStr.toLowerCase().includes('device not connected') ||
+              errorStr.toLowerCase().includes('not connected')) {
+            errorMessage = 'Bluetooth connection lost';
+            requiresReset = true;
+            console.warn("Detected 'Bluetooth device not connected' error - requiring Bluetooth reset");
+          }
+        } catch {
+          // If parsing fails, check the raw string
+          if (data.toLowerCase().includes('bluetooth device not connected') ||
+              data.toLowerCase().includes('device not connected') ||
+              data.toLowerCase().includes('not connected')) {
+            errorMessage = 'Bluetooth connection lost';
+            requiresReset = true;
+            console.warn("Detected 'Bluetooth device not connected' error (raw) - requiring Bluetooth reset");
+          }
+        }
+        
         setBleScanState(prev => ({
           ...prev,
           isReadingEnergy: false,
-          error: 'Failed to read energy data',
+          error: errorMessage,
+          connectionFailed: true,
+          requiresBluetoothReset: requiresReset,
         }));
+        
         // Reset DTA retry count on failure
         dtaRefreshRetryCountRef.current = 0;
         toast.dismiss('dta-refresh');
@@ -1540,7 +1620,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         pendingBatteryQrCodeRef.current = null;
         pendingBatteryScanTypeRef.current = null;
         isConnectionSuccessfulRef.current = false;
-        toast.error('Unable to read battery energy. Please try again.');
+        
+        if (requiresReset) {
+          toast.error('Please turn Bluetooth OFF then ON and try again.');
+        } else {
+          toast.error('Unable to read battery energy. Please try again.');
+        }
       }
     );
 
@@ -2418,6 +2503,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       connectionProgress: 0,
       error: null,
       connectionFailed: false,
+      requiresBluetoothReset: false,
     });
     detectedBleDevicesRef.current = [];
     pendingBatteryQrCodeRef.current = null;
@@ -2622,20 +2708,58 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             <div className="ble-progress-container">
               {/* Header */}
               <div className="ble-progress-header">
-                <div className="ble-progress-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
-                  </svg>
+                <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
+                  {bleScanState.requiresBluetoothReset ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
+                    </svg>
+                  )}
                 </div>
                 <div className="ble-progress-title">
-                  {bleScanState.isReadingEnergy 
+                  {bleScanState.requiresBluetoothReset
+                    ? 'Bluetooth Reset Required'
+                    : bleScanState.isReadingEnergy 
                     ? 'Reading Battery Data' 
                     : 'Connecting to Battery'}
                 </div>
               </div>
 
-              {/* Battery ID Display - Show which battery we're connecting to */}
-              {pendingBatteryQrCodeRef.current && (
+              {/* Bluetooth Reset Instructions - Show when Bluetooth reset is required */}
+              {bleScanState.requiresBluetoothReset && (
+                <div className="ble-reset-instructions">
+                  <div className="ble-reset-steps">
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">1</span>
+                      <span>Open your phone&apos;s Settings</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">2</span>
+                      <span>Turn Bluetooth OFF</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">3</span>
+                      <span>Wait 3 seconds</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">4</span>
+                      <span>Turn Bluetooth ON</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">5</span>
+                      <span>Return here and try again</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Battery ID Display - Show which battery we're connecting to (hide when reset required) */}
+              {pendingBatteryQrCodeRef.current && !bleScanState.requiresBluetoothReset && (
                 <div className="ble-battery-id">
                   <span className="ble-battery-id-label">Battery ID:</span>
                   <span className="ble-battery-id-value">
@@ -2644,22 +2768,26 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 </div>
               )}
 
-              {/* Progress Bar */}
-              <div className="ble-progress-bar-container">
-                <div className="ble-progress-bar-bg">
-                  <div 
-                    className="ble-progress-bar-fill"
-                    style={{ width: `${bleScanState.connectionProgress}%` }}
-                  />
+              {/* Progress Bar - Hide when Bluetooth reset is required */}
+              {!bleScanState.requiresBluetoothReset && (
+                <div className="ble-progress-bar-container">
+                  <div className="ble-progress-bar-bg">
+                    <div 
+                      className="ble-progress-bar-fill"
+                      style={{ width: `${bleScanState.connectionProgress}%` }}
+                    />
+                  </div>
+                  <div className="ble-progress-percent">
+                    {bleScanState.connectionProgress}%
+                  </div>
                 </div>
-                <div className="ble-progress-percent">
-                  {bleScanState.connectionProgress}%
-                </div>
-              </div>
+              )}
 
               {/* Status Message - More specific messages about what's happening */}
               <div className="ble-progress-status">
-                {bleScanState.error 
+                {bleScanState.requiresBluetoothReset
+                  ? 'The Bluetooth connection was lost. Please toggle Bluetooth to reset it.'
+                  : bleScanState.error 
                   ? bleScanState.error
                   : bleScanState.isReadingEnergy 
                   ? 'Reading energy level from battery...'
@@ -2674,40 +2802,44 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   : `Connecting to battery ${pendingBatteryQrCodeRef.current ? '...' + String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase() : ''}...`}
               </div>
 
-              {/* Step Indicators */}
-              <div className="ble-progress-steps">
-                <div className={`ble-step active completed`}>
-                  <div className="ble-step-dot" />
-                  <span>Scan</span>
+              {/* Step Indicators - Hide when Bluetooth reset is required */}
+              {!bleScanState.requiresBluetoothReset && (
+                <div className="ble-progress-steps">
+                  <div className={`ble-step active completed`}>
+                    <div className="ble-step-dot" />
+                    <span>Scan</span>
+                  </div>
+                  <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
+                    <div className="ble-step-dot" />
+                    <span>Connect</span>
+                  </div>
+                  <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
+                    <div className="ble-step-dot" />
+                    <span>Read</span>
+                  </div>
                 </div>
-                <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
-                  <div className="ble-step-dot" />
-                  <span>Connect</span>
-                </div>
-                <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
-                  <div className="ble-step-dot" />
-                  <span>Read</span>
-                </div>
-              </div>
+              )}
 
-              {/* Cancel Button - Only shown when connection has definitively failed */}
+              {/* Cancel/Close Button - Only shown when connection has definitively failed */}
               {/* This prevents users from cancelling during normal connection/initialization which can take time */}
               {bleScanState.connectionFailed && (
                 <button
                   onClick={cancelBleOperation}
-                  className="ble-cancel-button"
+                  className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
                   title="Close and try again"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 6L6 18M6 6l12 12" />
                   </svg>
-                  Close
+                  {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Close'}
                 </button>
               )}
               
               {/* Help Text - Show different message based on failure state */}
               <p className="ble-progress-help">
-                {bleScanState.connectionFailed 
+                {bleScanState.requiresBluetoothReset
+                  ? 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.'
+                  : bleScanState.connectionFailed 
                   ? 'Connection failed. Please ensure the battery is powered on and nearby, then try again.'
                   : 'Please wait while connecting. Make sure the battery is powered on and within 2 meters.'}
               </p>
