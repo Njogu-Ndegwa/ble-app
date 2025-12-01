@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
-import CustomerAcquisitionForm from './CustomerAcquisitionForm';
+import SalesFlow from './SalesFlow';
 import Login from '../../attendant/attendant/login';
 import { isAttendantLoggedIn, getAttendantUser, type AttendantUser } from '@/lib/attendant-auth';
 
@@ -74,7 +74,7 @@ export default function CustomerFormPage() {
         }}
       />
       {isLoggedIn ? (
-        <CustomerAcquisitionForm />
+        <SalesFlow />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} />
       )}
