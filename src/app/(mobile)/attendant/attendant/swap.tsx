@@ -2023,12 +2023,49 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     }
   }, [bridge, isBridgeReady, setupBridge]);
 
+  // Track if QR scan was initiated to detect when user returns without scanning
+  const qrScanInitiatedRef = useRef(false);
+
+  // Reset scanning states when user returns to page without scanning (e.g., pressed back on QR scanner)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        // User returned to page - give a small delay to allow QR callback to fire first if scan was successful
+        const timeoutId = setTimeout(() => {
+          // If any scanning state is still true after returning, reset it
+          // This happens when user pressed back on QR scanner without scanning
+          if (isScanningCustomer || isScanningEquipment || isScanningCheckin || isScanningCheckout || isScanningPayment) {
+            console.info('Resetting scanning states - user returned without scanning');
+            setIsScanningCustomer(false);
+            setIsScanningEquipment(false);
+            setIsScanningCheckin(false);
+            setIsScanningCheckout(false);
+            setIsScanningPayment(false);
+            scanTypeRef.current = null;
+            stopBleScan();
+          }
+          qrScanInitiatedRef.current = false;
+        }, 500); // 500ms delay to allow QR callback to fire first
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isScanningCustomer, isScanningEquipment, isScanningCheckin, isScanningCheckout, isScanningPayment, stopBleScan]);
+
   const startQrCodeScan = useCallback(() => {
     if (!window.WebViewJavascriptBridge) {
       // toast.error(t("Bridge not initialized"));
       toast.error(t("Unable to access camera"));
       return;
     }
+
+    // Mark that we initiated a QR scan - used to detect when user returns without scanning
+    qrScanInitiatedRef.current = true;
 
     window.WebViewJavascriptBridge.callHandler(
       "startQrCodeScan",
