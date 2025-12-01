@@ -930,7 +930,19 @@
   "Kenya": "Kenya",
   "Philippines": "Philippines",
   "Togo": "Togo",
-  "Shenzhen": "Shenzhen"
+  "Shenzhen": "Shenzhen",
+  
+  "role.selectTitle": "Sélectionnez votre rôle",
+  "role.selectDescription": "Choisissez votre rôle pour accéder aux outils adaptés à vos tâches quotidiennes.",
+  "role.attendant": "Préposé",
+  "role.salesRep": "Commercial",
+  "role.keypad": "Clavier",
+  "role.rider": "Conducteur",
+  "role.comingSoon": "Bientôt",
+  "role.switchLanguage": "Changer de langue",
+  
+  "attendant.changeRole": "Changer de rôle",
+  "sales.changeRole": "Changer de rôle",
+  
+  "Back": "Retour"
 }
-
-

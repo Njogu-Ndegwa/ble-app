@@ -3,8 +3,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import { Globe } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
+import { useI18n } from '@/i18n';
 
 // Import components
 import {
@@ -53,6 +55,20 @@ interface SalesFlowProps {
 export default function SalesFlow({ onBack }: SalesFlowProps) {
   const router = useRouter();
   const { bridge, isBridgeReady } = useBridge();
+  const { locale, setLocale, t } = useI18n();
+  
+  // Lock body overflow for fixed container
+  useEffect(() => {
+    document.body.classList.add('overflow-locked');
+    return () => {
+      document.body.classList.remove('overflow-locked');
+    };
+  }, []);
+
+  // Toggle locale function
+  const toggleLocale = useCallback(() => {
+    setLocale(locale === 'en' ? 'fr' : 'en');
+  }, [locale, setLocale]);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<SalesStep>(1);
@@ -904,15 +920,25 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
       
-      {/* Back to Roles */}
-      <div style={{ padding: '8px 16px 0' }}>
-        <button className="back-to-roles" onClick={handleBackToRoles}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Change Role
-        </button>
-      </div>
+      {/* Header with Back and Language Toggle */}
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          <button className="flow-header-back" onClick={handleBackToRoles}>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            <span>{t('sales.changeRole')}</span>
+          </button>
+          <button
+            className="flow-header-lang"
+            onClick={toggleLocale}
+            aria-label={t('role.switchLanguage')}
+          >
+            <Globe size={16} />
+            <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+          </button>
+        </div>
+      </header>
 
       {/* Timeline */}
       <SalesTimeline 
