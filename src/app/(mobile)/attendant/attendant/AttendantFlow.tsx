@@ -889,6 +889,40 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     const scannedBatteryId = batteryData.battery_id || batteryData.id || qrCodeData;
     
+    // Prevent scanning the old battery again as the new battery
+    if (swapData.oldBattery?.id) {
+      // Normalize IDs for comparison (remove prefixes, case insensitive)
+      const normalizeId = (id: string) => {
+        const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_)/i, '');
+        return cleaned.toLowerCase();
+      };
+      
+      const scannedNormalized = normalizeId(String(scannedBatteryId));
+      const oldBatteryNormalized = normalizeId(String(swapData.oldBattery.id));
+      
+      // Check if IDs match (exact match, one contains the other, or last 6 chars match)
+      const isSameBattery = scannedNormalized === oldBatteryNormalized ||
+        scannedNormalized.includes(oldBatteryNormalized) ||
+        oldBatteryNormalized.includes(scannedNormalized) ||
+        scannedNormalized.slice(-6) === oldBatteryNormalized.slice(-6);
+      
+      if (isSameBattery) {
+        console.error(`Same battery scanned twice: scanned ${scannedBatteryId}, old battery was ${swapData.oldBattery.id}`);
+        
+        setFlowError({
+          step: 3,
+          message: 'Cannot use the same battery',
+          details: `You scanned the old battery again. Please scan a different battery.`,
+        });
+        
+        toast.error('This is the old battery! Please scan a different battery.');
+        setIsScanning(false);
+        scanTypeRef.current = null;
+        stopBleScan();
+        return; // Don't proceed
+      }
+    }
+    
     // Store the scanned battery ID for later use after BLE connection
     pendingBatteryQrCodeRef.current = scannedBatteryId;
     pendingBatteryScanTypeRef.current = 'new_battery';
@@ -907,7 +941,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       // BLE scan already running, try to match immediately
       handleBleDeviceMatch(scannedBatteryId);
     }
-  }, [clearScanTimeout, startBleScan, bleScanState.isScanning, handleBleDeviceMatch]);
+  }, [clearScanTimeout, startBleScan, bleScanState.isScanning, handleBleDeviceMatch, swapData.oldBattery?.id, stopBleScan]);
 
   // Process payment QR code data
   const processPaymentQRData = useCallback((qrCodeData: string) => {
