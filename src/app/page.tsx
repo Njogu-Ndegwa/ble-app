@@ -42,6 +42,15 @@ export default function Index() {
     }
   }, [appState, isBridgeReady, isMqttConnected]);
 
+  // If user is on selectRole but bridge becomes disconnected, go back to splash
+  // This ensures the app doesn't operate without a working bridge connection
+  useEffect(() => {
+    if (appState === 'selectRole' && !isBridgeReady) {
+      console.warn('Bridge disconnected while on selectRole, returning to splash');
+      setAppState('splash');
+    }
+  }, [appState, isBridgeReady]);
+
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true';
@@ -52,12 +61,18 @@ export default function Index() {
   };
 
   const handleSplashComplete = useCallback(() => {
+    // Only proceed if bridge is ready
+    if (!isBridgeReady) {
+      console.warn('Splash complete called but bridge not ready, staying on splash');
+      return;
+    }
+    
     if (hasSeenOnboarding()) {
       setAppState('selectRole');
     } else {
       setAppState('onboarding');
     }
-  }, []);
+  }, [isBridgeReady]);
 
   const handleOnboardingComplete = useCallback(() => {
     markOnboardingComplete();

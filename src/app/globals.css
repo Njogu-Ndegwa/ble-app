@@ -407,6 +407,68 @@ html.theme-transition *::after {
   box-shadow: 0 0 8px var(--accent);
 }
 
+.splash-status-item.error {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.splash-status-item.error .splash-status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+/* Splash Retry Styles */
+.splash-retry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  animation: fadeIn 0.3s ease;
+}
+
+.splash-retry-message {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+.splash-retry-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.splash-retry-button:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(var(--accent-rgb), 0.4);
+}
+
+.splash-retry-button:active {
+  transform: scale(0.98);
+}
+
+.splash-retry-icon {
+  width: 18px;
+  height: 18px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ===================== */
 /* ONBOARDING STYLES     */
 /* ===================== */

@@ -459,6 +459,34 @@ const AppContainer = () => {
     }
   }, [bridge]);
 
+  // Track if QR scan was initiated to detect when user returns without scanning
+  const qrScanInitiatedRef = useRef(false);
+
+  // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        // User returned to page - give a small delay to allow QR callback to fire first if scan was successful
+        const timeoutId = setTimeout(() => {
+          // If scanning state is still true after returning, reset it
+          // This happens when user pressed back on QR scanner without scanning
+          if (isScanning) {
+            console.info('Resetting scanning state - user returned without scanning');
+            setIsScanning(false);
+          }
+          qrScanInitiatedRef.current = false;
+        }, 500); // 500ms delay to allow QR callback to fire first
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isScanning]);
+
   // console.error(bridgeInitialized, "bridgeInitialized-----466-----")
   // console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
   console.error(detectedDevices, "Detected Devices-----468");
@@ -466,6 +494,9 @@ const AppContainer = () => {
   const startQrCodeScan = () => {
     console.info("Start QR Code Scan");
     if (window.WebViewJavascriptBridge) {
+      // Mark that we initiated a QR scan - used to detect when user returns without scanning
+      qrScanInitiatedRef.current = true;
+      
       window.WebViewJavascriptBridge.callHandler(
         "startQrCodeScan",
         999,
