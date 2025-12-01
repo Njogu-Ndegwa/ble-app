@@ -313,9 +313,15 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       }
       bridgeInitRef.current = true;
 
-      window.WebViewJavascriptBridge.init((message: any, responseCallback: (response: any) => void) => {
-        responseCallback({ success: true });
-      });
+      // Wrap init in try-catch to handle case where BridgeContext already called init()
+      try {
+        window.WebViewJavascriptBridge.init((message: any, responseCallback: (response: any) => void) => {
+          responseCallback({ success: true });
+        });
+      } catch (err) {
+        // Bridge was already initialized by BridgeContext - this is expected
+        console.info('Bridge already initialized, continuing with handler registration');
+      }
 
       // QR Code result handler
       window.WebViewJavascriptBridge.registerHandler(
