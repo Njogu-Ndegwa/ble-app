@@ -49,8 +49,10 @@ const getStepConfig = (step: SalesStep): StepActionConfig => {
     case 2:
       return { showBack: true, mainText: 'Continue', mainIcon: 'arrow' };
     case 3:
-      return { showBack: true, mainText: 'Scan Battery', mainIcon: 'scan' };
+      return { showBack: true, mainText: 'Scan Payment QR', mainIcon: 'scan' };
     case 4:
+      return { showBack: true, mainText: 'Scan Battery', mainIcon: 'scan' };
+    case 5:
       return { showBack: false, mainText: 'New Registration', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
       return { showBack: false, mainText: 'Continue', mainIcon: 'arrow' };
