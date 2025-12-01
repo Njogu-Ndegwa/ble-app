@@ -1,17 +1,46 @@
 // app/page.tsx
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import SplashScreen from '@/components/splash/SplashScreen';
 import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
+import { useBridge } from '@/app/context/bridgeContext';
 
 type AppState = 'splash' | 'onboarding' | 'selectRole';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 
 export default function Index() {
-  const [appState, setAppState] = useState<AppState>('splash');
+  const { isBridgeReady, isMqttConnected } = useBridge();
+  
+  // Determine initial state: skip splash if bridge/MQTT are already connected
+  // (e.g., when returning from a role via "Change Role" button)
+  const getInitialState = (): AppState => {
+    if (isBridgeReady && isMqttConnected) {
+      // Already connected - skip splash, go directly to appropriate screen
+      if (typeof window !== 'undefined' && localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true') {
+        return 'selectRole';
+      }
+      return 'onboarding';
+    }
+    return 'splash';
+  };
+
+  const [appState, setAppState] = useState<AppState>(getInitialState);
+
+  // Update state if bridge/MQTT become ready while still on splash
+  // This handles the case where initial render had them as false but they're quickly ready
+  useEffect(() => {
+    if (appState === 'splash' && isBridgeReady && isMqttConnected) {
+      // Connections ready - skip remaining splash time
+      if (typeof window !== 'undefined' && localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true') {
+        setAppState('selectRole');
+      } else {
+        setAppState('onboarding');
+      }
+    }
+  }, [appState, isBridgeReady, isMqttConnected]);
 
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;
