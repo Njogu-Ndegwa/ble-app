@@ -40,7 +40,8 @@ export default function FlowHeader({ showBack = true, backPath, onBack, title }:
   };
 
   const toggleLocale = () => {
-    setLocale(locale === 'en' ? 'fr' : 'en');
+    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
+    setLocale(nextLocale);
   };
 
   return (

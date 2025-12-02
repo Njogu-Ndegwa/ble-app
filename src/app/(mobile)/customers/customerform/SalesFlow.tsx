@@ -73,7 +73,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
   // Toggle locale function
   const toggleLocale = useCallback(() => {
-    setLocale(locale === 'en' ? 'fr' : 'en');
+    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
+    setLocale(nextLocale);
   }, [locale, setLocale]);
   
   // Step management
