@@ -4,7 +4,9 @@ export interface CustomerData {
   id: string;
   name: string;
   subscriptionId: string;
+  subscriptionCode: string;  // Odoo subscription code for payment APIs
   subscriptionType: string;
+  phone?: string;  // Customer phone number for M-Pesa
   swapCount?: number;
   lastSwap?: string;
   // Quota info
@@ -17,6 +19,14 @@ export interface CustomerData {
   // Service Cycle FSM states  
   serviceState?: 'INITIAL' | 'WAIT_BATTERY_ISSUE' | 'BATTERY_ISSUED' | 'BATTERY_RETURNED' | 'BATTERY_LOST' | 'COMPLETE';
   currentBatteryId?: string;
+}
+
+// Payment initiation response from Odoo
+export interface PaymentInitiation {
+  transactionId: string;
+  checkoutRequestId: string;
+  merchantRequestId: string;
+  instructions: string;
 }
 
 // Step status for tracking failures

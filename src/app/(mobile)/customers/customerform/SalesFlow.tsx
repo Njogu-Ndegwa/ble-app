@@ -23,17 +23,24 @@ import {
   BleDevice,
   BleScanState,
   SalesStep,
-  AVAILABLE_PLANS,
+  PlanData,
+  SubscriptionData,
+  FALLBACK_PLANS,
   generateRegistrationId,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 
-// Odoo API endpoint for creating customers
-const ODOO_CUSTOMER_API = 'https://evans-musamia-odoorestapi.odoo.com/api/contacts';
-const ODOO_API_KEY = 'abs_connector_secret_key_2024';
-
-// Payment confirmation endpoint (same as Attendant workflow)
-const PAYMENT_CONFIRMATION_ENDPOINT = 'https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm';
+// Import Odoo API functions
+import {
+  registerCustomer,
+  getSubscriptionProducts,
+  purchaseSubscription,
+  initiatePayment,
+  confirmPaymentManual,
+  getCycleUnitFromPeriod,
+  DEFAULT_COMPANY_ID,
+  type SubscriptionProduct,
+} from '@/lib/odoo-api';
 
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
@@ -90,15 +97,25 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
+  // Subscription plans from Odoo API
+  const [availablePlans, setAvailablePlans] = useState<PlanData[]>(FALLBACK_PLANS);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(false);
+  
   // Plan selection
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('weekly');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
 
-  // Created customer ID from Odoo
+  // Created customer data from Odoo registration
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
+  const [createdPartnerId, setCreatedPartnerId] = useState<number | null>(null);
+  const [customerSessionToken, setCustomerSessionToken] = useState<string | null>(null);
+  
+  // Subscription data from purchase
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
 
   // Payment states
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string>('');
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
 
   // Battery data
   const [assignedBattery, setAssignedBattery] = useState<BatteryData | null>(null);
@@ -622,6 +639,58 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     };
   }, [currentStep, bleHandlersReady, startBleScan, stopBleScan]);
 
+  // Fetch subscription plans from Odoo API on mount
+  useEffect(() => {
+    const fetchPlans = async () => {
+      setIsLoadingPlans(true);
+      try {
+        const response = await getSubscriptionProducts(1, 20);
+        
+        if (response.success && response.data.products.length > 0) {
+          // Convert Odoo products to PlanData format
+          const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
+            id: product.id.toString(),
+            odooProductId: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.list_price,
+            period: '', // Will be determined from name
+            currency: product.currency,
+            currencySymbol: product.currency_symbol,
+          }));
+          
+          setAvailablePlans(plans);
+          
+          // Set default selected plan to first plan
+          if (plans.length > 0 && !selectedPlanId) {
+            setSelectedPlanId(plans[0].id);
+          }
+          
+          console.log('Fetched subscription plans from Odoo:', plans);
+        } else {
+          console.warn('No subscription products from Odoo, using fallback plans');
+          setAvailablePlans(FALLBACK_PLANS);
+          if (!selectedPlanId) {
+            setSelectedPlanId(FALLBACK_PLANS[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch subscription plans:', error);
+        // Fall back to hardcoded plans
+        setAvailablePlans(FALLBACK_PLANS);
+        if (!selectedPlanId) {
+          setSelectedPlanId(FALLBACK_PLANS[0].id);
+        }
+        toast.error('Could not load plans from server, using defaults');
+      } finally {
+        setIsLoadingPlans(false);
+      }
+    };
+
+    fetchPlans();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Validate form data
   const validateForm = useCallback((): boolean => {
     const errors: Partial<Record<keyof CustomerFormData, string>> = {};
@@ -662,109 +731,233 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     return Object.keys(errors).length === 0;
   }, [formData]);
 
-  // Create customer in Odoo
+  // Register customer in Odoo using /api/auth/register
   const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
     setIsCreatingCustomer(true);
     
     try {
-      const apiData = {
+      // Format phone number - ensure it starts with country code
+      let phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+      if (phoneNumber.startsWith('0')) {
+        phoneNumber = '254' + phoneNumber.slice(1);
+      } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
+        phoneNumber = '254' + phoneNumber;
+      }
+      phoneNumber = phoneNumber.replace('+', '');
+
+      const registrationPayload = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
-        phone: formData.phone,
-        mobile: formData.phone,
-        street: formData.street,
-        city: formData.city,
-        zip: formData.zip,
-        is_company: false,
-        // Custom fields for Kenya market (if supported by Odoo)
-        // x_national_id: formData.nationalId,
-        // x_vehicle_reg: formData.vehicleReg,
+        phone: phoneNumber,
+        company_id: DEFAULT_COMPANY_ID,
       };
 
-      console.log('Creating customer in Odoo:', apiData);
+      console.log('Registering customer in Odoo:', registrationPayload);
 
-      const response = await fetch(ODOO_CUSTOMER_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': ODOO_API_KEY,
-        },
-        body: JSON.stringify(apiData),
-      });
+      const response = await registerCustomer(registrationPayload);
 
-      if (!response.ok) {
-        let errorMessage = `HTTP error! Status: ${response.status}`;
-        const contentType = response.headers.get('content-type');
-
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          console.error('Odoo API Error:', errorData);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        }
-        throw new Error(errorMessage);
+      if (response.success && response.data.session) {
+        const { session } = response.data;
+        
+        console.log('Customer registered successfully:', session.user);
+        
+        // Store customer data
+        setCreatedCustomerId(session.user.id);
+        setCreatedPartnerId(session.user.partner_id);
+        setCustomerSessionToken(session.token);
+        
+        toast.success('Customer registered successfully!');
+        return true;
+      } else {
+        throw new Error('Registration failed - no session returned');
       }
-
-      const result = await response.json();
-      console.log('Customer created successfully:', result);
-      
-      // Store the created customer ID
-      if (result.id) {
-        setCreatedCustomerId(result.id);
-      }
-      
-      toast.success('Customer created successfully!');
-      return true;
     } catch (error: any) {
-      console.error('Failed to create customer:', error);
-      toast.error(error.message || 'Failed to create customer. Please try again.');
+      console.error('Failed to register customer:', error);
+      toast.error(error.message || 'Failed to register customer. Please try again.');
       return false;
     } finally {
       setIsCreatingCustomer(false);
     }
   }, [formData]);
 
+  // Purchase subscription after customer is registered
+  const purchaseCustomerSubscription = useCallback(async (): Promise<boolean> => {
+    if (!createdPartnerId) {
+      toast.error('Customer not registered yet');
+      return false;
+    }
+
+    const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
+    if (!selectedPlan || selectedPlan.odooProductId === 0) {
+      // Skip purchase for fallback plans
+      console.log('Skipping subscription purchase for fallback plan');
+      return true;
+    }
+
+    try {
+      const { interval, unit } = getCycleUnitFromPeriod(selectedPlan.name);
+      
+      const purchasePayload = {
+        customer_id: createdPartnerId,
+        product_id: selectedPlan.odooProductId,
+        company_id: DEFAULT_COMPANY_ID,
+        quantity: 1,
+        cycle_interval: interval,
+        cycle_unit: unit,
+        price_unit: selectedPlan.price,
+        notes: 'Purchased via customer portal - sales rep flow',
+      };
+
+      console.log('Purchasing subscription:', purchasePayload);
+
+      const response = await purchaseSubscription(purchasePayload);
+
+      if (response.success && response.data.subscription) {
+        const { subscription } = response.data;
+        
+        setSubscriptionData({
+          id: subscription.id,
+          subscriptionCode: subscription.subscription_code,
+          status: subscription.status,
+          productName: subscription.product_name,
+          priceAtSignup: subscription.price_at_signup,
+          currency: subscription.currency,
+          currencySymbol: subscription.currency_symbol,
+        });
+        
+        console.log('Subscription purchased:', subscription);
+        toast.success('Subscription created!');
+        return true;
+      } else {
+        throw new Error('Subscription purchase failed');
+      }
+    } catch (error: any) {
+      console.error('Failed to purchase subscription:', error);
+      toast.error(error.message || 'Failed to create subscription');
+      return false;
+    }
+  }, [createdPartnerId, selectedPlanId, availablePlans]);
+
+  // Initiate payment with Odoo before collecting M-Pesa
+  const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
+    if (!subscriptionData?.subscriptionCode) {
+      // For fallback plans without subscription, skip initiation
+      console.log('No subscription code, skipping payment initiation');
+      setPaymentInitiated(true);
+      return true;
+    }
+
+    const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
+    const amount = selectedPlan?.price || 0;
+    
+    // Format phone number
+    let phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+    if (phoneNumber.startsWith('0')) {
+      phoneNumber = '254' + phoneNumber.slice(1);
+    } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
+      phoneNumber = '254' + phoneNumber;
+    }
+    phoneNumber = phoneNumber.replace('+', '');
+
+    try {
+      console.log('Initiating payment with Odoo:', {
+        subscription_code: subscriptionData.subscriptionCode,
+        phone_number: phoneNumber,
+        amount,
+      });
+
+      const response = await initiatePayment({
+        subscription_code: subscriptionData.subscriptionCode,
+        phone_number: phoneNumber,
+        amount,
+      });
+
+      if (response.success && response.data) {
+        console.log('Payment initiated:', response.data);
+        setPaymentInitiated(true);
+        toast.success(response.data.instructions || 'Check your phone for M-Pesa prompt');
+        return true;
+      } else {
+        throw new Error('Payment initiation failed');
+      }
+    } catch (error: any) {
+      console.error('Failed to initiate payment:', error);
+      // Don't block the flow - user can still enter receipt manually
+      setPaymentInitiated(true);
+      toast.error('Could not send M-Pesa prompt. Enter receipt manually.');
+      return true; // Allow to continue
+    }
+  }, [subscriptionData, selectedPlanId, availablePlans, formData.phone]);
+
   // Handle payment confirmation via QR scan
-  const handlePaymentQrScan = useCallback(() => {
+  const handlePaymentQrScan = useCallback(async () => {
+    // First initiate payment if not already done
+    if (!paymentInitiated) {
+      await initiateOdooPayment();
+    }
+    
     scanTypeRef.current = 'payment';
     startQrCodeScan();
-  }, [startQrCodeScan]);
+  }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
 
-  // Handle manual payment entry
-  const handleManualPayment = useCallback(async (paymentId: string) => {
+  // Handle manual payment entry - confirm with Odoo
+  const handleManualPayment = useCallback(async (receipt: string) => {
     setIsProcessing(true);
     
     try {
-      const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
-      const amount = selectedPlan?.price || 0;
-
-      // Call payment confirmation endpoint
-      const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_id: paymentId,
-          plan_id: selectedPlanId,
-          amount: amount,
-          customer_id: createdCustomerId,
-        }),
-      });
-      
-      if (response.ok) {
-        setPaymentConfirmed(true);
-        setPaymentReference(paymentId);
-        toast.success('Payment confirmed!');
-        advanceToStep(4); // Move to battery assignment
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.message || 'Payment confirmation failed');
+      // First initiate payment if not already done
+      if (!paymentInitiated) {
+        await initiateOdooPayment();
       }
-    } catch (err) {
+
+      const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
+      const subscriptionCode = subscriptionData?.subscriptionCode;
+
+      if (subscriptionCode) {
+        // Use Odoo manual confirmation endpoint
+        console.log('Confirming payment with Odoo:', {
+          subscription_code: subscriptionCode,
+          receipt,
+          customer_id: createdPartnerId?.toString(),
+        });
+
+        const response = await confirmPaymentManual({
+          subscription_code: subscriptionCode,
+          receipt,
+          customer_id: createdPartnerId?.toString(),
+        });
+        
+        if (response.success) {
+          setPaymentConfirmed(true);
+          setPaymentReference(receipt);
+          toast.success('Payment submitted for validation!');
+          advanceToStep(4); // Move to battery assignment
+        } else {
+          throw new Error('Payment confirmation failed');
+        }
+      } else {
+        // Fallback for plans without subscription code
+        console.log('No subscription code, using legacy confirmation');
+        setPaymentConfirmed(true);
+        setPaymentReference(receipt);
+        toast.success('Payment confirmed!');
+        advanceToStep(4);
+      }
+    } catch (err: any) {
       console.error('Payment confirmation error:', err);
-      toast.error('Payment confirmation failed. Check network connection.');
+      toast.error(err.message || 'Payment confirmation failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedPlanId, createdCustomerId, advanceToStep]);
+  }, [
+    selectedPlanId, 
+    availablePlans,
+    subscriptionData, 
+    createdPartnerId, 
+    advanceToStep, 
+    paymentInitiated, 
+    initiateOdooPayment
+  ]);
 
   // Update payment QR ref when handler changes
   useEffect(() => {
@@ -811,8 +1004,18 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         }
         break;
       case 2:
-        // Move to payment step
-        advanceToStep(3);
+        // Purchase subscription and move to payment step
+        setIsProcessing(true);
+        try {
+          const subscriptionCreated = await purchaseCustomerSubscription();
+          if (subscriptionCreated) {
+            // Initiate payment to send M-Pesa prompt
+            await initiateOdooPayment();
+            advanceToStep(3);
+          }
+        } finally {
+          setIsProcessing(false);
+        }
         break;
       case 3:
         // Trigger payment QR scan
@@ -840,15 +1043,29 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           vehicleModel: '',
         });
         setFormErrors({});
-        setSelectedPlanId('weekly');
+        setSelectedPlanId(availablePlans.length > 0 ? availablePlans[0].id : '');
         setCreatedCustomerId(null);
+        setCreatedPartnerId(null);
+        setCustomerSessionToken(null);
+        setSubscriptionData(null);
         setPaymentConfirmed(false);
         setPaymentReference('');
+        setPaymentInitiated(false);
         setAssignedBattery(null);
         setRegistrationId('');
         break;
     }
-  }, [currentStep, validateForm, createCustomerInOdoo, advanceToStep, handlePaymentQrScan, handleScanBattery]);
+  }, [
+    currentStep, 
+    validateForm, 
+    createCustomerInOdoo, 
+    purchaseCustomerSubscription,
+    initiateOdooPayment,
+    advanceToStep, 
+    handlePaymentQrScan, 
+    handleScanBattery,
+    availablePlans
+  ]);
 
   // Handle step click in timeline
   const handleStepClick = useCallback((step: SalesStep) => {
@@ -882,6 +1099,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           <Step2SelectPlan 
             selectedPlan={selectedPlanId}
             onPlanSelect={handlePlanSelect}
+            plans={availablePlans}
+            isLoadingPlans={isLoadingPlans}
           />
         );
       case 3:
@@ -889,6 +1108,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           <Step3Payment 
             formData={formData}
             selectedPlanId={selectedPlanId}
+            plans={availablePlans}
             onConfirmPayment={handlePaymentQrScan}
             onManualPayment={handleManualPayment}
             isProcessing={isProcessing}

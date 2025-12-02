@@ -1,13 +1,13 @@
 // Shared types for Sales Rep Flow
 
 export interface CustomerFormData {
-  // Personal Information (required by Odoo)
+  // Personal Information (required by Odoo /api/auth/register)
   firstName: string;
   lastName: string;
   phone: string;
   email: string;
   
-  // Address Information (required by Odoo)
+  // Address Information (optional for display)
   street: string;
   city: string;
   zip: string;
@@ -21,38 +21,51 @@ export interface CustomerFormData {
   vehicleModel: string;
 }
 
-// Odoo API payload for creating customer
-export interface OdooCustomerPayload {
-  name: string;
-  email: string;
-  phone: string;
-  mobile: string;
-  street: string;
-  city: string;
-  zip: string;
-  is_company: boolean;
-  // Custom fields for Kenya market
-  x_national_id?: string;
-  x_vehicle_reg?: string;
-  x_vehicle_type?: string;
-  x_vehicle_model?: string;
-}
-
-// Response from Odoo customer creation
-export interface OdooCustomerResponse {
+// Response from Odoo customer registration
+export interface OdooRegisteredCustomer {
   id: number;
+  partner_id: number;
   name: string;
   email: string;
   phone: string;
-  // ... other fields returned by Odoo
+  company_id: number;
 }
 
+// Session data from registration
+export interface OdooSession {
+  token: string;
+  user: OdooRegisteredCustomer;
+}
+
+// Plan data from Odoo subscription products API
 export interface PlanData {
-  id: string;
+  id: string;           // Will be product ID from Odoo
+  odooProductId: number; // Original Odoo product ID
   name: string;
   description: string;
   price: number;
   period: string;
+  currency: string;
+  currencySymbol: string;
+}
+
+// Subscription data from purchase
+export interface SubscriptionData {
+  id: number;
+  subscriptionCode: string;
+  status: string;
+  productName: string;
+  priceAtSignup: number;
+  currency: string;
+  currencySymbol: string;
+}
+
+// Payment initiation response
+export interface PaymentInitiation {
+  transactionId: string;
+  checkoutRequestId: string;
+  merchantRequestId: string;
+  instructions: string;
 }
 
 export interface BatteryData {
@@ -100,36 +113,52 @@ export const STEP_CONFIGS: StepConfig[] = [
   { step: 5, label: 'Done', icon: 'done' },
 ];
 
-export const AVAILABLE_PLANS: PlanData[] = [
+// Fallback plans used when Odoo API is unavailable
+export const FALLBACK_PLANS: PlanData[] = [
   {
     id: 'daily',
+    odooProductId: 0,
     name: 'Daily Pass',
     description: 'Unlimited swaps for 24 hours',
     price: 150,
     period: '/day',
+    currency: 'KES',
+    currencySymbol: 'KSh',
   },
   {
     id: 'weekly',
+    odooProductId: 0,
     name: 'Weekly Plan',
     description: 'Unlimited swaps for 7 days',
     price: 800,
     period: '/week',
+    currency: 'KES',
+    currencySymbol: 'KSh',
   },
   {
     id: 'monthly',
+    odooProductId: 0,
     name: 'Monthly Plan',
     description: 'Unlimited swaps for 30 days',
     price: 2500,
     period: '/month',
+    currency: 'KES',
+    currencySymbol: 'KSh',
   },
   {
     id: 'payperswap',
+    odooProductId: 0,
     name: 'Pay-Per-Swap',
     description: 'Pay only when you swap',
     price: 0,
     period: 'deposit',
+    currency: 'KES',
+    currencySymbol: 'KSh',
   },
 ];
+
+// For backward compatibility
+export const AVAILABLE_PLANS = FALLBACK_PLANS;
 
 // Helper functions
 export const getInitials = (firstName: string, lastName: string): string => {
