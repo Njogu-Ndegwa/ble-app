@@ -115,6 +115,53 @@ export interface PurchaseSubscriptionPayload {
   notes?: string;
 }
 
+// Raw response from /api/subscription/purchase endpoint
+// The API returns subscription at root level, not wrapped in "data"
+export interface PurchaseSubscriptionRawResponse {
+  success: boolean;
+  message: string;
+  subscription: {
+    subscription_id: number;
+    subscription_code: string;
+    customer_id: number;
+    customer_name: string;
+    product_id: number;
+    product_name: string;
+    status: string;
+    start_date: string;
+    next_cycle_date: string;
+    price_at_signup: number;
+    currency: string;
+    cycle_interval: number;
+    cycle_unit: string;
+  };
+  order: {
+    id: number;
+    name: string;
+    state: string;
+    amount_total: number;
+  };
+  invoice: {
+    id: number;
+    invoice_number: string;
+    amount_total: number;
+    amount_due: number;
+    payment_state: string;
+    payment_reference: string;
+  };
+  next_step: {
+    action: string;
+    message: string;
+    payment_url: string;
+    payment_params: {
+      subscription_code: string;
+      amount: number;
+      phone_number: string;
+    };
+  };
+}
+
+// Normalized response for internal use
 export interface PurchaseSubscriptionResponse {
   subscription: {
     id: number;
@@ -124,6 +171,20 @@ export interface PurchaseSubscriptionResponse {
     price_at_signup: number;
     currency: string;
     currency_symbol: string;
+  };
+  order?: {
+    id: number;
+    name: string;
+    state: string;
+    amount_total: number;
+  };
+  invoice?: {
+    id: number;
+    invoice_number: string;
+    amount_total: number;
+    amount_due: number;
+    payment_state: string;
+    payment_reference: string;
   };
 }
 
@@ -295,14 +356,65 @@ export async function getSubscriptionProducts(
 
 /**
  * Purchase a subscription for a customer
+ * Note: Odoo API returns subscription at root level, we normalize to { success, data: { subscription } }
  */
 export async function purchaseSubscription(
   payload: PurchaseSubscriptionPayload
 ): Promise<OdooApiResponse<PurchaseSubscriptionResponse>> {
-  return apiRequest<PurchaseSubscriptionResponse>('/api/subscription/purchase', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const rawData: PurchaseSubscriptionRawResponse = await response.json();
+
+    if (!response.ok) {
+      console.error('Odoo API Error:', rawData);
+      throw new Error((rawData as any)?.message || (rawData as any)?.error || `HTTP ${response.status}`);
+    }
+
+    // Get currency symbol based on currency code
+    const getCurrencySymbol = (currency: string): string => {
+      const symbols: Record<string, string> = {
+        'USD': '$',
+        'EUR': '€',
+        'KES': 'KSh',
+        'XOF': 'CFA',
+        'GBP': '£',
+      };
+      return symbols[currency] || currency;
+    };
+
+    // Transform root-level response to normalized format with data wrapper
+    return {
+      success: rawData.success,
+      data: {
+        subscription: {
+          id: rawData.subscription.subscription_id,
+          subscription_code: rawData.subscription.subscription_code,
+          status: rawData.subscription.status,
+          product_name: rawData.subscription.product_name,
+          price_at_signup: rawData.subscription.price_at_signup,
+          currency: rawData.subscription.currency,
+          currency_symbol: getCurrencySymbol(rawData.subscription.currency),
+        },
+        order: rawData.order,
+        invoice: rawData.invoice,
+      },
+    };
+  } catch (error: any) {
+    console.error('Odoo API Request Failed:', error);
+    throw error;
+  }
 }
 
 /**
