@@ -60,18 +60,39 @@ export interface RegisterCustomerResponse {
   email_sent: boolean;
 }
 
-// Subscription Product Types
+// Subscription Product Types - matches actual Odoo API response
 export interface SubscriptionProduct {
   id: number;
   name: string;
+  default_code?: string;
   description: string;
   list_price: number;
-  currency: string;
-  currency_symbol: string;
+  currency_id?: number;
   currency_name: string;
+  currencySymbol: string;  // API uses camelCase
+  category_id?: number;
+  category_name?: string;
+  recurring_invoice?: boolean;
+  image_url?: string | null;
+  company_id?: number;
   company_name: string;
 }
 
+// Raw API response structure (data at root level)
+export interface SubscriptionProductsRawResponse {
+  success: boolean;
+  products: SubscriptionProduct[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total_records: number;
+    total_pages: number;
+    has_next_page: boolean;
+    has_previous_page: boolean;
+  };
+}
+
+// Normalized response for internal use
 export interface SubscriptionProductsResponse {
   products: SubscriptionProduct[];
   pagination: {
@@ -161,6 +182,33 @@ export interface CompaniesResponse {
 // API Helper Functions
 // ============================================================================
 
+/**
+ * Normalize Odoo API response to standard format
+ * Odoo API returns data at root level (not wrapped in "data" property)
+ * This function wraps the root-level data in { success, data: {...} }
+ */
+function normalizeResponse<T>(rawResponse: any): OdooApiResponse<T> {
+  // If response already has a 'data' property, return as-is
+  if (rawResponse.data !== undefined) {
+    return rawResponse as OdooApiResponse<T>;
+  }
+
+  // Extract success, message, and wrap everything else in 'data'
+  const { success, message, ...restData } = rawResponse;
+  
+  // If there's additional data beyond success/message, wrap it
+  if (Object.keys(restData).length > 0) {
+    return {
+      success,
+      message,
+      data: restData as T,
+    };
+  }
+
+  // Otherwise return as-is (for simple success/message responses)
+  return { success, message } as OdooApiResponse<T>;
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -186,7 +234,8 @@ async function apiRequest<T>(
       throw new Error(data?.data?.error || data?.error || `HTTP ${response.status}`);
     }
 
-    return data as OdooApiResponse<T>;
+    // Normalize response to wrap root-level data in 'data' property
+    return normalizeResponse<T>(data);
   } catch (error: any) {
     console.error('Odoo API Request Failed:', error);
     throw error;
@@ -227,15 +276,45 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 
 /**
  * Fetch available subscription products/plans
+ * Note: Odoo API returns products at root level, we normalize to { data: { products, pagination } }
  */
 export async function getSubscriptionProducts(
   page: number = 1,
   limit: number = 20
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
-  return apiRequest<SubscriptionProductsResponse>(
-    `/api/products/subscription?page=${page}&limit=${limit}`,
-    { method: 'GET' }
-  );
+  const url = `${ODOO_BASE_URL}/api/products/subscription?page=${page}&limit=${limit}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+
+  try {
+    const response = await fetch(url, { method: 'GET', headers });
+    const rawData: SubscriptionProductsRawResponse = await response.json();
+
+    if (!response.ok) {
+      console.error('Odoo API Error:', rawData);
+      throw new Error((rawData as any)?.error || `HTTP ${response.status}`);
+    }
+
+    // Transform root-level response to normalized format with data wrapper
+    return {
+      success: rawData.success,
+      data: {
+        products: rawData.products,
+        pagination: {
+          page: rawData.pagination.current_page,
+          limit: rawData.pagination.per_page,
+          total: rawData.pagination.total_records,
+          pages: rawData.pagination.total_pages,
+        },
+      },
+    };
+  } catch (error: any) {
+    console.error('Odoo API Request Failed:', error);
+    throw error;
+  }
 }
 
 // ============================================================================

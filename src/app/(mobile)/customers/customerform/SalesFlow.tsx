@@ -649,8 +649,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           description: product.description || '',
           price: product.list_price,
           period: '', // Will be determined from name
-          currency: product.currency,
-          currencySymbol: product.currency_symbol,
+          currency: product.currency_name,
+          currencySymbol: product.currencySymbol,
         }));
         
         setAvailablePlans(plans);
