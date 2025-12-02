@@ -640,7 +640,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     try {
       const response = await getSubscriptionProducts(1, 20);
       
-      if (response.success && response.data.products.length > 0) {
+      if (response.success && response.data && response.data.products.length > 0) {
         // Convert Odoo products to PlanData format
         const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
           id: product.id.toString(),
@@ -649,8 +649,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           description: product.description || '',
           price: product.list_price,
           period: '', // Will be determined from name
-          currency: product.currency,
-          currencySymbol: product.currency_symbol,
+          currency: product.currency_name,
+          currencySymbol: product.currencySymbol,
         }));
         
         setAvailablePlans(plans);
@@ -791,7 +791,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
       const response = await purchaseSubscription(purchasePayload);
 
-      if (response.success && response.data.subscription) {
+      if (response.success && response.data && response.data.subscription) {
         const { subscription } = response.data;
         
         setSubscriptionData({

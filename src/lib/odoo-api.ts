@@ -60,18 +60,39 @@ export interface RegisterCustomerResponse {
   email_sent: boolean;
 }
 
-// Subscription Product Types
+// Subscription Product Types - matches actual Odoo API response
 export interface SubscriptionProduct {
   id: number;
   name: string;
+  default_code?: string;
   description: string;
   list_price: number;
-  currency: string;
-  currency_symbol: string;
+  currency_id?: number;
   currency_name: string;
+  currencySymbol: string;  // API uses camelCase
+  category_id?: number;
+  category_name?: string;
+  recurring_invoice?: boolean;
+  image_url?: string | null;
+  company_id?: number;
   company_name: string;
 }
 
+// Raw API response structure (data at root level)
+export interface SubscriptionProductsRawResponse {
+  success: boolean;
+  products: SubscriptionProduct[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total_records: number;
+    total_pages: number;
+    has_next_page: boolean;
+    has_previous_page: boolean;
+  };
+}
+
+// Normalized response for internal use
 export interface SubscriptionProductsResponse {
   products: SubscriptionProduct[];
   pagination: {
@@ -227,15 +248,45 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 
 /**
  * Fetch available subscription products/plans
+ * Note: Odoo API returns products at root level, we normalize to { data: { products, pagination } }
  */
 export async function getSubscriptionProducts(
   page: number = 1,
   limit: number = 20
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
-  return apiRequest<SubscriptionProductsResponse>(
-    `/api/products/subscription?page=${page}&limit=${limit}`,
-    { method: 'GET' }
-  );
+  const url = `${ODOO_BASE_URL}/api/products/subscription?page=${page}&limit=${limit}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+
+  try {
+    const response = await fetch(url, { method: 'GET', headers });
+    const rawData: SubscriptionProductsRawResponse = await response.json();
+
+    if (!response.ok) {
+      console.error('Odoo API Error:', rawData);
+      throw new Error((rawData as any)?.error || `HTTP ${response.status}`);
+    }
+
+    // Transform root-level response to normalized format with data wrapper
+    return {
+      success: rawData.success,
+      data: {
+        products: rawData.products,
+        pagination: {
+          page: rawData.pagination.current_page,
+          limit: rawData.pagination.per_page,
+          total: rawData.pagination.total_records,
+          pages: rawData.pagination.total_pages,
+        },
+      },
+    };
+  } catch (error: any) {
+    console.error('Odoo API Request Failed:', error);
+    throw error;
+  }
 }
 
 // ============================================================================
