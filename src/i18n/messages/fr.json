@@ -1017,6 +1017,10 @@
   "sales.assignedBattery": "Batterie attribuée",
   "sales.batteryCharge": "Charge de la batterie",
   "sales.startNewReg": "Nouvelle inscription",
+  "sales.noPlansAvailable": "Aucun plan d'abonnement disponible",
+  "sales.noPlansTitle": "Aucun Plan Disponible",
+  "sales.noPlansDescription": "Les plans d'abonnement n'ont pas pu être chargés depuis le serveur. Il peut s'agir d'un problème temporaire.",
+  "sales.noPlansHint": "Si cela persiste, veuillez contacter le support",
   
   "attendant.step.customer": "Client",
   "attendant.step.return": "Retour",
