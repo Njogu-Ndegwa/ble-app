@@ -27,7 +27,7 @@ import {
   SubscriptionData,
   generateRegistrationId,
 } from './components';
-import ProgressiveLoading from '@/components/loader/progressiveLoading';
+// ProgressiveLoading removed - using simple loading overlay like Attendant flow
 
 // Import Odoo API functions
 import {
@@ -1114,36 +1114,54 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     }
   };
 
-  // Show loading overlay during customer creation or BLE operations
-  if (isCreatingCustomer) {
-    return (
-      <ProgressiveLoading
-        initialMessage="Creating customer..."
-        progress={50}
-        autoProgress={true}
-        loadingSteps={[
-          { percentComplete: 20, message: 'Validating data...' },
-          { percentComplete: 50, message: 'Creating customer in Odoo...' },
-          { percentComplete: 90, message: 'Finalizing...' },
-        ]}
-      />
-    );
-  }
-
-  if (bleScanState.isConnecting || bleScanState.isReadingEnergy) {
-    return (
-      <ProgressiveLoading
-        initialMessage={bleScanState.isConnecting ? 'Connecting to battery...' : 'Reading battery energy...'}
-        progress={bleScanState.connectionProgress}
-        autoProgress={false}
-        loadingSteps={[
-          { percentComplete: 10, message: 'Connecting to battery...' },
-          { percentComplete: 50, message: 'Reading battery data...' },
-          { percentComplete: 90, message: 'Finalizing...' },
-        ]}
-      />
-    );
-  }
+  // Cancel/Close ongoing BLE operation - allows user to dismiss failure state and try again
+  const cancelBleOperation = useCallback(() => {
+    // SAFETY CHECK: Don't allow cancellation if we've successfully connected
+    // and are reading energy data - this would leave the device in a bad state
+    if (isConnectionSuccessfulRef.current) {
+      console.warn('=== Cancel blocked: Battery is already connected and reading data ===');
+      toast('Please wait while reading battery data...', { icon: '⏳' });
+      return;
+    }
+    
+    console.info('=== Closing/Cancelling BLE operation ===');
+    
+    // Clear all timeouts
+    clearBleOperationTimeout();
+    clearBleGlobalTimeout();
+    clearScannerTimeout();
+    
+    // Stop BLE scan if running
+    if (window.WebViewJavascriptBridge) {
+      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
+      
+      // Disconnect any connected device
+      const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+      if (connectedMac) {
+        window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+        sessionStorage.removeItem('connectedDeviceMac');
+      }
+    }
+    
+    // Reset all BLE state
+    setBleScanState({
+      isScanning: false,
+      isConnecting: false,
+      isReadingEnergy: false,
+      connectedDevice: null,
+      detectedDevices: [],
+      connectionProgress: 0,
+      error: null,
+      connectionFailed: false,
+      requiresBluetoothReset: false,
+    });
+    
+    // Reset scan state
+    setIsScannerOpening(false);
+    scanTypeRef.current = null;
+    pendingBatteryQrCodeRef.current = null;
+    pendingConnectionMacRef.current = null;
+  }, [clearBleOperationTimeout, clearBleGlobalTimeout, clearScannerTimeout]);
 
   return (
     <div className="sales-flow-container">
@@ -1186,8 +1204,168 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
-        isLoading={isProcessing}
+        isLoading={isProcessing || isCreatingCustomer}
       />
+
+      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}
+      {(isCreatingCustomer || isProcessing) && 
+       !bleScanState.isConnecting && 
+       !bleScanState.isReadingEnergy && (
+        <div className="loading-overlay active">
+          <div className="loading-spinner"></div>
+          <div className="loading-text">
+            {isCreatingCustomer 
+              ? 'Registering customer...' 
+              : 'Processing...'}
+          </div>
+        </div>
+      )}
+
+      {/* BLE Connection Progress Overlay - Shows when connecting, reading energy, or when connection failed */}
+      {(bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed) && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
+          <div className="w-full max-w-md px-4">
+            <div className="ble-progress-container">
+              {/* Header */}
+              <div className="ble-progress-header">
+                <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
+                  {bleScanState.requiresBluetoothReset ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
+                    </svg>
+                  )}
+                </div>
+                <div className="ble-progress-title">
+                  {bleScanState.requiresBluetoothReset
+                    ? 'Bluetooth Reset Required'
+                    : bleScanState.isReadingEnergy 
+                    ? 'Reading Battery Data' 
+                    : 'Connecting to Battery'}
+                </div>
+              </div>
+
+              {/* Bluetooth Reset Instructions - Show when Bluetooth reset is required */}
+              {bleScanState.requiresBluetoothReset && (
+                <div className="ble-reset-instructions">
+                  <div className="ble-reset-steps">
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">1</span>
+                      <span>Open your phone&apos;s Settings</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">2</span>
+                      <span>Turn Bluetooth OFF</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">3</span>
+                      <span>Wait 3 seconds</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">4</span>
+                      <span>Turn Bluetooth ON</span>
+                    </div>
+                    <div className="ble-reset-step">
+                      <span className="ble-reset-step-number">5</span>
+                      <span>Return here and try again</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Battery ID Display - Show which battery we're connecting to (hide when reset required) */}
+              {pendingBatteryQrCodeRef.current && !bleScanState.requiresBluetoothReset && (
+                <div className="ble-battery-id">
+                  <span className="ble-battery-id-label">Battery ID:</span>
+                  <span className="ble-battery-id-value">
+                    ...{String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase()}
+                  </span>
+                </div>
+              )}
+
+              {/* Progress Bar - Hide when Bluetooth reset is required */}
+              {!bleScanState.requiresBluetoothReset && (
+                <div className="ble-progress-bar-container">
+                  <div className="ble-progress-bar-bg">
+                    <div 
+                      className="ble-progress-bar-fill"
+                      style={{ width: `${bleScanState.connectionProgress}%` }}
+                    />
+                  </div>
+                  <div className="ble-progress-percent">
+                    {bleScanState.connectionProgress}%
+                  </div>
+                </div>
+              )}
+
+              {/* Status Message - More specific messages about what's happening */}
+              <div className="ble-progress-status">
+                {bleScanState.requiresBluetoothReset
+                  ? 'The Bluetooth connection was lost. Please toggle Bluetooth to reset it.'
+                  : bleScanState.error 
+                  ? bleScanState.error
+                  : bleScanState.isReadingEnergy 
+                  ? 'Reading energy level from battery...'
+                  : bleScanState.connectionProgress >= 75
+                  ? 'Finalizing connection...'
+                  : bleScanState.connectionProgress >= 50
+                  ? 'Establishing secure connection...'
+                  : bleScanState.connectionProgress >= 25
+                  ? 'Authenticating with battery...'
+                  : bleScanState.connectionProgress >= 10
+                  ? 'Locating battery via Bluetooth...'
+                  : `Connecting to battery ${pendingBatteryQrCodeRef.current ? '...' + String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase() : ''}...`}
+              </div>
+
+              {/* Step Indicators - Hide when Bluetooth reset is required */}
+              {!bleScanState.requiresBluetoothReset && (
+                <div className="ble-progress-steps">
+                  <div className={`ble-step active completed`}>
+                    <div className="ble-step-dot" />
+                    <span>Scan</span>
+                  </div>
+                  <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
+                    <div className="ble-step-dot" />
+                    <span>Connect</span>
+                  </div>
+                  <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
+                    <div className="ble-step-dot" />
+                    <span>Read</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Cancel/Close Button - Only shown when connection has definitively failed */}
+              {bleScanState.connectionFailed && (
+                <button
+                  onClick={cancelBleOperation}
+                  className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
+                  title="Close and try again"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                  {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Close'}
+                </button>
+              )}
+              
+              {/* Help Text - Show different message based on failure state */}
+              <p className="ble-progress-help">
+                {bleScanState.requiresBluetoothReset
+                  ? 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.'
+                  : bleScanState.connectionFailed 
+                  ? 'Make sure the battery is nearby and try again.' 
+                  : 'Keep the battery nearby during this process.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
