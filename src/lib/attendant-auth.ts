@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   EMPLOYEE_USER_EMAIL: 'oves-employee-email',
   EMPLOYEE_USER_DATA: 'oves-employee-data',
   EMPLOYEE_ACCESS_TOKEN: 'oves-employee-token',
+  EMPLOYEE_TOKEN_EXPIRES: 'oves-employee-token-expires',
   EMPLOYEE_USER_TYPE: 'oves-employee-type',
   
   // Legacy keys for backwards compatibility
@@ -46,12 +47,11 @@ export interface EmployeeUser {
   lastName?: string;
   role?: string;
   accessToken?: string;
+  tokenExpiresAt?: string;
   userType: UserType;
   employeeId?: number;
-  departmentId?: number;
-  departmentName?: string;
   companyId?: number;
-  companyName?: string;
+  odooUserType?: string; // e.g., "abs.employee"
 }
 
 // Legacy interface for backwards compatibility
@@ -66,23 +66,20 @@ export interface AttendantUser {
   accessToken?: string;
 }
 
+// API Response structure matching actual Odoo Employee Login response
 export interface EmployeeLoginResponse {
   success: boolean;
   message?: string;
-  employee?: {
-    id: number;
-    name: string;
-    email: string;
-    work_phone?: string;
-    department_id?: number;
-    department_name?: string;
-    company_id?: number;
-    company_name?: string;
-    job_title?: string;
-  };
   session?: {
     token: string;
-    expires_at?: string;
+    expires_at: string;
+    employee: {
+      id: number;
+      name: string;
+      email: string;
+      company_id: number;
+      user_type: string; // e.g., "abs.employee"
+    };
   };
   error?: string;
 }
@@ -90,6 +87,23 @@ export interface EmployeeLoginResponse {
 /**
  * Login using the Employee API (for Attendant and Sales Person)
  * Endpoint: POST https://crm-omnivoltaic.odoo.com/api/employee/login
+ * 
+ * Response structure:
+ * {
+ *   "success": true,
+ *   "message": "Login successful!",
+ *   "session": {
+ *     "token": "eyJ...",
+ *     "expires_at": "2025-12-03T13:32:54.570917",
+ *     "employee": {
+ *       "id": 4,
+ *       "name": "Test Employee",
+ *       "email": "test@example.com",
+ *       "company_id": 14,
+ *       "user_type": "abs.employee"
+ *     }
+ *   }
+ * }
  */
 export async function employeeLogin(
   email: string,
@@ -117,9 +131,8 @@ export async function employeeLogin(
     console.log('[EmployeeAuth] Response status:', response.status);
     console.log('[EmployeeAuth] Response data:', JSON.stringify(data, null, 2));
 
-    if (response.ok && (data.success || data.employee)) {
-      const employee = data.employee;
-      const token = data.session?.token;
+    if (response.ok && data.success && data.session) {
+      const { token, expires_at, employee } = data.session;
 
       if (!employee) {
         throw new Error('No employee data in response');
@@ -129,24 +142,22 @@ export async function employeeLogin(
         id: employee.id,
         name: employee.name,
         email: employee.email,
-        phone: employee.work_phone,
-        role: employee.job_title,
         accessToken: token,
+        tokenExpiresAt: expires_at,
         userType: userType,
         employeeId: employee.id,
-        departmentId: employee.department_id,
-        departmentName: employee.department_name,
         companyId: employee.company_id,
-        companyName: employee.company_name,
+        odooUserType: employee.user_type,
       };
 
       // Save to storage with employee-specific keys
       saveEmployeeLogin(user);
 
       console.log('[EmployeeAuth] Login successful:', user.name);
+      console.log('[EmployeeAuth] Token expires at:', expires_at);
       return { success: true, user };
     } else {
-      const errorMessage = data.error || data.message || 'Login failed';
+      const errorMessage = data.error || data.message || 'Login failed. Please check your credentials.';
       console.error('[EmployeeAuth] Login failed:', errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -160,19 +171,58 @@ export async function employeeLogin(
 }
 
 /**
- * Check if an employee (Attendant/Sales) is logged in
+ * Check if the employee token is expired
+ * @param expiresAt - ISO date string of when the token expires
+ * @returns true if expired, false if still valid
  */
-export function isEmployeeLoggedIn(): boolean {
-  if (typeof window === 'undefined') return false;
-  const userData = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
-  return userData !== null;
+export function isEmployeeTokenExpired(expiresAt?: string | null): boolean {
+  if (!expiresAt) return true;
+  
+  try {
+    const expirationDate = new Date(expiresAt);
+    const now = new Date();
+    
+    // Add a 1-minute buffer to avoid edge cases
+    const bufferMs = 60 * 1000;
+    return now.getTime() >= (expirationDate.getTime() - bufferMs);
+  } catch {
+    // If we can't parse the date, treat as expired
+    return true;
+  }
 }
 
 /**
- * Get the currently logged-in employee user
+ * Check if an employee (Attendant/Sales) is logged in with a valid (non-expired) token
+ */
+export function isEmployeeLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const userData = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
+  if (!userData) return false;
+  
+  const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  if (!token) return false;
+  
+  // Check if token is expired
+  const expiresAt = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
+  if (isEmployeeTokenExpired(expiresAt)) {
+    console.log('[EmployeeAuth] Token expired, clearing session');
+    clearEmployeeLogin();
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Get the currently logged-in employee user (returns null if token expired)
  */
 export function getEmployeeUser(): EmployeeUser | null {
   if (typeof window === 'undefined') return null;
+  
+  // First check if logged in (includes expiration check)
+  if (!isEmployeeLoggedIn()) return null;
+  
   const userData = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
   if (!userData) return null;
   
@@ -184,11 +234,28 @@ export function getEmployeeUser(): EmployeeUser | null {
 }
 
 /**
- * Get the employee access token
+ * Get the employee access token (returns null if expired)
  */
 export function getEmployeeToken(): string | null {
   if (typeof window === 'undefined') return null;
+  
+  // Check if token is expired
+  const expiresAt = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
+  if (isEmployeeTokenExpired(expiresAt)) {
+    console.log('[EmployeeAuth] Token expired when getting token');
+    clearEmployeeLogin();
+    return null;
+  }
+  
   return localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+}
+
+/**
+ * Get the token expiration time
+ */
+export function getEmployeeTokenExpiration(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
 }
 
 /**
@@ -196,6 +263,10 @@ export function getEmployeeToken(): string | null {
  */
 export function getEmployeeUserType(): UserType | null {
   if (typeof window === 'undefined') return null;
+  
+  // Check if logged in (includes expiration check)
+  if (!isEmployeeLoggedIn()) return null;
+  
   const userType = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_TYPE);
   return userType as UserType | null;
 }
@@ -214,6 +285,10 @@ export function saveEmployeeLogin(user: EmployeeUser): void {
     localStorage.setItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN, user.accessToken);
   }
   
+  if (user.tokenExpiresAt) {
+    localStorage.setItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES, user.tokenExpiresAt);
+  }
+  
   // Also save to legacy keys for backwards compatibility
   localStorage.setItem(STORAGE_KEYS.USER_EMAIL, user.email);
   localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
@@ -229,6 +304,7 @@ export function clearEmployeeLogin(): void {
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_USER_EMAIL);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_USER_TYPE);
   
   // Clear legacy keys
