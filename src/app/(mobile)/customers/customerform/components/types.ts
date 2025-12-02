@@ -2,23 +2,11 @@
 
 export interface CustomerFormData {
   // Personal Information (required by Odoo /api/auth/register)
+  // Only name, email, phone, company_id are accepted by the endpoint
   firstName: string;
   lastName: string;
   phone: string;
   email: string;
-  
-  // Address Information (optional for display)
-  street: string;
-  city: string;
-  zip: string;
-  
-  // Kenya-specific fields
-  nationalId: string;
-  
-  // Vehicle Information
-  vehicleReg: string;
-  vehicleType: string;
-  vehicleModel: string;
 }
 
 // Response from Odoo customer registration
@@ -121,10 +109,6 @@ export const getInitials = (firstName: string, lastName: string): string => {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 };
 
-export const maskNationalId = (id: string): string => {
-  if (id.length <= 3) return id;
-  return '*'.repeat(id.length - 3) + id.slice(-3);
-};
 
 export const formatPhoneNumber = (phone: string): string => {
   // Simple formatting - just return as-is for now

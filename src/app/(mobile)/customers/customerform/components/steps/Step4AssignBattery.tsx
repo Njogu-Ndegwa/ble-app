@@ -6,8 +6,7 @@ import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
   PlanData,
-  getInitials, 
-  maskNationalId 
+  getInitials 
 } from '../types';
 import ScannerArea from '@/app/(mobile)/attendant/attendant/components/ScannerArea';
 
@@ -52,12 +51,8 @@ export default function Step4AssignBattery({
         </div>
         <div className="preview-details">
           <div className="detail-item">
-            <div className="detail-label">{t('sales.vehicleReg')}</div>
-            <div className="detail-value">{formData.vehicleReg || 'N/A'}</div>
-          </div>
-          <div className="detail-item">
-            <div className="detail-label">{t('sales.nationalId')}</div>
-            <div className="detail-value">{maskNationalId(formData.nationalId) || 'N/A'}</div>
+            <div className="detail-label">{t('sales.emailAddress')}</div>
+            <div className="detail-value">{formData.email || 'N/A'}</div>
           </div>
         </div>
       </div>
