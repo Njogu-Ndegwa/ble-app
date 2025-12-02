@@ -52,29 +52,70 @@ export default function Step2SelectPlan({
           ))}
         </div>
       ) : loadError ? (
-        <div className="error-state" style={{ textAlign: 'center', padding: '24px' }}>
-          <svg 
-            viewBox="0 0 24 24" 
-            width="48" 
-            height="48" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            style={{ margin: '0 auto 12px', color: '#ef4444' }}
-          >
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 8v4M12 16h.01"/>
-          </svg>
-          <p style={{ color: '#ef4444', marginBottom: '12px' }}>{loadError}</p>
+        <div className="plans-error-state">
+          {/* Error illustration */}
+          <div className="plans-error-illustration">
+            <div className="plans-error-icon-wrapper">
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="1.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="plans-error-icon"
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {/* Pulsing ring effect */}
+              <div className="plans-error-ring" />
+              <div className="plans-error-ring plans-error-ring-delay" />
+            </div>
+            {/* Connection error lines */}
+            <div className="plans-error-lines">
+              <span className="error-line"></span>
+              <span className="error-line"></span>
+              <span className="error-line"></span>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="plans-error-content">
+            <h3 className="plans-error-title">
+              {t('sales.connectionError') || 'Connection Error'}
+            </h3>
+            <p className="plans-error-description">
+              {loadError}
+            </p>
+          </div>
+
+          {/* Action */}
           {onRetryLoad && (
             <button 
-              className="btn btn-secondary"
+              className="plans-error-retry-btn"
               onClick={onRetryLoad}
-              style={{ marginTop: '8px' }}
             >
-              {t('common.retry') || 'Retry'}
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+              {t('common.tryAgain') || 'Try Again'}
             </button>
           )}
+
+          {/* Help hint */}
+          <p className="plans-error-hint">
+            {t('sales.checkConnection') || 'Please check your internet connection'}
+          </p>
         </div>
       ) : plans.length === 0 ? (
         <div className="empty-plans-state">

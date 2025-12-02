@@ -4604,3 +4604,252 @@ html.theme-transition *::after {
     font-size: 10px;
   }
 }
+
+/* ===================== */
+/* PLANS ERROR STATE     */
+/* ===================== */
+
+.plans-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 24px;
+  min-height: 320px;
+}
+
+/* Error illustration container */
+.plans-error-illustration {
+  position: relative;
+  margin-bottom: 28px;
+}
+
+.plans-error-icon-wrapper {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.1) 100%);
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0 8px 32px -8px rgba(239, 68, 68, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.plans-error-icon {
+  width: 44px;
+  height: 44px;
+  color: #ef4444;
+  animation: errorShake 0.5s ease-in-out;
+}
+
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+/* Pulsing ring effect */
+.plans-error-ring {
+  position: absolute;
+  inset: -4px;
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  border-radius: 50%;
+  animation: errorPulse 2s ease-out infinite;
+}
+
+.plans-error-ring-delay {
+  animation-delay: 1s;
+}
+
+@keyframes errorPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Connection error lines - visual effect */
+.plans-error-lines {
+  position: absolute;
+  inset: -28px;
+  pointer-events: none;
+}
+
+.plans-error-lines .error-line {
+  position: absolute;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(239, 68, 68, 0.4) 50%, transparent 100%);
+  border-radius: 2px;
+  animation: errorLinePulse 2.5s ease-in-out infinite;
+}
+
+.plans-error-lines .error-line:nth-child(1) {
+  width: 28px;
+  top: 50%;
+  left: -36px;
+  transform: translateY(-50%);
+  animation-delay: 0s;
+}
+
+.plans-error-lines .error-line:nth-child(2) {
+  width: 28px;
+  top: 50%;
+  right: -36px;
+  transform: translateY(-50%);
+  animation-delay: 0.3s;
+}
+
+.plans-error-lines .error-line:nth-child(3) {
+  width: 24px;
+  height: 3px;
+  bottom: -28px;
+  left: 50%;
+  transform: translateX(-50%) rotate(90deg);
+  animation-delay: 0.6s;
+}
+
+@keyframes errorLinePulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.6; }
+}
+
+/* Content */
+.plans-error-content {
+  margin-bottom: 24px;
+  max-width: 280px;
+}
+
+.plans-error-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ef4444;
+  margin-bottom: 10px;
+  letter-spacing: -0.02em;
+}
+
+.plans-error-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Retry button - styled differently for error state */
+.plans-error-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 32px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 16px -4px rgba(239, 68, 68, 0.4);
+}
+
+.plans-error-retry-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.15) 100%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.plans-error-retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -6px rgba(239, 68, 68, 0.5);
+}
+
+.plans-error-retry-btn:hover::before {
+  opacity: 1;
+}
+
+.plans-error-retry-btn:active {
+  transform: translateY(0);
+}
+
+.plans-error-retry-btn svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+}
+
+.plans-error-retry-btn:hover svg {
+  animation: rotateRefresh 0.6s ease-in-out;
+}
+
+/* Hint text */
+.plans-error-hint {
+  margin-top: 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-height: 650px) {
+  .plans-error-state {
+    padding: 20px 16px;
+    min-height: 260px;
+  }
+  
+  .plans-error-icon-wrapper {
+    width: 76px;
+    height: 76px;
+  }
+  
+  .plans-error-icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .plans-error-illustration {
+    margin-bottom: 20px;
+  }
+  
+  .plans-error-title {
+    font-size: 16px;
+  }
+  
+  .plans-error-description {
+    font-size: 12px;
+  }
+  
+  .plans-error-retry-btn {
+    padding: 12px 24px;
+    font-size: 13px;
+  }
+  
+  .plans-error-hint {
+    margin-top: 14px;
+    font-size: 10px;
+  }
+  
+  .plans-error-lines .error-line:nth-child(1),
+  .plans-error-lines .error-line:nth-child(2) {
+    width: 20px;
+  }
+  
+  .plans-error-lines .error-line:nth-child(3) {
+    width: 18px;
+  }
+}
