@@ -182,33 +182,6 @@ export interface CompaniesResponse {
 // API Helper Functions
 // ============================================================================
 
-/**
- * Normalize Odoo API response to standard format
- * Odoo API returns data at root level (not wrapped in "data" property)
- * This function wraps the root-level data in { success, data: {...} }
- */
-function normalizeResponse<T>(rawResponse: any): OdooApiResponse<T> {
-  // If response already has a 'data' property, return as-is
-  if (rawResponse.data !== undefined) {
-    return rawResponse as OdooApiResponse<T>;
-  }
-
-  // Extract success, message, and wrap everything else in 'data'
-  const { success, message, ...restData } = rawResponse;
-  
-  // If there's additional data beyond success/message, wrap it
-  if (Object.keys(restData).length > 0) {
-    return {
-      success,
-      message,
-      data: restData as T,
-    };
-  }
-
-  // Otherwise return as-is (for simple success/message responses)
-  return { success, message } as OdooApiResponse<T>;
-}
-
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -234,8 +207,7 @@ async function apiRequest<T>(
       throw new Error(data?.data?.error || data?.error || `HTTP ${response.status}`);
     }
 
-    // Normalize response to wrap root-level data in 'data' property
-    return normalizeResponse<T>(data);
+    return data as OdooApiResponse<T>;
   } catch (error: any) {
     console.error('Odoo API Request Failed:', error);
     throw error;
