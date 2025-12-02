@@ -731,10 +731,16 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       console.log('Registering customer in Odoo:', registrationPayload);
 
       const response = await registerCustomer(registrationPayload);
+      
+      // Log full response for debugging
+      console.log('Odoo registration response:', JSON.stringify(response, null, 2));
 
-      if (response.success && response.data.session) {
-        const { session } = response.data;
-        
+      // Handle both response structures:
+      // 1. { success: true, data: { session: {...} } }
+      // 2. { session: {...} } or { success: true, session: {...} }
+      const session = response.data?.session || (response as any).session;
+      
+      if (session) {
         console.log('Customer registered successfully:', session.user);
         
         // Store customer data
@@ -745,6 +751,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         toast.success('Customer registered successfully!');
         return true;
       } else {
+        console.error('Unexpected response structure:', response);
         throw new Error('Registration failed - no session returned');
       }
     } catch (error: any) {
