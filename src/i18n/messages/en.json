@@ -1030,6 +1030,9 @@
   "sales.noPlansTitle": "No Plans Available",
   "sales.noPlansDescription": "Subscription plans couldn't be loaded from the server. This might be a temporary issue.",
   "sales.noPlansHint": "If this persists, please contact support",
+  "sales.connectionError": "Connection Error",
+  "sales.checkConnection": "Please check your internet connection",
+  "common.tryAgain": "Try Again",
   
   "attendant.step.customer": "Customer",
   "attendant.step.return": "Return",

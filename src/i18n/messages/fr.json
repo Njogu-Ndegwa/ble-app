@@ -1021,6 +1021,9 @@
   "sales.noPlansTitle": "Aucun Plan Disponible",
   "sales.noPlansDescription": "Les plans d'abonnement n'ont pas pu être chargés depuis le serveur. Il peut s'agir d'un problème temporaire.",
   "sales.noPlansHint": "Si cela persiste, veuillez contacter le support",
+  "sales.connectionError": "Erreur de connexion",
+  "sales.checkConnection": "Veuillez vérifier votre connexion internet",
+  "common.tryAgain": "Réessayer",
   
   "attendant.step.customer": "Client",
   "attendant.step.return": "Retour",
