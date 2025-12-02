@@ -66,7 +66,8 @@ export default function SelectRole() {
   };
 
   const toggleLocale = () => {
-    setLocale(locale === 'en' ? 'fr' : 'en');
+    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
+    setLocale(nextLocale);
   };
 
   return (
