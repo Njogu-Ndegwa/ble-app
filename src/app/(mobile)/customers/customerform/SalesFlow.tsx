@@ -41,6 +41,9 @@ import {
   type SubscriptionProduct,
 } from '@/lib/odoo-api';
 
+// Import employee auth to get salesperson token
+import { getEmployeeToken } from '@/lib/attendant-auth';
+
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
   init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
@@ -637,12 +640,21 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   }, [currentStep, bleHandlersReady, startBleScan, stopBleScan]);
 
   // Fetch subscription plans from Odoo API - no fallback, Odoo is source of truth
+  // Uses the salesperson's employee token to filter plans by their company
   const fetchPlans = useCallback(async () => {
     setIsLoadingPlans(true);
     setPlansLoadError(null);
     
     try {
-      const response = await getSubscriptionProducts(1, 20);
+      // Get the salesperson's employee token to filter plans by company
+      const employeeToken = getEmployeeToken();
+      
+      if (!employeeToken) {
+        console.warn('No employee token found - plans may not be filtered by company');
+      }
+      
+      // Pass the token to filter subscription plans by company
+      const response = await getSubscriptionProducts(1, 20, employeeToken || undefined);
       
       if (response.success && response.data && response.data.products.length > 0) {
         // Convert Odoo products to PlanData format
@@ -721,11 +733,18 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   }, [formData]);
 
   // Register customer in Odoo using /api/auth/register
-  // Sends name, email, phone, street, city, zip (company_id is from salesperson token)
+  // Sends name, email, phone, street, city, zip (company_id is derived from salesperson token)
   const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
     setIsCreatingCustomer(true);
     
     try {
+      // Get the salesperson's employee token for company association
+      const employeeToken = getEmployeeToken();
+      
+      if (!employeeToken) {
+        console.warn('No employee token found - customer may not be associated with correct company');
+      }
+      
       // Format phone number - ensure it starts with country code
       let phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
       if (phoneNumber.startsWith('0')) {
@@ -746,7 +765,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
       console.log('Registering customer in Odoo:', registrationPayload);
 
-      const response = await registerCustomer(registrationPayload);
+      // Pass the employee token so Odoo can derive the company_id
+      const response = await registerCustomer(registrationPayload, employeeToken || undefined);
       
       // Log full response for debugging
       console.log('Odoo registration response:', JSON.stringify(response, null, 2));
@@ -791,6 +811,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     }
 
     try {
+      // Get the salesperson's employee token for authorization
+      const employeeToken = getEmployeeToken();
+      
       const { interval, unit } = getCycleUnitFromPeriod(selectedPlan.name);
       
       const purchasePayload = {
@@ -806,7 +829,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
       console.log('Purchasing subscription:', purchasePayload);
 
-      const response = await purchaseSubscription(purchasePayload);
+      // Pass the employee token for authorization
+      const response = await purchaseSubscription(purchasePayload, employeeToken || undefined);
 
       if (response.success && response.data && response.data.subscription) {
         const { subscription } = response.data;
@@ -846,6 +870,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       return false;
     }
 
+    // Get the salesperson's employee token for authorization
+    const employeeToken = getEmployeeToken();
+    
     const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
     const amount = selectedPlan?.price || 0;
     
@@ -865,11 +892,12 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         amount,
       });
 
+      // Pass the employee token for authorization
       const response = await initiatePayment({
         subscription_code: subCode,
         phone_number: phoneNumber,
         amount,
-      });
+      }, employeeToken || undefined);
 
       if (response.success && response.data) {
         console.log('Payment initiated:', response.data);
@@ -921,6 +949,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         return;
       }
 
+      // Get the salesperson's employee token for authorization
+      const employeeToken = getEmployeeToken();
+
       // Use Odoo manual confirmation endpoint
       console.log('Confirming payment with Odoo:', {
         subscription_code: subscriptionCode,
@@ -928,11 +959,12 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         customer_id: createdPartnerId?.toString(),
       });
 
+      // Pass the employee token for authorization
       const response = await confirmPaymentManual({
         subscription_code: subscriptionCode,
         receipt,
         customer_id: createdPartnerId?.toString(),
-      });
+      }, employeeToken || undefined);
       
       if (response.success) {
         setPaymentConfirmed(true);

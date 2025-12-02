@@ -285,13 +285,26 @@ async function apiRequest<T>(
 /**
  * Register a new customer in Odoo
  * Returns the response directly (not wrapped in OdooApiResponse)
+ * 
+ * @param payload - Customer registration data (name, email, phone, street, city, zip)
+ * @param authToken - Optional employee/salesperson token to derive company_id from
+ *                    When provided, includes Authorization: Bearer header
  */
 export async function registerCustomer(
-  payload: RegisterCustomerPayload
+  payload: RegisterCustomerPayload,
+  authToken?: string
 ): Promise<RegisterCustomerResponse> {
+  const headers: HeadersInit = {};
+  
+  // Add Authorization header if token is provided (for company association)
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
   const response = await apiRequest<RegisterCustomerResponse>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers,
   });
   // Return the raw response since Odoo returns session at root level
   return response as unknown as RegisterCustomerResponse;
@@ -313,10 +326,16 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 /**
  * Fetch available subscription products/plans
  * Note: Odoo API returns products at root level, we normalize to { data: { products, pagination } }
+ * 
+ * @param page - Page number for pagination (default: 1)
+ * @param limit - Number of items per page (default: 20)
+ * @param authToken - Optional employee/salesperson token to filter plans by company
+ *                    When provided, includes Authorization: Bearer header
  */
 export async function getSubscriptionProducts(
   page: number = 1,
-  limit: number = 20
+  limit: number = 20,
+  authToken?: string
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
   const url = `${ODOO_BASE_URL}/api/products/subscription?page=${page}&limit=${limit}`;
   
@@ -324,6 +343,11 @@ export async function getSubscriptionProducts(
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
   };
+
+  // Add Authorization header if token is provided (for company-specific plans)
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
 
   try {
     const response = await fetch(url, { method: 'GET', headers });
@@ -360,9 +384,14 @@ export async function getSubscriptionProducts(
 /**
  * Purchase a subscription for a customer
  * Note: Odoo API returns subscription at root level, we normalize to { success, data: { subscription } }
+ * 
+ * @param payload - Subscription purchase data
+ * @param authToken - Optional employee/salesperson token for authorization
+ *                    When provided, includes Authorization: Bearer header
  */
 export async function purchaseSubscription(
-  payload: PurchaseSubscriptionPayload
+  payload: PurchaseSubscriptionPayload,
+  authToken?: string
 ): Promise<OdooApiResponse<PurchaseSubscriptionResponse>> {
   const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
   
@@ -370,6 +399,11 @@ export async function purchaseSubscription(
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
   };
+
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
 
   try {
     const response = await fetch(url, {
@@ -452,26 +486,50 @@ export async function cancelSubscription(
 /**
  * Initiate M-Pesa payment via LiPay
  * This tells Odoo we're about to collect a payment of a specific amount
+ * 
+ * @param payload - Payment initiation data (subscription_code, phone_number, amount)
+ * @param authToken - Optional employee/salesperson token for authorization
  */
 export async function initiatePayment(
-  payload: InitiatePaymentPayload
+  payload: InitiatePaymentPayload,
+  authToken?: string
 ): Promise<OdooApiResponse<InitiatePaymentResponse>> {
+  const headers: HeadersInit = {};
+  
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
   return apiRequest<InitiatePaymentResponse>('/api/payments/lipay/initiate', {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers,
   });
 }
 
 /**
  * Manually confirm a payment with M-Pesa receipt
  * Used after customer has paid and we have the receipt code
+ * 
+ * @param payload - Payment confirmation data (subscription_code, receipt, customer_id)
+ * @param authToken - Optional employee/salesperson token for authorization
  */
 export async function confirmPaymentManual(
-  payload: ManualConfirmPaymentPayload
+  payload: ManualConfirmPaymentPayload,
+  authToken?: string
 ): Promise<OdooApiResponse<ManualConfirmPaymentResponse>> {
+  const headers: HeadersInit = {};
+  
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
   return apiRequest<ManualConfirmPaymentResponse>('/api/lipay/manual-confirm', {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers,
   });
 }
 
