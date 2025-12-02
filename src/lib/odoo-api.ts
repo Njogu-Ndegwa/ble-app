@@ -33,10 +33,22 @@ export interface OdooApiError {
 
 // Auth/Registration Types
 export interface RegisterCustomerPayload {
+  // Required fields
   name: string;
   email: string;
   phone: string;
   company_id: number;
+  
+  // Address fields
+  street?: string;
+  city?: string;
+  zip?: string;
+  
+  // Kenya-specific fields
+  national_id?: string;       // National ID number
+  vehicle_reg?: string;       // Vehicle registration number
+  vehicle_type?: string;      // Vehicle type (e.g., Motorcycle)
+  vehicle_model?: string;     // Vehicle model (e.g., TVS HLX 125)
 }
 
 export interface RegisterCustomerResponse {

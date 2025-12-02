@@ -743,10 +743,22 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       phoneNumber = phoneNumber.replace('+', '');
 
       const registrationPayload = {
+        // Required fields
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         phone: phoneNumber,
         company_id: DEFAULT_COMPANY_ID,
+        
+        // Address fields
+        street: formData.street || undefined,
+        city: formData.city || undefined,
+        zip: formData.zip || undefined,
+        
+        // Kenya-specific fields
+        national_id: formData.nationalId || undefined,
+        vehicle_reg: formData.vehicleReg || undefined,
+        vehicle_type: formData.vehicleType || undefined,
+        vehicle_model: formData.vehicleModel || undefined,
       };
 
       console.log('Registering customer in Odoo:', registrationPayload);
