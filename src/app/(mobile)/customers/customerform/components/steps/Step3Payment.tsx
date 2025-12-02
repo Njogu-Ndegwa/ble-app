@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
-  AVAILABLE_PLANS, 
+  PlanData,
   getInitials 
 } from '../types';
 import ScannerArea from '@/app/(mobile)/attendant/attendant/components/ScannerArea';
@@ -16,6 +16,7 @@ interface Step3Props {
   onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
+  plans: PlanData[];  // Plans from Odoo API - required
 }
 
 export default function Step3Payment({ 
@@ -25,15 +26,17 @@ export default function Step3Payment({
   onManualPayment, 
   isProcessing,
   isScannerOpening = false,
+  plans,
 }: Step3Props) {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
 
-  const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
   const amount = selectedPlan?.price || 0;
+  const currencySymbol = selectedPlan?.currencySymbol || 'KES';
 
   const handleManualConfirm = () => {
     if (paymentId.trim()) {
@@ -56,7 +59,7 @@ export default function Step3Payment({
           <div className="payment-customer-avatar">{initials}</div>
           <span className="payment-customer-name">{customerName}</span>
         </div>
-        <div className="payment-amount-large">KES {amount.toLocaleString()}</div>
+        <div className="payment-amount-large">{currencySymbol} {amount.toLocaleString()}</div>
       </div>
 
       <div className="payment-scan">

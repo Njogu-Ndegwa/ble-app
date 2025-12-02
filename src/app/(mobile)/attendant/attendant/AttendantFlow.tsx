@@ -28,8 +28,15 @@ import {
   FlowError,
   BleDevice,
   BleScanState,
+  PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
+
+// Import Odoo API functions for payment
+import {
+  initiatePayment,
+  confirmPaymentManual,
+} from '@/lib/odoo-api';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -43,9 +50,6 @@ declare global {
     WebViewJavascriptBridge?: WebViewJavascriptBridge;
   }
 }
-
-// Constants
-const PAYMENT_CONFIRMATION_ENDPOINT = "https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm";
 
 interface AttendantFlowProps {
   onBack?: () => void;
@@ -134,6 +138,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Payment states
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState<string | null>(null);
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [paymentInitiationData, setPaymentInitiationData] = useState<PaymentInitiation | null>(null);
   
   // Phase states
   const [paymentAndServiceStatus, setPaymentAndServiceStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
@@ -796,8 +802,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId || customerId,
                     name: normalizedData.name || identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode,
+                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
                     subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
+                    phone: normalizedData.phone || '', // For M-Pesa payment
                     swapCount: swapCountService?.used || 0,
                     lastSwap: 'N/A',
                     energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
@@ -1030,7 +1037,62 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [clearScanTimeout, startBleScan, bleScanState.isScanning, handleBleDeviceMatch, swapData.oldBattery?.id, stopBleScan]);
 
-  // Process payment QR code data
+  // Initiate payment with Odoo (tell Odoo we're about to collect payment)
+  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
+  const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
+    // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
+    const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
+    
+    if (!subscriptionCode) {
+      console.log('No subscription ID, skipping payment initiation');
+      setPaymentInitiated(true);
+      return true;
+    }
+
+    // Get customer phone - try from customerData first
+    const phoneNumber = customerData?.phone || '';
+    
+    try {
+      console.log('Initiating payment with Odoo:', {
+        subscription_code: subscriptionCode,
+        phone_number: phoneNumber,
+        amount: swapData.cost,
+      });
+
+      const response = await initiatePayment({
+        subscription_code: subscriptionCode,
+        phone_number: phoneNumber,
+        amount: swapData.cost,
+      });
+
+      if (response.success && response.data) {
+        console.log('Payment initiated:', response.data);
+        setPaymentInitiated(true);
+        setPaymentInitiationData({
+          transactionId: response.data.transaction_id,
+          checkoutRequestId: response.data.checkout_request_id,
+          merchantRequestId: response.data.merchant_request_id,
+          instructions: response.data.instructions,
+        });
+        
+        if (phoneNumber) {
+          toast.success(response.data.instructions || 'Check customer phone for M-Pesa prompt');
+        }
+        return true;
+      } else {
+        throw new Error('Payment initiation failed');
+      }
+    } catch (error: any) {
+      console.error('Failed to initiate payment:', error);
+      // Don't block the flow - user can still enter receipt manually
+      setPaymentInitiated(true);
+      toast.error('Could not send M-Pesa prompt. Customer must enter receipt manually.');
+      return true; // Allow to continue
+    }
+  }, [customerData, dynamicPlanId, swapData.cost]);
+
+  // Process payment QR code data - verify with Odoo
+  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
   const processPaymentQRData = useCallback((qrCodeData: string) => {
     let qrData: any;
     try {
@@ -1038,36 +1100,48 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     } catch {
       qrData = { transaction_id: qrCodeData };
     }
-    const txnId = qrData.transaction_id || qrData.txn_id || qrData.id || qrCodeData;
+    const receipt = qrData.transaction_id || qrData.receipt || qrData.txn_id || qrData.id || qrCodeData;
     
-    // Call HTTP endpoint for payment confirmation
+    // Confirm payment with Odoo
     const confirmPayment = async () => {
+      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
+      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
+      
       try {
-        const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            transaction_id: txnId,
-            plan_id: dynamicPlanId,
-            amount: swapData.cost,
-          }),
-        });
-        
-        if (response.ok) {
-          setPaymentConfirmed(true);
-          setPaymentReceipt(txnId);
-          setTransactionId(txnId);
-          toast.success('Payment confirmed');
-          publishPaymentAndService(txnId);
+        if (subscriptionCode) {
+          // Use Odoo manual confirmation endpoint
+          console.log('Confirming payment with Odoo:', {
+            subscription_code: subscriptionCode,
+            receipt,
+            customer_id: customerData?.id,
+          });
+
+          const response = await confirmPaymentManual({
+            subscription_code: subscriptionCode,
+            receipt,
+            customer_id: customerData?.id,
+          });
+          
+          if (response.success) {
+            setPaymentConfirmed(true);
+            setPaymentReceipt(receipt);
+            setTransactionId(receipt);
+            toast.success('Payment submitted for validation');
+            publishPaymentAndService(receipt);
+          } else {
+            throw new Error('Payment confirmation failed');
+          }
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          toast.error(errorData.message || 'Payment confirmation failed');
-          setIsScanning(false);
-          scanTypeRef.current = null;
+          // No subscription ID - just proceed with MQTT flow
+          setPaymentConfirmed(true);
+          setPaymentReceipt(receipt);
+          setTransactionId(receipt);
+          toast.success('Payment confirmed');
+          publishPaymentAndService(receipt);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Payment confirmation error:', err);
-        toast.error('Payment confirmation failed. Check network connection.');
+        toast.error(err.message || 'Payment confirmation failed. Check network connection.');
         setIsScanning(false);
         scanTypeRef.current = null;
       }
@@ -1075,7 +1149,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     confirmPayment();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost]);
+  }, [dynamicPlanId, swapData.cost, customerData]);
 
   // Keep processing function refs up to date to avoid stale closures in bridge handlers
   // This ensures the bridge callback always calls the latest version of each processing function
@@ -2043,8 +2117,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId,
                     name: identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode,
+                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
                     subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
+                    phone: '', // Will be entered separately if needed
                     swapCount: swapCountService?.used || 0,
                     lastSwap: 'N/A',
                     energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
@@ -2263,63 +2338,96 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     startQrCodeScan();
   }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
 
-  // Step 4: Proceed to payment
-  const handleProceedToPayment = useCallback(() => {
-    advanceToStep(5);
-  }, [advanceToStep]);
+  // Step 4: Proceed to payment - initiate payment with Odoo first
+  const handleProceedToPayment = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      // Initiate payment with Odoo to tell them we're collecting this amount
+      await initiateOdooPayment();
+      advanceToStep(5);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [advanceToStep, initiateOdooPayment]);
 
-  // Step 5: Confirm Payment via HTTP
+  // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
     if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please restart the app.');
       return;
     }
 
+    // Ensure payment was initiated
+    if (!paymentInitiated) {
+      await initiateOdooPayment();
+    }
+
     setIsScanning(true);
     scanTypeRef.current = 'payment';
     startQrCodeScan();
-  }, [startQrCodeScan]);
+  }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
 
-  // Step 5: Manual payment confirmation
-  const handleManualPayment = useCallback((paymentId: string) => {
+  // Step 5: Manual payment confirmation with Odoo
+  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
+  const handleManualPayment = useCallback((receipt: string) => {
     setIsProcessing(true);
     
-    // Call HTTP endpoint for manual payment confirmation
+    // Confirm payment with Odoo using manual confirmation endpoint
     const confirmManualPayment = async () => {
+      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
+      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
+      
       try {
-        const response = await fetch(PAYMENT_CONFIRMATION_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            transaction_id: paymentId,
-            plan_id: dynamicPlanId,
-            amount: swapData.cost,
-          }),
-        });
-        
-        if (response.ok) {
+        // Ensure payment was initiated first
+        if (!paymentInitiated) {
+          await initiateOdooPayment();
+        }
+
+        if (subscriptionCode) {
+          // Use Odoo manual confirmation endpoint
+          console.log('Confirming manual payment with Odoo:', {
+            subscription_code: subscriptionCode,
+            receipt,
+            customer_id: customerData?.id,
+          });
+
+          const response = await confirmPaymentManual({
+            subscription_code: subscriptionCode,
+            receipt,
+            customer_id: customerData?.id,
+          });
+          
+          if (response.success) {
+            setPaymentConfirmed(true);
+            setPaymentReceipt(receipt);
+            setTransactionId(receipt);
+            toast.success('Payment submitted for validation');
+            
+            // Now publish payment_and_service
+            publishPaymentAndService(receipt);
+          } else {
+            throw new Error('Payment confirmation failed');
+          }
+        } else {
+          // No subscription ID - just proceed with MQTT flow
           setPaymentConfirmed(true);
-          setPaymentReceipt(paymentId);
-          setTransactionId(paymentId);
+          setPaymentReceipt(receipt);
+          setTransactionId(receipt);
           toast.success('Payment confirmed');
           
           // Now publish payment_and_service
-          publishPaymentAndService(paymentId);
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          toast.error(errorData.message || 'Payment confirmation failed');
-          setIsProcessing(false);
+          publishPaymentAndService(receipt);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Manual payment error:', err);
-        toast.error('Payment confirmation failed. Check network connection.');
+        toast.error(err.message || 'Payment confirmation failed. Check network connection.');
         setIsProcessing(false);
       }
     };
     
     confirmManualPayment();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost]);
+  }, [dynamicPlanId, swapData.cost, customerData, paymentInitiated, initiateOdooPayment]);
 
   // Publish payment_and_service via MQTT
   const publishPaymentAndService = useCallback((paymentReference: string) => {
