@@ -6,6 +6,7 @@
   "common.logout": "Se déconnecter",
   "common.language.english": "Anglais",
   "common.language.french": "Français",
+  "common.language.chinese": "Chinois",
 
   "auth.title": "Gestionnaire d'appareils BLE",
   "auth.subtitle": "Connectez-vous pour accéder à vos appareils",

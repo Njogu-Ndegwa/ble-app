@@ -4,10 +4,12 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 type Messages = Record<string, string>;
 
+type Locale = "en" | "fr" | "zh";
+
 type I18nContextValue = {
-  locale: "en" | "fr";
+  locale: Locale;
   t: (key: string, vars?: Record<string, string | number>) => string;
-  setLocale: (locale: "en" | "fr") => void;
+  setLocale: (locale: Locale) => void;
   isHydrated: boolean;
 };
 
@@ -20,23 +22,24 @@ function interpolate(template: string, vars?: Record<string, string | number>): 
   return Object.keys(vars).reduce((acc, k) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), String(vars[k])), template);
 }
 
-function getInitialLocale(): "en" | "fr" {
+function getInitialLocale(): Locale {
   if (typeof window === "undefined") return "en";
   
   // Try to get saved locale from localStorage
-  const saved = window.localStorage.getItem(I18N_STORAGE_KEY) as "en" | "fr" | null;
-  if (saved === "en" || saved === "fr") return saved;
+  const saved = window.localStorage.getItem(I18N_STORAGE_KEY) as Locale | null;
+  if (saved === "en" || saved === "fr" || saved === "zh") return saved;
   
   // Fall back to browser language
   const browser = navigator.language?.toLowerCase?.() || "en";
   if (browser.startsWith("fr")) return "fr";
+  if (browser.startsWith("zh")) return "zh";
   
   return "en";
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   // Start with default "en" for SSR, then hydrate with saved preference
-  const [locale, setLocaleState] = useState<"en" | "fr">("en");
+  const [locale, setLocaleState] = useState<Locale>("en");
   const [isHydrated, setIsHydrated] = useState(false);
   const [messages, setMessages] = useState<Messages>({});
 
@@ -71,7 +74,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, [locale, isHydrated]);
 
-  const setLocale = useCallback((loc: "en" | "fr") => setLocaleState(loc), []);
+  const setLocale = useCallback((loc: Locale) => setLocaleState(loc), []);
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
