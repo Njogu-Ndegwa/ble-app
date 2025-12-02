@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-hot-toast";
-import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe, Eye, EyeOff, QrCode } from "lucide-react";
+import { LogIn, User, Loader2, UserPlus, Mail, Phone, AlertCircle, CheckCircle, Eye, EyeOff, QrCode } from "lucide-react";
 import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
 
@@ -24,20 +24,12 @@ interface FormData {
   name: string;
   email: string;
   phone: string;
-  street: string;
-  city: string;
-  zip: string;
-  country: string;
 }
 
 interface FormErrors {
   name?: string;
   email?: string;
   phone?: string;
-  street?: string;
-  city?: string;
-  zip?: string;
-  country?: string;
 }
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
@@ -54,24 +46,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [isScanningBattery, setIsScanningBattery] = useState<boolean>(false);
   const bridgeInitRef = useRef(false);
   
-  // Registration form state
+  // Registration form state - only fields accepted by Odoo /api/auth/register
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
     phone: '',
-    street: '',
-    city: '',
-    zip: '',
-    country: '',
   });
-
-  // Country options
-  const countryOptions = [
-    { value: 'Kenya', label: 'Kenya' },
-    { value: 'Philippines', label: 'Philippines' },
-    { value: 'Togo', label: 'Togo' },
-    { value: 'Shenzhen', label: 'Shenzhen' }
-  ];
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,10 +148,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     return phoneRegex.test(phone);
   };
 
-  const validateZip = (zip: string): boolean => {
-    return zip.trim().length >= 3;
-  };
-
+  // Validate form - only name, email, phone are required by Odoo /api/auth/register
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -191,24 +168,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       newErrors.phone = t('Phone number is required');
     } else if (!validatePhone(formData.phone)) {
       newErrors.phone = t('Please enter a valid phone number');
-    }
-
-    if (!formData.street || formData.street.trim().length === 0) {
-      newErrors.street = t('Street address is required');
-    }
-
-    if (!formData.city || formData.city.trim().length === 0) {
-      newErrors.city = t('City is required');
-    }
-
-    if (!formData.zip || formData.zip.trim().length === 0) {
-      newErrors.zip = t('Zip code is required');
-    } else if (!validateZip(formData.zip)) {
-      newErrors.zip = t('Please enter a valid zip code');
-    }
-
-    if (!formData.country) {
-      newErrors.country = t('Please select a country');
     }
 
     setErrors(newErrors);
@@ -408,10 +367,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         name: '',
         email: '',
         phone: '',
-        street: '',
-        city: '',
-        zip: '',
-        country: '',
       });
       setAssignBattery(false);
       // Keep scannedBatteryCode in localStorage - don't clear it after registration
@@ -507,39 +462,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               )}
             </div>
 
-            {/* Country Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Country')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Globe size={16} className="absolute left-3 top-3 text-gray-500 z-10" />
-                <select
-                  value={formData.country}
-                  onChange={(e) => handleInputChange('country', e.target.value)}
-                  className={`w-full pl-10 pr-4 py-3 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${
-                    errors.country ? 'border-red-500' : 'border-gray-600'
-                  }`}
-                >
-                  <option value="" className="text-gray-400">{t('Please select a country')}</option>
-                  {countryOptions.map((country) => (
-                    <option key={country.value} value={country.value} className="bg-gray-700 text-white">
-                      {country.label}
-                    </option>
-                  ))}
-                </select>
-                {/* Custom dropdown arrow */}
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-              {errors.country && (
-                <p className="mt-1 text-sm text-red-400">{errors.country}</p>
-              )}
-            </div>
-
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -584,61 +506,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               )}
             </div>
 
-            {/* Street */}
+            {/* Company (Read-only) */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Street Address')} <span className="text-red-400">*</span>
+                {t('Company')}
               </label>
               <input
                 type="text"
-                value={formData.street}
-                onChange={(e) => handleInputChange('street', e.target.value)}
-                className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.street ? 'border-red-500' : 'border-gray-600'
-                }`}
-                placeholder={t('Enter street address')}
+                value="OVS-TOGO"
+                disabled
+                readOnly
+                className="w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-300 cursor-not-allowed opacity-80"
               />
-              {errors.street && (
-                <p className="mt-1 text-sm text-red-400">{errors.street}</p>
-              )}
-            </div>
-
-            {/* City and Zip */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  {t('City')} <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => handleInputChange('city', e.target.value)}
-                  className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.city ? 'border-red-500' : 'border-gray-600'
-                  }`}
-                  placeholder={t('City')}
-                />
-                {errors.city && (
-                  <p className="mt-1 text-sm text-red-400">{errors.city}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  {t('Zip')} <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.zip}
-                  onChange={(e) => handleInputChange('zip', e.target.value)}
-                  className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.zip ? 'border-red-500' : 'border-gray-600'
-                  }`}
-                  placeholder={t('Zip')}
-                />
-                {errors.zip && (
-                  <p className="mt-1 text-sm text-red-400">{errors.zip}</p>
-                )}
-              </div>
+              <p className="mt-1 text-xs text-gray-500 italic">
+                {t('Currently fixed - will be selectable in the future')}
+              </p>
             </div>
 
             {/* Assign Battery Checkbox */}

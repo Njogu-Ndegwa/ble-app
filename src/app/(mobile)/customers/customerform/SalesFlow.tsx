@@ -80,19 +80,12 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   const [currentStep, setCurrentStep] = useState<SalesStep>(1);
   const [maxStepReached, setMaxStepReached] = useState<SalesStep>(1);
 
-  // Form data
+  // Form data - only fields accepted by Odoo /api/auth/register
   const [formData, setFormData] = useState<CustomerFormData>({
     firstName: '',
     lastName: '',
     phone: '',
     email: '',
-    street: '',
-    city: '',
-    zip: '',
-    nationalId: '',
-    vehicleReg: '',
-    vehicleType: '',
-    vehicleModel: '',
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
@@ -688,7 +681,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     fetchPlans();
   }, [fetchPlans]);
 
-  // Validate form data
+  // Validate form data - only fields required by Odoo /api/auth/register
   const validateForm = useCallback((): boolean => {
     const errors: Partial<Record<keyof CustomerFormData, string>> = {};
     
@@ -708,27 +701,13 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     } else if (!/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone)) {
       errors.phone = 'Invalid phone number';
     }
-    if (!formData.nationalId.trim()) {
-      errors.nationalId = 'National ID is required';
-    }
-    if (!formData.street.trim()) {
-      errors.street = 'Street address is required';
-    }
-    if (!formData.city.trim()) {
-      errors.city = 'City is required';
-    }
-    if (!formData.zip.trim()) {
-      errors.zip = 'Zip code is required';
-    }
-    if (!formData.vehicleReg.trim()) {
-      errors.vehicleReg = 'Vehicle registration is required';
-    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   }, [formData]);
 
   // Register customer in Odoo using /api/auth/register
+  // Only sends name, email, phone, company_id as per API specification
   const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
     setIsCreatingCustomer(true);
     
@@ -743,22 +722,10 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       phoneNumber = phoneNumber.replace('+', '');
 
       const registrationPayload = {
-        // Required fields
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         phone: phoneNumber,
         company_id: DEFAULT_COMPANY_ID,
-        
-        // Address fields
-        street: formData.street || undefined,
-        city: formData.city || undefined,
-        zip: formData.zip || undefined,
-        
-        // Kenya-specific fields
-        national_id: formData.nationalId || undefined,
-        vehicle_reg: formData.vehicleReg || undefined,
-        vehicle_type: formData.vehicleType || undefined,
-        vehicle_model: formData.vehicleModel || undefined,
       };
 
       console.log('Registering customer in Odoo:', registrationPayload);
@@ -1038,13 +1005,6 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           lastName: '',
           phone: '',
           email: '',
-          street: '',
-          city: '',
-          zip: '',
-          nationalId: '',
-          vehicleReg: '',
-          vehicleType: '',
-          vehicleModel: '',
         });
         setFormErrors({});
         // Reset to first available plan if any

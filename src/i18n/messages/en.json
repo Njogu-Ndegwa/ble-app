@@ -968,6 +968,8 @@
   "sales.lastName": "Last Name",
   "sales.emailAddress": "Email Address",
   "sales.phoneNumber": "Phone Number",
+  "sales.company": "Company",
+  "sales.companyHint": "Currently fixed - will be selectable in the future",
   "sales.nationalId": "National ID",
   "sales.addressInfo": "Address Information",
   "sales.streetAddress": "Street Address",
