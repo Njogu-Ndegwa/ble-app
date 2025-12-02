@@ -3,8 +3,7 @@
 export interface CustomerData {
   id: string;
   name: string;
-  subscriptionId: string;
-  subscriptionCode: string;  // Odoo subscription code for payment APIs
+  subscriptionId: string;  // This is the servicePlanId/subscription_code - same ID used by both ABS and Odoo
   subscriptionType: string;
   phone?: string;  // Customer phone number for M-Pesa
   swapCount?: number;

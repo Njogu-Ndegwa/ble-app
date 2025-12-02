@@ -5,7 +5,7 @@ import { Bluetooth, Radio } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
-  AVAILABLE_PLANS, 
+  PlanData,
   getInitials, 
   maskNationalId 
 } from '../types';
@@ -18,6 +18,7 @@ interface Step4Props {
   isBleScanning?: boolean;
   detectedDevicesCount?: number;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
+  plans: PlanData[];  // Plans from Odoo API
 }
 
 export default function Step4AssignBattery({ 
@@ -27,9 +28,10 @@ export default function Step4AssignBattery({
   isBleScanning = false,
   detectedDevicesCount = 0,
   isScannerOpening = false,
+  plans,
 }: Step4Props) {
   const { t } = useI18n();
-  const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
+  const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
 

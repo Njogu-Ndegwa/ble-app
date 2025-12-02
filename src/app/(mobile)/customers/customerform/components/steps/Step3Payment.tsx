@@ -5,7 +5,6 @@ import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
   PlanData,
-  FALLBACK_PLANS, 
   getInitials 
 } from '../types';
 import ScannerArea from '@/app/(mobile)/attendant/attendant/components/ScannerArea';
@@ -17,7 +16,7 @@ interface Step3Props {
   onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
-  plans?: PlanData[];  // Plans from Odoo API
+  plans: PlanData[];  // Plans from Odoo API - required
 }
 
 export default function Step3Payment({ 
@@ -33,9 +32,7 @@ export default function Step3Payment({
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
 
-  // Use provided plans or fallback
-  const availablePlans = plans && plans.length > 0 ? plans : FALLBACK_PLANS;
-  const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
   const amount = selectedPlan?.price || 0;

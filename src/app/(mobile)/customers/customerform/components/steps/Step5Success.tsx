@@ -5,7 +5,7 @@ import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
   BatteryData,
-  AVAILABLE_PLANS, 
+  PlanData,
   getBatteryClass 
 } from '../types';
 
@@ -15,6 +15,7 @@ interface Step5Props {
   battery: BatteryData | null;
   registrationId: string;
   paymentReference?: string;
+  plans: PlanData[];  // Plans from Odoo API
 }
 
 export default function Step5Success({ 
@@ -22,10 +23,11 @@ export default function Step5Success({
   selectedPlanId, 
   battery, 
   registrationId,
-  paymentReference 
+  paymentReference,
+  plans,
 }: Step5Props) {
   const { t } = useI18n();
-  const selectedPlan = AVAILABLE_PLANS.find(p => p.id === selectedPlanId);
+  const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const batteryClass = battery ? getBatteryClass(battery.chargeLevel) : 'full';
 
@@ -77,7 +79,7 @@ export default function Step5Success({
           <div className="checkout-total">
             <span className="checkout-total-label">{t('sales.amountDue')}</span>
             <span className="checkout-total-value font-mono-oves" style={{ color: 'var(--success)' }}>
-              KES {selectedPlan?.price.toLocaleString() || '0'}
+              {selectedPlan?.currencySymbol || 'KES'} {selectedPlan?.price.toLocaleString() || '0'}
             </span>
           </div>
         </div>

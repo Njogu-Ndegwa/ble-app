@@ -802,8 +802,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId || customerId,
                     name: normalizedData.name || identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode,
-                    subscriptionCode: subscriptionCode || servicePlanData.servicePlanId || '', // For Odoo payment APIs
+                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
                     subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
                     phone: normalizedData.phone || '', // For M-Pesa payment
                     swapCount: swapCountService?.used || 0,
@@ -1039,16 +1038,18 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   }, [clearScanTimeout, startBleScan, bleScanState.isScanning, handleBleDeviceMatch, swapData.oldBattery?.id, stopBleScan]);
 
   // Initiate payment with Odoo (tell Odoo we're about to collect payment)
+  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
   const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
-    const subscriptionCode = customerData?.subscriptionCode || dynamicPlanId;
+    // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
+    const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
     
     if (!subscriptionCode) {
-      console.log('No subscription code, skipping payment initiation');
+      console.log('No subscription ID, skipping payment initiation');
       setPaymentInitiated(true);
       return true;
     }
 
-    // Get customer phone - try from customerData first, then from QR data
+    // Get customer phone - try from customerData first
     const phoneNumber = customerData?.phone || '';
     
     try {
@@ -1091,6 +1092,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   }, [customerData, dynamicPlanId, swapData.cost]);
 
   // Process payment QR code data - verify with Odoo
+  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
   const processPaymentQRData = useCallback((qrCodeData: string) => {
     let qrData: any;
     try {
@@ -1102,7 +1104,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // Confirm payment with Odoo
     const confirmPayment = async () => {
-      const subscriptionCode = customerData?.subscriptionCode || dynamicPlanId;
+      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
+      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
       
       try {
         if (subscriptionCode) {
@@ -1129,7 +1132,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             throw new Error('Payment confirmation failed');
           }
         } else {
-          // Fallback - no subscription code
+          // No subscription ID - just proceed with MQTT flow
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
           setTransactionId(receipt);
@@ -2114,8 +2117,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId,
                     name: identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode,
-                    subscriptionCode: subscriptionCode || servicePlanData.servicePlanId || '', // For Odoo payment APIs
+                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
                     subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
                     phone: '', // Will be entered separately if needed
                     swapCount: swapCountService?.used || 0,
@@ -2366,12 +2368,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
 
   // Step 5: Manual payment confirmation with Odoo
+  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
   const handleManualPayment = useCallback((receipt: string) => {
     setIsProcessing(true);
     
     // Confirm payment with Odoo using manual confirmation endpoint
     const confirmManualPayment = async () => {
-      const subscriptionCode = customerData?.subscriptionCode || dynamicPlanId;
+      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
+      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
       
       try {
         // Ensure payment was initiated first
@@ -2405,7 +2409,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             throw new Error('Payment confirmation failed');
           }
         } else {
-          // Fallback - no subscription code, proceed without Odoo
+          // No subscription ID - just proceed with MQTT flow
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
           setTransactionId(receipt);

@@ -113,52 +113,8 @@ export const STEP_CONFIGS: StepConfig[] = [
   { step: 5, label: 'Done', icon: 'done' },
 ];
 
-// Fallback plans used when Odoo API is unavailable
-export const FALLBACK_PLANS: PlanData[] = [
-  {
-    id: 'daily',
-    odooProductId: 0,
-    name: 'Daily Pass',
-    description: 'Unlimited swaps for 24 hours',
-    price: 150,
-    period: '/day',
-    currency: 'KES',
-    currencySymbol: 'KSh',
-  },
-  {
-    id: 'weekly',
-    odooProductId: 0,
-    name: 'Weekly Plan',
-    description: 'Unlimited swaps for 7 days',
-    price: 800,
-    period: '/week',
-    currency: 'KES',
-    currencySymbol: 'KSh',
-  },
-  {
-    id: 'monthly',
-    odooProductId: 0,
-    name: 'Monthly Plan',
-    description: 'Unlimited swaps for 30 days',
-    price: 2500,
-    period: '/month',
-    currency: 'KES',
-    currencySymbol: 'KSh',
-  },
-  {
-    id: 'payperswap',
-    odooProductId: 0,
-    name: 'Pay-Per-Swap',
-    description: 'Pay only when you swap',
-    price: 0,
-    period: 'deposit',
-    currency: 'KES',
-    currencySymbol: 'KSh',
-  },
-];
-
-// For backward compatibility
-export const AVAILABLE_PLANS = FALLBACK_PLANS;
+// No fallback plans - Odoo is the only source of truth for subscription plans
+// Plans must be fetched from Odoo API at runtime
 
 // Helper functions
 export const getInitials = (firstName: string, lastName: string): string => {

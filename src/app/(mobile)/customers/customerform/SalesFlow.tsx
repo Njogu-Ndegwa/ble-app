@@ -25,7 +25,6 @@ import {
   SalesStep,
   PlanData,
   SubscriptionData,
-  FALLBACK_PLANS,
   generateRegistrationId,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
@@ -97,9 +96,10 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
-  // Subscription plans from Odoo API
-  const [availablePlans, setAvailablePlans] = useState<PlanData[]>(FALLBACK_PLANS);
-  const [isLoadingPlans, setIsLoadingPlans] = useState(false);
+  // Subscription plans from Odoo API - no fallback, Odoo is source of truth
+  const [availablePlans, setAvailablePlans] = useState<PlanData[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
+  const [plansLoadError, setPlansLoadError] = useState<string | null>(null);
   
   // Plan selection
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
@@ -639,57 +639,54 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     };
   }, [currentStep, bleHandlersReady, startBleScan, stopBleScan]);
 
-  // Fetch subscription plans from Odoo API on mount
-  useEffect(() => {
-    const fetchPlans = async () => {
-      setIsLoadingPlans(true);
-      try {
-        const response = await getSubscriptionProducts(1, 20);
+  // Fetch subscription plans from Odoo API - no fallback, Odoo is source of truth
+  const fetchPlans = useCallback(async () => {
+    setIsLoadingPlans(true);
+    setPlansLoadError(null);
+    
+    try {
+      const response = await getSubscriptionProducts(1, 20);
+      
+      if (response.success && response.data.products.length > 0) {
+        // Convert Odoo products to PlanData format
+        const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
+          id: product.id.toString(),
+          odooProductId: product.id,
+          name: product.name,
+          description: product.description || '',
+          price: product.list_price,
+          period: '', // Will be determined from name
+          currency: product.currency,
+          currencySymbol: product.currency_symbol,
+        }));
         
-        if (response.success && response.data.products.length > 0) {
-          // Convert Odoo products to PlanData format
-          const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
-            id: product.id.toString(),
-            odooProductId: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.list_price,
-            period: '', // Will be determined from name
-            currency: product.currency,
-            currencySymbol: product.currency_symbol,
-          }));
-          
-          setAvailablePlans(plans);
-          
-          // Set default selected plan to first plan
-          if (plans.length > 0 && !selectedPlanId) {
-            setSelectedPlanId(plans[0].id);
-          }
-          
-          console.log('Fetched subscription plans from Odoo:', plans);
-        } else {
-          console.warn('No subscription products from Odoo, using fallback plans');
-          setAvailablePlans(FALLBACK_PLANS);
-          if (!selectedPlanId) {
-            setSelectedPlanId(FALLBACK_PLANS[0].id);
-          }
+        setAvailablePlans(plans);
+        setPlansLoadError(null);
+        
+        // Set default selected plan to first plan
+        if (plans.length > 0) {
+          setSelectedPlanId(plans[0].id);
         }
-      } catch (error) {
-        console.error('Failed to fetch subscription plans:', error);
-        // Fall back to hardcoded plans
-        setAvailablePlans(FALLBACK_PLANS);
-        if (!selectedPlanId) {
-          setSelectedPlanId(FALLBACK_PLANS[0].id);
-        }
-        toast.error('Could not load plans from server, using defaults');
-      } finally {
-        setIsLoadingPlans(false);
+        
+        console.log('Fetched subscription plans from Odoo:', plans);
+      } else {
+        setPlansLoadError('No subscription plans available');
+        setAvailablePlans([]);
       }
-    };
-
-    fetchPlans();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch (error: any) {
+      console.error('Failed to fetch subscription plans:', error);
+      setPlansLoadError(error.message || 'Failed to load subscription plans');
+      setAvailablePlans([]);
+      toast.error('Could not load subscription plans from server');
+    } finally {
+      setIsLoadingPlans(false);
+    }
   }, []);
+
+  // Fetch plans on mount
+  useEffect(() => {
+    fetchPlans();
+  }, [fetchPlans]);
 
   // Validate form data
   const validateForm = useCallback((): boolean => {
@@ -788,10 +785,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     }
 
     const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
-    if (!selectedPlan || selectedPlan.odooProductId === 0) {
-      // Skip purchase for fallback plans
-      console.log('Skipping subscription purchase for fallback plan');
-      return true;
+    if (!selectedPlan) {
+      toast.error('No plan selected');
+      return false;
     }
 
     try {
@@ -841,16 +837,14 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   // Initiate payment with Odoo before collecting M-Pesa
   const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
     if (!subscriptionData?.subscriptionCode) {
-      // For fallback plans without subscription, skip initiation
-      console.log('No subscription code, skipping payment initiation');
-      setPaymentInitiated(true);
-      return true;
+      toast.error('No subscription created. Please try again.');
+      return false;
     }
 
     const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
     const amount = selectedPlan?.price || 0;
     
-    // Format phone number
+    // Format phone number - ensure it starts with country code
     let phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
     if (phoneNumber.startsWith('0')) {
       phoneNumber = '254' + phoneNumber.slice(1);
@@ -907,41 +901,41 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     try {
       // First initiate payment if not already done
       if (!paymentInitiated) {
-        await initiateOdooPayment();
+        const initiated = await initiateOdooPayment();
+        if (!initiated) {
+          setIsProcessing(false);
+          return;
+        }
       }
 
-      const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
       const subscriptionCode = subscriptionData?.subscriptionCode;
 
-      if (subscriptionCode) {
-        // Use Odoo manual confirmation endpoint
-        console.log('Confirming payment with Odoo:', {
-          subscription_code: subscriptionCode,
-          receipt,
-          customer_id: createdPartnerId?.toString(),
-        });
+      if (!subscriptionCode) {
+        toast.error('No subscription created. Please restart the registration.');
+        setIsProcessing(false);
+        return;
+      }
 
-        const response = await confirmPaymentManual({
-          subscription_code: subscriptionCode,
-          receipt,
-          customer_id: createdPartnerId?.toString(),
-        });
-        
-        if (response.success) {
-          setPaymentConfirmed(true);
-          setPaymentReference(receipt);
-          toast.success('Payment submitted for validation!');
-          advanceToStep(4); // Move to battery assignment
-        } else {
-          throw new Error('Payment confirmation failed');
-        }
-      } else {
-        // Fallback for plans without subscription code
-        console.log('No subscription code, using legacy confirmation');
+      // Use Odoo manual confirmation endpoint
+      console.log('Confirming payment with Odoo:', {
+        subscription_code: subscriptionCode,
+        receipt,
+        customer_id: createdPartnerId?.toString(),
+      });
+
+      const response = await confirmPaymentManual({
+        subscription_code: subscriptionCode,
+        receipt,
+        customer_id: createdPartnerId?.toString(),
+      });
+      
+      if (response.success) {
         setPaymentConfirmed(true);
         setPaymentReference(receipt);
-        toast.success('Payment confirmed!');
-        advanceToStep(4);
+        toast.success('Payment submitted for validation!');
+        advanceToStep(4); // Move to battery assignment
+      } else {
+        throw new Error('Payment confirmation failed');
       }
     } catch (err: any) {
       console.error('Payment confirmation error:', err);
@@ -950,8 +944,6 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       setIsProcessing(false);
     }
   }, [
-    selectedPlanId, 
-    availablePlans,
     subscriptionData, 
     createdPartnerId, 
     advanceToStep, 
@@ -1043,7 +1035,12 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           vehicleModel: '',
         });
         setFormErrors({});
-        setSelectedPlanId(availablePlans.length > 0 ? availablePlans[0].id : '');
+        // Reset to first available plan if any
+        if (availablePlans.length > 0) {
+          setSelectedPlanId(availablePlans[0].id);
+        } else {
+          setSelectedPlanId('');
+        }
         setCreatedCustomerId(null);
         setCreatedPartnerId(null);
         setCustomerSessionToken(null);
@@ -1101,6 +1098,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             onPlanSelect={handlePlanSelect}
             plans={availablePlans}
             isLoadingPlans={isLoadingPlans}
+            loadError={plansLoadError}
+            onRetryLoad={fetchPlans}
           />
         );
       case 3:
@@ -1124,6 +1123,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             isBleScanning={bleScanState.isScanning}
             detectedDevicesCount={bleScanState.detectedDevices.length}
             isScannerOpening={isScannerOpening}
+            plans={availablePlans}
           />
         );
       case 5:
@@ -1134,6 +1134,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             battery={assignedBattery}
             registrationId={registrationId}
             paymentReference={paymentReference}
+            plans={availablePlans}
           />
         );
       default:
