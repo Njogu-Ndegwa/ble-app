@@ -938,6 +938,7 @@
   "role.salesRep": "Commercial",
   "role.keypad": "Clavier",
   "role.rider": "Conducteur",
+  "role.bleDeviceManager": "Gestionnaire BLE",
   "role.comingSoon": "Bientôt",
   "role.switchLanguage": "Changer de langue",
   

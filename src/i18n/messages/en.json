@@ -947,6 +947,7 @@
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",
   "role.rider": "Rider",
+  "role.bleDeviceManager": "BLE Device Manager",
   "role.comingSoon": "Coming Soon",
   "role.switchLanguage": "Switch language",
   
