@@ -171,11 +171,112 @@ export async function employeeLogin(
 }
 
 /**
- * Check if the employee token is expired
+ * Decode a JWT token payload without verification
+ * JWT structure: header.payload.signature (base64url encoded)
+ */
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.warn('[EmployeeAuth] Invalid JWT format');
+      return null;
+    }
+    
+    // Decode the payload (second part)
+    // Handle base64url encoding (replace - with + and _ with /)
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('[EmployeeAuth] Failed to decode JWT:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if a JWT token is expired by examining its exp claim
+ * @param token - The JWT token string
+ * @returns true if expired or invalid, false if still valid
+ */
+export function isJwtTokenExpired(token?: string | null): boolean {
+  if (!token) return true;
+  
+  try {
+    const payload = decodeJwtPayload(token);
+    if (!payload || !payload.exp) {
+      console.warn('[EmployeeAuth] JWT has no exp claim');
+      return true;
+    }
+    
+    // JWT exp is in seconds (Unix timestamp), convert to milliseconds
+    const expMs = payload.exp * 1000;
+    const now = Date.now();
+    
+    // Add a 1-minute buffer to avoid edge cases
+    const bufferMs = 60 * 1000;
+    const isExpired = now >= (expMs - bufferMs);
+    
+    if (isExpired) {
+      console.log('[EmployeeAuth] Token expired. Exp:', new Date(expMs).toISOString(), 'Now:', new Date(now).toISOString());
+    }
+    
+    return isExpired;
+  } catch (error) {
+    console.error('[EmployeeAuth] Error checking token expiration:', error);
+    return true;
+  }
+}
+
+/**
+ * Get decoded information from the employee JWT token
+ */
+export function getEmployeeTokenInfo(): {
+  companyId?: number;
+  email?: string;
+  exp?: number;
+  iat?: number;
+  sub?: number;
+  type?: string;
+} | null {
+  const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  if (!token) return null;
+  
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+  
+  return {
+    companyId: payload.company_id,
+    email: payload.email,
+    exp: payload.exp,
+    iat: payload.iat,
+    sub: payload.sub,
+    type: payload.type,
+  };
+}
+
+/**
+ * @deprecated Use isJwtTokenExpired() instead
+ * Check if the employee token is expired using stored expiration date
  * @param expiresAt - ISO date string of when the token expires
  * @returns true if expired, false if still valid
  */
 export function isEmployeeTokenExpired(expiresAt?: string | null): boolean {
+  // First try to check the actual JWT token
+  const token = typeof window !== 'undefined' 
+    ? localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN) 
+    : null;
+  
+  if (token) {
+    return isJwtTokenExpired(token);
+  }
+  
+  // Fallback to stored expiration date
   if (!expiresAt) return true;
   
   try {
@@ -186,7 +287,6 @@ export function isEmployeeTokenExpired(expiresAt?: string | null): boolean {
     const bufferMs = 60 * 1000;
     return now.getTime() >= (expirationDate.getTime() - bufferMs);
   } catch {
-    // If we can't parse the date, treat as expired
     return true;
   }
 }
@@ -203,10 +303,9 @@ export function isEmployeeLoggedIn(): boolean {
   const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
   if (!token) return false;
   
-  // Check if token is expired
-  const expiresAt = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
-  if (isEmployeeTokenExpired(expiresAt)) {
-    console.log('[EmployeeAuth] Token expired, clearing session');
+  // Check if JWT token is expired by decoding and checking exp claim
+  if (isJwtTokenExpired(token)) {
+    console.log('[EmployeeAuth] JWT token expired, clearing session');
     clearEmployeeLogin();
     return false;
   }
@@ -239,15 +338,16 @@ export function getEmployeeUser(): EmployeeUser | null {
 export function getEmployeeToken(): string | null {
   if (typeof window === 'undefined') return null;
   
-  // Check if token is expired
-  const expiresAt = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
-  if (isEmployeeTokenExpired(expiresAt)) {
-    console.log('[EmployeeAuth] Token expired when getting token');
+  const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  
+  // Check if JWT token is expired
+  if (isJwtTokenExpired(token)) {
+    console.log('[EmployeeAuth] JWT token expired when getting token');
     clearEmployeeLogin();
     return null;
   }
   
-  return localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  return token;
 }
 
 /**
