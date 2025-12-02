@@ -6,6 +6,7 @@
   "common.logout": "Logout",
   "common.language.english": "English",
   "common.language.french": "French",
+  "common.language.chinese": "Chinese",
   
   "auth.title": "BLE Device Manager",
   "auth.subtitle": "Sign in to access your devices",
