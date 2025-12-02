@@ -938,6 +938,12 @@
   "sales.noPlansHint": "如果问题持续存在，请联系客服",
   "sales.connectionError": "连接错误",
   "sales.checkConnection": "请检查您的网络连接",
+  "sales.incompletePayment": "支付未完成",
+  "sales.amountPaid": "已支付金额",
+  "sales.amountExpected": "应付金额",
+  "sales.amountRemaining": "剩余金额",
+  "sales.enterRemainingPayment": "请输入剩余金额的另一张收据以继续。",
+  "sales.subscriptionId": "订阅ID",
   "common.tryAgain": "重试",
   
   "attendant.step.customer": "客户",

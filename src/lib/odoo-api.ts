@@ -215,8 +215,12 @@ export interface ManualConfirmPaymentPayload {
 
 export interface ManualConfirmPaymentResponse {
   message: string;
-  receipt: string;
   note: string;
+  subscription_code: string;
+  receipt: string;
+  amount_paid: number;
+  amount_expected: number;
+  amount_remaining: number;
 }
 
 // Subscription Status Types

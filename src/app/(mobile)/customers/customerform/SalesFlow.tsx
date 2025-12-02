@@ -116,6 +116,15 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
+  
+  // Payment amount tracking for incomplete payments
+  const [paymentAmountPaid, setPaymentAmountPaid] = useState<number>(0);
+  const [paymentAmountExpected, setPaymentAmountExpected] = useState<number>(0);
+  const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
+  const [paymentIncomplete, setPaymentIncomplete] = useState(false);
+  
+  // Confirmed subscription code from payment - used for battery allocation
+  const [confirmedSubscriptionCode, setConfirmedSubscriptionCode] = useState<string | null>(null);
 
   // Battery data
   const [assignedBattery, setAssignedBattery] = useState<BatteryData | null>(null);
@@ -966,11 +975,36 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         customer_id: createdPartnerId?.toString(),
       }, employeeToken || undefined);
       
-      if (response.success) {
-        setPaymentConfirmed(true);
-        setPaymentReference(receipt);
-        toast.success('Payment submitted for validation!');
-        advanceToStep(4); // Move to battery assignment
+      if (response.success && response.data) {
+        const paymentData = response.data;
+        
+        // Store subscription code for battery allocation
+        setConfirmedSubscriptionCode(paymentData.subscription_code || subscriptionCode);
+        setPaymentReference(paymentData.receipt || receipt);
+        
+        // Track payment amounts
+        setPaymentAmountPaid(paymentData.amount_paid || 0);
+        setPaymentAmountExpected(paymentData.amount_expected || 0);
+        setPaymentAmountRemaining(paymentData.amount_remaining || 0);
+        
+        // Check if payment is complete (amount_remaining = 0)
+        const isFullyPaid = paymentData.amount_remaining === 0;
+        
+        if (isFullyPaid) {
+          // Payment complete - proceed to battery assignment
+          setPaymentConfirmed(true);
+          setPaymentIncomplete(false);
+          toast.success('Payment confirmed! Proceed to battery assignment.');
+          advanceToStep(4);
+        } else {
+          // Payment incomplete - show amounts and stay on payment step
+          setPaymentIncomplete(true);
+          setPaymentConfirmed(false);
+          const currencySymbol = availablePlans.find(p => p.id === selectedPlanId)?.currencySymbol || 'KES';
+          toast.error(
+            `Incomplete payment: ${currencySymbol} ${paymentData.amount_paid.toLocaleString()} paid of ${currencySymbol} ${paymentData.amount_expected.toLocaleString()}. Remaining: ${currencySymbol} ${paymentData.amount_remaining.toLocaleString()}`
+          );
+        }
       } else {
         throw new Error('Payment confirmation failed');
       }
@@ -985,7 +1019,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     createdPartnerId, 
     advanceToStep, 
     paymentInitiated, 
-    initiateOdooPayment
+    initiateOdooPayment,
+    availablePlans,
+    selectedPlanId
   ]);
 
   // Update payment QR ref when handler changes
@@ -1082,6 +1118,11 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         setPaymentConfirmed(false);
         setPaymentReference('');
         setPaymentInitiated(false);
+        setPaymentAmountPaid(0);
+        setPaymentAmountExpected(0);
+        setPaymentAmountRemaining(0);
+        setPaymentIncomplete(false);
+        setConfirmedSubscriptionCode(null);
         setAssignedBattery(null);
         setRegistrationId('');
         break;
@@ -1146,6 +1187,10 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             onManualPayment={handleManualPayment}
             isProcessing={isProcessing}
             isScannerOpening={isScannerOpening}
+            paymentIncomplete={paymentIncomplete}
+            amountPaid={paymentAmountPaid}
+            amountExpected={paymentAmountExpected}
+            amountRemaining={paymentAmountRemaining}
           />
         );
       case 4:
@@ -1158,6 +1203,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             detectedDevicesCount={bleScanState.detectedDevices.length}
             isScannerOpening={isScannerOpening}
             plans={availablePlans}
+            subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}
           />
         );
       case 5:

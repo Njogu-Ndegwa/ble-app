@@ -1998,6 +1998,121 @@ html.theme-transition *::after {
   font-size: 10px;
 }
 
+/* Incomplete Payment Status Panel */
+.payment-status-panel {
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+}
+
+.payment-status-panel.payment-status-incomplete {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(251, 191, 36, 0.08) 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.payment-status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.payment-status-icon {
+  color: var(--error);
+  flex-shrink: 0;
+}
+
+.payment-status-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--error);
+}
+
+.payment-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.payment-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.payment-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--error) 0%, #fbbf24 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.payment-progress-percent {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 40px;
+  text-align: right;
+}
+
+.payment-amounts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.payment-amount-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payment-amount-item.payment-amount-remaining-item {
+  grid-column: 1 / -1;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  margin-top: 4px;
+}
+
+.payment-amount-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.payment-amount-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.payment-amount-value.payment-amount-paid {
+  color: var(--success);
+}
+
+.payment-amount-value.payment-amount-remaining {
+  color: var(--error);
+  font-size: 18px;
+}
+
+.payment-status-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
 /* Success Screen */
 .success-screen {
   text-align: center;

@@ -1027,6 +1027,12 @@
   "sales.noPlansHint": "Si cela persiste, veuillez contacter le support",
   "sales.connectionError": "Erreur de connexion",
   "sales.checkConnection": "Veuillez vérifier votre connexion internet",
+  "sales.incompletePayment": "Paiement incomplet",
+  "sales.amountPaid": "Montant payé",
+  "sales.amountExpected": "Montant attendu",
+  "sales.amountRemaining": "Montant restant",
+  "sales.enterRemainingPayment": "Veuillez saisir un autre reçu pour le montant restant afin de continuer.",
+  "sales.subscriptionId": "ID d'abonnement",
   "common.tryAgain": "Réessayer",
   
   "attendant.step.customer": "Client",
