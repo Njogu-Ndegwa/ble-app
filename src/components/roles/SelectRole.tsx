@@ -29,18 +29,22 @@ const roles: RoleConfig[] = [
     path: '/customers/customerform',
   },
   {
+    id: 'rider',
+    labelKey: 'role.rider',
+    image: '/assets/Rider.png',
+    path: '/rider/serviceplan1',
+  },
+  {
     id: 'keypad',
     labelKey: 'role.keypad',
     image: '/assets/Keypad.png',
     path: '/keypad/keypad',
   },
   {
-    id: 'rider',
-    labelKey: 'role.rider',
-    image: '/assets/Rider.png',
-    path: '/rider/serviceplan1',
-    disabled: true,
-    badgeKey: 'role.comingSoon',
+    id: 'bleDeviceManager',
+    labelKey: 'role.bleDeviceManager',
+    image: '/assets/Ble-Device-Attendant.png',
+    path: '/assets/ble-devices',
   },
 ];
 
