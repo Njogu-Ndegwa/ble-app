@@ -70,6 +70,18 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
           {errors.phone && <span className="form-error">{errors.phone}</span>}
         </div>
 
+        <div className="form-group">
+          <label className="form-label">{t('sales.company')}</label>
+          <input 
+            type="text" 
+            className="form-input form-input-disabled"
+            value="OVS-TOGO"
+            disabled
+            readOnly
+          />
+          <span className="form-hint">{t('sales.companyHint')}</span>
+        </div>
+
       </div>
     </div>
   );

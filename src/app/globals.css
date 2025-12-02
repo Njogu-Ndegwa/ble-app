@@ -4133,6 +4133,26 @@ html.theme-transition *::after {
   box-shadow: 0 0 0 2px var(--error-soft) !important;
 }
 
+.form-input-disabled {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}
+
+.form-input-disabled:focus {
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+.form-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
 /* Back to Roles Button */
 .back-to-roles {
   display: flex;

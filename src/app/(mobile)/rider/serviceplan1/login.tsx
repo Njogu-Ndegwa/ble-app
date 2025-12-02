@@ -506,6 +506,23 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               )}
             </div>
 
+            {/* Company (Read-only) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                {t('Company')}
+              </label>
+              <input
+                type="text"
+                value="OVS-TOGO"
+                disabled
+                readOnly
+                className="w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-300 cursor-not-allowed opacity-80"
+              />
+              <p className="mt-1 text-xs text-gray-500 italic">
+                {t('Currently fixed - will be selectable in the future')}
+              </p>
+            </div>
+
             {/* Assign Battery Checkbox */}
             <div className="space-y-2 pt-2">
               <div className="flex items-center gap-2">

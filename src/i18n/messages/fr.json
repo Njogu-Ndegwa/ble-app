@@ -959,6 +959,8 @@
   "sales.lastName": "Nom",
   "sales.emailAddress": "Adresse e-mail",
   "sales.phoneNumber": "Numéro de téléphone",
+  "sales.company": "Entreprise",
+  "sales.companyHint": "Actuellement fixe - sera sélectionnable à l'avenir",
   "sales.nationalId": "Numéro d'identité nationale",
   "sales.addressInfo": "Informations d'adresse",
   "sales.streetAddress": "Adresse de rue",
