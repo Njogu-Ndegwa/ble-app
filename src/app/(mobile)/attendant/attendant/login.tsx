@@ -3,71 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
-import { saveAttendantLogin, getStoredEmail } from '@/lib/attendant-auth';
-import { useMutation, gql } from '@apollo/client';
-
-// GraphQL mutation for signing in via ERM
-const SIGN_IN_USER_MUTATION = gql`
-  fragment AuthToken on AuthToken {
-    _id
-    accessToken
-    actionScope
-    agentId
-    agentType
-    authenticationInstance {
-      _id
-      name
-      __typename
-    }
-    birthDate
-    createdAt
-    deleteAt
-    deleteStatus
-    email
-    firstName
-    hireDate
-    idString
-    idType
-    lastName
-    name
-    officeAddress {
-      _id
-      city
-      country
-      createdAt
-      deleteAt
-      deleteStatus
-      postcode
-      srpc
-      street
-      unit
-      updatedAt
-      __typename
-    }
-    profile
-    role {
-      _id
-      name
-      __typename
-    }
-    roleName
-    subrole {
-      _id
-      name
-      __typename
-    }
-    type
-    updatedAt
-    __typename
-  }
-
-  mutation SignInLoginUser($signInCredentials: SignInCredentialsDto!) {
-    signInUser(signInCredentials: $signInCredentials) {
-      ...AuthToken
-      __typename
-    }
-  }
-`;
+import { 
+  employeeLogin, 
+  saveEmployeeLogin, 
+  getStoredEmployeeEmail,
+  type EmployeeUser 
+} from '@/lib/attendant-auth';
 
 // Define interfaces
 interface Customer {
@@ -83,6 +24,8 @@ interface Customer {
 
 interface LoginProps {
   onLoginSuccess: (customer: Customer) => void;
+  /** User type for authentication - 'attendant' or 'sales'. Defaults to 'attendant' */
+  userType?: 'attendant' | 'sales';
 }
 
 interface FormData {
@@ -108,20 +51,17 @@ interface FormErrors {
 // Keep API_BASE for registration (still uses Odoo)
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
-const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' }) => {
   const { t } = useI18n();
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
-
-  // GraphQL mutation hook for ERM login
-  const [signInUserMutation] = useMutation(SIGN_IN_USER_MUTATION);
   
   // Pre-fill email from stored value
   useEffect(() => {
-    const storedEmail = getStoredEmail();
+    const storedEmail = getStoredEmployeeEmail();
     if (storedEmail) {
       setEmail(storedEmail);
     }
@@ -222,38 +162,30 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsSigningIn(true);
 
     try {
-      console.log("Attempting login with email:", email);
+      console.log(`Attempting ${userType} login with email:`, email);
+      console.log("Using Employee Login API endpoint");
       
-      // Use GraphQL ERM endpoint for authentication
-      const { data } = await signInUserMutation({
-        variables: {
-          signInCredentials: {
-            email: email.trim(),
-            password: password,
-          },
-        },
-      });
+      // Use the new Employee Login API for Attendant/Sales authentication
+      const result = await employeeLogin(email.trim(), password, userType);
 
-      console.log("GraphQL Response:", data);
-
-      if (data?.signInUser) {
-        const user = data.signInUser;
-        console.log("Login successful:", user);
+      if (result.success && result.user) {
+        const user = result.user;
+        console.log("Login successful:", user.name);
         
         // Store the access token for future API calls
         if (user.accessToken) {
           localStorage.setItem('attendant_access_token', user.accessToken);
         }
         
-        // Build customer data from the response
+        // Build customer data from the employee response
         const customerData: Customer = {
-          id: user._id || "",
-          name: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "",
+          id: String(user.id) || "",
+          name: user.name || "",
           email: user.email || email,
-          phone: "", // Phone not provided in AuthToken
+          phone: user.phone || "",
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role?.name || user.roleName,
+          role: user.role,
           accessToken: user.accessToken,
         };
         
@@ -261,24 +193,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           throw new Error(t("No user data found in response"));
         }
         
-        saveAttendantLogin(customerData);
+        // saveEmployeeLogin is already called inside employeeLogin()
         onLoginSuccess(customerData);
       } else {
-        throw new Error(t("Login failed. Please try again."));
+        throw new Error(result.error || t("Login failed. Please try again."));
       }
     } catch (error: any) {
       console.error("Sign-in error:", error);
       
-      // Handle GraphQL errors
-      const errorMessage = error.graphQLErrors?.[0]?.message 
-        || error.message 
-        || t("Sign-in failed. Please try again.");
+      const errorMessage = error.message || t("Sign-in failed. Please try again.");
       
       if (errorMessage.toLowerCase().includes("not found") || errorMessage.toLowerCase().includes("user")) {
         toast.error(t("User not found. Would you like to create an account?"));
         setFormData(prev => ({ ...prev, email }));
         setTimeout(() => setShowRegister(true), 1500);
-      } else if (errorMessage.toLowerCase().includes("password") || errorMessage.toLowerCase().includes("credentials")) {
+      } else if (errorMessage.toLowerCase().includes("password") || errorMessage.toLowerCase().includes("credentials") || errorMessage.toLowerCase().includes("invalid")) {
         toast.error(t("Invalid email or password. Please try again."));
       } else {
         toast.error(errorMessage);

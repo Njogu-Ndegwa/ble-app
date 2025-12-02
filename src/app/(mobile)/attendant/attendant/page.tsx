@@ -4,18 +4,22 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
 import AttendantFlow from "./AttendantFlow";
 import Login from "./login";
-import { isAttendantLoggedIn, getAttendantUser, type AttendantUser } from "@/lib/attendant-auth";
+import { 
+  isEmployeeLoggedIn, 
+  getEmployeeUser, 
+  type EmployeeUser 
+} from "@/lib/attendant-auth";
 
 export default function AttendantPage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
-  const [customer, setCustomer] = useState<AttendantUser | null>(null);
+  const [customer, setCustomer] = useState<EmployeeUser | null>(null);
 
   // Check login status on mount
   useEffect(() => {
-    const loggedIn = isAttendantLoggedIn();
+    const loggedIn = isEmployeeLoggedIn();
     setIsLoggedIn(loggedIn);
     if (loggedIn) {
-      setCustomer(getAttendantUser());
+      setCustomer(getEmployeeUser());
     }
   }, []);
 
@@ -25,6 +29,7 @@ export default function AttendantPage() {
       name: customerData.name,
       email: customerData.email,
       phone: customerData.phone,
+      userType: 'attendant',
     });
     setIsLoggedIn(true);
   }, []);
@@ -76,7 +81,7 @@ export default function AttendantPage() {
       {isLoggedIn ? (
         <AttendantFlow />
       ) : (
-        <Login onLoginSuccess={handleLoginSuccess} />
+        <Login onLoginSuccess={handleLoginSuccess} userType="attendant" />
       )}
     </>
   );

@@ -4,18 +4,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
 import SalesFlow from './SalesFlow';
 import Login from '../../attendant/attendant/login';
-import { isAttendantLoggedIn, getAttendantUser, type AttendantUser } from '@/lib/attendant-auth';
+import { 
+  isEmployeeLoggedIn, 
+  getEmployeeUser, 
+  getEmployeeUserType,
+  type EmployeeUser 
+} from '@/lib/attendant-auth';
 
 export default function CustomerFormPage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
-  const [user, setUser] = useState<AttendantUser | null>(null);
+  const [user, setUser] = useState<EmployeeUser | null>(null);
 
-  // Check login status on mount
+  // Check login status on mount - verify user is logged in as sales
   useEffect(() => {
-    const loggedIn = isAttendantLoggedIn();
+    const loggedIn = isEmployeeLoggedIn();
+    const userType = getEmployeeUserType();
+    
+    // Allow access if employee is logged in (any type can use sales flow)
     setIsLoggedIn(loggedIn);
     if (loggedIn) {
-      setUser(getAttendantUser());
+      setUser(getEmployeeUser());
     }
   }, []);
 
@@ -25,6 +33,7 @@ export default function CustomerFormPage() {
       name: customerData.name,
       email: customerData.email,
       phone: customerData.phone,
+      userType: 'sales',
     });
     setIsLoggedIn(true);
   }, []);
@@ -76,7 +85,7 @@ export default function CustomerFormPage() {
       {isLoggedIn ? (
         <SalesFlow />
       ) : (
-        <Login onLoginSuccess={handleLoginSuccess} />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
       )}
     </>
   );
