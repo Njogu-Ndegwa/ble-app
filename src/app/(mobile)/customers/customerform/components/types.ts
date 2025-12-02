@@ -2,11 +2,16 @@
 
 export interface CustomerFormData {
   // Personal Information (required by Odoo /api/auth/register)
-  // Only name, email, phone, company_id are accepted by the endpoint
+  // name, email, phone, street, city, zip are accepted by the endpoint
+  // company_id is derived from the salesperson's token
   firstName: string;
   lastName: string;
   phone: string;
   email: string;
+  // Address fields
+  street: string;
+  city: string;
+  zip: string;
 }
 
 // Response from Odoo customer registration
