@@ -18,9 +18,11 @@ const DEFAULT_COMPANY_ID = 14; // OV Kenya (Test)
 // ============================================================================
 
 // Common API Response wrapper
+// Note: Odoo API returns data directly on root, not wrapped in a "data" property
 export interface OdooApiResponse<T> {
   success: boolean;
-  data: T;
+  data?: T;  // Some endpoints use this
+  message?: string;
 }
 
 export interface OdooApiError {
@@ -40,18 +42,22 @@ export interface RegisterCustomerPayload {
   company_id: number;
 }
 
+// Actual response from /api/auth/register endpoint
 export interface RegisterCustomerResponse {
+  success: boolean;
+  message: string;
   session: {
     token: string;
+    expires_at: string;
     user: {
       id: number;
       partner_id: number;
       name: string;
       email: string;
-      phone: string;
-      company_id: number;
+      phone?: string;
     };
   };
+  email_sent: boolean;
 }
 
 // Subscription Product Types
@@ -193,14 +199,17 @@ async function apiRequest<T>(
 
 /**
  * Register a new customer in Odoo
+ * Returns the response directly (not wrapped in OdooApiResponse)
  */
 export async function registerCustomer(
   payload: RegisterCustomerPayload
-): Promise<OdooApiResponse<RegisterCustomerResponse>> {
-  return apiRequest<RegisterCustomerResponse>('/api/auth/register', {
+): Promise<RegisterCustomerResponse> {
+  const response = await apiRequest<RegisterCustomerResponse>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  // Return the raw response since Odoo returns session at root level
+  return response as unknown as RegisterCustomerResponse;
 }
 
 /**
