@@ -1036,6 +1036,12 @@
   "sales.noPlansHint": "If this persists, please contact support",
   "sales.connectionError": "Connection Error",
   "sales.checkConnection": "Please check your internet connection",
+  "sales.incompletePayment": "Incomplete Payment",
+  "sales.amountPaid": "Amount Paid",
+  "sales.amountExpected": "Amount Expected",
+  "sales.amountRemaining": "Amount Remaining",
+  "sales.enterRemainingPayment": "Please enter another receipt for the remaining amount to continue.",
+  "sales.subscriptionId": "Subscription ID",
   "common.tryAgain": "Try Again",
   
   "attendant.step.customer": "Customer",

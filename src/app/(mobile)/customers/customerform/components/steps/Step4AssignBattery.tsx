@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Bluetooth, Radio } from 'lucide-react';
+import { Bluetooth, Radio, CreditCard } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
@@ -18,6 +18,7 @@ interface Step4Props {
   detectedDevicesCount?: number;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
   plans: PlanData[];  // Plans from Odoo API
+  subscriptionCode?: string;  // Subscription ID from payment confirmation - used for battery allocation
 }
 
 export default function Step4AssignBattery({ 
@@ -28,6 +29,7 @@ export default function Step4AssignBattery({
   detectedDevicesCount = 0,
   isScannerOpening = false,
   plans,
+  subscriptionCode = '',
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
@@ -54,6 +56,17 @@ export default function Step4AssignBattery({
             <div className="detail-label">{t('sales.emailAddress')}</div>
             <div className="detail-value">{formData.email || 'N/A'}</div>
           </div>
+          {subscriptionCode && (
+            <div className="detail-item">
+              <div className="detail-label">
+                <CreditCard size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                {t('sales.subscriptionId') || 'Subscription ID'}
+              </div>
+              <div className="detail-value font-mono-oves" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+                {subscriptionCode}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

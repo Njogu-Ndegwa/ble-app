@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useI18n } from '@/i18n';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { 
   CustomerFormData, 
   PlanData,
@@ -17,6 +18,11 @@ interface Step3Props {
   isProcessing: boolean;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
   plans: PlanData[];  // Plans from Odoo API - required
+  // Payment status props for incomplete payments
+  paymentIncomplete?: boolean;
+  amountPaid?: number;
+  amountExpected?: number;
+  amountRemaining?: number;
 }
 
 export default function Step3Payment({ 
@@ -27,6 +33,10 @@ export default function Step3Payment({
   isProcessing,
   isScannerOpening = false,
   plans,
+  paymentIncomplete = false,
+  amountPaid = 0,
+  amountExpected = 0,
+  amountRemaining = 0,
 }: Step3Props) {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
@@ -37,6 +47,9 @@ export default function Step3Payment({
   const initials = getInitials(formData.firstName, formData.lastName);
   const amount = selectedPlan?.price || 0;
   const currencySymbol = selectedPlan?.currencySymbol || 'KES';
+  
+  // Calculate payment progress percentage
+  const paymentProgress = amountExpected > 0 ? Math.min((amountPaid / amountExpected) * 100, 100) : 0;
 
   const handleManualConfirm = () => {
     if (paymentId.trim()) {
@@ -61,6 +74,51 @@ export default function Step3Payment({
         </div>
         <div className="payment-amount-large">{currencySymbol} {amount.toLocaleString()}</div>
       </div>
+
+      {/* Incomplete Payment Status Panel */}
+      {paymentIncomplete && amountPaid > 0 && (
+        <div className="payment-status-panel payment-status-incomplete">
+          <div className="payment-status-header">
+            <AlertCircle className="payment-status-icon" size={20} />
+            <span className="payment-status-title">{t('sales.incompletePayment') || 'Incomplete Payment'}</span>
+          </div>
+          
+          <div className="payment-progress-container">
+            <div className="payment-progress-bar">
+              <div 
+                className="payment-progress-fill"
+                style={{ width: `${paymentProgress}%` }}
+              />
+            </div>
+            <span className="payment-progress-percent">{Math.round(paymentProgress)}%</span>
+          </div>
+          
+          <div className="payment-amounts-grid">
+            <div className="payment-amount-item">
+              <span className="payment-amount-label">{t('sales.amountPaid') || 'Amount Paid'}</span>
+              <span className="payment-amount-value payment-amount-paid">
+                {currencySymbol} {amountPaid.toLocaleString()}
+              </span>
+            </div>
+            <div className="payment-amount-item">
+              <span className="payment-amount-label">{t('sales.amountExpected') || 'Amount Expected'}</span>
+              <span className="payment-amount-value">
+                {currencySymbol} {amountExpected.toLocaleString()}
+              </span>
+            </div>
+            <div className="payment-amount-item payment-amount-remaining-item">
+              <span className="payment-amount-label">{t('sales.amountRemaining') || 'Amount Remaining'}</span>
+              <span className="payment-amount-value payment-amount-remaining">
+                {currencySymbol} {amountRemaining.toLocaleString()}
+              </span>
+            </div>
+          </div>
+          
+          <p className="payment-status-hint">
+            {t('sales.enterRemainingPayment') || 'Please enter another receipt for the remaining amount to continue.'}
+          </p>
+        </div>
+      )}
 
       <div className="payment-scan">
         <h2 className="payment-title">{t('sales.confirmPayment')}</h2>
