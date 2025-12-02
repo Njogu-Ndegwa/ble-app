@@ -1026,6 +1026,10 @@
   "sales.assignedBattery": "Assigned Battery",
   "sales.batteryCharge": "Battery Charge",
   "sales.startNewReg": "Start New Registration",
+  "sales.noPlansAvailable": "No subscription plans available",
+  "sales.noPlansTitle": "No Plans Available",
+  "sales.noPlansDescription": "Subscription plans couldn't be loaded from the server. This might be a temporary issue.",
+  "sales.noPlansHint": "If this persists, please contact support",
   
   "attendant.step.customer": "Customer",
   "attendant.step.return": "Return",

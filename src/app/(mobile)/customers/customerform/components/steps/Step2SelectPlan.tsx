@@ -77,17 +77,73 @@ export default function Step2SelectPlan({
           )}
         </div>
       ) : plans.length === 0 ? (
-        <div className="error-state" style={{ textAlign: 'center', padding: '24px' }}>
-          <p style={{ color: '#9ca3af' }}>{t('sales.noPlansAvailable') || 'No subscription plans available'}</p>
+        <div className="empty-plans-state">
+          {/* Decorative illustration */}
+          <div className="empty-plans-illustration">
+            <div className="empty-plans-icon-wrapper">
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="1.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                className="empty-plans-icon"
+              >
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M7 8h10" />
+                <path d="M7 12h6" />
+                <path d="M7 16h4" />
+              </svg>
+              <div className="empty-plans-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </div>
+            </div>
+            {/* Floating particles for visual interest */}
+            <div className="empty-plans-particles">
+              <span className="particle"></span>
+              <span className="particle"></span>
+              <span className="particle"></span>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="empty-plans-content">
+            <h3 className="empty-plans-title">
+              {t('sales.noPlansTitle') || 'No Plans Available'}
+            </h3>
+            <p className="empty-plans-description">
+              {t('sales.noPlansDescription') || 'Subscription plans couldn\'t be loaded from the server. This might be a temporary issue.'}
+            </p>
+          </div>
+
+          {/* Action */}
           {onRetryLoad && (
             <button 
-              className="btn btn-secondary"
+              className="empty-plans-retry-btn"
               onClick={onRetryLoad}
-              style={{ marginTop: '8px' }}
             >
-              {t('common.retry') || 'Retry'}
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+              {t('common.tryAgain') || 'Try Again'}
             </button>
           )}
+
+          {/* Help hint */}
+          <p className="empty-plans-hint">
+            {t('sales.noPlansHint') || 'If this persists, please contact support'}
+          </p>
         </div>
       ) : (
         <div className="product-grid">
