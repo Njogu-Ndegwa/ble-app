@@ -761,16 +761,17 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   }, [formData]);
 
   // Purchase subscription after customer is registered
-  const purchaseCustomerSubscription = useCallback(async (): Promise<boolean> => {
+  // Returns the subscription code on success, null on failure
+  const purchaseCustomerSubscription = useCallback(async (): Promise<string | null> => {
     if (!createdPartnerId) {
       toast.error('Customer not registered yet');
-      return false;
+      return null;
     }
 
     const selectedPlan = availablePlans.find(p => p.id === selectedPlanId);
     if (!selectedPlan) {
       toast.error('No plan selected');
-      return false;
+      return null;
     }
 
     try {
@@ -806,20 +807,25 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         
         console.log('Subscription purchased:', subscription);
         toast.success('Subscription created!');
-        return true;
+        // Return the subscription code directly so caller doesn't have to wait for state update
+        return subscription.subscription_code;
       } else {
         throw new Error('Subscription purchase failed');
       }
     } catch (error: any) {
       console.error('Failed to purchase subscription:', error);
       toast.error(error.message || 'Failed to create subscription');
-      return false;
+      return null;
     }
   }, [createdPartnerId, selectedPlanId, availablePlans]);
 
   // Initiate payment with Odoo before collecting M-Pesa
-  const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
-    if (!subscriptionData?.subscriptionCode) {
+  // Accepts optional subscriptionCode parameter to avoid React state timing issues
+  const initiateOdooPayment = useCallback(async (subscriptionCode?: string): Promise<boolean> => {
+    // Use the passed subscription code, or fall back to state
+    const subCode = subscriptionCode || subscriptionData?.subscriptionCode;
+    
+    if (!subCode) {
       toast.error('No subscription created. Please try again.');
       return false;
     }
@@ -838,13 +844,13 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
     try {
       console.log('Initiating payment with Odoo:', {
-        subscription_code: subscriptionData.subscriptionCode,
+        subscription_code: subCode,
         phone_number: phoneNumber,
         amount,
       });
 
       const response = await initiatePayment({
-        subscription_code: subscriptionData.subscriptionCode,
+        subscription_code: subCode,
         phone_number: phoneNumber,
         amount,
       });
@@ -982,10 +988,11 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         // Purchase subscription and move to payment step
         setIsProcessing(true);
         try {
-          const subscriptionCreated = await purchaseCustomerSubscription();
-          if (subscriptionCreated) {
+          const subscriptionCode = await purchaseCustomerSubscription();
+          if (subscriptionCode) {
             // Initiate payment to send M-Pesa prompt
-            await initiateOdooPayment();
+            // Pass the subscription code directly to avoid React state timing issues
+            await initiateOdooPayment(subscriptionCode);
             advanceToStep(3);
           }
         } finally {
