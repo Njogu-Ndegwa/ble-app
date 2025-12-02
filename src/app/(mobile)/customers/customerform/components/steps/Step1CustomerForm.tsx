@@ -69,17 +69,46 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
           />
           {errors.phone && <span className="form-error">{errors.phone}</span>}
         </div>
+      </div>
+
+      <div className="form-section">
+        <div className="form-section-title">{t('sales.addressInfo')}</div>
 
         <div className="form-group">
-          <label className="form-label">{t('sales.company')}</label>
+          <label className="form-label">{t('sales.street')} <span className="form-required">*</span></label>
           <input 
             type="text" 
-            className="form-input form-input-disabled"
-            value="OVS-TOGO"
-            disabled
-            readOnly
+            className={`form-input ${errors.street ? 'form-input-error' : ''}`}
+            value={formData.street}
+            onChange={(e) => onFormChange('street', e.target.value)}
+            placeholder="123 Main Street"
           />
-          <span className="form-hint">{t('sales.companyHint')}</span>
+          {errors.street && <span className="form-error">{errors.street}</span>}
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">{t('sales.city')} <span className="form-required">*</span></label>
+            <input 
+              type="text" 
+              className={`form-input ${errors.city ? 'form-input-error' : ''}`}
+              value={formData.city}
+              onChange={(e) => onFormChange('city', e.target.value)}
+              placeholder="Nairobi"
+            />
+            {errors.city && <span className="form-error">{errors.city}</span>}
+          </div>
+          <div className="form-group">
+            <label className="form-label">{t('sales.zip')} <span className="form-required">*</span></label>
+            <input 
+              type="text" 
+              className={`form-input ${errors.zip ? 'form-input-error' : ''}`}
+              value={formData.zip}
+              onChange={(e) => onFormChange('zip', e.target.value)}
+              placeholder="00100"
+            />
+            {errors.zip && <span className="form-error">{errors.zip}</span>}
+          </div>
         </div>
 
       </div>

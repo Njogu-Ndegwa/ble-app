@@ -81,12 +81,15 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   const [currentStep, setCurrentStep] = useState<SalesStep>(1);
   const [maxStepReached, setMaxStepReached] = useState<SalesStep>(1);
 
-  // Form data - only fields accepted by Odoo /api/auth/register
+  // Form data - fields for Odoo /api/auth/register (company_id from salesperson token)
   const [formData, setFormData] = useState<CustomerFormData>({
     firstName: '',
     lastName: '',
     phone: '',
     email: '',
+    street: '',
+    city: '',
+    zip: '',
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
@@ -682,7 +685,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     fetchPlans();
   }, [fetchPlans]);
 
-  // Validate form data - only fields required by Odoo /api/auth/register
+  // Validate form data - fields required by Odoo /api/auth/register
   const validateForm = useCallback((): boolean => {
     const errors: Partial<Record<keyof CustomerFormData, string>> = {};
     
@@ -702,13 +705,23 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     } else if (!/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone)) {
       errors.phone = 'Invalid phone number';
     }
+    // Address validation
+    if (!formData.street.trim()) {
+      errors.street = 'Street address is required';
+    }
+    if (!formData.city.trim()) {
+      errors.city = 'City is required';
+    }
+    if (!formData.zip.trim()) {
+      errors.zip = 'ZIP/Postal code is required';
+    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   }, [formData]);
 
   // Register customer in Odoo using /api/auth/register
-  // Only sends name, email, phone, company_id as per API specification
+  // Sends name, email, phone, street, city, zip (company_id is from salesperson token)
   const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
     setIsCreatingCustomer(true);
     
@@ -726,7 +739,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         phone: phoneNumber,
-        company_id: DEFAULT_COMPANY_ID,
+        street: formData.street,
+        city: formData.city,
+        zip: formData.zip,
       };
 
       console.log('Registering customer in Odoo:', registrationPayload);
@@ -1017,6 +1032,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
           lastName: '',
           phone: '',
           email: '',
+          street: '',
+          city: '',
+          zip: '',
         });
         setFormErrors({});
         // Reset to first available plan if any
