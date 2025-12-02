@@ -735,12 +735,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
       // Log full response for debugging
       console.log('Odoo registration response:', JSON.stringify(response, null, 2));
 
-      // Handle both response structures:
-      // 1. { success: true, data: { session: {...} } }
-      // 2. { session: {...} } or { success: true, session: {...} }
-      const session = response.data?.session || (response as any).session;
-      
-      if (session) {
+      if (response.success && response.session) {
+        const { session } = response;
+        
         console.log('Customer registered successfully:', session.user);
         
         // Store customer data
