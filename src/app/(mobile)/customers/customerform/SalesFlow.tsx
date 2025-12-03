@@ -44,6 +44,15 @@ import {
 // Import employee auth to get salesperson token
 import { getEmployeeToken } from '@/lib/attendant-auth';
 
+// Import session persistence utilities
+import {
+  saveSalesSession,
+  loadSalesSession,
+  clearSalesSession,
+  getSessionSummary,
+  type SalesSessionData,
+} from '@/lib/sales-session';
+
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
   init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
@@ -173,6 +182,16 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
 
   // Process battery QR data ref
   const processBatteryQRDataRef = useRef<(data: string) => void>(() => {});
+
+  // Session restoration state
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [savedSessionSummary, setSavedSessionSummary] = useState<{
+    customerName: string;
+    step: number;
+    savedAt: string;
+  } | null>(null);
+  const [sessionRestored, setSessionRestored] = useState(false);
+  const isRestoringSession = useRef(false);
   
   // Process payment QR data ref
   const processPaymentQRDataRef = useRef<(paymentId: string) => void>(() => {});
@@ -182,6 +201,115 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     setCurrentStep(step);
     setMaxStepReached(prev => Math.max(prev, step) as SalesStep);
   }, []);
+
+  // Check for saved session on component mount
+  useEffect(() => {
+    const summary = getSessionSummary();
+    if (summary && !sessionRestored) {
+      setSavedSessionSummary(summary);
+      setShowResumePrompt(true);
+    }
+  }, [sessionRestored]);
+
+  // Restore session from localStorage
+  const restoreSession = useCallback(() => {
+    if (isRestoringSession.current) return;
+    isRestoringSession.current = true;
+
+    const savedSession = loadSalesSession();
+    if (savedSession) {
+      // Restore all state from saved session
+      setCurrentStep(savedSession.currentStep);
+      setMaxStepReached(savedSession.maxStepReached);
+      setFormData(savedSession.formData);
+      setSelectedPlanId(savedSession.selectedPlanId);
+      setCreatedCustomerId(savedSession.createdCustomerId);
+      setCreatedPartnerId(savedSession.createdPartnerId);
+      setCustomerSessionToken(savedSession.customerSessionToken);
+      setSubscriptionData(savedSession.subscriptionData);
+      setPaymentConfirmed(savedSession.paymentConfirmed);
+      setPaymentReference(savedSession.paymentReference);
+      setPaymentInitiated(savedSession.paymentInitiated);
+      setPaymentAmountPaid(savedSession.paymentAmountPaid);
+      setPaymentAmountExpected(savedSession.paymentAmountExpected);
+      setPaymentAmountRemaining(savedSession.paymentAmountRemaining);
+      setPaymentIncomplete(savedSession.paymentIncomplete);
+      setConfirmedSubscriptionCode(savedSession.confirmedSubscriptionCode);
+      setAssignedBattery(savedSession.assignedBattery);
+      setRegistrationId(savedSession.registrationId);
+
+      setSessionRestored(true);
+      toast.success(`Resuming from Step ${savedSession.currentStep}`);
+    }
+    
+    setShowResumePrompt(false);
+  }, []);
+
+  // Discard saved session and start fresh
+  const discardSession = useCallback(() => {
+    clearSalesSession();
+    setShowResumePrompt(false);
+    setSessionRestored(true); // Prevent prompt from appearing again
+    toast('Starting a new registration');
+  }, []);
+
+  // Auto-save session whenever important state changes
+  // Skip saving on step 5 (success) since the flow is complete
+  useEffect(() => {
+    // Don't save during initial session restoration
+    if (!sessionRestored && showResumePrompt) return;
+    // Don't save if on step 5 (completed)
+    if (currentStep === 5) return;
+    // Don't save if no progress has been made
+    if (currentStep === 1 && !formData.firstName && !formData.lastName && !formData.email && !formData.phone) return;
+
+    // Save session after a short delay to batch rapid changes
+    const saveTimeout = setTimeout(() => {
+      saveSalesSession({
+        currentStep,
+        maxStepReached,
+        formData,
+        selectedPlanId,
+        createdCustomerId,
+        createdPartnerId,
+        customerSessionToken,
+        subscriptionData,
+        paymentConfirmed,
+        paymentReference,
+        paymentInitiated,
+        paymentAmountPaid,
+        paymentAmountExpected,
+        paymentAmountRemaining,
+        paymentIncomplete,
+        confirmedSubscriptionCode,
+        assignedBattery,
+        registrationId,
+      });
+    }, 500);
+
+    return () => clearTimeout(saveTimeout);
+  }, [
+    sessionRestored,
+    showResumePrompt,
+    currentStep,
+    maxStepReached,
+    formData,
+    selectedPlanId,
+    createdCustomerId,
+    createdPartnerId,
+    customerSessionToken,
+    subscriptionData,
+    paymentConfirmed,
+    paymentReference,
+    paymentInitiated,
+    paymentAmountPaid,
+    paymentAmountExpected,
+    paymentAmountRemaining,
+    paymentIncomplete,
+    confirmedSubscriptionCode,
+    assignedBattery,
+    registrationId,
+  ]);
 
   // Clear BLE timeouts
   const clearBleOperationTimeout = useCallback(() => {
@@ -604,7 +732,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
                     window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingConnectionMacRef.current, () => {});
                   }
                   
-                  // Advance to success step
+                  // Advance to success step - clear session since registration is complete
+                  clearSalesSession();
                   toast.success(`Battery ${shortId} assigned successfully!`);
                   advanceToStep(5);
                 }
@@ -1093,6 +1222,9 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         break;
       case 5:
         // Reset everything for new registration
+        // Clear the saved session since we're starting fresh
+        clearSalesSession();
+        
         setCurrentStep(1);
         setMaxStepReached(1);
         setFormData({
@@ -1125,6 +1257,8 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         setConfirmedSubscriptionCode(null);
         setAssignedBattery(null);
         setRegistrationId('');
+        // Reset session restored flag to allow new session tracking
+        setSessionRestored(true);
         break;
     }
   }, [
@@ -1325,6 +1459,53 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             {isCreatingCustomer 
               ? 'Registering customer...' 
               : 'Processing...'}
+          </div>
+        </div>
+      )}
+
+      {/* Resume Session Prompt - Shows when there's a saved session from a previous attempt */}
+      {showResumePrompt && savedSessionSummary && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="resume-session-modal">
+            <div className="resume-session-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 8v4l3 3" />
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+            </div>
+            <h3 className="resume-session-title">Resume Previous Session?</h3>
+            <p className="resume-session-description">
+              You have an incomplete registration for:
+            </p>
+            <div className="resume-session-details">
+              <div className="resume-session-customer">
+                {savedSessionSummary.customerName}
+              </div>
+              <div className="resume-session-meta">
+                Step {savedSessionSummary.step} of 5 • Saved {savedSessionSummary.savedAt}
+              </div>
+            </div>
+            <div className="resume-session-actions">
+              <button 
+                className="resume-session-btn resume-session-btn-primary"
+                onClick={restoreSession}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Resume
+              </button>
+              <button 
+                className="resume-session-btn resume-session-btn-secondary"
+                onClick={discardSession}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Start New
+              </button>
+            </div>
           </div>
         </div>
       )}
