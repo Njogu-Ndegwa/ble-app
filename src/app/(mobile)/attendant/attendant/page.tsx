@@ -34,6 +34,12 @@ export default function AttendantPage() {
     setIsLoggedIn(true);
   }, []);
 
+  // Handle logout - reset login state to show login screen
+  const handleLogout = useCallback(() => {
+    setCustomer(null);
+    setIsLoggedIn(false);
+  }, []);
+
   // Show nothing while checking auth status
   if (isLoggedIn === null) {
     return (
@@ -79,7 +85,7 @@ export default function AttendantPage() {
         }}
       />
       {isLoggedIn ? (
-        <AttendantFlow />
+        <AttendantFlow onLogout={handleLogout} />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} userType="attendant" />
       )}

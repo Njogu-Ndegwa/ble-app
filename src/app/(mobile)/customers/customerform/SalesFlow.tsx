@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe } from 'lucide-react';
+import { Globe, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
@@ -42,8 +42,8 @@ import {
   type SubscriptionProduct,
 } from '@/lib/odoo-api';
 
-// Import employee auth to get salesperson token
-import { getEmployeeToken } from '@/lib/attendant-auth';
+// Import employee auth to get salesperson token and logout
+import { getEmployeeToken, clearEmployeeLogin } from '@/lib/attendant-auth';
 
 // Import session persistence utilities
 import {
@@ -69,9 +69,10 @@ declare global {
 
 interface SalesFlowProps {
   onBack?: () => void;
+  onLogout?: () => void;
 }
 
-export default function SalesFlow({ onBack }: SalesFlowProps) {
+export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const router = useRouter();
   const { bridge, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -1296,6 +1297,20 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     }
   }, [onBack, router]);
 
+  // Handle logout - clear authentication and sales session, then notify parent
+  const handleLogout = useCallback(() => {
+    // Clear the sales session first
+    clearSalesSession();
+    // Clear employee authentication
+    clearEmployeeLogin();
+    toast.success(t('Signed out successfully'));
+    if (onLogout) {
+      onLogout();
+    } else {
+      router.push('/');
+    }
+  }, [onLogout, router, t]);
+
   // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
@@ -1450,6 +1465,14 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             >
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+            <button
+              className="flow-header-logout"
+              onClick={handleLogout}
+              aria-label={t('common.logout')}
+              title={t('common.logout')}
+            >
+              <LogOut size={16} />
             </button>
           </div>
         </div>
