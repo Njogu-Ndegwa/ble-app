@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, QrCode, MessageSquare, Phone, RefreshCw, Check, Copy, AlertCircle } from "lucide-react";
+import { Loader2, QrCode, MessageSquare, RefreshCw, Check, Copy, AlertCircle, Clipboard, Info } from "lucide-react";
 import { toast } from "react-hot-toast";
 import QRCode from "qrcode";
 import { useI18n } from '@/i18n';
@@ -61,11 +61,15 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
   const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
   
   // SMS reading state
+  const [smsFeatureAvailable, setSmsFeatureAvailable] = useState<boolean>(false);
   const [isListeningForSMS, setIsListeningForSMS] = useState<boolean>(false);
   const [recentTransactions, setRecentTransactions] = useState<ParsedTransaction[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<ParsedTransaction | null>(null);
   const [smsPermissionGranted, setSmsPermissionGranted] = useState<boolean | null>(null);
   const [lastCheckedTime, setLastCheckedTime] = useState<number>(Date.now());
+  
+  // Clipboard paste functionality
+  const [isPasting, setIsPasting] = useState<boolean>(false);
 
   // Extract transaction ID from SMS body
   const extractTransactionId = useCallback((smsBody: string): string | null => {
