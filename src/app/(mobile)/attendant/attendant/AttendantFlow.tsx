@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
+import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantUser } from '@/lib/attendant-auth';
 import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
@@ -2894,7 +2895,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     <div className="attendant-container">
       <div className="attendant-bg-gradient" />
       
-      {/* Header with Back and Language Toggle */}
+      {/* Header with Back, Logo, and Language Toggle */}
       <header className="flow-header">
         <div className="flow-header-inner">
           <button className="flow-header-back" onClick={handleBackToRoles}>
@@ -2903,6 +2904,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             </svg>
             <span>{t('attendant.changeRole')}</span>
           </button>
+          <Image
+            src="/assets/Logo-Oves.png"
+            alt="Omnivoltaic"
+            width={100}
+            height={32}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
           <button
             className="flow-header-lang"
             onClick={toggleLocale}

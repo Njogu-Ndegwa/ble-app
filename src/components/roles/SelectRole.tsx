@@ -75,10 +75,18 @@ export default function SelectRole() {
       {/* Background gradient */}
       <div className="select-role-bg-gradient" />
 
-      {/* Language Switcher Header */}
+      {/* Header with Logo and Language Switcher */}
       <header className="flow-header">
         <div className="flow-header-inner">
           <div className="flow-header-spacer" />
+          <Image
+            src="/assets/Logo-Oves.png"
+            alt="Omnivoltaic"
+            width={100}
+            height={32}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
           <button
             className="flow-header-lang"
             onClick={toggleLocale}
