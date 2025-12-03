@@ -137,15 +137,17 @@ const AppContainer = () => {
     setSelectedDevice(deviceId);
   };
 
+  
   // const handleBackToList = () => {
   //   setSelectedDevice(null);
-  //   sessionStorage.removeItem("connectedDeviceMac");
-  //   setConnectedDevice(null);
-  //   setServiceAttrList([]);
-  //   setAtrrList([]);
   // };
-  const handleBackToList = () => {
+   const handleBackToList = () => {
     setSelectedDevice(null);
+    // sessionStorage.removeItem("connectedDeviceMac");
+    // setConnectedDevice(null);
+    setServiceAttrList([]);
+    setAtrrList([]);
+    setLoadingService(null);
   };
 
   const startConnection = (macAddress: string) => {

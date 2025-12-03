@@ -224,7 +224,8 @@ useEffect(() => {
       }
 
       if (writeSuccess) {
-        toast.success(t("Value written to {name}", { name: char.name }));
+        // toast.success(t("Value written to {name}", { name: char.name }));
+        toast.success(t("Success"));
         setTimeout(() => {
           const stillConnected = sessionStorage.getItem("connectedDeviceMac");
           if (stillConnected === device.macAddress) {
@@ -235,11 +236,14 @@ useEffect(() => {
         }, 2000);
       } else {
         console.error("Write failed:", errorMessage || "Unknown error");
+        // toast.error(
+        //   t("Failed to write {name}: {error}", {
+        //     name: char.name,
+        //     error: errorMessage || t("Write operation failed"),
+        //   })
+        // );
         toast.error(
-          t("Failed to write {name}: {error}", {
-            name: char.name,
-            error: errorMessage || t("Write operation failed"),
-          })
+          t("Failed")
         );
       }
     });
