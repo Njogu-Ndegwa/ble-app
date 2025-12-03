@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, QrCode, MessageSquare, RefreshCw, Check, Copy, AlertCircle, Clipboard, Info } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Loader2, QrCode, Copy } from "lucide-react";
 import { toast } from "react-hot-toast";
 import QRCode from "qrcode";
 import { useI18n } from '@/i18n';
-import { useBridge } from "@/app/context/bridgeContext";
 
 interface PaymentQRProps {
   customer: {
@@ -14,314 +13,14 @@ interface PaymentQRProps {
   } | null;
 }
 
-interface SMSMessage {
-  sender: string;
-  body: string;
-  timestamp: number;
-}
-
-interface ParsedTransaction {
-  transactionId: string;
-  amount?: string;
-  sender?: string;
-  timestamp: number;
-  rawMessage: string;
-}
-
-// Common patterns for extracting transaction IDs from different payment providers
-const TRANSACTION_PATTERNS = [
-  // M-Pesa patterns
-  /(?:Transaction|Trans|TXN|Txn|Ref|Reference|Receipt|Conf)[\s.:]*(?:ID|No|Number|Code)?[\s.:]*([A-Z0-9]{8,20})/i,
-  /\b([A-Z]{2,3}[A-Z0-9]{6,15})\b/i, // e.g., MPESA codes like QBH7Y5KPLZ
-  // Generic patterns
-  /(?:confirmed|received|sent)[\s\S]*?([A-Z0-9]{8,15})/i,
-  // Pattern for codes at end of message
-  /\b([A-Z0-9]{10,14})\b(?:\s*$|[.\s])/,
-  // Pattern for codes after "ID" or similar
-  /(?:id|ref|code)[:\s]+([A-Z0-9]{6,20})/i,
-];
-
-// Patterns to identify payment-related SMS
-const PAYMENT_SMS_PATTERNS = [
-  /(?:received|sent|confirmed|transaction|payment|transfer|deposit)/i,
-  /(?:mpesa|m-pesa|mobile money|momo|flooz|t-money)/i,
-  /(?:ksh|kes|xof|fcfa|ugx|tzs|\$|usd)/i,
-];
-
 const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
   const { t } = useI18n();
-  const { bridge } = useBridge();
-  const bridgeInitRef = useRef(false);
-  
   const [subscriptionCode, setSubscriptionCode] = useState<string | null>(null);
   const [transactionId, setTransactionId] = useState<string>("");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isFetchingSubscription, setIsFetchingSubscription] = useState<boolean>(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
-  
-  // SMS reading state
-  const [smsFeatureAvailable, setSmsFeatureAvailable] = useState<boolean>(false);
-  const [isListeningForSMS, setIsListeningForSMS] = useState<boolean>(false);
-  const [recentTransactions, setRecentTransactions] = useState<ParsedTransaction[]>([]);
-  const [selectedTransaction, setSelectedTransaction] = useState<ParsedTransaction | null>(null);
-  const [smsPermissionGranted, setSmsPermissionGranted] = useState<boolean | null>(null);
-  const [lastCheckedTime, setLastCheckedTime] = useState<number>(Date.now());
-  
-  // Clipboard paste functionality
-  const [isPasting, setIsPasting] = useState<boolean>(false);
-
-  // Extract transaction ID from SMS body
-  const extractTransactionId = useCallback((smsBody: string): string | null => {
-    for (const pattern of TRANSACTION_PATTERNS) {
-      const match = smsBody.match(pattern);
-      if (match && match[1]) {
-        // Validate that it looks like a transaction ID (alphanumeric, reasonable length)
-        const potentialId = match[1].toUpperCase();
-        if (potentialId.length >= 6 && potentialId.length <= 20) {
-          return potentialId;
-        }
-      }
-    }
-    return null;
-  }, []);
-
-  // Check if SMS is payment-related
-  const isPaymentSMS = useCallback((smsBody: string): boolean => {
-    return PAYMENT_SMS_PATTERNS.some(pattern => pattern.test(smsBody));
-  }, []);
-
-  // Parse SMS message to extract transaction details
-  const parseSMSMessage = useCallback((sms: SMSMessage): ParsedTransaction | null => {
-    if (!isPaymentSMS(sms.body)) {
-      return null;
-    }
-
-    const transactionId = extractTransactionId(sms.body);
-    if (!transactionId) {
-      return null;
-    }
-
-    // Try to extract amount
-    const amountMatch = sms.body.match(/(?:Ksh|KES|XOF|FCFA|UGX|TZS|\$|USD)?[\s.]?([0-9,]+\.?[0-9]*)/i);
-    const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : undefined;
-
-    return {
-      transactionId,
-      amount,
-      sender: sms.sender,
-      timestamp: sms.timestamp,
-      rawMessage: sms.body,
-    };
-  }, [extractTransactionId, isPaymentSMS]);
-
-  // Setup bridge handlers for SMS reading
-  useEffect(() => {
-    if (!bridge || bridgeInitRef.current) return;
-
-    const setupBridge = () => {
-      bridgeInitRef.current = true;
-
-      const reg = (name: string, handler: any) => {
-        bridge.registerHandler(name, handler);
-        return () => bridge.registerHandler(name, () => {});
-      };
-
-      // Handler for incoming SMS messages
-      const offSmsCallback = reg(
-        "smsReceivedCallBack",
-        (data: string, responseCallback: (response: any) => void) => {
-          try {
-            console.log("SMS received callback:", data);
-            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-            
-            const sms: SMSMessage = {
-              sender: parsedData.sender || parsedData.address || "",
-              body: parsedData.body || parsedData.message || "",
-              timestamp: parsedData.timestamp || Date.now(),
-            };
-
-            const transaction = parseSMSMessage(sms);
-            if (transaction) {
-              console.log("Parsed transaction from SMS:", transaction);
-              setRecentTransactions(prev => {
-                // Avoid duplicates
-                const exists = prev.some(t => t.transactionId === transaction.transactionId);
-                if (exists) return prev;
-                return [transaction, ...prev].slice(0, 10); // Keep last 10
-              });
-              
-              // Auto-select if no transaction is selected
-              if (!transactionId) {
-                setTransactionId(transaction.transactionId);
-                setSelectedTransaction(transaction);
-                toast.success(t("Payment SMS detected! Transaction ID auto-filled."));
-              }
-            }
-
-            responseCallback({ success: true });
-          } catch (error) {
-            console.error("Error processing SMS callback:", error);
-            responseCallback({ success: false, error: String(error) });
-          }
-        }
-      );
-
-      // Handler for SMS permission result
-      const offPermissionCallback = reg(
-        "smsPermissionResultCallBack",
-        (data: string, responseCallback: (response: any) => void) => {
-          try {
-            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-            const granted = parsedData.granted || parsedData.respCode === "200";
-            setSmsPermissionGranted(granted);
-            
-            if (granted) {
-              toast.success(t("SMS permission granted"));
-            } else {
-              toast.error(t("SMS permission denied. You can enter the transaction ID manually."));
-            }
-            
-            responseCallback({ success: true });
-          } catch (error) {
-            console.error("Error processing SMS permission callback:", error);
-            responseCallback({ success: false, error: String(error) });
-          }
-        }
-      );
-
-      // Handler for reading existing SMS messages
-      const offReadSmsCallback = reg(
-        "readSmsResultCallBack",
-        (data: string, responseCallback: (response: any) => void) => {
-          try {
-            console.log("Read SMS result callback:", data);
-            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-            const messages = parsedData.messages || parsedData.data || [];
-            
-            const transactions: ParsedTransaction[] = [];
-            for (const msg of messages) {
-              const sms: SMSMessage = {
-                sender: msg.sender || msg.address || "",
-                body: msg.body || msg.message || "",
-                timestamp: msg.timestamp || msg.date || Date.now(),
-              };
-              
-              const transaction = parseSMSMessage(sms);
-              if (transaction) {
-                transactions.push(transaction);
-              }
-            }
-
-            if (transactions.length > 0) {
-              setRecentTransactions(prev => {
-                const combined = [...transactions, ...prev];
-                // Remove duplicates
-                const unique = combined.filter((t, index, self) => 
-                  index === self.findIndex(s => s.transactionId === t.transactionId)
-                );
-                return unique.slice(0, 10);
-              });
-              toast.success(t(`Found ${transactions.length} payment transaction(s)`));
-            } else {
-              toast(t("No payment transactions found in recent messages"));
-            }
-            
-            responseCallback({ success: true });
-          } catch (error) {
-            console.error("Error processing read SMS callback:", error);
-            responseCallback({ success: false, error: String(error) });
-          }
-        }
-      );
-
-      return () => {
-        offSmsCallback();
-        offPermissionCallback();
-        offReadSmsCallback();
-        bridgeInitRef.current = false;
-      };
-    };
-
-    return setupBridge();
-  }, [bridge, parseSMSMessage, transactionId, t]);
-
-  // Request SMS permission and start listening
-  const requestSMSPermission = useCallback(() => {
-    if (!bridge) {
-      toast.error(t("Bridge not initialized. Using manual entry mode."));
-      return;
-    }
-
-    setIsListeningForSMS(true);
-    
-    bridge.callHandler(
-      "requestSmsPermission",
-      {},
-      (response: string) => {
-        try {
-          const parsedResponse = typeof response === 'string' ? JSON.parse(response) : response;
-          console.log("SMS permission request response:", parsedResponse);
-          
-          if (parsedResponse.respCode === "200" || parsedResponse.granted) {
-            setSmsPermissionGranted(true);
-            // Start listening for SMS
-            startSMSListener();
-          } else {
-            setSmsPermissionGranted(false);
-            setIsListeningForSMS(false);
-          }
-        } catch (error) {
-          console.error("Error parsing SMS permission response:", error);
-          setIsListeningForSMS(false);
-        }
-      }
-    );
-  }, [bridge, t]);
-
-  // Start SMS listener
-  const startSMSListener = useCallback(() => {
-    if (!bridge) return;
-
-    bridge.callHandler(
-      "startSmsListener",
-      { filterPayment: true },
-      (response: string) => {
-        try {
-          const parsedResponse = typeof response === 'string' ? JSON.parse(response) : response;
-          console.log("Start SMS listener response:", parsedResponse);
-          
-          if (parsedResponse.respCode === "200") {
-            setIsListeningForSMS(true);
-            toast.success(t("Listening for payment SMS..."));
-          }
-        } catch (error) {
-          console.error("Error starting SMS listener:", error);
-        }
-      }
-    );
-  }, [bridge, t]);
-
-  // Read recent SMS messages to find payment transactions
-  const readRecentSMS = useCallback(() => {
-    if (!bridge) {
-      toast.error(t("Bridge not initialized"));
-      return;
-    }
-
-    setLastCheckedTime(Date.now());
-    
-    bridge.callHandler(
-      "readRecentSms",
-      { 
-        count: 20, // Read last 20 messages
-        sinceTimestamp: lastCheckedTime - (24 * 60 * 60 * 1000) // Last 24 hours
-      },
-      (response: string) => {
-        console.log("Read recent SMS response:", response);
-      }
-    );
-  }, [bridge, lastCheckedTime, t]);
 
   // Fetch subscription code on mount
   useEffect(() => {
@@ -424,12 +123,6 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
     }
   }, [subscriptionCode, transactionId, authToken, t]);
 
-  const handleSelectTransaction = useCallback((transaction: ParsedTransaction) => {
-    setTransactionId(transaction.transactionId);
-    setSelectedTransaction(transaction);
-    setQrDataUrl(null); // Clear existing QR code
-  }, []);
-
   const handleCopyTransactionId = useCallback(() => {
     if (transactionId) {
       navigator.clipboard.writeText(transactionId);
@@ -441,119 +134,6 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* SMS Reading Section */}
-      <div className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--info-soft)' }}>
-            <MessageSquare className="w-5 h-5" style={{ color: 'var(--info)' }} />
-          </div>
-          <div>
-            <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t("Auto-detect Payment SMS")}</h3>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t("We can read your payment SMS to auto-fill the transaction ID")}</p>
-          </div>
-        </div>
-
-        {/* Permission/Listen Button */}
-        {smsPermissionGranted === null && (
-          <button
-            onClick={requestSMSPermission}
-            className="btn btn-secondary w-full"
-            style={{ padding: '12px 20px' }}
-          >
-            <Phone className="w-5 h-5" />
-            <span>{t("Enable SMS Reading")}</span>
-          </button>
-        )}
-
-        {smsPermissionGranted === false && (
-          <div className="p-4 rounded-lg flex items-start gap-3" style={{ background: 'var(--error-soft)', border: '1px solid var(--error)' }}>
-            <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--error)' }} />
-            <div>
-              <p className="font-medium" style={{ color: 'var(--error)' }}>{t("SMS Permission Denied")}</p>
-              <p className="text-sm mt-1" style={{ color: 'var(--error)' }}>{t("You can still enter the transaction ID manually below.")}</p>
-            </div>
-          </div>
-        )}
-
-        {smsPermissionGranted && (
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <button
-                onClick={readRecentSMS}
-                className="btn btn-secondary flex-1"
-                style={{ padding: '10px 16px' }}
-                disabled={!bridge}
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>{t("Check Recent SMS")}</span>
-              </button>
-              
-              <button
-                onClick={startSMSListener}
-                className={`btn flex-1 ${isListeningForSMS ? 'btn-primary' : 'btn-secondary'}`}
-                style={{ padding: '10px 16px' }}
-                disabled={!bridge}
-              >
-                {isListeningForSMS ? (
-                  <>
-                    <div className="loading-spinner" style={{ width: 16, height: 16, marginBottom: 0, borderWidth: 2 }}></div>
-                    <span>{t("Listening...")}</span>
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare className="w-4 h-4" />
-                    <span>{t("Start Listening")}</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Recent Transactions */}
-            {recentTransactions.length > 0 && (
-              <div className="space-y-2 mt-4">
-                <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t("Recent Payment Transactions:")}</p>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {recentTransactions.map((tx, index) => (
-                    <button
-                      key={`${tx.transactionId}-${index}`}
-                      onClick={() => handleSelectTransaction(tx)}
-                      className={`w-full p-3 rounded-lg text-left transition-all ${
-                        selectedTransaction?.transactionId === tx.transactionId
-                          ? ''
-                          : ''
-                      }`}
-                      style={{
-                        background: selectedTransaction?.transactionId === tx.transactionId 
-                          ? 'var(--accent-soft)' 
-                          : 'var(--bg-tertiary)',
-                        border: selectedTransaction?.transactionId === tx.transactionId 
-                          ? '1px solid var(--accent)' 
-                          : '1px solid var(--border)',
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{tx.transactionId}</p>
-                          {tx.amount && (
-                            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t("Amount")}: {tx.amount}</p>
-                          )}
-                          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                            {new Date(tx.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                        {selectedTransaction?.transactionId === tx.transactionId && (
-                          <Check className="w-5 h-5" style={{ color: 'var(--accent)' }} />
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Manual Entry & QR Generation */}
       <div className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
         {/* Subscription Code */}
@@ -593,7 +173,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
                 setTransactionId(e.target.value.toUpperCase());
                 setQrDataUrl(null); // Clear QR when ID changes
               }}
-              placeholder={t("Enter or select transaction ID")}
+              placeholder={t("Enter transaction ID from payment SMS")}
               className="form-input font-mono"
               style={{ paddingRight: 44 }}
             />
@@ -670,15 +250,15 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
           </li>
           <li className="flex gap-3">
             <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>2</span>
-            <span>{t("Once you receive the confirmation SMS, the transaction ID will be auto-detected or you can enter it manually")}</span>
+            <span>{t("Copy the transaction ID from your payment confirmation SMS")}</span>
           </li>
           <li className="flex gap-3">
             <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>3</span>
-            <span>{t("Generate the QR code and show it to the salesperson or attendant")}</span>
+            <span>{t("Paste it in the field above and generate the QR code")}</span>
           </li>
           <li className="flex gap-3">
             <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>4</span>
-            <span>{t("The attendant will scan your QR code to verify and complete the transaction")}</span>
+            <span>{t("Show the QR code to the salesperson or attendant to confirm payment")}</span>
           </li>
         </ol>
       </div>
