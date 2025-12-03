@@ -6,8 +6,9 @@ import { toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantUser } from '@/lib/attendant-auth';
+import { getAttendantUser, clearEmployeeLogin } from '@/lib/attendant-auth';
 import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
+import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
 // Import components
@@ -54,9 +55,10 @@ declare global {
 
 interface AttendantFlowProps {
   onBack?: () => void;
+  onLogout?: () => void;
 }
 
-export default function AttendantFlow({ onBack }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -2787,6 +2789,17 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [onBack, router]);
 
+  // Handle logout - clear authentication and notify parent
+  const handleLogout = useCallback(() => {
+    clearEmployeeLogin();
+    toast.success(t('Signed out successfully'));
+    if (onLogout) {
+      onLogout();
+    } else {
+      router.push('/');
+    }
+  }, [onLogout, router, t]);
+
   // Handle timeline step click - allow navigation to any step up to maxStepReached
   // This lets users go back to check something and return without losing progress
   const handleTimelineClick = useCallback((step: AttendantStep) => {
@@ -2928,6 +2941,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
             >
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+            <button
+              className="flow-header-logout"
+              onClick={handleLogout}
+              aria-label={t('common.logout')}
+              title={t('common.logout')}
+            >
+              <LogOut size={16} />
             </button>
           </div>
         </div>

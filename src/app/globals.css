@@ -4706,6 +4706,37 @@ html.theme-transition *::after {
   text-align: center;
 }
 
+/* Logout button styling in header */
+.flow-header-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.flow-header-logout:hover {
+  background: rgba(255, 90, 90, 0.15);
+  color: #ff5a5a;
+  border-color: #ff5a5a;
+}
+
+.flow-header-logout:active {
+  transform: scale(0.95);
+}
+
+.flow-header-logout svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* Logo styling in header */
 .flow-header-logo {
   display: flex;
@@ -4737,6 +4768,16 @@ html.theme-transition *::after {
   .flow-header-lang {
     padding: 5px 8px;
     font-size: 10px;
+  }
+  
+  .flow-header-logout {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .flow-header-logout svg {
+    width: 14px;
+    height: 14px;
   }
   
   .flow-header-title {
