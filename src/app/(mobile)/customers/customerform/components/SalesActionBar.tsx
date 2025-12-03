@@ -10,6 +10,7 @@ interface SalesActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   isDisabled?: boolean;
+  paymentInputMode?: 'scan' | 'manual'; // For step 3 to show correct button text
 }
 
 // Icon components for action bar
@@ -17,6 +18,11 @@ const ActionIcons = {
   arrow: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12h14M12 5l7 7-7 7"/>
+    </svg>
+  ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6L9 17l-5-5"/>
     </svg>
   ),
   scan: (
@@ -43,13 +49,17 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: SalesStep): StepActionConfig => {
+const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual'): StepActionConfig => {
   switch (step) {
     case 1:
       return { showBack: false, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
     case 2:
       return { showBack: true, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
     case 3:
+      // Show "Confirm Payment" when in manual mode, "Scan Payment QR" when in scan mode
+      if (paymentInputMode === 'manual') {
+        return { showBack: true, mainTextKey: 'sales.confirmPayment', mainIcon: 'check' };
+      }
       return { showBack: true, mainTextKey: 'sales.scanPaymentQr', mainIcon: 'scan' };
     case 4:
       return { showBack: true, mainTextKey: 'sales.scanBattery', mainIcon: 'scan' };
@@ -60,9 +70,9 @@ const getStepConfig = (step: SalesStep): StepActionConfig => {
   }
 };
 
-export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled }: SalesActionBarProps) {
+export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled, paymentInputMode }: SalesActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep);
+  const config = getStepConfig(currentStep, paymentInputMode);
 
   return (
     <div className="action-bar">

@@ -917,6 +917,7 @@
   "sales.transactionId": "交易ID",
   "sales.enterTransactionId": "输入交易ID",
   "sales.confirmPayment": "确认支付",
+  "sales.tapToConfirmPayment": "点击上方确认您的交易",
   
   "sales.assignBattery": "分配电池",
   "sales.scanBatteryQr": "扫描电池二维码以分配给客户",

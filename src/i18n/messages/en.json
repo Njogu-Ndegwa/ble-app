@@ -1015,6 +1015,7 @@
   "sales.transactionId": "Transaction ID",
   "sales.enterTransactionId": "Enter transaction ID",
   "sales.confirmPayment": "Confirm Payment",
+  "sales.tapToConfirmPayment": "Tap above to confirm your transaction",
   
   "sales.assignBattery": "Assign Battery",
   "sales.scanBatteryQr": "Scan the battery QR code to assign to customer",
