@@ -125,6 +125,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
   
   // Payment amount tracking for incomplete payments
   const [paymentAmountPaid, setPaymentAmountPaid] = useState<number>(0);
@@ -1171,6 +1172,11 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
   const handlePlanSelect = useCallback((planId: string) => {
     setSelectedPlanId(planId);
   }, []);
+  
+  // Handle payment input mode change
+  const handlePaymentInputModeChange = useCallback((mode: 'scan' | 'manual') => {
+    setPaymentInputMode(mode);
+  }, []);
 
   // Handle battery scan
   const handleScanBattery = useCallback(() => {
@@ -1325,6 +1331,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             amountPaid={paymentAmountPaid}
             amountExpected={paymentAmountExpected}
             amountRemaining={paymentAmountRemaining}
+            onInputModeChange={handlePaymentInputModeChange}
           />
         );
       case 4:
@@ -1441,12 +1448,14 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
         {renderStepContent()}
       </main>
 
-      {/* Action Bar */}
+      {/* Action Bar - disabled in manual payment mode since user should use the CTA in content area */}
       <SalesActionBar
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
         isLoading={isProcessing || isCreatingCustomer}
+        paymentInputMode={paymentInputMode}
+        isDisabled={currentStep === 3 && paymentInputMode === 'manual'}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}

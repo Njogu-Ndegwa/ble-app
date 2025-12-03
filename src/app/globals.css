@@ -1932,7 +1932,75 @@ html.theme-transition *::after {
 }
 
 .payment-input-mode-manual .manual-entry-form {
-  margin-bottom: 0;
+  margin-bottom: 16px;
+}
+
+/* Large Confirm Payment CTA - matches ScannerArea size and prominence */
+.confirm-payment-cta {
+  width: 140px;
+  height: 140px;
+  margin: 16px auto;
+  padding: 0;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-payment-cta:hover:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.confirm-payment-cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--border);
+}
+
+.confirm-payment-cta-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.confirm-payment-cta-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-payment-cta-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: white;
+}
+
+.confirm-payment-cta-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.confirm-payment-cta:disabled .confirm-payment-cta-icon {
+  background: var(--text-muted);
+}
+
+.confirm-payment-cta:disabled .confirm-payment-cta-text {
+  color: var(--text-muted);
 }
 
 /* Payment Scan */

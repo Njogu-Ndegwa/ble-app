@@ -23,6 +23,8 @@ interface Step3Props {
   amountPaid?: number;
   amountExpected?: number;
   amountRemaining?: number;
+  // Input mode callback to inform parent (for action bar)
+  onInputModeChange?: (mode: 'scan' | 'manual') => void;
 }
 
 export default function Step3Payment({ 
@@ -37,10 +39,17 @@ export default function Step3Payment({
   amountPaid = 0,
   amountExpected = 0,
   amountRemaining = 0,
+  onInputModeChange,
 }: Step3Props) {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
   const [paymentId, setPaymentId] = useState('');
+  
+  // Notify parent when input mode changes
+  const handleInputModeChange = (mode: 'scan' | 'manual') => {
+    setInputMode(mode);
+    onInputModeChange?.(mode);
+  };
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
@@ -130,7 +139,7 @@ export default function Step3Payment({
         <div className="input-toggle">
           <button 
             className={`toggle-btn ${inputMode === 'scan' ? 'active' : ''}`}
-            onClick={() => setInputMode('scan')}
+            onClick={() => handleInputModeChange('scan')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7"/>
@@ -142,7 +151,7 @@ export default function Step3Payment({
           </button>
           <button 
             className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
-            onClick={() => setInputMode('manual')}
+            onClick={() => handleInputModeChange('manual')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9"/>
@@ -181,25 +190,32 @@ export default function Step3Payment({
                   autoComplete="off"
                 />
               </div>
-              <button 
-                className="btn btn-primary" 
-                style={{ width: '100%', marginTop: '8px' }}
-                onClick={handleManualConfirm}
-                disabled={isProcessing || !paymentId.trim()}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-                {isProcessing ? t('sales.processing') : t('sales.confirmPayment')}
-              </button>
             </div>
             
-            <p className="scan-hint" style={{ marginTop: '8px' }}>
+            {/* Large Confirm Payment button - matches ScannerArea placement and prominence */}
+            <button 
+              className="confirm-payment-cta" 
+              onClick={handleManualConfirm}
+              disabled={isProcessing || !paymentId.trim()}
+            >
+              <div className="confirm-payment-cta-inner">
+                <div className="confirm-payment-cta-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                </div>
+                <span className="confirm-payment-cta-text">
+                  {isProcessing ? t('sales.processing') : t('sales.confirmPayment')}
+                </span>
+              </div>
+            </button>
+            
+            <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              {t('sales.orEnterManually')}
+              {t('sales.tapToConfirmPayment')}
             </p>
           </div>
         )}
