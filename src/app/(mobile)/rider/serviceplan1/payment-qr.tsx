@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Loader2, QrCode } from "lucide-react";
+import { Loader2, QrCode, Copy } from "lucide-react";
 import { toast } from "react-hot-toast";
 import QRCode from "qrcode";
 import { useI18n } from '@/i18n';
@@ -101,6 +101,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
         subscription_code: subscriptionCode,
         transaction_id: transactionId.trim(),
         authToken_rider: authToken,
+        timestamp: Date.now(),
       };
 
       const qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
@@ -122,31 +123,38 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
     }
   }, [subscriptionCode, transactionId, authToken, t]);
 
+  const handleCopyTransactionId = useCallback(() => {
+    if (transactionId) {
+      navigator.clipboard.writeText(transactionId);
+      toast.success(t("Transaction ID copied"));
+    }
+  }, [transactionId, t]);
+
   const canGenerateQR = subscriptionCode && transactionId.trim() && authToken;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 space-y-4">
+      {/* Manual Entry & QR Generation */}
+      <div className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
         {/* Subscription Code */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            {t("Subscription Code")}
-          </label>
+          <label className="form-label">{t("Subscription Code")}</label>
           {isFetchingSubscription ? (
-            <div className="flex items-center gap-2 text-indigo-400">
+            <div className="flex items-center gap-2" style={{ color: 'var(--accent)' }}>
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>{t("Fetching subscription...")}</span>
             </div>
           ) : subscriptionCode ? (
-            <div className="bg-gray-700 rounded-lg p-3">
-              <p className="text-white font-semibold">{subscriptionCode}</p>
+            <div className="rounded-lg p-3" style={{ background: 'var(--bg-tertiary)' }}>
+              <p className="font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>{subscriptionCode}</p>
             </div>
           ) : (
-            <div className="bg-red-900/30 border border-red-700 rounded-lg p-3">
-              <p className="text-red-300 text-sm">{t("No subscription found")}</p>
+            <div className="rounded-lg p-3" style={{ background: 'var(--error-soft)', border: '1px solid var(--error)' }}>
+              <p className="text-sm" style={{ color: 'var(--error)' }}>{t("No subscription found")}</p>
               <button
                 onClick={fetchSubscription}
-                className="mt-2 text-sm text-red-400 hover:text-red-300 underline"
+                className="mt-2 text-sm underline"
+                style={{ color: 'var(--error)' }}
               >
                 {t("Retry")}
               </button>
@@ -156,18 +164,32 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
 
         {/* Transaction ID Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            {t("Transaction ID")}
-          </label>
-          <input
-            type="text"
-            value={transactionId}
-            onChange={(e) => setTransactionId(e.target.value)}
-            placeholder={t("Enter transaction ID")}
-            className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            {t("Enter the transaction ID from your payment confirmation")}
+          <label className="form-label">{t("Transaction ID")}</label>
+          <div className="relative">
+            <input
+              type="text"
+              value={transactionId}
+              onChange={(e) => {
+                setTransactionId(e.target.value.toUpperCase());
+                setQrDataUrl(null); // Clear QR when ID changes
+              }}
+              placeholder={t("Enter transaction ID from payment SMS")}
+              className="form-input font-mono"
+              style={{ paddingRight: 44 }}
+            />
+            {transactionId && (
+              <button
+                onClick={handleCopyTransactionId}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label={t("Copy")}
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            {t("Enter the transaction ID from your payment confirmation SMS")}
           </p>
         </div>
 
@@ -175,40 +197,73 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
         <button
           onClick={handleGenerateQR}
           disabled={!canGenerateQR || isGeneratingQr}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all duration-200"
+          className="btn btn-primary w-full"
+          style={{ padding: '14px 20px' }}
         >
           {isGeneratingQr ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              {t("Generating...")}
+              <span>{t("Generating...")}</span>
             </>
           ) : (
             <>
               <QrCode className="w-5 h-5" />
-              {t("Generate Payment QR")}
+              <span>{t("Generate Payment QR")}</span>
             </>
           )}
         </button>
 
         {/* QR Code Display */}
         {qrDataUrl && (
-          <div className="mt-6 text-center space-y-3">
-            <div className="inline-block bg-white p-4 rounded-2xl shadow-lg">
+          <div className="mt-6 text-center space-y-4">
+            <div className="inline-block rounded-2xl shadow-lg p-4" style={{ background: '#FFFFFF' }}>
               <img
                 src={qrDataUrl}
                 alt={t("Payment QR Code")}
                 className="w-64 h-64 object-contain"
               />
             </div>
-            <p className="text-gray-300 text-sm">
-              {t("Show this QR code to the attendant to complete your payment")}
-            </p>
+            <div className="space-y-2">
+              <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                {t("Show this QR code to the attendant")}
+              </p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                {t("They will scan it to complete your payment confirmation")}
+              </p>
+              <div className="inline-block px-4 py-2 rounded-lg" style={{ background: 'var(--success-soft)' }}>
+                <p className="text-sm font-mono" style={{ color: 'var(--success)' }}>
+                  {t("Transaction ID")}: {transactionId}
+                </p>
+              </div>
+            </div>
           </div>
         )}
+      </div>
+
+      {/* Instructions */}
+      <div className="rounded-2xl p-6" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+        <h4 className="font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{t("How it works")}</h4>
+        <ol className="space-y-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <li className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>1</span>
+            <span>{t("Make your payment through mobile money (M-Pesa, T-Money, etc.)")}</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>2</span>
+            <span>{t("Copy the transaction ID from your payment confirmation SMS")}</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>3</span>
+            <span>{t("Paste it in the field above and generate the QR code")}</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>4</span>
+            <span>{t("Show the QR code to the salesperson or attendant to confirm payment")}</span>
+          </li>
+        </ol>
       </div>
     </div>
   );
 };
 
 export default PaymentQR;
-

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
+import Image from "next/image";
 import { 
   employeeLogin, 
   saveEmployeeLogin, 
@@ -318,17 +319,29 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
   // Registration Form
   if (showRegister) {
     return (
-      <div className="login-container">
-        {/* Back Button */}
-        <button className="back-link" onClick={() => setShowRegister(false)} style={{ position: 'absolute', top: 16, left: 16 }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          {t('Back')}
-        </button>
+    <div className="login-container">
+      {/* Back Button */}
+      <button className="back-link" onClick={() => setShowRegister(false)} style={{ position: 'absolute', top: 16, left: 16 }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        {t('Back')}
+      </button>
 
-        {/* Header */}
-        <div className="login-header">
+      {/* Logo */}
+      <div className="login-logo" style={{ marginBottom: 24 }}>
+        <Image
+          src="/assets/Logo-Oves.png"
+          alt="Omnivoltaic"
+          width={140}
+          height={48}
+          style={{ objectFit: 'contain' }}
+          priority
+        />
+      </div>
+
+      {/* Header */}
+      <div className="login-header">
           <div className="login-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -527,6 +540,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
   // Login Form
   return (
     <div className="login-container">
+      {/* Logo */}
+      <div className="login-logo" style={{ marginBottom: 24 }}>
+        <Image
+          src="/assets/Logo-Oves.png"
+          alt="Omnivoltaic"
+          width={140}
+          height={48}
+          style={{ objectFit: 'contain' }}
+          priority
+        />
+      </div>
+
       {/* Header */}
       <div className="login-header">
         <div className="login-icon">
