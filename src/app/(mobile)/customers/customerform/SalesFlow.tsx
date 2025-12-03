@@ -1417,31 +1417,41 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
       
-      {/* Header with Back, Logo, and Language Toggle */}
+      {/* Header with Back + Logo on left, Language Toggle on right */}
       <header className="flow-header">
         <div className="flow-header-inner">
-          <button className="flow-header-back" onClick={handleBackToRoles}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-            <span>{t('sales.changeRole')}</span>
-          </button>
-          <Image
-            src="/assets/Logo-Oves.png"
-            alt="Omnivoltaic"
-            width={100}
-            height={32}
-            style={{ objectFit: 'contain' }}
-            priority
-          />
-          <button
-            className="flow-header-lang"
-            onClick={toggleLocale}
-            aria-label={t('role.switchLanguage')}
-          >
-            <Globe size={16} />
-            <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-          </button>
+          <div className="flow-header-left">
+            <button 
+              className="flow-header-back" 
+              onClick={handleBackToRoles}
+              aria-label={t('sales.changeRole')}
+              title={t('sales.changeRole')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+          </div>
+          <div className="flow-header-right">
+            <button
+              className="flow-header-lang"
+              onClick={toggleLocale}
+              aria-label={t('role.switchLanguage')}
+            >
+              <Globe size={14} />
+              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+          </div>
         </div>
       </header>
 

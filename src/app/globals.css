@@ -4593,6 +4593,11 @@ html.theme-transition *::after {
 /* ===================== */
 /* FLOW HEADER COMPONENT */
 /* ===================== */
+/* 
+ * Layout Strategy: Logo anchored on LEFT, actions on RIGHT
+ * This follows standard mobile app conventions where brand 
+ * identity is always in a consistent position.
+ */
 
 .flow-header {
   position: relative;
@@ -4610,20 +4615,34 @@ html.theme-transition *::after {
   margin: 0 auto;
 }
 
+/* Left side group: back button + logo */
+.flow-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Right side group: language switcher and other actions */
+.flow-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .flow-header-back {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
-  font-family: 'Outfit', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .flow-header-back:hover {
@@ -4633,12 +4652,13 @@ html.theme-transition *::after {
 }
 
 .flow-header-back svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
+/* Deprecated - no longer needed with left-aligned logo */
 .flow-header-spacer {
-  width: 70px;
+  display: none;
 }
 
 .flow-header-title {
@@ -4655,7 +4675,7 @@ html.theme-transition *::after {
 .flow-header-lang {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 6px 10px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -4686,19 +4706,45 @@ html.theme-transition *::after {
   text-align: center;
 }
 
+/* Logo styling in header */
+.flow-header-logo {
+  display: flex;
+  align-items: center;
+  height: 28px;
+}
+
+.flow-header-logo img {
+  height: 24px;
+  width: auto;
+  object-fit: contain;
+}
+
 @media (max-height: 700px) {
   .flow-header {
     padding: 8px 12px;
   }
   
-  .flow-header-back,
+  .flow-header-back {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .flow-header-back svg {
+    width: 14px;
+    height: 14px;
+  }
+  
   .flow-header-lang {
     padding: 5px 8px;
-    font-size: 11px;
+    font-size: 10px;
   }
   
   .flow-header-title {
     font-size: 13px;
+  }
+  
+  .flow-header-logo img {
+    height: 20px;
   }
 }
 
