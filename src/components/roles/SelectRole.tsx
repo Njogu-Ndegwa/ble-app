@@ -75,26 +75,31 @@ export default function SelectRole() {
       {/* Background gradient */}
       <div className="select-role-bg-gradient" />
 
-      {/* Header with Logo and Language Switcher */}
+      {/* Header with Logo on left, Language Switcher on right */}
       <header className="flow-header">
         <div className="flow-header-inner">
-          <div className="flow-header-spacer" />
-          <Image
-            src="/assets/Logo-Oves.png"
-            alt="Omnivoltaic"
-            width={100}
-            height={32}
-            style={{ objectFit: 'contain' }}
-            priority
-          />
-          <button
-            className="flow-header-lang"
-            onClick={toggleLocale}
-            aria-label={t('role.switchLanguage')}
-          >
-            <Globe size={16} />
-            <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-          </button>
+          <div className="flow-header-left">
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+          </div>
+          <div className="flow-header-right">
+            <button
+              className="flow-header-lang"
+              onClick={toggleLocale}
+              aria-label={t('role.switchLanguage')}
+            >
+              <Globe size={14} />
+              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+          </div>
         </div>
       </header>
 

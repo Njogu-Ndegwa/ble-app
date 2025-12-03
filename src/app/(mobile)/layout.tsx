@@ -27,35 +27,32 @@ function MobileLayout({
         />
       )}
 
-      {/* Header with Logo */}
-      <header className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-        {/* Left: Profile Button */}
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200"
-          style={{ 
-            background: 'var(--bg-secondary)', 
-            border: '1px solid var(--border)',
-          }}
-          aria-label="Open profile menu"
-        >
-          <User className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
-        </button>
-
-        {/* Center: Logo */}
-        <div className="flex-1 flex justify-center">
-          <Image
-            src="/assets/Logo-Oves.png"
-            alt="Omnivoltaic"
-            width={100}
-            height={32}
-            style={{ objectFit: 'contain' }}
-            priority
-          />
+      {/* Header with Profile + Logo on left, Language Switcher on right */}
+      <header className="flow-header" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="flow-header-inner">
+          <div className="flow-header-left">
+            <button
+              onClick={() => setOpen(true)}
+              className="flow-header-back"
+              aria-label="Open profile menu"
+            >
+              <User className="w-4 h-4" />
+            </button>
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+          </div>
+          <div className="flow-header-right">
+            <LanguageSwitcher />
+          </div>
         </div>
-
-        {/* Right: Language Switcher */}
-        <LanguageSwitcher />
       </header>
 
       <main className={`${open ? 'opacity-30' : ''} transition-opacity duration-300 p-4`}>
