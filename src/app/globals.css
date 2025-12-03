@@ -2413,6 +2413,12 @@ html.theme-transition *::after {
   padding: 20px;
 }
 
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .login-header {
   text-align: center;
   margin-bottom: 32px;

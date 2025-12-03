@@ -3,9 +3,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-hot-toast";
-import { LogIn, User, Loader2, UserPlus, Mail, Phone, AlertCircle, CheckCircle, Eye, EyeOff, QrCode } from "lucide-react";
 import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
+import Image from "next/image";
 
 // Define interfaces
 interface Customer {
@@ -261,7 +261,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.log("Login: partner_id from session.user:", data.session?.user?.partner_id);
         console.log("Login: Final customerData.partner_id:", customerData.partner_id);
         
-        // toast.success(`Welcome! Signed in as ${customerData.name}`);
         onLoginSuccess(customerData);
       } else if (response.status === 404) {
         console.error("=== Login Error Response (404) ===");
@@ -409,126 +408,142 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  // Registration Form
   if (showRegister) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-          {/* Header */}
-          <div className="text-center mb-6">
-            <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <UserPlus className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white mb-2">{t('Create Account')}</h1>
-            <p className="text-gray-400">{t('Join our community today')}</p>
+      <div className="login-container">
+        {/* Back Button */}
+        <button className="back-link" onClick={() => setShowRegister(false)} style={{ position: 'absolute', top: 16, left: 16 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          {t('Back')}
+        </button>
+
+        {/* Logo */}
+        <div className="login-logo" style={{ marginBottom: 24 }}>
+          <Image
+            src="/assets/Logo-Oves.png"
+            alt="Omnivoltaic"
+            width={140}
+            height={48}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
+        </div>
+
+        {/* Header */}
+        <div className="login-header">
+          <div className="login-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="8.5" cy="7" r="4"/>
+              <path d="M20 8v6M23 11h-6"/>
+            </svg>
           </div>
+          <h1 className="login-title">{t('Create Account')}</h1>
+          <p className="login-subtitle">{t('Join our community today')}</p>
+        </div>
 
-          {/* Success/Error Messages */}
-          {submitStatus && (
-            <div className={`mb-4 p-3 rounded-lg flex items-center ${
-              submitStatus === 'success' 
-                ? 'bg-green-900/50 border border-green-700 text-green-200' 
-                : 'bg-red-900/50 border border-red-700 text-red-200'
-            }`}>
-              {submitStatus === 'success' ? (
-                <CheckCircle size={16} className="mr-2 flex-shrink-0" />
-              ) : (
-                <AlertCircle size={16} className="mr-2 flex-shrink-0" />
-              )}
-              <span className="text-sm">{submitMessage}</span>
-            </div>
-          )}
+        {/* Status Alert */}
+        {submitStatus && (
+          <div className={`status-alert ${submitStatus}`} style={{ maxWidth: 320, width: '100%' }}>
+            {submitStatus === 'success' ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4M12 16h.01"/>
+              </svg>
+            )}
+            <span>{submitMessage}</span>
+          </div>
+        )}
 
-          {/* Registration Form */}
-          <div className="space-y-4">
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Full Name')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <User size={16} className="absolute left-3 top-3 text-gray-500" />
+        {/* Registration Form */}
+        <div className="login-form">
+          <div className="form-section">
+            <div className="form-section-title">{t('Personal Information')}</div>
+            
+            {/* Full Name */}
+            <div className="form-group">
+              <label className="form-label">{t('Full Name')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
                 <input
                   type="text"
+                  className={`form-input ${errors.name ? 'error' : ''}`}
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-600'
-                  }`}
                   placeholder={t('Enter your full name')}
                 />
               </div>
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-              )}
+              {errors.name && <p className="form-error">{errors.name}</p>}
             </div>
 
             {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Email')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3 top-3 text-gray-500" />
+            <div className="form-group">
+              <label className="form-label">{t('Email')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
                 <input
                   type="email"
+                  className={`form-input ${errors.email ? 'error' : ''}`}
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.email ? 'border-red-500' : 'border-gray-600'
-                  }`}
                   placeholder={t('Enter your email')}
                 />
               </div>
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-400">{errors.email}</p>
-              )}
+              {errors.email && <p className="form-error">{errors.email}</p>}
             </div>
 
             {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Phone')} <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Phone size={16} className="absolute left-3 top-3 text-gray-500" />
+            <div className="form-group">
+              <label className="form-label">{t('Phone')} *</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
                 <input
                   type="tel"
+                  className={`form-input ${errors.phone ? 'error' : ''}`}
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.phone ? 'border-red-500' : 'border-gray-600'
-                  }`}
-                  placeholder={t('Enter your phone number')}
+                  placeholder="+254 7XX XXX XXX"
                 />
               </div>
-              {errors.phone && (
-                <p className="mt-1 text-sm text-red-400">{errors.phone}</p>
-              )}
+              {errors.phone && <p className="form-error">{errors.phone}</p>}
             </div>
 
             {/* Company (Read-only) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                {t('Company')}
-              </label>
+            <div className="form-group">
+              <label className="form-label">{t('Company')}</label>
               <input
                 type="text"
                 value="OVS-TOGO"
                 disabled
                 readOnly
-                className="w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-300 cursor-not-allowed opacity-80"
+                className="form-input"
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
               />
-              <p className="mt-1 text-xs text-gray-500 italic">
+              <p className="form-hint" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                 {t('Currently fixed - will be selectable in the future')}
               </p>
             </div>
 
             {/* Assign Battery Checkbox */}
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center gap-2">
+            <div className="form-group" style={{ paddingTop: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
-                  id="assignBattery"
                   checked={assignBattery}
                   onChange={(e) => {
                     const isChecked = e.target.checked;
@@ -538,26 +553,37 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       localStorage.removeItem('assignedBatteryCode');
                     }
                   }}
-                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                  style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
                 />
-                <label htmlFor="assignBattery" className="text-sm text-gray-300 cursor-pointer">
-                  {t('Assign Battery')}
-                </label>
-              </div>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('Assign Battery')}</span>
+              </label>
               
               {assignBattery && (
-                <div className="ml-6 space-y-2">
+                <div style={{ marginLeft: 24, marginTop: 8 }}>
                   {scannedBatteryCode ? (
-                    <div className="bg-green-900/30 border border-green-700 rounded-lg p-2">
-                      <p className="text-xs text-green-300 mb-1">{t('Battery Code Scanned')}:</p>
-                      <p className="text-sm font-mono text-green-200">{scannedBatteryCode}</p>
+                    <div style={{ 
+                      background: 'var(--success-soft)', 
+                      border: '1px solid var(--success)', 
+                      borderRadius: 'var(--radius-md)', 
+                      padding: 12 
+                    }}>
+                      <p style={{ fontSize: 11, color: 'var(--success)', marginBottom: 4 }}>{t('Battery Code Scanned')}:</p>
+                      <p style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--success)' }}>{scannedBatteryCode}</p>
                       <button
                         type="button"
                         onClick={() => {
                           setScannedBatteryCode(null);
                           localStorage.removeItem('assignedBatteryCode');
                         }}
-                        className="mt-2 text-xs text-red-400 hover:text-red-300"
+                        style={{ 
+                          marginTop: 8, 
+                          fontSize: 11, 
+                          color: 'var(--error)', 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer',
+                          fontFamily: 'inherit'
+                        }}
                       >
                         {t('Clear')}
                       </button>
@@ -567,17 +593,23 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       type="button"
                       onClick={startBatteryQrScan}
                       disabled={isScanningBattery}
-                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:cursor-not-allowed text-sm"
+                      className="btn btn-secondary"
+                      style={{ width: '100%', padding: '10px 16px', fontSize: 12 }}
                     >
                       {isScanningBattery ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          {t('Scanning...')}
+                          <div className="loading-spinner" style={{ width: 14, height: 14, marginBottom: 0, borderWidth: 2 }}></div>
+                          <span>{t('Scanning...')}</span>
                         </>
                       ) : (
                         <>
-                          <QrCode className="w-4 h-4" />
-                          {t('Scan Battery QR Code')}
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                          </svg>
+                          <span>{t('Scan Battery QR Code')}</span>
                         </>
                       )}
                     </button>
@@ -587,34 +619,38 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
 
-          {/* Buttons */}
-          <div className="mt-6 space-y-3">
-            <button
-              onClick={handleRegister}
-              disabled={isSubmitting || (assignBattery && !scannedBatteryCode)}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {t('Creating Account...')}
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-5 h-5" />
-                  {t('Create Account')}
-                </>
-              )}
-            </button>
+          {/* Submit Button */}
+          <button
+            className="btn btn-primary login-btn"
+            onClick={handleRegister}
+            disabled={isSubmitting || (assignBattery && !scannedBatteryCode)}
+          >
+            {isSubmitting ? (
+              <>
+                <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+                <span>{t('Creating Account...')}</span>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="8.5" cy="7" r="4"/>
+                  <path d="M20 8v6M23 11h-6"/>
+                </svg>
+                <span>{t('Create Account')}</span>
+              </>
+            )}
+          </button>
 
-            <button
-              onClick={() => setShowRegister(false)}
-              disabled={isSubmitting}
-              className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
+          <p className="login-help">
+            {t('Already have an account?')}{' '}
+            <button 
+              onClick={() => setShowRegister(false)} 
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              {t('Back to Sign In')}
+              {t('Sign In')}
             </button>
-          </div>
+          </p>
         </div>
       </div>
     );
@@ -622,944 +658,135 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   // Login Form
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-        {isSigningIn ? (
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-            <p className="text-white mt-4">Signing in...</p>
+    <div className="login-container">
+      {/* Logo */}
+      <div className="login-logo" style={{ marginBottom: 24 }}>
+        <Image
+          src="/assets/Logo-Oves.png"
+          alt="Omnivoltaic"
+          width={140}
+          height={48}
+          style={{ objectFit: 'contain' }}
+          priority
+        />
+      </div>
+
+      {/* Header */}
+      <div className="login-header">
+        <div className="login-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h1 className="login-title">{t('Rider Login')}</h1>
+        <p className="login-subtitle">{t('Sign in to access your account')}</p>
+      </div>
+
+      {/* Login Form */}
+      <div className="login-form">
+        {/* Email Input */}
+        <div className="form-group">
+          <label className="form-label">{t('Email Address')}</label>
+          <div className="input-with-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <input
+              type="email"
+              className="form-input"
+              value={email}
+              onChange={handleEmailChange}
+              onKeyPress={handleKeyPress}
+              placeholder={t('Enter your email')}
+              disabled={isSigningIn}
+            />
           </div>
-        ) : (
-          <>
-            <div className="text-center mb-8">
-              <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-white mb-2">{t('Welcome')}</h1>
-              <p className="text-gray-400">{t('Please enter your email and password to continue')}</p>
-            </div>
-            
-            <div className="mb-6">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                {t('Email')}
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={handleEmailChange}
-                onKeyPress={handleKeyPress}
-                placeholder={t('Enter your email')}
-                disabled={isSigningIn}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
+        </div>
 
-            <div className="mb-6">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                {t('Password')}
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={handlePasswordChange}
-                  onKeyPress={handleKeyPress}
-                  placeholder={t('Enter your password')}
-                  disabled={isSigningIn}
-                  className="w-full pr-12 pl-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? t('Hide password') : t('Show password')}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-200"
-                  disabled={isSigningIn}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
+        {/* Password Input */}
+        <div className="form-group">
+          <label className="form-label">{t('Password')}</label>
+          <div className="input-with-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <input
+              type={showPassword ? "text" : "password"}
+              className="form-input"
+              value={password}
+              onChange={handlePasswordChange}
+              onKeyPress={handleKeyPress}
+              placeholder={t('Enter your password')}
+              disabled={isSigningIn}
+              style={{ paddingRight: 44 }}
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? t('Hide password') : t('Show password')}
+              disabled={isSigningIn}
+            >
+              {showPassword ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
 
-            <div className="space-y-3">
-              <button
-                onClick={handleSignIn}
-                disabled={isSigningIn || !email.trim() || !password.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none disabled:hover:scale-100"
-              >
-                {isSigningIn ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {t('Signing in...')}
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-5 h-5" />
-                    {t('Sign In')}
-                  </>
-                )}
-              </button>
+        {/* Sign In Button */}
+        <button
+          className="btn btn-primary login-btn"
+          onClick={handleSignIn}
+          disabled={isSigningIn || !email.trim() || !password.trim()}
+        >
+          {isSigningIn ? (
+            <>
+              <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+              <span>{t('Signing in...')}</span>
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+              <span>{t('Sign In')}</span>
+            </>
+          )}
+        </button>
 
-              <button
-                onClick={() => setShowRegister(true)}
-                disabled={isSigningIn}
-                className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
-              >
-                <UserPlus className="w-5 h-5 inline mr-2" />
-                {t('Create New Account')}
-              </button>
-            </div>
+        {/* Create Account Button */}
+        <button
+          className="btn btn-secondary"
+          onClick={() => setShowRegister(true)}
+          disabled={isSigningIn}
+          style={{ width: '100%', marginTop: 10 }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <path d="M20 8v6M23 11h-6"/>
+          </svg>
+          <span>{t('Create New Account')}</span>
+        </button>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">{t('Need help? Contact support')}</p>
-            </div>
-          </>
-        )}
+        <p className="login-help">
+          {t('Need help? Contact support')}
+        </p>
       </div>
     </div>
   );
 };
 
 export default Login;
-// "use client";
-
-// import React, { useState, useEffect, useCallback, useRef } from "react";
-// import { toast } from "react-hot-toast";
-// import { LogIn, User, Loader2, UserPlus, Mail, Phone, MapPin, AlertCircle, CheckCircle, Globe, Eye, EyeOff, QrCode } from "lucide-react";
-// import { useI18n } from '@/i18n';
-// import { useBridge } from "@/app/context/bridgeContext";
-
-// // Define interfaces
-// interface Customer {
-//   id: number;
-//   name: string;
-//   email: string;
-//   phone: string;
-//   partner_id?: number;
-// }
-
-// interface LoginProps {
-//   onLoginSuccess: (customer: Customer) => void;
-// }
-
-// interface FormData {
-//   name: string;
-//   email: string;
-//   phone: string;
-//   street: string;
-//   city: string;
-//   zip: string;
-//   country: string;
-// }
-
-// interface FormErrors {
-//   name?: string;
-//   email?: string;
-//   phone?: string;
-//   street?: string;
-//   city?: string;
-//   zip?: string;
-//   country?: string;
-// }
-
-// const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
-
-// const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-//   const { t } = useI18n();
-//   const { bridge } = useBridge();
-//   const [email, setEmail] = useState<string>("");
-//   const [password, setPassword] = useState<string>("");
-//   const [showPassword, setShowPassword] = useState<boolean>(false);
-//   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
-//   const [showRegister, setShowRegister] = useState<boolean>(false);
-//   const [scannedBatteryCode, setScannedBatteryCode] = useState<string | null>(null);
-//   const [isScanningBattery, setIsScanningBattery] = useState<boolean>(false);
-//   const bridgeInitRef = useRef(false);
-  
-//   // Registration form state
-//   const [formData, setFormData] = useState<FormData>({
-//     name: '',
-//     email: '',
-//     phone: '',
-//     street: '',
-//     city: '',
-//     zip: '',
-//     country: '',
-//   });
-
-//   // Country options
-//   const countryOptions = [
-//     { value: 'Kenya', label: 'Kenya' },
-//     { value: 'Philippines', label: 'Philippines' },
-//     { value: 'Togo', label: 'Togo' },
-//     { value: 'Shenzhen', label: 'Shenzhen' }
-//   ];
-
-//   const [errors, setErrors] = useState<FormErrors>({});
-//   const [isSubmitting, setIsSubmitting] = useState(false);
-//   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
-//   const [submitMessage, setSubmitMessage] = useState('');
-//   const [assignBattery, setAssignBattery] = useState<boolean>(false);
-
-//   // Load scanned battery code from localStorage on mount and when registration form is shown
-//   useEffect(() => {
-//     if (typeof window === "undefined") return;
-//     const storedBatteryCode = localStorage.getItem("assignedBatteryCode");
-//     if (storedBatteryCode) {
-//       setScannedBatteryCode(storedBatteryCode);
-//     }
-//   }, [showRegister]);
-
-//   // Persist scanned battery code to localStorage
-//   useEffect(() => {
-//     if (typeof window === "undefined") return;
-//     try {
-//       if (scannedBatteryCode) {
-//         localStorage.setItem("assignedBatteryCode", scannedBatteryCode);
-//       }
-//     } catch (error) {
-//       console.error("Failed to persist battery code:", error);
-//     }
-//   }, [scannedBatteryCode]);
-
-//   // Setup bridge for QR code scanning
-//   useEffect(() => {
-//     if (!bridge || bridgeInitRef.current) return;
-
-//     const setupBridge = () => {
-//       bridgeInitRef.current = true;
-
-//       const reg = (name: string, handler: any) => {
-//         bridge.registerHandler(name, handler);
-//         return () => bridge.registerHandler(name, () => {});
-//       };
-
-//       const offQr = reg("scanQrcodeResultCallBack", (data: string, resp: any) => {
-//         try {
-//           const parsed = JSON.parse(data);
-//           const qrVal = parsed.respData?.value || "";
-          
-//           if (qrVal) {
-//             setScannedBatteryCode(qrVal);
-//             localStorage.setItem('assignedBatteryCode', qrVal);
-//             setIsScanningBattery(false);
-//             toast.success(t('Battery code scanned successfully'));
-//           }
-//         } catch (err) {
-//           console.error("Error processing QR code data:", err);
-//           toast.error(t("Error processing QR code"));
-//           setIsScanningBattery(false);
-//         }
-//         resp(data);
-//       });
-
-//       return () => {
-//         offQr();
-//         bridgeInitRef.current = false;
-//       };
-//     };
-
-//     return setupBridge();
-//   }, [bridge, t]);
-
-//   // Start QR code scan
-//   const startBatteryQrScan = useCallback(() => {
-//     if (!bridge) {
-//       toast.error(t("Bridge not initialized"));
-//       return;
-//     }
-
-//     setIsScanningBattery(true);
-//     bridge.callHandler(
-//       "startQrCodeScan",
-//       999,
-//       (responseData: string) => {
-//         console.info("QR Code Scan Response:", responseData);
-//       }
-//     );
-//   }, [bridge, t]);
-
-//   // Validation functions
-//   const validateEmail = (email: string): boolean => {
-//     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-//     return emailRegex.test(email);
-//   };
-
-//   const validatePhone = (phone: string): boolean => {
-//     const phoneRegex = /^[\+]?[\s\d\-\(\)]{10,}$/;
-//     return phoneRegex.test(phone);
-//   };
-
-//   const validateZip = (zip: string): boolean => {
-//     return zip.trim().length >= 3;
-//   };
-
-//   const validateForm = (): boolean => {
-//     const newErrors: FormErrors = {};
-
-//     if (!formData.name || formData.name.trim().length === 0) {
-//       newErrors.name = t('Full name is required');
-//     } else if (formData.name.trim().length < 2) {
-//       newErrors.name = t('Name must be at least 2 characters long');
-//     }
-
-//     if (!formData.email) {
-//       newErrors.email = t('Email is required');
-//     } else if (!validateEmail(formData.email)) {
-//       newErrors.email = t('Please enter a valid email address');
-//     }
-
-//     if (!formData.phone) {
-//       newErrors.phone = t('Phone number is required');
-//     } else if (!validatePhone(formData.phone)) {
-//       newErrors.phone = t('Please enter a valid phone number');
-//     }
-
-//     if (!formData.street || formData.street.trim().length === 0) {
-//       newErrors.street = t('Street address is required');
-//     }
-
-//     if (!formData.city || formData.city.trim().length === 0) {
-//       newErrors.city = t('City is required');
-//     }
-
-//     if (!formData.zip || formData.zip.trim().length === 0) {
-//       newErrors.zip = t('Zip code is required');
-//     } else if (!validateZip(formData.zip)) {
-//       newErrors.zip = t('Please enter a valid zip code');
-//     }
-
-//     if (!formData.country) {
-//       newErrors.country = t('Please select a country');
-//     }
-
-//     setErrors(newErrors);
-//     return Object.keys(newErrors).length === 0;
-//   };
-
-//   const handleSignIn = async () => {
-//     if (!email.trim()) {
-//       toast.error(t("Please enter your email"));
-//       return;
-//     }
-//     if (!password.trim()) {
-//       toast.error(t("Please enter your password"));
-//       return;
-//     }
-
-//     setIsSigningIn(true);
-
-//     try {
-//       console.log("Attempting login with email:", email);
-//       console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
-//       const response = await fetch(
-//         "https://crm-omnivoltaic.odoo.com/api/auth/login",
-//         {
-//           method: "POST",
-//           headers: {
-//             "Content-Type": "application/json",
-//             "X-API-KEY": "abs_connector_secret_key_2024",
-//           },
-//           body: JSON.stringify({ email, password }),
-//         }
-//       );
-
-//       const data = await response.json();
-      
-//       console.info("=== Login Response ===");
-//       console.info("Response Status:", response.status);
-//       console.info("Response OK:", response.ok);
-//       console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
-//       console.info("Full Response Data:", JSON.stringify(data, null, 2));
-//       console.info("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
-
-//       if (response.status === 200) {
-//         console.log("Login successful");
-//         localStorage.setItem("userEmail", email);
-//         // Save token to localStorage if present in response
-//         const token = data.session?.token || data.token;
-//         if (token) {
-//           localStorage.setItem("authToken_rider", token);
-//           console.log("Token saved to localStorage:", token.substring(0, 20) + "...");
-//           console.log("Verifying token in localStorage:", localStorage.getItem("authToken_rider") ? "Found" : "Not found");
-//         } else {
-//           console.warn("No token found in response. Available keys:", Object.keys(data));
-//           if (data.session) {
-//             console.warn("Session object keys:", Object.keys(data.session));
-//           }
-//         }
-//         // Extract customer data from session.user or fallback to data.customer
-//         // Explicitly extract all fields including partner_id from session.user
-//         const sessionUser = data.session?.user;
-//         const fallbackCustomer = data.customer;
-        
-//         let customerData: Customer;
-        
-//         if (sessionUser) {
-//           // Use session.user data (has partner_id)
-//           customerData = {
-//             id: sessionUser.id || 0,
-//             name: sessionUser.name || "",
-//             email: sessionUser.email || "",
-//             phone: sessionUser.phone || "",
-//             // Explicitly get partner_id - don't use || operator as 0 is valid
-//             partner_id: sessionUser.partner_id !== undefined ? sessionUser.partner_id : undefined,
-//           };
-//           console.log("Login: sessionUser object:", sessionUser);
-//           console.log("Login: sessionUser.partner_id:", sessionUser.partner_id);
-//         } else if (fallbackCustomer) {
-//           // Fallback to data.customer
-//           customerData = {
-//             id: fallbackCustomer.id || 0,
-//             name: fallbackCustomer.name || "",
-//             email: fallbackCustomer.email || "",
-//             phone: fallbackCustomer.phone || "",
-//             partner_id: fallbackCustomer.partner_id !== undefined ? fallbackCustomer.partner_id : undefined,
-//           };
-//         } else {
-//           throw new Error("No customer data found in response");
-//         }
-        
-//         console.log("Login: Customer data prepared:", customerData);
-//         console.log("Login: partner_id from session.user:", data.session?.user?.partner_id);
-//         console.log("Login: Final customerData.partner_id:", customerData.partner_id);
-        
-//         // toast.success(`Welcome! Signed in as ${customerData.name}`);
-//         onLoginSuccess(customerData);
-//       } else if (response.status === 404) {
-//         console.error("=== Login Error Response (404) ===");
-//         console.error("Response Status:", response.status);
-//         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
-//         console.error("Error Data:", JSON.stringify(data, null, 2));
-//         console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
-//         toast.error(t("User not found. Would you like to create an account?"));
-//         // Optionally pre-fill the registration email
-//         setFormData(prev => ({ ...prev, email }));
-//         setTimeout(() => setShowRegister(true), 1500);
-//       } else if (response.status === 400) {
-//         console.error("=== Login Error Response (400) ===");
-//         console.error("Response Status:", response.status);
-//         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
-//         console.error("Error Data:", JSON.stringify(data, null, 2));
-//         console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
-//         throw new Error(t("Invalid request. Please ensure your email is correct."));
-//       } else {
-//         console.error("=== Login Error Response ===");
-//         console.error("Response Status:", response.status);
-//         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
-//         console.error("Error Data:", JSON.stringify(data, null, 2));
-//         console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
-//         throw new Error(data.message || t("Login failed. Please try again."));
-//       }
-//     } catch (error: any) {
-//       console.error("Sign-in error:", error);
-//       toast.error(error.message || t("Sign-in failed. Please try again."));
-//     } finally {
-//       setIsSigningIn(false);
-//     }
-//   };
-
-//   const handleRegister = async () => {
-//     if (!validateForm()) {
-//       setSubmitStatus('error');
-//       setSubmitMessage(t('Please fix the errors above'));
-//       return;
-//     }
-
-//     setIsSubmitting(true);
-//     setSubmitStatus(null);
-
-//     try {
-//       // Always use company_id: "14" regardless of country selection
-//       const apiData = {
-//         name: formData.name,
-//         email: formData.email,
-//         phone: formData.phone,
-//         company_id: "14",
-//       };
-
-//       console.log('Submitting registration:', apiData);
-//       console.log('Registration endpoint: https://crm-omnivoltaic.odoo.com/api/auth/register');
-//       const response = await fetch('https://crm-omnivoltaic.odoo.com/api/auth/register', {
-//         method: 'POST',
-//         headers: {
-//           'Content-Type': 'application/json',
-//           'X-API-KEY': 'abs_connector_secret_key_2024',
-//         },
-//         body: JSON.stringify(apiData),
-//       });
-
-//       if (!response.ok) {
-//         let errorMessage = `HTTP error! Status: ${response.status} ${response.statusText}`;
-//         const contentType = response.headers.get('content-type');
-
-//         if (contentType && contentType.includes('application/json')) {
-//           const errorData = await response.json();
-//           console.error('=== Registration Error Response ===');
-//           console.error('Response Status:', response.status);
-//           console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
-//           console.error('Error Data:', JSON.stringify(errorData, null, 2));
-//           console.error('Payload Sent:', JSON.stringify(apiData, null, 2));
-//           errorMessage = errorData.message || errorData.error || errorMessage;
-//         } else {
-//           console.error('=== Registration Error Response ===');
-//           console.error('Response Status:', response.status);
-//           console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
-//           console.error('Payload Sent:', JSON.stringify(apiData, null, 2));
-//         }
-//         throw new Error(errorMessage);
-//       }
-
-//       const result = await response.json();
-      
-//       console.info('=== Registration Response ===');
-//       console.info('Response Status:', response.status);
-//       console.info('Response OK:', response.ok);
-//       console.info('Response Headers:', Object.fromEntries(response.headers.entries()));
-//       console.info('Full Response Data:', JSON.stringify(result, null, 2));
-//       console.info('Payload Sent:', JSON.stringify(apiData, null, 2));
-      
-//       toast.success(t('Registration successful! You can now sign in.'));
-      
-//       // Switch back to login form and pre-fill email
-//       setShowRegister(false);
-//       setEmail(formData.email);
-      
-//       // Reset registration form
-//       setFormData({
-//         name: '',
-//         email: '',
-//         phone: '',
-//         street: '',
-//         city: '',
-//         zip: '',
-//         country: '',
-//       });
-//       setAssignBattery(false);
-//       // Keep scannedBatteryCode in localStorage - don't clear it after registration
-//       // Reload from localStorage to maintain persistence
-//       const persistedBatteryCode = localStorage.getItem('assignedBatteryCode');
-//       setScannedBatteryCode(persistedBatteryCode);
-//       setSubmitStatus(null);
-//       setErrors({});
-      
-//     } catch (error: any) {
-//       console.error('Registration error:', error);
-//       setSubmitStatus('error');
-//       setSubmitMessage(error.message || 'Registration failed. Please try again.');
-//     } finally {
-//       setIsSubmitting(false);
-//     }
-//   };
-
-//   const handleInputChange = (field: keyof FormData, value: string) => {
-//     setFormData(prev => ({ ...prev, [field]: value }));
-//     if (errors[field as keyof FormErrors]) {
-//       setErrors(prev => ({ ...prev, [field]: undefined }));
-//     }
-//   };
-
-//   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     setEmail(e.target.value);
-//   };
-//   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     setPassword(e.target.value);
-//   };
-
-//   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-//     if (e.key === "Enter") {
-//       if (showRegister) {
-//         handleRegister();
-//       } else {
-//         handleSignIn();
-//       }
-//     }
-//   };
-
-//   if (showRegister) {
-//     return (
-//       <div className="flex-1 flex items-center justify-center p-4">
-//         <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-//           {/* Header */}
-//           <div className="text-center mb-6">
-//             <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-//               <UserPlus className="w-8 h-8 text-white" />
-//             </div>
-//             <h1 className="text-2xl font-bold text-white mb-2">{t('Create Account')}</h1>
-//             <p className="text-gray-400">{t('Join our community today')}</p>
-//           </div>
-
-//           {/* Success/Error Messages */}
-//           {submitStatus && (
-//             <div className={`mb-4 p-3 rounded-lg flex items-center ${
-//               submitStatus === 'success' 
-//                 ? 'bg-green-900/50 border border-green-700 text-green-200' 
-//                 : 'bg-red-900/50 border border-red-700 text-red-200'
-//             }`}>
-//               {submitStatus === 'success' ? (
-//                 <CheckCircle size={16} className="mr-2 flex-shrink-0" />
-//               ) : (
-//                 <AlertCircle size={16} className="mr-2 flex-shrink-0" />
-//               )}
-//               <span className="text-sm">{submitMessage}</span>
-//             </div>
-//           )}
-
-//           {/* Registration Form */}
-//           <div className="space-y-4">
-//             {/* Name */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-300 mb-1">
-//                 {t('Full Name')} <span className="text-red-400">*</span>
-//               </label>
-//               <div className="relative">
-//                 <User size={16} className="absolute left-3 top-3 text-gray-500" />
-//                 <input
-//                   type="text"
-//                   value={formData.name}
-//                   onChange={(e) => handleInputChange('name', e.target.value)}
-//                   className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                     errors.name ? 'border-red-500' : 'border-gray-600'
-//                   }`}
-//                   placeholder={t('Enter your full name')}
-//                 />
-//               </div>
-//               {errors.name && (
-//                 <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-//               )}
-//             </div>
-
-//             {/* Country Selection */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-300 mb-1">
-//                 {t('Country')} <span className="text-red-400">*</span>
-//               </label>
-//               <div className="relative">
-//                 <Globe size={16} className="absolute left-3 top-3 text-gray-500 z-10" />
-//                 <select
-//                   value={formData.country}
-//                   onChange={(e) => handleInputChange('country', e.target.value)}
-//                   className={`w-full pl-10 pr-4 py-3 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none ${
-//                     errors.country ? 'border-red-500' : 'border-gray-600'
-//                   }`}
-//                 >
-//                   <option value="" className="text-gray-400">{t('Please select a country')}</option>
-//                   {countryOptions.map((country) => (
-//                     <option key={country.value} value={country.value} className="bg-gray-700 text-white">
-//                       {country.label}
-//                     </option>
-//                   ))}
-//                 </select>
-//                 {/* Custom dropdown arrow */}
-//                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-//                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-//                   </svg>
-//                 </div>
-//               </div>
-//               {errors.country && (
-//                 <p className="mt-1 text-sm text-red-400">{errors.country}</p>
-//               )}
-//             </div>
-
-//             {/* Email */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-300 mb-1">
-//                 {t('Email')} <span className="text-red-400">*</span>
-//               </label>
-//               <div className="relative">
-//                 <Mail size={16} className="absolute left-3 top-3 text-gray-500" />
-//                 <input
-//                   type="email"
-//                   value={formData.email}
-//                   onChange={(e) => handleInputChange('email', e.target.value)}
-//                   className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                     errors.email ? 'border-red-500' : 'border-gray-600'
-//                   }`}
-//                   placeholder={t('Enter your email')}
-//                 />
-//               </div>
-//               {errors.email && (
-//                 <p className="mt-1 text-sm text-red-400">{errors.email}</p>
-//               )}
-//             </div>
-
-//             {/* Phone */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-300 mb-1">
-//                 {t('Phone')} <span className="text-red-400">*</span>
-//               </label>
-//               <div className="relative">
-//                 <Phone size={16} className="absolute left-3 top-3 text-gray-500" />
-//                 <input
-//                   type="tel"
-//                   value={formData.phone}
-//                   onChange={(e) => handleInputChange('phone', e.target.value)}
-//                   className={`w-full px-10 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                     errors.phone ? 'border-red-500' : 'border-gray-600'
-//                   }`}
-//                   placeholder={t('Enter your phone number')}
-//                 />
-//               </div>
-//               {errors.phone && (
-//                 <p className="mt-1 text-sm text-red-400">{errors.phone}</p>
-//               )}
-//             </div>
-
-//             {/* Street */}
-//             <div>
-//               <label className="block text-sm font-medium text-gray-300 mb-1">
-//                 {t('Street Address')} <span className="text-red-400">*</span>
-//               </label>
-//               <input
-//                 type="text"
-//                 value={formData.street}
-//                 onChange={(e) => handleInputChange('street', e.target.value)}
-//                 className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                   errors.street ? 'border-red-500' : 'border-gray-600'
-//                 }`}
-//                 placeholder={t('Enter street address')}
-//               />
-//               {errors.street && (
-//                 <p className="mt-1 text-sm text-red-400">{errors.street}</p>
-//               )}
-//             </div>
-
-//             {/* City and Zip */}
-//             <div className="grid grid-cols-2 gap-4">
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-300 mb-1">
-//                   {t('City')} <span className="text-red-400">*</span>
-//                 </label>
-//                 <input
-//                   type="text"
-//                   value={formData.city}
-//                   onChange={(e) => handleInputChange('city', e.target.value)}
-//                   className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                     errors.city ? 'border-red-500' : 'border-gray-600'
-//                   }`}
-//                   placeholder={t('City')}
-//                 />
-//                 {errors.city && (
-//                   <p className="mt-1 text-sm text-red-400">{errors.city}</p>
-//                 )}
-//               </div>
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-300 mb-1">
-//                   {t('Zip')} <span className="text-red-400">*</span>
-//                 </label>
-//                 <input
-//                   type="text"
-//                   value={formData.zip}
-//                   onChange={(e) => handleInputChange('zip', e.target.value)}
-//                   className={`w-full px-4 py-3 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-//                     errors.zip ? 'border-red-500' : 'border-gray-600'
-//                   }`}
-//                   placeholder={t('Zip')}
-//                 />
-//                 {errors.zip && (
-//                   <p className="mt-1 text-sm text-red-400">{errors.zip}</p>
-//                 )}
-//               </div>
-//             </div>
-
-//             {/* Assign Battery Checkbox */}
-//             <div className="space-y-2 pt-2">
-//               <div className="flex items-center gap-2">
-//                 <input
-//                   type="checkbox"
-//                   id="assignBattery"
-//                   checked={assignBattery}
-//                   onChange={(e) => {
-//                     const isChecked = e.target.checked;
-//                     setAssignBattery(isChecked);
-//                     if (!isChecked) {
-//                       setScannedBatteryCode(null);
-//                       localStorage.removeItem('assignedBatteryCode');
-//                     }
-//                   }}
-//                   className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-//                 />
-//                 <label htmlFor="assignBattery" className="text-sm text-gray-300 cursor-pointer">
-//                   {t('Assign Battery')}
-//                 </label>
-//               </div>
-              
-//               {assignBattery && (
-//                 <div className="ml-6 space-y-2">
-//                   {scannedBatteryCode ? (
-//                     <div className="bg-green-900/30 border border-green-700 rounded-lg p-2">
-//                       <p className="text-xs text-green-300 mb-1">{t('Battery Code Scanned')}:</p>
-//                       <p className="text-sm font-mono text-green-200">{scannedBatteryCode}</p>
-//                       <button
-//                         type="button"
-//                         onClick={() => {
-//                           setScannedBatteryCode(null);
-//                           localStorage.removeItem('assignedBatteryCode');
-//                         }}
-//                         className="mt-2 text-xs text-red-400 hover:text-red-300"
-//                       >
-//                         {t('Clear')}
-//                       </button>
-//                     </div>
-//                   ) : (
-//                     <button
-//                       type="button"
-//                       onClick={startBatteryQrScan}
-//                       disabled={isScanningBattery}
-//                       className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:cursor-not-allowed text-sm"
-//                     >
-//                       {isScanningBattery ? (
-//                         <>
-//                           <Loader2 className="w-4 h-4 animate-spin" />
-//                           {t('Scanning...')}
-//                         </>
-//                       ) : (
-//                         <>
-//                           <QrCode className="w-4 h-4" />
-//                           {t('Scan Battery QR Code')}
-//                         </>
-//                       )}
-//                     </button>
-//                   )}
-//                 </div>
-//               )}
-//             </div>
-//           </div>
-
-//           {/* Buttons */}
-//           <div className="mt-6 space-y-3">
-//             <button
-//               onClick={handleRegister}
-//               disabled={isSubmitting || (assignBattery && !scannedBatteryCode)}
-//               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
-//             >
-//               {isSubmitting ? (
-//                 <>
-//                   <Loader2 className="w-5 h-5 animate-spin" />
-//                   {t('Creating Account...')}
-//                 </>
-//               ) : (
-//                 <>
-//                   <UserPlus className="w-5 h-5" />
-//                   {t('Create Account')}
-//                 </>
-//               )}
-//             </button>
-
-//             <button
-//               onClick={() => setShowRegister(false)}
-//               disabled={isSubmitting}
-//               className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
-//             >
-//               {t('Back to Sign In')}
-//             </button>
-//           </div>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   // Login Form
-//   return (
-//     <div className="flex-1 flex items-center justify-center p-4">
-//       <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md">
-//         {isSigningIn ? (
-//           <div className="text-center">
-//             <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-//             <p className="text-white mt-4">Signing in...</p>
-//           </div>
-//         ) : (
-//           <>
-//             <div className="text-center mb-8">
-//               <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-//                 <User className="w-8 h-8 text-white" />
-//               </div>
-//               <h1 className="text-2xl font-bold text-white mb-2">{t('Welcome')}</h1>
-//               <p className="text-gray-400">{t('Please enter your email and password to continue')}</p>
-//             </div>
-            
-//             <div className="mb-6">
-//               <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-//                 {t('Email')}
-//               </label>
-//               <input
-//                 id="email"
-//                 type="email"
-//                 value={email}
-//                 onChange={handleEmailChange}
-//                 onKeyPress={handleKeyPress}
-//                 placeholder={t('Enter your email')}
-//                 disabled={isSigningIn}
-//                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-//               />
-//             </div>
-
-//             <div className="mb-6">
-//               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-//                 {t('Password')}
-//               </label>
-//               <div className="relative">
-//                 <input
-//                   id="password"
-//                   type={showPassword ? 'text' : 'password'}
-//                   value={password}
-//                   onChange={handlePasswordChange}
-//                   onKeyPress={handleKeyPress}
-//                   placeholder={t('Enter your password')}
-//                   disabled={isSigningIn}
-//                   className="w-full pr-12 pl-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowPassword((v) => !v)}
-//                   aria-label={showPassword ? t('Hide password') : t('Show password')}
-//                   className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-200"
-//                   disabled={isSigningIn}
-//                 >
-//                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             <div className="space-y-3">
-//               <button
-//                 onClick={handleSignIn}
-//                 disabled={isSigningIn || !email.trim() || !password.trim()}
-//                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none disabled:hover:scale-100"
-//               >
-//                 {isSigningIn ? (
-//                   <>
-//                     <Loader2 className="w-5 h-5 animate-spin" />
-//                     {t('Signing in...')}
-//                   </>
-//                 ) : (
-//                   <>
-//                     <LogIn className="w-5 h-5" />
-//                     {t('Sign In')}
-//                   </>
-//                 )}
-//               </button>
-
-//               <button
-//                 onClick={() => setShowRegister(true)}
-//                 disabled={isSigningIn}
-//                 className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
-//               >
-//                 <UserPlus className="w-5 h-5 inline mr-2" />
-//                 {t('Create New Account')}
-//               </button>
-//             </div>
-
-//             <div className="mt-6 text-center">
-//               <p className="text-sm text-gray-500">{t('Need help? Contact support')}</p>
-//             </div>
-//           </>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Login;
