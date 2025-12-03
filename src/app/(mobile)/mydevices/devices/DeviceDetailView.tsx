@@ -54,7 +54,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
       const oemItemId = attService.characteristicList.find((char: any) => char.name === 'opid')?.realVal || null;
       if (!oemItemId) {
-        toast.error(t('OEM Item ID not available'), { duration: 1000 });
+        // toast.error(t('OEM Item ID not available'), { duration: 1000 });
         return;
       }
 
@@ -100,7 +100,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         if (fetchedItemId) {
           setItemId(fetchedItemId);
           console.log('Item ID fetched successfully:', fetchedItemId);
-          toast.success(t('Item ID fetched successfully'), { duration: 1000 });
+          // toast.success(t('Item ID fetched successfully'), { duration: 1000 });
         } else {
           throw new Error('No item ID returned in response');
         }
@@ -139,7 +139,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleSubmit = async () => {
     if (!itemId) {
-      toast.error(t('Item ID not available'));
+      // toast.error(t('Item ID not available'));
       return;
     }
     if (!duration) {
@@ -240,7 +240,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleRetrieveCodes = async () => {
     if (!itemId) {
-      toast.error(t('Item ID not available'));
+      // toast.error(t('Item ID not available'));
       return;
     }
 

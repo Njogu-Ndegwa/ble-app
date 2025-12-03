@@ -1509,12 +1509,12 @@ const AppContainer = () => {
         JSON.stringify(dataToPublish),
         (response) => {
           console.info(`MQTT Response for ${serviceType}:`, response);
-          toast.success(t('{service} data published successfully', { service: serviceType }));
+          // toast.success(t('{service} data published successfully', { service: serviceType }));
         }
       );
     } catch (error) {
       console.error(`Error publishing ${serviceType} data:`, error);
-      toast.error(t('Error publishing {service} data', { service: serviceType }));
+      // toast.error(t('Error publishing {service} data', { service: serviceType }));
     }
   };
   const readDeviceInfo = () => {
