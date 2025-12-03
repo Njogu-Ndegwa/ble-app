@@ -103,25 +103,32 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
                   autoComplete="off"
                 />
               </div>
-              <button 
-                className="btn btn-primary" 
-                style={{ width: '100%', marginTop: '8px' }}
-                onClick={handleManualConfirm}
-                disabled={isProcessing || !paymentId.trim()}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-                {isProcessing ? t('attendant.confirmingPayment') : t('sales.confirmPayment')}
-              </button>
             </div>
             
-            <p className="scan-hint" style={{ marginTop: '8px' }}>
+            {/* Large Confirm Payment button - matches ScannerArea placement and prominence */}
+            <button 
+              className="confirm-payment-cta" 
+              onClick={handleManualConfirm}
+              disabled={isProcessing || !paymentId.trim()}
+            >
+              <div className="confirm-payment-cta-inner">
+                <div className="confirm-payment-cta-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                </div>
+                <span className="confirm-payment-cta-text">
+                  {isProcessing ? t('attendant.confirmingPayment') : t('sales.confirmPayment')}
+                </span>
+              </div>
+            </button>
+            
+            <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              {t('attendant.enterMpesaCode')}
+              {t('sales.tapToConfirmPayment')}
             </p>
           </div>
         )}
