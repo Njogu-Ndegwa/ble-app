@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
+import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
 import { useI18n } from '@/i18n';
@@ -1416,7 +1417,7 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
       
-      {/* Header with Back and Language Toggle */}
+      {/* Header with Back, Logo, and Language Toggle */}
       <header className="flow-header">
         <div className="flow-header-inner">
           <button className="flow-header-back" onClick={handleBackToRoles}>
@@ -1425,6 +1426,14 @@ export default function SalesFlow({ onBack }: SalesFlowProps) {
             </svg>
             <span>{t('sales.changeRole')}</span>
           </button>
+          <Image
+            src="/assets/Logo-Oves.png"
+            alt="Omnivoltaic"
+            width={100}
+            height={32}
+            style={{ objectFit: 'contain' }}
+            priority
+          />
           <button
             className="flow-header-lang"
             onClick={toggleLocale}
