@@ -1198,19 +1198,29 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         setPaymentRequestData(paymentRequestResponse.payment_request);
         setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
         toast.success('Payment ticket created. Collect payment from customer.');
-      } else if (paymentRequestResponse.existing_request) {
-        // There's already an active payment request - use it
-        console.log('Using existing payment request:', paymentRequestResponse.existing_request);
-        setPaymentRequestCreated(true);
-        // We don't have full PaymentRequestData, but we have the essential info
-        setPaymentRequestOrderId(paymentRequestResponse.existing_request.id);
-        // Update expected amount to match existing request
-        setExpectedPaymentAmount(paymentRequestResponse.existing_request.amount_remaining);
-        toast.success(`Using existing payment request. Remaining: KES ${paymentRequestResponse.existing_request.amount_remaining}`);
       } else {
-        // Request failed for another reason
+        // Payment request creation failed - show error to user
+        // This includes the case when there's an existing active payment request
         console.error('Payment request creation failed:', paymentRequestResponse.error);
-        toast.error(paymentRequestResponse.error || 'Failed to create payment request');
+        
+        // Build a detailed error message
+        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
+        
+        // If there's an existing request, include details about it
+        if (paymentRequestResponse.existing_request) {
+          const existingReq = paymentRequestResponse.existing_request;
+          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: KES ${existingReq.amount_remaining} remaining (${existingReq.status})`;
+          
+          // Log the available actions for debugging
+          console.log('Existing request actions:', existingReq.actions);
+        }
+        
+        // Show instructions if available
+        if (paymentRequestResponse.instructions && paymentRequestResponse.instructions.length > 0) {
+          console.log('Instructions:', paymentRequestResponse.instructions);
+        }
+        
+        toast.error(errorMessage);
         return false;
       }
 
@@ -1264,36 +1274,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     // Confirm payment with Odoo
     const confirmPayment = async () => {
-      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
-      // Use order_id from payment request if available (preferred)
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
       const orderId = paymentRequestOrderId;
       
       try {
-        // Must have either order_id or subscription_code
-        if (!orderId && !subscriptionCode) {
-          // No subscription ID or order ID - just proceed with MQTT flow using expected cost
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed');
-          publishPaymentAndService(receipt, false, expectedPaymentAmount || swapData.cost);
+        // order_id is REQUIRED - payment request must be created first
+        if (!orderId) {
+          toast.error('Payment request not created. Please go back and try again.');
+          setIsScanning(false);
+          scanTypeRef.current = null;
           return;
         }
 
-        // Use Odoo manual confirmation endpoint
-        // Prefer order_id over subscription_code
-        const confirmPayload: any = { receipt };
-        if (orderId) {
-          confirmPayload.order_id = orderId;
-          console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
-        } else {
-          confirmPayload.subscription_code = subscriptionCode;
-          confirmPayload.customer_id = customerData?.id;
-          console.log('Confirming payment with subscription_code:', { subscription_code: subscriptionCode, receipt });
-        }
-
-        const response = await confirmPaymentManual(confirmPayload);
+        // Use Odoo manual confirmation endpoint with order_id ONLY
+        console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
+        const response = await confirmPaymentManual({ order_id: orderId, receipt });
         
         if (response.success) {
           // Extract payment amounts from response
@@ -2613,16 +2608,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [startQrCodeScan, paymentRequestCreated, initiateOdooPayment]);
 
   // Step 5: Manual payment confirmation with Odoo
-  // Uses order_id (preferred) or subscription_code to confirm payment
+  // Uses order_id ONLY to confirm payment (from createPaymentRequest response)
   // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
   const handleManualPayment = useCallback((receipt: string) => {
     setIsProcessing(true);
     
     // Confirm payment with Odoo using manual confirmation endpoint
     const confirmManualPayment = async () => {
-      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
-      // Use order_id from payment request if available (preferred)
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
       const orderId = paymentRequestOrderId;
       
       try {
@@ -2635,30 +2628,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           }
         }
 
-        // Must have either order_id or subscription_code
-        if (!orderId && !subscriptionCode) {
-          // No subscription ID or order ID - just proceed with MQTT flow using expected cost
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed');
-          publishPaymentAndService(receipt, false, expectedPaymentAmount || swapData.cost);
+        // order_id is REQUIRED - payment request must be created first
+        if (!orderId) {
+          toast.error('Payment request not created. Please go back and try again.');
+          setIsProcessing(false);
           return;
         }
 
-        // Use Odoo manual confirmation endpoint
-        // Prefer order_id over subscription_code
-        const confirmPayload: any = { receipt };
-        if (orderId) {
-          confirmPayload.order_id = orderId;
-          console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
-        } else {
-          confirmPayload.subscription_code = subscriptionCode;
-          confirmPayload.customer_id = customerData?.id;
-          console.log('Confirming manual payment with subscription_code:', { subscription_code: subscriptionCode, receipt });
-        }
-
-        const response = await confirmPaymentManual(confirmPayload);
+        // Use Odoo manual confirmation endpoint with order_id ONLY
+        console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
+        const response = await confirmPaymentManual({ order_id: orderId, receipt });
         
         if (response.success) {
           // Extract payment amounts from response
