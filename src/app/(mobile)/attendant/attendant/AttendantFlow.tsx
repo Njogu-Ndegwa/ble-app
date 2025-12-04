@@ -2561,11 +2561,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const newBatteryId = swapData.newBattery?.id || null;
     const oldBatteryId = swapData.oldBattery?.id || null;
 
-    const checkoutEnergy = swapData.newBattery?.energy || 0;
-    const checkinEnergy = swapData.oldBattery?.energy || 0;
+    // Battery energy is stored in Wh, convert to kWh for backend (divide by 1000)
+    const checkoutEnergyWh = swapData.newBattery?.energy || 0;
+    const checkinEnergyWh = swapData.oldBattery?.energy || 0;
+    const checkoutEnergyKwh = checkoutEnergyWh / 1000;
+    const checkinEnergyKwh = checkinEnergyWh / 1000;
     let energyTransferred = customerType === 'returning' 
-      ? checkoutEnergy - checkinEnergy 
-      : checkoutEnergy;
+      ? checkoutEnergyKwh - checkinEnergyKwh 
+      : checkoutEnergyKwh;
     if (energyTransferred < 0) energyTransferred = 0;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
@@ -2751,7 +2754,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
               // Check for error signals - these indicate failure even if success is true
               // Backend may return success:true with error signals for validation failures
-              const errorSignals = ["BATTERY_MISMATCH", "ASSET_VALIDATION_FAILED", "SECURITY_ALERT", "VALIDATION_FAILED", "PAYMENT_FAILED"];
+              const errorSignals = [
+                "BATTERY_MISMATCH", 
+                "ASSET_VALIDATION_FAILED", 
+                "SECURITY_ALERT", 
+                "VALIDATION_FAILED", 
+                "PAYMENT_FAILED",
+                "SERVICE_COMPLETION_FAILED",
+                "RATE_LIMIT_EXCEEDED",
+                "SERVICE_REJECTED"
+              ];
               const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
 
               // Handle both fresh success and idempotent (cached) responses
@@ -2811,52 +2823,86 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       }
     );
 
-    // Publish the request
-    console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
+    // Subscribe to response topic first, then publish
+    console.info("=== Subscribing to response topic for payment_and_service ===");
     
-    try {
-      bridge.callHandler(
-        "mqttPublishMsg",
-        JSON.stringify(dataToPublish),
-        (publishResponse: any) => {
-          console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
-          try {
-            const pubResp = typeof publishResponse === 'string' 
-              ? JSON.parse(publishResponse) 
-              : publishResponse;
+    bridge.callHandler(
+      "mqttSubTopic",
+      { topic: responseTopic, qos: 1 },
+      (subscribeResponse: string) => {
+        try {
+          const subResp = typeof subscribeResponse === 'string' 
+            ? JSON.parse(subscribeResponse) 
+            : subscribeResponse;
+          
+          if (subResp?.respCode === "200") {
+            console.info("✅ Successfully subscribed to payment_and_service response topic:", responseTopic);
             
-            if (pubResp?.error || pubResp?.respCode !== "200") {
-              console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
-              toast.error("Failed to complete swap");
-              setPaymentAndServiceStatus('error');
-              clearTimeout(timeoutId);
-              setIsScanning(false);
-              setIsProcessing(false);
-            } else {
-              console.info("payment_and_service published successfully, waiting for backend response...");
-              // Wait for the actual backend response via MQTT handler
-              // The 30-second timeout will handle cases where no response is received
-              // Do NOT assume success - we must wait for confirmation that quota was updated
-            }
-          } catch (err) {
-            console.error("Error parsing payment_and_service publish response:", err);
-            toast.error("Error completing swap");
+            // Wait a moment after subscribe before publishing
+            setTimeout(() => {
+              try {
+                console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
+                bridge.callHandler(
+                  "mqttPublishMsg",
+                  JSON.stringify(dataToPublish),
+                  (publishResponse: any) => {
+                    console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
+                    try {
+                      const pubResp = typeof publishResponse === 'string' 
+                        ? JSON.parse(publishResponse) 
+                        : publishResponse;
+                      
+                      if (pubResp?.error || pubResp?.respCode !== "200") {
+                        console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
+                        toast.error("Failed to complete swap");
+                        setPaymentAndServiceStatus('error');
+                        clearTimeout(timeoutId);
+                        setIsScanning(false);
+                        setIsProcessing(false);
+                      } else {
+                        console.info("payment_and_service published successfully, waiting for backend response...");
+                        // Wait for the actual backend response via MQTT handler
+                        // The 30-second timeout will handle cases where no response is received
+                        // Do NOT assume success - we must wait for confirmation that quota was updated
+                      }
+                    } catch (err) {
+                      console.error("Error parsing payment_and_service publish response:", err);
+                      toast.error("Error completing swap");
+                      setPaymentAndServiceStatus('error');
+                      clearTimeout(timeoutId);
+                      setIsScanning(false);
+                      setIsProcessing(false);
+                    }
+                  }
+                );
+                console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
+              } catch (err) {
+                console.error("Exception calling bridge.callHandler for payment_and_service:", err);
+                toast.error("Error sending request. Please try again.");
+                setPaymentAndServiceStatus('error');
+                clearTimeout(timeoutId);
+                setIsScanning(false);
+                setIsProcessing(false);
+              }
+            }, 300);
+          } else {
+            console.error("Failed to subscribe to payment_and_service response topic:", subResp?.respDesc || subResp?.error);
+            toast.error("Failed to connect. Please try again.");
             setPaymentAndServiceStatus('error');
             clearTimeout(timeoutId);
             setIsScanning(false);
             setIsProcessing(false);
           }
+        } catch (err) {
+          console.error("Error parsing payment_and_service subscribe response:", err);
+          toast.error("Error connecting. Please try again.");
+          setPaymentAndServiceStatus('error');
+          clearTimeout(timeoutId);
+          setIsScanning(false);
+          setIsProcessing(false);
         }
-      );
-      console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
-    } catch (err) {
-      console.error("Exception calling bridge.callHandler for payment_and_service:", err);
-      toast.error("Error sending request. Please try again.");
-      setPaymentAndServiceStatus('error');
-      clearTimeout(timeoutId);
-      setIsScanning(false);
-      setIsProcessing(false);
-    }
+      }
+    );
   }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
 
   // Keep publishPaymentAndService ref up to date to avoid circular dependency with handleProceedToPayment
