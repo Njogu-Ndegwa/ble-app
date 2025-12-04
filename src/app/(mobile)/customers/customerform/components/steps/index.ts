@@ -1,6 +1,11 @@
 export { default as Step1CustomerForm } from './Step1CustomerForm';
-export { default as Step2SelectProduct } from './Step2SelectProduct';
-export { default as Step3SelectPlan } from './Step2SelectPlan';  // Note: file still named Step2 but exported as Step3
-export { default as Step4Payment } from './Step3Payment';  // Note: file still named Step3 but exported as Step4
-export { default as Step5AssignBattery } from './Step4AssignBattery';  // Note: file still named Step4 but exported as Step5
-export { default as Step6Success } from './Step5Success';  // Note: file still named Step5 but exported as Step6
+export { default as Step2SelectPackage } from './Step2SelectPackage';  // NEW: Package selection (product + privilege bundled)
+export { default as Step3SelectSubscription } from './Step2SelectPlan';  // Subscription selection
+export { default as Step4Preview } from './Step4Preview';  // NEW: Order preview before payment
+export { default as Step5Payment } from './Step3Payment';  // Payment collection
+export { default as Step6AssignBattery } from './Step4AssignBattery';  // Battery assignment
+export { default as Step7Success } from './Step5Success';  // Success confirmation
+
+// Legacy exports for backward compatibility (if needed)
+export { default as Step2SelectProduct } from './Step2SelectProduct';  // Deprecated: Use Step2SelectPackage
+export { default as Step3SelectPlan } from './Step2SelectPlan';  // Deprecated: Use Step3SelectSubscription
