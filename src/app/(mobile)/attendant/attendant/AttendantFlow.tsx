@@ -311,15 +311,20 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
   );
 
+  // Get swap-count service from service states
+  const swapCountService = serviceStates.find(
+    (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-swap-count')
+  );
+
   // Get battery fleet service (to check current_asset for customer type)
   const batteryFleetService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
   );
 
   // Check if we can skip payment collection
-  // Returns true if:
-  // 1. Cost is 0 or less (no payment needed) AND we have battery data, OR
-  // 2. Customer has sufficient remaining quota to cover the energy transfer
+  // Returns true if BOTH conditions are met:
+  // 1. Electricity quota: remaining kWh >= energy being transferred (or cost <= 0)
+  // 2. Swap count quota: remaining swaps >= 1
   const hasSufficientQuota = useMemo(() => {
     // Only check quota/cost once we have battery data (Step 4 - Review)
     // Without new battery data, we can't determine if payment is needed
@@ -327,42 +332,70 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return false;
     }
     
-    // If cost is 0 or negative, no payment is needed regardless of quota
+    // === Check 1: Electricity Quota ===
+    let hasEnoughElectricity = false;
+    
+    // If cost is 0 or negative, no electricity payment is needed
     // This handles cases where customer returns equal or more energy than they receive
     if (swapData.cost <= 0) {
-      console.info('Skip payment: cost is 0 or negative', { cost: swapData.cost });
-      return true;
+      console.info('Electricity check: cost is 0 or negative', { cost: swapData.cost });
+      hasEnoughElectricity = true;
+    } else if (electricityService) {
+      const elecQuota = Number(electricityService.quota ?? 0);
+      const elecUsed = Number(electricityService.used ?? 0);
+      const remainingElecQuota = elecQuota - elecUsed;
+      const energyNeeded = swapData.energyDiff;
+      
+      hasEnoughElectricity = Number.isFinite(remainingElecQuota) && 
+                             Number.isFinite(energyNeeded) && 
+                             remainingElecQuota >= energyNeeded &&
+                             energyNeeded > 0;
+      
+      console.info('Electricity quota check:', {
+        quota: elecQuota,
+        used: elecUsed,
+        remainingQuota: remainingElecQuota,
+        energyNeeded,
+        hasEnough: hasEnoughElectricity,
+      });
+    } else {
+      console.info('Electricity check: no electricity service found');
+      hasEnoughElectricity = false;
     }
     
-    // Check if customer has enough remaining quota to cover the energy transfer
-    if (!electricityService) {
-      console.info('Skip payment check: no electricity service found');
-      return false;
+    // === Check 2: Swap Count Quota ===
+    let hasEnoughSwaps = false;
+    
+    if (swapCountService) {
+      const swapQuota = Number(swapCountService.quota ?? 0);
+      const swapUsed = Number(swapCountService.used ?? 0);
+      const remainingSwaps = swapQuota - swapUsed;
+      
+      // Need at least 1 swap remaining
+      hasEnoughSwaps = Number.isFinite(remainingSwaps) && remainingSwaps >= 1;
+      
+      console.info('Swap count quota check:', {
+        quota: swapQuota,
+        used: swapUsed,
+        remainingSwaps,
+        hasEnough: hasEnoughSwaps,
+      });
+    } else {
+      console.info('Swap count check: no swap-count service found');
+      hasEnoughSwaps = false;
     }
     
-    const quotaValue = Number(electricityService.quota ?? 0);
-    const usedValue = Number(electricityService.used ?? 0);
-    const remainingQuota = quotaValue - usedValue;
+    // BOTH checks must pass to skip payment
+    const canSkipPayment = hasEnoughElectricity && hasEnoughSwaps;
     
-    // energyDiff is in kWh, remainingQuota is also in kWh (same units as displayed in UI)
-    const energyNeeded = swapData.energyDiff;
-    
-    const hasEnough = Number.isFinite(remainingQuota) && 
-                      Number.isFinite(energyNeeded) && 
-                      remainingQuota >= energyNeeded &&
-                      energyNeeded > 0;
-    
-    console.info('Quota check:', {
-      cost: swapData.cost,
-      quota: quotaValue,
-      used: usedValue,
-      remainingQuota,
-      energyNeeded,
-      hasSufficientQuota: hasEnough,
+    console.info('Final quota check result:', {
+      hasEnoughElectricity,
+      hasEnoughSwaps,
+      canSkipPayment,
     });
     
-    return hasEnough;
-  }, [electricityService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
+    return canSkipPayment;
+  }, [electricityService, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
