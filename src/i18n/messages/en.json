@@ -1103,6 +1103,10 @@
   "attendant.completeSwap": "Complete Swap",
   "attendant.confirmPayment": "Confirm Payment",
   "attendant.tapConfirmToScan": "Tap Confirm Payment to scan QR",
+  "attendant.partialPayment": "Partial Payment Received",
+  "attendant.amountPaid": "Paid",
+  "attendant.amountRemaining": "Remaining",
+  "attendant.collectRemainingAmount": "Please collect the remaining amount before continuing.",
   
   "attendant.swapComplete": "Swap Complete!",
   "attendant.batteryIssued": "Battery has been issued successfully",
