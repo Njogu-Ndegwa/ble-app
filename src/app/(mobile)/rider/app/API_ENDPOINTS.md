@@ -1,8 +1,20 @@
-# Rider App API Endpoints Documentation
+# Rider App API Endpoints & Data Sources Documentation
 
-This document outlines all the API endpoints consumed (or needed) throughout the rider workflow. The base URL is: `https://crm-omnivoltaic.odoo.com/api`
+This document outlines all the API endpoints and MQTT events consumed throughout the rider workflow.
 
-## Authentication Endpoints
+---
+
+## Data Architecture Overview
+
+The rider app uses a **hybrid data architecture**:
+1. **REST APIs** - For authentication and CRM data (Odoo)
+2. **MQTT Events** - For real-time service plan data, swaps, and battery status (BSS Platform)
+
+---
+
+## Part 1: REST API Endpoints
+
+Base URL: `https://crm-omnivoltaic.odoo.com/api`
 
 ### 1. Login
 ```
@@ -36,6 +48,8 @@ POST /auth/login
   }
 }
 ```
+
+**Note:** After login, use the customer's subscription IDs to identify them via MQTT.
 
 ### 2. Register
 ```
@@ -474,44 +488,279 @@ GET /support/tickets
 
 ---
 
-## Summary of Endpoint Status
+---
 
-| Endpoint | Status | Notes |
-|----------|--------|-------|
-| POST /auth/login | ✅ Available | Working |
-| POST /auth/register | ✅ Available | Working |
-| POST /auth/change-password | ✅ Available | Working |
-| GET /customer/dashboard | ✅ Available | Returns subscription data |
-| GET /stations/nearby | ⚠️ Needed | Not implemented - using mock data |
-| GET /stations/{id} | ⚠️ Needed | Not implemented |
-| GET /customer/activity | ⚠️ Needed | Activity history - using mock |
-| GET /customer/swaps | ⚠️ Needed | Swap history |
-| GET /customer/payments | ⚠️ Needed | Payment history |
-| POST /payments/verify | ⚠️ Needed | Transaction verification |
-| POST /customer/topup | ⚠️ Needed | Balance top-up |
-| GET /customer/vehicle | ⚠️ Needed | Vehicle details |
-| GET /customer/subscription | ⚠️ Needed | Active subscription |
-| GET /customer/balance | ⚠️ Needed | Account balance |
-| POST /support/tickets | ✅ Available | Create support ticket |
-| GET /support/tickets | ✅ Available | List tickets |
+## Part 2: MQTT Event System (BSS Platform)
+
+The BSS (Battery Swap Service) platform uses MQTT for real-time data. After login, use subscription IDs to identify customer.
+
+### Customer Identification Event
+
+**Topic:** `emit/uxi/attendant/plan/{plan_id}/identify_customer`
+
+**Request Payload:**
+```json
+{
+  "timestamp": "2025-01-15T09:00:00Z",
+  "plan_id": "bss-plan-togo-7day-barebone-plan3",
+  "correlation_id": "att-customer-id-001",
+  "actor": {
+    "type": "attendant",
+    "id": "attendant-001"
+  },
+  "data": {
+    "action": "IDENTIFY_CUSTOMER",
+    "qr_code_data": "QR_CUSTOMER_TEST_001",
+    "attendant_station": "STATION_001"
+  }
+}
+```
+
+**Response Payload (rich data available):**
+```json
+{
+  "timestamp": "2025-11-29T14:27:07.096Z",
+  "plan_id": "bss-plan-togo-7day-barebone-plan3",
+  "correlation_id": "att-customer-id-1764426423555-xv5s4dtmf",
+  "actor": {
+    "type": "agent",
+    "id": "bss-agent-v2"
+  },
+  "data": {
+    "plan_id": "bss-plan-togo-7day-barebone-plan3",
+    "success": true,
+    "signals": ["CUSTOMER_IDENTIFIED_SUCCESS"],
+    "metadata": {
+      "customer_id": "customer-togo-001",
+      "identification_method": "QR_CODE",
+      "service_plan_data": {
+        "servicePlanId": "bss-plan-togo-7day-barebone-plan3",
+        "customerId": "customer-togo-001",
+        "status": "ACTIVE",
+        "serviceState": "BATTERY_ISSUED",
+        "paymentState": "RENEWAL_DUE",
+        "templateId": "template-togo-lome-7day-barebone-v3",
+        "currency": "XOF",
+        "serviceStates": [
+          {
+            "service_id": "service-swap-station-network-togo-lome",
+            "used": 0,
+            "quota": 10000000,
+            "current_asset": null
+          },
+          {
+            "service_id": "service-battery-fleet-togo-lome",
+            "used": 0,
+            "quota": 10000000,
+            "current_asset": "B0723025100049"
+          },
+          {
+            "service_id": "service-electricity-togo-1",
+            "used": 300,
+            "quota": 300,
+            "current_asset": null
+          },
+          {
+            "service_id": "service-swap-count-togo-2",
+            "used": 2,
+            "quota": 10000000,
+            "current_asset": null
+          }
+        ],
+        "quotaUsed": 302,
+        "quotaLimit": 30000300
+      },
+      "service_bundle": {
+        "bundleId": "bundle-togo-7day-barebone-2",
+        "name": "Togo 7-Day Bare-bone Bundle",
+        "services": [
+          {
+            "serviceId": "service-battery-fleet-togo-lome",
+            "name": "Togo Lome Battery Fleet Access",
+            "usageUnitPrice": 0
+          },
+          {
+            "serviceId": "service-electricity-togo-1",
+            "name": "Togo Electricity Service",
+            "usageUnit": "kWh",
+            "usageUnitPrice": 0.1
+          },
+          {
+            "serviceId": "service-swap-count-togo-2",
+            "name": "Togo Swap Count Service",
+            "usageUnit": "swaps"
+          }
+        ]
+      },
+      "common_terms": {
+        "serviceDurationDays": 7,
+        "billingCycle": "WEEKLY",
+        "billingCurrency": "XOF"
+      }
+    }
+  }
+}
+```
+
+### Data Extraction from MQTT Response
+
+| UI Element | Data Path | Example Value |
+|------------|-----------|---------------|
+| **Plan Name** | `metadata.service_bundle.name` | "Togo 7-Day Bare-bone Bundle" |
+| **Plan Status** | `metadata.service_plan_data.status` | "ACTIVE" |
+| **Service State** | `metadata.service_plan_data.serviceState` | "BATTERY_ISSUED" |
+| **Payment State** | `metadata.service_plan_data.paymentState` | "RENEWAL_DUE" |
+| **Currency** | `metadata.service_plan_data.currency` | "XOF" |
+| **Current Battery** | `serviceStates[battery-fleet].current_asset` | "B0723025100049" |
+| **Swap Count** | `serviceStates[swap-count].used` | 2 |
+| **Electricity Used** | `serviceStates[electricity].used` | 300 kWh |
+| **Electricity Quota** | `serviceStates[electricity].quota` | 300 kWh |
+| **Plan Duration** | `common_terms.serviceDurationDays` | 7 days |
+| **Billing Cycle** | `common_terms.billingCycle` | "WEEKLY" |
 
 ---
 
-## Data Gaps Identified
+## Summary: Data Source Mapping
 
-1. **Payment Records**: No dedicated endpoint to fetch payment/transaction history for the rider
-2. **Service Records (Swaps)**: No endpoint to fetch swap/service history
-3. **Account Balance**: No dedicated endpoint for real-time balance
-4. **Station Data**: No endpoint for nearby stations with live availability
-5. **Vehicle Details**: No endpoint to fetch rider's assigned vehicle information
+### ✅ Available Data Sources
 
-## Recommendations
+| Data Need | Source | Status |
+|-----------|--------|--------|
+| User Authentication | REST `/auth/login` | ✅ Available |
+| User Registration | REST `/auth/register` | ✅ Available |
+| Subscription List | REST `/customer/dashboard` | ✅ Available |
+| Plan Status | MQTT `identify_customer` | ✅ Available |
+| Current Battery ID | MQTT `identify_customer` | ✅ Available |
+| Swap Count | MQTT `identify_customer` | ✅ Available |
+| Electricity Usage | MQTT `identify_customer` | ✅ Available |
+| Plan Duration | MQTT `identify_customer` | ✅ Available |
+| Service Bundle Details | MQTT `identify_customer` | ✅ Available |
+| Payment State | MQTT `identify_customer` | ✅ Available |
+| Support Tickets | REST `/support/tickets` | ✅ Available |
 
-1. Create `/customer/activity` endpoint that aggregates swaps, payments, and top-ups
-2. Create `/customer/balance` endpoint for real-time balance
-3. Create `/stations/nearby` endpoint with geolocation support
-4. Extend `/customer/dashboard` to include:
-   - Current balance
-   - Vehicle info
-   - Recent activity summary
-   - Nearest station preview
+### ⚠️ Still Missing / Unclear
+
+| Data Need | Notes | Priority |
+|-----------|-------|----------|
+| **Swap History** | List of individual swap transactions with dates, stations, battery IDs | High |
+| **Payment History** | List of payment transactions (not just current payment state) | High |
+| **Account Balance (Money)** | XOF balance that can be topped up (not usage quotas) | High |
+| **Nearby Stations** | Station locations, battery availability, wait times | High |
+| **Vehicle Details** | Bike model, registration, image | Medium |
+| **Top-up API** | Endpoint to add balance via mobile money | Medium |
+
+---
+
+## Recommended MQTT Topics to Add
+
+Based on the existing architecture, these MQTT events would complete the rider experience:
+
+### 1. Get Swap History
+**Topic:** `emit/uxi/rider/plan/{plan_id}/swap_history`
+
+**Expected Response:**
+```json
+{
+  "data": {
+    "swaps": [
+      {
+        "swap_id": "swap-001",
+        "timestamp": "2025-11-29T14:27:06.815Z",
+        "station_id": "station-lome-central",
+        "station_name": "Lome Central Station",
+        "old_battery_id": "B0723025100048",
+        "new_battery_id": "B0723025100049",
+        "electricity_consumed": 45,
+        "swap_cost": 0
+      }
+    ]
+  }
+}
+```
+
+### 2. Get Nearby Stations
+**Topic:** `emit/uxi/rider/stations/nearby`
+
+**Request:**
+```json
+{
+  "data": {
+    "latitude": 6.1319,
+    "longitude": 1.2228,
+    "radius_km": 10,
+    "network_id": "togo-lome-network"
+  }
+}
+```
+
+**Expected Response:**
+```json
+{
+  "data": {
+    "stations": [
+      {
+        "station_id": "station-lome-central",
+        "name": "Lome Central Station",
+        "address": "Rue du Commerce, Lome",
+        "latitude": 6.1375,
+        "longitude": 1.2123,
+        "distance_km": 0.8,
+        "batteries_available": 12,
+        "estimated_wait_time": "~3 min",
+        "operating_hours": "24/7",
+        "status": "OPEN"
+      }
+    ]
+  }
+}
+```
+
+### 3. Get Balance & Top-up
+**Topic:** `emit/uxi/rider/plan/{plan_id}/balance`
+
+**Expected Response:**
+```json
+{
+  "data": {
+    "money_balance": 3100,
+    "currency": "XOF",
+    "last_topup": "2025-11-28T10:00:00Z",
+    "payment_methods": [
+      {"type": "MTN_MOMO", "phone": "+228 91 234 567", "default": true}
+    ]
+  }
+}
+```
+
+---
+
+## UI to Data Mapping
+
+| Rider App Screen | Data Source | Implementation Status |
+|-----------------|-------------|----------------------|
+| **Home - Greeting** | REST login response (user name) | ✅ Implemented |
+| **Home - Bike Card** | MQTT identify (battery ID) + need vehicle API | ⚠️ Partial |
+| **Home - Balance Card** | Need dedicated balance endpoint | ⚠️ Mock data |
+| **Home - Nearby Stations** | Need stations endpoint | ⚠️ Mock data |
+| **Activity - Swap List** | Need swap history endpoint | ⚠️ Mock data |
+| **Activity - Payment List** | Need payment history endpoint | ⚠️ Mock data |
+| **Stations - Map View** | Need stations endpoint | ⚠️ Mock data |
+| **Profile - Plan Info** | MQTT identify (plan details) | ✅ Available |
+| **Profile - Swap Count** | MQTT identify (serviceStates) | ✅ Available |
+
+---
+
+## Integration Notes
+
+1. **After Login Flow:**
+   - User logs in via REST API → Get session token + subscription IDs
+   - Use subscription ID (plan_id) to emit `identify_customer` via MQTT
+   - Parse response to populate dashboard with real-time data
+
+2. **Data Refresh:**
+   - Subscribe to MQTT topics for real-time updates
+   - Poll REST endpoints for less time-sensitive data
+
+3. **Current Battery Display:**
+   - Extract from `serviceStates` where `service_id` contains "battery-fleet"
+   - `current_asset` field contains the battery ID (e.g., "B0723025100049")
