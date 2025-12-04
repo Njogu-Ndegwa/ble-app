@@ -1068,7 +1068,7 @@
   "attendant.success": "Success",
   
   "attendant.returnBattery": "Return Battery",
-  "attendant.scanReturnBattery": "Scan the battery being returned",
+  "attendant.scanReturnBattery": "Scan Return",
   "attendant.batteryReturned": "Battery Returned",
   "attendant.chargeLevel": "Charge Level",
   "attendant.energyRemaining": "Energy Remaining",
@@ -1076,7 +1076,7 @@
   "attendant.firstTimeCustomer": "First-time customer - no battery to return",
   
   "attendant.issueNewBattery": "Issue New Battery",
-  "attendant.scanNewBattery": "Scan the new battery to issue",
+  "attendant.scanNewBattery": "Scan New",
   "attendant.newBatteryAssigned": "New Battery Assigned",
   "attendant.batteryId": "Battery ID",
   
