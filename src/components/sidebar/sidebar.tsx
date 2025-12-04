@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { redirect, usePathname } from 'next/navigation';
+import { X } from 'lucide-react';
 import { menuConfig } from './navigation';
 import { icons } from './icons';
 import { useMenuVisibility } from '@/lib/auth';
@@ -55,17 +56,30 @@ export default function Sidebar({ onClose }: Props) {
         redirect('/signin');
     };
     return (
-        <aside className="fixed top-0 left-0 bg-[#1c1f22] h-screen w-4/5 max-w-xs z-50 flex flex-col overflow-hidden">
+        <aside className="fixed top-0 left-0 h-screen w-4/5 max-w-xs z-50 flex flex-col overflow-hidden" style={{ background: 'var(--bg-secondary)' }}>
             <div className="py-6 flex flex-col h-full overflow-hidden">
                 {/* ---------- Header ---------- */}
                 <div className="px-6 mb-6 flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-white">{t('common.menu')}</h2>
+                        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{t('common.menu')}</h2>
                         <button
                             onClick={onClose}
-                            className="text-sm text-gray-400 hover:text-white"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+                            style={{ 
+                                color: 'var(--text-secondary)',
+                                background: 'transparent',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.color = 'var(--text-primary)';
+                                e.currentTarget.style.background = 'var(--bg-tertiary)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.color = 'var(--text-secondary)';
+                                e.currentTarget.style.background = 'transparent';
+                            }}
+                            aria-label={t('common.close')}
                         >
-                            {t('common.close')}
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
@@ -77,7 +91,7 @@ export default function Sidebar({ onClose }: Props) {
                         if (item.type === 'divider') {
                             return (
                                 <div key={item.id} className="px-6 py-2">
-                                    <div className="border-t border-gray-700" />
+                                    <div className="border-t" style={{ borderColor: 'var(--border)' }} />
                                 </div>
                             );
                         }
@@ -112,10 +126,23 @@ export default function Sidebar({ onClose }: Props) {
                                 <div key={item.id} className="px-6 py-2">
                                     <button
                                         onClick={click}
-                                        className="flex items-center w-full px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                                        className="btn btn-secondary flex items-center w-full px-4 py-2 rounded-md transition-colors"
+                                        style={{ 
+                                            background: 'rgba(239, 68, 68, 0.15)',
+                                            color: '#ef4444',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                                            e.currentTarget.style.borderColor = '#ef4444';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                                        }}
                                     >
-                                        <span className="mr-3 text-white">
-                                            <Icon size={18} />          {/* keep same icon or swap if you wish */}
+                                        <span className="mr-3">
+                                            <Icon size={18} />
                                         </span>
                                         {label}
                                     </button>
@@ -141,24 +168,36 @@ export default function Sidebar({ onClose }: Props) {
                             <div key={id} className="mb-1">
                                 {/* Section header */}
                                 <div
-                                    className={`flex items-center justify-between px-6 py-3 cursor-pointer ${isActive ? 'bg-[#2a2d31]' : 'hover:bg-[#2a2d31]'
-                                        }`}
+                                    className="flex items-center justify-between px-6 py-3 cursor-pointer transition-colors"
+                                    style={{
+                                        background: isActive ? 'var(--bg-elevated)' : 'transparent',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.background = 'var(--bg-tertiary)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.background = 'transparent';
+                                        }
+                                    }}
                                     onClick={() =>
                                         setOpen(prev => ({ ...prev, [id]: !expanded }))
                                     }
                                 >
                                     <div className="flex items-center">
                                         <span
-                                            className={`mr-3 ${isActive ? 'text-blue-500' : 'text-gray-400'
-                                                }`}
+                                            className="mr-3"
+                                            style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}
                                         >
                                             <Icon size={18} />
                                         </span>
-                                        <span className={isActive ? 'text-white' : 'text-gray-200'}>
+                                        <span style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                                             {labelKey ? t(labelKey) : label}
                                         </span>
                                     </div>
-                                    <span className="text-gray-400">
+                                    <span style={{ color: 'var(--text-secondary)' }}>
                                         {expanded ? (
                                             <icons.chevronup size={16} />
                                         ) : (
@@ -169,7 +208,7 @@ export default function Sidebar({ onClose }: Props) {
 
                                 {/* Section children */}
                                 {expanded && (
-                                    <div className="bg-[#161a1d] overflow-hidden">
+                                    <div className="overflow-hidden" style={{ background: 'var(--bg-tertiary)' }}>
                                         {allowedChildren.map(sub => {
                                             const subActive = path === sub.href;
                                             return (
@@ -177,10 +216,24 @@ export default function Sidebar({ onClose }: Props) {
                                                     key={sub.id}
                                                     href={sub.href}
                                                     onClick={onClose}
-                                                    className={`block pl-12 pr-6 py-2 cursor-pointer ${subActive
-                                                        ? 'bg-[#2d4c6d] text-white'
-                                                        : 'hover:bg-[#252a2e] text-gray-400'
-                                                        }`}
+                                                    className="block pl-12 pr-6 py-2 cursor-pointer transition-colors"
+                                                    style={{
+                                                        background: subActive ? 'var(--accent-soft)' : 'transparent',
+                                                        color: subActive ? 'var(--accent)' : 'var(--text-secondary)',
+                                                        borderLeft: subActive ? '3px solid var(--accent)' : '3px solid transparent',
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        if (!subActive) {
+                                                            e.currentTarget.style.background = 'var(--bg-elevated)';
+                                                            e.currentTarget.style.color = 'var(--text-primary)';
+                                                        }
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        if (!subActive) {
+                                                            e.currentTarget.style.background = 'transparent';
+                                                            e.currentTarget.style.color = 'var(--text-secondary)';
+                                                        }
+                                                    }}
                                                 >
                                                     {sub.labelKey ? t(sub.labelKey) : sub.label}
                                                 </Link>
@@ -194,8 +247,8 @@ export default function Sidebar({ onClose }: Props) {
                 </div>
 
                 {/* ---------- Footer ---------- */}
-                <div className="px-6 pt-4 border-t border-gray-800 flex-shrink-0">
-                    <p className="text-xs text-gray-500">{t('common.version', { version: '1.2.5' })}</p>
+                <div className="px-6 pt-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('common.version', { version: '1.2.5' })}</p>
                 </div>
             </div>
         </aside>

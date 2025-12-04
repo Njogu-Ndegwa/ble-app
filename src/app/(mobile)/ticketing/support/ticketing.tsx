@@ -55,15 +55,15 @@ const getPriorityColor = (priority: string, t: any) => {
   const prio = getPriorityName(priority, t);
   switch (prio) {
     case t("Urgent"):
-      return "bg-red-100 text-red-800 border-red-200";
+      return { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.3)' };
     case t("High"):
-      return "bg-orange-100 text-orange-800 border-orange-200";
+      return { bg: 'rgba(249, 115, 22, 0.15)', text: '#f97316', border: 'rgba(249, 115, 22, 0.3)' };
     case t("Medium"):
-      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      return { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', border: 'rgba(234, 179, 8, 0.3)' };
     case t("Low"):
-      return "bg-gray-100 text-gray-800 border-gray-200";
+      return { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)', border: 'var(--border)' };
     default:
-      return "bg-gray-100 text-gray-800 border-gray-200";
+      return { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)', border: 'var(--border)' };
   }
 };
 
@@ -205,8 +205,8 @@ const Ticketing: React.FC = () => {
 
   if (isLoadingTickets) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="flex justify-center items-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--accent)' }} />
       </div>
     );
   }
@@ -214,17 +214,24 @@ const Ticketing: React.FC = () => {
   // New Ticket Form View
   if (showNewTicketForm) {
     return (
-       <div className="min-h-screen p-4 bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
+       <div className="min-h-screen p-4" style={{ background: 'var(--bg-primary)' }}>
         <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
+          <div className="rounded-xl p-4 sm:p-6" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-gray-400" />
-                <h2 className="text-lg font-semibold text-white">{t("New Ticket")}</h2>
+                <HelpCircle className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{t("New Ticket")}</h2>
               </div>
               <button
                 onClick={() => setShowNewTicketForm(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                }}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -232,7 +239,7 @@ const Ticketing: React.FC = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   {t("Subject *")}
                 </label>
                 <input
@@ -241,12 +248,25 @@ const Ticketing: React.FC = () => {
                   value={formData.subject}
                   onChange={handleFormChange}
                   placeholder={t("Enter ticket subject")}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none transition-colors"
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   {t("Description *")}
                 </label>
                 <textarea
@@ -255,19 +275,45 @@ const Ticketing: React.FC = () => {
                   onChange={handleFormChange}
                   placeholder={t("Describe your issue...")}
                   rows={4}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none transition-colors"
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                   {t("Priority *")}
                 </label>
                 <select
                   name="priority"
                   value={formData.priority}
                   onChange={handleFormChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-lg focus:outline-none transition-colors"
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--accent)';
+                    e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 >
                   <option value="">{t("Select Priority")}</option>
                   <option value="low">{t("Low")}</option>
@@ -280,7 +326,8 @@ const Ticketing: React.FC = () => {
               <button
                 onClick={handleCreateTicket}
                 disabled={!isFormValid || isCreatingTicket}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50"
+                className="btn btn-primary w-full flex items-center justify-center gap-2"
+                style={{ opacity: (!isFormValid || isCreatingTicket) ? 0.5 : 1, cursor: (!isFormValid || isCreatingTicket) ? 'not-allowed' : 'pointer' }}
               >
                 {isCreatingTicket ? (
                   <>
@@ -303,16 +350,24 @@ const Ticketing: React.FC = () => {
 
   // Ticket Details View
   if (showDetails && selectedTicket) {
+    const priorityColor = getPriorityColor(selectedTicket.priority, t);
     return (
-      <div className="min-h-screen p-4 bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
+      <div className="min-h-screen p-4" style={{ background: 'var(--bg-primary)' }}>
         <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700 space-y-4">
+          <div className="rounded-xl p-4 sm:p-6 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
             <button
               onClick={() => {
                 setShowDetails(false);
                 setSelectedTicket(null);
               }}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4"
+              className="flex items-center gap-2 transition-colors mb-4"
+              style={{ color: 'var(--text-secondary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)';
+              }}
             >
               <ArrowLeft className="w-4 h-4" />
               {t("Back to Tickets")}
@@ -320,26 +375,28 @@ const Ticketing: React.FC = () => {
 
             <div className="space-y-4">
               <div>
-                <h3 className="text-xl font-bold text-white mb-2">
+                <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                   {t("Ticket #")}{selectedTicket.number}: {selectedTicket.subject}
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                   {t("Customer:")} {selectedTicket.customer}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(
-                    selectedTicket.priority,
-                    t
-                  )}`}
+                  className="px-3 py-1 rounded-full text-xs font-medium"
+                  style={{
+                    background: priorityColor.bg,
+                    color: priorityColor.text,
+                    border: `1px solid ${priorityColor.border}`,
+                  }}
                 >
                   {getPriorityName(selectedTicket.priority, t)}
                 </span>
               </div>
 
-              <div className="text-sm text-gray-400 space-y-1">
+              <div className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                 <p>
                   {t("Created:")}{" "}
                   {new Date(selectedTicket.create_date).toLocaleDateString()}
@@ -347,11 +404,11 @@ const Ticketing: React.FC = () => {
               </div>
 
               <div>
-                <h4 className="text-sm font-medium text-gray-300 mb-3">
+                <h4 className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
                   {t("Timeline")}
                 </h4>
                 <div className="space-y-4">
-                  <p className="text-gray-400 text-sm">{t("No messages yet.")}</p>
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t("No messages yet.")}</p>
                 </div>
               </div>              
             </div>
@@ -363,85 +420,131 @@ const Ticketing: React.FC = () => {
 
   // Main Tickets List View
   return (
-    <div className="min-h-screen p-4 bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
+    <div className="min-h-screen p-4" style={{ background: 'var(--bg-primary)' }}>
       <div className="max-w-2xl mx-auto">
-        <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700 space-y-4">
+        <div className="rounded-xl p-4 sm:p-6 space-y-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-gray-400" />
-              <h2 className="text-lg font-semibold text-white">{t("My Tickets")}</h2>
+              <MessageCircle className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{t("My Tickets")}</h2>
             </div>
             <button
               onClick={() => setShowNewTicketForm(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-all duration-200"
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-elevated)';
+                e.currentTarget.style.color = 'var(--accent)';
+                e.currentTarget.style.borderColor = 'var(--accent)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+              }}
+              aria-label={t("New Ticket")}
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">{t("New Ticket")}</span>
             </button>
           </div>
 
           <div className="space-y-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={t("Search tickets...")}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-4 py-2 rounded-lg focus:outline-none transition-colors"
+                style={{
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent)';
+                  e.currentTarget.style.boxShadow = '0 0 0 1px var(--accent)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
           </div>
 
           <div className="space-y-3">
             {filteredTickets.length > 0 ? (
-              filteredTickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  onClick={() => handleViewTicket(ticket.id)}
-                  className="bg-gray-700 rounded-lg p-4 border border-gray-600 cursor-pointer hover:bg-gray-600 transition-colors duration-200"
-                >
-                  <div className="space-y-3">
-                    {/* Header with ticket number and priority */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <HelpCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                        <span className="font-semibold text-white text-base">
-                          {ticket.number}
+              filteredTickets.map((ticket) => {
+                const priorityColor = getPriorityColor(ticket.priority, t);
+                return (
+                  <div
+                    key={ticket.id}
+                    onClick={() => handleViewTicket(ticket.id)}
+                    className="rounded-lg p-4 cursor-pointer transition-colors duration-200"
+                    style={{
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--bg-elevated)';
+                      e.currentTarget.style.borderColor = 'var(--accent)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--bg-tertiary)';
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                    }}
+                  >
+                    <div className="space-y-3">
+                      {/* Header with ticket number and priority */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--accent)' }} />
+                          <span className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
+                            {ticket.number}
+                          </span>
+                        </div>
+                        <span
+                          className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
+                          style={{
+                            background: priorityColor.bg,
+                            color: priorityColor.text,
+                            border: `1px solid ${priorityColor.border}`,
+                          }}
+                        >
+                          {getPriorityName(ticket.priority, t)}
                         </span>
                       </div>
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${getPriorityColor(
-                          ticket.priority,
-                          t
-                        )}`}
-                      >
-                        {getPriorityName(ticket.priority, t)}
-                      </span>
-                    </div>
 
-                    {/* Subject */}
-                    <div>
-                      <h3 className="text-sm font-medium text-white line-clamp-2 leading-relaxed">
-                        {ticket.subject}
-                      </h3>
-                    </div>
+                      {/* Subject */}
+                      <div>
+                        <h3 className="text-sm font-medium line-clamp-2 leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                          {ticket.subject}
+                        </h3>
+                      </div>
 
-                    {/* Footer with metadata */}
-                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-600">
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <Clock className="w-3.5 h-3.5" />
-                         <span>{new Date(ticket.create_date).toLocaleDateString()}</span>
+                      {/* Footer with metadata */}
+                      <div className="flex items-center justify-between gap-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          <Clock className="w-3.5 h-3.5" />
+                           <span>{new Date(ticket.create_date).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-12">
-                <MessageCircle className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">{t("No tickets found.")}</p>
-                <p className="text-gray-500 text-sm mt-1">
+                <MessageCircle className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+                <p style={{ color: 'var(--text-secondary)' }}>{t("No tickets found.")}</p>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
                   {t("Create your first ticket to get started.")}
                 </p>
               </div>

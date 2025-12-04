@@ -71,30 +71,33 @@ interface ProgressiveLoadingProps {
   }, [displayProgress, loadingSteps, initialMessage, completionMessage, onLoadingComplete]);
   
   return (
-    <div className="flex flex-col items-center justify-center max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] p-4 min-h-screen">
-      <div className="w-full bg-[#2A2F33] rounded-lg p-4 shadow-lg">
+    <div className="flex flex-col items-center justify-center max-w-md mx-auto p-4 min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+      <div className="w-full rounded-lg p-4 shadow-lg" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
         {/* Header with percentage */}
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-medium text-base">{t('Loading')}</h3>
-          <span className="text-white font-bold text-base">{displayProgress}%</span>
+          <h3 className="font-medium text-base" style={{ color: 'var(--text-primary)' }}>{t('Loading')}</h3>
+          <span className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{displayProgress}%</span>
         </div>
         
         {/* Progress bar */}
-        <div className="w-full bg-[#1c1f22] rounded-full h-2 mb-4">
+        <div className="w-full rounded-full h-2 mb-4" style={{ background: 'var(--bg-tertiary)' }}>
           <div 
-            className="bg-gradient-to-r from-[#2d4c6d] to-[#52545c] h-2 rounded-full transition-all duration-300 ease-out" 
-            style={{ width: `${displayProgress}%` }}
+            className="h-2 rounded-full transition-all duration-300 ease-out" 
+            style={{ 
+              width: `${displayProgress}%`,
+              background: 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)'
+            }}
           ></div>
         </div>
         
         {/* Loading message */}
         <div className="flex items-center mb-4">
           {!isComplete ? (
-            <Loader2 className="animate-spin text-gray-400 mr-2" size={16} />
+            <Loader2 className="animate-spin mr-2" size={16} style={{ color: 'var(--text-secondary)' }} />
           ) : (
-            <CheckCircle className="text-gray-400 mr-2" size={16} />
+            <CheckCircle className="mr-2" size={16} style={{ color: 'var(--accent)' }} />
           )}
-          <p className="text-gray-400 text-sm">{t(currentMessage)}</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t(currentMessage)}</p>
         </div>
         
         {/* Step indicators */}

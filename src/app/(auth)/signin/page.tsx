@@ -2,21 +2,27 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Mail, EyeOff, Eye, ArrowLeft } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/auth-context';
 import { useI18n } from '@/i18n';
+import Image from 'next/image';
+import { Globe } from 'lucide-react';
 
 const LoginPage = () => {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const { signIn, loading, error } = useAuth();
+
+  const toggleLocale = () => {
+    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
+    setLocale(nextLocale);
+  };
 
   // Watch for error changes and display toast
   useEffect(() => {
@@ -77,132 +83,179 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen flex flex-col relative">
-      <button 
-        onClick={handleBackToCustomerView}
-        className="absolute top-4 left-4 text-gray-400 hover:text-white focus:outline-none flex items-center gap-1 transition-colors z-10"
-        aria-label={t('auth.backToCustomer')}
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </button>
-      
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#333',
-            color: '#fff',
-            padding: '16px',
-            borderRadius: '8px',
-          },
-          success: {
-            iconTheme: {
-              primary: '#10B981',
-              secondary: 'white',
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: '#EF4444',
-              secondary: 'white',
-            },
-          },
-        }}
-      />
-      
-      <div className="p-8 flex-1 flex flex-col justify-center">
-        <div className="text-center mb-8">
-          <h1 className="text-white text-2xl font-bold mb-2">{t('auth.title')}</h1>
-          <p className="text-gray-400 text-sm">{t('auth.subtitle')}</p>
-        </div>
-        
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Mail className="h-5 w-5 text-gray-500" />
+    <>
+      {/* Header with Back + Logo on left, Language Toggle on right */}
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          <div className="flow-header-left">
+            <button 
+              className="flow-header-back" 
+              onClick={handleBackToCustomerView}
+              aria-label={t('auth.backToCustomer')}
+              title={t('auth.backToCustomer')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
             </div>
+          </div>
+          <div className="flow-header-right">
+            <button
+              className="flow-header-lang"
+              onClick={toggleLocale}
+              aria-label={t('Switch language')}
+            >
+              <Globe size={16} />
+              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="login-container">
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#333',
+              color: '#fff',
+              padding: '16px',
+              borderRadius: '8px',
+            },
+            success: {
+              iconTheme: {
+                primary: '#10B981',
+                secondary: 'white',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#EF4444',
+                secondary: 'white',
+              },
+            },
+          }}
+        />
+
+      {/* Header */}
+      <div className="login-header">
+        <div className="login-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h1 className="login-title">{t('auth.title')}</h1>
+        <p className="login-subtitle">{t('auth.subtitle')}</p>
+      </div>
+
+      {/* Login Form */}
+      <form onSubmit={handleLogin} className="login-form">
+        {/* Email Input */}
+        <div className="form-group">
+          <label className="form-label">{t('auth.emailPlaceholder')}</label>
+          <div className="input-with-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
             <input
               type="email"
-              className="w-full px-4 py-3 pl-10 border border-gray-700 bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-              placeholder={t('auth.emailPlaceholder')}
+              className="form-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('auth.emailPlaceholder')}
               required
+              disabled={isLoading || loading}
             />
           </div>
-          
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-500" />
-            </div>
+        </div>
+
+        {/* Password Input */}
+        <div className="form-group">
+          <label className="form-label">{t('auth.passwordPlaceholder')}</label>
+          <div className="input-with-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
             <input
               type={showPassword ? "text" : "password"}
-              className="w-full px-4 py-3 pl-10 pr-10 border border-gray-700 bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-              placeholder={t('auth.passwordPlaceholder')}
+              className="form-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder={t('auth.passwordPlaceholder')}
               required
+              disabled={isLoading || loading}
+              style={{ paddingRight: 44 }}
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 flex items-center pr-3"
+              className="password-toggle"
               onClick={togglePasswordVisibility}
+              aria-label={showPassword ? t('Hide password') : t('Show password')}
+              disabled={isLoading || loading}
             >
               {showPassword ? (
-                <EyeOff className="h-5 w-5 text-gray-500" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
               ) : (
-                <Eye className="h-5 w-5 text-gray-500" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
               )}
             </button>
           </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center"></div>
-            {/* <div className="text-sm">
-              <a href="/resetpwd" className="text-blue-500 hover:text-blue-400">
-                Forgot password?
-              </a>
-            </div> */}
-          </div>
-          
-          <button
-            type="submit"
-            disabled={isLoading || loading}
-            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white ${
-              (isLoading || loading)
-                ? 'bg-blue-700 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-            }`}
-          >
-            {(isLoading || loading) ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {t('auth.signingIn')}
-              </>
-            ) : (
-              t('auth.signIn')
-            )}
-          </button>
-        </form>
-        
-        <div className="mt-8 text-center">
-          <p className="text-gray-400 text-sm">
-            {t('auth.noAccount')} {' '}
-            <a href="#" className="text-blue-500 hover:text-blue-400">
-              {t('auth.contactSupport')}
-            </a>
-          </p>
         </div>
-        
-        <div className="mt-8 text-center text-xs text-gray-500">
+
+        {/* Sign In Button */}
+        <button
+          type="submit"
+          className="btn btn-primary login-btn"
+          disabled={isLoading || loading || !email.trim() || !password.trim()}
+        >
+          {(isLoading || loading) ? (
+            <>
+              <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+              <span>{t('auth.signingIn')}</span>
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+              <span>{t('auth.signIn')}</span>
+            </>
+          )}
+        </button>
+
+        <p className="login-help">
+          {t('auth.noAccount')}{' '}
+          <a href="#" className="text-blue-500 hover:text-blue-400">
+            {t('auth.contactSupport')}
+          </a>
+        </p>
+      </form>
+
+        <div style={{ marginTop: 24, textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
           <p>{t('common.version', { version: '1.2.5' })}</p>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

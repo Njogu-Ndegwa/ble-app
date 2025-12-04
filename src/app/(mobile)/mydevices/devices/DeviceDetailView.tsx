@@ -406,7 +406,7 @@ const translateDescription = (desc: string): string => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
+    <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
       <Toaster />
       <AsciiStringModal
         isOpen={asciiModalOpen}
@@ -414,12 +414,18 @@ const translateDescription = (desc: string): string => {
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || t('Public Key / Last Code / GPRS Carrier APN Name')}
       />
-      <div className="p-4 flex items-center">
-        <button onClick={handleBack} className="mr-4">
-          <ArrowLeft className="w-6 h-6 text-gray-400" />
+      <div className="p-4 flex items-center" style={{ borderBottom: '1px solid var(--border)' }}>
+        <button 
+          onClick={handleBack} 
+          className="mr-4 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-lg font-semibold flex-1">{t('Device Details')}</h1>
-        <Share2 className="w-5 h-5 text-gray-400" />
+        <h1 className="text-lg font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>{t('Device Details')}</h1>
+        <Share2 className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
       </div>
       <div className="flex flex-col items-center p-6 pb-2">
         <img
@@ -427,14 +433,14 @@ const translateDescription = (desc: string): string => {
           alt={device.name || 'Device'}
           className="w-40 h-40 object-contain mb-4"
         />
-        <h2 className="text-xl font-semibold">{device.name || t('Unknown Device')}</h2>
-        <p className="text-sm text-gray-400 mt-1">{device.macAddress || t('Unknown MAC')}</p>
-        <p className="text-sm text-gray-400 mt-1">{device.rssi || t('Unknown RSSI')}</p>
+        <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{device.name || t('Unknown Device')}</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{device.macAddress || t('Unknown MAC')}</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{device.rssi || t('Unknown RSSI')}</p>
       </div>
-      <div className="p-4">
+      <div className="p-4 max-w-md mx-auto">
         <div className="mb-6">
           <div className="flex items-center space-x-2 mb-3">
-            <label className="text-sm font-medium text-slate-300">{t('Duration')}</label>
+            <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Duration')}</label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -458,17 +464,18 @@ const translateDescription = (desc: string): string => {
                   className="sr-only"
                 />
                 <div
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                    duration === option.value
-                      ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
-                      : 'border-slate-600 bg-slate-700/30 hover:border-slate-500'
-                  }`}
+                  className="p-4 rounded-xl border-2 transition-all duration-200"
+                  style={{
+                    border: duration === option.value ? '2px solid var(--accent)' : '2px solid var(--border)',
+                    background: duration === option.value ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+                    boxShadow: duration === option.value ? '0 0 20px -5px var(--accent-glow)' : 'none',
+                  }}
                 >
                   <div className="text-center">
-                    <div className="font-semibold text-white">{option.label}</div>
+                    <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>{option.label}</div>
                   </div>
                   {duration === option.value && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
                       <Check className="w-3 h-3 text-white" />
                     </div>
                   )}
@@ -481,9 +488,29 @@ const translateDescription = (desc: string): string => {
           <button
             className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
               isSubmitting || !duration
-                ? 'bg-gray-500 cursor-not-allowed text-slate-400'
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+                ? 'cursor-not-allowed'
+                : 'cursor-pointer'
             }`}
+            style={{
+              background: isSubmitting || !duration
+                ? 'var(--bg-tertiary)'
+                : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
+              color: '#ffffff',
+              opacity: isSubmitting || !duration ? 0.5 : 1,
+              border: isSubmitting || !duration ? '1px solid var(--border)' : 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (!isSubmitting && duration) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 24px -8px var(--accent-glow)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isSubmitting && duration) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }
+            }}
             onClick={handleSubmit}
             disabled={isSubmitting || !duration}
           >
@@ -499,9 +526,29 @@ const translateDescription = (desc: string): string => {
           <button
             className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
               isRetrieving
-                ? 'bg-slate-600 cursor-not-allowed text-slate-400'
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
+                ? 'cursor-not-allowed'
+                : 'cursor-pointer'
             }`}
+            style={{
+              background: isRetrieving
+                ? 'var(--bg-tertiary)'
+                : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
+              color: '#ffffff',
+              opacity: isRetrieving ? 0.5 : 1,
+              border: isRetrieving ? '1px solid var(--border)' : 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (!isRetrieving) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 24px -8px var(--accent-glow)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isRetrieving) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }
+            }}
             onClick={handleRetrieveCodes}
             disabled={isRetrieving}
           >
@@ -516,40 +563,64 @@ const translateDescription = (desc: string): string => {
           </button>
         </div>
         {isLoadingService === 'CMD' && (
-          <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
+          <div className="w-full h-1 mb-4 rounded-full overflow-hidden" style={{ background: 'var(--bg-tertiary)' }}>
             <div
-              className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
-              style={{ width: `${serviceLoadingProgress}%` }}
+              className="h-full transition-all duration-300 ease-in-out"
+              style={{ 
+                width: `${serviceLoadingProgress}%`,
+                background: 'var(--accent)',
+              }}
             ></div>
           </div>
         )}
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-white">{t('CMD Service')}</h3>
-          <button
+          <h3 className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>{t('CMD Service')}</h3>
+          <div
             onClick={handleRefreshService}
-            className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
-            disabled={isLoadingService !== null}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+              isLoadingService ? 'animate-spin' : ''
+            }`}
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-secondary)',
+              cursor: isLoadingService ? 'not-allowed' : 'pointer',
+              opacity: isLoadingService ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoadingService) {
+                e.currentTarget.style.background = 'var(--bg-tertiary)';
+                e.currentTarget.style.color = 'var(--accent)';
+                e.currentTarget.style.borderColor = 'var(--accent)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoadingService) {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+              }
+            }}
           >
-            <RefreshCw size={14} className={isLoadingService ? 'animate-spin' : ''} />
-            <span>{t('Refresh')}</span>
-          </button>
+            <RefreshCw size={16} />
+          </div>
         </div>
         {cmdService && pubkCharacteristic ? (
-          <div className="border border-gray-700 rounded-lg overflow-hidden">
-            <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-              <span className="text-sm font-medium">{pubkCharacteristic.name}</span>
+          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+            <div className="flex justify-between items-center px-4 py-2" style={{ background: 'var(--bg-tertiary)' }}>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{pubkCharacteristic.name}</span>
               <div className="flex space-x-2">
                 <button
-                  className={`text-xs ${
-                    isLoading ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'
-                  } px-3 py-1 rounded transition-colors`}
+                  className="btn btn-secondary text-xs"
+                  style={{ padding: '6px 12px', fontSize: '13px' }}
                   onClick={handleRead}
                   disabled={isLoading}
                 >
                   {isLoading ? t('Reading...') : t('Read')}
                 </button>
                 <button
-                  className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                  className="btn btn-primary text-xs"
+                  style={{ padding: '6px 12px', fontSize: '13px' }}
                   onClick={handleWriteClick}
                 >
                   Write
@@ -558,18 +629,21 @@ const translateDescription = (desc: string): string => {
             </div>
             <div className="p-4 space-y-2">
               <div>
-                <p className="text-xs text-gray-400">{t('Description')}</p>
-                <p className="text-sm">{translateDescription(pubkCharacteristic.desc)}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Description')}</p>
+                <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{translateDescription(pubkCharacteristic.desc)}</p>
               </div>
               <div className="flex items-center justify-between group">
                 <div className="flex-grow">
-                  <p className="text-xs text-gray-400">{t('Current Value')}</p>
-                  <p className="text-sm font-mono">
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Current Value')}</p>
+                  <p className="text-sm font-mono" style={{ color: 'var(--text-primary)' }}>
                     {updatedValues[pubkCharacteristic.uuid] || updatedValue || pubkCharacteristic.realVal || 'N/A'}
                   </p>
                 </div>
                 <button
-                  className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
+                  className="p-2 transition-colors"
+                  style={{ color: 'var(--text-secondary)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
                   onClick={() => {
                     const valueToCopy = updatedValues[pubkCharacteristic.uuid] || updatedValue || pubkCharacteristic.realVal || 'N/A';
                     navigator.clipboard.writeText(String(valueToCopy));
@@ -583,7 +657,7 @@ const translateDescription = (desc: string): string => {
             </div>
           </div>
         ) : (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-6 text-center" style={{ color: 'var(--text-secondary)' }}>
             {isLoadingService === 'CMD' ? (
               <p>{t('Loading CMD service data...')}</p>
             ) : (

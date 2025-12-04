@@ -23,14 +23,14 @@ interface MobileListViewProps {
 }
 
 const DeviceItemSkeleton = () => (
-  <div className="flex items-start p-3 rounded-lg bg-[#2A2F33] animate-pulse">
-    <div className="w-12 h-12 rounded-full mr-3 bg-[#3A3F43]"></div>
+  <div className="flex items-start p-3 rounded-lg animate-pulse" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+    <div className="w-12 h-12 rounded-full mr-3" style={{ background: 'var(--bg-tertiary)' }}></div>
     <div className="flex-1">
-      <div className="h-4 bg-[#3A3F43] rounded w-2/3 mb-2"></div>
-      <div className="h-3 bg-[#3A3F43] rounded w-1/2 mb-2"></div>
-      <div className="h-3 bg-[#3A3F43] rounded w-1/3"></div>
+      <div className="h-4 rounded w-2/3 mb-2" style={{ background: 'var(--bg-tertiary)' }}></div>
+      <div className="h-3 rounded w-1/2 mb-2" style={{ background: 'var(--bg-tertiary)' }}></div>
+      <div className="h-3 rounded w-1/3" style={{ background: 'var(--bg-tertiary)' }}></div>
     </div>
-    <div className="w-5 h-5 rounded-full bg-[#3A3F43]"></div>
+    <div className="w-5 h-5 rounded-full" style={{ background: 'var(--bg-tertiary)' }}></div>
   </div>
 );
 
@@ -67,18 +67,38 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   };
 
   return (
-    <div className="relative max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen overflow-hidden">
-      <div className="p-4">
+    <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="p-4 max-w-md mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div className="text-center flex-1">
-            <h2 className="text-white font-medium">{t('Keypad')}</h2>
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Keypad')}</h2>
           </div>
           <div className="relative">
-            <RefreshCcw
+            <div
               onClick={handleRescan}
-              className={`w-6 h-6 text-gray-400 ${items.length === 0 && isScanning ? 'animate-spin' : ''}`}
-            />
+              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                items.length === 0 && isScanning ? 'animate-spin' : ''
+              }`}
+              style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-tertiary)';
+                e.currentTarget.style.color = 'var(--accent)';
+                e.currentTarget.style.borderColor = 'var(--accent)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+              }}
+            >
+              <RefreshCcw size={16} />
+            </div>
           </div>
         </div>
 
@@ -86,12 +106,13 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         <div className="relative mb-4">
           <input
             type="text"
-            className="w-full px-4 py-2 border border-gray-700 bg-gray-800 rounded-lg pr-20 focus:outline-none text-white"
+            className="form-input"
+            style={{ paddingRight: 80 }}
             placeholder={t('Search devices...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <div className="absolute right-3 top-2.5 flex items-center space-x-3">
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-3">
             <div
               className="cursor-pointer"
               onClick={(e) => {
@@ -99,9 +120,9 @@ const MobileListView: React.FC<MobileListViewProps> = ({
                 onScanQrCode();
               }}
             >
-              <Camera size={18} className="text-gray-400 hover:text-white transition-colors" />
+              <Camera size={18} style={{ color: 'var(--text-secondary)' }} className="hover:opacity-80 transition-opacity" />
             </div>
-            <Search className="w-5 h-5 text-gray-400" />
+            <Search className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
           </div>
         </div>
 
@@ -135,7 +156,17 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             filteredItems.map((item) => (
               <div
                 key={item.macAddress}
-                className="flex items-start p-3 rounded-lg bg-[#2A2F33] cursor-pointer hover:bg-[#343a40] transition-colors"
+                className="flex items-start p-3 rounded-lg cursor-pointer transition-colors"
+                style={{
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-tertiary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-secondary)';
+                }}
                 onClick={() => handleDeviceClick(item.macAddress)}
               >
                 <img
@@ -144,21 +175,21 @@ const MobileListView: React.FC<MobileListViewProps> = ({
                   className="w-12 h-12 rounded-full mr-3"
                 />
                 <div className="flex-1">
-                  <h3 className="text-[14px] font-medium text-white">{item.name}</h3>
-                  <p className="text-[10px] text-gray-400">{item.macAddress}</p>
-                  <p className="text-[10px] text-gray-500 mt-1">{item.rssi}</p>
+                  <h3 className="text-[14px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</h3>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-secondary)' }}>{item.macAddress}</p>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{item.rssi}</p>
                 </div>
                 <span className="text-lg">
                   {item.macAddress === connectedDevice ? (
-                    <BluetoothConnected className="text-blue-500" />
+                    <BluetoothConnected style={{ color: 'var(--accent)' }} />
                   ) : (
-                    <BluetoothSearching className="text-gray-400" />
+                    <BluetoothSearching style={{ color: 'var(--text-secondary)' }} />
                   )}
                 </span>
               </div>
             ))
           ) : (
-            <div className="text-center py-6 text-gray-400">
+            <div className="text-center py-6" style={{ color: 'var(--text-secondary)' }}>
               {searchQuery ? t('No devices match your search.') : t('No devices found. Try scanning again.')}
             </div>
           )}
