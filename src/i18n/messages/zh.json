@@ -1012,6 +1012,12 @@
   
   "attendant.swapComplete": "更换完成！",
   "attendant.batteryIssued": "电池已成功发放",
+  "attendant.handOverBattery": "将电池交给客户",
+  "attendant.transactionReceipt": "交易收据",
+  "attendant.returned": "退回",
+  "attendant.issued": "发放",
+  "attendant.energy": "能量",
+  "attendant.time": "时间",
   "attendant.transactionId": "交易ID",
   "attendant.startNewSwap": "开始新的更换"
 }

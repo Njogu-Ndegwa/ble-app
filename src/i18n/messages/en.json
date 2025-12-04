@@ -1110,6 +1110,12 @@
   
   "attendant.swapComplete": "Swap Complete!",
   "attendant.batteryIssued": "Battery has been issued successfully",
+  "attendant.handOverBattery": "Hand over battery to customer",
   "attendant.transactionId": "Transaction ID",
+  "attendant.transactionReceipt": "Transaction Receipt",
+  "attendant.returned": "Returned",
+  "attendant.issued": "Issued",
+  "attendant.energy": "Energy",
+  "attendant.time": "Time",
   "attendant.startNewSwap": "Start New Swap"
 }
