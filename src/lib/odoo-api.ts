@@ -208,10 +208,8 @@ export interface InitiatePaymentResponse {
 
 // Manual Payment Confirmation Types
 export interface ManualConfirmPaymentPayload {
-  subscription_code?: string;
-  order_id?: number;
+  order_id: number;
   receipt: string;
-  customer_id?: string;
 }
 
 export interface ManualConfirmPaymentResponse {
@@ -599,7 +597,8 @@ export async function initiatePayment(
  * Create a payment request/ticket before collecting payment
  * This MUST be called before collecting payment from the customer.
  * 
- * The response includes an order_id which should be used in the confirmation step.
+ * The response includes payment_request.sale_order.id which MUST be used as order_id
+ * when calling confirmPaymentManual.
  * 
  * IMPORTANT: If there's already an active payment request, the API returns:
  * - success: false
@@ -608,7 +607,7 @@ export async function initiatePayment(
  * - instructions: Options for how to proceed (complete, cancel, or pay remaining)
  * 
  * The caller MUST treat this as an error and inform the user - do NOT silently reuse
- * the existing request.
+ * the existing request or fall back to subscription_code for confirm payment.
  * 
  * @param payload - Payment request data (subscription_code, amount_required, description, external_reference?)
  * @param authToken - Optional employee/salesperson token for authorization
@@ -651,13 +650,12 @@ export async function createPaymentRequest(
  * Manually confirm a payment with M-Pesa receipt
  * Used after customer has paid and we have the receipt code
  * 
- * Can use either:
- * - order_id + receipt (preferred, from createPaymentRequest response)
- * - subscription_code + receipt (fallback)
+ * REQUIRES: order_id from createPaymentRequest response
+ * The order_id is obtained from payment_request.sale_order.id after creating a payment request
  * 
  * IMPORTANT: Check that total_paid >= expected amount before proceeding
  * 
- * @param payload - Payment confirmation data (order_id or subscription_code, receipt, customer_id)
+ * @param payload - Payment confirmation data (order_id + receipt)
  * @param authToken - Optional employee/salesperson token for authorization
  */
 export async function confirmPaymentManual(

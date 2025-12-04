@@ -1274,36 +1274,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     // Confirm payment with Odoo
     const confirmPayment = async () => {
-      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
-      // Use order_id from payment request if available (preferred)
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
       const orderId = paymentRequestOrderId;
       
       try {
-        // Must have either order_id or subscription_code
-        if (!orderId && !subscriptionCode) {
-          // No subscription ID or order ID - just proceed with MQTT flow using expected cost
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed');
-          publishPaymentAndService(receipt, false, expectedPaymentAmount || swapData.cost);
+        // order_id is REQUIRED - payment request must be created first
+        if (!orderId) {
+          toast.error('Payment request not created. Please go back and try again.');
+          setIsScanning(false);
+          scanTypeRef.current = null;
           return;
         }
 
-        // Use Odoo manual confirmation endpoint
-        // Prefer order_id over subscription_code
-        const confirmPayload: any = { receipt };
-        if (orderId) {
-          confirmPayload.order_id = orderId;
-          console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
-        } else {
-          confirmPayload.subscription_code = subscriptionCode;
-          confirmPayload.customer_id = customerData?.id;
-          console.log('Confirming payment with subscription_code:', { subscription_code: subscriptionCode, receipt });
-        }
-
-        const response = await confirmPaymentManual(confirmPayload);
+        // Use Odoo manual confirmation endpoint with order_id ONLY
+        console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
+        const response = await confirmPaymentManual({ order_id: orderId, receipt });
         
         if (response.success) {
           // Extract payment amounts from response
@@ -2623,16 +2608,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [startQrCodeScan, paymentRequestCreated, initiateOdooPayment]);
 
   // Step 5: Manual payment confirmation with Odoo
-  // Uses order_id (preferred) or subscription_code to confirm payment
+  // Uses order_id ONLY to confirm payment (from createPaymentRequest response)
   // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
   const handleManualPayment = useCallback((receipt: string) => {
     setIsProcessing(true);
     
     // Confirm payment with Odoo using manual confirmation endpoint
     const confirmManualPayment = async () => {
-      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
-      // Use order_id from payment request if available (preferred)
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
       const orderId = paymentRequestOrderId;
       
       try {
@@ -2645,30 +2628,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           }
         }
 
-        // Must have either order_id or subscription_code
-        if (!orderId && !subscriptionCode) {
-          // No subscription ID or order ID - just proceed with MQTT flow using expected cost
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed');
-          publishPaymentAndService(receipt, false, expectedPaymentAmount || swapData.cost);
+        // order_id is REQUIRED - payment request must be created first
+        if (!orderId) {
+          toast.error('Payment request not created. Please go back and try again.');
+          setIsProcessing(false);
           return;
         }
 
-        // Use Odoo manual confirmation endpoint
-        // Prefer order_id over subscription_code
-        const confirmPayload: any = { receipt };
-        if (orderId) {
-          confirmPayload.order_id = orderId;
-          console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
-        } else {
-          confirmPayload.subscription_code = subscriptionCode;
-          confirmPayload.customer_id = customerData?.id;
-          console.log('Confirming manual payment with subscription_code:', { subscription_code: subscriptionCode, receipt });
-        }
-
-        const response = await confirmPaymentManual(confirmPayload);
+        // Use Odoo manual confirmation endpoint with order_id ONLY
+        console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
+        const response = await confirmPaymentManual({ order_id: orderId, receipt });
         
         if (response.success) {
           // Extract payment amounts from response

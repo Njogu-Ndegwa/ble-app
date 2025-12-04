@@ -36,6 +36,7 @@ import {
   getSubscriptionProducts,
   purchaseSubscription,
   initiatePayment,
+  createPaymentRequest,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
@@ -128,6 +129,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  // Payment request order ID - REQUIRED for confirm payment (from createPaymentRequest response)
+  const [paymentRequestOrderId, setPaymentRequestOrderId] = useState<number | null>(null);
   
   // Payment amount tracking for incomplete payments
   const [paymentAmountPaid, setPaymentAmountPaid] = useState<number>(0);
@@ -1001,6 +1004,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [createdPartnerId, selectedPlanId, availablePlans]);
 
   // Initiate payment with Odoo before collecting M-Pesa
+  // Step 1: Create payment request/ticket FIRST (REQUIRED)
+  // Step 2: Optionally send STK push to customer's phone
   // Accepts optional subscriptionCode parameter to avoid React state timing issues
   const initiateOdooPayment = useCallback(async (subscriptionCode?: string): Promise<boolean> => {
     // Use the passed subscription code, or fall back to state
@@ -1027,33 +1032,67 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     phoneNumber = phoneNumber.replace('+', '');
 
     try {
-      console.log('Initiating payment with Odoo:', {
+      // Step 1: Create payment request/ticket FIRST (REQUIRED)
+      // This gives us the order_id needed for confirm payment
+      console.log('Creating payment request with Odoo:', {
         subscription_code: subCode,
-        phone_number: phoneNumber,
-        amount,
+        amount_required: amount,
+        description: `Plan purchase - ${selectedPlan?.name || 'Subscription'}`,
       });
 
-      // Pass the employee token for authorization
-      const response = await initiatePayment({
+      const paymentRequestResponse = await createPaymentRequest({
         subscription_code: subCode,
-        phone_number: phoneNumber,
-        amount,
-      }, employeeToken || undefined);
+        amount_required: amount,
+        description: `Plan purchase - ${selectedPlan?.name || 'Subscription'}`,
+      });
 
-      if (response.success && response.data) {
-        console.log('Payment initiated:', response.data);
-        setPaymentInitiated(true);
-        toast.success(response.data.instructions || 'Check your phone for M-Pesa prompt');
-        return true;
+      if (paymentRequestResponse.success && paymentRequestResponse.payment_request) {
+        // Payment request created successfully - store the order_id
+        console.log('Payment request created:', paymentRequestResponse.payment_request);
+        setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
+        toast.success('Payment ticket created. Collect payment from customer.');
       } else {
-        throw new Error('Payment initiation failed');
+        // Payment request creation failed - show error to user
+        console.error('Payment request creation failed:', paymentRequestResponse.error);
+        
+        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
+        
+        // If there's an existing request, include details about it
+        if (paymentRequestResponse.existing_request) {
+          const existingReq = paymentRequestResponse.existing_request;
+          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: KES ${existingReq.amount_remaining} remaining (${existingReq.status})`;
+        }
+        
+        toast.error(errorMessage);
+        return false;
       }
-    } catch (error: any) {
-      console.error('Failed to initiate payment:', error);
-      // Don't block the flow - user can still enter receipt manually
+
+      // Step 2: Optionally try to send STK push (don't block if it fails)
+      if (phoneNumber) {
+        try {
+          console.log('Sending STK push to customer phone:', phoneNumber);
+          const stkResponse = await initiatePayment({
+            subscription_code: subCode,
+            phone_number: phoneNumber,
+            amount,
+          }, employeeToken || undefined);
+
+          if (stkResponse.success && stkResponse.data) {
+            console.log('STK push sent:', stkResponse.data);
+            toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
+          }
+        } catch (stkError) {
+          console.warn('STK push failed (non-blocking):', stkError);
+          // Don't show error toast - customer can still pay manually
+        }
+      }
+
       setPaymentInitiated(true);
-      toast.error('Could not send M-Pesa prompt. Enter receipt manually.');
-      return true; // Allow to continue
+      return true;
+    } catch (error: any) {
+      console.error('Failed to create payment request:', error);
+      toast.error(error.message || 'Failed to create payment request. Please try again.');
+      return false;
     }
   }, [subscriptionData, selectedPlanId, availablePlans, formData.phone]);
 
@@ -1068,7 +1107,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     startQrCodeScan();
   }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
 
-  // Handle manual payment entry - confirm with Odoo
+  // Handle manual payment entry - confirm with Odoo using order_id ONLY
   const handleManualPayment = useCallback(async (receipt: string) => {
     setIsProcessing(true);
     
@@ -1082,10 +1121,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       }
 
-      const subscriptionCode = subscriptionData?.subscriptionCode;
-
-      if (!subscriptionCode) {
-        toast.error('No subscription created. Please restart the registration.');
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
+      if (!paymentRequestOrderId) {
+        toast.error('Payment request not created. Please go back and try again.');
         setIsProcessing(false);
         return;
       }
@@ -1093,25 +1131,23 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // Get the salesperson's employee token for authorization
       const employeeToken = getEmployeeToken();
 
-      // Use Odoo manual confirmation endpoint
-      console.log('Confirming payment with Odoo:', {
-        subscription_code: subscriptionCode,
+      // Use Odoo manual confirmation endpoint with order_id ONLY
+      console.log('Confirming payment with order_id:', {
+        order_id: paymentRequestOrderId,
         receipt,
-        customer_id: createdPartnerId?.toString(),
       });
 
       // Pass the employee token for authorization
       const response = await confirmPaymentManual({
-        subscription_code: subscriptionCode,
+        order_id: paymentRequestOrderId,
         receipt,
-        customer_id: createdPartnerId?.toString(),
       }, employeeToken || undefined);
       
       if (response.success && response.data) {
         const paymentData = response.data;
         
-        // Store subscription code for battery allocation
-        setConfirmedSubscriptionCode(paymentData.subscription_code || subscriptionCode);
+        // Store subscription code for battery allocation (from response or from subscriptionData state)
+        setConfirmedSubscriptionCode(paymentData.subscription_code || subscriptionData?.subscriptionCode || '');
         setPaymentReference(paymentData.receipt || receipt);
         
         // Track payment amounts
@@ -1152,12 +1188,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [
     subscriptionData, 
-    createdPartnerId, 
     advanceToStep, 
     paymentInitiated, 
     initiateOdooPayment,
     availablePlans,
-    selectedPlanId
+    selectedPlanId,
+    paymentRequestOrderId
   ]);
 
   // Update payment QR ref when handler changes
@@ -1262,6 +1298,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setPaymentConfirmed(false);
         setPaymentReference('');
         setPaymentInitiated(false);
+        setPaymentRequestOrderId(null);
         setPaymentAmountPaid(0);
         setPaymentAmountExpected(0);
         setPaymentAmountRemaining(0);
