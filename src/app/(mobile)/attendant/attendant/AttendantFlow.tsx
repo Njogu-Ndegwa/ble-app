@@ -196,6 +196,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Transaction ID
   const [transactionId, setTransactionId] = useState<string>('');
   
+  // Payment step input mode (scan QR or manual entry)
+  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  // Manual payment ID input
+  const [manualPaymentId, setManualPaymentId] = useState<string>('');
+  
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
   
@@ -3022,13 +3027,23 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         handleProceedToPayment();
         break;
       case 5:
-        handleConfirmPayment();
+        // Handle payment based on input mode
+        if (paymentInputMode === 'scan') {
+          handleConfirmPayment();
+        } else {
+          // Manual mode - call backend with manual payment ID
+          if (manualPaymentId.trim()) {
+            handleManualPayment(manualPaymentId.trim());
+          } else {
+            toast.error(t('sales.enterTransactionId'));
+          }
+        }
         break;
       case 6:
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleNewSwap]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t]);
 
   // Render current step content
   const renderStepContent = () => {
@@ -3080,10 +3095,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           <Step5Payment 
             swapData={swapData}
             customerData={customerData}
-            onConfirmPayment={handleConfirmPayment}
-            onManualPayment={handleManualPayment}
             isProcessing={isProcessing || paymentAndServiceStatus === 'pending'}
-            isScannerOpening={isScanning}
+            inputMode={paymentInputMode}
+            setInputMode={setPaymentInputMode}
+            paymentId={manualPaymentId}
+            setPaymentId={setManualPaymentId}
           />
         );
       case 6:
@@ -3175,6 +3191,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         onMainAction={handleMainAction}
         isLoading={isScanning || isProcessing || paymentAndServiceStatus === 'pending'}
         inputMode={inputMode}
+        paymentInputMode={paymentInputMode}
         hasSufficientQuota={hasSufficientQuota}
       />
 

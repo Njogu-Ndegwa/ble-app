@@ -10,6 +10,7 @@ interface ActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   inputMode?: 'scan' | 'manual';
+  paymentInputMode?: 'scan' | 'manual';
   hasSufficientQuota?: boolean;
 }
 
@@ -59,7 +60,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSufficientQuota?: boolean): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSufficientQuota?: boolean, paymentInputMode?: 'scan' | 'manual'): StepActionConfig => {
   switch (step) {
     case 1:
       // Show different text/icon based on input mode
@@ -78,7 +79,12 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSu
       }
       return { showBack: true, mainTextKey: 'attendant.collectPayment', mainIcon: 'arrow' };
     case 5:
-      return { showBack: true, mainTextKey: 'attendant.confirmPayment', mainIcon: 'qr' };
+      // Show appropriate icon based on payment input mode (scan QR or manual entry)
+      return { 
+        showBack: true, 
+        mainTextKey: 'attendant.confirmPayment', 
+        mainIcon: paymentInputMode === 'manual' ? 'check' : 'qr' 
+      };
     case 6:
       return { showBack: false, mainTextKey: 'attendant.startNewSwap', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
@@ -86,13 +92,12 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSu
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, hasSufficientQuota }: ActionBarProps) {
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota }: ActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota);
+  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
-  // Don't show for step 5 either - Step5Payment has its own action buttons for both scan and manual modes
-  const hideMainButton = (currentStep === 1 && inputMode === 'manual') || currentStep === 5;
+  const hideMainButton = currentStep === 1 && inputMode === 'manual';
 
   return (
     <div className="action-bar">

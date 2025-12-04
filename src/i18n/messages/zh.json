@@ -918,6 +918,7 @@
   "sales.enterTransactionId": "输入交易ID",
   "sales.confirmPayment": "确认支付",
   "sales.tapToConfirmPayment": "点击上方确认您的交易",
+  "sales.tapConfirmToProcess": "点击确认支付以处理",
   
   "sales.assignBattery": "分配电池",
   "sales.scanBatteryQr": "扫描电池二维码以分配给客户",
@@ -1002,6 +1003,8 @@
   "attendant.confirmingPayment": "确认支付中...",
   "attendant.paymentConfirmed": "支付已确认",
   "attendant.completeSwap": "完成更换",
+  "attendant.confirmPayment": "确认支付",
+  "attendant.tapConfirmToScan": "点击确认支付扫描二维码",
   
   "attendant.swapComplete": "更换完成！",
   "attendant.batteryIssued": "电池已成功发放",

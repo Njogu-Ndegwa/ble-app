@@ -1007,6 +1007,7 @@
   "sales.enterTransactionId": "Entrer l'ID de transaction",
   "sales.confirmPayment": "Confirmer le paiement",
   "sales.tapToConfirmPayment": "Appuyez ci-dessus pour confirmer votre transaction",
+  "sales.tapConfirmToProcess": "Appuyez sur Confirmer pour traiter",
   
   "sales.assignBattery": "Attribuer la batterie",
   "sales.scanBatteryQr": "Scanner le code QR de la batterie à attribuer au client",
@@ -1091,6 +1092,8 @@
   "attendant.confirmingPayment": "Confirmation du paiement...",
   "attendant.paymentConfirmed": "Paiement confirmé",
   "attendant.completeSwap": "Terminer l'échange",
+  "attendant.confirmPayment": "Confirmer le paiement",
+  "attendant.tapConfirmToScan": "Appuyez sur Confirmer pour scanner le QR",
   
   "attendant.swapComplete": "Échange terminé !",
   "attendant.batteryIssued": "La batterie a été émise avec succès",
