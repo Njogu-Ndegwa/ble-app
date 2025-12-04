@@ -1059,7 +1059,7 @@
   "attendant.success": "Succès",
   
   "attendant.returnBattery": "Retourner la batterie",
-  "attendant.scanReturnBattery": "Scanner la batterie retournée",
+  "attendant.scanReturnBattery": "Scanner Retour",
   "attendant.batteryReturned": "Batterie retournée",
   "attendant.chargeLevel": "Niveau de charge",
   "attendant.energyRemaining": "Énergie restante",
@@ -1067,7 +1067,7 @@
   "attendant.firstTimeCustomer": "Nouveau client - pas de batterie à retourner",
   
   "attendant.issueNewBattery": "Émettre une nouvelle batterie",
-  "attendant.scanNewBattery": "Scanner la nouvelle batterie à émettre",
+  "attendant.scanNewBattery": "Scanner Nouveau",
   "attendant.newBatteryAssigned": "Nouvelle batterie attribuée",
   "attendant.batteryId": "ID de la batterie",
   

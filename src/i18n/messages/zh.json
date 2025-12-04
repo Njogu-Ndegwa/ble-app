@@ -970,7 +970,7 @@
   "attendant.success": "成功",
   
   "attendant.returnBattery": "归还电池",
-  "attendant.scanReturnBattery": "扫描归还的电池",
+  "attendant.scanReturnBattery": "扫描旧",
   "attendant.batteryReturned": "电池已归还",
   "attendant.chargeLevel": "电量水平",
   "attendant.energyRemaining": "剩余能量",
@@ -978,7 +978,7 @@
   "attendant.firstTimeCustomer": "新客户 - 无电池可归还",
   
   "attendant.issueNewBattery": "发放新电池",
-  "attendant.scanNewBattery": "扫描要发放的新电池",
+  "attendant.scanNewBattery": "扫描新",
   "attendant.newBatteryAssigned": "新电池已分配",
   "attendant.batteryId": "电池ID",
   
