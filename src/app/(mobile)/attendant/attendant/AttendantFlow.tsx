@@ -1198,19 +1198,29 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         setPaymentRequestData(paymentRequestResponse.payment_request);
         setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
         toast.success('Payment ticket created. Collect payment from customer.');
-      } else if (paymentRequestResponse.existing_request) {
-        // There's already an active payment request - use it
-        console.log('Using existing payment request:', paymentRequestResponse.existing_request);
-        setPaymentRequestCreated(true);
-        // We don't have full PaymentRequestData, but we have the essential info
-        setPaymentRequestOrderId(paymentRequestResponse.existing_request.id);
-        // Update expected amount to match existing request
-        setExpectedPaymentAmount(paymentRequestResponse.existing_request.amount_remaining);
-        toast.success(`Using existing payment request. Remaining: KES ${paymentRequestResponse.existing_request.amount_remaining}`);
       } else {
-        // Request failed for another reason
+        // Payment request creation failed - show error to user
+        // This includes the case when there's an existing active payment request
         console.error('Payment request creation failed:', paymentRequestResponse.error);
-        toast.error(paymentRequestResponse.error || 'Failed to create payment request');
+        
+        // Build a detailed error message
+        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
+        
+        // If there's an existing request, include details about it
+        if (paymentRequestResponse.existing_request) {
+          const existingReq = paymentRequestResponse.existing_request;
+          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: KES ${existingReq.amount_remaining} remaining (${existingReq.status})`;
+          
+          // Log the available actions for debugging
+          console.log('Existing request actions:', existingReq.actions);
+        }
+        
+        // Show instructions if available
+        if (paymentRequestResponse.instructions && paymentRequestResponse.instructions.length > 0) {
+          console.log('Instructions:', paymentRequestResponse.instructions);
+        }
+        
+        toast.error(errorMessage);
         return false;
       }
 

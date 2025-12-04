@@ -600,7 +600,15 @@ export async function initiatePayment(
  * This MUST be called before collecting payment from the customer.
  * 
  * The response includes an order_id which should be used in the confirmation step.
- * If there's already an active payment request, the API returns error with existing_request details.
+ * 
+ * IMPORTANT: If there's already an active payment request, the API returns:
+ * - success: false
+ * - error: Description of the problem
+ * - existing_request: Details about the existing active request
+ * - instructions: Options for how to proceed (complete, cancel, or pay remaining)
+ * 
+ * The caller MUST treat this as an error and inform the user - do NOT silently reuse
+ * the existing request.
  * 
  * @param payload - Payment request data (subscription_code, amount_required, description, external_reference?)
  * @param authToken - Optional employee/salesperson token for authorization
