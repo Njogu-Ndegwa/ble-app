@@ -7138,24 +7138,101 @@ html.theme-transition *::after {
 }
 
 /* =============================================================================
-   Preview Step Styles (Step 4 - Order Summary)
+   Preview Step Styles (Step 4 - Order Summary) - Simplified Design
    ============================================================================= */
 
-/* Preview Package Card */
-.preview-package-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+/* Total Amount Card - Prominent at Top */
+.preview-total-card {
+  background: var(--accent);
   border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  text-align: center;
   margin-bottom: 12px;
 }
 
-.preview-package-image {
-  width: 80px;
-  height: 60px;
+.preview-total-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.preview-total-amount {
+  font-family: 'DM Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+}
+
+/* Simple Card - Base Style */
+.preview-simple-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.preview-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.preview-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Customer Avatar */
+.preview-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.preview-customer-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-customer-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.preview-customer-contact {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Item Row - Package/Subscription */
+.preview-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-item-image {
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -7165,228 +7242,70 @@ html.theme-transition *::after {
   overflow: hidden;
 }
 
-.preview-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.preview-image-placeholder {
-  width: 40px;
-  height: 40px;
+.preview-item-image svg {
+  width: 24px;
+  height: 24px;
   color: var(--text-muted);
 }
 
-.preview-image-placeholder svg {
-  width: 100%;
-  height: 100%;
-}
-
-.preview-package-info {
+.preview-item-details {
   flex: 1;
   min-width: 0;
 }
 
-.preview-package-name {
+.preview-item-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 2px;
 }
 
-.preview-package-product {
+.preview-item-sub {
   font-size: 11px;
   color: var(--text-secondary);
-  margin-bottom: 4px;
+  margin-top: 2px;
 }
 
-.preview-package-price {
+.preview-item-price {
   font-family: 'DM Mono', monospace;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--accent);
-}
-
-/* Preview Cost Card - Enhanced version of cost-card */
-.preview-cost-card {
-  margin-bottom: 12px;
-}
-
-.preview-cost-card .cost-row-main {
-  padding: 10px 0;
-}
-
-.preview-cost-card .cost-row-main .cost-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-}
-
-.preview-cost-card .cost-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--accent);
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
-/* Cost breakdown section - expandable details */
-.cost-breakdown-section {
-  margin-top: -4px;
-  padding-left: 24px;
+/* Package Components - Always Visible */
+.preview-components {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.cost-breakdown-toggle {
+.preview-components-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.preview-component-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg-tertiary);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: 'Outfit', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.cost-breakdown-toggle:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-.breakdown-chevron {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s ease;
-}
-
-.breakdown-chevron.open {
-  transform: rotate(180deg);
-}
-
-.cost-breakdown-items {
-  padding: 8px 0;
-  animation: slideDown 0.2s ease;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.cost-row-sub {
   padding: 6px 0;
-  margin-left: 4px;
-  border-left: 2px solid var(--border-subtle);
-  padding-left: 12px;
 }
 
-.cost-label-sub {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.component-badge {
-  display: inline-flex;
-  padding: 2px 6px;
-  border-radius: 8px;
-  font-size: 8px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
-}
-
-.component-badge-product {
-  background: var(--info-soft);
-  color: var(--info);
-}
-
-.component-badge-privilege {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.component-name {
-  font-size: 11px;
+.preview-component-name {
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
-.cost-value-sub {
-  font-size: 10px;
+.preview-component-price {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-.cost-breakdown-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 8px 10px;
-  margin-top: 8px;
-  background: var(--info-soft);
-  border-radius: var(--radius-sm);
-  font-size: 10px;
-  color: var(--info);
-}
-
-.cost-breakdown-note svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-/* Cost divider */
-.cost-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
-  margin: 8px 0;
-}
-
-/* Preview Customer Card */
-.preview-customer-card {
-  margin-bottom: 12px;
-}
-
-.preview-customer-card .customer-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.preview-customer-card .customer-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.preview-customer-card .customer-details {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: 2px;
-  flex-wrap: wrap;
-}
-
-.preview-customer-card .customer-divider {
-  color: var(--border);
-}
-
-/* Preview Ready Message */
+/* Ready to Proceed Message */
 .preview-ready-message {
   display: flex;
   align-items: center;
