@@ -2557,13 +2557,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setIsProcessing(false);
     }, 30000);
 
-    const formattedCheckoutId = swapData.newBattery?.id 
-      ? `BAT_NEW_${swapData.newBattery.id}` 
-      : null;
-    
-    const formattedCheckinId = swapData.oldBattery?.id
-      ? `BAT_RETURN_ATT_${swapData.oldBattery.id}`
-      : null;
+    // Use raw battery IDs without prefix - backend expects IDs like "B0723025100049"
+    const newBatteryId = swapData.newBattery?.id || null;
+    const oldBatteryId = swapData.oldBattery?.id || null;
 
     const checkoutEnergy = swapData.newBattery?.energy || 0;
     const checkinEnergy = swapData.oldBattery?.energy || 0;
@@ -2573,28 +2569,23 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     if (energyTransferred < 0) energyTransferred = 0;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    // For quota-based service, payment amount is 0 (customer is using pre-paid credit)
-    const paymentAmount = isQuotaBased ? 0 : swapData.cost;
-    // Payment method is QUOTA for quota-based, MPESA for regular
-    const paymentMethod = isQuotaBased ? "QUOTA" : "MPESA";
+    const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     console.info('Publishing payment_and_service:', {
       isQuotaBased,
-      ...(isQuotaBased ? {} : { paymentAmount, paymentMethod, paymentReference }),
+      ...(isQuotaBased ? {} : { paymentAmount, paymentReference }),
       energyTransferred,
+      oldBatteryId,
+      newBatteryId,
     });
 
     let paymentAndServicePayload: any = null;
 
-    if (customerType === 'returning' && formattedCheckinId) {
+    if (customerType === 'returning' && oldBatteryId) {
       // Returning customer payload
-      const oldBatteryId = swapData.oldBattery?.id 
-        ? `BAT_NEW_${swapData.oldBattery.id}` 
-        : formattedCheckinId;
-
-      // When quota-based, don't include payment_data - customer is using existing credit
       if (isQuotaBased) {
+        // Quota-based: No payment_data needed - customer is using existing quota credit
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -2605,13 +2596,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             attendant_station: attendantInfo.station,
             service_data: {
               old_battery_id: oldBatteryId,
-              new_battery_id: formattedCheckoutId,
+              new_battery_id: newBatteryId,
               energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
               service_duration: 240,
             },
           },
         };
       } else {
+        // Regular payment flow: Include payment_data
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -2624,22 +2616,22 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               service_id: serviceId,
               payment_amount: paymentAmount,
               payment_reference: paymentReference,
-              payment_method: paymentMethod,
+              payment_method: "MPESA",
               payment_type: "TOP_UP",
             },
             service_data: {
               old_battery_id: oldBatteryId,
-              new_battery_id: formattedCheckoutId,
+              new_battery_id: newBatteryId,
               energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
               service_duration: 240,
             },
           },
         };
       }
-    } else if (customerType === 'first-time' && formattedCheckoutId) {
+    } else if (customerType === 'first-time' && newBatteryId) {
       // First-time customer payload
-      // When quota-based, don't include payment_data - customer is using existing credit
       if (isQuotaBased) {
+        // Quota-based: No payment_data needed - customer is using existing quota credit
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -2649,13 +2641,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
             attendant_station: attendantInfo.station,
             service_data: {
-              new_battery_id: formattedCheckoutId,
+              new_battery_id: newBatteryId,
               energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
               service_duration: 240,
             },
           },
         };
       } else {
+        // Regular payment flow: Include payment_data
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -2668,11 +2661,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               service_id: serviceId,
               payment_amount: paymentAmount,
               payment_reference: paymentReference,
-              payment_method: paymentMethod,
+              payment_method: "MPESA",
               payment_type: "DEPOSIT",
             },
             service_data: {
-              new_battery_id: formattedCheckoutId,
+              new_battery_id: newBatteryId,
               energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
               service_duration: 240,
             },
@@ -2752,8 +2745,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               
               const success = responseData?.data?.success ?? false;
               const signals = responseData?.data?.signals || [];
+              const metadata = responseData?.data?.metadata || {};
 
-              console.info("payment_and_service response - success:", success, "signals:", signals);
+              console.info("payment_and_service response - success:", success, "signals:", signals, "metadata:", metadata);
+
+              // Check for error signals - these indicate failure even if success is true
+              // Backend may return success:true with error signals for validation failures
+              const errorSignals = ["BATTERY_MISMATCH", "ASSET_VALIDATION_FAILED", "SECURITY_ALERT", "VALIDATION_FAILED", "PAYMENT_FAILED"];
+              const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
 
               // Handle both fresh success and idempotent (cached) responses
               // Fresh success signals: ASSET_RETURNED, ASSET_ALLOCATED, SERVICE_COMPLETED
@@ -2763,32 +2762,40 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               const hasAssetSignals = signals.includes("ASSET_RETURNED") || signals.includes("ASSET_ALLOCATED");
               
               const hasSuccessSignal = success === true && 
+                !hasErrorSignal &&
                 Array.isArray(signals) && 
                 (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
 
-              if (hasSuccessSignal) {
+              if (hasErrorSignal) {
+                // Error signals present - treat as failure regardless of success flag
+                console.error("payment_and_service failed with error signals:", signals);
+                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
+                const actionRequired = metadata?.action_required;
+                toast.error(actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg);
+                setPaymentAndServiceStatus('error');
+              } else if (hasSuccessSignal) {
                 console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
                 
-                // Clear the correlation ID to prevent fire-and-forget fallback
+                // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
                 advanceToStep(6);
                 toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
-              } else if (success) {
-                // Success without specific signal - still treat as success
-                console.info("payment_and_service completed (generic success)");
+              } else if (success && signals.length === 0) {
+                // Success without any signals - treat as generic success
+                console.info("payment_and_service completed (generic success, no signals)");
                 
-                // Clear the correlation ID to prevent fire-and-forget fallback
+                // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
                 advanceToStep(6);
                 toast.success('Swap completed!');
               } else {
-                // Response received but not successful
+                // Response received but not successful or has unknown signals
                 console.error("payment_and_service failed - success:", success, "signals:", signals);
-                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Failed to record swap";
+                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
                 toast.error(errorMsg);
                 setPaymentAndServiceStatus('error');
               }
@@ -2826,25 +2833,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               setIsScanning(false);
               setIsProcessing(false);
             } else {
-              console.info("payment_and_service published successfully, waiting for response...");
-              // Don't complete yet - wait for response handler or timeout
-              // If backend doesn't send response, timeout will handle it
-              // For backward compatibility, also set success after a short delay
-              // in case no response comes (fire-and-forget fallback)
-              setTimeout(() => {
-                // Only complete if still pending (no response received yet)
-                if ((window as any).__paymentAndServiceCorrelationId === paymentCorrelationId) {
-                  console.info("No response received for payment_and_service, assuming success (fire-and-forget)");
-                  clearTimeout(timeoutId);
-                  setPaymentAndServiceStatus('success');
-                  advanceToStep(6);
-                  toast.success('Swap completed!');
-                  setIsScanning(false);
-                  setIsProcessing(false);
-                  // Clear the correlation ID
-                  (window as any).__paymentAndServiceCorrelationId = null;
-                }
-              }, 5000); // 5 second grace period for response
+              console.info("payment_and_service published successfully, waiting for backend response...");
+              // Wait for the actual backend response via MQTT handler
+              // The 30-second timeout will handle cases where no response is received
+              // Do NOT assume success - we must wait for confirmation that quota was updated
             }
           } catch (err) {
             console.error("Error parsing payment_and_service publish response:", err);
