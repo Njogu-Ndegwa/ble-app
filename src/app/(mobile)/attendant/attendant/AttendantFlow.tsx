@@ -2762,7 +2762,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               if (hasSuccessSignal) {
                 console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
                 
-                // Clear the correlation ID to prevent fire-and-forget fallback
+                // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
@@ -2772,7 +2772,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 // Success without specific signal - still treat as success
                 console.info("payment_and_service completed (generic success)");
                 
-                // Clear the correlation ID to prevent fire-and-forget fallback
+                // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
@@ -2819,25 +2819,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               setIsScanning(false);
               setIsProcessing(false);
             } else {
-              console.info("payment_and_service published successfully, waiting for response...");
-              // Don't complete yet - wait for response handler or timeout
-              // If backend doesn't send response, timeout will handle it
-              // For backward compatibility, also set success after a short delay
-              // in case no response comes (fire-and-forget fallback)
-              setTimeout(() => {
-                // Only complete if still pending (no response received yet)
-                if ((window as any).__paymentAndServiceCorrelationId === paymentCorrelationId) {
-                  console.info("No response received for payment_and_service, assuming success (fire-and-forget)");
-                  clearTimeout(timeoutId);
-                  setPaymentAndServiceStatus('success');
-                  advanceToStep(6);
-                  toast.success('Swap completed!');
-                  setIsScanning(false);
-                  setIsProcessing(false);
-                  // Clear the correlation ID
-                  (window as any).__paymentAndServiceCorrelationId = null;
-                }
-              }, 5000); // 5 second grace period for response
+              console.info("payment_and_service published successfully, waiting for backend response...");
+              // Wait for the actual backend response via MQTT handler
+              // The 30-second timeout will handle cases where no response is received
+              // Do NOT assume success - we must wait for confirmation that quota was updated
             }
           } catch (err) {
             console.error("Error parsing payment_and_service publish response:", err);
