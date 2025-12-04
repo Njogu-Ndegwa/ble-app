@@ -1081,6 +1081,10 @@
   "attendant.totalCost": "Coût total",
   "attendant.proceedToPayment": "Procéder au paiement",
   
+  "attendant.quotaCreditAvailable": "Crédit de quota disponible",
+  "attendant.noPaymentRequired": "Aucun paiement requis - utilisation du crédit existant",
+  "attendant.quotaDeduction": "Déduction du quota",
+  
   "attendant.collectPayment": "Collecter le paiement",
   "attendant.enterMpesaCode": "Saisir le code de transaction M-Pesa",
   "attendant.mpesaCode": "Code M-Pesa",

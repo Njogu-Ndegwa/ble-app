@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
@@ -315,6 +315,35 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const batteryFleetService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
   );
+
+  // Check if customer has sufficient quota to skip payment
+  // The customer's remaining energy quota (in kWh) must be >= the energy being transferred (swapData.energyDiff in kWh)
+  // If true, we can skip the payment step and directly record the service
+  const hasSufficientQuota = useMemo(() => {
+    if (!electricityService) return false;
+    
+    const quotaValue = Number(electricityService.quota ?? 0);
+    const usedValue = Number(electricityService.used ?? 0);
+    const remainingQuota = quotaValue - usedValue;
+    
+    // energyDiff is in kWh, remainingQuota is also in kWh (same units as displayed in UI)
+    const energyNeeded = swapData.energyDiff;
+    
+    const hasEnough = Number.isFinite(remainingQuota) && 
+                      Number.isFinite(energyNeeded) && 
+                      remainingQuota >= energyNeeded &&
+                      energyNeeded > 0;
+    
+    console.info('Quota check:', {
+      quota: quotaValue,
+      used: usedValue,
+      remainingQuota,
+      energyNeeded,
+      hasSufficientQuota: hasEnough,
+    });
+    
+    return hasEnough;
+  }, [electricityService, swapData.energyDiff]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
@@ -1184,6 +1213,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
+
+  // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
+  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -2343,16 +2375,34 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
 
   // Step 4: Proceed to payment - initiate payment with Odoo first
+  // OR skip payment if customer has sufficient quota
   const handleProceedToPayment = useCallback(async () => {
     setIsProcessing(true);
     try {
-      // Initiate payment with Odoo to tell them we're collecting this amount
+      // Check if customer has sufficient quota to skip payment
+      if (hasSufficientQuota) {
+        console.info('Customer has sufficient quota - skipping payment step');
+        toast.success('Using quota credit - no payment required');
+        
+        // Skip payment step and directly record the service
+        // Use a quota-based payment reference
+        const quotaReference = `QUOTA_${Date.now()}`;
+        setPaymentConfirmed(true);
+        setPaymentReceipt(quotaReference);
+        setTransactionId(quotaReference);
+        
+        // Call publishPaymentAndService via ref to avoid circular dependency
+        publishPaymentAndServiceRef.current(quotaReference, true); // true indicates quota-based service
+        return;
+      }
+      
+      // Normal flow: Initiate payment with Odoo to tell them we're collecting this amount
       await initiateOdooPayment();
       advanceToStep(5);
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2434,7 +2484,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [dynamicPlanId, swapData.cost, customerData, paymentInitiated, initiateOdooPayment]);
 
   // Publish payment_and_service via MQTT
-  const publishPaymentAndService = useCallback((paymentReference: string) => {
+  // isQuotaBased: When true, customer is using their existing quota credit (no payment required)
+  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false) => {
     if (!bridge) {
       console.error("Bridge not available for payment_and_service");
       toast.error('Bridge not available. Please restart the app.');
@@ -2470,8 +2521,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     if (energyTransferred < 0) energyTransferred = 0;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    const paymentAmount = swapData.cost;
+    // For quota-based service, payment amount is 0 (customer is using pre-paid credit)
+    const paymentAmount = isQuotaBased ? 0 : swapData.cost;
+    // Payment method is QUOTA for quota-based, MPESA for regular
+    const paymentMethod = isQuotaBased ? "QUOTA" : "MPESA";
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    console.info('Publishing payment_and_service:', {
+      isQuotaBased,
+      paymentAmount,
+      paymentMethod,
+      paymentReference,
+      energyTransferred,
+    });
 
     let paymentAndServicePayload: any = null;
 
@@ -2493,8 +2555,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             service_id: serviceId,
             payment_amount: paymentAmount,
             payment_reference: paymentReference,
-            payment_method: "MPESA",
-            payment_type: "TOP_UP",
+            payment_method: paymentMethod,
+            payment_type: isQuotaBased ? "QUOTA_CREDIT" : "TOP_UP",
           },
           service_data: {
             old_battery_id: oldBatteryId,
@@ -2518,8 +2580,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             service_id: serviceId,
             payment_amount: paymentAmount,
             payment_reference: paymentReference,
-            payment_method: "MPESA",
-            payment_type: "DEPOSIT",
+            payment_method: paymentMethod,
+            payment_type: isQuotaBased ? "QUOTA_CREDIT" : "DEPOSIT",
           },
           service_data: {
             new_battery_id: formattedCheckoutId,
@@ -2716,6 +2778,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     }
   }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
 
+  // Keep publishPaymentAndService ref up to date to avoid circular dependency with handleProceedToPayment
+  useEffect(() => {
+    publishPaymentAndServiceRef.current = publishPaymentAndService;
+  }, [publishPaymentAndService]);
+
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
     setCurrentStep(1);
@@ -2877,7 +2944,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return (
           <Step4Review 
             swapData={swapData} 
-            customerData={customerData} 
+            customerData={customerData}
+            hasSufficientQuota={hasSufficientQuota}
           />
         );
       case 5:
@@ -2980,6 +3048,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         onMainAction={handleMainAction}
         isLoading={isScanning || isProcessing || paymentAndServiceStatus === 'pending'}
         inputMode={inputMode}
+        hasSufficientQuota={hasSufficientQuota}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
