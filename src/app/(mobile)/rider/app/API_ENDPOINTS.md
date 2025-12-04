@@ -607,9 +607,9 @@ The BSS (Battery Swap Service) platform uses MQTT for real-time data. After logi
 | UI Element | Data Path | Example Value |
 |------------|-----------|---------------|
 | **Plan Name** | `metadata.service_bundle.name` | "Togo 7-Day Bare-bone Bundle" |
-| **Plan Status** | `metadata.service_plan_data.status` | "ACTIVE" |
+| **Payment State** ⭐ | `metadata.service_plan_data.paymentState` | "RENEWAL_DUE", "PAID", "OVERDUE", "PENDING" |
 | **Service State** | `metadata.service_plan_data.serviceState` | "BATTERY_ISSUED" |
-| **Payment State** | `metadata.service_plan_data.paymentState` | "RENEWAL_DUE" |
+| ~~Plan Status~~ | `metadata.service_plan_data.status` | "ACTIVE" (not used - paymentState is primary) |
 | **Currency** | `metadata.service_plan_data.currency` | "XOF" |
 | **Current Battery** | `serviceStates[battery-fleet].current_asset` | "B0723025100049" |
 | **Swap Count** | `serviceStates[swap-count].used` | 2 |

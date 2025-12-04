@@ -5520,9 +5520,19 @@ html.theme-transition *::after {
   color: var(--success);
 }
 
+.rider-bike-status.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
 .rider-bike-status.inactive {
   background: var(--error-soft);
   color: var(--error);
+}
+
+.rider-bike-status.pending {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
 }
 
 .rider-bike-content {
@@ -6283,6 +6293,52 @@ html.theme-transition *::after {
   background: var(--success);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
+}
+
+/* Payment State Colors for Energy Service */
+.energy-service-status.paid {
+  color: var(--success);
+}
+
+.energy-service-status.paid .status-dot {
+  background: var(--success);
+}
+
+.energy-service-status.renewal-due {
+  color: #f59e0b;
+}
+
+.energy-service-status.renewal-due .status-dot {
+  background: #f59e0b;
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+.energy-service-status.overdue {
+  color: var(--error);
+}
+
+.energy-service-status.overdue .status-dot {
+  background: var(--error);
+  animation: pulse-error 1s ease-in-out infinite;
+}
+
+.energy-service-status.pending {
+  color: var(--text-muted);
+}
+
+.energy-service-status.pending .status-dot {
+  background: var(--text-muted);
+  animation: none;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0); }
+}
+
+@keyframes pulse-error {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 90, 90, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(255, 90, 90, 0); }
 }
 
 .energy-service-visual {

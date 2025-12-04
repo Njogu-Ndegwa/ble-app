@@ -4,6 +4,38 @@ import React from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
 
+// Helper function to get CSS class based on payment state
+const getPaymentStateClass = (paymentState: string): string => {
+  switch (paymentState) {
+    case 'PAID':
+      return 'paid';
+    case 'RENEWAL_DUE':
+      return 'renewal-due';
+    case 'OVERDUE':
+      return 'overdue';
+    case 'PENDING':
+      return 'pending';
+    default:
+      return 'paid';
+  }
+};
+
+// Helper function to get display label for payment state
+const getPaymentStateLabel = (paymentState: string, t: (key: string) => string): string => {
+  switch (paymentState) {
+    case 'PAID':
+      return t('Paid');
+    case 'RENEWAL_DUE':
+      return t('Renewal Due');
+    case 'OVERDUE':
+      return t('Overdue');
+    case 'PENDING':
+      return t('Pending');
+    default:
+      return paymentState;
+  }
+};
+
 interface ProfileData {
   name: string;
   initials: string;
@@ -13,8 +45,12 @@ interface ProfileData {
   swapsThisMonth: number;
   planName: string;
   planValidity: string;
+  paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
   vehicleInfo: string;
   paymentMethod: string;
+  currentBatteryId?: string;
+  electricityUsed?: number;
+  electricityQuota?: number;
 }
 
 interface RiderProfileProps {
@@ -59,9 +95,9 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           </div>
           <div className="energy-service-title">
             <span className="energy-service-name">{t('Energy Service')}</span>
-            <span className="energy-service-status">
+            <span className={`energy-service-status ${getPaymentStateClass(profile.paymentState)}`}>
               <span className="status-dot"></span>
-              {t('Active')}
+              {getPaymentStateLabel(profile.paymentState, t)}
             </span>
           </div>
         </div>

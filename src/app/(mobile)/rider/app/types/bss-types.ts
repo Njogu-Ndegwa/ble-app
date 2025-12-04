@@ -25,8 +25,10 @@ export type ServiceIdType =
 export interface ServicePlanData {
   servicePlanId: string;
   customerId: string;
+  /** Internal plan status - NOT displayed to user in UI */
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'EXPIRED';
   serviceState: 'BATTERY_ISSUED' | 'BATTERY_RETURNED' | 'PENDING' | string;
+  /** PRIMARY status indicator - This is what we show to the user */
   paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
   templateId: string;
   templateVersion: string;
@@ -207,8 +209,10 @@ export interface RiderDashboardData {
   // Plan Info
   planId: string;
   planName: string;
-  planStatus: string;
+  /** Internal status - not displayed to user */
+  internalPlanStatus: string;
   serviceState: string;
+  /** PRIMARY status shown to user (PAID, RENEWAL_DUE, OVERDUE, PENDING) */
   paymentState: string;
   currency: string;
   planDurationDays: number;
@@ -238,9 +242,9 @@ export function transformToRiderDashboard(response: IdentifyCustomerResponse): R
     customerId: metadata.customer_id,
     planId: service_plan_data.servicePlanId,
     planName: service_bundle.name,
-    planStatus: service_plan_data.status,
+    internalPlanStatus: service_plan_data.status, // Not shown in UI
     serviceState: service_plan_data.serviceState,
-    paymentState: service_plan_data.paymentState,
+    paymentState: service_plan_data.paymentState, // Primary status for UI
     currency: service_plan_data.currency,
     planDurationDays: common_terms.serviceDurationDays,
     billingCycle: common_terms.billingCycle,

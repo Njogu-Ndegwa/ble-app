@@ -4,6 +4,38 @@ import React from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
 
+// Helper function to get CSS class based on payment state
+const getPaymentStateClass = (paymentState: string): string => {
+  switch (paymentState) {
+    case 'PAID':
+      return 'active'; // Green
+    case 'RENEWAL_DUE':
+      return 'warning'; // Yellow/Orange
+    case 'OVERDUE':
+      return 'inactive'; // Red
+    case 'PENDING':
+      return 'pending'; // Gray
+    default:
+      return 'active';
+  }
+};
+
+// Helper function to get display label for payment state
+const getPaymentStateLabel = (paymentState: string, t: (key: string) => string): string => {
+  switch (paymentState) {
+    case 'PAID':
+      return t('Paid');
+    case 'RENEWAL_DUE':
+      return t('Renewal Due');
+    case 'OVERDUE':
+      return t('Overdue');
+    case 'PENDING':
+      return t('Pending');
+    default:
+      return paymentState;
+  }
+};
+
 interface Station {
   id: number;
   name: string;
@@ -18,7 +50,8 @@ interface BikeInfo {
   vehicleId: string;
   lastSwap: string;
   totalSwaps: number;
-  status: 'active' | 'inactive';
+  paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
+  currentBatteryId?: string;
   imageUrl?: string;
 }
 
@@ -72,8 +105,8 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             <div className="rider-bike-label">{t('My Bike')}</div>
             <div className="rider-bike-model">{bike.model}</div>
           </div>
-          <span className={`rider-bike-status ${bike.status}`}>
-            {bike.status === 'active' ? t('Active') : t('Inactive')}
+          <span className={`rider-bike-status ${getPaymentStateClass(bike.paymentState)}`}>
+            {getPaymentStateLabel(bike.paymentState, t)}
           </span>
         </div>
         <div className="rider-bike-content">
@@ -97,10 +130,12 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             )}
           </div>
           <div className="rider-bike-info">
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">{t('Vehicle ID')}</span>
-              <span className="rider-bike-detail-value">{bike.vehicleId}</span>
-            </div>
+            {bike.currentBatteryId && (
+              <div className="rider-bike-detail">
+                <span className="rider-bike-detail-label">{t('Battery ID')}</span>
+                <span className="rider-bike-detail-value">{bike.currentBatteryId}</span>
+              </div>
+            )}
             <div className="rider-bike-detail">
               <span className="rider-bike-detail-label">{t('Last Swap')}</span>
               <span className="rider-bike-detail-value">{bike.lastSwap}</span>

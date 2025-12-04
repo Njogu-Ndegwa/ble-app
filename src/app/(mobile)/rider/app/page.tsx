@@ -35,7 +35,8 @@ interface BikeInfo {
   vehicleId: string;
   lastSwap: string;
   totalSwaps: number;
-  status: 'active' | 'inactive';
+  paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
+  currentBatteryId?: string;
   imageUrl?: string;
 }
 
@@ -48,8 +49,12 @@ interface ProfileData {
   swapsThisMonth: number;
   planName: string;
   planValidity: string;
+  paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
   vehicleInfo: string;
   paymentMethod: string;
+  currentBatteryId?: string;
+  electricityUsed?: number;
+  electricityQuota?: number;
 }
 
 // Login Component
@@ -266,8 +271,12 @@ const RiderApp: React.FC = () => {
     vehicleId: 'VEH-2024-0000',
     lastSwap: '-',
     totalSwaps: 0,
-    status: 'active',
+    paymentState: 'PAID',
+    currentBatteryId: undefined,
   });
+  const [paymentState, setPaymentState] = useState<string>('PAID');
+  const [electricityUsed, setElectricityUsed] = useState<number>(0);
+  const [electricityQuota, setElectricityQuota] = useState<number>(0);
 
   // Check authentication on mount
   useEffect(() => {
@@ -309,13 +318,10 @@ const RiderApp: React.FC = () => {
         
         // Update balance if available
         if (data.summary) {
-          // Note: The actual balance field depends on API response structure
-          // This might need adjustment based on actual API
           setBalance(data.summary.total_paid || 0);
         }
 
         // Map activities from API if available
-        // This is placeholder - actual mapping depends on API structure
         if (data.activity_history) {
           const mappedActivities: ActivityItem[] = data.activity_history.map((item: any, idx: number) => ({
             id: item.id?.toString() || idx.toString(),
@@ -333,6 +339,48 @@ const RiderApp: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  // Update rider data from MQTT service plan response
+  const updateFromServicePlan = (servicePlanData: any) => {
+    if (!servicePlanData) return;
+    
+    // Extract payment state
+    if (servicePlanData.paymentState) {
+      setPaymentState(servicePlanData.paymentState);
+      setBike(prev => ({ ...prev, paymentState: servicePlanData.paymentState }));
+    }
+    
+    // Extract current battery from service states
+    const serviceStates = servicePlanData.serviceStates || [];
+    const batteryService = serviceStates.find((s: any) => 
+      s.service_id?.includes('battery-fleet')
+    );
+    if (batteryService?.current_asset) {
+      setBike(prev => ({ ...prev, currentBatteryId: batteryService.current_asset }));
+    }
+    
+    // Extract swap count
+    const swapService = serviceStates.find((s: any) => 
+      s.service_id?.includes('swap-count')
+    );
+    if (swapService) {
+      setBike(prev => ({ ...prev, totalSwaps: swapService.used || 0 }));
+    }
+    
+    // Extract electricity usage
+    const electricityService = serviceStates.find((s: any) => 
+      s.service_id?.includes('electricity')
+    );
+    if (electricityService) {
+      setElectricityUsed(electricityService.used || 0);
+      setElectricityQuota(electricityService.quota || 0);
+    }
+    
+    // Extract currency
+    if (servicePlanData.currency) {
+      setCurrency(servicePlanData.currency);
     }
   };
 
@@ -453,8 +501,12 @@ const RiderApp: React.FC = () => {
     swapsThisMonth: activities.filter(a => a.type === 'swap').length,
     planName: '7-Day Lux Plan',
     planValidity: 'Dec 9, 2025',
-    vehicleInfo: `${bike.model} • ${bike.vehicleId}`,
+    paymentState: paymentState,
+    vehicleInfo: `${bike.model} • ${bike.currentBatteryId || bike.vehicleId}`,
     paymentMethod: 'MTN Mobile Money',
+    currentBatteryId: bike.currentBatteryId,
+    electricityUsed: electricityUsed,
+    electricityQuota: electricityQuota,
   };
 
   // Loading state
