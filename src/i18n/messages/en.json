@@ -958,10 +958,17 @@
   "Back": "Back",
   
   "sales.step.customer": "Customer",
+  "sales.step.product": "Product",
   "sales.step.plan": "Plan",
   "sales.step.payment": "Payment",
   "sales.step.battery": "Battery",
   "sales.step.done": "Done",
+  
+  "sales.selectProduct": "Select Vehicle",
+  "sales.chooseProduct": "Choose the vehicle for this customer",
+  "sales.noProductsTitle": "No Products Available",
+  "sales.noProductsDescription": "Products couldn't be loaded from the server. This might be a temporary issue.",
+  "sales.noProductsHint": "If this persists, please contact support",
   
   "sales.newCustomer": "New Customer",
   "sales.enterCustomerDetails": "Enter customer details to get started",

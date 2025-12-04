@@ -14,10 +14,11 @@ import {
   SalesTimeline,
   SalesActionBar,
   Step1CustomerForm,
-  Step2SelectPlan,
-  Step3Payment,
-  Step4AssignBattery,
-  Step5Success,
+  Step2SelectProduct,
+  Step3SelectPlan,
+  Step4Payment,
+  Step5AssignBattery,
+  Step6Success,
   // Types
   CustomerFormData,
   BatteryData,
@@ -25,6 +26,7 @@ import {
   BleScanState,
   SalesStep,
   PlanData,
+  ProductData,
   SubscriptionData,
   generateRegistrationId,
 } from './components';
@@ -108,6 +110,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
+  // Physical products from Odoo API (main_service category - bikes, tuks, etc.)
+  const [availableProducts, setAvailableProducts] = useState<ProductData[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [productsLoadError, setProductsLoadError] = useState<string | null>(null);
+  
+  // Product selection (physical product like bikes)
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  
   // Subscription plans from Odoo API - no fallback, Odoo is source of truth
   const [availablePlans, setAvailablePlans] = useState<PlanData[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
@@ -260,12 +270,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, []);
 
   // Auto-save session whenever important state changes
-  // Skip saving on step 5 (success) since the flow is complete
+  // Skip saving on step 6 (success) since the flow is complete
   useEffect(() => {
     // Don't save during initial session restoration
     if (!sessionRestored && showResumePrompt) return;
-    // Don't save if on step 5 (completed)
-    if (currentStep === 5) return;
+    // Don't save if on step 6 (completed)
+    if (currentStep === 6) return;
     // Don't save if no progress has been made
     if (currentStep === 1 && !formData.firstName && !formData.lastName && !formData.email && !formData.phone) return;
 
@@ -741,7 +751,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                   // Advance to success step - clear session since registration is complete
                   clearSalesSession();
                   toast.success(`Battery ${shortId} assigned successfully!`);
-                  advanceToStep(5);
+                  advanceToStep(6);
                 }
               }
             }
@@ -770,11 +780,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [convertRssiToFormattedString, populateEnergyFromDta, advanceToStep, clearScannerTimeout]);
 
-  // Start BLE scanning when on step 4 (battery assignment)
+  // Start BLE scanning when on step 5 (battery assignment)
   useEffect(() => {
-    if (currentStep === 4 && bleHandlersReady) {
+    if (currentStep === 5 && bleHandlersReady) {
       startBleScan();
-    } else if (currentStep !== 4) {
+    } else if (currentStep !== 5) {
       stopBleScan();
     }
     
@@ -783,63 +793,105 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     };
   }, [currentStep, bleHandlersReady, startBleScan, stopBleScan]);
 
-  // Fetch subscription plans from Odoo API - no fallback, Odoo is source of truth
-  // Uses the salesperson's employee token to filter plans by their company
-  const fetchPlans = useCallback(async () => {
+  // Fetch products and subscription plans from Odoo API - no fallback, Odoo is source of truth
+  // Uses the salesperson's employee token to filter by their company
+  const fetchProductsAndPlans = useCallback(async () => {
+    setIsLoadingProducts(true);
     setIsLoadingPlans(true);
+    setProductsLoadError(null);
     setPlansLoadError(null);
     
     try {
-      // Get the salesperson's employee token to filter plans by company
+      // Get the salesperson's employee token to filter by company
       const employeeToken = getEmployeeToken();
       
       if (!employeeToken) {
-        console.warn('No employee token found - plans may not be filtered by company');
+        console.warn('No employee token found - products/plans may not be filtered by company');
       }
       
-      // Pass the token to filter subscription plans by company
+      // Pass the token to filter products by company
       const response = await getSubscriptionProducts(1, 20, employeeToken || undefined);
       
-      if (response.success && response.data && response.data.products.length > 0) {
-        // Convert Odoo products to PlanData format
-        const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
-          id: product.id.toString(),
-          odooProductId: product.id,
-          name: product.name,
-          description: product.description || '',
-          price: product.list_price,
-          period: '', // Will be determined from name
-          currency: product.currency_name,
-          currencySymbol: product.currencySymbol,
-        }));
-        
-        setAvailablePlans(plans);
-        setPlansLoadError(null);
-        
-        // Set default selected plan to first plan
-        if (plans.length > 0) {
-          setSelectedPlanId(plans[0].id);
+      if (response.success && response.data) {
+        // Extract physical products (main_service category - bikes, tuks, etc.)
+        if (response.data.mainServiceProducts && response.data.mainServiceProducts.length > 0) {
+          const products: ProductData[] = response.data.mainServiceProducts.map((product: SubscriptionProduct) => ({
+            id: product.id.toString(),
+            odooProductId: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.list_price,
+            currency: product.currency_name,
+            currencySymbol: product.currencySymbol,
+            imageUrl: product.image_url || null,  // Cloudinary URL
+            categoryName: product.category_name || '',
+            defaultCode: product.default_code || '',
+          }));
+          
+          setAvailableProducts(products);
+          setProductsLoadError(null);
+          
+          // Set default selected product to first product
+          if (products.length > 0) {
+            setSelectedProductId(products[0].id);
+          }
+          
+          console.log('Fetched physical products from Odoo:', products);
+        } else {
+          setProductsLoadError('No physical products available');
+          setAvailableProducts([]);
         }
         
-        console.log('Fetched subscription plans from Odoo:', plans);
+        // Extract subscription plans
+        if (response.data.products && response.data.products.length > 0) {
+          const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
+            id: product.id.toString(),
+            odooProductId: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.list_price,
+            period: '', // Will be determined from name
+            currency: product.currency_name,
+            currencySymbol: product.currencySymbol,
+          }));
+          
+          setAvailablePlans(plans);
+          setPlansLoadError(null);
+          
+          // Set default selected plan to first plan
+          if (plans.length > 0) {
+            setSelectedPlanId(plans[0].id);
+          }
+          
+          console.log('Fetched subscription plans from Odoo:', plans);
+        } else {
+          setPlansLoadError('No subscription plans available');
+          setAvailablePlans([]);
+        }
       } else {
-        setPlansLoadError('No subscription plans available');
+        setProductsLoadError('Failed to load products');
+        setPlansLoadError('Failed to load subscription plans');
+        setAvailableProducts([]);
         setAvailablePlans([]);
       }
     } catch (error: any) {
-      console.error('Failed to fetch subscription plans:', error);
-      setPlansLoadError(error.message || 'Failed to load subscription plans');
+      console.error('Failed to fetch products/plans:', error);
+      const errorMessage = error.message || 'Failed to load data from server';
+      setProductsLoadError(errorMessage);
+      setPlansLoadError(errorMessage);
+      setAvailableProducts([]);
       setAvailablePlans([]);
-      toast.error('Could not load subscription plans from server');
+      toast.error('Could not load products from server');
     } finally {
+      setIsLoadingProducts(false);
       setIsLoadingPlans(false);
     }
   }, []);
 
-  // Fetch plans on mount
+  // Fetch products and plans on mount
   useEffect(() => {
-    fetchPlans();
-  }, [fetchPlans]);
+    fetchProductsAndPlans();
+  }, [fetchProductsAndPlans]);
 
   // Validate form data - fields required by Odoo /api/auth/register
   const validateForm = useCallback((): boolean => {
@@ -1167,7 +1219,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setPaymentConfirmed(true);
           setPaymentIncomplete(false);
           toast.success('Payment confirmed! Proceed to battery assignment.');
-          advanceToStep(4);
+          advanceToStep(5);
         } else {
           // Payment incomplete - show amounts and stay on payment step
           setPaymentIncomplete(true);
@@ -1210,6 +1262,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [formErrors]);
 
+  // Handle product selection (physical products like bikes)
+  const handleProductSelect = useCallback((productId: string) => {
+    setSelectedProductId(productId);
+  }, []);
+
   // Handle plan selection
   const handlePlanSelect = useCallback((planId: string) => {
     setSelectedPlanId(planId);
@@ -1246,6 +1303,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
         break;
       case 2:
+        // Move to plan selection step (product already selected)
+        if (!selectedProductId) {
+          toast.error('Please select a vehicle');
+          return;
+        }
+        advanceToStep(3);
+        break;
+      case 3:
         // Purchase subscription and move to payment step
         setIsProcessing(true);
         try {
@@ -1254,21 +1319,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             // Initiate payment to send M-Pesa prompt
             // Pass the subscription code directly to avoid React state timing issues
             await initiateOdooPayment(subscriptionCode);
-            advanceToStep(3);
+            advanceToStep(4);
           }
         } finally {
           setIsProcessing(false);
         }
         break;
-      case 3:
+      case 4:
         // Trigger payment QR scan
         handlePaymentQrScan();
         break;
-      case 4:
+      case 5:
         // Trigger battery scan
         handleScanBattery();
         break;
-      case 5:
+      case 6:
         // Reset everything for new registration
         // Clear the saved session since we're starting fresh
         clearSalesSession();
@@ -1285,6 +1350,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           zip: '',
         });
         setFormErrors({});
+        // Reset to first available product if any
+        if (availableProducts.length > 0) {
+          setSelectedProductId(availableProducts[0].id);
+        } else {
+          setSelectedProductId('');
+        }
         // Reset to first available plan if any
         if (availablePlans.length > 0) {
           setSelectedPlanId(availablePlans[0].id);
@@ -1319,12 +1390,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     advanceToStep, 
     handlePaymentQrScan, 
     handleScanBattery,
-    availablePlans
+    availableProducts,
+    availablePlans,
+    selectedProductId
   ]);
 
   // Handle step click in timeline
   const handleStepClick = useCallback((step: SalesStep) => {
-    if (step <= maxStepReached && step < 5) {
+    if (step <= maxStepReached && step < 6) {
       setCurrentStep(step);
     }
   }, [maxStepReached]);
@@ -1365,18 +1438,29 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         );
       case 2:
         return (
-          <Step2SelectPlan 
+          <Step2SelectProduct
+            selectedProduct={selectedProductId}
+            onProductSelect={handleProductSelect}
+            products={availableProducts}
+            isLoadingProducts={isLoadingProducts}
+            loadError={productsLoadError}
+            onRetryLoad={fetchProductsAndPlans}
+          />
+        );
+      case 3:
+        return (
+          <Step3SelectPlan 
             selectedPlan={selectedPlanId}
             onPlanSelect={handlePlanSelect}
             plans={availablePlans}
             isLoadingPlans={isLoadingPlans}
             loadError={plansLoadError}
-            onRetryLoad={fetchPlans}
+            onRetryLoad={fetchProductsAndPlans}
           />
         );
-      case 3:
+      case 4:
         return (
-          <Step3Payment 
+          <Step4Payment 
             formData={formData}
             selectedPlanId={selectedPlanId}
             plans={availablePlans}
@@ -1391,9 +1475,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             onInputModeChange={handlePaymentInputModeChange}
           />
         );
-      case 4:
+      case 5:
         return (
-          <Step4AssignBattery 
+          <Step5AssignBattery 
             formData={formData}
             selectedPlanId={selectedPlanId}
             onScanBattery={handleScanBattery}
@@ -1404,9 +1488,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}
           />
         );
-      case 5:
+      case 6:
         return (
-          <Step5Success 
+          <Step6Success 
             formData={formData}
             selectedPlanId={selectedPlanId}
             battery={assignedBattery}
@@ -1538,7 +1622,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         onMainAction={handleMainAction}
         isLoading={isProcessing || isCreatingCustomer}
         paymentInputMode={paymentInputMode}
-        isDisabled={currentStep === 3 && paymentInputMode === 'manual'}
+        isDisabled={currentStep === 4 && paymentInputMode === 'manual'}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}
