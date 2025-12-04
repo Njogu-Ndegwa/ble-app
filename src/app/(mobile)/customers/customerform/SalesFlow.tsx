@@ -39,10 +39,8 @@ import {
 import {
   registerCustomer,
   getSubscriptionProducts,
-  purchaseSubscription,
   purchaseMultiProducts,
   initiatePayment,
-  createPaymentRequest,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
@@ -152,7 +150,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
-  // Payment request order ID - REQUIRED for confirm payment (from createPaymentRequest response)
+  // Order ID - REQUIRED for confirm payment (from purchaseMultiProducts response)
   const [paymentRequestOrderId, setPaymentRequestOrderId] = useState<number | null>(null);
   
   // Payment amount tracking for incomplete payments
@@ -1102,8 +1100,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [formData]);
 
   // Purchase subscription after customer is registered
-  // Returns the subscription code on success, null on failure
-  const purchaseCustomerSubscription = useCallback(async (): Promise<string | null> => {
+  // Returns object with subscription_code and order_id on success, null on failure
+  // The order is created automatically by /api/subscription/purchase endpoint
+  const purchaseCustomerSubscription = useCallback(async (): Promise<{ subscriptionCode: string; orderId: number } | null> => {
     if (!createdPartnerId) {
       toast.error('Customer not registered yet');
       return null;
@@ -1171,10 +1170,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       console.log('Purchasing package + subscription:', purchasePayload);
 
       // Use the multi-product purchase endpoint
+      // This endpoint creates both the subscription AND the order automatically
       const response = await purchaseMultiProducts(purchasePayload, employeeToken || undefined);
 
       if (response.success && response.data && response.data.subscription) {
-        const { subscription } = response.data;
+        const { subscription, order } = response.data;
+        
+        // Validate order exists - this is required for payment confirmation
+        if (!order || !order.id) {
+          console.error('No order returned from purchase endpoint');
+          throw new Error('Order creation failed - no order ID returned');
+        }
         
         setSubscriptionData({
           id: subscription.id,
@@ -1186,12 +1192,24 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           currencySymbol: subscription.currency_symbol,
         });
         
+        // Store the order_id from purchase response - this is used for payment confirmation
+        console.info('=== ORDER CREATED BY PURCHASE ENDPOINT ===');
+        console.info('Order ID:', order.id);
+        console.info('Order Name:', order.name);
+        console.info('Order State:', order.state);
+        console.info('Order Amount:', order.amount_total);
+        setPaymentRequestOrderId(order.id);
+        
         console.log('Subscription purchased:', subscription);
         toast.success('Order created!');
-        // Return the subscription code directly so caller doesn't have to wait for state update
-        return subscription.subscription_code;
+        
+        // Return both subscription code and order_id
+        return {
+          subscriptionCode: subscription.subscription_code,
+          orderId: order.id,
+        };
       } else {
-        throw new Error('Order creation failed');
+        throw new Error('Order creation failed - invalid response');
       }
     } catch (error: any) {
       console.error('Failed to create order:', error);
@@ -1200,11 +1218,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [createdPartnerId, selectedPackageId, availablePackages, selectedPlanId, availablePlans]);
 
-  // Initiate payment with Odoo before collecting M-Pesa
-  // Step 1: Create payment request/ticket FIRST (REQUIRED)
-  // Step 2: Optionally send STK push to customer's phone
-  // Accepts optional subscriptionCode parameter to avoid React state timing issues
-  const initiateOdooPayment = useCallback(async (subscriptionCode?: string): Promise<boolean> => {
+  // Initiate payment with Odoo - send STK push to customer's phone
+  // NOTE: For Sales flow, the order is already created by /api/subscription/purchase
+  // We just need to send the STK push and mark payment as initiated
+  // Accepts subscriptionCode and orderId parameters to avoid React state timing issues
+  const initiateOdooPayment = useCallback(async (subscriptionCode?: string, orderId?: number): Promise<boolean> => {
     // Use the passed subscription code, or fall back to state
     const subCode = subscriptionCode || subscriptionData?.subscriptionCode;
     
@@ -1212,6 +1230,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       toast.error('No subscription created. Please try again.');
       return false;
     }
+
+    // Use passed orderId or fall back to state
+    // orderId is passed directly to avoid React state timing issues
+    const orderIdToUse = orderId || paymentRequestOrderId;
+    
+    // Verify we have an order_id from the purchase response
+    if (!orderIdToUse) {
+      console.error('No order_id from purchase response - cannot proceed with payment');
+      toast.error('Order not created properly. Please try again.');
+      return false;
+    }
+
+    console.info('=== SALES FLOW - INITIATING PAYMENT ===');
+    console.info('Order ID (from purchase):', orderIdToUse);
+    console.info('Subscription Code:', subCode);
 
     // Get the salesperson's employee token for authorization
     const employeeToken = getEmployeeToken();
@@ -1233,47 +1266,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     phoneNumber = phoneNumber.replace('+', '');
 
     try {
-      // Build descriptive payment description
-      const packageName = currentSelectedPackage?.name || 'Package';
-      const subscriptionName = currentSelectedPlan?.name || 'Subscription';
-      const description = `${packageName} + ${subscriptionName}`;
-      
-      // Step 1: Create payment request/ticket FIRST (REQUIRED)
-      // This gives us the order_id needed for confirm payment
-      console.log('Creating payment request with Odoo:', {
-        subscription_code: subCode,
-        amount_required: totalAmount,
-        description,
-      });
+      // Order is already created by /api/subscription/purchase endpoint
+      // No need to call createPaymentRequest - just send STK push
+      toast.success('Order ready. Collect payment from customer.');
 
-      const paymentRequestResponse = await createPaymentRequest({
-        subscription_code: subCode,
-        amount_required: totalAmount,
-        description,
-      });
-
-      if (paymentRequestResponse.success && paymentRequestResponse.payment_request) {
-        // Payment request created successfully - store the order_id
-        console.log('Payment request created:', paymentRequestResponse.payment_request);
-        setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
-        toast.success('Payment ticket created. Collect payment from customer.');
-      } else {
-        // Payment request creation failed - show error to user
-        console.error('Payment request creation failed:', paymentRequestResponse.error);
-        
-        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
-        
-        // If there's an existing request, include details about it
-        if (paymentRequestResponse.existing_request) {
-          const existingReq = paymentRequestResponse.existing_request;
-          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: KES ${existingReq.amount_remaining} remaining (${existingReq.status})`;
-        }
-        
-        toast.error(errorMessage);
-        return false;
-      }
-
-      // Step 2: Optionally try to send STK push (don't block if it fails)
+      // Optionally try to send STK push (don't block if it fails)
       if (phoneNumber) {
         try {
           console.log('Sending STK push to customer phone:', phoneNumber);
@@ -1296,11 +1293,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setPaymentInitiated(true);
       return true;
     } catch (error: any) {
-      console.error('Failed to create payment request:', error);
-      toast.error(error.message || 'Failed to create payment request. Please try again.');
+      console.error('Failed to initiate payment:', error);
+      toast.error(error.message || 'Failed to initiate payment. Please try again.');
       return false;
     }
-  }, [subscriptionData, selectedPackageId, availablePackages, selectedPlanId, availablePlans, formData.phone]);
+  }, [subscriptionData, selectedPackageId, availablePackages, selectedPlanId, availablePlans, formData.phone, paymentRequestOrderId]);
 
   // Handle payment confirmation via QR scan
   const handlePaymentQrScan = useCallback(async () => {
@@ -1327,9 +1324,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       }
 
-      // order_id is REQUIRED - must be obtained from createPaymentRequest response
+      // order_id is REQUIRED - obtained from purchaseMultiProducts response
       if (!paymentRequestOrderId) {
-        toast.error('Payment request not created. Please go back and try again.');
+        toast.error('Order not created. Please go back and try again.');
         setIsProcessing(false);
         return;
       }
@@ -1478,16 +1475,38 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         advanceToStep(4);
         break;
       case 4:
-        // Preview step - Purchase subscription and move to payment step
+        // Preview step - Purchase subscription (order is created automatically) and move to payment step
         setIsProcessing(true);
         try {
-          const subscriptionCode = await purchaseCustomerSubscription();
-          if (subscriptionCode) {
+          // purchaseCustomerSubscription creates the order via /api/subscription/purchase
+          // It returns both subscriptionCode and orderId
+          const purchaseResult = await purchaseCustomerSubscription();
+          if (purchaseResult && purchaseResult.orderId) {
+            console.info('=== PURCHASE SUCCESSFUL ===');
+            console.info('Subscription Code:', purchaseResult.subscriptionCode);
+            console.info('Order ID:', purchaseResult.orderId);
+            
             // Initiate payment to send M-Pesa prompt
-            // Pass the subscription code directly to avoid React state timing issues
-            await initiateOdooPayment(subscriptionCode);
-            advanceToStep(5);
+            // Pass both subscriptionCode and orderId directly to avoid React state timing issues
+            const paymentInitiatedSuccess = await initiateOdooPayment(
+              purchaseResult.subscriptionCode, 
+              purchaseResult.orderId
+            );
+            
+            // Only advance to payment step if payment initiation was successful
+            if (paymentInitiatedSuccess) {
+              advanceToStep(5);
+            } else {
+              // Payment initiation failed - don't proceed
+              // Error toast already shown by initiateOdooPayment
+              console.error('Payment initiation failed - not advancing to payment step');
+            }
+          } else if (purchaseResult) {
+            // Purchase returned but without orderId - this shouldn't happen
+            console.error('Purchase returned without orderId');
+            toast.error('Order creation failed - no order ID returned');
           }
+          // If purchaseResult is null, error toast was already shown by purchaseCustomerSubscription
         } finally {
           setIsProcessing(false);
         }
