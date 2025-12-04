@@ -3090,43 +3090,64 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                       )}
                     </div>
                     
-                    {/* Service States */}
+                    {/* Service States - Filter out infinite quota services (quota > 100,000) */}
                     {serviceStates && serviceStates.length > 0 && (
                       <div className="pt-2 border-t border-gray-500">
                         <p className="text-sm font-medium text-white mb-2">{t("Service States")}:</p>
                         <div className="space-y-2">
-                          {serviceStates.map((service, index) => (
-                            <div key={index} className="bg-gray-700 rounded-lg p-3 space-y-1">
-                              <p className="text-xs text-gray-300">
-                                <span className="font-medium text-white">{t("Service ID")}:</span>{" "}
-                                {formatDisplayValue(service.service_id)}
-                              </p>
-                              {service.name && (
-                                <p className="text-xs text-gray-300">
-                                  <span className="font-medium text-white">{t("Name")}:</span>{" "}
-                                  {formatDisplayValue(service.name)}
-                                </p>
-                              )}
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-300">
-                                  <span className="font-medium text-white">{t("Used")}:</span> {service.used}
-                                </span>
-                                <span className="text-gray-300">
-                                  <span className="font-medium text-white">{t("Quota")}:</span> {service.quota.toLocaleString()}
-                                </span>
-                              </div>
-                              {service.usageUnitPrice !== undefined && (
-                                <p className="text-xs text-gray-300">
-                                  <span className="font-medium text-white">{t("Usage Unit Price")}:</span>{" "}
-                                  {service.usageUnitPrice.toLocaleString()}
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-300">
-                                <span className="font-medium text-white">{t("Current Asset")}:</span>{" "}
-                                {formatDisplayValue(service.current_asset, t("None"))}
-                              </p>
-                            </div>
-                          ))}
+                          {serviceStates
+                            .filter((service) => service.quota <= 100000) // Filter out infinite quota management services
+                            .map((service, index) => {
+                              // Calculate remaining quota and its value
+                              const remaining = service.quota - service.used;
+                              const quotaValue = service.usageUnitPrice !== undefined 
+                                ? remaining * service.usageUnitPrice 
+                                : undefined;
+                              
+                              return (
+                                <div key={index} className="bg-gray-700 rounded-lg p-3 space-y-1">
+                                  <p className="text-xs text-gray-300">
+                                    <span className="font-medium text-white">{t("Service ID")}:</span>{" "}
+                                    {formatDisplayValue(service.service_id)}
+                                  </p>
+                                  {service.name && (
+                                    <p className="text-xs text-gray-300">
+                                      <span className="font-medium text-white">{t("Name")}:</span>{" "}
+                                      {formatDisplayValue(service.name)}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-300">
+                                      <span className="font-medium text-white">{t("Used")}:</span> {service.used}
+                                    </span>
+                                    <span className="text-gray-300">
+                                      <span className="font-medium text-white">{t("Quota")}:</span> {service.quota.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  {/* Show remaining quota with value */}
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-300">
+                                      <span className="font-medium text-white">{t("Remaining")}:</span> {remaining.toLocaleString()}
+                                    </span>
+                                    {quotaValue !== undefined && (
+                                      <span className="text-green-400 font-medium">
+                                        ≈ {Math.round(quotaValue).toLocaleString()} XOF
+                                      </span>
+                                    )}
+                                  </div>
+                                  {service.usageUnitPrice !== undefined && (
+                                    <p className="text-xs text-gray-300">
+                                      <span className="font-medium text-white">{t("Usage Unit Price")}:</span>{" "}
+                                      {service.usageUnitPrice.toLocaleString()}
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-gray-300">
+                                    <span className="font-medium text-white">{t("Current Asset")}:</span>{" "}
+                                    {formatDisplayValue(service.current_asset, t("None"))}
+                                  </p>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     )}
