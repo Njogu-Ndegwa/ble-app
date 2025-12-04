@@ -1,36 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useI18n } from '@/i18n';
 import { SwapData, CustomerData, getInitials } from '../types';
-import ScannerArea from '../ScannerArea';
 
 interface Step5Props {
   swapData: SwapData;
   customerData?: CustomerData | null;
-  onConfirmPayment: () => void;
-  onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
-  isScannerOpening?: boolean; // Prevents multiple scanner opens
+  inputMode: 'scan' | 'manual';
+  setInputMode: (mode: 'scan' | 'manual') => void;
+  paymentId: string;
+  setPaymentId: (id: string) => void;
 }
 
-export default function Step5Payment({ swapData, customerData, onConfirmPayment, onManualPayment, isProcessing, isScannerOpening = false }: Step5Props) {
+export default function Step5Payment({ 
+  swapData, 
+  customerData, 
+  isProcessing, 
+  inputMode, 
+  setInputMode, 
+  paymentId, 
+  setPaymentId 
+}: Step5Props) {
   const { t } = useI18n();
-  const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
-  const [paymentId, setPaymentId] = useState('');
-
-  const handleManualConfirm = () => {
-    if (paymentId.trim()) {
-      onManualPayment(paymentId.trim());
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && paymentId.trim() && !isProcessing) {
-      e.preventDefault();
-      handleManualConfirm();
-    }
-  };
 
   return (
     <div className="screen active">
@@ -78,7 +71,18 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
           <div className="payment-input-mode">
             <p className="payment-subtitle">{t('attendant.enterMpesaCode')}</p>
             
-            <ScannerArea onClick={onConfirmPayment} type="qr" disabled={isScannerOpening} />
+            {/* Visual QR Scanner indicator - action triggered by Confirm Payment button in ActionBar */}
+            <div className="scanner-area qr-scanner-visual">
+              <div className="scanner-area-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+              </div>
+              <span className="scanner-area-text">{t('attendant.tapConfirmToScan')}</span>
+            </div>
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -99,36 +103,18 @@ export default function Step5Payment({ swapData, customerData, onConfirmPayment,
                   placeholder={t('sales.enterTransactionId')}
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
-                  onKeyDown={handleKeyDown}
                   autoComplete="off"
+                  disabled={isProcessing}
                 />
               </div>
             </div>
-            
-            {/* Large Confirm Payment button - matches ScannerArea placement and prominence */}
-            <button 
-              className="confirm-payment-cta" 
-              onClick={handleManualConfirm}
-              disabled={isProcessing || !paymentId.trim()}
-            >
-              <div className="confirm-payment-cta-inner">
-                <div className="confirm-payment-cta-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
-                </div>
-                <span className="confirm-payment-cta-text">
-                  {isProcessing ? t('attendant.confirmingPayment') : t('sales.confirmPayment')}
-                </span>
-              </div>
-            </button>
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              {t('sales.tapToConfirmPayment')}
+              {t('sales.tapConfirmToProcess')}
             </p>
           </div>
         )}
