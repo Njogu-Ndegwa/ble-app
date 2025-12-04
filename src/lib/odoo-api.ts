@@ -63,7 +63,8 @@ export interface RegisterCustomerResponse {
   email_sent: boolean;
 }
 
-// Subscription Product Types - matches actual Odoo API response
+// Product Types - matches actual Odoo API response
+// Used for all product categories: subscription, battery_swap, main_service, packages
 export interface SubscriptionProduct {
   id: number;
   name: string;
@@ -76,15 +77,24 @@ export interface SubscriptionProduct {
   category_id?: number;
   category_name?: string;
   recurring_invoice?: boolean;
-  image_url?: string | null;
+  is_package?: boolean;
+  image_url?: string | null;  // Cloudinary URL for product images
   company_id?: number;
   company_name: string;
 }
 
-// Raw API response structure (data at root level)
+// Categorized products from API response
+export interface ProductCategories {
+  subscription: SubscriptionProduct[];
+  battery_swap: SubscriptionProduct[];
+  main_service: SubscriptionProduct[];
+  packages: SubscriptionProduct[];
+}
+
+// Raw API response structure - products are now categorized
 export interface SubscriptionProductsRawResponse {
   success: boolean;
-  products: SubscriptionProduct[];
+  categories: ProductCategories;
   pagination: {
     current_page: number;
     per_page: number;
@@ -95,9 +105,12 @@ export interface SubscriptionProductsRawResponse {
   };
 }
 
-// Normalized response for internal use
+// Normalized response for internal use - includes all categories
 export interface SubscriptionProductsResponse {
-  products: SubscriptionProduct[];
+  products: SubscriptionProduct[];  // Subscription products (legacy, for backward compatibility)
+  mainServiceProducts: SubscriptionProduct[];  // Physical products like bikes (main_service)
+  batterySwapProducts: SubscriptionProduct[];  // Battery swap privileges
+  packageProducts: SubscriptionProduct[];  // Product packages
   pagination: {
     page: number;
     limit: number;
@@ -410,7 +423,7 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 
 /**
  * Fetch available subscription products/plans
- * Note: Odoo API returns products at root level, we normalize to { data: { products, pagination } }
+ * Note: Odoo API returns products categorized by type (subscription, main_service, battery_swap, packages)
  * 
  * @param page - Page number for pagination (default: 1)
  * @param limit - Number of items per page (default: 20)
@@ -443,16 +456,36 @@ export async function getSubscriptionProducts(
       throw new Error((rawData as any)?.error || `HTTP ${response.status}`);
     }
 
-    // Transform root-level response to normalized format with data wrapper
+    // Handle both old format (products array) and new format (categories object)
+    let subscriptionProducts: SubscriptionProduct[] = [];
+    let mainServiceProducts: SubscriptionProduct[] = [];
+    let batterySwapProducts: SubscriptionProduct[] = [];
+    let packageProducts: SubscriptionProduct[] = [];
+
+    if (rawData.categories) {
+      // New format: products are categorized
+      subscriptionProducts = rawData.categories.subscription || [];
+      mainServiceProducts = rawData.categories.main_service || [];
+      batterySwapProducts = rawData.categories.battery_swap || [];
+      packageProducts = rawData.categories.packages || [];
+    } else if ((rawData as any).products) {
+      // Legacy format: flat products array (backward compatibility)
+      subscriptionProducts = (rawData as any).products || [];
+    }
+
+    // Transform to normalized format with data wrapper
     return {
       success: rawData.success,
       data: {
-        products: rawData.products,
+        products: subscriptionProducts,  // Subscription plans
+        mainServiceProducts,  // Physical products (bikes, tuks, etc.)
+        batterySwapProducts,  // Battery swap privileges
+        packageProducts,  // Product packages
         pagination: {
-          page: rawData.pagination.current_page,
-          limit: rawData.pagination.per_page,
-          total: rawData.pagination.total_records,
-          pages: rawData.pagination.total_pages,
+          page: rawData.pagination?.current_page || 1,
+          limit: rawData.pagination?.per_page || 20,
+          total: rawData.pagination?.total_records || 0,
+          pages: rawData.pagination?.total_pages || 1,
         },
       },
     };

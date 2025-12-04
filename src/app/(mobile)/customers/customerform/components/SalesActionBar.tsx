@@ -10,7 +10,7 @@ interface SalesActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   isDisabled?: boolean;
-  paymentInputMode?: 'scan' | 'manual'; // For step 3 to show correct button text
+  paymentInputMode?: 'scan' | 'manual'; // For step 4 to show correct button text
 }
 
 // Icon components for action bar
@@ -54,16 +54,22 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual'): S
     case 1:
       return { showBack: false, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
     case 2:
+      // Select Product step
       return { showBack: true, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
     case 3:
-      // Show "Confirm Payment" when in manual mode, "Scan Payment QR" when in scan mode
+      // Select Plan step
+      return { showBack: true, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
+    case 4:
+      // Payment step - Show "Confirm Payment" when in manual mode, "Scan Payment QR" when in scan mode
       if (paymentInputMode === 'manual') {
         return { showBack: true, mainTextKey: 'sales.confirmPayment', mainIcon: 'check' };
       }
       return { showBack: true, mainTextKey: 'sales.scanPaymentQr', mainIcon: 'scan' };
-    case 4:
-      return { showBack: true, mainTextKey: 'sales.scanBattery', mainIcon: 'scan' };
     case 5:
+      // Battery assignment step
+      return { showBack: true, mainTextKey: 'sales.scanBattery', mainIcon: 'scan' };
+    case 6:
+      // Success step
       return { showBack: false, mainTextKey: 'sales.newRegistration', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
       return { showBack: false, mainTextKey: 'sales.continue', mainIcon: 'arrow' };

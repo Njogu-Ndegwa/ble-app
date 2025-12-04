@@ -949,10 +949,17 @@
   "Back": "Retour",
   
   "sales.step.customer": "Client",
+  "sales.step.product": "Produit",
   "sales.step.plan": "Plan",
   "sales.step.payment": "Paiement",
   "sales.step.battery": "Batterie",
   "sales.step.done": "Terminé",
+  
+  "sales.selectProduct": "Sélectionner le véhicule",
+  "sales.chooseProduct": "Choisissez le véhicule pour ce client",
+  "sales.noProductsTitle": "Aucun produit disponible",
+  "sales.noProductsDescription": "Les produits n'ont pas pu être chargés depuis le serveur. Cela pourrait être un problème temporaire.",
+  "sales.noProductsHint": "Si cela persiste, veuillez contacter le support",
   
   "sales.newCustomer": "Nouveau Client",
   "sales.enterCustomerDetails": "Saisissez les détails du client pour commencer",

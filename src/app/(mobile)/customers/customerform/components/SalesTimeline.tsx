@@ -13,6 +13,7 @@ interface SalesTimelineProps {
 // Map step icons to translation keys
 const STEP_LABEL_KEYS: Record<string, string> = {
   customer: 'sales.step.customer',
+  product: 'sales.step.product',
   plan: 'sales.step.plan',
   payment: 'sales.step.payment',
   battery: 'sales.step.battery',
@@ -20,11 +21,17 @@ const STEP_LABEL_KEYS: Record<string, string> = {
 };
 
 // Step icons as SVG components
-const StepIcons = {
+const StepIcons: Record<string, React.ReactNode> = {
   customer: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
       <circle cx="12" cy="7" r="4"/>
+    </svg>
+  ),
+  product: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
     </svg>
   ),
   plan: (
@@ -59,7 +66,7 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
   
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
-      return step === 5 ? 'success' : 'active';
+      return step === 6 ? 'success' : 'active';
     }
     if (step < currentStep) return 'completed';
     if (step <= maxStepReached) return 'reachable';

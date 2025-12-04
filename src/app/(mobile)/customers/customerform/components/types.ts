@@ -30,6 +30,20 @@ export interface OdooSession {
   user: OdooRegisteredCustomer;
 }
 
+// Physical product data (bikes, tuks, etc.) from main_service category
+export interface ProductData {
+  id: string;           // Will be product ID from Odoo
+  odooProductId: number; // Original Odoo product ID
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  currencySymbol: string;
+  imageUrl: string | null;  // Cloudinary URL for product image
+  categoryName: string;
+  defaultCode: string;
+}
+
 // Plan data from Odoo subscription products API
 export interface PlanData {
   id: string;           // Will be product ID from Odoo
@@ -90,20 +104,22 @@ export interface BleScanState {
   requiresBluetoothReset: boolean;
 }
 
-export type SalesStep = 1 | 2 | 3 | 4 | 5;
+// Sales flow now has 6 steps: Customer -> Product -> Plan -> Payment -> Battery -> Done
+export type SalesStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface StepConfig {
   step: number;
   label: string;
-  icon: 'customer' | 'plan' | 'payment' | 'battery' | 'done';
+  icon: 'customer' | 'product' | 'plan' | 'payment' | 'battery' | 'done';
 }
 
 export const STEP_CONFIGS: StepConfig[] = [
   { step: 1, label: 'Customer', icon: 'customer' },
-  { step: 2, label: 'Plan', icon: 'plan' },
-  { step: 3, label: 'Payment', icon: 'payment' },
-  { step: 4, label: 'Battery', icon: 'battery' },
-  { step: 5, label: 'Done', icon: 'done' },
+  { step: 2, label: 'Product', icon: 'product' },
+  { step: 3, label: 'Plan', icon: 'plan' },
+  { step: 4, label: 'Payment', icon: 'payment' },
+  { step: 5, label: 'Battery', icon: 'battery' },
+  { step: 6, label: 'Done', icon: 'done' },
 ];
 
 // No fallback plans - Odoo is the only source of truth for subscription plans

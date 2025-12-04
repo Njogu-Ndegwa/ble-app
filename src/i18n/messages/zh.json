@@ -860,10 +860,17 @@
   "sales.changeRole": "更改角色",
   
   "sales.step.customer": "客户",
+  "sales.step.product": "产品",
   "sales.step.plan": "套餐",
   "sales.step.payment": "支付",
   "sales.step.battery": "电池",
   "sales.step.done": "完成",
+  
+  "sales.selectProduct": "选择车辆",
+  "sales.chooseProduct": "为此客户选择车辆",
+  "sales.noProductsTitle": "没有可用的产品",
+  "sales.noProductsDescription": "无法从服务器加载产品。这可能是临时问题。",
+  "sales.noProductsHint": "如果此问题持续存在，请联系支持团队",
   
   "sales.newCustomer": "新客户",
   "sales.enterCustomerDetails": "输入客户详情以开始",
