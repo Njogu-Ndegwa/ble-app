@@ -3,6 +3,7 @@
 import React from 'react';
 import { useI18n } from '@/i18n';
 import { SwapData, CustomerData, getInitials } from '../types';
+import ScannerArea from '../ScannerArea';
 
 interface Step5Props {
   swapData: SwapData;
@@ -12,6 +13,10 @@ interface Step5Props {
   setInputMode: (mode: 'scan' | 'manual') => void;
   paymentId: string;
   setPaymentId: (id: string) => void;
+  onScanPayment?: () => void;
+  isScannerOpening?: boolean;
+  amountRemaining?: number; // Amount still to be paid (from Odoo response)
+  amountPaid?: number; // Amount already paid (from Odoo response)
 }
 
 export default function Step5Payment({ 
@@ -21,9 +26,16 @@ export default function Step5Payment({
   inputMode, 
   setInputMode, 
   paymentId, 
-  setPaymentId 
+  setPaymentId,
+  onScanPayment,
+  isScannerOpening = false,
+  amountRemaining = 0,
+  amountPaid = 0,
 }: Step5Props) {
   const { t } = useI18n();
+
+  // Show remaining amount if there's a partial payment
+  const hasPartialPayment = amountRemaining > 0 && amountPaid > 0;
 
   return (
     <div className="screen active">
@@ -37,6 +49,51 @@ export default function Step5Payment({
         )}
         <div className="payment-amount-large">KES {swapData.cost}</div>
       </div>
+      
+      {/* Partial Payment Warning - shown when customer has paid part of the amount */}
+      {hasPartialPayment && (
+        <div className="partial-payment-warning" style={{
+          background: 'linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%)',
+          border: '1px solid #ffc107',
+          borderRadius: '12px',
+          padding: '16px',
+          margin: '0 16px 16px 16px',
+          textAlign: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#856404" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px' }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span style={{ fontWeight: '600', color: '#856404', fontSize: '14px' }}>
+              {t('attendant.partialPayment') || 'Partial Payment Received'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: '12px', color: '#856404', marginBottom: '4px' }}>
+                {t('attendant.amountPaid') || 'Paid'}
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#155724' }}>
+                KES {amountPaid}
+              </div>
+            </div>
+            <div style={{ width: '1px', height: '40px', background: '#ffc107' }}></div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: '12px', color: '#856404', marginBottom: '4px' }}>
+                {t('attendant.amountRemaining') || 'Remaining'}
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc3545' }}>
+                KES {amountRemaining}
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: '12px', color: '#856404', marginTop: '12px', marginBottom: 0 }}>
+            {t('attendant.collectRemainingAmount') || 'Please collect the remaining amount before continuing.'}
+          </p>
+        </div>
+      )}
 
       <div className="payment-scan">
         <h2 className="payment-title">{t('attendant.collectPayment')}</h2>
@@ -71,18 +128,12 @@ export default function Step5Payment({
           <div className="payment-input-mode">
             <p className="payment-subtitle">{t('attendant.enterMpesaCode')}</p>
             
-            {/* Visual QR Scanner indicator - action triggered by Confirm Payment button in ActionBar */}
-            <div className="scanner-area qr-scanner-visual">
-              <div className="scanner-area-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7"/>
-                  <rect x="14" y="3" width="7" height="7"/>
-                  <rect x="14" y="14" width="7" height="7"/>
-                  <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-              </div>
-              <span className="scanner-area-text">{t('attendant.tapConfirmToScan')}</span>
-            </div>
+            {/* Uses ScannerArea component for consistent QR icon design across all steps */}
+            <ScannerArea 
+              onClick={onScanPayment || (() => {})} 
+              type="qr" 
+              disabled={isScannerOpening} 
+            />
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

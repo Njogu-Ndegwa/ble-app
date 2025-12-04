@@ -1005,6 +1005,10 @@
   "attendant.completeSwap": "完成更换",
   "attendant.confirmPayment": "确认支付",
   "attendant.tapConfirmToScan": "点击确认支付扫描二维码",
+  "attendant.partialPayment": "已收到部分付款",
+  "attendant.amountPaid": "已支付",
+  "attendant.amountRemaining": "剩余",
+  "attendant.collectRemainingAmount": "请在继续之前收取剩余金额。",
   
   "attendant.swapComplete": "更换完成！",
   "attendant.batteryIssued": "电池已成功发放",

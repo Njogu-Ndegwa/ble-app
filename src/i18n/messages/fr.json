@@ -1094,6 +1094,10 @@
   "attendant.completeSwap": "Terminer l'échange",
   "attendant.confirmPayment": "Confirmer le paiement",
   "attendant.tapConfirmToScan": "Appuyez sur Confirmer pour scanner le QR",
+  "attendant.partialPayment": "Paiement partiel reçu",
+  "attendant.amountPaid": "Payé",
+  "attendant.amountRemaining": "Restant",
+  "attendant.collectRemainingAmount": "Veuillez collecter le montant restant avant de continuer.",
   
   "attendant.swapComplete": "Échange terminé !",
   "attendant.batteryIssued": "La batterie a été émise avec succès",

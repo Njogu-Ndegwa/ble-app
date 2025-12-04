@@ -200,6 +200,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
   // Manual payment ID input
   const [manualPaymentId, setManualPaymentId] = useState<string>('');
+  // Payment amount tracking - amount_remaining from Odoo response (0 means fully paid)
+  const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
+  // Actual amount paid by customer (from Odoo response)
+  const [actualAmountPaid, setActualAmountPaid] = useState<number>(0);
   
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
@@ -1198,6 +1202,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Process payment QR code data - verify with Odoo
   // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
+  // IMPORTANT: Only proceeds if amount_remaining === 0 (full payment received)
   const processPaymentQRData = useCallback((qrCodeData: string) => {
     let qrData: any;
     try {
@@ -1228,21 +1233,49 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           });
           
           if (response.success) {
+            // Extract payment amounts from response
+            // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
+            const responseData = response.data || (response as any);
+            const amountPaid = responseData.amount_paid ?? 0;
+            const amountRemaining = responseData.amount_remaining ?? 0;
+            
+            console.log('Payment validation response:', {
+              amount_paid: amountPaid,
+              amount_remaining: amountRemaining,
+              amount_expected: responseData.amount_expected,
+            });
+            
+            // Update state with payment amounts
+            setActualAmountPaid(amountPaid);
+            setPaymentAmountRemaining(amountRemaining);
+            
+            // Check if full payment has been received
+            if (amountRemaining > 0) {
+              // Partial payment - show remaining amount and stay on payment step
+              toast.error(`Payment incomplete. Remaining: KES ${amountRemaining}`);
+              setIsScanning(false);
+              scanTypeRef.current = null;
+              // Don't proceed - user needs to pay the remaining amount
+              return;
+            }
+            
+            // Full payment received - proceed with service completion
             setPaymentConfirmed(true);
             setPaymentReceipt(receipt);
             setTransactionId(receipt);
-            toast.success('Payment submitted for validation');
-            publishPaymentAndService(receipt);
+            toast.success('Payment confirmed successfully');
+            // Pass actual amount_paid to publishPaymentAndService (not swapData.cost)
+            publishPaymentAndService(receipt, false, amountPaid);
           } else {
             throw new Error('Payment confirmation failed');
           }
         } else {
-          // No subscription ID - just proceed with MQTT flow
+          // No subscription ID - just proceed with MQTT flow using expected cost
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
           setTransactionId(receipt);
           toast.success('Payment confirmed');
-          publishPaymentAndService(receipt);
+          publishPaymentAndService(receipt, false, swapData.cost);
         }
       } catch (err: any) {
         console.error('Payment confirmation error:', err);
@@ -1287,7 +1320,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [electricityService]);
 
   // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
-  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean) => void>(() => {});
+  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, amountPaid?: number) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -2510,6 +2543,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Step 5: Manual payment confirmation with Odoo
   // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
+  // IMPORTANT: Only proceeds if amount_remaining === 0 (full payment received)
   const handleManualPayment = useCallback((receipt: string) => {
     setIsProcessing(true);
     
@@ -2539,25 +2573,51 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           });
           
           if (response.success) {
+            // Extract payment amounts from response
+            // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
+            const responseData = response.data || (response as any);
+            const amountPaid = responseData.amount_paid ?? 0;
+            const amountRemaining = responseData.amount_remaining ?? 0;
+            
+            console.log('Manual payment validation response:', {
+              amount_paid: amountPaid,
+              amount_remaining: amountRemaining,
+              amount_expected: responseData.amount_expected,
+            });
+            
+            // Update state with payment amounts
+            setActualAmountPaid(amountPaid);
+            setPaymentAmountRemaining(amountRemaining);
+            
+            // Check if full payment has been received
+            if (amountRemaining > 0) {
+              // Partial payment - show remaining amount and stay on payment step
+              toast.error(`Payment incomplete. Remaining: KES ${amountRemaining}`);
+              setIsProcessing(false);
+              // Don't proceed - user needs to pay the remaining amount
+              return;
+            }
+            
+            // Full payment received - proceed with service completion
             setPaymentConfirmed(true);
             setPaymentReceipt(receipt);
             setTransactionId(receipt);
-            toast.success('Payment submitted for validation');
+            toast.success('Payment confirmed successfully');
             
-            // Now publish payment_and_service
-            publishPaymentAndService(receipt);
+            // Now publish payment_and_service with actual amount_paid (not swapData.cost)
+            publishPaymentAndService(receipt, false, amountPaid);
           } else {
             throw new Error('Payment confirmation failed');
           }
         } else {
-          // No subscription ID - just proceed with MQTT flow
+          // No subscription ID - just proceed with MQTT flow using expected cost
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
           setTransactionId(receipt);
           toast.success('Payment confirmed');
           
-          // Now publish payment_and_service
-          publishPaymentAndService(receipt);
+          // Now publish payment_and_service with expected cost
+          publishPaymentAndService(receipt, false, swapData.cost);
         }
       } catch (err: any) {
         console.error('Manual payment error:', err);
@@ -2572,7 +2632,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Publish payment_and_service via MQTT
   // isQuotaBased: When true, customer is using their existing quota credit (no payment required)
-  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false) => {
+  // amountPaid: The actual amount paid by customer (from Odoo response), used instead of swapData.cost
+  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, amountPaid?: number) => {
     if (!bridge) {
       console.error("Bridge not available for payment_and_service");
       toast.error('Bridge not available. Please restart the app.');
@@ -2607,7 +2668,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     if (energyTransferred < 0) energyTransferred = 0;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    const paymentAmount = swapData.cost;
+    // Use actual amount_paid from Odoo response (customer may pay more than expected, never less)
+    // Fall back to swapData.cost if amountPaid is not provided
+    const paymentAmount = amountPaid ?? swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     console.info('Publishing payment_and_service:', {
@@ -2966,6 +3029,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setPaymentConfirmed(false);
     setPaymentReceipt(null);
     setPaymentAndServiceStatus('idle');
+    setPaymentAmountRemaining(0);  // Reset partial payment tracking
+    setActualAmountPaid(0);  // Reset actual amount paid tracking
+    setPaymentInputMode('scan');  // Reset payment input mode
+    setManualPaymentId('');  // Clear manual payment ID
     setFlowError(null); // Clear any flow errors
     cancelOngoingScan(); // Clear any pending timeouts
     
@@ -3126,6 +3193,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             setInputMode={setPaymentInputMode}
             paymentId={manualPaymentId}
             setPaymentId={setManualPaymentId}
+            onScanPayment={handleConfirmPayment}
+            isScannerOpening={isScanning}
+            amountRemaining={paymentAmountRemaining}
+            amountPaid={actualAmountPaid}
           />
         );
       case 6:
