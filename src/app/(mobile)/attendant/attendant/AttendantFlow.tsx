@@ -3067,8 +3067,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           <Step2OldBattery 
             onScanOldBattery={handleScanOldBattery}
             isFirstTimeCustomer={customerType === 'first-time'}
-            isBleScanning={bleScanState.isScanning}
-            detectedDevicesCount={bleScanState.detectedDevices.length}
             isScannerOpening={isScanning}
           />
         );
@@ -3077,8 +3075,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           <Step3NewBattery 
             oldBattery={swapData.oldBattery} 
             onScanNewBattery={handleScanNewBattery}
-            isBleScanning={bleScanState.isScanning}
-            detectedDevicesCount={bleScanState.detectedDevices.length}
             isScannerOpening={isScanning}
           />
         );

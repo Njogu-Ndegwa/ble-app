@@ -4,21 +4,16 @@ import React from 'react';
 import { useI18n } from '@/i18n';
 import ScannerArea from '../ScannerArea';
 import { BatteryData, getBatteryClass } from '../types';
-import { Bluetooth, Radio } from 'lucide-react';
 
 interface Step3Props {
   oldBattery: BatteryData | null;
   onScanNewBattery: () => void;
-  isBleScanning?: boolean;
-  detectedDevicesCount?: number;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
 }
 
 export default function Step3NewBattery({ 
   oldBattery, 
   onScanNewBattery,
-  isBleScanning = false,
-  detectedDevicesCount = 0,
   isScannerOpening = false,
 }: Step3Props) {
   const { t } = useI18n();
@@ -53,27 +48,6 @@ export default function Step3NewBattery({
       <div className="scan-prompt">
         <h1 className="scan-title">{t('attendant.issueNewBattery')}</h1>
         <p className="scan-subtitle">{t('attendant.scanNewBattery')}</p>
-        
-        {/* BLE Scanning Status - Shows nearby batteries being detected */}
-        <div className={`bluetooth-notice ${isBleScanning ? 'ble-scanning-active' : ''}`}>
-          <div className="bluetooth-notice-icon">
-            {isBleScanning ? (
-              <Radio size={20} className="ble-scanning-icon" />
-            ) : (
-              <Bluetooth size={20} />
-            )}
-          </div>
-          <div className="bluetooth-notice-content">
-            <span className="bluetooth-notice-title">
-              {isBleScanning ? t('sales.scanningForDevices') : 'Bluetooth'}
-            </span>
-            <span className="bluetooth-notice-text">
-              {isBleScanning 
-                ? `${detectedDevicesCount} ${t('sales.devicesFound')}`
-                : t('attendant.scanNewBattery')}
-            </span>
-          </div>
-        </div>
         
         <ScannerArea onClick={onScanNewBattery} type="battery" size="small" disabled={isScannerOpening} />
         
