@@ -316,11 +316,29 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
   );
 
-  // Check if customer has sufficient quota to skip payment
-  // The customer's remaining energy quota (in kWh) must be >= the energy being transferred (swapData.energyDiff in kWh)
-  // If true, we can skip the payment step and directly record the service
+  // Check if we can skip payment collection
+  // Returns true if:
+  // 1. Cost is 0 or less (no payment needed) AND we have battery data, OR
+  // 2. Customer has sufficient remaining quota to cover the energy transfer
   const hasSufficientQuota = useMemo(() => {
-    if (!electricityService) return false;
+    // Only check quota/cost once we have battery data (Step 4 - Review)
+    // Without new battery data, we can't determine if payment is needed
+    if (!swapData.newBattery) {
+      return false;
+    }
+    
+    // If cost is 0 or negative, no payment is needed regardless of quota
+    // This handles cases where customer returns equal or more energy than they receive
+    if (swapData.cost <= 0) {
+      console.info('Skip payment: cost is 0 or negative', { cost: swapData.cost });
+      return true;
+    }
+    
+    // Check if customer has enough remaining quota to cover the energy transfer
+    if (!electricityService) {
+      console.info('Skip payment check: no electricity service found');
+      return false;
+    }
     
     const quotaValue = Number(electricityService.quota ?? 0);
     const usedValue = Number(electricityService.used ?? 0);
@@ -335,6 +353,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                       energyNeeded > 0;
     
     console.info('Quota check:', {
+      cost: swapData.cost,
       quota: quotaValue,
       used: usedValue,
       remainingQuota,
@@ -343,7 +362,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     });
     
     return hasEnough;
-  }, [electricityService, swapData.energyDiff]);
+  }, [electricityService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
