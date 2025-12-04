@@ -1102,5 +1102,10 @@
   "attendant.swapComplete": "Échange terminé !",
   "attendant.batteryIssued": "La batterie a été émise avec succès",
   "attendant.transactionId": "ID de transaction",
+  "attendant.transactionReceipt": "Reçu de transaction",
+  "attendant.returned": "Retournée",
+  "attendant.issued": "Émise",
+  "attendant.energy": "Énergie",
+  "attendant.time": "Heure",
   "attendant.startNewSwap": "Nouvel échange"
 }

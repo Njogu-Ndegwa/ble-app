@@ -3274,6 +3274,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             swapData={swapData} 
             customerData={customerData} 
             transactionId={transactionId}
+            amountDue={swapData.cost}
+            amountPaid={actualAmountPaid}
           />
         );
       default:
