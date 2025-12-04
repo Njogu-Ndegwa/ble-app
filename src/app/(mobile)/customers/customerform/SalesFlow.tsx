@@ -1346,23 +1346,34 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         receipt,
       }, employeeToken || undefined);
       
-      if (response.success && response.data) {
-        const paymentData = response.data;
+      if (response.success) {
+        // Extract payment amounts from response
+        // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
+        // (Odoo API sometimes returns fields at root level, sometimes wrapped in data)
+        const paymentData = response.data || (response as any);
         
         // Store subscription code for battery allocation (from response or from subscriptionData state)
         setConfirmedSubscriptionCode(paymentData.subscription_code || subscriptionData?.subscriptionCode || '');
         setPaymentReference(paymentData.receipt || receipt);
         
-        // Track payment amounts
-        setPaymentAmountPaid(paymentData.amount_paid || 0);
-        setPaymentAmountExpected(paymentData.amount_expected || 0);
-        setPaymentAmountRemaining(paymentData.amount_remaining || 0);
-        
-        // Check if payment is complete (amount_remaining/remaining_to_pay = 0)
-        // Support both old format (amount_remaining) and new format (remaining_to_pay)
-        const remainingAmount = paymentData.remaining_to_pay ?? paymentData.amount_remaining ?? 0;
+        // Use total_paid (new format) or amount_paid (legacy format)
         const paidAmount = paymentData.total_paid ?? paymentData.amount_paid ?? 0;
+        const remainingAmount = paymentData.remaining_to_pay ?? paymentData.amount_remaining ?? 0;
         const expectedAmount = paymentData.expected_to_pay ?? paymentData.amount_expected ?? 0;
+        
+        console.log('Payment validation response:', {
+          total_paid: paidAmount,
+          remaining_to_pay: remainingAmount,
+          expected_to_pay: expectedAmount,
+          order_id: paymentData.order_id,
+        });
+        
+        // Track payment amounts
+        setPaymentAmountPaid(paidAmount);
+        setPaymentAmountExpected(expectedAmount);
+        setPaymentAmountRemaining(remainingAmount);
+        
+        // Check if payment is complete (remaining_to_pay = 0 means fully paid)
         const isFullyPaid = remainingAmount === 0;
         
         if (isFullyPaid) {
