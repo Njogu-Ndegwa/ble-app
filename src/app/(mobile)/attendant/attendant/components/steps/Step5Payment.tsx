@@ -3,6 +3,7 @@
 import React from 'react';
 import { useI18n } from '@/i18n';
 import { SwapData, CustomerData, getInitials } from '../types';
+import ScannerArea from '../ScannerArea';
 
 interface Step5Props {
   swapData: SwapData;
@@ -12,6 +13,8 @@ interface Step5Props {
   setInputMode: (mode: 'scan' | 'manual') => void;
   paymentId: string;
   setPaymentId: (id: string) => void;
+  onScanPayment?: () => void;
+  isScannerOpening?: boolean;
 }
 
 export default function Step5Payment({ 
@@ -21,7 +24,9 @@ export default function Step5Payment({
   inputMode, 
   setInputMode, 
   paymentId, 
-  setPaymentId 
+  setPaymentId,
+  onScanPayment,
+  isScannerOpening = false,
 }: Step5Props) {
   const { t } = useI18n();
 
@@ -71,18 +76,12 @@ export default function Step5Payment({
           <div className="payment-input-mode">
             <p className="payment-subtitle">{t('attendant.enterMpesaCode')}</p>
             
-            {/* Visual QR Scanner indicator - action triggered by Confirm Payment button in ActionBar */}
-            <div className="scanner-area qr-scanner-visual">
-              <div className="scanner-area-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7"/>
-                  <rect x="14" y="3" width="7" height="7"/>
-                  <rect x="14" y="14" width="7" height="7"/>
-                  <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-              </div>
-              <span className="scanner-area-text">{t('attendant.tapConfirmToScan')}</span>
-            </div>
+            {/* Uses ScannerArea component for consistent QR icon design across all steps */}
+            <ScannerArea 
+              onClick={onScanPayment || (() => {})} 
+              type="qr" 
+              disabled={isScannerOpening} 
+            />
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

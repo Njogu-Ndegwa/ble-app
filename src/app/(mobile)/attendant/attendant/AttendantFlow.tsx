@@ -3126,6 +3126,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             setInputMode={setPaymentInputMode}
             paymentId={manualPaymentId}
             setPaymentId={setManualPaymentId}
+            onScanPayment={handleConfirmPayment}
+            isScannerOpening={isScanning}
           />
         );
       case 6:
