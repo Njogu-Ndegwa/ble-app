@@ -2557,13 +2557,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setIsProcessing(false);
     }, 30000);
 
-    const formattedCheckoutId = swapData.newBattery?.id 
-      ? `BAT_NEW_${swapData.newBattery.id}` 
-      : null;
-    
-    const formattedCheckinId = swapData.oldBattery?.id
-      ? `BAT_RETURN_ATT_${swapData.oldBattery.id}`
-      : null;
+    // Use raw battery IDs without prefix - backend expects IDs like "B0723025100049"
+    const newBatteryId = swapData.newBattery?.id || null;
+    const oldBatteryId = swapData.oldBattery?.id || null;
 
     const checkoutEnergy = swapData.newBattery?.energy || 0;
     const checkinEnergy = swapData.oldBattery?.energy || 0;
@@ -2573,77 +2569,109 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     if (energyTransferred < 0) energyTransferred = 0;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    // For quota-based service, payment amount is 0 (customer is using pre-paid credit)
-    const paymentAmount = isQuotaBased ? 0 : swapData.cost;
-    // Payment method is QUOTA for quota-based, MPESA for regular
-    const paymentMethod = isQuotaBased ? "QUOTA" : "MPESA";
+    const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     console.info('Publishing payment_and_service:', {
       isQuotaBased,
-      ...(isQuotaBased ? {} : { paymentAmount, paymentMethod, paymentReference }),
+      ...(isQuotaBased ? {} : { paymentAmount, paymentReference }),
       energyTransferred,
+      oldBatteryId,
+      newBatteryId,
     });
 
     let paymentAndServicePayload: any = null;
 
-    if (customerType === 'returning' && formattedCheckinId) {
+    if (customerType === 'returning' && oldBatteryId) {
       // Returning customer payload
-      const oldBatteryId = swapData.oldBattery?.id 
-        ? `BAT_NEW_${swapData.oldBattery.id}` 
-        : formattedCheckinId;
-
-      // For quota-based, include payment_data with amount 0 and method QUOTA
-      // Backend requires payment_data to properly process the swap and update quota
-      paymentAndServicePayload = {
-        timestamp: new Date().toISOString(),
-        plan_id: dynamicPlanId,
-        correlation_id: paymentCorrelationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-          attendant_station: attendantInfo.station,
-          payment_data: {
-            service_id: serviceId,
-            payment_amount: paymentAmount,
-            payment_reference: paymentReference,
-            payment_method: paymentMethod,
-            payment_type: isQuotaBased ? "QUOTA_DEDUCT" : "TOP_UP",
+      if (isQuotaBased) {
+        // Quota-based: No payment_data needed - customer is using existing quota credit
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            service_data: {
+              old_battery_id: oldBatteryId,
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-          service_data: {
-            old_battery_id: oldBatteryId,
-            new_battery_id: formattedCheckoutId,
-            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-            service_duration: 240,
+        };
+      } else {
+        // Regular payment flow: Include payment_data
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            payment_data: {
+              service_id: serviceId,
+              payment_amount: paymentAmount,
+              payment_reference: paymentReference,
+              payment_method: "MPESA",
+              payment_type: "TOP_UP",
+            },
+            service_data: {
+              old_battery_id: oldBatteryId,
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-        },
-      };
-    } else if (customerType === 'first-time' && formattedCheckoutId) {
+        };
+      }
+    } else if (customerType === 'first-time' && newBatteryId) {
       // First-time customer payload
-      // For quota-based, include payment_data with amount 0 and method QUOTA
-      // Backend requires payment_data to properly process the swap and update quota
-      paymentAndServicePayload = {
-        timestamp: new Date().toISOString(),
-        plan_id: dynamicPlanId,
-        correlation_id: paymentCorrelationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-          attendant_station: attendantInfo.station,
-          payment_data: {
-            service_id: serviceId,
-            payment_amount: paymentAmount,
-            payment_reference: paymentReference,
-            payment_method: paymentMethod,
-            payment_type: isQuotaBased ? "QUOTA_DEDUCT" : "DEPOSIT",
+      if (isQuotaBased) {
+        // Quota-based: No payment_data needed - customer is using existing quota credit
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            service_data: {
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-          service_data: {
-            new_battery_id: formattedCheckoutId,
-            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-            service_duration: 240,
+        };
+      } else {
+        // Regular payment flow: Include payment_data
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            payment_data: {
+              service_id: serviceId,
+              payment_amount: paymentAmount,
+              payment_reference: paymentReference,
+              payment_method: "MPESA",
+              payment_type: "DEPOSIT",
+            },
+            service_data: {
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-        },
-      };
+        };
+      }
     }
 
     if (!paymentAndServicePayload) {
