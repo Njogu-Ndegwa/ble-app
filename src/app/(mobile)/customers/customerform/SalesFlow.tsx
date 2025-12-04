@@ -1119,8 +1119,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setPaymentAmountExpected(paymentData.amount_expected || 0);
         setPaymentAmountRemaining(paymentData.amount_remaining || 0);
         
-        // Check if payment is complete (amount_remaining = 0)
-        const isFullyPaid = paymentData.amount_remaining === 0;
+        // Check if payment is complete (amount_remaining/remaining_to_pay = 0)
+        // Support both old format (amount_remaining) and new format (remaining_to_pay)
+        const remainingAmount = paymentData.remaining_to_pay ?? paymentData.amount_remaining ?? 0;
+        const paidAmount = paymentData.total_paid ?? paymentData.amount_paid ?? 0;
+        const expectedAmount = paymentData.expected_to_pay ?? paymentData.amount_expected ?? 0;
+        const isFullyPaid = remainingAmount === 0;
         
         if (isFullyPaid) {
           // Payment complete - proceed to battery assignment
@@ -1134,7 +1138,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setPaymentConfirmed(false);
           const currencySymbol = availablePlans.find(p => p.id === selectedPlanId)?.currencySymbol || 'KES';
           toast.error(
-            `Incomplete payment: ${currencySymbol} ${paymentData.amount_paid.toLocaleString()} paid of ${currencySymbol} ${paymentData.amount_expected.toLocaleString()}. Remaining: ${currencySymbol} ${paymentData.amount_remaining.toLocaleString()}`
+            `Incomplete payment: ${currencySymbol} ${paidAmount.toLocaleString()} paid of ${currencySymbol} ${expectedAmount.toLocaleString()}. Remaining: ${currencySymbol} ${remainingAmount.toLocaleString()}`
           );
         }
       } else {
