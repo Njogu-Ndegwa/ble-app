@@ -119,7 +119,7 @@ export interface SubscriptionProductsResponse {
   };
 }
 
-// Subscription Purchase Types
+// Subscription Purchase Types (legacy - single product)
 export interface PurchaseSubscriptionPayload {
   customer_id: number;
   product_id: number;
@@ -128,6 +128,23 @@ export interface PurchaseSubscriptionPayload {
   cycle_interval: number;
   cycle_unit: 'day' | 'week' | 'month' | 'year';
   price_unit: number;
+  notes?: string;
+}
+
+// Multi-product purchase payload (Package + Subscription)
+// This is the new format that sends all items in one order
+export interface ProductOrderItem {
+  product_id: number;
+  quantity: number;
+  price_unit: number;
+}
+
+export interface PurchaseMultiProductPayload {
+  customer_id: number;
+  company_id: number;
+  products: ProductOrderItem[];  // All products: subscription, main product, privilege
+  cycle_interval: number;
+  cycle_unit: 'day' | 'week' | 'month' | 'year';
   notes?: string;
 }
 
@@ -545,6 +562,82 @@ export async function purchaseSubscription(
         'KES': 'KSh',
         'XOF': 'CFA',
         'GBP': '£',
+      };
+      return symbols[currency] || currency;
+    };
+
+    // Transform root-level response to normalized format with data wrapper
+    return {
+      success: rawData.success,
+      data: {
+        subscription: {
+          id: rawData.subscription.subscription_id,
+          subscription_code: rawData.subscription.subscription_code,
+          status: rawData.subscription.status,
+          product_name: rawData.subscription.product_name,
+          price_at_signup: rawData.subscription.price_at_signup,
+          currency: rawData.subscription.currency,
+          currency_symbol: getCurrencySymbol(rawData.subscription.currency),
+        },
+        order: rawData.order,
+        invoice: rawData.invoice,
+      },
+    };
+  } catch (error: any) {
+    console.error('Odoo API Request Failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Purchase multiple products in one order (Package + Subscription)
+ * This is the new format that bundles all items together:
+ * - Main product (e.g., E3 bike)
+ * - Privilege (e.g., E3 Swap Privilege)
+ * - Subscription plan
+ * 
+ * @param payload - Multi-product purchase data with all items
+ * @param authToken - Optional employee/salesperson token for authorization
+ */
+export async function purchaseMultiProducts(
+  payload: PurchaseMultiProductPayload,
+  authToken?: string
+): Promise<OdooApiResponse<PurchaseSubscriptionResponse>> {
+  const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const rawData: PurchaseSubscriptionRawResponse = await response.json();
+
+    if (!response.ok) {
+      console.error('Odoo API Error:', rawData);
+      throw new Error((rawData as any)?.message || (rawData as any)?.error || `HTTP ${response.status}`);
+    }
+
+    // Get currency symbol based on currency code
+    const getCurrencySymbol = (currency: string): string => {
+      const symbols: Record<string, string> = {
+        'USD': '$',
+        'EUR': '€',
+        'KES': 'KSh',
+        'XOF': 'CFA',
+        'GBP': '£',
+        'CNY': '¥',
       };
       return symbols[currency] || currency;
     };

@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { 
   CustomerFormData, 
   PlanData,
+  PackageData,
   getInitials 
 } from '../types';
 import ScannerArea from '@/app/(mobile)/attendant/attendant/components/ScannerArea';
@@ -18,6 +19,8 @@ interface Step3Props {
   isProcessing: boolean;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
   plans: PlanData[];  // Plans from Odoo API - required
+  // Package data for total calculation
+  selectedPackage?: PackageData | null;
   // Payment status props for incomplete payments
   paymentIncomplete?: boolean;
   amountPaid?: number;
@@ -35,6 +38,7 @@ export default function Step3Payment({
   isProcessing,
   isScannerOpening = false,
   plans,
+  selectedPackage = null,
   paymentIncomplete = false,
   amountPaid = 0,
   amountExpected = 0,
@@ -54,8 +58,12 @@ export default function Step3Payment({
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
-  const amount = selectedPlan?.price || 0;
-  const currencySymbol = selectedPlan?.currencySymbol || 'KES';
+  
+  // Calculate total amount: package + subscription
+  const packagePrice = selectedPackage?.price || 0;
+  const subscriptionPrice = selectedPlan?.price || 0;
+  const amount = packagePrice + subscriptionPrice;
+  const currencySymbol = selectedPackage?.currencySymbol || selectedPlan?.currencySymbol || 'KES';
   
   // Calculate payment progress percentage
   const paymentProgress = amountExpected > 0 ? Math.min((amountPaid / amountExpected) * 100, 100) : 0;
