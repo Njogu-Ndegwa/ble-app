@@ -3351,6 +3351,15 @@ html.theme-transition *::after {
   color: var(--text-secondary);
 }
 
+/* Monetary value display for remaining quota */
+.state-quota-value .quota-value {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
 .state-quota-bar {
   height: 3px;
   background: var(--border);
@@ -3431,6 +3440,10 @@ html.theme-transition *::after {
   
   .state-quota-value {
     font-size: 11px;
+  }
+  
+  .state-quota-value .quota-value {
+    font-size: 9px;
   }
 }
 

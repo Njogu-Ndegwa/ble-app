@@ -889,6 +889,17 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
                   }
                   
+                  // Check for infinite quota services (quota > 100,000 indicates management services)
+                  const INFINITE_QUOTA_THRESHOLD = 100000;
+                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  
+                  // Calculate remaining quota values
+                  const energyRemaining = elecService ? (elecService.quota - elecService.used) : 0;
+                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
+                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
+                  const energyValue = energyRemaining * energyUnitPrice;
+                  
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId || customerId,
                     name: normalizedData.name || identifiedCustomerId || 'Customer',
@@ -897,10 +908,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     phone: normalizedData.phone || '', // For M-Pesa payment
                     swapCount: swapCountService?.used || 0,
                     lastSwap: 'N/A',
-                    energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
+                    energyRemaining: energyRemaining,
                     energyTotal: elecService?.quota || 0,
+                    energyValue: energyValue,
+                    energyUnitPrice: energyUnitPrice,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
+                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
+                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
                     paymentState: servicePlanData.paymentState || 'INITIAL',
                     serviceState: servicePlanData.serviceState || 'INITIAL',
                     currentBatteryId: batteryFleet?.current_asset || undefined,
@@ -2207,6 +2222,17 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
                   }
                   
+                  // Check for infinite quota services (quota > 100,000 indicates management services)
+                  const INFINITE_QUOTA_THRESHOLD = 100000;
+                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  
+                  // Calculate remaining quota values
+                  const energyRemaining = elecService ? (elecService.quota - elecService.used) : 0;
+                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
+                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
+                  const energyValue = energyRemaining * energyUnitPrice;
+                  
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId,
                     name: identifiedCustomerId || 'Customer',
@@ -2215,10 +2241,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     phone: '', // Will be entered separately if needed
                     swapCount: swapCountService?.used || 0,
                     lastSwap: 'N/A',
-                    energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
+                    energyRemaining: energyRemaining,
                     energyTotal: elecService?.quota || 0,
+                    energyValue: energyValue,
+                    energyUnitPrice: energyUnitPrice,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
+                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
+                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
                     // FSM states from response
                     paymentState: servicePlanData.paymentState || 'INITIAL',
                     serviceState: servicePlanData.serviceState || 'INITIAL',

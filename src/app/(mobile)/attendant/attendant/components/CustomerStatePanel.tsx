@@ -46,8 +46,19 @@ const getPaymentStateConfig = (state?: string): { className: string; label: stri
   }
 };
 
+// Format currency value for display
+const formatCurrency = (value: number): string => {
+  // Round to whole number for cleaner display
+  const rounded = Math.round(value);
+  return rounded.toLocaleString();
+};
+
 export default function CustomerStatePanel({ customer, visible }: CustomerStatePanelProps) {
   if (!visible || !customer) return null;
+
+  // Check for infinite quota services (should not be displayed)
+  const showEnergyQuota = !customer.hasInfiniteEnergyQuota;
+  const showSwapQuota = !customer.hasInfiniteSwapQuota;
 
   const energyPercent = customer.energyTotal 
     ? ((customer.energyRemaining || 0) / customer.energyTotal) * 100 
@@ -64,6 +75,9 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
 
   const serviceConfig = getServiceStateConfig(customer.serviceState);
   const paymentConfig = getPaymentStateConfig(customer.paymentState);
+  
+  // Check if there are any quotas to display
+  const hasQuotasToDisplay = showEnergyQuota || showSwapQuota;
 
   return (
     <>
@@ -110,50 +124,60 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
         </div>
       </div>
 
-      {/* Quota Summary */}
-      <div className="state-quotas visible">
-        {/* Energy Quota */}
-        <div className="state-quota-item">
-          <div className="state-quota-icon energy">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-            </svg>
-          </div>
-          <div className="state-quota-info">
-            <div className="state-quota-value">
-              <span className="remaining">{customer.energyRemaining || 0}</span>
-              <span className="unit">kWh left</span>
+      {/* Quota Summary - only show if there are quotas to display */}
+      {hasQuotasToDisplay && (
+        <div className="state-quotas visible">
+          {/* Energy Quota - hidden for infinite quota services */}
+          {showEnergyQuota && (
+            <div className="state-quota-item">
+              <div className="state-quota-icon energy">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+              </div>
+              <div className="state-quota-info">
+                <div className="state-quota-value">
+                  <span className="remaining">{customer.energyRemaining || 0}</span>
+                  <span className="unit">kWh</span>
+                  {/* Show monetary value of remaining quota */}
+                  {customer.energyValue !== undefined && customer.energyValue > 0 && (
+                    <span className="quota-value">(≈ {formatCurrency(customer.energyValue)} XOF)</span>
+                  )}
+                </div>
+                <div className="state-quota-bar">
+                  <div 
+                    className={`state-quota-fill ${getQuotaClass(energyPercent)}`} 
+                    style={{ width: `${Math.min(energyPercent, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
-            <div className="state-quota-bar">
-              <div 
-                className={`state-quota-fill ${getQuotaClass(energyPercent)}`} 
-                style={{ width: `${Math.min(energyPercent, 100)}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
+          )}
 
-        {/* Swaps Quota */}
-        <div className="state-quota-item">
-          <div className="state-quota-icon swaps">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
-            </svg>
-          </div>
-          <div className="state-quota-info">
-            <div className="state-quota-value">
-              <span className="remaining">{customer.swapsRemaining || 0}</span>
-              <span className="unit">swaps left</span>
+          {/* Swaps Quota - hidden for infinite quota services */}
+          {showSwapQuota && (
+            <div className="state-quota-item">
+              <div className="state-quota-icon swaps">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                </svg>
+              </div>
+              <div className="state-quota-info">
+                <div className="state-quota-value">
+                  <span className="remaining">{customer.swapsRemaining || 0}</span>
+                  <span className="unit">swaps left</span>
+                </div>
+                <div className="state-quota-bar">
+                  <div 
+                    className={`state-quota-fill ${getQuotaClass(swapsPercent)}`} 
+                    style={{ width: `${Math.min(swapsPercent, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
-            <div className="state-quota-bar">
-              <div 
-                className={`state-quota-fill ${getQuotaClass(swapsPercent)}`} 
-                style={{ width: `${Math.min(swapsPercent, 100)}%` }}
-              ></div>
-            </div>
-          </div>
+          )}
         </div>
-      </div>
+      )}
     </>
   );
 }

@@ -1,5 +1,9 @@
 // Shared types for Attendant Flow
 
+// Threshold for "infinite quota" services - quotas above this are management services
+// that shouldn't be displayed to end users (e.g. 10,000,000 quota)
+export const INFINITE_QUOTA_THRESHOLD = 100000;
+
 export interface CustomerData {
   id: string;
   name: string;
@@ -11,8 +15,13 @@ export interface CustomerData {
   // Quota info
   energyRemaining?: number;
   energyTotal?: number;
+  energyValue?: number;  // Monetary value of remaining energy quota (remaining × unit price)
+  energyUnitPrice?: number;  // Unit price per kWh for energy
   swapsRemaining?: number;
   swapsTotal?: number;
+  // Flags for infinite quota services (not shown on UI)
+  hasInfiniteEnergyQuota?: boolean;
+  hasInfiniteSwapQuota?: boolean;
   // Payment Cycle FSM states
   paymentState?: 'INITIAL' | 'DEPOSIT_DUE' | 'CURRENT' | 'RENEWAL_DUE' | 'FINAL_DUE' | 'COMPLETE';
   // Service Cycle FSM states  
