@@ -1485,8 +1485,16 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           if (subscriptionCode) {
             // Initiate payment to send M-Pesa prompt
             // Pass the subscription code directly to avoid React state timing issues
-            await initiateOdooPayment(subscriptionCode);
-            advanceToStep(5);
+            const paymentInitiatedSuccess = await initiateOdooPayment(subscriptionCode);
+            
+            // Only advance to payment step if payment request was created successfully
+            if (paymentInitiatedSuccess) {
+              advanceToStep(5);
+            } else {
+              // Payment request creation failed - don't proceed
+              // Error toast already shown by initiateOdooPayment
+              console.error('Payment request creation failed - not advancing to payment step');
+            }
           }
         } finally {
           setIsProcessing(false);
