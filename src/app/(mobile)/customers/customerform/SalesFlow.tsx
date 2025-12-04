@@ -287,8 +287,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   useEffect(() => {
     // Don't save during initial session restoration
     if (!sessionRestored && showResumePrompt) return;
-    // Don't save if on step 6 (completed)
-    if (currentStep === 6) return;
+    // Don't save if on step 7 (completed)
+    if (currentStep === 7) return;
     // Don't save if no progress has been made
     if (currentStep === 1 && !formData.firstName && !formData.lastName && !formData.email && !formData.phone) return;
 
@@ -764,7 +764,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                   // Advance to success step - clear session since registration is complete
                   clearSalesSession();
                   toast.success(`Battery ${shortId} assigned successfully!`);
-                  advanceToStep(6);
+                  advanceToStep(7);
                 }
               }
             }
@@ -793,11 +793,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [convertRssiToFormattedString, populateEnergyFromDta, advanceToStep, clearScannerTimeout]);
 
-  // Start BLE scanning when on step 5 (battery assignment)
+  // Start BLE scanning when on step 6 (battery assignment)
   useEffect(() => {
-    if (currentStep === 5 && bleHandlersReady) {
+    if (currentStep === 6 && bleHandlersReady) {
       startBleScan();
-    } else if (currentStep !== 5) {
+    } else if (currentStep !== 6) {
       stopBleScan();
     }
     
@@ -1373,7 +1373,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setPaymentConfirmed(true);
           setPaymentIncomplete(false);
           toast.success('Payment confirmed! Proceed to battery assignment.');
-          advanceToStep(5);
+          advanceToStep(6);
         } else {
           // Payment incomplete - show amounts and stay on payment step
           setPaymentIncomplete(true);
@@ -1656,6 +1656,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             formData={formData}
             selectedPlanId={selectedPlanId}
             plans={availablePlans}
+            selectedPackage={selectedPackage}
             onConfirmPayment={handlePaymentQrScan}
             onManualPayment={handleManualPayment}
             isProcessing={isProcessing}

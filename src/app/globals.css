@@ -7096,3 +7096,313 @@ html.theme-transition *::after {
     height: 55px;
   }
 }
+
+/* =============================================================================
+   Package Selection Styles (Step 2 - Sales Flow)
+   ============================================================================= */
+
+/* Package badge on cards */
+.package-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 600;
+  color: white;
+  z-index: 2;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.package-badge svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Package includes text */
+.package-includes {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-align: center;
+}
+
+.vehicle-card.package-card {
+  padding-top: 28px;
+}
+
+/* =============================================================================
+   Preview Step Styles (Step 4 - Order Summary)
+   ============================================================================= */
+
+/* Preview Package Card */
+.preview-package-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+}
+
+.preview-package-image {
+  width: 80px;
+  height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.preview-image-placeholder {
+  width: 40px;
+  height: 40px;
+  color: var(--text-muted);
+}
+
+.preview-image-placeholder svg {
+  width: 100%;
+  height: 100%;
+}
+
+.preview-package-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-package-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.preview-package-product {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.preview-package-price {
+  font-family: 'DM Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Preview Cost Card - Enhanced version of cost-card */
+.preview-cost-card {
+  margin-bottom: 12px;
+}
+
+.preview-cost-card .cost-row-main {
+  padding: 10px 0;
+}
+
+.preview-cost-card .cost-row-main .cost-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.preview-cost-card .cost-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Cost breakdown section - expandable details */
+.cost-breakdown-section {
+  margin-top: -4px;
+  padding-left: 24px;
+}
+
+.cost-breakdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cost-breakdown-toggle:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.breakdown-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.breakdown-chevron.open {
+  transform: rotate(180deg);
+}
+
+.cost-breakdown-items {
+  padding: 8px 0;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cost-row-sub {
+  padding: 6px 0;
+  margin-left: 4px;
+  border-left: 2px solid var(--border-subtle);
+  padding-left: 12px;
+}
+
+.cost-label-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.component-badge {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.component-badge-product {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.component-badge-privilege {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.component-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.cost-value-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.cost-breakdown-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  background: var(--info-soft);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  color: var(--info);
+}
+
+.cost-breakdown-note svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Cost divider */
+.cost-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 8px 0;
+}
+
+/* Preview Customer Card */
+.preview-customer-card {
+  margin-bottom: 12px;
+}
+
+.preview-customer-card .customer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.preview-customer-card .customer-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-customer-card .customer-details {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.preview-customer-card .customer-divider {
+  color: var(--border);
+}
+
+/* Preview Ready Message */
+.preview-ready-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--success);
+}
+
+.preview-ready-message svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
