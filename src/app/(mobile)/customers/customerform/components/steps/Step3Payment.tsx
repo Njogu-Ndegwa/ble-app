@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useI18n } from '@/i18n';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { 
   CustomerFormData, 
   PlanData,
@@ -15,7 +15,6 @@ interface Step3Props {
   formData: CustomerFormData;
   selectedPlanId: string;
   onConfirmPayment: () => void;
-  onManualPayment: (paymentId: string) => void;
   isProcessing: boolean;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
   plans: PlanData[];  // Plans from Odoo API - required
@@ -26,15 +25,18 @@ interface Step3Props {
   amountPaid?: number;
   amountExpected?: number;
   amountRemaining?: number;
-  // Input mode callback to inform parent (for action bar)
-  onInputModeChange?: (mode: 'scan' | 'manual') => void;
+  // Input mode managed by parent (like Attendant flow)
+  inputMode: 'scan' | 'manual';
+  setInputMode: (mode: 'scan' | 'manual') => void;
+  // Payment ID managed by parent (like Attendant flow)
+  paymentId: string;
+  setPaymentId: (id: string) => void;
 }
 
 export default function Step3Payment({ 
   formData, 
   selectedPlanId, 
   onConfirmPayment, 
-  onManualPayment, 
   isProcessing,
   isScannerOpening = false,
   plans,
@@ -43,17 +45,12 @@ export default function Step3Payment({
   amountPaid = 0,
   amountExpected = 0,
   amountRemaining = 0,
-  onInputModeChange,
+  inputMode,
+  setInputMode,
+  paymentId,
+  setPaymentId,
 }: Step3Props) {
   const { t } = useI18n();
-  const [inputMode, setInputMode] = useState<'scan' | 'manual'>('scan');
-  const [paymentId, setPaymentId] = useState('');
-  
-  // Notify parent when input mode changes
-  const handleInputModeChange = (mode: 'scan' | 'manual') => {
-    setInputMode(mode);
-    onInputModeChange?.(mode);
-  };
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
@@ -67,19 +64,6 @@ export default function Step3Payment({
   
   // Calculate payment progress percentage
   const paymentProgress = amountExpected > 0 ? Math.min((amountPaid / amountExpected) * 100, 100) : 0;
-
-  const handleManualConfirm = () => {
-    if (paymentId.trim()) {
-      onManualPayment(paymentId.trim());
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && paymentId.trim() && !isProcessing) {
-      e.preventDefault();
-      handleManualConfirm();
-    }
-  };
 
   return (
     <div className="screen active">
@@ -147,7 +131,7 @@ export default function Step3Payment({
         <div className="input-toggle">
           <button 
             className={`toggle-btn ${inputMode === 'scan' ? 'active' : ''}`}
-            onClick={() => handleInputModeChange('scan')}
+            onClick={() => setInputMode('scan')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7"/>
@@ -159,7 +143,7 @@ export default function Step3Payment({
           </button>
           <button 
             className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
-            onClick={() => handleInputModeChange('manual')}
+            onClick={() => setInputMode('manual')}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9"/>
@@ -194,36 +178,18 @@ export default function Step3Payment({
                   placeholder={t('sales.enterTransactionId')}
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
-                  onKeyDown={handleKeyDown}
                   autoComplete="off"
+                  disabled={isProcessing}
                 />
               </div>
             </div>
-            
-            {/* Large Confirm Payment button - matches ScannerArea placement and prominence */}
-            <button 
-              className="confirm-payment-cta" 
-              onClick={handleManualConfirm}
-              disabled={isProcessing || !paymentId.trim()}
-            >
-              <div className="confirm-payment-cta-inner">
-                <div className="confirm-payment-cta-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
-                </div>
-                <span className="confirm-payment-cta-text">
-                  {isProcessing ? t('sales.processing') : t('sales.confirmPayment')}
-                </span>
-              </div>
-            </button>
             
             <p className="scan-hint">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 16v-4M12 8h.01"/>
               </svg>
-              {t('sales.tapToConfirmPayment')}
+              {t('sales.tapConfirmToProcess')}
             </p>
           </div>
         )}

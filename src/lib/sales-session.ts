@@ -31,6 +31,9 @@ export interface SalesSessionData {
   // Customer form data
   formData: CustomerFormData;
   
+  // Package selection (product + privilege bundled)
+  selectedPackageId: string;
+  
   // Plan selection
   selectedPlanId: string;
   
@@ -61,8 +64,9 @@ export interface SalesSessionData {
   version: number; // Schema version for future migrations
 }
 
-// Current schema version
-const CURRENT_VERSION = 1;
+// Current schema version - increment when SalesSessionData structure changes
+// Version 2: Added selectedPackageId field
+const CURRENT_VERSION = 2;
 
 /**
  * Check if localStorage is available
