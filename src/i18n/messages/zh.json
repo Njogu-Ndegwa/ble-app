@@ -992,6 +992,10 @@
   "attendant.totalCost": "总费用",
   "attendant.proceedToPayment": "继续支付",
   
+  "attendant.quotaCreditAvailable": "可用配额余额",
+  "attendant.noPaymentRequired": "无需支付 - 使用现有额度",
+  "attendant.quotaDeduction": "配额扣除",
+  
   "attendant.collectPayment": "收款",
   "attendant.enterMpesaCode": "输入M-Pesa交易代码",
   "attendant.mpesaCode": "M-Pesa代码",

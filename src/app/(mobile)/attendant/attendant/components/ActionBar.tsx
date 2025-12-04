@@ -10,6 +10,7 @@ interface ActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   inputMode?: 'scan' | 'manual';
+  hasSufficientQuota?: boolean;
 }
 
 // Icon components for action bar
@@ -34,6 +35,11 @@ const ActionIcons = {
       <path d="M5 12h14M12 5l7 7-7 7"/>
     </svg>
   ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  ),
   plus: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14M5 12h14"/>
@@ -53,7 +59,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSufficientQuota?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Show different text/icon based on input mode
@@ -66,6 +72,10 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): Step
     case 3:
       return { showBack: true, mainTextKey: 'attendant.scanNewBattery', mainIcon: 'scan' };
     case 4:
+      // Show "Complete Swap" with check icon when customer has sufficient quota
+      if (hasSufficientQuota) {
+        return { showBack: true, mainTextKey: 'attendant.completeSwap', mainIcon: 'check', mainClass: 'btn-success' };
+      }
       return { showBack: true, mainTextKey: 'attendant.collectPayment', mainIcon: 'arrow' };
     case 5:
       return { showBack: true, mainTextKey: 'attendant.confirmPayment', mainIcon: 'qr' };
@@ -76,9 +86,9 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): Step
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode }: ActionBarProps) {
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, hasSufficientQuota }: ActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, inputMode);
+  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
   // Don't show for step 5 either - Step5Payment has its own action buttons for both scan and manual modes

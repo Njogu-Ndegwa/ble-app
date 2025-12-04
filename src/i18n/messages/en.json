@@ -1090,6 +1090,10 @@
   "attendant.totalCost": "Total Cost",
   "attendant.proceedToPayment": "Proceed to Payment",
   
+  "attendant.quotaCreditAvailable": "Quota Credit Available",
+  "attendant.noPaymentRequired": "No payment required - using existing credit",
+  "attendant.quotaDeduction": "Quota Deduction",
+  
   "attendant.collectPayment": "Collect Payment",
   "attendant.enterMpesaCode": "Enter M-Pesa transaction code",
   "attendant.mpesaCode": "M-Pesa Code",
