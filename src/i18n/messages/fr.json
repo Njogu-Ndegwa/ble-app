@@ -1101,6 +1101,7 @@
   
   "attendant.swapComplete": "Échange terminé !",
   "attendant.batteryIssued": "La batterie a été émise avec succès",
+  "attendant.handOverBattery": "Remettre la batterie au client",
   "attendant.transactionId": "ID de transaction",
   "attendant.transactionReceipt": "Reçu de transaction",
   "attendant.returned": "Retournée",
