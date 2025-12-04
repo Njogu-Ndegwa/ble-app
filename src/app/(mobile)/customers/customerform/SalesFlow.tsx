@@ -150,6 +150,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  // Manual payment ID input (like Attendant flow)
+  const [manualPaymentId, setManualPaymentId] = useState<string>('');
   // Order ID - REQUIRED for confirm payment (from purchaseMultiProducts response)
   const [paymentRequestOrderId, setPaymentRequestOrderId] = useState<number | null>(null);
   
@@ -249,7 +251,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setCurrentStep(savedSession.currentStep);
       setMaxStepReached(savedSession.maxStepReached);
       setFormData(savedSession.formData);
-      setSelectedPlanId(savedSession.selectedPlanId);
+      // Only restore package/plan IDs if they exist (backwards compatibility)
+      if (savedSession.selectedPackageId) {
+        setSelectedPackageId(savedSession.selectedPackageId);
+      }
+      if (savedSession.selectedPlanId) {
+        setSelectedPlanId(savedSession.selectedPlanId);
+      }
       setCreatedCustomerId(savedSession.createdCustomerId);
       setCreatedPartnerId(savedSession.createdPartnerId);
       setCustomerSessionToken(savedSession.customerSessionToken);
@@ -296,6 +304,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currentStep,
         maxStepReached,
         formData,
+        selectedPackageId,
         selectedPlanId,
         createdCustomerId,
         createdPartnerId,
@@ -321,6 +330,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     currentStep,
     maxStepReached,
     formData,
+    selectedPackageId,
     selectedPlanId,
     createdCustomerId,
     createdPartnerId,
@@ -844,9 +854,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setAvailableProducts(products);
           setProductsLoadError(null);
           
-          // Set default selected product to first product
+          // Set default selected product to first product only if not already set
           if (products.length > 0) {
-            setSelectedProductId(products[0].id);
+            setSelectedProductId(prev => prev || products[0].id);
           }
           
           console.log('Fetched physical products from Odoo:', products);
@@ -933,9 +943,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setAvailablePackages(packages);
           setPackagesLoadError(null);
           
-          // Set default selected package to first package
+          // Set default selected package to first package only if not already set (e.g., from session restore)
           if (packages.length > 0) {
-            setSelectedPackageId(packages[0].id);
+            setSelectedPackageId(prev => prev || packages[0].id);
           }
           
           console.log('Fetched packages from Odoo:', packages);
@@ -960,9 +970,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setAvailablePlans(plans);
           setPlansLoadError(null);
           
-          // Set default selected plan to first plan
+          // Set default selected plan to first plan only if not already set (e.g., from session restore)
           if (plans.length > 0) {
-            setSelectedPlanId(plans[0].id);
+            setSelectedPlanId(prev => prev || plans[0].id);
           }
           
           console.log('Fetched subscription plans from Odoo:', plans);
@@ -1438,11 +1448,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const handlePlanSelect = useCallback((planId: string) => {
     setSelectedPlanId(planId);
   }, []);
-  
-  // Handle payment input mode change
-  const handlePaymentInputModeChange = useCallback((mode: 'scan' | 'manual') => {
-    setPaymentInputMode(mode);
-  }, []);
 
   // Handle battery scan
   const handleScanBattery = useCallback(() => {
@@ -1523,8 +1528,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
         break;
       case 5:
-        // Trigger payment QR scan
-        handlePaymentQrScan();
+        // Handle payment based on input mode (like Attendant flow)
+        if (paymentInputMode === 'scan') {
+          handlePaymentQrScan();
+        } else {
+          // Manual mode - call backend with manual payment ID
+          if (manualPaymentId.trim()) {
+            handleManualPayment(manualPaymentId.trim());
+          }
+        }
         break;
       case 6:
         // Trigger battery scan
@@ -1572,6 +1584,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setPaymentConfirmed(false);
         setPaymentReference('');
         setPaymentInitiated(false);
+        setPaymentInputMode('scan');
+        setManualPaymentId('');
         setPaymentRequestOrderId(null);
         setPaymentAmountPaid(0);
         setPaymentAmountExpected(0);
@@ -1592,7 +1606,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     initiateOdooPayment,
     advanceToStep, 
     handlePaymentQrScan, 
+    handleManualPayment,
     handleScanBattery,
+    paymentInputMode,
+    manualPaymentId,
     availablePackages,
     availableProducts,
     availablePlans,
@@ -1688,14 +1705,16 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             plans={availablePlans}
             selectedPackage={selectedPackage}
             onConfirmPayment={handlePaymentQrScan}
-            onManualPayment={handleManualPayment}
             isProcessing={isProcessing}
             isScannerOpening={isScannerOpening}
             paymentIncomplete={paymentIncomplete}
             amountPaid={paymentAmountPaid}
             amountExpected={paymentAmountExpected}
             amountRemaining={paymentAmountRemaining}
-            onInputModeChange={handlePaymentInputModeChange}
+            inputMode={paymentInputMode}
+            setInputMode={setPaymentInputMode}
+            paymentId={manualPaymentId}
+            setPaymentId={setManualPaymentId}
           />
         );
       case 6:
@@ -1847,7 +1866,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         onMainAction={handleMainAction}
         isLoading={isProcessing || isCreatingCustomer}
         paymentInputMode={paymentInputMode}
-        isDisabled={currentStep === 4 && paymentInputMode === 'manual'}
+        isDisabled={false}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}
