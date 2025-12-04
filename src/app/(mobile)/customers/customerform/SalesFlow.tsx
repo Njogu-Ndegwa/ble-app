@@ -1176,6 +1176,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       if (response.success && response.data && response.data.subscription) {
         const { subscription, order } = response.data;
         
+        // Validate order exists - this is required for payment confirmation
+        if (!order || !order.id) {
+          console.error('No order returned from purchase endpoint');
+          throw new Error('Order creation failed - no order ID returned');
+        }
+        
         setSubscriptionData({
           id: subscription.id,
           subscriptionCode: subscription.subscription_code,
@@ -1187,17 +1193,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         });
         
         // Store the order_id from purchase response - this is used for payment confirmation
-        // No need to call createPaymentRequest since order is already created
-        if (order && order.id) {
-          console.info('=== ORDER CREATED BY PURCHASE ENDPOINT ===');
-          console.info('Order ID:', order.id);
-          console.info('Order Name:', order.name);
-          console.info('Order State:', order.state);
-          console.info('Order Amount:', order.amount_total);
-          setPaymentRequestOrderId(order.id);
-        } else {
-          console.warn('No order returned from purchase endpoint');
-        }
+        console.info('=== ORDER CREATED BY PURCHASE ENDPOINT ===');
+        console.info('Order ID:', order.id);
+        console.info('Order Name:', order.name);
+        console.info('Order State:', order.state);
+        console.info('Order Amount:', order.amount_total);
+        setPaymentRequestOrderId(order.id);
         
         console.log('Subscription purchased:', subscription);
         toast.success('Order created!');
@@ -1205,10 +1206,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         // Return both subscription code and order_id
         return {
           subscriptionCode: subscription.subscription_code,
-          orderId: order?.id || 0,
+          orderId: order.id,
         };
       } else {
-        throw new Error('Order creation failed');
+        throw new Error('Order creation failed - invalid response');
       }
     } catch (error: any) {
       console.error('Failed to create order:', error);
@@ -1220,8 +1221,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Initiate payment with Odoo - send STK push to customer's phone
   // NOTE: For Sales flow, the order is already created by /api/subscription/purchase
   // We just need to send the STK push and mark payment as initiated
-  // Accepts optional subscriptionCode parameter to avoid React state timing issues
-  const initiateOdooPayment = useCallback(async (subscriptionCode?: string): Promise<boolean> => {
+  // Accepts subscriptionCode and orderId parameters to avoid React state timing issues
+  const initiateOdooPayment = useCallback(async (subscriptionCode?: string, orderId?: number): Promise<boolean> => {
     // Use the passed subscription code, or fall back to state
     const subCode = subscriptionCode || subscriptionData?.subscriptionCode;
     
@@ -1230,16 +1231,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return false;
     }
 
+    // Use passed orderId or fall back to state
+    // orderId is passed directly to avoid React state timing issues
+    const orderIdToUse = orderId || paymentRequestOrderId;
+    
     // Verify we have an order_id from the purchase response
-    // This was set by purchaseCustomerSubscription when the order was created
-    if (!paymentRequestOrderId) {
+    if (!orderIdToUse) {
       console.error('No order_id from purchase response - cannot proceed with payment');
       toast.error('Order not created properly. Please try again.');
       return false;
     }
 
     console.info('=== SALES FLOW - INITIATING PAYMENT ===');
-    console.info('Order ID (from purchase):', paymentRequestOrderId);
+    console.info('Order ID (from purchase):', orderIdToUse);
     console.info('Subscription Code:', subCode);
 
     // Get the salesperson's employee token for authorization
@@ -1477,14 +1481,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // purchaseCustomerSubscription creates the order via /api/subscription/purchase
           // It returns both subscriptionCode and orderId
           const purchaseResult = await purchaseCustomerSubscription();
-          if (purchaseResult) {
+          if (purchaseResult && purchaseResult.orderId) {
             console.info('=== PURCHASE SUCCESSFUL ===');
             console.info('Subscription Code:', purchaseResult.subscriptionCode);
             console.info('Order ID:', purchaseResult.orderId);
             
             // Initiate payment to send M-Pesa prompt
-            // Pass the subscription code directly to avoid React state timing issues
-            const paymentInitiatedSuccess = await initiateOdooPayment(purchaseResult.subscriptionCode);
+            // Pass both subscriptionCode and orderId directly to avoid React state timing issues
+            const paymentInitiatedSuccess = await initiateOdooPayment(
+              purchaseResult.subscriptionCode, 
+              purchaseResult.orderId
+            );
             
             // Only advance to payment step if payment initiation was successful
             if (paymentInitiatedSuccess) {
@@ -1494,7 +1501,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
               // Error toast already shown by initiateOdooPayment
               console.error('Payment initiation failed - not advancing to payment step');
             }
+          } else if (purchaseResult) {
+            // Purchase returned but without orderId - this shouldn't happen
+            console.error('Purchase returned without orderId');
+            toast.error('Order creation failed - no order ID returned');
           }
+          // If purchaseResult is null, error toast was already shown by purchaseCustomerSubscription
         } finally {
           setIsProcessing(false);
         }

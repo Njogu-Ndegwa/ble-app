@@ -627,16 +627,34 @@ export async function purchaseMultiProducts(
       body: JSON.stringify(payload),
     });
 
-    const rawData: PurchaseSubscriptionRawResponse = await response.json();
+    const rawData = await response.json();
 
     // Log the full response for debugging
     console.info('=== PURCHASE MULTI PRODUCTS (CREATE ORDER) - RESPONSE ===');
     console.info('HTTP Status:', response.status);
     console.info('Response:', JSON.stringify(rawData, null, 2));
 
+    // Check HTTP status first
     if (!response.ok) {
-      console.error('Odoo API Error:', rawData);
-      throw new Error((rawData as any)?.message || (rawData as any)?.error || `HTTP ${response.status}`);
+      console.error('Odoo API Error (HTTP):', rawData);
+      throw new Error(rawData?.message || rawData?.error || `HTTP ${response.status}`);
+    }
+
+    // Check success field - API might return HTTP 200 with success: false
+    if (!rawData.success) {
+      console.error('Odoo API Error (success=false):', rawData);
+      throw new Error(rawData?.message || rawData?.error || 'Order creation failed');
+    }
+
+    // Validate required fields exist
+    if (!rawData.order || !rawData.order.id) {
+      console.error('Odoo API Error: Missing order in response', rawData);
+      throw new Error('Order creation failed - no order returned');
+    }
+
+    if (!rawData.subscription || !rawData.subscription.subscription_code) {
+      console.error('Odoo API Error: Missing subscription in response', rawData);
+      throw new Error('Order creation failed - no subscription returned');
     }
 
     // Get currency symbol based on currency code
@@ -653,8 +671,9 @@ export async function purchaseMultiProducts(
     };
 
     // Transform root-level response to normalized format with data wrapper
+    // Note: order_id is also available at root level as rawData.order_id
     return {
-      success: rawData.success,
+      success: true,
       data: {
         subscription: {
           id: rawData.subscription.subscription_id,
@@ -670,7 +689,8 @@ export async function purchaseMultiProducts(
       },
     };
   } catch (error: any) {
-    console.error('Odoo API Request Failed:', error);
+    console.error('=== PURCHASE MULTI PRODUCTS - ERROR ===');
+    console.error('Error:', error);
     throw error;
   }
 }
