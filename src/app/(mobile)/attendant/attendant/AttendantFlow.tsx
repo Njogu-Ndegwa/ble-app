@@ -2745,8 +2745,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               
               const success = responseData?.data?.success ?? false;
               const signals = responseData?.data?.signals || [];
+              const metadata = responseData?.data?.metadata || {};
 
-              console.info("payment_and_service response - success:", success, "signals:", signals);
+              console.info("payment_and_service response - success:", success, "signals:", signals, "metadata:", metadata);
+
+              // Check for error signals - these indicate failure even if success is true
+              // Backend may return success:true with error signals for validation failures
+              const errorSignals = ["BATTERY_MISMATCH", "ASSET_VALIDATION_FAILED", "SECURITY_ALERT", "VALIDATION_FAILED", "PAYMENT_FAILED"];
+              const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
 
               // Handle both fresh success and idempotent (cached) responses
               // Fresh success signals: ASSET_RETURNED, ASSET_ALLOCATED, SERVICE_COMPLETED
@@ -2756,10 +2762,18 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               const hasAssetSignals = signals.includes("ASSET_RETURNED") || signals.includes("ASSET_ALLOCATED");
               
               const hasSuccessSignal = success === true && 
+                !hasErrorSignal &&
                 Array.isArray(signals) && 
                 (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
 
-              if (hasSuccessSignal) {
+              if (hasErrorSignal) {
+                // Error signals present - treat as failure regardless of success flag
+                console.error("payment_and_service failed with error signals:", signals);
+                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
+                const actionRequired = metadata?.action_required;
+                toast.error(actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg);
+                setPaymentAndServiceStatus('error');
+              } else if (hasSuccessSignal) {
                 console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
                 
                 // Clear the correlation ID
@@ -2768,9 +2782,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 setPaymentAndServiceStatus('success');
                 advanceToStep(6);
                 toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
-              } else if (success) {
-                // Success without specific signal - still treat as success
-                console.info("payment_and_service completed (generic success)");
+              } else if (success && signals.length === 0) {
+                // Success without any signals - treat as generic success
+                console.info("payment_and_service completed (generic success, no signals)");
                 
                 // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
@@ -2779,9 +2793,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 advanceToStep(6);
                 toast.success('Swap completed!');
               } else {
-                // Response received but not successful
+                // Response received but not successful or has unknown signals
                 console.error("payment_and_service failed - success:", success, "signals:", signals);
-                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Failed to record swap";
+                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
                 toast.error(errorMsg);
                 setPaymentAndServiceStatus('error');
               }
