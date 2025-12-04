@@ -208,19 +208,102 @@ export interface InitiatePaymentResponse {
 
 // Manual Payment Confirmation Types
 export interface ManualConfirmPaymentPayload {
-  subscription_code: string;
+  subscription_code?: string;
+  order_id?: number;
   receipt: string;
   customer_id?: string;
 }
 
 export interface ManualConfirmPaymentResponse {
   message: string;
-  note: string;
-  subscription_code: string;
+  note?: string;
+  subscription_code?: string;
   receipt: string;
+  order_id?: number;
+  order_name?: string;
+  total_paid: number;
+  expected_to_pay?: number;
+  remaining_to_pay?: number;
+  // Legacy fields for backward compatibility
+  amount_paid?: number;
+  amount_expected?: number;
+  amount_remaining?: number;
+  // Duplicate detection
+  is_duplicate?: boolean;
+  receipt_used?: boolean;
+  receipt_status?: string;
+}
+
+// Payment Request Types (create ticket before collecting payment)
+export interface CreatePaymentRequestPayload {
+  subscription_code: string;
+  amount_required: number;
+  description: string;
+  external_reference?: string;
+}
+
+export interface PaymentRequestCustomer {
+  id: number;
+  name: string;
+}
+
+export interface PaymentRequestOrder {
+  id: number;
+  name: string;
+  state: string;
+}
+
+export interface PaymentRequestInvoice {
+  id: number;
+  name: string;
+  state: string;
+}
+
+export interface PaymentRequestData {
+  id: number;
+  name: string;
+  subscription_code: string;
+  amount_required: number;
   amount_paid: number;
-  amount_expected: number;
   amount_remaining: number;
+  status: string;
+  payment_type: string;
+  customer: PaymentRequestCustomer;
+  sale_order: PaymentRequestOrder;
+  invoice: PaymentRequestInvoice;
+  payment_instructions: string;
+  payment_endpoint: string;
+  payment_params: {
+    subscription_code: string;
+    phone_number: string;
+    amount: string;
+  };
+  check_status_url: string;
+}
+
+export interface CreatePaymentRequestResponse {
+  success: boolean;
+  message: string;
+  payment_request?: PaymentRequestData;
+  // Error fields when request fails
+  error?: string;
+  business_rule?: string;
+  instructions?: string[];
+  existing_request?: {
+    id: number;
+    name: string;
+    amount_required: number;
+    amount_paid: number;
+    amount_remaining: number;
+    status: string;
+    progress_percentage: number;
+    description: string;
+    created_at: string;
+    actions: {
+      check_status: string;
+      cancel_request: string;
+    };
+  };
 }
 
 // Subscription Status Types
@@ -513,10 +596,60 @@ export async function initiatePayment(
 }
 
 /**
+ * Create a payment request/ticket before collecting payment
+ * This MUST be called before collecting payment from the customer.
+ * 
+ * The response includes an order_id which should be used in the confirmation step.
+ * If there's already an active payment request, the API returns error with existing_request details.
+ * 
+ * @param payload - Payment request data (subscription_code, amount_required, description, external_reference?)
+ * @param authToken - Optional employee/salesperson token for authorization
+ */
+export async function createPaymentRequest(
+  payload: CreatePaymentRequestPayload,
+  authToken?: string
+): Promise<CreatePaymentRequestResponse> {
+  const url = `${ODOO_BASE_URL}/api/payment-request/create`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data: CreatePaymentRequestResponse = await response.json();
+    
+    // Note: API returns success: false for business rule violations (e.g., existing active request)
+    // We return the full response so caller can handle accordingly
+    return data;
+  } catch (error: any) {
+    console.error('Create payment request failed:', error);
+    throw error;
+  }
+}
+
+/**
  * Manually confirm a payment with M-Pesa receipt
  * Used after customer has paid and we have the receipt code
  * 
- * @param payload - Payment confirmation data (subscription_code, receipt, customer_id)
+ * Can use either:
+ * - order_id + receipt (preferred, from createPaymentRequest response)
+ * - subscription_code + receipt (fallback)
+ * 
+ * IMPORTANT: Check that total_paid >= expected amount before proceeding
+ * 
+ * @param payload - Payment confirmation data (order_id or subscription_code, receipt, customer_id)
  * @param authToken - Optional employee/salesperson token for authorization
  */
 export async function confirmPaymentManual(
