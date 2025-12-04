@@ -311,39 +311,91 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
   );
 
+  // Get swap-count service from service states
+  const swapCountService = serviceStates.find(
+    (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-swap-count')
+  );
+
   // Get battery fleet service (to check current_asset for customer type)
   const batteryFleetService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
   );
 
-  // Check if customer has sufficient quota to skip payment
-  // The customer's remaining energy quota (in kWh) must be >= the energy being transferred (swapData.energyDiff in kWh)
-  // If true, we can skip the payment step and directly record the service
+  // Check if we can skip payment collection
+  // Returns true if BOTH conditions are met:
+  // 1. Electricity quota: remaining kWh >= energy being transferred (or cost <= 0)
+  // 2. Swap count quota: remaining swaps >= 1
   const hasSufficientQuota = useMemo(() => {
-    if (!electricityService) return false;
+    // Only check quota/cost once we have battery data (Step 4 - Review)
+    // Without new battery data, we can't determine if payment is needed
+    if (!swapData.newBattery) {
+      return false;
+    }
     
-    const quotaValue = Number(electricityService.quota ?? 0);
-    const usedValue = Number(electricityService.used ?? 0);
-    const remainingQuota = quotaValue - usedValue;
+    // === Check 1: Electricity Quota ===
+    let hasEnoughElectricity = false;
     
-    // energyDiff is in kWh, remainingQuota is also in kWh (same units as displayed in UI)
-    const energyNeeded = swapData.energyDiff;
+    // If cost is 0 or negative, no electricity payment is needed
+    // This handles cases where customer returns equal or more energy than they receive
+    if (swapData.cost <= 0) {
+      console.info('Electricity check: cost is 0 or negative', { cost: swapData.cost });
+      hasEnoughElectricity = true;
+    } else if (electricityService) {
+      const elecQuota = Number(electricityService.quota ?? 0);
+      const elecUsed = Number(electricityService.used ?? 0);
+      const remainingElecQuota = elecQuota - elecUsed;
+      const energyNeeded = swapData.energyDiff;
+      
+      hasEnoughElectricity = Number.isFinite(remainingElecQuota) && 
+                             Number.isFinite(energyNeeded) && 
+                             remainingElecQuota >= energyNeeded &&
+                             energyNeeded > 0;
+      
+      console.info('Electricity quota check:', {
+        quota: elecQuota,
+        used: elecUsed,
+        remainingQuota: remainingElecQuota,
+        energyNeeded,
+        hasEnough: hasEnoughElectricity,
+      });
+    } else {
+      console.info('Electricity check: no electricity service found');
+      hasEnoughElectricity = false;
+    }
     
-    const hasEnough = Number.isFinite(remainingQuota) && 
-                      Number.isFinite(energyNeeded) && 
-                      remainingQuota >= energyNeeded &&
-                      energyNeeded > 0;
+    // === Check 2: Swap Count Quota ===
+    let hasEnoughSwaps = false;
     
-    console.info('Quota check:', {
-      quota: quotaValue,
-      used: usedValue,
-      remainingQuota,
-      energyNeeded,
-      hasSufficientQuota: hasEnough,
+    if (swapCountService) {
+      const swapQuota = Number(swapCountService.quota ?? 0);
+      const swapUsed = Number(swapCountService.used ?? 0);
+      const remainingSwaps = swapQuota - swapUsed;
+      
+      // Need at least 1 swap remaining
+      hasEnoughSwaps = Number.isFinite(remainingSwaps) && remainingSwaps >= 1;
+      
+      console.info('Swap count quota check:', {
+        quota: swapQuota,
+        used: swapUsed,
+        remainingSwaps,
+        hasEnough: hasEnoughSwaps,
+      });
+    } else {
+      console.info('Swap count check: no swap-count service found');
+      hasEnoughSwaps = false;
+    }
+    
+    // BOTH checks must pass to skip payment
+    const canSkipPayment = hasEnoughElectricity && hasEnoughSwaps;
+    
+    console.info('Final quota check result:', {
+      hasEnoughElectricity,
+      hasEnoughSwaps,
+      canSkipPayment,
     });
     
-    return hasEnough;
-  }, [electricityService, swapData.energyDiff]);
+    return canSkipPayment;
+  }, [electricityService, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
@@ -2529,9 +2581,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
     console.info('Publishing payment_and_service:', {
       isQuotaBased,
-      paymentAmount,
-      paymentMethod,
-      paymentReference,
+      ...(isQuotaBased ? {} : { paymentAmount, paymentMethod, paymentReference }),
       energyTransferred,
     });
 
@@ -2543,53 +2593,92 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         ? `BAT_NEW_${swapData.oldBattery.id}` 
         : formattedCheckinId;
 
-      paymentAndServicePayload = {
-        timestamp: new Date().toISOString(),
-        plan_id: dynamicPlanId,
-        correlation_id: paymentCorrelationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-          attendant_station: attendantInfo.station,
-          payment_data: {
-            service_id: serviceId,
-            payment_amount: paymentAmount,
-            payment_reference: paymentReference,
-            payment_method: paymentMethod,
-            payment_type: isQuotaBased ? "QUOTA_CREDIT" : "TOP_UP",
+      // When quota-based, don't include payment_data - customer is using existing credit
+      if (isQuotaBased) {
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            service_data: {
+              old_battery_id: oldBatteryId,
+              new_battery_id: formattedCheckoutId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-          service_data: {
-            old_battery_id: oldBatteryId,
-            new_battery_id: formattedCheckoutId,
-            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-            service_duration: 240,
+        };
+      } else {
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            payment_data: {
+              service_id: serviceId,
+              payment_amount: paymentAmount,
+              payment_reference: paymentReference,
+              payment_method: paymentMethod,
+              payment_type: "TOP_UP",
+            },
+            service_data: {
+              old_battery_id: oldBatteryId,
+              new_battery_id: formattedCheckoutId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-        },
-      };
+        };
+      }
     } else if (customerType === 'first-time' && formattedCheckoutId) {
       // First-time customer payload
-      paymentAndServicePayload = {
-        timestamp: new Date().toISOString(),
-        plan_id: dynamicPlanId,
-        correlation_id: paymentCorrelationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-          attendant_station: attendantInfo.station,
-          payment_data: {
-            service_id: serviceId,
-            payment_amount: paymentAmount,
-            payment_reference: paymentReference,
-            payment_method: paymentMethod,
-            payment_type: isQuotaBased ? "QUOTA_CREDIT" : "DEPOSIT",
+      // When quota-based, don't include payment_data - customer is using existing credit
+      if (isQuotaBased) {
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            service_data: {
+              new_battery_id: formattedCheckoutId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-          service_data: {
-            new_battery_id: formattedCheckoutId,
-            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-            service_duration: 240,
+        };
+      } else {
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            payment_data: {
+              service_id: serviceId,
+              payment_amount: paymentAmount,
+              payment_reference: paymentReference,
+              payment_method: paymentMethod,
+              payment_type: "DEPOSIT",
+            },
+            service_data: {
+              new_battery_id: formattedCheckoutId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-        },
-      };
+        };
+      }
     }
 
     if (!paymentAndServicePayload) {
