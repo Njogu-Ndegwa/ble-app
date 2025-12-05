@@ -80,6 +80,8 @@ export interface SwapData {
   oldBattery: BatteryData | null;
   newBattery: BatteryData | null;
   energyDiff: number;
+  quotaDeduction: number;  // Amount of remaining quota to apply (in kWh)
+  chargeableEnergy: number;  // Energy to charge for after quota deduction (in kWh)
   cost: number;
   rate: number;
 }

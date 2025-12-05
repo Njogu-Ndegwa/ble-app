@@ -1131,6 +1131,8 @@
   "attendant.quotaCreditAvailable": "Quota Credit Available",
   "attendant.noPaymentRequired": "No payment required - using existing credit",
   "attendant.quotaDeduction": "Quota Deduction",
+  "attendant.quotaApplied": "Quota Applied",
+  "attendant.chargeableEnergy": "To Pay",
   
   "attendant.collectPayment": "Collect Payment",
   "attendant.enterMpesaCode": "Enter M-Pesa transaction code",
