@@ -28,29 +28,36 @@ interface AvatarProps {
   style?: React.CSSProperties;
 }
 
-// Size mappings
-const SIZE_CLASSES: Record<AvatarSize, string> = {
-  xs: 'avatar-xs',
-  sm: 'avatar-sm',
-  md: 'avatar-md',
-  lg: 'avatar-lg',
-  xl: 'avatar-xl',
-};
-
+// Size mappings using CSS variables
 const SIZE_STYLES: Record<AvatarSize, React.CSSProperties> = {
-  xs: { width: '24px', height: '24px', fontSize: '10px' },
-  sm: { width: '32px', height: '32px', fontSize: '12px' },
-  md: { width: '40px', height: '40px', fontSize: '14px' },
-  lg: { width: '48px', height: '48px', fontSize: '16px' },
-  xl: { width: '64px', height: '64px', fontSize: '20px' },
+  xs: { width: 'var(--avatar-xs)', height: 'var(--avatar-xs)', fontSize: 'var(--font-2xs)' },
+  sm: { width: 'var(--avatar-sm)', height: 'var(--avatar-sm)', fontSize: 'var(--font-xs)' },
+  md: { width: 'var(--avatar-md)', height: 'var(--avatar-md)', fontSize: 'var(--font-sm)' },
+  lg: { width: 'var(--avatar-lg)', height: 'var(--avatar-lg)', fontSize: 'var(--font-base)' },
+  xl: { width: 'var(--avatar-xl)', height: 'var(--avatar-xl)', fontSize: 'var(--font-xl)' },
 };
 
-const VARIANT_CLASSES: Record<AvatarVariant, string> = {
-  default: 'avatar-default',
-  primary: 'avatar-primary',
-  success: 'avatar-success',
-  warning: 'avatar-warning',
-  error: 'avatar-error',
+const VARIANT_STYLES: Record<AvatarVariant, React.CSSProperties> = {
+  default: {
+    backgroundColor: 'var(--bg-surface)',
+    color: 'var(--text-secondary)',
+  },
+  primary: {
+    backgroundColor: 'rgba(0, 229, 229, 0.15)',
+    color: 'var(--color-brand)',
+  },
+  success: {
+    backgroundColor: 'var(--color-success-soft)',
+    color: 'var(--color-success)',
+  },
+  warning: {
+    backgroundColor: 'var(--color-warning-soft)',
+    color: 'var(--color-warning)',
+  },
+  error: {
+    backgroundColor: 'var(--color-error-soft)',
+    color: 'var(--color-error)',
+  },
 };
 
 /**
@@ -68,11 +75,6 @@ export function getInitials(name?: string, firstName?: string, lastName?: string
 
 /**
  * Avatar - User/entity avatar with initials or image
- * 
- * @example
- * <Avatar name="John Doe" size="md" />
- * <Avatar firstName="John" lastName="Doe" variant="primary" />
- * <Avatar src="/avatar.jpg" alt="User" />
  */
 export default function Avatar({
   name,
@@ -87,26 +89,27 @@ export default function Avatar({
   style,
 }: AvatarProps) {
   const initials = initialsOverride || getInitials(name, firstName, lastName);
-  const sizeClass = SIZE_CLASSES[size];
   const sizeStyle = SIZE_STYLES[size];
-  const variantClass = VARIANT_CLASSES[variant];
+  const variantStyle = VARIANT_STYLES[variant];
 
   const baseStyles: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '50%',
-    fontWeight: 600,
+    borderRadius: 'var(--radius-full)',
+    fontWeight: 'var(--weight-semibold)' as React.CSSProperties['fontWeight'],
     textTransform: 'uppercase',
     flexShrink: 0,
+    fontFamily: 'var(--font-sans)',
     ...sizeStyle,
+    ...variantStyle,
     ...style,
   };
 
   if (src) {
     return (
       <div 
-        className={`avatar ${sizeClass} ${className}`}
+        className={`avatar avatar-${size} ${className}`}
         style={baseStyles}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -116,7 +119,7 @@ export default function Avatar({
           style={{ 
             width: '100%', 
             height: '100%', 
-            borderRadius: '50%',
+            borderRadius: 'var(--radius-full)',
             objectFit: 'cover',
           }} 
         />
@@ -126,7 +129,7 @@ export default function Avatar({
 
   return (
     <div 
-      className={`avatar ${sizeClass} ${variantClass} ${className}`}
+      className={`avatar avatar-${size} avatar-${variant} ${className}`}
       style={baseStyles}
       title={name || `${firstName} ${lastName}`.trim()}
     >

@@ -29,9 +29,9 @@ interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
 }
 
 const SIZE_STYLES: Record<InputSize, React.CSSProperties> = {
-  sm: { padding: '8px 12px', fontSize: '13px' },
-  md: { padding: '12px 14px', fontSize: '14px' },
-  lg: { padding: '14px 16px', fontSize: '15px' },
+  sm: { height: 'var(--input-height-sm)', padding: '0 var(--space-3)', fontSize: 'var(--font-sm)' },
+  md: { height: 'var(--input-height-md)', padding: '0 var(--space-3-5)', fontSize: 'var(--font-base)' },
+  lg: { height: 'var(--input-height-lg)', padding: '0 var(--space-4)', fontSize: 'var(--font-md)' },
 };
 
 /**
@@ -55,43 +55,41 @@ export function FormInput({
 
   const inputStyles: React.CSSProperties = {
     width: fullWidth ? '100%' : 'auto',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: `1px solid ${hasError ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
-    borderRadius: '8px',
-    color: 'white',
+    backgroundColor: 'var(--bg-surface)',
+    border: `1px solid ${hasError ? 'var(--color-error)' : 'var(--border-default)'}`,
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--text-primary)',
     outline: 'none',
-    transition: 'all 0.2s ease',
-    fontFamily: 'inherit',
+    transition: 'var(--transition-fast)',
+    fontFamily: 'var(--font-sans)',
     ...sizeStyle,
-    ...(leftIcon && { paddingLeft: '40px' }),
-    ...(rightIcon && { paddingRight: '40px' }),
+    ...(leftIcon && { paddingLeft: 'var(--space-10)' }),
+    ...(rightIcon && { paddingRight: 'var(--space-10)' }),
     ...style,
   };
 
   return (
-    <div className={`form-group ${className}`} style={{ marginBottom: '16px' }}>
+    <div className={`form-group ${className}`} style={{ marginBottom: 'var(--space-4)' }}>
       {label && (
-        <label style={{
+        <label className="text-label" style={{
           display: 'block',
-          marginBottom: '6px',
-          fontSize: '13px',
-          fontWeight: 500,
-          color: 'rgba(255, 255, 255, 0.8)',
+          marginBottom: 'var(--space-1-5)',
+          color: 'var(--text-secondary)',
         }}>
           {label}
-          {required && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>}
+          {required && <span style={{ color: 'var(--color-error)', marginLeft: 'var(--space-1)' }}>*</span>}
         </label>
       )}
       <div style={{ position: 'relative' }}>
         {leftIcon && (
           <div style={{
             position: 'absolute',
-            left: '12px',
+            left: 'var(--space-3)',
             top: '50%',
             transform: 'translateY(-50%)',
-            color: 'rgba(255, 255, 255, 0.4)',
-            width: '18px',
-            height: '18px',
+            color: 'var(--text-muted)',
+            width: 'var(--icon-md)',
+            height: 'var(--icon-md)',
           }}>
             {leftIcon}
           </div>
@@ -104,33 +102,31 @@ export function FormInput({
         {rightIcon && (
           <div style={{
             position: 'absolute',
-            right: '12px',
+            right: 'var(--space-3)',
             top: '50%',
             transform: 'translateY(-50%)',
-            color: 'rgba(255, 255, 255, 0.4)',
-            width: '18px',
-            height: '18px',
+            color: 'var(--text-muted)',
+            width: 'var(--icon-md)',
+            height: 'var(--icon-md)',
           }}>
             {rightIcon}
           </div>
         )}
       </div>
       {error && (
-        <span style={{ 
+        <span className="text-caption" style={{ 
           display: 'block',
-          marginTop: '4px',
-          fontSize: '12px',
-          color: '#ef4444',
+          marginTop: 'var(--space-1)',
+          color: 'var(--color-error)',
         }}>
           {error}
         </span>
       )}
       {helperText && !error && (
-        <span style={{ 
+        <span className="text-caption" style={{ 
           display: 'block',
-          marginTop: '4px',
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.5)',
+          marginTop: 'var(--space-1)',
+          color: 'var(--text-muted)',
         }}>
           {helperText}
         </span>
@@ -202,30 +198,17 @@ export function FormSection({
   className = '',
 }: FormSectionProps) {
   return (
-    <div className={`form-section ${className}`} style={{ marginBottom: '24px' }}>
-      <div style={{ marginBottom: '16px' }}>
-        <h3 style={{
-          fontSize: '14px',
-          fontWeight: 600,
-          color: 'white',
-          marginBottom: '4px',
-        }}>
-          {title}
-        </h3>
+    <div className={`form-section ${className}`} style={{ marginBottom: 'var(--space-6)' }}>
+      <div style={{ marginBottom: 'var(--space-4)' }}>
+        <h3 className="text-h5" style={{ marginBottom: 'var(--space-1)' }}>{title}</h3>
         {description && (
-          <p style={{
-            fontSize: '12px',
-            color: 'rgba(255, 255, 255, 0.5)',
-            margin: 0,
-          }}>
-            {description}
-          </p>
+          <p className="text-caption text-muted" style={{ margin: 0 }}>{description}</p>
         )}
       </div>
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: 'var(--space-3)',
       }}>
         {children}
       </div>
@@ -309,10 +292,10 @@ export function ToggleGroup<T extends string | number>({
       className={`toggle-group ${className}`}
       style={{
         display: 'flex',
-        gap: '8px',
-        padding: '4px',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '10px',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-1)',
+        backgroundColor: 'var(--bg-surface)',
+        borderRadius: 'var(--radius-lg)',
       }}
     >
       {options.map((option) => (
@@ -326,25 +309,22 @@ export function ToggleGroup<T extends string | number>({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
-            padding: '10px 16px',
+            gap: 'var(--space-1-5)',
+            padding: 'var(--space-2-5) var(--space-4)',
             border: 'none',
-            borderRadius: '8px',
-            fontSize: '13px',
-            fontWeight: 500,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--font-sm)',
+            fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+            fontFamily: 'var(--font-sans)',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-            backgroundColor: value === option.value 
-              ? 'var(--color-primary, #6366f1)' 
-              : 'transparent',
-            color: value === option.value 
-              ? 'white' 
-              : 'rgba(255, 255, 255, 0.6)',
+            transition: 'var(--transition-fast)',
+            backgroundColor: value === option.value ? 'var(--color-brand)' : 'transparent',
+            color: value === option.value ? 'var(--text-inverse)' : 'var(--text-muted)',
             opacity: disabled ? 0.5 : 1,
           }}
         >
           {option.icon && (
-            <span style={{ width: '16px', height: '16px' }}>
+            <span style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)' }}>
               {option.icon}
             </span>
           )}

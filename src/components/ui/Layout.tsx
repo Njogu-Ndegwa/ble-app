@@ -21,11 +21,11 @@ interface ScreenProps {
   style?: React.CSSProperties;
 }
 
-const PADDING_VALUES = {
-  none: 0,
-  sm: 12,
-  md: 16,
-  lg: 24,
+const PADDING_MAP = {
+  none: '0',
+  sm: 'var(--space-3)',
+  md: 'var(--space-4)',
+  lg: 'var(--space-6)',
 };
 
 /**
@@ -47,7 +47,7 @@ export function Screen({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        padding: PADDING_VALUES[padding],
+        padding: PADDING_MAP[padding],
         minHeight: 0,
         flex: 1,
         ...(centerContent && {
@@ -79,6 +79,9 @@ interface PageHeaderProps {
   className?: string;
 }
 
+const TITLE_CLASSES = { sm: 'text-h4', md: 'text-h2', lg: 'text-h1' };
+const SUBTITLE_CLASSES = { sm: 'text-caption', md: 'text-body-sm', lg: 'text-body' };
+
 /**
  * PageHeader - Title and subtitle for a page/step
  */
@@ -89,32 +92,19 @@ export function PageHeader({
   size = 'md',
   className = '',
 }: PageHeaderProps) {
-  const titleSizes = { sm: '16px', md: '20px', lg: '24px' };
-  const subtitleSizes = { sm: '12px', md: '14px', lg: '16px' };
-
   return (
     <div 
       className={`page-header ${className}`}
       style={{
         textAlign: align,
-        marginBottom: '16px',
+        marginBottom: 'var(--space-4)',
       }}
     >
-      <h1 style={{
-        fontSize: titleSizes[size],
-        fontWeight: 600,
-        color: 'white',
-        margin: 0,
-        marginBottom: subtitle ? '4px' : 0,
-      }}>
+      <h1 className={TITLE_CLASSES[size]} style={{ margin: 0, marginBottom: subtitle ? 'var(--space-1)' : 0 }}>
         {title}
       </h1>
       {subtitle && (
-        <p style={{
-          fontSize: subtitleSizes[size],
-          color: 'rgba(255, 255, 255, 0.6)',
-          margin: 0,
-        }}>
+        <p className={`${SUBTITLE_CLASSES[size]} text-secondary`} style={{ margin: 0 }}>
           {subtitle}
         </p>
       )}
@@ -254,7 +244,7 @@ export function Divider({
     <div 
       className={`divider ${className}`}
       style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: 'var(--border-subtle)',
         ...(isHorizontal 
           ? { height: '1px', width: '100%', margin: `${margin}px 0` }
           : { width: '1px', height: '100%', margin: `0 ${margin}px` }
@@ -330,7 +320,7 @@ export function Container({
         maxWidth: MAX_WIDTHS[maxWidth],
         width: '100%',
         margin: center ? '0 auto' : undefined,
-        padding: PADDING_VALUES[padding],
+        padding: PADDING_MAP[padding],
       }}
     >
       {children}
@@ -361,14 +351,12 @@ export function Hint({
 }: HintProps) {
   return (
     <p 
-      className={`hint ${className}`}
+      className={`hint text-caption text-muted ${className}`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
-        fontSize: '12px',
-        color: 'rgba(255, 255, 255, 0.5)',
-        margin: '12px 0 0 0',
+        gap: 'var(--space-1-5)',
+        margin: 'var(--space-3) 0 0 0',
       }}
     >
       {showIcon && (
@@ -379,7 +367,7 @@ export function Hint({
           strokeWidth="2" 
           strokeLinecap="round" 
           strokeLinejoin="round"
-          style={{ width: '14px', height: '14px', flexShrink: 0 }}
+          style={{ width: 'var(--icon-xs)', height: 'var(--icon-xs)', flexShrink: 0 }}
         >
           <circle cx="12" cy="12" r="10"/>
           <path d="M12 16v-4M12 8h.01"/>

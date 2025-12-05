@@ -28,13 +28,13 @@ interface ProgressBarProps {
   className?: string;
 }
 
-// Variant colors
+// Variant colors using CSS variables
 const VARIANT_COLORS: Record<ProgressVariant, string> = {
-  default: 'var(--color-primary, #6366f1)',
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  gradient: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+  default: 'var(--color-brand)',
+  success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
+  error: 'var(--color-error)',
+  gradient: 'linear-gradient(90deg, var(--color-brand), #8b5cf6)',
 };
 
 /**
@@ -68,9 +68,9 @@ export function ProgressBar({
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
-          marginBottom: '4px',
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.6)',
+          marginBottom: 'var(--space-1)',
+          fontSize: 'var(--font-xs)',
+          color: 'var(--text-muted)',
         }}>
           <span>{label}</span>
           {showLabel && <span>{Math.round(percent)}%</span>}
@@ -79,7 +79,7 @@ export function ProgressBar({
       <div 
         style={{
           height: `${height}px`,
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          backgroundColor: 'var(--bg-surface)',
           borderRadius: `${height / 2}px`,
           overflow: 'hidden',
         }}
@@ -150,24 +150,22 @@ export function QuotaBar({
     <div className={`quota-bar ${className}`} style={{
       display: 'flex',
       alignItems: 'flex-start',
-      gap: '12px',
-      padding: '12px',
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderRadius: '10px',
+      gap: 'var(--space-3)',
+      padding: 'var(--space-3)',
+      backgroundColor: 'var(--bg-surface)',
+      borderRadius: 'var(--radius-lg)',
     }}>
       {/* Icon */}
       {displayIcon && (
         <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          backgroundColor: type === 'energy' 
-            ? 'rgba(245, 158, 11, 0.2)' 
-            : 'rgba(6, 182, 212, 0.2)',
+          width: 'var(--icon-xl)',
+          height: 'var(--icon-xl)',
+          borderRadius: 'var(--radius-md)',
+          backgroundColor: type === 'energy' ? 'var(--color-warning-soft)' : 'rgba(6, 182, 212, 0.15)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: type === 'energy' ? '#f59e0b' : '#06b6d4',
+          color: type === 'energy' ? 'var(--color-warning)' : '#06b6d4',
           flexShrink: 0,
         }}>
           {displayIcon}
@@ -179,27 +177,27 @@ export function QuotaBar({
         <div style={{
           display: 'flex',
           alignItems: 'baseline',
-          gap: '4px',
-          marginBottom: '6px',
+          gap: 'var(--space-1)',
+          marginBottom: 'var(--space-1-5)',
         }}>
           <span style={{ 
-            fontSize: '18px', 
-            fontWeight: 600,
+            fontSize: 'var(--font-xl)', 
+            fontWeight: 'var(--weight-semibold)',
             fontFamily: 'var(--font-mono)',
           }}>
             {remaining}
           </span>
           <span style={{ 
-            fontSize: '12px', 
-            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: 'var(--font-xs)', 
+            color: 'var(--text-muted)',
           }}>
             {unit}
           </span>
           {monetaryValue !== undefined && monetaryValue > 0 && (
             <span style={{ 
-              fontSize: '11px', 
-              color: 'rgba(255, 255, 255, 0.4)',
-              marginLeft: '4px',
+              fontSize: 'var(--font-xs)', 
+              color: 'var(--text-muted)',
+              marginLeft: 'var(--space-1)',
             }}>
               (≈ {monetaryValue.toLocaleString()} {currency})
             </span>
@@ -249,9 +247,9 @@ export function StepProgress({
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
-          marginBottom: '8px',
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.6)',
+          marginBottom: 'var(--space-2)',
+          fontSize: 'var(--font-xs)',
+          color: 'var(--text-muted)',
         }}>
           <span>Step {currentStep} of {totalSteps}</span>
           <span>{Math.round(percent)}% complete</span>
@@ -260,7 +258,7 @@ export function StepProgress({
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '4px',
+        gap: 'var(--space-1)',
       }}>
         {Array.from({ length: totalSteps }).map((_, index) => (
           <div
@@ -269,9 +267,7 @@ export function StepProgress({
               flex: 1,
               height: '4px',
               borderRadius: '2px',
-              backgroundColor: index < currentStep 
-                ? 'var(--color-primary, #6366f1)'
-                : 'rgba(255, 255, 255, 0.1)',
+              backgroundColor: index < currentStep ? 'var(--color-brand)' : 'var(--bg-surface)',
               transition: 'background-color 0.3s ease',
             }}
           />
@@ -329,7 +325,7 @@ export function CircularProgress({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(255, 255, 255, 0.1)"
+          stroke="var(--bg-surface)"
           strokeWidth={strokeWidth}
         />
         {/* Progress circle */}
@@ -338,7 +334,7 @@ export function CircularProgress({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={color.includes('gradient') ? 'var(--color-primary, #6366f1)' : color}
+          stroke={color.includes('gradient') ? 'var(--color-brand)' : color}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -357,7 +353,7 @@ export function CircularProgress({
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: size / 4,
-          fontWeight: 600,
+          fontWeight: 'var(--weight-semibold)' as React.CSSProperties['fontWeight'],
         }}>
           {Math.round(percent)}%
         </div>

@@ -38,78 +38,73 @@ interface BadgeProps {
   style?: React.CSSProperties;
 }
 
-// Variant styles
+// Variant styles using CSS variables
 const VARIANT_STYLES: Record<BadgeVariant, React.CSSProperties> = {
   default: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: 'var(--bg-surface)',
+    color: 'var(--text-secondary)',
   },
   primary: {
-    backgroundColor: 'var(--color-primary, #6366f1)',
-    color: 'white',
+    backgroundColor: 'var(--color-brand)',
+    color: 'var(--text-inverse)',
   },
   secondary: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    color: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'var(--bg-surface-hover)',
+    color: 'var(--text-primary)',
   },
   success: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    color: '#10b981',
+    backgroundColor: 'var(--color-success-soft)',
+    color: 'var(--color-success)',
   },
   warning: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    color: '#f59e0b',
+    backgroundColor: 'var(--color-warning-soft)',
+    color: 'var(--color-warning)',
   },
   error: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    color: '#ef4444',
+    backgroundColor: 'var(--color-error-soft)',
+    color: 'var(--color-error)',
   },
   info: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    color: '#3b82f6',
+    backgroundColor: 'var(--color-info-soft)',
+    color: 'var(--color-info)',
   },
   // Payment states
   'payment-current': {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    color: '#10b981',
+    backgroundColor: 'var(--color-success-soft)',
+    color: 'var(--color-success)',
   },
   'payment-due': {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    color: '#f59e0b',
+    backgroundColor: 'var(--color-warning-soft)',
+    color: 'var(--color-warning)',
   },
   'payment-overdue': {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    color: '#ef4444',
+    backgroundColor: 'var(--color-error-soft)',
+    color: 'var(--color-error)',
   },
   // Service states
   'service-active': {
-    backgroundColor: 'rgba(6, 182, 212, 0.2)',
+    backgroundColor: 'rgba(6, 182, 212, 0.15)',
     color: '#06b6d4',
   },
   'service-pending': {
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
     color: '#a855f7',
   },
   'service-complete': {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    color: '#22c55e',
+    backgroundColor: 'var(--color-success-soft)',
+    color: 'var(--color-success)',
   },
 };
 
-// Size styles
+// Size styles using CSS variables
 const SIZE_STYLES: Record<BadgeSize, React.CSSProperties> = {
-  xs: { fontSize: '10px', padding: '2px 6px' },
-  sm: { fontSize: '11px', padding: '3px 8px' },
-  md: { fontSize: '12px', padding: '4px 10px' },
+  xs: { fontSize: 'var(--font-2xs)', padding: 'var(--space-0-5) var(--space-1-5)' },
+  sm: { fontSize: 'var(--font-xs)', padding: 'var(--space-1) var(--space-2)' },
+  md: { fontSize: 'var(--font-sm)', padding: 'var(--space-1) var(--space-2-5)' },
 };
 
 /**
  * Badge - Status/label badge component
- * 
- * @example
- * <Badge variant="success">Active</Badge>
- * <Badge variant="payment-due" size="sm">Due</Badge>
- * <Badge variant="error" dot>Overdue</Badge>
  */
 export default function Badge({
   children,
@@ -126,9 +121,10 @@ export default function Badge({
   const baseStyles: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    fontWeight: 500,
-    borderRadius: pill ? '100px' : '4px',
+    gap: 'var(--space-1)',
+    fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+    fontFamily: 'var(--font-sans)',
+    borderRadius: pill ? 'var(--radius-full)' : 'var(--radius-sm)',
     whiteSpace: 'nowrap',
     ...variantStyle,
     ...sizeStyle,
@@ -142,7 +138,7 @@ export default function Badge({
           style={{
             width: '6px',
             height: '6px',
-            borderRadius: '50%',
+            borderRadius: 'var(--radius-full)',
             backgroundColor: 'currentColor',
           }}
         />
@@ -195,10 +191,6 @@ const STATUS_CONFIG: Record<StatusType, { variant: BadgeVariant; label: string }
 
 /**
  * StatusBadge - Preset badge for common status types
- * 
- * @example
- * <StatusBadge status="active" />
- * <StatusBadge status="paid" label="Payment Current" />
  */
 export function StatusBadge({
   status,

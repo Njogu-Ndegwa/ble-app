@@ -30,19 +30,19 @@ interface CardProps {
 
 const VARIANT_STYLES: Record<CardVariant, React.CSSProperties> = {
   default: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
   },
   elevated: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+    backgroundColor: 'var(--bg-surface-hover)',
+    boxShadow: 'var(--shadow-card)',
   },
   outlined: {
     backgroundColor: 'transparent',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    border: '1px solid var(--border-default)',
   },
   filled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'var(--bg-surface)',
   },
 };
 
@@ -62,16 +62,16 @@ export default function Card({
   const isInteractive = !!onClick && !disabled;
 
   const baseStyles: React.CSSProperties = {
-    borderRadius: '12px',
-    padding: '16px',
-    transition: 'all 0.2s ease',
+    borderRadius: 'var(--radius-lg)',
+    padding: 'var(--space-4)',
+    transition: 'var(--transition-fast)',
     ...variantStyle,
     ...(isInteractive && {
       cursor: 'pointer',
     }),
     ...(selected && {
-      borderColor: 'var(--color-primary, #6366f1)',
-      backgroundColor: 'rgba(99, 102, 241, 0.1)',
+      borderColor: 'var(--color-brand)',
+      backgroundColor: 'rgba(0, 229, 229, 0.08)',
     }),
     ...(disabled && {
       opacity: 0.5,
@@ -131,31 +131,15 @@ export function CustomerCard({
 }: CustomerCardProps) {
   return (
     <Card variant="default" onClick={onClick} className={`customer-card ${className}`}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
         <Avatar name={name} size={compact ? 'sm' : 'md'} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ 
-            fontWeight: 600, 
-            fontSize: compact ? '14px' : '16px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {name}
-          </div>
+          <div className="text-h5 truncate">{name}</div>
           {phone && (
-            <div style={{ 
-              fontSize: '12px', 
-              color: 'rgba(255, 255, 255, 0.6)',
-              fontFamily: 'var(--font-mono)',
-            }}>
-              {phone}
-            </div>
+            <div className="text-mono-sm text-muted">{phone}</div>
           )}
           {!compact && email && (
-            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
-              {email}
-            </div>
+            <div className="text-caption text-muted">{email}</div>
           )}
         </div>
         {plan && <Badge variant="secondary">{plan}</Badge>}
@@ -210,36 +194,37 @@ export function SelectableCard({
       {showCheck && selected && (
         <div style={{
           position: 'absolute',
-          top: '8px',
-          right: '8px',
-          width: '24px',
-          height: '24px',
-          borderRadius: '50%',
-          backgroundColor: 'var(--color-primary, #6366f1)',
+          top: 'var(--space-2)',
+          right: 'var(--space-2)',
+          width: 'var(--space-6)',
+          height: 'var(--space-6)',
+          borderRadius: 'var(--radius-full)',
+          backgroundColor: 'var(--color-brand)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-          <CheckIcon size={14} color="white" strokeWidth={3} />
+          <CheckIcon size={14} color="var(--text-inverse)" strokeWidth={3} />
         </div>
       )}
       {showRadio && (
         <div style={{
-          width: '20px',
-          height: '20px',
-          borderRadius: '50%',
-          border: `2px solid ${selected ? 'var(--color-primary, #6366f1)' : 'rgba(255, 255, 255, 0.3)'}`,
+          width: 'var(--space-5)',
+          height: 'var(--space-5)',
+          borderRadius: 'var(--radius-full)',
+          border: `2px solid ${selected ? 'var(--color-brand)' : 'var(--border-default)'}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
+          marginRight: 'var(--space-3)',
         }}>
           {selected && (
             <div style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--color-primary, #6366f1)',
+              width: 'var(--space-2-5)',
+              height: 'var(--space-2-5)',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--color-brand)',
             }} />
           )}
         </div>
@@ -281,24 +266,24 @@ export function PreviewRow({
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: '8px 0',
-      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+      padding: 'var(--space-2) 0',
+      borderBottom: '1px solid var(--border-subtle)',
     }}>
       <span style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        gap: '8px',
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: '13px',
+        gap: 'var(--space-2)',
+        color: 'var(--text-muted)',
+        fontSize: 'var(--font-sm)',
       }}>
         {icon}
         {label}
       </span>
       <span style={{
-        fontFamily: mono ? 'var(--font-mono)' : 'inherit',
-        fontWeight: 500,
-        color: valueColor || 'white',
-        fontSize: '13px',
+        fontFamily: mono ? 'var(--font-mono)' : 'var(--font-sans)',
+        fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+        color: valueColor || 'var(--text-primary)',
+        fontSize: 'var(--font-sm)',
       }}>
         {value}
       </span>
@@ -336,26 +321,24 @@ export function StatCard({
   trendValue,
   className = '',
 }: StatCardProps) {
-  const trendColor = trend === 'up' ? '#10b981' : trend === 'down' ? '#ef4444' : 'rgba(255,255,255,0.6)';
+  const trendColor = trend === 'up' ? 'var(--color-success)' : trend === 'down' ? 'var(--color-error)' : 'var(--text-muted)';
 
   return (
     <Card variant="filled" className={`stat-card ${className}`}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>
+          <div className="text-3xl" style={{ fontWeight: 'var(--weight-bold)', marginBottom: 'var(--space-1)' }}>
             {value}
           </div>
-          <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
-            {label}
-          </div>
+          <div className="text-caption text-muted">{label}</div>
           {trendValue && (
             <div style={{ 
-              fontSize: '11px', 
+              fontSize: 'var(--font-xs)', 
               color: trendColor,
-              marginTop: '4px',
+              marginTop: 'var(--space-1)',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: 'var(--space-1)',
             }}>
               {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'}
               {trendValue}
@@ -363,11 +346,7 @@ export function StatCard({
           )}
         </div>
         {icon && (
-          <div style={{ 
-            opacity: 0.5,
-            width: '32px',
-            height: '32px',
-          }}>
+          <div style={{ opacity: 0.5, width: 'var(--icon-xl)', height: 'var(--icon-xl)' }}>
             {icon}
           </div>
         )}

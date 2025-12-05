@@ -42,22 +42,22 @@ export function EmptyState({
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '40px 20px',
+      padding: 'var(--space-10) var(--space-5)',
       textAlign: 'center',
     }}>
       {/* Icon */}
       <div style={{
         width: '80px',
         height: '80px',
-        borderRadius: '50%',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 'var(--radius-full)',
+        backgroundColor: 'var(--bg-surface)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: '20px',
+        marginBottom: 'var(--space-5)',
         position: 'relative',
       }}>
-        <div style={{ color: 'rgba(255, 255, 255, 0.4)', width: '40px', height: '40px' }}>
+        <div style={{ color: 'var(--text-muted)', width: '40px', height: '40px' }}>
           {icon || <PackageIcon size={40} />}
         </div>
         {/* X badge */}
@@ -67,33 +67,21 @@ export function EmptyState({
           right: '-4px',
           width: '28px',
           height: '28px',
-          borderRadius: '50%',
-          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+          borderRadius: 'var(--radius-full)',
+          backgroundColor: 'var(--color-error-soft)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '2px solid var(--color-bg, #1a1a2e)',
+          border: '2px solid var(--bg-primary)',
         }}>
-          <span style={{ color: '#ef4444', fontSize: '16px', fontWeight: 'bold' }}>×</span>
+          <span style={{ color: 'var(--color-error)', fontSize: 'var(--font-lg)', fontWeight: 'var(--weight-bold)' }}>×</span>
         </div>
       </div>
 
       {/* Content */}
-      <h3 style={{
-        fontSize: '16px',
-        fontWeight: 600,
-        color: 'white',
-        marginBottom: '8px',
-      }}>
-        {title}
-      </h3>
+      <h3 className="text-h4" style={{ marginBottom: 'var(--space-2)' }}>{title}</h3>
       {description && (
-        <p style={{
-          fontSize: '13px',
-          color: 'rgba(255, 255, 255, 0.5)',
-          maxWidth: '280px',
-          marginBottom: '20px',
-        }}>
+        <p className="text-body-sm text-muted" style={{ maxWidth: '280px', marginBottom: 'var(--space-5)' }}>
           {description}
         </p>
       )}
@@ -105,14 +93,15 @@ export function EmptyState({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            backgroundColor: 'var(--color-primary, #6366f1)',
-            color: 'white',
+            gap: 'var(--space-2)',
+            padding: 'var(--space-2-5) var(--space-5)',
+            backgroundColor: 'var(--color-brand)',
+            color: 'var(--text-inverse)',
             border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 500,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--font-base)',
+            fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+            fontFamily: 'var(--font-sans)',
             cursor: 'pointer',
           }}
         >
@@ -123,13 +112,7 @@ export function EmptyState({
 
       {/* Hint */}
       {hint && (
-        <p style={{
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.4)',
-          marginTop: '16px',
-        }}>
-          {hint}
-        </p>
+        <p className="text-caption text-muted" style={{ marginTop: 'var(--space-4)' }}>{hint}</p>
       )}
     </div>
   );
@@ -171,7 +154,7 @@ export function ErrorState({
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '40px 20px',
+      padding: 'var(--space-10) var(--space-5)',
       textAlign: 'center',
     }}>
       {/* Icon with animation rings */}
@@ -182,36 +165,24 @@ export function ErrorState({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: '20px',
+        marginBottom: 'var(--space-5)',
       }}>
         <div style={{
           width: '60px',
           height: '60px',
-          borderRadius: '50%',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          borderRadius: 'var(--radius-full)',
+          backgroundColor: 'var(--color-error-soft)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-          <AlertTriangleIcon size={32} color="#ef4444" />
+          <AlertTriangleIcon size={32} color="var(--color-error)" />
         </div>
       </div>
 
       {/* Content */}
-      <h3 style={{
-        fontSize: '16px',
-        fontWeight: 600,
-        color: 'white',
-        marginBottom: '8px',
-      }}>
-        {title}
-      </h3>
-      <p style={{
-        fontSize: '13px',
-        color: 'rgba(255, 255, 255, 0.5)',
-        maxWidth: '280px',
-        marginBottom: '20px',
-      }}>
+      <h3 className="text-h4" style={{ marginBottom: 'var(--space-2)' }}>{title}</h3>
+      <p className="text-body-sm text-muted" style={{ maxWidth: '280px', marginBottom: 'var(--space-5)' }}>
         {message}
       </p>
 
@@ -222,14 +193,15 @@ export function ErrorState({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            backgroundColor: 'var(--color-primary, #6366f1)',
-            color: 'white',
+            gap: 'var(--space-2)',
+            padding: 'var(--space-2-5) var(--space-5)',
+            backgroundColor: 'var(--color-brand)',
+            color: 'var(--text-inverse)',
             border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 500,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--font-base)',
+            fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+            fontFamily: 'var(--font-sans)',
             cursor: 'pointer',
           }}
         >
@@ -240,13 +212,7 @@ export function ErrorState({
 
       {/* Hint */}
       {hint && (
-        <p style={{
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.4)',
-          marginTop: '16px',
-        }}>
-          {hint}
-        </p>
+        <p className="text-caption text-muted" style={{ marginTop: 'var(--space-4)' }}>{hint}</p>
       )}
     </div>
   );
@@ -276,11 +242,7 @@ export function LoadingState({
   inline = false,
   className = '',
 }: LoadingStateProps) {
-  const sizes = {
-    sm: 24,
-    md: 40,
-    lg: 56,
-  };
+  const sizes = { sm: 24, md: 40, lg: 56 };
 
   return (
     <div 
@@ -290,18 +252,13 @@ export function LoadingState({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: inline ? '0' : '40px 20px',
-        gap: '12px',
+        padding: inline ? '0' : 'var(--space-10) var(--space-5)',
+        gap: 'var(--space-3)',
       }}
     >
       <LoaderIcon size={sizes[size]} />
       {message && (
-        <p style={{
-          fontSize: '13px',
-          color: 'rgba(255, 255, 255, 0.6)',
-        }}>
-          {message}
-        </p>
+        <p className="text-body-sm text-muted">{message}</p>
       )}
     </div>
   );
@@ -343,48 +300,32 @@ export function NotFoundState({
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '40px 20px',
+      padding: 'var(--space-10) var(--space-5)',
       textAlign: 'center',
     }}>
       <div style={{
         width: '64px',
         height: '64px',
-        borderRadius: '50%',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 'var(--radius-full)',
+        backgroundColor: 'var(--bg-surface)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: '16px',
+        marginBottom: 'var(--space-4)',
       }}>
-        <SearchIcon size={32} color="rgba(255, 255, 255, 0.4)" />
+        <SearchIcon size={32} color="var(--text-muted)" />
       </div>
       
-      <h3 style={{
-        fontSize: '16px',
-        fontWeight: 600,
-        color: 'white',
-        marginBottom: '8px',
-      }}>
-        {title}
-      </h3>
+      <h3 className="text-h4" style={{ marginBottom: 'var(--space-2)' }}>{title}</h3>
       
       {searchTerm && (
-        <p style={{
-          fontSize: '13px',
-          color: 'rgba(255, 255, 255, 0.5)',
-          marginBottom: '8px',
-        }}>
+        <p className="text-body-sm text-muted" style={{ marginBottom: 'var(--space-2)' }}>
           No matches for &ldquo;<strong>{searchTerm}</strong>&rdquo;
         </p>
       )}
       
       {description && (
-        <p style={{
-          fontSize: '13px',
-          color: 'rgba(255, 255, 255, 0.4)',
-          maxWidth: '280px',
-          marginBottom: '20px',
-        }}>
+        <p className="text-body-sm text-muted" style={{ maxWidth: '280px', marginBottom: 'var(--space-5)' }}>
           {description}
         </p>
       )}
@@ -393,13 +334,14 @@ export function NotFoundState({
         <button
           onClick={action.onClick}
           style={{
-            padding: '10px 20px',
-            backgroundColor: 'var(--color-primary, #6366f1)',
-            color: 'white',
+            padding: 'var(--space-2-5) var(--space-5)',
+            backgroundColor: 'var(--color-brand)',
+            color: 'var(--text-inverse)',
             border: 'none',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 500,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--font-base)',
+            fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+            fontFamily: 'var(--font-sans)',
             cursor: 'pointer',
           }}
         >
@@ -438,17 +380,16 @@ export function Skeleton({
   className = '',
 }: SkeletonProps) {
   const variantStyles: Record<string, React.CSSProperties> = {
-    text: { height: '1em', borderRadius: '4px' },
-    rect: { borderRadius: radius || '8px' },
-    circle: { borderRadius: '50%' },
+    text: { height: '1em', borderRadius: 'var(--radius-sm)' },
+    rect: { borderRadius: radius || 'var(--radius-md)' },
+    circle: { borderRadius: 'var(--radius-full)' },
   };
 
   return (
     <div 
-      className={`skeleton ${className}`}
+      className={`skeleton animate-pulse ${className}`}
       style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        animation: 'pulse 1.5s ease-in-out infinite',
+        backgroundColor: 'var(--bg-surface)',
         width: width || '100%',
         height: height || '20px',
         ...variantStyles[variant],
@@ -482,18 +423,18 @@ export function SkeletonCard({
     <div 
       className={`skeleton-card ${className}`}
       style={{
-        padding: '16px',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '12px',
+        padding: 'var(--space-4)',
+        backgroundColor: 'var(--bg-surface)',
+        borderRadius: 'var(--radius-lg)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: 'var(--space-3)',
       }}
     >
       {showImage && (
-        <Skeleton height={120} radius={8} />
+        <Skeleton height={120} radius="var(--radius-md)" />
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {Array.from({ length: lines }).map((_, i) => (
           <Skeleton 
             key={i} 

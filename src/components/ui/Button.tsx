@@ -25,54 +25,64 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   rightIcon?: React.ReactNode;
 }
 
-// Variant styles
+// Variant styles using CSS variables
 const VARIANT_STYLES: Record<ButtonVariant, React.CSSProperties> = {
   primary: {
-    backgroundColor: 'var(--color-primary, #6366f1)',
-    color: 'white',
+    backgroundColor: 'var(--color-brand)',
+    color: 'var(--text-inverse)',
     border: 'none',
   },
   secondary: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: 'white',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'var(--bg-surface)',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--border-default)',
   },
   success: {
-    backgroundColor: '#10b981',
+    backgroundColor: 'var(--color-success)',
     color: 'white',
     border: 'none',
   },
   warning: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: 'var(--color-warning)',
     color: 'white',
     border: 'none',
   },
   danger: {
-    backgroundColor: '#ef4444',
+    backgroundColor: 'var(--color-error)',
     color: 'white',
     border: 'none',
   },
   ghost: {
     backgroundColor: 'transparent',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'var(--text-secondary)',
     border: 'none',
   },
 };
 
-// Size styles
+// Size styles using CSS variables
 const SIZE_STYLES: Record<ButtonSize, React.CSSProperties> = {
-  sm: { padding: '8px 16px', fontSize: '13px', gap: '6px' },
-  md: { padding: '12px 20px', fontSize: '14px', gap: '8px' },
-  lg: { padding: '14px 24px', fontSize: '15px', gap: '10px' },
+  sm: { 
+    height: 'var(--btn-height-sm)',
+    padding: '0 var(--space-3)', 
+    fontSize: 'var(--font-sm)', 
+    gap: 'var(--space-1-5)' 
+  },
+  md: { 
+    height: 'var(--btn-height-md)',
+    padding: '0 var(--space-4)', 
+    fontSize: 'var(--font-base)', 
+    gap: 'var(--space-2)' 
+  },
+  lg: { 
+    height: 'var(--btn-height-lg)',
+    padding: '0 var(--space-6)', 
+    fontSize: 'var(--font-md)', 
+    gap: 'var(--space-2-5)' 
+  },
 };
 
 /**
  * Button - Styled button component
- * 
- * @example
- * <Button variant="primary">Click me</Button>
- * <Button variant="secondary" leftIcon={<ArrowLeftIcon />}>Back</Button>
- * <Button loading loadingText="Saving...">Save</Button>
  */
 export default function Button({
   children,
@@ -96,10 +106,11 @@ export default function Button({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '10px',
-    fontWeight: 500,
+    borderRadius: 'var(--radius-lg)',
+    fontWeight: 'var(--weight-medium)' as React.CSSProperties['fontWeight'],
+    fontFamily: 'var(--font-sans)',
     cursor: isDisabled ? 'not-allowed' : 'pointer',
-    transition: 'all 0.2s ease',
+    transition: 'var(--transition-fast)',
     opacity: isDisabled ? 0.6 : 1,
     width: fullWidth ? '100%' : 'auto',
     ...variantStyle,
@@ -122,13 +133,13 @@ export default function Button({
       ) : (
         <>
           {leftIcon && (
-            <span style={{ width: '16px', height: '16px', display: 'flex' }}>
+            <span style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)', display: 'flex' }}>
               {leftIcon}
             </span>
           )}
           <span>{children}</span>
           {rightIcon && (
-            <span style={{ width: '16px', height: '16px', display: 'flex' }}>
+            <span style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)', display: 'flex' }}>
               {rightIcon}
             </span>
           )}
@@ -156,9 +167,9 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 }
 
 const ICON_SIZE_STYLES: Record<ButtonSize, React.CSSProperties> = {
-  sm: { width: '32px', height: '32px' },
-  md: { width: '40px', height: '40px' },
-  lg: { width: '48px', height: '48px' },
+  sm: { width: 'var(--btn-height-sm)', height: 'var(--btn-height-sm)' },
+  md: { width: 'var(--btn-height-md)', height: 'var(--btn-height-md)' },
+  lg: { width: 'var(--btn-height-lg)', height: 'var(--btn-height-lg)' },
 };
 
 /**
@@ -186,9 +197,9 @@ export function IconButton({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: '10px',
+        borderRadius: 'var(--radius-lg)',
         cursor: isDisabled ? 'not-allowed' : 'pointer',
-        transition: 'all 0.2s ease',
+        transition: 'var(--transition-fast)',
         opacity: isDisabled ? 0.6 : 1,
         padding: 0,
         ...variantStyle,
