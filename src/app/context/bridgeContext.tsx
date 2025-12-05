@@ -114,11 +114,49 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
     let retryCount = 0;
     const maxRetries = 3;
     let retryTimeoutId: NodeJS.Timeout | null = null;
+    let callbackReceivedRef = false; // Track if callback was received
+    let callbackTimeoutId: NodeJS.Timeout | null = null;
+
+    // Helper function to check if a respCode indicates success
+    const isSuccessRespCode = (code: string | number | undefined): boolean => {
+      if (code === undefined || code === null) return false;
+      const codeStr = String(code);
+      return codeStr === '200' || codeStr === '0'; // '0' can also indicate success in some systems
+    };
+
+    // Helper function to check if a respCode indicates failure
+    const isFailureRespCode = (code: string | number | undefined): boolean => {
+      if (code === undefined || code === null) return false;
+      const codeStr = String(code);
+      // Any non-success code is a failure
+      return codeStr !== '200' && codeStr !== '0' && codeStr !== '';
+    };
+
+    // Helper function to attempt retry
+    const attemptRetry = (reason: string) => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.info(`MQTT connection failed (${reason}), retrying (${retryCount}/${maxRetries})...`);
+        retryTimeoutId = setTimeout(() => {
+          connectToMqtt();
+        }, 2000 * retryCount); // Exponential backoff: 2s, 4s, 6s
+      } else {
+        console.error(`MQTT connection failed after maximum retries (${reason})`);
+      }
+    };
 
     // Register the MQTT connection callback handler
     bridge.registerHandler(
       'connectMqttCallBack',
       (data: string, responseCallback: (response: any) => void) => {
+        callbackReceivedRef = true; // Mark that we received the callback
+        
+        // Clear callback timeout since we received the callback
+        if (callbackTimeoutId) {
+          clearTimeout(callbackTimeoutId);
+          callbackTimeoutId = null;
+        }
+
         try {
           const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
           console.info('=== Global MQTT Connection Callback ===');
@@ -136,22 +174,35 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
             }
           }
 
-          // Check if connection was successful - check both outer and inner data
+          // Check if connection was successful - use explicit success indicators only
+          // DO NOT use fallback conditions that assume success when no error field exists
           const isConnected =
             parsedData?.connected === true ||
             parsedData?.status === 'connected' ||
-            parsedData?.respCode === '200' ||
+            isSuccessRespCode(parsedData?.respCode) ||
             actualData?.connected === true ||
             actualData?.status === 'connected' ||
-            actualData?.respCode === '200' ||
-            actualData?.respData === true ||
-            (actualData && !actualData.error && !parsedData.error);
+            isSuccessRespCode(actualData?.respCode) ||
+            actualData?.respData === true;
 
-          // Check for explicit failure
+          // Check for explicit failure indicators
           const isExplicitFailure = 
-            actualData?.respCode === '11' ||
+            isFailureRespCode(actualData?.respCode) ||
+            isFailureRespCode(parsedData?.respCode) ||
             actualData?.respData === false ||
-            actualData?.respDesc?.toLowerCase().includes('failed');
+            parsedData?.respData === false ||
+            actualData?.connected === false ||
+            parsedData?.connected === false ||
+            actualData?.status === 'disconnected' ||
+            parsedData?.status === 'disconnected' ||
+            actualData?.error !== undefined ||
+            parsedData?.error !== undefined ||
+            (typeof actualData?.respDesc === 'string' && 
+              (actualData.respDesc.toLowerCase().includes('failed') ||
+               actualData.respDesc.toLowerCase().includes('error') ||
+               actualData.respDesc.toLowerCase().includes('refused') ||
+               actualData.respDesc.toLowerCase().includes('timeout') ||
+               actualData.respDesc.toLowerCase().includes('not connected')));
 
           if (isConnected && !isExplicitFailure) {
             console.info('Global MQTT connection confirmed as connected');
@@ -160,26 +211,19 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
           } else {
             console.warn('Global MQTT connection callback indicates not connected:', parsedData);
             console.warn('respCode:', actualData?.respCode, 'respDesc:', actualData?.respDesc);
+            console.warn('isConnected:', isConnected, 'isExplicitFailure:', isExplicitFailure);
             setIsMqttConnected(false);
             
             // Auto-retry on failure
-            if (retryCount < maxRetries) {
-              retryCount++;
-              console.info(`MQTT connection failed, retrying (${retryCount}/${maxRetries})...`);
-              retryTimeoutId = setTimeout(() => {
-                connectToMqtt();
-              }, 2000 * retryCount); // Exponential backoff: 2s, 4s, 6s
-            } else {
-              console.error('MQTT connection failed after maximum retries');
-            }
+            attemptRetry('callback indicated failure');
           }
           responseCallback('Received MQTT Connection Callback');
         } catch (err) {
           console.error('Error parsing MQTT connection callback:', err);
-          // If we can't parse it, assume connection might be OK but log the error
-          console.warn('Assuming MQTT connection is OK despite parse error');
-          setIsMqttConnected(true);
-          responseCallback('Received MQTT Connection Callback');
+          // On parse error, don't assume success - treat as failure and retry
+          setIsMqttConnected(false);
+          attemptRetry('callback parse error');
+          responseCallback('Received MQTT Connection Callback with error');
         }
       }
     );
@@ -192,6 +236,8 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
     };
 
     const connectToMqtt = () => {
+      callbackReceivedRef = false; // Reset callback tracking for this attempt
+      
       // MQTT configuration with your credentials
       const mqttConfig: MqttConfig = {
         username: 'Admin',
@@ -207,6 +253,16 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
 
       console.info('=== Initiating Global MQTT Connection ===');
       console.info('MQTT Config:', { ...mqttConfig, password: '***' });
+
+      // Set a timeout in case the callback is never called
+      // This ensures we retry even if the native bridge fails silently
+      callbackTimeoutId = setTimeout(() => {
+        if (!callbackReceivedRef) {
+          console.warn('MQTT callback timeout - no response received from native bridge');
+          setIsMqttConnected(false);
+          attemptRetry('callback timeout');
+        }
+      }, 10000); // 10 second timeout for callback
 
       // Connect to MQTT
       bridge.callHandler('connectMqtt', mqttConfig, (resp: string) => {
@@ -226,19 +282,35 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
             }
           }
 
-          if (p.error || actualResp.error) {
-            const errorMsg = p.error?.message || p.error || actualResp.error?.message || actualResp.error;
+          // Check for immediate errors in the connect response
+          const hasError = p.error || actualResp.error;
+          const hasFailureCode = isFailureRespCode(p?.respCode) || isFailureRespCode(actualResp?.respCode);
+          
+          if (hasError || hasFailureCode) {
+            const errorMsg = p.error?.message || p.error || actualResp.error?.message || actualResp.error || 
+                            p.respDesc || actualResp.respDesc || 'Unknown error';
             console.error('Global MQTT connection error:', errorMsg);
             setIsMqttConnected(false);
-          } else if (p.respCode === '200' || actualResp.respCode === '200' || p.success === true || actualResp.respData === true) {
+            
+            // Clear callback timeout since we know it failed
+            if (callbackTimeoutId) {
+              clearTimeout(callbackTimeoutId);
+              callbackTimeoutId = null;
+            }
+            
+            // Retry on immediate error
+            attemptRetry(`immediate error: ${errorMsg}`);
+          } else if (isSuccessRespCode(p?.respCode) || isSuccessRespCode(actualResp?.respCode) || 
+                     p.success === true || actualResp.respData === true) {
             console.info('Global MQTT connection initiated successfully');
             // Connection state will be confirmed by connectMqttCallBack
           } else {
-            console.warn('Global MQTT connection response indicates potential issue:', p);
+            console.warn('Global MQTT connection response is ambiguous:', p);
+            // Don't retry here - wait for the callback or callback timeout
           }
         } catch (err) {
           console.error('Error parsing MQTT response:', err);
-          // Don't set connection to false on parse error, wait for callback
+          // Don't retry here on parse error - wait for callback or callback timeout
         }
       });
     };
@@ -255,6 +327,9 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       mqttInitializedRef.current = false;
       if (retryTimeoutId) {
         clearTimeout(retryTimeoutId);
+      }
+      if (callbackTimeoutId) {
+        clearTimeout(callbackTimeoutId);
       }
     };
   }, [bridge, isBridgeReady]);
