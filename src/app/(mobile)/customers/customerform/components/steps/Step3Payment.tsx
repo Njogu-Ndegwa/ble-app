@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useI18n } from '@/i18n';
-import { AlertCircle } from 'lucide-react';
 import { 
   CustomerFormData, 
   PlanData,
@@ -62,9 +61,6 @@ export default function Step3Payment({
   const amount = packagePrice + subscriptionPrice;
   const currencySymbol = selectedPackage?.currencySymbol || selectedPlan?.currencySymbol || 'KES';
   
-  // Calculate payment progress percentage
-  const paymentProgress = amountExpected > 0 ? Math.min((amountPaid / amountExpected) * 100, 100) : 0;
-
   return (
     <div className="screen active">
       {/* Compact Customer + Amount Header */}
@@ -76,47 +72,47 @@ export default function Step3Payment({
         <div className="payment-amount-large">{currencySymbol} {amount.toLocaleString()}</div>
       </div>
 
-      {/* Incomplete Payment Status Panel */}
+      {/* Partial Payment Warning - shown when customer has paid part of the amount */}
       {paymentIncomplete && amountPaid > 0 && (
-        <div className="payment-status-panel payment-status-incomplete">
-          <div className="payment-status-header">
-            <AlertCircle className="payment-status-icon" size={20} />
-            <span className="payment-status-title">{t('sales.incompletePayment') || 'Incomplete Payment'}</span>
+        <div className="partial-payment-warning" style={{
+          background: 'linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%)',
+          border: '1px solid #ffc107',
+          borderRadius: '12px',
+          padding: '16px',
+          margin: '0 16px 16px 16px',
+          textAlign: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#856404" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px' }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span style={{ fontWeight: '600', color: '#856404', fontSize: '14px' }}>
+              {t('attendant.partialPayment') || 'Partial Payment Received'}
+            </span>
           </div>
-          
-          <div className="payment-progress-container">
-            <div className="payment-progress-bar">
-              <div 
-                className="payment-progress-fill"
-                style={{ width: `${paymentProgress}%` }}
-              />
-            </div>
-            <span className="payment-progress-percent">{Math.round(paymentProgress)}%</span>
-          </div>
-          
-          <div className="payment-amounts-grid">
-            <div className="payment-amount-item">
-              <span className="payment-amount-label">{t('sales.amountPaid') || 'Amount Paid'}</span>
-              <span className="payment-amount-value payment-amount-paid">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: '12px', color: '#856404', marginBottom: '4px' }}>
+                {t('attendant.amountPaid') || 'Paid'}
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#155724' }}>
                 {currencySymbol} {amountPaid.toLocaleString()}
-              </span>
+              </div>
             </div>
-            <div className="payment-amount-item">
-              <span className="payment-amount-label">{t('sales.amountExpected') || 'Amount Expected'}</span>
-              <span className="payment-amount-value">
-                {currencySymbol} {amountExpected.toLocaleString()}
-              </span>
-            </div>
-            <div className="payment-amount-item payment-amount-remaining-item">
-              <span className="payment-amount-label">{t('sales.amountRemaining') || 'Amount Remaining'}</span>
-              <span className="payment-amount-value payment-amount-remaining">
+            <div style={{ width: '1px', height: '40px', background: '#ffc107' }}></div>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: '12px', color: '#856404', marginBottom: '4px' }}>
+                {t('attendant.amountRemaining') || 'Remaining'}
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc3545' }}>
                 {currencySymbol} {amountRemaining.toLocaleString()}
-              </span>
+              </div>
             </div>
           </div>
-          
-          <p className="payment-status-hint">
-            {t('sales.enterRemainingPayment') || 'Please enter another receipt for the remaining amount to continue.'}
+          <p style={{ fontSize: '12px', color: '#856404', marginTop: '12px', marginBottom: 0 }}>
+            {t('attendant.collectRemainingAmount') || 'Please collect the remaining amount before continuing.'}
           </p>
         </div>
       )}
