@@ -3582,6 +3582,211 @@ html.theme-transition *::after {
   color: var(--text-muted);
 }
 
+/* ================================ */
+/* BATTERY SCANNED CARD (Sales)     */
+/* ================================ */
+
+.battery-scanned-card {
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 0 20px -5px var(--success-glow);
+}
+
+.battery-scanned-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.battery-scanned-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--success-soft);
+  border-radius: var(--radius-md);
+}
+
+.battery-scanned-icon-wrapper .battery-icon {
+  color: var(--success);
+}
+
+.battery-scanned-icon-wrapper .battery-icon.full {
+  color: var(--success);
+}
+
+.battery-scanned-icon-wrapper .battery-icon.medium {
+  color: #f59e0b;
+}
+
+.battery-scanned-icon-wrapper .battery-icon.low {
+  color: var(--error);
+}
+
+.battery-scanned-icon-wrapper .battery-check-icon {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--success);
+  border-radius: 50%;
+  padding: 2px;
+  color: var(--bg-primary);
+}
+
+.battery-scanned-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.battery-scanned-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.battery-scanned-id {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.battery-scanned-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.battery-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.battery-stat-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.battery-stat-icon.full {
+  color: var(--success);
+}
+
+.battery-stat-icon.medium {
+  color: #f59e0b;
+}
+
+.battery-stat-icon.low {
+  color: var(--error);
+}
+
+.battery-stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.battery-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.battery-stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+}
+
+.battery-charge-bar {
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.battery-charge-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.battery-charge-fill.full {
+  background: linear-gradient(90deg, var(--success) 0%, var(--success-glow) 100%);
+}
+
+.battery-charge-fill.medium {
+  background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+}
+
+.battery-charge-fill.low {
+  background: linear-gradient(90deg, var(--error) 0%, #ff8080 100%);
+}
+
+/* Complete Service Button */
+.complete-service-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  margin-top: 16px;
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-dark, #00a878) 100%);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px -4px var(--success-glow);
+}
+
+.complete-service-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -4px var(--success-glow);
+}
+
+.complete-service-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.complete-service-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.complete-service-btn .btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ===================== */
 /* BLUETOOTH NOTICE      */
 /* ===================== */
