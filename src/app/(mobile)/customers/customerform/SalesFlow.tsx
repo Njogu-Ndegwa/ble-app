@@ -1861,7 +1861,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setPaymentRequestOrderId(order.id);
         
         console.log('Subscription purchased:', subscription);
-        toast.success('Order created!');
         
         // Return both subscription code and order_id
         return {

@@ -1052,7 +1052,7 @@
   "sales.packagePricingNote": "Le prix du forfait offre des économies par rapport aux articles individuels",
   "sales.totalAmount": "Montant total",
   "sales.readyToProceed": "Prêt à collecter le paiement",
-  "sales.proceedToPayment": "Procéder au paiement",
+  "sales.proceedToPayment": "Payer",
   "sales.connectionError": "Erreur de connexion",
   "sales.checkConnection": "Veuillez vérifier votre connexion internet",
   "sales.incompletePayment": "Paiement incomplet",
@@ -1117,7 +1117,7 @@
   "attendant.costBreakdown": "Détail des coûts",
   "attendant.rate": "Tarif",
   "attendant.totalCost": "Coût total",
-  "attendant.proceedToPayment": "Procéder au paiement",
+  "attendant.proceedToPayment": "Payer",
   
   "attendant.quotaCreditAvailable": "Crédit de quota disponible",
   "attendant.noPaymentRequired": "Aucun paiement requis - utilisation du crédit existant",
