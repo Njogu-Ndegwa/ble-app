@@ -951,12 +951,42 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             connectionFailed: false,
             requiresBluetoothReset: false,
           }));
+          
+          // Set timeout for data reading phase (matches AttendantFlow)
+          bleOperationTimeoutRef.current = setTimeout(() => {
+            console.warn('[SALES BATTERY] BLE data reading timed out after', BLE_DATA_READ_TIMEOUT, 'ms');
+            
+            setBleScanState(prev => ({
+              ...prev,
+              isReadingEnergy: false,
+              error: 'Data reading timed out',
+            }));
+            
+            // Disconnect from device
+            if (window.WebViewJavascriptBridge) {
+              const macToDisconnect = connectedMac || sessionStorage.getItem('connectedDeviceMac');
+              if (macToDisconnect) {
+                window.WebViewJavascriptBridge.callHandler('disconnectBle', macToDisconnect, () => {});
+              }
+            }
+            
+            toast.error('Could not read battery data. Please try scanning again.');
+            setIsScannerOpening(false);
+            scanTypeRef.current = null;
+            pendingBatteryQrCodeRef.current = null;
+            pendingBatteryIdRef.current = null;
+            isConnectionSuccessfulRef.current = false;
+          }, BLE_DATA_READ_TIMEOUT);
 
           // Initialize BLE services to read energy (DTA service)
+          // CRITICAL: Must pass { serviceName, macAddress } as first param - matches AttendantFlow
           console.info('[SALES BATTERY] Step 6: Requesting DTA service data for energy calculation...');
-          initServiceBleData((serviceResponse: string) => {
-            console.info('[SALES BATTERY] Step 7: initServiceBleData callback received:', serviceResponse);
-          });
+          initServiceBleData(
+            { serviceName: "DTA", macAddress: connectedMac || data },
+            (serviceResponse: string) => {
+              console.info('[SALES BATTERY] Step 7: initServiceBleData callback received:', serviceResponse);
+            }
+          );
           
           responseCallback({ received: true });
         }
@@ -1048,6 +1078,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       );
 
       // BLE service data complete handler - MUST match Attendant flow handler name
+      // Updated to match AttendantFlow: check serviceNameEnum and handle errors properly
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnCompleteCallBack',
         (data: string, responseCallback: (response: any) => void) => {
@@ -1055,13 +1086,69 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           console.info('[SALES BATTERY] Raw service data:', data?.substring(0, 200) + '...');
           
           try {
-            const serviceData = JSON.parse(data);
-            console.info('[SALES BATTERY] Parsed service data, serviceUUID:', serviceData.serviceUUID);
+            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
             
-            // Check if this is DTA service data (ff00 is the DTA service UUID)
-            if (serviceData.serviceUUID && serviceData.serviceUUID.toLowerCase().includes('ff00')) {
-              console.info('[SALES BATTERY] Step 9: DTA service data detected, extracting energy...');
-              const energyData = populateEnergyFromDta(serviceData);
+            // Check if this response indicates an error (e.g., "Bluetooth device not connected")
+            // This matches AttendantFlow error handling
+            const respCode = parsedData?.respCode || parsedData?.responseData?.respCode;
+            const respDesc = parsedData?.respDesc || parsedData?.responseData?.respDesc || '';
+            
+            if (respCode && respCode !== "200" && respCode !== 200) {
+              console.error('[SALES BATTERY] DTA service returned error:', { respCode, respDesc, parsedData });
+              
+              // Check if this is a "Bluetooth device not connected" error
+              const isBluetoothDisconnected = 
+                typeof respDesc === 'string' && (
+                  respDesc.toLowerCase().includes('bluetooth device not connected') ||
+                  respDesc.toLowerCase().includes('device not connected') ||
+                  respDesc.toLowerCase().includes('not connected')
+                );
+              
+              if (isBluetoothDisconnected) {
+                console.warn('[SALES BATTERY] Detected Bluetooth disconnection in DTA response');
+                
+                // Clear all timeouts since we've reached an error state
+                if (bleGlobalTimeoutRef.current) {
+                  clearTimeout(bleGlobalTimeoutRef.current);
+                  bleGlobalTimeoutRef.current = null;
+                }
+                if (bleOperationTimeoutRef.current) {
+                  clearTimeout(bleOperationTimeoutRef.current);
+                  bleOperationTimeoutRef.current = null;
+                }
+                
+                setBleScanState(prev => ({
+                  ...prev,
+                  isReadingEnergy: false,
+                  error: 'Bluetooth connection lost',
+                  connectionFailed: true,
+                  requiresBluetoothReset: true,
+                }));
+                
+                // Reset state
+                setIsScannerOpening(false);
+                scanTypeRef.current = null;
+                pendingBatteryQrCodeRef.current = null;
+                pendingBatteryIdRef.current = null;
+                isConnectionSuccessfulRef.current = false;
+                
+                toast.error('Please turn Bluetooth OFF then ON and try again.');
+                responseCallback({ success: false, error: respDesc });
+                return;
+              }
+            }
+            
+            // Only process DTA_SERVICE responses - matches AttendantFlow
+            if (parsedData?.serviceNameEnum === "DTA_SERVICE") {
+              console.info('[SALES BATTERY] Step 9: DTA_SERVICE data detected, extracting energy...');
+              
+              // Clear data reading timeout since we got data (matches AttendantFlow)
+              if (bleOperationTimeoutRef.current) {
+                clearTimeout(bleOperationTimeoutRef.current);
+                bleOperationTimeoutRef.current = null;
+              }
+              
+              const energyData = populateEnergyFromDta(parsedData);
               
               if (energyData) {
                 console.info('[SALES BATTERY] Step 10: Energy extracted successfully!', energyData);
@@ -1078,12 +1165,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                   const shortId = String(batteryId).slice(-8);
                   console.info('[SALES BATTERY] Step 11: Creating battery data object, ID:', batteryId);
                   
+                  const connectedMac = sessionStorage.getItem('connectedDeviceMac') || pendingConnectionMacRef.current;
+                  
                   const batteryData: BatteryData = {
                     id: batteryId,
                     shortId: shortId,
                     chargeLevel: energyData.chargePercent,
                     energy: energyData.energy,
-                    macAddress: pendingConnectionMacRef.current || undefined,
+                    macAddress: connectedMac || undefined,
                   };
                   
                   console.info('[SALES BATTERY] Step 12: Battery data created, setting as pending');
@@ -1112,8 +1201,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                   });
                   
                   // Disconnect
-                  if (window.WebViewJavascriptBridge && pendingConnectionMacRef.current) {
-                    window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingConnectionMacRef.current, () => {});
+                  if (window.WebViewJavascriptBridge && connectedMac) {
+                    window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
                   }
                   
                   console.info('[SALES BATTERY] Step 13: SUCCESS! Battery ready for service completion');
@@ -1123,9 +1212,31 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                 }
               } else {
                 console.info('[SALES BATTERY] WARNING: Energy data extraction returned null');
+                // Energy extraction failed - could be incomplete DTA data
+                // For now, show error and let user retry
+                toast.error('Could not read battery energy. Please try again.');
+                
+                const connectedMac = sessionStorage.getItem('connectedDeviceMac') || pendingConnectionMacRef.current;
+                if (window.WebViewJavascriptBridge && connectedMac) {
+                  window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+                }
+                
+                setBleScanState({
+                  isScanning: false,
+                  isConnecting: false,
+                  isReadingEnergy: false,
+                  connectedDevice: null,
+                  detectedDevices: [],
+                  connectionProgress: 0,
+                  error: null,
+                  connectionFailed: false,
+                  requiresBluetoothReset: false,
+                });
+                
+                isConnectionSuccessfulRef.current = false;
               }
             } else {
-              console.info('[SALES BATTERY] Service data is not DTA (ff00), ignoring');
+              console.info('[SALES BATTERY] Service data is not DTA_SERVICE, serviceNameEnum:', parsedData?.serviceNameEnum);
             }
           } catch (e) {
             console.error('[SALES BATTERY] Error processing BLE service data:', e);
@@ -1136,14 +1247,22 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       );
 
       // BLE service data progress callback - shows reading progress
+      // MUST update connectionProgress state like AttendantFlow for proper progress bar
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnProgressCallBack',
         (data: string, responseCallback: (response: any) => void) => {
           try {
-            const progress = JSON.parse(data);
-            console.info('[SALES BATTERY] BLE Service Read Progress:', progress.progress || progress);
-          } catch {
-            console.info('[SALES BATTERY] BLE Service Read Progress (raw):', data);
+            const p = JSON.parse(data);
+            const progressPercent = Math.round((p.progress / p.total) * 100);
+            console.info('[SALES BATTERY] BLE Service Read Progress:', progressPercent, '%');
+            
+            // Update connection progress state for the progress bar UI
+            setBleScanState(prev => ({
+              ...prev,
+              connectionProgress: progressPercent,
+            }));
+          } catch (err) {
+            console.error('[SALES BATTERY] Service progress callback error:', err);
           }
           responseCallback({ received: true });
         }
@@ -1155,10 +1274,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         (data: string, responseCallback: (response: any) => void) => {
           console.info('[SALES BATTERY] ERROR: BLE Service Data Read FAILED:', data);
           
-          // Clear global timeout
+          // Clear all timeouts
           if (bleGlobalTimeoutRef.current) {
             clearTimeout(bleGlobalTimeoutRef.current);
             bleGlobalTimeoutRef.current = null;
+          }
+          if (bleOperationTimeoutRef.current) {
+            clearTimeout(bleOperationTimeoutRef.current);
+            bleOperationTimeoutRef.current = null;
           }
           
           setBleScanState(prev => ({
