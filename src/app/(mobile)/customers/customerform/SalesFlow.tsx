@@ -573,18 +573,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [clearBleOperationTimeout]);
 
   // Handle matching QR code to detected BLE device and initiate connection
-  // Uses exponential backoff retry strategy for better reliability (matches Attendant flow)
-  const handleBleDeviceMatch = useCallback((batteryId: string, macAddress?: string, retryAttempt: number = 0) => {
+  // Uses exponential backoff retry strategy for better reliability
+  // NOTE: This matches the Attendant flow's handleBleDeviceMatch exactly
+  const handleBleDeviceMatch = useCallback((batteryId: string, retryAttempt: number = 0) => {
     const MAX_MATCH_RETRIES = 4; // Total 5 attempts (0-4)
     const RETRY_DELAYS = [2000, 3000, 4000, 5000]; // Exponential backoff delays
+    const BLE_GLOBAL_TIMEOUT = 90000; // 90 seconds - last resort timeout
     
     const last6 = batteryId.slice(-6).toLowerCase();
     const devices = detectedBleDevicesRef.current;
     
-    console.info('Attempting to match battery to BLE device:', {
+    console.info('Attempting to match QR code to BLE device:', {
       batteryId,
       last6,
-      macAddress,
       detectedDevices: devices.length,
       attempt: retryAttempt + 1,
       maxAttempts: MAX_MATCH_RETRIES + 1,
@@ -624,7 +625,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setIsScannerOpening(false);
         scanTypeRef.current = null;
         isConnectionSuccessfulRef.current = false;
-      }, 90000); // 90 seconds global timeout
+      }, BLE_GLOBAL_TIMEOUT);
     }
 
     // Show connecting modal with progress based on retry attempt
@@ -633,22 +634,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       ...prev,
       isConnecting: true,
       connectionProgress: progressPercent,
-      error: null,
+      error: null, // Silently retry without affecting user confidence
     }));
 
-    // First try to match by last 6 chars of battery ID against device names (like Attendant flow)
-    let matchedDevice = devices.find(device => {
+    // Find device where last 6 chars of name match
+    const matchedDevice = devices.find(device => {
       const deviceLast6 = (device.name || '').toLowerCase().slice(-6);
       return deviceLast6 === last6;
     });
-
-    // If no name match, try MAC address match (if provided)
-    if (!matchedDevice && macAddress) {
-      const normalizedMac = macAddress.toUpperCase();
-      matchedDevice = devices.find(
-        (device) => device.macAddress.toUpperCase() === normalizedMac
-      );
-    }
 
     if (matchedDevice) {
       console.info('Found matching BLE device:', matchedDevice);
@@ -665,29 +658,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         const delay = RETRY_DELAYS[retryAttempt] || 5000;
         console.info(`Will retry in ${delay}ms...`);
         
-        // Update UI to show searching progress
+        // Update UI to show searching progress (silently retry without showing attempt count)
         setBleScanState(prev => ({
           ...prev,
           connectionProgress: progressPercent + 5,
-          error: null,
+          error: null, // Silently retry without affecting user confidence
         }));
         
         // Schedule retry with exponential backoff
         setTimeout(() => {
-          handleBleDeviceMatch(batteryId, macAddress, retryAttempt + 1);
+          handleBleDeviceMatch(batteryId, retryAttempt + 1);
         }, delay);
         
         return false;
       } else {
-        // All retries exhausted - if we have a MAC address, try direct connection
-        if (macAddress) {
-          console.info('All name-based retries exhausted, attempting direct MAC connection:', macAddress);
-          stopBleScan();
-          connectBleDevice(macAddress);
-          return true;
-        }
-        
-        // No MAC address available - fail gracefully
+        // All retries exhausted
         console.error('No matching BLE device found after all retries');
         toast.error('Battery not found nearby. Please ensure the battery is powered on and close to this device.');
         
@@ -700,7 +685,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           isScanning: false,
           connectionProgress: 0,
           error: 'Battery not found',
-          connectionFailed: true,
         }));
         
         // Reset state to allow user to try again
@@ -727,43 +711,31 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
+    // Extract battery ID from QR code - this is used to match against BLE device names
     const batteryId = parsedData.sno || parsedData.serial_number || parsedData.id;
     if (!batteryId) {
       toast.error('Invalid battery QR - no ID found');
       return;
     }
 
-    // MAC address is optional - we can match by device name as well
-    const macAddress = parsedData.mac_address || parsedData.mac;
-
     // Store pending battery info (full QR data for later energy data extraction)
     pendingBatteryQrCodeRef.current = qrData;
     // Store battery ID separately for display purposes
     pendingBatteryIdRef.current = batteryId;
     
-    // IMMEDIATELY show connecting modal with progress bar
-    // This matches the Attendant flow behavior
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: true,
-      connectionProgress: 5,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    }));
-    
+    // Start scan-to-bind process - match QR code to BLE device
     console.info('Battery QR scanned, initiating scan-to-bind:', batteryId);
     
-    // If BLE scanning hasn't started yet, start it and wait for devices
+    // If BLE scanning hasn't started yet, start it (it should already be running on step 6)
     if (!bleScanState.isScanning) {
       startBleScan();
       // Wait a moment for devices to be discovered before matching
       setTimeout(() => {
-        handleBleDeviceMatch(batteryId, macAddress);
+        handleBleDeviceMatch(batteryId);
       }, 1000);
     } else {
       // BLE scan already running, try to match immediately
-      handleBleDeviceMatch(batteryId, macAddress);
+      handleBleDeviceMatch(batteryId);
     }
   }, [bleScanState.isScanning, startBleScan, handleBleDeviceMatch]);
 
