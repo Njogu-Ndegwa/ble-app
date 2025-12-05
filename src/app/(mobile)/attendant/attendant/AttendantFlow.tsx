@@ -121,6 +121,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     oldBattery: null,
     newBattery: null,
     energyDiff: 0,
+    quotaDeduction: 0,  // Amount of remaining quota to apply (in kWh)
+    chargeableEnergy: 0,  // Energy to charge for after quota deduction (in kWh)
     cost: 0,
     rate: 120, // Will be updated from service response
   });
@@ -1827,9 +1829,26 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                   const oldEnergy = prev.oldBattery?.energy || 0;
                   const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
                   const energyDiffKwh = energyDiffWh / 1000; // Convert to kWh for billing
+                  
                   // Use ref to get latest electricityService value without causing callback recreation
                   const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
-                  const cost = Math.round(energyDiffKwh * rate * 100) / 100; // Cost based on kWh
+                  
+                  // Get remaining electricity quota from service
+                  const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
+                  const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
+                  const remainingQuotaKwh = Math.max(0, elecQuota - elecUsed);
+                  
+                  // Calculate quota deduction: min of (remaining quota, energy needed)
+                  // Only apply quota deduction if energyDiff is positive (customer receives more than they return)
+                  const quotaDeduction = energyDiffKwh > 0 
+                    ? Math.min(remainingQuotaKwh, energyDiffKwh) 
+                    : 0;
+                  
+                  // Chargeable energy is the energy diff minus the quota applied
+                  const chargeableEnergy = Math.max(0, energyDiffKwh - quotaDeduction);
+                  
+                  // Cost is based on chargeable energy (after quota deduction)
+                  const cost = Math.round(chargeableEnergy * rate * 100) / 100;
                   
                   console.info('Energy differential calculated:', {
                     oldEnergyWh: oldEnergy,
@@ -1838,6 +1857,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     newEnergyKwh: energy / 1000,
                     energyDiffWh,
                     energyDiffKwh,
+                    remainingQuotaKwh,
+                    quotaDeduction,
+                    chargeableEnergy,
                     ratePerKwh: rate,
                     cost,
                   });
@@ -1846,6 +1868,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     ...prev,
                     newBattery,
                     energyDiff: Math.round(energyDiffKwh * 1000) / 1000, // Store in kWh with 3 decimal places
+                    quotaDeduction: Math.round(quotaDeduction * 1000) / 1000,
+                    chargeableEnergy: Math.round(chargeableEnergy * 1000) / 1000,
                     cost: cost > 0 ? cost : 0,
                   };
                 });
@@ -3080,6 +3104,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       oldBattery: null,
       newBattery: null,
       energyDiff: 0,
+      quotaDeduction: 0,
+      chargeableEnergy: 0,
       cost: 0,
       rate: 120,
     });

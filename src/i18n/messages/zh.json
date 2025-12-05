@@ -1033,6 +1033,8 @@
   "attendant.quotaCreditAvailable": "可用配额余额",
   "attendant.noPaymentRequired": "无需支付 - 使用现有额度",
   "attendant.quotaDeduction": "配额扣除",
+  "attendant.quotaApplied": "已应用配额",
+  "attendant.chargeableEnergy": "需支付",
   
   "attendant.collectPayment": "收款",
   "attendant.enterMpesaCode": "输入M-Pesa交易代码",
