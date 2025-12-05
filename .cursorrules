@@ -1,0 +1,323 @@
+# Cursor Rules for OVES Mobile App
+
+This document defines the coding standards, patterns, and conventions that MUST be followed when working on this codebase. These rules ensure consistency, maintainability, and proper architecture.
+
+---
+
+## 🚨 CRITICAL RULES
+
+### 1. Currency Handling - NEVER Hardcode Currencies
+**Currency symbols MUST come from backend data, NEVER be hardcoded.**
+
+```typescript
+// ❌ WRONG - Never do this
+<PaymentCollection currencySymbol="KES" amount={100} />
+toast.error(`Payment insufficient. Customer paid KES ${amount}`);
+
+// ✅ CORRECT - Always use dynamic currency from data
+<PaymentCollection currencySymbol={swapData.currencySymbol} amount={100} />
+toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${amount}`);
+```
+
+Currency should flow from:
+- Customer subscription data
+- Station/location configuration
+- Service response from backend
+- Plan/package data
+
+Only use `PAYMENT.defaultCurrency` from `@/lib/constants` as a last-resort fallback.
+
+### 2. Use the Design System
+All UI must use the established design system. Never create ad-hoc styles.
+
+```typescript
+// ❌ WRONG - Ad-hoc styling
+<div style={{ fontSize: '14px', color: '#00e5e5', padding: '16px' }}>
+
+// ✅ CORRECT - Use design tokens and components
+import { colors, spacing, fontSize } from '@/styles';
+<div style={{ fontSize: fontSize.base, color: colors.brand.primary, padding: spacing[4] }}>
+
+// ✅ EVEN BETTER - Use UI components
+import { Card, Badge, Button } from '@/components/ui';
+<Card><Badge variant="success">Active</Badge></Card>
+```
+
+---
+
+## 📁 Project Structure
+
+```
+src/
+├── app/                    # Next.js app router pages
+│   └── (mobile)/          # Mobile-specific routes
+│       ├── attendant/     # Attendant workflow
+│       ├── customers/     # Sales/customer workflow  
+│       └── rider/         # Rider app
+├── components/
+│   ├── ui/                # Pure UI components (no business logic)
+│   │   ├── Avatar.tsx
+│   │   ├── Badge.tsx
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   ├── Form.tsx
+│   │   ├── Icons.tsx
+│   │   ├── Layout.tsx
+│   │   ├── Progress.tsx
+│   │   ├── State.tsx
+│   │   └── index.ts
+│   └── shared/            # Reusable business components
+│       ├── BatteryScanBind.tsx
+│       ├── PaymentCollection.tsx
+│       ├── SuccessReceipt.tsx
+│       └── index.ts
+├── lib/                   # Utilities and helpers
+│   ├── constants.ts       # App-wide constants
+│   ├── hooks.ts          # Custom React hooks
+│   ├── types.ts          # Domain types
+│   ├── utils.ts          # Utility functions
+│   └── odoo-api.ts       # API client
+├── styles/               # Design system
+│   ├── tokens.ts         # Design tokens (TypeScript)
+│   ├── design-system.css # CSS variables
+│   └── index.ts
+└── i18n/                 # Internationalization
+```
+
+---
+
+## 🧩 Component Guidelines
+
+### UI Components (`/components/ui/`)
+- Pure presentational components
+- No business logic or API calls
+- Accept data via props
+- Use design tokens for styling
+- Export from `index.ts`
+
+```typescript
+// Good UI component
+export function Badge({ children, variant = 'default' }: BadgeProps) {
+  return <span className={`badge badge-${variant}`}>{children}</span>;
+}
+```
+
+### Shared Components (`/components/shared/`)
+- Reusable business logic components
+- Can contain state and side effects
+- Used across multiple workflows
+- Examples: BatteryScanBind, PaymentCollection
+
+### Workflow Components (`/app/(mobile)/*/components/`)
+- Workflow-specific components
+- Compose UI and shared components
+- Handle workflow-specific state
+
+---
+
+## 📝 TypeScript Conventions
+
+### Always Define Types
+```typescript
+// ❌ WRONG
+const customer = { name: 'John', phone: '123' };
+
+// ✅ CORRECT
+interface Customer {
+  name: string;
+  phone: string;
+  currencySymbol: string;  // Always include currency!
+}
+const customer: Customer = { name: 'John', phone: '123', currencySymbol: 'KES' };
+```
+
+### Use Domain Types from `/lib/types.ts`
+```typescript
+import type { Customer, Battery, Transaction, SwapData } from '@/lib/types';
+```
+
+### Props Interfaces
+```typescript
+interface ComponentProps {
+  // Required props first
+  data: SwapData;
+  onComplete: (result: Transaction) => void;
+  
+  // Optional props with defaults
+  isLoading?: boolean;
+  variant?: 'primary' | 'secondary';
+}
+```
+
+---
+
+## 🎨 Styling Rules
+
+### 1. Use Design Tokens
+```typescript
+import { colors, spacing, fontSize, fontWeight } from '@/styles';
+
+// In components
+style={{ 
+  color: colors.text.primary,
+  padding: spacing[4],
+  fontSize: fontSize.base 
+}}
+```
+
+### 2. Use Tailwind with CSS Variables
+```typescript
+// Tailwind classes use our design system
+<div className="bg-primary text-white p-4 rounded-lg" />
+```
+
+### 3. Never Use Magic Numbers
+```typescript
+// ❌ WRONG
+style={{ padding: '16px', borderRadius: '8px' }}
+
+// ✅ CORRECT
+style={{ padding: spacing[4], borderRadius: radius.lg }}
+// or
+className="p-4 rounded-lg"
+```
+
+---
+
+## 🔄 State Management
+
+### Use Custom Hooks from `/lib/hooks.ts`
+```typescript
+import { useLocalStorage, useDebounce, useAsync } from '@/lib/hooks';
+
+// Persistent state
+const [user, setUser] = useLocalStorage('user', null);
+
+// Debounced values
+const debouncedSearch = useDebounce(searchTerm, 300);
+
+// Async operations
+const { data, loading, error, execute } = useAsync(fetchCustomer);
+```
+
+### Use Constants from `/lib/constants.ts`
+```typescript
+import { PAYMENT, BLE, MQTT, STATUS } from '@/lib/constants';
+
+// Good
+if (amount < PAYMENT.minimumAmount[currency]) { ... }
+
+// Bad - magic numbers
+if (amount < 10) { ... }
+```
+
+---
+
+## 🌍 Internationalization
+
+Always use the i18n system for user-facing text:
+
+```typescript
+import { useI18n } from '@/i18n';
+
+function Component() {
+  const { t } = useI18n();
+  
+  return <h1>{t('attendant.scanCustomer')}</h1>;
+}
+```
+
+---
+
+## 🔌 API & Data
+
+### Data Should Include Currency
+When defining or receiving data structures, always include currency:
+
+```typescript
+interface SwapData {
+  cost: number;
+  rate: number;
+  currencySymbol: string;  // REQUIRED
+}
+
+interface PricingData {
+  amount: number;
+  currencySymbol: string;  // REQUIRED
+}
+```
+
+### API Response Types
+```typescript
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+```
+
+---
+
+## ✅ Code Review Checklist
+
+Before submitting code, verify:
+
+- [ ] No hardcoded currency symbols (KES, USD, etc.)
+- [ ] Using UI components from `/components/ui/` where applicable
+- [ ] Using design tokens, not magic numbers
+- [ ] Types are properly defined
+- [ ] Using i18n for user-facing strings
+- [ ] Constants from `/lib/constants.ts` for configuration
+- [ ] Custom hooks from `/lib/hooks.ts` for common patterns
+- [ ] Proper error handling with user-friendly messages
+- [ ] Currency flows from backend data
+
+---
+
+## 🚫 Anti-Patterns to Avoid
+
+1. **Hardcoded currencies** - Always dynamic
+2. **Inline styles with magic values** - Use design tokens
+3. **Duplicate code** - Extract to shared components/hooks
+4. **Any types** - Always define proper types
+5. **Direct DOM manipulation** - Use React patterns
+6. **Console.log in production** - Use proper logging
+7. **Ignoring TypeScript errors** - Fix them properly
+
+---
+
+## 📚 Key Files to Reference
+
+When making changes, consult these files:
+
+- `/src/lib/constants.ts` - Application constants
+- `/src/lib/types.ts` - Domain types
+- `/src/lib/hooks.ts` - Custom hooks
+- `/src/lib/utils.ts` - Utility functions
+- `/src/styles/tokens.ts` - Design tokens
+- `/src/components/ui/index.ts` - UI components
+- `/src/components/shared/index.ts` - Shared business components
+
+---
+
+## 🔧 Common Tasks
+
+### Adding a New Currency Display
+```typescript
+// Get currency from data, with fallback
+const currency = data.currencySymbol || PAYMENT.defaultCurrency;
+return `${currency} ${amount.toFixed(2)}`;
+```
+
+### Creating a New Component
+1. Decide: UI (`/components/ui/`) or Shared (`/components/shared/`)
+2. Define TypeScript interface for props
+3. Use design tokens for styling
+4. Export from the appropriate `index.ts`
+5. Add to documentation if significant
+
+### Adding a New Page/Route
+1. Create in `/app/(mobile)/[feature]/`
+2. Use existing UI components
+3. Follow the established layout patterns
+4. Include proper types and i18n
