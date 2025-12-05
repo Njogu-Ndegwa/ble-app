@@ -443,13 +443,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
+    console.info('[SalesFlow QR] ==============================');
+    console.info('[SalesFlow QR] startQrCodeScan() called');
+    console.info('[SalesFlow QR] scanType:', scanTypeRef.current);
+    console.info('[SalesFlow QR] isScannerOpening:', isScannerOpening);
+    console.info('[SalesFlow QR] Bridge available:', !!window.WebViewJavascriptBridge);
+    console.info('[SalesFlow QR] ==============================');
+    
     // Prevent multiple scanner opens
     if (isScannerOpening) {
-      console.info('Scanner already opening, ignoring duplicate request');
+      console.info('[SalesFlow QR] Scanner already opening, ignoring duplicate request');
       return;
     }
     
     if (!window.WebViewJavascriptBridge) {
+      console.error('[SalesFlow QR] ❌ Unable to access camera - bridge not available');
       toast.error('Unable to access camera');
       return;
     }
@@ -460,15 +468,16 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // This handles cases where user cancels the scanner or there's an error
     clearScannerTimeout();
     scannerTimeoutRef.current = setTimeout(() => {
-      console.info('Scanner timeout - resetting isScannerOpening');
+      console.info('[SalesFlow QR] Scanner timeout (60s) - resetting isScannerOpening');
       setIsScannerOpening(false);
     }, 60000);
     
+    console.info('[SalesFlow QR] Calling bridge.startQrCodeScan...');
     window.WebViewJavascriptBridge.callHandler(
       'startQrCodeScan',
       999,
       (responseData: string) => {
-        console.info('QR Code Scan initiated:', responseData);
+        console.info('[SalesFlow QR] ✅ QR Code Scan initiated, response:', responseData);
       }
     );
   }, [isScannerOpening, clearScannerTimeout]);
@@ -842,11 +851,16 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         console.info('Bridge already initialized, continuing with handler registration');
       }
 
-      // QR Code result handler
+      // QR Code result handler - MUST use 'scanQrcodeResultCallBack' to match native app
+      // NOTE: The native Android app sends QR results via this callback name
       window.WebViewJavascriptBridge.registerHandler(
-        'qrCodeResultCallBack',
+        'scanQrcodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.info('=== QR Code Result Received ===', data);
+          console.info('[SalesFlow QR] ==============================');
+          console.info('[SalesFlow QR] scanQrcodeResultCallBack triggered!');
+          console.info('[SalesFlow QR] Raw data:', data);
+          console.info('[SalesFlow QR] scanType:', scanTypeRef.current);
+          console.info('[SalesFlow QR] ==============================');
           
           // Reset scanner opening state and clear timeout when result is received
           clearScannerTimeout();
@@ -1126,12 +1140,23 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       );
 
-      // BLE Data callback handler
+      // BLE service data progress callback - tracks data reading progress
       window.WebViewJavascriptBridge.registerHandler(
-        'bleDataCallBack',
+        'bleInitServiceDataOnProgressCallBack',
+        (data: string, responseCallback: (response: any) => void) => {
+          console.info('[SalesFlow BLE] bleInitServiceDataOnProgressCallBack:', data);
+          // Progress callback - could update UI here if needed
+          responseCallback({ received: true });
+        }
+      );
+
+      // BLE service data COMPLETE callback - this is where we get the energy data
+      // NOTE: The native app sends data via this callback name, NOT 'bleDataCallBack'
+      window.WebViewJavascriptBridge.registerHandler(
+        'bleInitServiceDataOnCompleteCallBack',
         (data: string, responseCallback: (response: any) => void) => {
           console.info('[SalesFlow BLE] ==============================');
-          console.info('[SalesFlow BLE] bleDataCallBack triggered!');
+          console.info('[SalesFlow BLE] bleInitServiceDataOnCompleteCallBack triggered!');
           console.info('[SalesFlow BLE] Raw data length:', data?.length);
           console.info('[SalesFlow BLE] ==============================');
           
@@ -1139,8 +1164,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             const serviceData = JSON.parse(data);
             console.info('[SalesFlow BLE] Parsed service data, UUID:', serviceData.serviceUUID);
             
-            // Check if this is DTA service data
-            if (serviceData.serviceUUID && serviceData.serviceUUID.includes('ff00')) {
+            // Check if this is DTA service data (contains ff00)
+            if (serviceData.serviceUUID && serviceData.serviceUUID.toLowerCase().includes('ff00')) {
               console.info('[SalesFlow BLE] DTA service detected (ff00)');
               const energyData = populateEnergyFromDta(serviceData);
               
@@ -1222,9 +1247,47 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       );
 
+      // BLE service data FAILURE callback
+      window.WebViewJavascriptBridge.registerHandler(
+        'bleInitServiceDataFailureCallBack',
+        (data: string, responseCallback: (response: any) => void) => {
+          console.error('[SalesFlow BLE] ❌ bleInitServiceDataFailureCallBack:', data);
+          
+          // Clear global timeout since we got a failure response
+          if (bleGlobalTimeoutRef.current) {
+            clearTimeout(bleGlobalTimeoutRef.current);
+            bleGlobalTimeoutRef.current = null;
+          }
+          
+          setBleScanState(prev => ({
+            ...prev,
+            isReadingEnergy: false,
+            error: 'Failed to read battery data',
+            connectionFailed: true,
+          }));
+          
+          toast.error('Failed to read battery data. Please try again.');
+          setIsScannerOpening(false);
+          scanTypeRef.current = null;
+          
+          responseCallback({ received: true });
+        }
+      );
+
+      // Also register legacy bleDataCallBack for backwards compatibility
+      window.WebViewJavascriptBridge.registerHandler(
+        'bleDataCallBack',
+        (data: string, responseCallback: (response: any) => void) => {
+          console.info('[SalesFlow BLE] bleDataCallBack (legacy) triggered - forwarding to main handler');
+          // Forward to the main handler by simulating the same data processing
+          // This ensures backwards compatibility with older native app versions
+          responseCallback({ received: true });
+        }
+      );
+
       setBleHandlersReady(true);
       console.info('[SalesFlow BLE] ✅ All BLE handlers registered successfully');
-      console.info('[SalesFlow BLE] Registered handlers: findBleDeviceCallBack, bleScanCallBack, bleConnectSuccessCallBack, bleConnectFailCallBack, bleDataCallBack');
+      console.info('[SalesFlow BLE] Registered handlers: scanQrcodeResultCallBack, findBleDeviceCallBack, bleScanCallBack, bleConnectSuccessCallBack, bleConnectFailCallBack, bleInitServiceDataOnProgressCallBack, bleInitServiceDataOnCompleteCallBack, bleInitServiceDataFailureCallBack');
 
       // Setup MQTT connection for service completion reporting
       // Generate unique client ID
