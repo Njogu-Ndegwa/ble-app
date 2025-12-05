@@ -140,6 +140,31 @@ export const MQTT_CONFIG = {
   },
 } as const;
 
+/**
+ * MQTT Service constants
+ * Used by MqttService for default values
+ */
+export const MQTT = {
+  /** Default QoS level for publish/subscribe */
+  defaultQos: 1 as const,
+  
+  /** Default timeout for request/response patterns (ms) */
+  timeout: 30000,
+  
+  /** ABS (Asset & Billing System) topic patterns */
+  abs: {
+    // Request topics (publish)
+    requestCustomer: 'abs/request/customer',
+    requestService: 'abs/request/service',
+    requestPayment: 'abs/request/payment',
+    
+    // Response topics (subscribe) - use + wildcard for dynamic parts
+    responseCustomer: 'abs/response/customer/+',
+    responseService: 'abs/response/service/+',
+    responsePayment: 'abs/response/payment/+',
+  },
+} as const;
+
 // ============================================
 // UI CONSTANTS
 // ============================================

@@ -76,7 +76,12 @@ src/
 │   ├── hooks.ts          # Custom React hooks
 │   ├── types.ts          # Domain types
 │   ├── utils.ts          # Utility functions
-│   └── odoo-api.ts       # API client
+│   ├── odoo-api.ts       # Odoo REST API client
+│   └── services/         # Service layer
+│       ├── mqtt-service.ts  # MQTT messaging
+│       ├── hooks/           # Service React hooks
+│       │   └── useMqtt.ts
+│       └── index.ts
 ├── styles/               # Design system
 │   ├── tokens.ts         # Design tokens (TypeScript)
 │   ├── design-system.css # CSS variables
@@ -213,6 +218,90 @@ if (amount < 10) { ... }
 
 ---
 
+## 🔌 Services & API Layer
+
+### MQTT - Use the Service Layer
+**Never write raw MQTT operations in components. Always use the service or hooks.**
+
+```typescript
+// ❌ WRONG - Raw bridge calls in components
+bridge.callHandler('mqttPublishMsg', { topic, message }, (resp) => { ... });
+bridge.registerHandler('mqttMessageReceived', (data) => { ... });
+
+// ✅ CORRECT - Use the MQTT hook
+import { useMqtt } from '@/lib/services/hooks';
+
+function MyComponent() {
+  const { publish, subscribe, isReady } = useMqtt();
+  
+  useEffect(() => {
+    if (!isReady) return;
+    return subscribe('abs/response/customer/+', handleMessage);
+  }, [isReady, subscribe]);
+  
+  const handleSend = async () => {
+    await publish('abs/request/customer', { action: 'lookup' });
+  };
+}
+```
+
+### API Calls - Use Typed Functions
+**Never make raw fetch calls. Use the typed API functions.**
+
+```typescript
+// ❌ WRONG - Raw fetch in components
+const response = await fetch('/api/payments/confirm', {
+  method: 'POST',
+  body: JSON.stringify({ order_id, receipt }),
+});
+
+// ✅ CORRECT - Use typed API functions
+import { confirmPaymentManual, createPaymentRequest } from '@/lib/odoo-api';
+
+const paymentRequest = await createPaymentRequest({
+  subscription_code: 'SUB-001',
+  amount_required: 500,
+  description: 'Swap payment',
+}, authToken);
+
+const confirmation = await confirmPaymentManual({
+  order_id: paymentRequest.payment_request.sale_order.id,
+  receipt: 'MPESA_RECEIPT_123',
+}, authToken);
+```
+
+### Service Patterns
+
+1. **MQTT Request/Response Pattern**:
+```typescript
+const { publishAndWait } = useMqtt();
+
+const result = await publishAndWait(
+  'abs/request/customer',           // Publish to
+  { action: 'lookup', code: '123' }, // Payload
+  'abs/response/customer/+',         // Subscribe for response
+  30000                              // Timeout
+);
+```
+
+2. **API Error Handling**:
+```typescript
+try {
+  const result = await createPaymentRequest(payload, token);
+  if (!result.success) {
+    // Handle business logic error
+    if (result.existing_request) {
+      // Handle existing request case
+    }
+  }
+} catch (error) {
+  // Handle network/system error
+  toast.error('Connection failed');
+}
+```
+
+---
+
 ## 🌍 Internationalization
 
 Always use the i18n system for user-facing text:
@@ -290,10 +379,13 @@ Before submitting code, verify:
 
 When making changes, consult these files:
 
-- `/src/lib/constants.ts` - Application constants
+- `/src/lib/constants.ts` - Application constants (PAYMENT, MQTT, BLE, etc.)
 - `/src/lib/types.ts` - Domain types
 - `/src/lib/hooks.ts` - Custom hooks
 - `/src/lib/utils.ts` - Utility functions
+- `/src/lib/odoo-api.ts` - Odoo REST API (payments, subscriptions, customers)
+- `/src/lib/services/mqtt-service.ts` - MQTT messaging service
+- `/src/lib/services/hooks/useMqtt.ts` - MQTT React hook
 - `/src/styles/tokens.ts` - Design tokens
 - `/src/components/ui/index.ts` - UI components
 - `/src/components/shared/index.ts` - Shared business components
@@ -321,3 +413,70 @@ return `${currency} ${amount.toFixed(2)}`;
 2. Use existing UI components
 3. Follow the established layout patterns
 4. Include proper types and i18n
+
+### Adding MQTT Communication
+1. Use the `useMqtt` hook in your component
+2. Subscribe in `useEffect` with proper cleanup
+3. Use `publishAndWait` for request/response patterns
+4. Handle loading/error states
+
+```typescript
+import { useMqtt } from '@/lib/services/hooks';
+
+function MyComponent() {
+  const { publish, subscribe, publishAndWait, isReady } = useMqtt();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Subscribe to responses
+  useEffect(() => {
+    if (!isReady) return;
+    return subscribe('my/response/topic', (message) => {
+      setData(message.payload);
+    });
+  }, [isReady, subscribe]);
+
+  // Request with response
+  const fetchData = async () => {
+    setLoading(true);
+    const result = await publishAndWait(
+      'my/request/topic',
+      { action: 'fetch' },
+      'my/response/topic',
+      30000
+    );
+    if (result.success) {
+      setData(result.data);
+    }
+    setLoading(false);
+  };
+}
+```
+
+### Adding a New API Endpoint
+1. Add types in `/lib/odoo-api.ts`
+2. Create the typed function
+3. Handle response normalization
+4. Include proper error handling
+
+```typescript
+// In odoo-api.ts
+export interface MyNewPayload { ... }
+export interface MyNewResponse { ... }
+
+export async function myNewApiCall(
+  payload: MyNewPayload,
+  authToken?: string
+): Promise<OdooApiResponse<MyNewResponse>> {
+  const headers: HeadersInit = {};
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  return apiRequest<MyNewResponse>('/api/my-endpoint', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers,
+  });
+}
+```

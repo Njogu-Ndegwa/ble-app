@@ -16,6 +16,9 @@ export * from './hooks';
 // Domain Types
 export * from './types';
 
+// Services (MQTT, etc.)
+export * from './services';
+
 // API Services (re-export common types)
 export type {
   OdooApiResponse,

@@ -11,7 +11,12 @@ Core utilities, hooks, types, and constants for the application.
 ├── hooks.ts          # Custom React hooks
 ├── types.ts          # Domain/business types
 ├── index.ts          # Central exports
-├── odoo-api.ts       # Odoo API service
+├── odoo-api.ts       # Odoo REST API service
+├── services/         # Service layer
+│   ├── mqtt-service.ts  # MQTT messaging abstraction
+│   ├── hooks/           # Service-specific hooks
+│   │   └── useMqtt.ts   # MQTT React hook
+│   └── index.ts         # Service exports
 ├── apollo-client.ts  # GraphQL client
 ├── attendant-auth.ts # Attendant authentication
 ├── sales-session.ts  # Sales session management
@@ -356,10 +361,134 @@ type Item = ArrayElement<typeof items>;
 
 ---
 
+## Services (`services/`)
+
+### MQTT Service
+
+The `MqttService` class provides a clean abstraction over the WebView bridge MQTT operations.
+
+```tsx
+import { MqttService, useMqtt, useSubscription } from '@/lib/services';
+
+// Using the hook (recommended for React components)
+function MyComponent() {
+  const { publish, subscribe, isReady, isConnected } = useMqtt();
+  
+  useEffect(() => {
+    if (!isReady) return;
+    
+    // Subscribe to a topic
+    const unsubscribe = subscribe('abs/response/customer/+', (message) => {
+      console.log('Received:', message.payload);
+    });
+    
+    return unsubscribe;
+  }, [isReady, subscribe]);
+  
+  const handleLookup = async () => {
+    const success = await publish('abs/request/customer', {
+      action: 'lookup',
+      code: '123456',
+    });
+  };
+}
+
+// Using simplified subscription hook
+function StatusDisplay() {
+  const { lastMessage, messages } = useSubscription('abs/response/status/+');
+  
+  return <div>Last status: {JSON.stringify(lastMessage?.payload)}</div>;
+}
+
+// Using publishAndWait for request/response patterns
+const { publish, publishAndWait } = useMqtt();
+
+const result = await publishAndWait(
+  'abs/request/customer',           // Publish topic
+  { action: 'lookup', code: '123' }, // Payload
+  'abs/response/customer/+',         // Response topic
+  30000                              // Timeout (ms)
+);
+
+if (result.success) {
+  console.log('Response:', result.data);
+}
+```
+
+### MQTT Topic Constants
+
+```tsx
+import { MQTT } from '@/lib';
+
+// Use predefined topic patterns
+MQTT.abs.requestCustomer   // 'abs/request/customer'
+MQTT.abs.responseCustomer  // 'abs/response/customer/+'
+
+// Configuration
+MQTT.defaultQos  // 1
+MQTT.timeout     // 30000
+```
+
+---
+
+## API Services
+
+### Odoo API (`odoo-api.ts`)
+
+The Odoo API service provides typed functions for all CRM operations.
+
+```tsx
+import {
+  registerCustomer,
+  getSubscriptionProducts,
+  purchaseSubscription,
+  initiatePayment,
+  confirmPaymentManual,
+  createPaymentRequest,
+} from '@/lib/odoo-api';
+
+// Register a customer
+const response = await registerCustomer({
+  name: 'John Doe',
+  email: 'john@example.com',
+  phone: '+254712345678',
+  street: '123 Main St',
+  city: 'Nairobi',
+  zip: '00100',
+}, authToken);
+
+// Get subscription products
+const products = await getSubscriptionProducts(1, 20, authToken);
+
+// Create payment request (always do this before collecting payment)
+const paymentRequest = await createPaymentRequest({
+  subscription_code: 'SUB-001',
+  amount_required: 500,
+  description: 'Monthly subscription',
+}, authToken);
+
+// Confirm payment with receipt
+const confirmation = await confirmPaymentManual({
+  order_id: paymentRequest.payment_request.sale_order.id,
+  receipt: 'MPESA_RECEIPT_123',
+}, authToken);
+```
+
+---
+
 ## Best Practices
 
 1. **Use constants** instead of magic values
 2. **Use utility functions** for formatting and validation
 3. **Use hooks** for common patterns (debounce, storage, etc.)
 4. **Use types** for domain objects
-5. **Import from `@/lib`** for clean imports
+5. **Use services** for external communications (MQTT, API)
+6. **Import from `@/lib`** for clean imports
+
+### Service Layer Guidelines
+
+- **MQTT operations** should go through `MqttService` or `useMqtt` hook
+- **API calls** should use the typed functions from `odoo-api.ts`
+- **Never make raw fetch calls** directly in components
+- **Always handle errors** appropriately
+- **Use the constants** for topic patterns and timeouts
