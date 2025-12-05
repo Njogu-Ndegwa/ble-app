@@ -700,23 +700,30 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [stopBleScan, connectBleDevice, clearBleGlobalTimeout, clearBleOperationTimeout, clearScannerTimeout]);
 
   // Process battery QR and connect - shows progress bar immediately (matches Attendant flow)
+  // NOTE: This function is modeled after processNewBatteryQRData in AttendantFlow.tsx
+  // It handles both JSON and plain string QR codes flexibly
   const processBatteryQRData = useCallback((qrData: string) => {
     console.info('=== Processing Battery QR for Assignment ===', qrData);
     
-    let parsedData: any;
+    // Parse QR code - handle both JSON and plain string formats (like Attendant flow)
+    let batteryData: any;
     try {
-      parsedData = JSON.parse(qrData);
+      batteryData = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
     } catch {
-      toast.error('Invalid QR code format');
-      return;
+      // If not valid JSON, treat the raw string as the battery ID (like Attendant flow)
+      batteryData = { id: qrData };
+      console.info('QR code is not JSON, using raw string as battery ID');
     }
 
-    // Extract battery ID from QR code - this is used to match against BLE device names
-    const batteryId = parsedData.sno || parsedData.serial_number || parsedData.id;
+    // Extract battery ID from QR code - check all common field names (like Attendant flow)
+    // This is used to match against BLE device names (last 6 chars)
+    const batteryId = batteryData.battery_id || batteryData.sno || batteryData.serial_number || batteryData.id || qrData;
     if (!batteryId) {
       toast.error('Invalid battery QR - no ID found');
       return;
     }
+    
+    console.info('Extracted battery ID:', batteryId);
 
     // Store pending battery info (full QR data for later energy data extraction)
     pendingBatteryQrCodeRef.current = qrData;
