@@ -42,6 +42,7 @@ import {
   type CreatePaymentRequestResponse,
   type PaymentRequestData,
 } from '@/lib/odoo-api';
+import { PAYMENT } from '@/lib/constants';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -125,6 +126,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     chargeableEnergy: 0,  // Energy to charge for after quota deduction (in kWh)
     cost: 0,
     rate: 120, // Will be updated from service response
+    currencySymbol: PAYMENT.defaultCurrency, // Will be updated from service/subscription response
   });
   
   // Service states from MQTT response
@@ -1211,7 +1213,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         // If there's an existing request, include details about it
         if (paymentRequestResponse.existing_request) {
           const existingReq = paymentRequestResponse.existing_request;
-          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: KES ${existingReq.amount_remaining} remaining (${existingReq.status})`;
+          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: ${swapData.currencySymbol} ${existingReq.amount_remaining} remaining (${existingReq.status})`;
           
           // Log the available actions for debugging
           console.log('Existing request actions:', existingReq.actions);
@@ -1318,7 +1320,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           if (totalPaid < requiredAmount) {
             // Payment insufficient for this swap
             const shortfall = requiredAmount - totalPaid;
-            toast.error(`Payment insufficient. Customer paid KES ${totalPaid}, but needs to pay KES ${requiredAmount}. Short by KES ${shortfall}`);
+            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
             setIsScanning(false);
             scanTypeRef.current = null;
             // Don't proceed - customer needs to pay more
@@ -2689,7 +2691,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           if (totalPaid < requiredAmount) {
             // Payment insufficient for this swap
             const shortfall = requiredAmount - totalPaid;
-            toast.error(`Payment insufficient. Customer paid KES ${totalPaid}, but needs to pay KES ${requiredAmount}. Short by KES ${shortfall}`);
+            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
             setIsProcessing(false);
             // Don't proceed - customer needs to pay more
             return;
@@ -3108,6 +3110,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       chargeableEnergy: 0,
       cost: 0,
       rate: 120,
+      currencySymbol: PAYMENT.defaultCurrency,
     });
     setManualSubscriptionId('');
     setTransactionId('');

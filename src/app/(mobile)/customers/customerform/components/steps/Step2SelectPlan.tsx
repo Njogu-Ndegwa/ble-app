@@ -3,6 +3,16 @@
 import React from 'react';
 import { useI18n } from '@/i18n';
 import { PlanData } from '../types';
+import { 
+  Screen, 
+  PageHeader, 
+  Grid,
+  SelectableCard,
+  EmptyState,
+  ErrorState,
+  SkeletonCard,
+  CalendarIcon,
+} from '@/components/ui';
 
 interface Step2Props {
   selectedPlan: string;
@@ -34,184 +44,97 @@ export default function Step2SelectPlan({
   const { t } = useI18n();
   
   return (
-    <div className="screen active">
-      <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>{t('sales.selectPlan')}</h2>
-      <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '12px' }}>{t('sales.choosePlan')}</p>
+    <Screen>
+      <PageHeader 
+        title={t('sales.selectPlan')} 
+        subtitle={t('sales.choosePlan')}
+        align="center"
+      />
 
       {isLoadingPlans ? (
-        <div className="product-grid">
+        <Grid columns={1} gap={12}>
           {[1, 2, 3].map((i) => (
-            <div key={i} className="product-card skeleton">
-              <div className="skeleton-radio"></div>
-              <div className="skeleton-info">
-                <div className="skeleton-name"></div>
-                <div className="skeleton-desc"></div>
-              </div>
-              <div className="skeleton-price"></div>
-            </div>
+            <SkeletonCard key={i} showImage={false} lines={2} />
           ))}
-        </div>
+        </Grid>
       ) : loadError ? (
-        <div className="plans-error-state">
-          {/* Error illustration */}
-          <div className="plans-error-illustration">
-            <div className="plans-error-icon-wrapper">
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="1.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className="plans-error-icon"
-              >
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              {/* Pulsing ring effect */}
-              <div className="plans-error-ring" />
-              <div className="plans-error-ring plans-error-ring-delay" />
-            </div>
-            {/* Connection error lines */}
-            <div className="plans-error-lines">
-              <span className="error-line"></span>
-              <span className="error-line"></span>
-              <span className="error-line"></span>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="plans-error-content">
-            <h3 className="plans-error-title">
-              {t('sales.connectionError') || 'Connection Error'}
-            </h3>
-            <p className="plans-error-description">
-              {loadError}
-            </p>
-          </div>
-
-          {/* Action */}
-          {onRetryLoad && (
-            <button 
-              className="plans-error-retry-btn"
-              onClick={onRetryLoad}
-            >
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
-              {t('common.tryAgain') || 'Try Again'}
-            </button>
-          )}
-
-          {/* Help hint */}
-          <p className="plans-error-hint">
-            {t('sales.checkConnection') || 'Please check your internet connection'}
-          </p>
-        </div>
+        <ErrorState
+          title={t('sales.connectionError') || 'Connection Error'}
+          message={loadError}
+          onRetry={onRetryLoad}
+          retryLabel={t('common.tryAgain') || 'Try Again'}
+          hint={t('sales.checkConnection') || 'Please check your internet connection'}
+        />
       ) : plans.length === 0 ? (
-        <div className="empty-plans-state">
-          {/* Decorative illustration */}
-          <div className="empty-plans-illustration">
-            <div className="empty-plans-icon-wrapper">
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="1.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className="empty-plans-icon"
-              >
-                <rect x="3" y="4" width="18" height="16" rx="2" />
-                <path d="M7 8h10" />
-                <path d="M7 12h6" />
-                <path d="M7 16h4" />
-              </svg>
-              <div className="empty-plans-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </div>
-            </div>
-            {/* Floating particles for visual interest */}
-            <div className="empty-plans-particles">
-              <span className="particle"></span>
-              <span className="particle"></span>
-              <span className="particle"></span>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="empty-plans-content">
-            <h3 className="empty-plans-title">
-              {t('sales.noPlansTitle') || 'No Plans Available'}
-            </h3>
-            <p className="empty-plans-description">
-              {t('sales.noPlansDescription') || 'Subscription plans couldn\'t be loaded from the server. This might be a temporary issue.'}
-            </p>
-          </div>
-
-          {/* Action */}
-          {onRetryLoad && (
-            <button 
-              className="empty-plans-retry-btn"
-              onClick={onRetryLoad}
-            >
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
-              {t('common.tryAgain') || 'Try Again'}
-            </button>
-          )}
-
-          {/* Help hint */}
-          <p className="empty-plans-hint">
-            {t('sales.noPlansHint') || 'If this persists, please contact support'}
-          </p>
-        </div>
+        <EmptyState
+          title={t('sales.noPlansTitle') || 'No Plans Available'}
+          description={t('sales.noPlansDescription') || "Subscription plans couldn't be loaded from the server. This might be a temporary issue."}
+          icon={<CalendarIcon size={40} />}
+          action={onRetryLoad ? {
+            label: t('common.tryAgain') || 'Try Again',
+            onClick: onRetryLoad,
+          } : undefined}
+          hint={t('sales.noPlansHint') || 'If this persists, please contact support'}
+        />
       ) : (
-        <div className="product-grid">
+        <Grid columns={1} gap={12}>
           {plans.map((plan) => {
             const period = plan.period || getPeriodFromName(plan.name);
             const currencySymbol = plan.currencySymbol || 'KES';
             
             return (
-              <div 
+              <SelectableCard
                 key={plan.id}
-                className={`product-card ${selectedPlan === plan.id ? 'selected' : ''}`}
-                onClick={() => onPlanSelect(plan.id)}
+                selected={selectedPlan === plan.id}
+                onSelect={() => onPlanSelect(plan.id)}
+                showRadio
+                showCheck={false}
               >
-                <div className="product-radio"></div>
-                <div className="product-info">
-                  <div className="product-name">{plan.name}</div>
-                  <div className="product-desc">{plan.description}</div>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '12px',
+                  width: '100%',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ 
+                      fontWeight: 600, 
+                      fontSize: '15px',
+                      marginBottom: '4px',
+                    }}>
+                      {plan.name}
+                    </div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: 'rgba(255, 255, 255, 0.5)',
+                    }}>
+                      {plan.description}
+                    </div>
+                  </div>
+                  <div style={{ 
+                    textAlign: 'right',
+                    flexShrink: 0,
+                  }}>
+                    <div style={{ 
+                      fontWeight: 700, 
+                      fontSize: '16px',
+                      fontFamily: 'var(--font-mono)',
+                    }}>
+                      {currencySymbol} {plan.price.toLocaleString()}
+                    </div>
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: 'rgba(255, 255, 255, 0.4)',
+                    }}>
+                      {period}
+                    </div>
+                  </div>
                 </div>
-                <div className="product-price">
-                  {currencySymbol} {plan.price.toLocaleString()}
-                  <span className="product-price-period">{period}</span>
-                </div>
-              </div>
+              </SelectableCard>
             );
           })}
-        </div>
+        </Grid>
       )}
-    </div>
+    </Screen>
   );
 }

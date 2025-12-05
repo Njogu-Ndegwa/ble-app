@@ -9,7 +9,7 @@ interface Swap {
   riderName: string;
   depletedBattery: { percentage: number; range: string };
   newBattery: { percentage: number; range: string };
-  pricing: { batteryCharges: number; convenienceFee: number; total: number };
+  pricing: { batteryCharges: number; convenienceFee: number; total: number; currencySymbol: string };
   status: string;
 }
 
@@ -24,7 +24,7 @@ const swapData: Swap[] = [
     riderName: 'KMGF 679U',
     depletedBattery: { percentage: 44, range: '' },
     newBattery: { percentage: 100, range: '' },
-    pricing: { batteryCharges: 106.8, convenienceFee: 50, total: 156.8 },
+    pricing: { batteryCharges: 106.8, convenienceFee: 50, total: 156.8, currencySymbol: 'KES' },
     status: 'Completed'
   },
   {
@@ -33,7 +33,7 @@ const swapData: Swap[] = [
     riderName: 'KMGF 679U',
     depletedBattery: { percentage: 25, range: '' },
     newBattery: { percentage: 100, range: '' },
-    pricing: { batteryCharges: 92.5, convenienceFee: 50, total: 142.5 },
+    pricing: { batteryCharges: 92.5, convenienceFee: 50, total: 142.5, currencySymbol: 'KES' },
     status: 'Completed'
   },
   {
@@ -42,7 +42,7 @@ const swapData: Swap[] = [
     riderName: 'KMGF 679U',
     depletedBattery: { percentage: 15, range: '' },
     newBattery: { percentage: 100, range: '' },
-    pricing: { batteryCharges: 118, convenienceFee: 50, total: 168 },
+    pricing: { batteryCharges: 118, convenienceFee: 50, total: 168, currencySymbol: 'KES' },
     status: 'Completed'
   },
   {
@@ -51,7 +51,7 @@ const swapData: Swap[] = [
     riderName: 'KMGF 679U',
     depletedBattery: { percentage: 30, range: '' },
     newBattery: { percentage: 100, range: '' },
-    pricing: { batteryCharges: 100, convenienceFee: 50, total: 150 },
+    pricing: { batteryCharges: 100, convenienceFee: 50, total: 150, currencySymbol: 'KES' },
     status: 'Completed'
   }
 ];
@@ -92,7 +92,8 @@ export default function SwapHistory({ onSelectSwap }: SwapHistoryProps) {
             <p className="text-sm text-gray-600">Total Swaps</p>
           </div>
           <div className="bg-green-50 rounded-lg p-4 w-1/2 ml-2">
-            <h2 className="text-2xl font-bold text-green-900">KES 3,420</h2>
+            {/* TODO: Get currency and total from aggregated backend data */}
+            <h2 className="text-2xl font-bold text-green-900">{swapData[0]?.pricing.currencySymbol || 'KES'} 3,420</h2>
             <p className="text-sm text-gray-600">This Month</p>
           </div>
         </div>
@@ -114,7 +115,7 @@ export default function SwapHistory({ onSelectSwap }: SwapHistoryProps) {
                     <div className="text-sm text-gray-600 mt-1">{swap.date}</div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-800">KES {swap.pricing.total.toFixed(1)}</span>
+                    <span className="text-sm font-medium text-gray-800">{swap.pricing.currencySymbol} {swap.pricing.total.toFixed(1)}</span>
                     <ArrowRight className="w-5 h-5 text-gray-600" />
                   </div>
                 </div>

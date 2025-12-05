@@ -9,7 +9,7 @@ interface Swap {
   riderName: string;
   depletedBattery: { percentage: number; range: string };
   newBattery: { percentage: number; range: string };
-  pricing: { batteryCharges: number; convenienceFee: number; total: number };
+  pricing: { batteryCharges: number; convenienceFee: number; total: number; currencySymbol: string };
 }
 
 interface RecordSwapProps {
@@ -134,16 +134,16 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Battery Charges</span>
-                    <span className="font-medium">KES {selectedSwap.pricing.batteryCharges}</span>
+                    <span className="font-medium">{selectedSwap.pricing.currencySymbol} {selectedSwap.pricing.batteryCharges}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Convenience Fee</span>
-                    <span className="font-medium">KES {selectedSwap.pricing.convenienceFee}</span>
+                    <span className="font-medium">{selectedSwap.pricing.currencySymbol} {selectedSwap.pricing.convenienceFee}</span>
                   </div>
                   <div className="border-t pt-2 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total Payable</span>
-                      <span>KES {selectedSwap.pricing.total}</span>
+                      <span>{selectedSwap.pricing.currencySymbol} {selectedSwap.pricing.total}</span>
                     </div>
                   </div>
                 </div>
