@@ -849,22 +849,38 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         'bleConnectSuccessCallBack',
         (data: string, responseCallback: (response: any) => void) => {
           console.info('=== BLE Connect Success ===', data);
+          
+          // CRITICAL: Mark connection as successful IMMEDIATELY
+          // This prevents bleConnectFailCallBack from triggering retries during data reading
           isConnectionSuccessfulRef.current = true;
           
-          setBleScanState((prev) => ({
+          // Clear any pending timeout since we connected successfully
+          if (bleOperationTimeoutRef.current) {
+            clearTimeout(bleOperationTimeoutRef.current);
+            bleOperationTimeoutRef.current = null;
+          }
+          bleRetryCountRef.current = 0; // Reset retry count
+          
+          // Store connected device MAC before clearing the ref
+          const connectedMac = pendingConnectionMacRef.current;
+          if (connectedMac) {
+            sessionStorage.setItem('connectedDeviceMac', connectedMac);
+          }
+          pendingConnectionMacRef.current = null; // Clear pending MAC since we're now connected
+          
+          setBleScanState(prev => ({
             ...prev,
             isConnecting: false,
             isReadingEnergy: true,
-            connectionProgress: 50,
-            connectedDevice: pendingConnectionMacRef.current,
+            connectedDevice: connectedMac,
+            connectionProgress: 100,
+            error: null,
+            connectionFailed: false,
+            requiresBluetoothReset: false,
           }));
 
-          // Store connected device MAC
-          if (pendingConnectionMacRef.current) {
-            sessionStorage.setItem('connectedDeviceMac', pendingConnectionMacRef.current);
-          }
-
-          // Initialize BLE services to read energy
+          // Initialize BLE services to read energy (DTA service)
+          console.info('Requesting DTA service data for energy calculation...');
           initServiceBleData((serviceResponse: string) => {
             console.info('BLE services initialized:', serviceResponse);
           });
@@ -873,31 +889,87 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       );
 
-      // BLE Connect fail handler
+      // BLE connection failure callback - ONLY place where retries should happen
+      // This fires when BLE connection explicitly fails
+      // IMPORTANT: We ONLY retry here on actual failure callbacks, NOT on timeouts
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectFailCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.warn('=== BLE Connect Failed ===', data);
+          console.error('BLE connection failed:', data);
           
-          // Retry logic
-          if (bleRetryCountRef.current < MAX_BLE_RETRIES && pendingConnectionMacRef.current) {
-            bleRetryCountRef.current++;
-            console.info(`Retrying BLE connection (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})`);
-            
-            setTimeout(() => {
-              if (pendingConnectionMacRef.current) {
-                connBleByMacAddress(pendingConnectionMacRef.current, () => {});
-              }
-            }, 1000);
-          } else {
-            setBleScanState((prev) => ({
-              ...prev,
-              isConnecting: false,
-              connectionFailed: true,
-              error: 'Connection failed. Please try again.',
-            }));
-            toast.error('Failed to connect to battery');
+          // Clear any existing timeout since we got an explicit response
+          if (bleOperationTimeoutRef.current) {
+            clearTimeout(bleOperationTimeoutRef.current);
+            bleOperationTimeoutRef.current = null;
           }
+          
+          // CRITICAL: If connection already succeeded and we're now reading data,
+          // ignore this callback - it's likely a stale/delayed failure from an earlier attempt
+          if (isConnectionSuccessfulRef.current) {
+            console.info('Connection failure callback received but connection already succeeded - ignoring');
+            responseCallback({ received: true });
+            return;
+          }
+          
+          // Get the MAC address we were trying to connect to from our ref
+          const pendingMac = pendingConnectionMacRef.current;
+          
+          // Check if we should auto-retry (only on explicit failure callback)
+          if (bleRetryCountRef.current < MAX_BLE_RETRIES && pendingMac) {
+            bleRetryCountRef.current += 1;
+            console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
+            
+            // Silently retry without showing retry count to user (to maintain user confidence)
+            setBleScanState(prev => ({
+              ...prev,
+              connectionProgress: 10,
+              error: null, // Silently retry without affecting user confidence
+              connectionFailed: false, // Not yet failed, still retrying
+            }));
+            
+            // Retry connection with exponential backoff delay
+            setTimeout(() => {
+              // Double-check we haven't connected successfully in the meantime
+              if (isConnectionSuccessfulRef.current) {
+                console.info('Connection succeeded during retry delay - cancelling retry from failure handler');
+                return;
+              }
+              connBleByMacAddress(pendingMac, () => {
+                console.info('BLE retry connection initiated');
+              });
+            }, 1000 * bleRetryCountRef.current); // Exponential backoff
+            
+            responseCallback({ received: true });
+            return;
+          }
+          
+          // All retries exhausted - mark as definitively failed
+          console.error('BLE connection failed after all retries or no MAC address available');
+          bleRetryCountRef.current = 0;
+          isConnectionSuccessfulRef.current = false;
+          pendingConnectionMacRef.current = null;
+          
+          // Clear global timeout since we've reached an error state
+          if (bleGlobalTimeoutRef.current) {
+            clearTimeout(bleGlobalTimeoutRef.current);
+            bleGlobalTimeoutRef.current = null;
+          }
+          
+          setBleScanState(prev => ({
+            ...prev,
+            isConnecting: false,
+            isReadingEnergy: false,
+            connectionProgress: 0,
+            error: 'Connection failed. Please try again.',
+            connectionFailed: true, // Mark as definitively failed
+            requiresBluetoothReset: false,
+          }));
+          
+          toast.error('Battery connection failed. Please try again.');
+          setIsScannerOpening(false);
+          scanTypeRef.current = null;
+          pendingBatteryQrCodeRef.current = null;
+          pendingBatteryIdRef.current = null;
           
           responseCallback({ received: true });
         }
