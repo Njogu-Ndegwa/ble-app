@@ -9,6 +9,15 @@ import {
   PlanData,
   getInitials 
 } from '../types';
+import {
+  Screen,
+  Card,
+  Avatar,
+  PreviewRow,
+  CheckCircleIcon,
+  PackageIcon,
+  CalendarIcon,
+} from '@/components/ui';
 
 interface Step4Props {
   formData: CustomerFormData;
@@ -37,33 +46,65 @@ export default function Step4Preview({
   const hasImage = imageUrl && imageUrl.length > 0;
 
   return (
-    <div className="screen active compact-preview">
+    <Screen>
       {/* Compact Header with Total */}
-      <div className="preview-compact-header">
-        <h2 className="preview-compact-title">{t('sales.orderSummary') || 'Order Summary'}</h2>
-        <div className="preview-compact-total">
-          <span className="preview-compact-total-label">{t('sales.total') || 'Total'}</span>
-          <span className="preview-compact-total-amount">{currencySymbol} {totalAmount.toLocaleString()}</span>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '16px',
+      }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>
+          {t('sales.orderSummary') || 'Order Summary'}
+        </h2>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
+            {t('sales.total') || 'Total'}
+          </div>
+          <div style={{ 
+            fontSize: '20px', 
+            fontWeight: 700,
+            fontFamily: 'var(--font-mono)',
+          }}>
+            {currencySymbol} {totalAmount.toLocaleString()}
+          </div>
         </div>
       </div>
 
-      {/* Customer Row - Inline Compact */}
-      <div className="preview-compact-row">
-        <div className="preview-compact-avatar">{initials}</div>
-        <div className="preview-compact-info">
-          <span className="preview-compact-name">{customerName}</span>
-          <span className="preview-compact-detail">{formData.phone}</span>
-          {formData.email && <span className="preview-compact-detail">{formData.email}</span>}
+      {/* Customer Row */}
+      <Card variant="filled" style={{ marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Avatar initials={initials} size="md" variant="primary" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: '15px' }}>{customerName}</div>
+            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)', fontFamily: 'var(--font-mono)' }}>
+              {formData.phone}
+            </div>
+            {formData.email && (
+              <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                {formData.email}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
 
-      {/* Package & Subscription in Compact Cards */}
-      <div className="preview-compact-grid">
+      {/* Package & Subscription Cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {/* Package Card */}
         {selectedPackage && (
-          <div className="preview-compact-card">
-            <div className="preview-compact-card-header">
-              <div className="preview-compact-card-icon">
+          <Card variant="default">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
                 {hasImage ? (
                   <Image
                     src={imageUrl!}
@@ -74,62 +115,98 @@ export default function Step4Preview({
                     unoptimized
                   />
                 ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                  </svg>
+                  <PackageIcon size={20} color="var(--color-primary, #6366f1)" />
                 )}
               </div>
-              <div className="preview-compact-card-content">
-                <span className="preview-compact-card-label">{t('sales.package') || 'Package'}</span>
-                <span className="preview-compact-card-name">{selectedPackage.name}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                  {t('sales.package') || 'Package'}
+                </div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                  {selectedPackage.name}
+                </div>
               </div>
-              <span className="preview-compact-card-price">{currencySymbol} {packagePrice.toLocaleString()}</span>
+              <div style={{ 
+                fontWeight: 600, 
+                fontSize: '14px',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                {currencySymbol} {packagePrice.toLocaleString()}
+              </div>
             </div>
             
             {/* Compact Components List */}
             {selectedPackage.components && selectedPackage.components.length > 0 && (
-              <div className="preview-compact-components">
+              <div style={{
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '8px',
+              }}>
                 {selectedPackage.components.map((component, index) => (
-                  <div key={component.id || index} className="preview-compact-component">
-                    <span>{component.name}</span>
-                    <span>{component.currencySymbol || currencySymbol} {component.price_unit.toLocaleString()}</span>
-                  </div>
+                  <PreviewRow
+                    key={component.id || index}
+                    label={component.name}
+                    value={`${component.currencySymbol || currencySymbol} ${component.price_unit.toLocaleString()}`}
+                    mono
+                  />
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {/* Subscription Card */}
         {selectedPlan && (
-          <div className="preview-compact-card">
-            <div className="preview-compact-card-header">
-              <div className="preview-compact-card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8" y1="2" x2="8" y2="6"/>
-                  <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
+          <Card variant="default">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <CalendarIcon size={20} color="#10b981" />
               </div>
-              <div className="preview-compact-card-content">
-                <span className="preview-compact-card-label">{t('sales.subscription') || 'Subscription'}</span>
-                <span className="preview-compact-card-name">{selectedPlan.name}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                  {t('sales.subscription') || 'Subscription'}
+                </div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                  {selectedPlan.name}
+                </div>
               </div>
-              <span className="preview-compact-card-price">{currencySymbol} {subscriptionPrice.toLocaleString()}</span>
+              <div style={{ 
+                fontWeight: 600, 
+                fontSize: '14px',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                {currencySymbol} {subscriptionPrice.toLocaleString()}
+              </div>
             </div>
-          </div>
+          </Card>
         )}
       </div>
 
-      {/* Ready to Proceed - Compact */}
-      <div className="preview-compact-ready">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
+      {/* Ready to Proceed */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        marginTop: '20px',
+        padding: '12px',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderRadius: '10px',
+        color: '#10b981',
+        fontSize: '13px',
+        fontWeight: 500,
+      }}>
+        <CheckCircleIcon size={18} />
         <span>{t('sales.readyToProceed') || 'Ready to collect payment'}</span>
       </div>
-    </div>
+    </Screen>
   );
 }
