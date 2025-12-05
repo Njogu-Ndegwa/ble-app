@@ -84,6 +84,7 @@ export interface SwapData {
   chargeableEnergy: number;  // Energy to charge for after quota deduction (in kWh)
   cost: number;
   rate: number;
+  currencySymbol: string;  // Currency from customer subscription or station config
 }
 
 export type AttendantStep = 1 | 2 | 3 | 4 | 5 | 6;

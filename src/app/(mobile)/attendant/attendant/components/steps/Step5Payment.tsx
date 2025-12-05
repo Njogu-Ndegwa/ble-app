@@ -43,7 +43,7 @@ export default function Step5Payment({
     <div className="screen active">
       <PaymentCollection
         amount={swapData.cost}
-        currencySymbol="KES"
+        currencySymbol={swapData.currencySymbol}
         customer={customerData ? { name: customerData.name } : null}
         inputMode={inputMode}
         onInputModeChange={setInputMode}

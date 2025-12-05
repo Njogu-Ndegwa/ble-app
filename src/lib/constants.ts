@@ -179,19 +179,35 @@ export const UI = {
 // ============================================
 
 export const PAYMENT = {
-  // Supported currencies
-  currencies: ['KES', 'XOF', 'USD'] as const,
+  /**
+   * Supported currencies in the system.
+   * NOTE: The actual currency for each transaction should come from the backend
+   * (e.g., from customer subscription, station config, or service response).
+   * This list is for validation and UI purposes only.
+   */
+  currencies: ['KES', 'XOF', 'USD', 'EUR', 'GBP', 'TZS', 'UGX', 'RWF', 'NGN'] as const,
+  
+  /**
+   * Fallback currency used ONLY when backend doesn't provide one.
+   * This should rarely be used - currency should always come from backend data.
+   */
   defaultCurrency: 'KES',
   
   // Payment methods
   methods: ['mpesa', 'card', 'cash', 'bank_transfer'] as const,
   
-  // Minimum amounts by currency
+  // Minimum amounts by currency (add more as needed)
   minimumAmount: {
     KES: 10,
     XOF: 100,
     USD: 1,
-  },
+    EUR: 1,
+    GBP: 1,
+    TZS: 100,
+    UGX: 100,
+    RWF: 100,
+    NGN: 100,
+  } as Record<string, number>,
 } as const;
 
 // ============================================

@@ -137,7 +137,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
 
           <div className="cost-row" style={{ margin: 0, padding: '3px 0' }}>
             <span className="cost-label" style={{ fontSize: '12px' }}>{t('attendant.rate')}</span>
-            <span className="cost-value" style={{ fontSize: '13px' }}>KES {swapData.rate}/kWh</span>
+            <span className="cost-value" style={{ fontSize: '13px' }}>{swapData.currencySymbol} {swapData.rate}/kWh</span>
           </div>
         </div>
 
@@ -154,7 +154,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <span className="cost-total-value" style={{ fontSize: '16px' }}>
             {hasSufficientQuota 
               ? `${swapData.energyDiff.toFixed(3)} kWh` 
-              : `KES ${swapData.cost.toFixed(0)}`}
+              : `${swapData.currencySymbol} ${swapData.cost.toFixed(0)}`}
           </span>
         </div>
       </div>
