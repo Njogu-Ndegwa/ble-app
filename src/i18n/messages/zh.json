@@ -963,7 +963,7 @@
   "sales.packagePricingNote": "套餐价格比单独购买更优惠",
   "sales.totalAmount": "总金额",
   "sales.readyToProceed": "准备收款",
-  "sales.proceedToPayment": "继续支付",
+  "sales.proceedToPayment": "收款",
   "sales.connectionError": "连接错误",
   "sales.checkConnection": "请检查您的网络连接",
   "sales.incompletePayment": "支付未完成",
@@ -1028,7 +1028,7 @@
   "attendant.costBreakdown": "费用明细",
   "attendant.rate": "费率",
   "attendant.totalCost": "总费用",
-  "attendant.proceedToPayment": "继续支付",
+  "attendant.proceedToPayment": "收款",
   
   "attendant.quotaCreditAvailable": "可用配额余额",
   "attendant.noPaymentRequired": "无需支付 - 使用现有额度",

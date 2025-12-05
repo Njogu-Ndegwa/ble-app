@@ -1061,7 +1061,7 @@
   "sales.packagePricingNote": "Package pricing offers savings compared to individual items",
   "sales.totalAmount": "Total Amount",
   "sales.readyToProceed": "Ready to collect payment",
-  "sales.proceedToPayment": "Proceed to Payment",
+  "sales.proceedToPayment": "Collect Payment",
   "sales.connectionError": "Connection Error",
   "sales.checkConnection": "Please check your internet connection",
   "sales.incompletePayment": "Incomplete Payment",
@@ -1126,7 +1126,7 @@
   "attendant.costBreakdown": "Cost Breakdown",
   "attendant.rate": "Rate",
   "attendant.totalCost": "Total Cost",
-  "attendant.proceedToPayment": "Proceed to Payment",
+  "attendant.proceedToPayment": "Collect Payment",
   
   "attendant.quotaCreditAvailable": "Quota Credit Available",
   "attendant.noPaymentRequired": "No payment required - using existing credit",
