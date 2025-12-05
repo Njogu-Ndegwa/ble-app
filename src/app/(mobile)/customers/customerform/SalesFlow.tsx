@@ -1208,14 +1208,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                     parsedQr = { id: qrData };
                   }
                   const batteryId = parsedQr.battery_id || parsedQr.sno || parsedQr.serial_number || parsedQr.id || qrData;
-                  const shortId = String(batteryId).slice(-8);
+                  // Display full battery ID instead of just last characters
+                  const displayId = String(batteryId);
                   console.info('[SALES BATTERY] Step 11: Creating battery data object, ID:', batteryId);
                   
                   const connectedMac = sessionStorage.getItem('connectedDeviceMac') || pendingConnectionMacRef.current;
                   
                   const batteryData: BatteryData = {
                     id: batteryId,
-                    shortId: shortId,
+                    shortId: displayId,  // Use full battery ID for display
                     chargeLevel: energyData.chargePercent,
                     energy: energyData.energy,
                     macAddress: connectedMac || undefined,
@@ -1252,7 +1253,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                   }
                   
                   console.info('[SALES BATTERY] Step 13: SUCCESS! Battery ready for service completion');
-                  toast.success(`Battery ${shortId} scanned! Click "Complete Service" to finalize.`);
+                  toast.success(`Battery ${displayId} scanned! Click "Complete Service" to finalize.`);
                 } else {
                   console.info('[SALES BATTERY] ERROR: No pending QR data found');
                 }
@@ -2103,16 +2104,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [startQrCodeScan]);
 
   // Handle service completion - reports first battery assignment to backend via MQTT
-  // This is for promotional first battery (user already has quota from purchase)
+  // This is for first-time customer with quota (promotional first battery)
+  // Following the Attendant workflow pattern for customers with available quota
   const handleCompleteService = useCallback(async () => {
     if (!scannedBatteryPending) {
       toast.error('No battery scanned');
       return;
     }
 
-    // Get the plan_id from confirmed subscription code
-    const planId = confirmedSubscriptionCode || subscriptionData?.subscriptionCode;
-    if (!planId) {
+    // Get the subscription ID (subscription_code) - this is used as plan_id in the topic and payload
+    // This matches the Attendant workflow where dynamicPlanId is the subscription_code from QR scan
+    const subscriptionId = confirmedSubscriptionCode || subscriptionData?.subscriptionCode;
+    if (!subscriptionId) {
       toast.error('No subscription found. Please complete payment first.');
       return;
     }
@@ -2129,12 +2132,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // Calculate energy transferred in kWh (energy is stored in Wh)
     const energyTransferred = scannedBatteryPending.energy / 1000;
 
+    // Use the FULL battery ID from QR scan - not truncated
+    const fullBatteryId = scannedBatteryPending.id;
+
+    console.info('[SALES SERVICE] Building payment_and_service payload:');
+    console.info('[SALES SERVICE] - Subscription ID:', subscriptionId);
+    console.info('[SALES SERVICE] - Full Battery ID:', fullBatteryId);
+    console.info('[SALES SERVICE] - Energy (kWh):', energyTransferred);
+
     // Build the REPORT_PAYMENT_AND_SERVICE_COMPLETION payload
-    // This is for first-time customer (quota-based) - no payment_data needed
-    // The first battery is given as promotion, user already has quota
+    // This follows the Attendant workflow quota-based pattern:
+    // - No payment_data needed (customer has available quota from purchase)
+    // - Only service_data with the new battery assignment
     const paymentAndServicePayload = {
       timestamp: new Date().toISOString(),
-      plan_id: planId,
+      plan_id: subscriptionId,  // Using subscription ID as plan_id (matches Attendant flow)
       correlation_id: correlationId,
       actor: { 
         type: "attendant",  // Using attendant type as backend expects this
@@ -2144,15 +2156,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
         attendant_station: SALESPERSON_STATION,
         service_data: {
-          new_battery_id: scannedBatteryPending.id,
+          new_battery_id: fullBatteryId,  // Full battery ID from QR scan
           energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
           service_duration: 240,
         },
       },
     };
 
-    const requestTopic = `emit/uxi/attendant/plan/${planId}/payment_and_service`;
-    const responseTopic = `echo/abs/attendant/plan/${planId}/payment_and_service`;
+    // Topic uses subscription ID (same pattern as Attendant workflow)
+    const requestTopic = `emit/uxi/attendant/plan/${subscriptionId}/payment_and_service`;
+    const responseTopic = `echo/abs/attendant/plan/${subscriptionId}/payment_and_service`;
+    
+    console.info('[SALES SERVICE] Request topic:', requestTopic);
+    console.info('[SALES SERVICE] Payload:', JSON.stringify(paymentAndServicePayload, null, 2));
 
     // Store correlation ID for response matching
     (window as any).__serviceCompletionCorrelationId = correlationId;
