@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CreditCard, Battery, Zap, CheckCircle } from 'lucide-react';
+import { CreditCard, Battery, CheckCircle } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   CustomerFormData, 
@@ -49,78 +49,91 @@ export default function Step4AssignBattery({
   const energyKwh = scannedBattery ? (scannedBattery.energy / 1000) : 0;
   const batteryClass = scannedBattery ? getBatteryClass(scannedBattery.chargeLevel) : 'full';
 
-  // If battery has been scanned, show battery details and Complete Service button
+  // If battery has been scanned, show simplified battery details and Complete Service button
   if (scannedBattery) {
     return (
       <div className="screen active">
-        <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>
-          {t('sales.batteryScanned') || 'Battery Scanned'}
-        </h2>
-        <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '16px' }}>
-          {t('sales.reviewAndComplete') || 'Review and complete the service'}
-        </p>
-
-        {/* Customer Preview Card - Compact */}
-        <div className="preview-card" style={{ marginBottom: '16px' }}>
-          <div className="preview-header">
-            <div className="preview-avatar">{initials}</div>
-            <div>
-              <div className="preview-name">{customerName}</div>
-              <div className="preview-phone font-mono-oves">{formData.phone || '+254 XXX XXX XXX'}</div>
-            </div>
-            <span className="preview-badge">{selectedPlan?.name || 'No Plan'}</span>
+        {/* Success Header */}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div style={{ 
+            width: '64px', 
+            height: '64px', 
+            borderRadius: '50%', 
+            background: 'linear-gradient(135deg, #10b981, #059669)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px'
+          }}>
+            <CheckCircle size={32} color="white" />
           </div>
-          {subscriptionCode && (
-            <div className="preview-details" style={{ paddingTop: '8px' }}>
-              <div className="detail-item">
-                <div className="detail-label">
-                  <CreditCard size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                  {t('sales.subscriptionId') || 'Subscription ID'}
-                </div>
-                <div className="detail-value font-mono-oves" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
-                  {subscriptionCode}
-                </div>
-              </div>
-            </div>
-          )}
+          <h2 className="scan-title" style={{ marginBottom: '4px' }}>
+            {t('sales.batteryScanned')}
+          </h2>
+          <p className="scan-subtitle">
+            {t('sales.reviewAndComplete')}
+          </p>
         </div>
 
-        {/* Scanned Battery Card - Prominent Display */}
-        <div className="battery-scanned-card">
-          <div className="battery-scanned-header">
-            <div className="battery-scanned-icon-wrapper">
-              <Battery size={24} className={`battery-icon ${batteryClass}`} />
-              <CheckCircle size={14} className="battery-check-icon" />
-            </div>
-            <div className="battery-scanned-info">
-              <span className="battery-scanned-label">{t('sales.newBattery') || 'New Battery'}</span>
-              <span className="battery-scanned-id font-mono-oves">{scannedBattery.shortId}</span>
+        {/* Battery Info Card - Simplified */}
+        <div className="battery-scanned-card" style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <Battery size={28} className={`battery-icon ${batteryClass}`} />
+            <div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
+                {t('sales.newBattery')}
+              </div>
+              <div className="font-mono-oves" style={{ fontSize: '16px', fontWeight: 600 }}>
+                {scannedBattery.shortId}
+              </div>
             </div>
           </div>
           
-          <div className="battery-scanned-stats">
-            <div className="battery-stat">
-              <Zap size={16} className="battery-stat-icon" />
-              <div className="battery-stat-content">
-                <span className="battery-stat-value font-mono-oves">{energyKwh.toFixed(3)} kWh</span>
-                <span className="battery-stat-label">{t('sales.energyAvailable') || 'Energy Available'}</span>
+          {/* Simple stats row */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            padding: '12px', 
+            background: 'var(--color-bg-secondary)', 
+            borderRadius: '8px' 
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div className="font-mono-oves" style={{ fontSize: '18px', fontWeight: 600 }}>
+                {scannedBattery.chargeLevel}%
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {t('sales.chargeLevel')}
               </div>
             </div>
-            <div className="battery-stat">
-              <Battery size={16} className={`battery-stat-icon ${batteryClass}`} />
-              <div className="battery-stat-content">
-                <span className="battery-stat-value font-mono-oves">{scannedBattery.chargeLevel}%</span>
-                <span className="battery-stat-label">{t('sales.chargeLevel') || 'Charge Level'}</span>
+            <div style={{ textAlign: 'center' }}>
+              <div className="font-mono-oves" style={{ fontSize: '18px', fontWeight: 600 }}>
+                {energyKwh.toFixed(2)} kWh
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {t('sales.energyAvailable')}
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Battery visual charge indicator */}
-          <div className="battery-charge-bar">
-            <div 
-              className={`battery-charge-fill ${batteryClass}`}
-              style={{ width: `${scannedBattery.chargeLevel}%` }}
-            />
+        {/* Customer Summary - Compact */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          padding: '12px',
+          background: 'var(--color-bg-secondary)',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <div className="preview-avatar" style={{ width: '40px', height: '40px', fontSize: '14px' }}>
+            {initials}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 500 }}>{customerName}</div>
+            <div className="font-mono-oves" style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+              {subscriptionCode || formData.phone}
+            </div>
           </div>
         </div>
 
@@ -133,22 +146,22 @@ export default function Step4AssignBattery({
           {isCompletingService ? (
             <>
               <div className="btn-spinner"></div>
-              <span>{t('sales.completingService') || 'Completing Service...'}</span>
+              <span>{t('sales.completingService')}</span>
             </>
           ) : (
             <>
               <CheckCircle size={20} />
-              <span>{t('sales.completeService') || 'Complete Service'}</span>
+              <span>{t('sales.completeService')}</span>
             </>
           )}
         </button>
 
-        <p className="scan-hint" style={{ marginTop: '12px' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <p className="scan-hint" style={{ marginTop: '16px', fontSize: '12px' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px' }}>
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 16v-4M12 8h.01"/>
           </svg>
-          {t('sales.firstBatteryPromo') || 'First battery is provided as a promotional offer'}
+          {t('sales.firstBatteryPromo')}
         </p>
       </div>
     );
