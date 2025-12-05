@@ -404,8 +404,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       }
       try {
         const dataToPublish = { topic, qos: 0, content };
-        console.info('MQTT Publishing to:', topic);
-        console.info('MQTT Payload:', JSON.stringify(content, null, 2));
         
         window.WebViewJavascriptBridge.callHandler(
           "mqttPublishMsg",
@@ -414,12 +412,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             try {
               const r = typeof resp === "string" ? JSON.parse(resp) : resp;
               if (r?.respCode === "200" || r?.respData === true) {
-                console.info('MQTT: Published successfully to', topic);
+                // MQTT published successfully
               } else {
                 console.warn('MQTT: Publish response:', r);
               }
             } catch {
-              console.info('MQTT: Publish response received (unparsed)');
+              // MQTT publish response received
             }
           }
         );
@@ -445,7 +443,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const startQrCodeScan = useCallback(() => {
     // Prevent multiple scanner opens
     if (isScannerOpening) {
-      console.info('Scanner already opening, ignoring duplicate request');
       return;
     }
     
@@ -460,7 +457,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // This handles cases where user cancels the scanner or there's an error
     clearScannerTimeout();
     scannerTimeoutRef.current = setTimeout(() => {
-      console.info('Scanner timeout - resetting isScannerOpening');
       setIsScannerOpening(false);
     }, 60000);
     
@@ -468,7 +464,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       'startQrCodeScan',
       999,
       (responseData: string) => {
-        console.info('QR Code Scan initiated:', responseData);
+        // QR scan initiated
       }
     );
   }, [isScannerOpening, clearScannerTimeout]);
@@ -484,7 +480,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       'startBleScan',
       '',
       (responseData: string) => {
-        console.info('BLE scan started:', responseData);
+        // BLE scan started
       }
     );
     
@@ -539,7 +535,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       const fullCapacityWh = (fccp * pckv) / 1_000_000;
       const chargePercent = Math.round((rcap / fccp) * 100);
       
-      console.info('DTA Energy calculated:', { rcap, fccp, pckv, energyWh, fullCapacityWh, chargePercent });
       return { energy: energyWh, fullCapacity: fullCapacityWh, chargePercent };
     }
 
@@ -548,7 +543,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Connect to BLE device
   const connectBleDevice = useCallback((macAddress: string) => {
+    console.info('[BATTERY DEBUG] Step 4d: connectBleDevice called with MAC:', macAddress);
+    
     if (!window.WebViewJavascriptBridge) {
+      console.info('[BATTERY DEBUG] ERROR: WebViewJavascriptBridge not available!');
       toast.error('Bluetooth bridge not available');
       return;
     }
@@ -558,6 +556,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     bleRetryCountRef.current = 0;
     pendingConnectionMacRef.current = macAddress;
     
+    console.info('[BATTERY DEBUG] Step 4e: Setting isConnecting=true, showing progress modal...');
     setBleScanState(prev => ({
       ...prev,
       isConnecting: true,
@@ -567,8 +566,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       requiresBluetoothReset: false,
     }));
 
+    console.info('[BATTERY DEBUG] Step 4f: Calling connBleByMacAddress...');
     connBleByMacAddress(macAddress, (responseData: string) => {
-      console.info('BLE connection initiated:', responseData);
+      console.info('[BATTERY DEBUG] Step 4g: connBleByMacAddress callback:', responseData);
     });
   }, [clearBleOperationTimeout]);
 
@@ -583,13 +583,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     const last6 = batteryId.slice(-6).toLowerCase();
     const devices = detectedBleDevicesRef.current;
     
-    console.info('Attempting to match QR code to BLE device:', {
-      batteryId,
-      last6,
-      detectedDevices: devices.length,
-      attempt: retryAttempt + 1,
-      maxAttempts: MAX_MATCH_RETRIES + 1,
-    });
+    console.info('[BATTERY DEBUG] Step 3: handleBleDeviceMatch called');
+    console.info('[BATTERY DEBUG] Step 3a: Battery ID:', batteryId);
+    console.info('[BATTERY DEBUG] Step 3b: Last 6 chars to match:', last6);
+    console.info('[BATTERY DEBUG] Step 3c: Detected devices count:', devices.length);
+    console.info('[BATTERY DEBUG] Step 3d: Attempt:', retryAttempt + 1, 'of', MAX_MATCH_RETRIES + 1);
+    
+    if (devices.length > 0) {
+      console.info('[BATTERY DEBUG] Step 3e: Available devices:');
+      devices.forEach((d, i) => {
+        const deviceLast6 = (d.name || '').toLowerCase().slice(-6);
+        console.info(`[BATTERY DEBUG]   Device ${i + 1}: ${d.name} (last6: ${deviceLast6}) MAC: ${d.macAddress} RSSI: ${d.rssi}`);
+      });
+    } else {
+      console.info('[BATTERY DEBUG] Step 3e: NO DEVICES DETECTED YET');
+    }
 
     // Start global timeout on first attempt (when modal first appears)
     // This is a last resort safety net - if no success or error after 90 seconds,
@@ -640,23 +648,28 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // Find device where last 6 chars of name match
     const matchedDevice = devices.find(device => {
       const deviceLast6 = (device.name || '').toLowerCase().slice(-6);
-      return deviceLast6 === last6;
+      const isMatch = deviceLast6 === last6;
+      if (isMatch) {
+        console.info('[BATTERY DEBUG] Step 3f: MATCH FOUND! Device:', device.name, 'matches battery:', batteryId);
+      }
+      return isMatch;
     });
 
     if (matchedDevice) {
-      console.info('Found matching BLE device:', matchedDevice);
+      console.info('[BATTERY DEBUG] Step 4: Found matching BLE device!');
+      console.info('[BATTERY DEBUG] Step 4a: Device name:', matchedDevice.name);
+      console.info('[BATTERY DEBUG] Step 4b: MAC Address:', matchedDevice.macAddress);
+      console.info('[BATTERY DEBUG] Step 4c: Stopping BLE scan and initiating connection...');
       stopBleScan();
       bleRetryCountRef.current = 0; // Reset retry count for connection phase
       connectBleDevice(matchedDevice.macAddress);
       return true;
     } else {
-      console.warn(`No matching BLE device found (attempt ${retryAttempt + 1}). Available devices:`, 
-        devices.map(d => `${d.name} (${d.rssi})`));
-      
+      console.info('[BATTERY DEBUG] Step 3f: No matching device found yet');
       // Check if we should retry
       if (retryAttempt < MAX_MATCH_RETRIES) {
         const delay = RETRY_DELAYS[retryAttempt] || 5000;
-        console.info(`Will retry in ${delay}ms...`);
+        console.info('[BATTERY DEBUG] Step 3g: Will retry in', delay, 'ms...');
         
         // Update UI to show searching progress (silently retry without showing attempt count)
         setBleScanState(prev => ({
@@ -703,45 +716,51 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // NOTE: This function is modeled after processNewBatteryQRData in AttendantFlow.tsx
   // It handles both JSON and plain string QR codes flexibly
   const processBatteryQRData = useCallback((qrData: string) => {
-    console.info('=== Processing Battery QR for Assignment ===', qrData);
+    console.info('[BATTERY DEBUG] Step 2a: processBatteryQRData called with:', qrData);
     
     // Parse QR code - handle both JSON and plain string formats (like Attendant flow)
     let batteryData: any;
     try {
       batteryData = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+      console.info('[BATTERY DEBUG] Step 2b: Parsed QR as JSON:', JSON.stringify(batteryData));
     } catch {
       // If not valid JSON, treat the raw string as the battery ID (like Attendant flow)
       batteryData = { id: qrData };
-      console.info('QR code is not JSON, using raw string as battery ID');
+      console.info('[BATTERY DEBUG] Step 2b: QR is not JSON, using raw string as ID');
     }
 
     // Extract battery ID from QR code - check all common field names (like Attendant flow)
     // This is used to match against BLE device names (last 6 chars)
     const batteryId = batteryData.battery_id || batteryData.sno || batteryData.serial_number || batteryData.id || qrData;
+    console.info('[BATTERY DEBUG] Step 2c: Extracted battery ID:', batteryId);
+    
     if (!batteryId) {
+      console.info('[BATTERY DEBUG] ERROR: No battery ID found in QR data');
       toast.error('Invalid battery QR - no ID found');
       return;
     }
-    
-    console.info('Extracted battery ID:', batteryId);
 
     // Store pending battery info (full QR data for later energy data extraction)
     pendingBatteryQrCodeRef.current = qrData;
     // Store battery ID separately for display purposes
     pendingBatteryIdRef.current = batteryId;
     
-    // Start scan-to-bind process - match QR code to BLE device
-    console.info('Battery QR scanned, initiating scan-to-bind:', batteryId);
+    console.info('[BATTERY DEBUG] Step 2d: Stored pending battery info');
+    console.info('[BATTERY DEBUG] Step 2e: Current BLE scan state:', bleScanState.isScanning);
+    console.info('[BATTERY DEBUG] Step 2f: Detected devices count:', detectedBleDevicesRef.current.length);
     
     // If BLE scanning hasn't started yet, start it (it should already be running on step 6)
     if (!bleScanState.isScanning) {
+      console.info('[BATTERY DEBUG] Step 2g: BLE not scanning, starting scan now...');
       startBleScan();
       // Wait a moment for devices to be discovered before matching
       setTimeout(() => {
+        console.info('[BATTERY DEBUG] Step 2h: Delayed call to handleBleDeviceMatch');
         handleBleDeviceMatch(batteryId);
       }, 1000);
     } else {
       // BLE scan already running, try to match immediately
+      console.info('[BATTERY DEBUG] Step 2g: BLE already scanning, matching immediately');
       handleBleDeviceMatch(batteryId);
     }
   }, [bleScanState.isScanning, startBleScan, handleBleDeviceMatch]);
@@ -771,24 +790,25 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         });
       } catch (err) {
         // Bridge was already initialized by BridgeContext - this is expected
-        console.info('Bridge already initialized, continuing with handler registration');
       }
 
-      // QR Code result handler
+      // QR Code result handler - MUST match Attendant flow handler name
       window.WebViewJavascriptBridge.registerHandler(
-        'qrCodeResultCallBack',
+        'scanQrcodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.info('=== QR Code Result Received ===', data);
+          console.info('[BATTERY DEBUG] Step 1: QR Code Result Received from scanner');
+          console.info('[BATTERY DEBUG] Raw QR data:', data);
+          console.info('[BATTERY DEBUG] Current scanType:', scanTypeRef.current);
           
           // Reset scanner opening state and clear timeout when result is received
           clearScannerTimeout();
           setIsScannerOpening(false);
           
           if (scanTypeRef.current === 'battery') {
+            console.info('[BATTERY DEBUG] Step 2: Detected as battery scan, calling processBatteryQRData');
             processBatteryQRDataRef.current(data);
           } else if (scanTypeRef.current === 'payment') {
             // Payment QR scanned - extract payment reference and confirm
-            console.info('Payment QR scanned:', data);
             let paymentId = data;
             try {
               // Try to parse as JSON first (structured payment data)
@@ -796,7 +816,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
               paymentId = paymentData.transaction_id || paymentData.receipt || paymentData.id || data;
             } catch {
               // If not JSON, treat the entire string as payment reference
-              console.info('Using raw QR data as payment reference:', data);
             }
             // Trigger payment confirmation via ref
             if (paymentId && processPaymentQRDataRef.current) {
@@ -808,19 +827,31 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       );
 
-      // BLE Scan result handler
+      // BLE device discovery handler - MUST match Attendant flow handler name
       window.WebViewJavascriptBridge.registerHandler(
-        'bleScanCallBack',
+        'findBleDeviceCallBack',
         (data: string, responseCallback: (response: any) => void) => {
           try {
             const deviceInfo = JSON.parse(data);
             const macAddress = deviceInfo.macAddress || deviceInfo.mac;
             const rssi = deviceInfo.rssi || -100;
+            const deviceName = deviceInfo.name || 'Unknown Device';
+            
+            // Log all incoming BLE devices for debugging
+            console.info('[BATTERY DEBUG] BLE Device Found:', deviceName, 'MAC:', macAddress, 'RSSI:', rssi);
             
             if (!macAddress) {
               responseCallback({ received: true });
               return;
             }
+            
+            // Only process OVES devices (same filter as Attendant flow)
+            if (!deviceName.includes('OVES')) {
+              responseCallback({ received: true });
+              return;
+            }
+            
+            console.info('[BATTERY DEBUG] OVES device detected:', deviceName);
 
             const normalizedMac = macAddress.toUpperCase();
             const existingIndex = detectedBleDevicesRef.current.findIndex(
@@ -829,7 +860,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
             const newDevice: BleDevice = {
               macAddress: normalizedMac,
-              name: deviceInfo.name || 'Unknown Device',
+              name: deviceName,
               rssi: convertRssiToFormattedString(rssi),
               rawRssi: rssi,
             };
@@ -837,15 +868,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             if (existingIndex >= 0) {
               detectedBleDevicesRef.current[existingIndex] = newDevice;
             } else {
+              console.info('[BATTERY DEBUG] New OVES device added. Total devices:', detectedBleDevicesRef.current.length + 1);
               detectedBleDevicesRef.current.push(newDevice);
             }
+            
+            // Sort by signal strength (highest first)
+            detectedBleDevicesRef.current.sort((a, b) => b.rawRssi - a.rawRssi);
 
             setBleScanState((prev) => ({
               ...prev,
               detectedDevices: [...detectedBleDevicesRef.current],
             }));
           } catch (e) {
-            console.error('Error parsing BLE scan result:', e);
+            console.error('[BATTERY DEBUG] Error parsing BLE device data:', e);
           }
           responseCallback({ received: true });
         }
@@ -855,7 +890,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectSuccessCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.info('=== BLE Connect Success ===', data);
+          console.info('[BATTERY DEBUG] Step 5: BLE Connect Success! MAC:', data);
           
           // CRITICAL: Mark connection as successful IMMEDIATELY
           // This prevents bleConnectFailCallBack from triggering retries during data reading
@@ -887,9 +922,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           }));
 
           // Initialize BLE services to read energy (DTA service)
-          console.info('Requesting DTA service data for energy calculation...');
+          console.info('[BATTERY DEBUG] Step 6: Requesting DTA service data for energy calculation...');
           initServiceBleData((serviceResponse: string) => {
-            console.info('BLE services initialized:', serviceResponse);
+            console.info('[BATTERY DEBUG] Step 7: initServiceBleData callback received:', serviceResponse);
           });
           
           responseCallback({ received: true });
@@ -902,7 +937,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectFailCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.error('BLE connection failed:', data);
+          console.info('[BATTERY DEBUG] BLE Connect FAILED:', data);
           
           // Clear any existing timeout since we got an explicit response
           if (bleOperationTimeoutRef.current) {
@@ -913,7 +948,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // CRITICAL: If connection already succeeded and we're now reading data,
           // ignore this callback - it's likely a stale/delayed failure from an earlier attempt
           if (isConnectionSuccessfulRef.current) {
-            console.info('Connection failure callback received but connection already succeeded - ignoring');
+            console.info('[BATTERY DEBUG] Connection failure callback ignored - already succeeded');
             responseCallback({ received: true });
             return;
           }
@@ -924,7 +959,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // Check if we should auto-retry (only on explicit failure callback)
           if (bleRetryCountRef.current < MAX_BLE_RETRIES && pendingMac) {
             bleRetryCountRef.current += 1;
-            console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
+            console.info('[BATTERY DEBUG] BLE connection failed, retrying attempt', bleRetryCountRef.current, 'of', MAX_BLE_RETRIES);
             
             // Silently retry without showing retry count to user (to maintain user confidence)
             setBleScanState(prev => ({
@@ -938,12 +973,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             setTimeout(() => {
               // Double-check we haven't connected successfully in the meantime
               if (isConnectionSuccessfulRef.current) {
-                console.info('Connection succeeded during retry delay - cancelling retry from failure handler');
+                console.info('[BATTERY DEBUG] Connection succeeded during retry delay - cancelling retry');
                 return;
               }
-              connBleByMacAddress(pendingMac, () => {
-                console.info('BLE retry connection initiated');
-              });
+              console.info('[BATTERY DEBUG] Retrying BLE connection...');
+              connBleByMacAddress(pendingMac, () => {});
             }, 1000 * bleRetryCountRef.current); // Exponential backoff
             
             responseCallback({ received: true });
@@ -982,26 +1016,36 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
       );
 
-      // BLE Data callback handler
+      // BLE service data complete handler - MUST match Attendant flow handler name
       window.WebViewJavascriptBridge.registerHandler(
-        'bleDataCallBack',
+        'bleInitServiceDataOnCompleteCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.info('=== BLE Data Received ===');
+          console.info('[BATTERY DEBUG] Step 8: BLE Service Data Received!');
+          console.info('[BATTERY DEBUG] Raw service data:', data?.substring(0, 200) + '...');
           
           try {
             const serviceData = JSON.parse(data);
+            console.info('[BATTERY DEBUG] Parsed service data, serviceUUID:', serviceData.serviceUUID);
             
-            // Check if this is DTA service data
-            if (serviceData.serviceUUID && serviceData.serviceUUID.includes('ff00')) {
+            // Check if this is DTA service data (ff00 is the DTA service UUID)
+            if (serviceData.serviceUUID && serviceData.serviceUUID.toLowerCase().includes('ff00')) {
+              console.info('[BATTERY DEBUG] Step 9: DTA service data detected, extracting energy...');
               const energyData = populateEnergyFromDta(serviceData);
               
               if (energyData) {
+                console.info('[BATTERY DEBUG] Step 10: Energy extracted successfully!', energyData);
                 // Parse the stored QR data
                 const qrData = pendingBatteryQrCodeRef.current;
                 if (qrData) {
-                  const parsedQr = JSON.parse(qrData);
-                  const batteryId = parsedQr.sno || parsedQr.serial_number || parsedQr.id;
-                  const shortId = batteryId.slice(-8);
+                  let parsedQr: any;
+                  try {
+                    parsedQr = JSON.parse(qrData);
+                  } catch {
+                    parsedQr = { id: qrData };
+                  }
+                  const batteryId = parsedQr.battery_id || parsedQr.sno || parsedQr.serial_number || parsedQr.id || qrData;
+                  const shortId = String(batteryId).slice(-8);
+                  console.info('[BATTERY DEBUG] Step 11: Creating battery data object, ID:', batteryId);
                   
                   const batteryData: BatteryData = {
                     id: batteryId,
@@ -1011,9 +1055,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                     macAddress: pendingConnectionMacRef.current || undefined,
                   };
                   
+                  console.info('[BATTERY DEBUG] Step 12: Battery data created, setting as pending');
+                  
                   // Store battery as pending - DO NOT advance to success yet
                   // User must click "Complete Service" to finalize
                   setScannedBatteryPending(batteryData);
+                  
+                  // Clear global timeout since we succeeded
+                  if (bleGlobalTimeoutRef.current) {
+                    clearTimeout(bleGlobalTimeoutRef.current);
+                    bleGlobalTimeoutRef.current = null;
+                  }
                   
                   // Clear BLE state
                   setBleScanState({
@@ -1033,20 +1085,70 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                     window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingConnectionMacRef.current, () => {});
                   }
                   
+                  console.info('[BATTERY DEBUG] Step 13: SUCCESS! Battery ready for service completion');
                   toast.success(`Battery ${shortId} scanned! Click "Complete Service" to finalize.`);
+                } else {
+                  console.info('[BATTERY DEBUG] ERROR: No pending QR data found');
                 }
+              } else {
+                console.info('[BATTERY DEBUG] WARNING: Energy data extraction returned null');
               }
+            } else {
+              console.info('[BATTERY DEBUG] Service data is not DTA (ff00), ignoring');
             }
           } catch (e) {
-            console.error('Error processing BLE data:', e);
+            console.error('[BATTERY DEBUG] Error processing BLE service data:', e);
           }
           
           responseCallback({ received: true });
         }
       );
 
+      // BLE service data progress callback - shows reading progress
+      window.WebViewJavascriptBridge.registerHandler(
+        'bleInitServiceDataOnProgressCallBack',
+        (data: string, responseCallback: (response: any) => void) => {
+          try {
+            const progress = JSON.parse(data);
+            console.info('[BATTERY DEBUG] BLE Service Read Progress:', progress.progress || progress);
+          } catch {
+            console.info('[BATTERY DEBUG] BLE Service Read Progress (raw):', data);
+          }
+          responseCallback({ received: true });
+        }
+      );
+
+      // BLE service data failure callback
+      window.WebViewJavascriptBridge.registerHandler(
+        'bleInitServiceDataFailureCallBack',
+        (data: string, responseCallback: (response: any) => void) => {
+          console.info('[BATTERY DEBUG] ERROR: BLE Service Data Read FAILED:', data);
+          
+          // Clear global timeout
+          if (bleGlobalTimeoutRef.current) {
+            clearTimeout(bleGlobalTimeoutRef.current);
+            bleGlobalTimeoutRef.current = null;
+          }
+          
+          setBleScanState(prev => ({
+            ...prev,
+            isConnecting: false,
+            isReadingEnergy: false,
+            connectionProgress: 0,
+            error: 'Failed to read battery data',
+            connectionFailed: true,
+          }));
+          
+          toast.error('Failed to read battery data. Please try again.');
+          setIsScannerOpening(false);
+          scanTypeRef.current = null;
+          
+          responseCallback({ received: true });
+        }
+      );
+
+      console.info('[BATTERY DEBUG] All BLE handlers registered for Sales flow');
       setBleHandlersReady(true);
-      console.info('BLE handlers registered for Sales flow');
 
       // Setup MQTT connection for service completion reporting
       // Generate unique client ID
@@ -1060,11 +1162,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       window.WebViewJavascriptBridge.registerHandler(
         'connectMqttCallBack',
         (data: string, resp: (response: any) => void) => {
-          console.info('=== MQTT Connection Callback ===', data);
           try {
             const p = typeof data === 'string' ? JSON.parse(data) : data;
             if (p?.connected || p?.respCode === '200' || p?.success === true) {
-              console.info('MQTT connected successfully');
               setIsMqttConnected(true);
             } else {
               console.warn('MQTT connection callback received, status unclear:', p);
@@ -1083,10 +1183,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       window.WebViewJavascriptBridge.registerHandler(
         'mqttMsgArrivedCallBack',
         (data: string, resp: (response: any) => void) => {
-          console.info('=== MQTT Message Arrived ===');
           try {
             const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-            console.info('MQTT Message:', JSON.stringify(parsed, null, 2));
             
             // Check for service completion response
             const topic = parsed.topic;
@@ -1098,15 +1196,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
               const success = message?.data?.success ?? false;
               const signals = message?.data?.signals || [];
               
-              console.info('Service completion response - success:', success, 'signals:', signals);
-              
               // Check for success signals
               const hasServiceCompletedSignal = signals.includes('SERVICE_COMPLETED');
               const hasAssetSignals = signals.includes('ASSET_ALLOCATED');
               const isIdempotent = signals.includes('IDEMPOTENT_OPERATION_DETECTED');
               
               if (success && (hasServiceCompletedSignal || hasAssetSignals || isIdempotent)) {
-                console.info('✅ Service completion confirmed!');
                 // Service completion will be handled by the completeService function
               }
             }
@@ -1130,21 +1225,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         reconnectPeriod: 1000,
       };
 
-      console.info('=== Initiating MQTT Connection for Sales Flow ===');
       window.WebViewJavascriptBridge.callHandler(
         'connectMqtt',
         mqttConfig,
         (resp: string) => {
-          try {
-            const p = typeof resp === 'string' ? JSON.parse(resp) : resp;
-            if (p.respCode === '200' || p.success === true || p.respData === true) {
-              console.info('MQTT connection initiated successfully');
-            } else {
-              console.warn('MQTT connection response:', p);
+            try {
+              const p = typeof resp === 'string' ? JSON.parse(resp) : resp;
+              if (p.respCode !== '200' && p.success !== true && p.respData !== true) {
+                console.warn('MQTT connection response:', p);
+              }
+            } catch (err) {
+              console.error('Error parsing MQTT connect response:', err);
             }
-          } catch (err) {
-            console.error('Error parsing MQTT connect response:', err);
-          }
         }
       );
     };
@@ -1564,11 +1656,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         });
         
         // Store the order_id from purchase response - this is used for payment confirmation
-        console.info('=== ORDER CREATED BY PURCHASE ENDPOINT ===');
-        console.info('Order ID:', order.id);
-        console.info('Order Name:', order.name);
-        console.info('Order State:', order.state);
-        console.info('Order Amount:', order.amount_total);
         setPaymentRequestOrderId(order.id);
         
         console.log('Subscription purchased:', subscription);
@@ -1612,10 +1699,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       toast.error('Order not created properly. Please try again.');
       return false;
     }
-
-    console.info('=== SALES FLOW - INITIATING PAYMENT ===');
-    console.info('Order ID (from purchase):', orderIdToUse);
-    console.info('Subscription Code:', subCode);
 
     // Get the salesperson's employee token for authorization
     const employeeToken = getEmployeeToken();
@@ -1812,7 +1895,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Handle battery scan
   const handleScanBattery = useCallback(() => {
+    console.info('[BATTERY DEBUG] Step 0: handleScanBattery called - user clicked scan button');
+    console.info('[BATTERY DEBUG] Step 0a: Setting scanType to "battery"');
     scanTypeRef.current = 'battery';
+    console.info('[BATTERY DEBUG] Step 0b: Calling startQrCodeScan...');
     startQrCodeScan();
   }, [startQrCodeScan]);
 
@@ -1868,12 +1954,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     const requestTopic = `emit/uxi/attendant/plan/${planId}/payment_and_service`;
     const responseTopic = `echo/abs/attendant/plan/${planId}/payment_and_service`;
 
-    console.info('=== Completing Service - Publishing MQTT ===');
-    console.info('Request Topic:', requestTopic);
-    console.info('Response Topic:', responseTopic);
-    console.info('Correlation ID:', correlationId);
-    console.info('Payload:', JSON.stringify(paymentAndServicePayload, null, 2));
-
     // Store correlation ID for response matching
     (window as any).__serviceCompletionCorrelationId = correlationId;
 
@@ -1907,7 +1987,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         'mqttSubTopic',
         { topic: responseTopic, qos: 0 },
         (subscribeResponse: string) => {
-          console.info('MQTT subscribed to response topic:', subscribeResponse);
           
           // After subscribing, publish the request
           setTimeout(() => {
@@ -1977,10 +2056,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // It returns both subscriptionCode and orderId
           const purchaseResult = await purchaseCustomerSubscription();
           if (purchaseResult && purchaseResult.orderId) {
-            console.info('=== PURCHASE SUCCESSFUL ===');
-            console.info('Subscription Code:', purchaseResult.subscriptionCode);
-            console.info('Order ID:', purchaseResult.orderId);
-            
             // Initiate payment to send M-Pesa prompt
             // Pass both subscriptionCode and orderId directly to avoid React state timing issues
             const paymentInitiatedSuccess = await initiateOdooPayment(
@@ -2247,8 +2322,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       toast('Please wait while reading battery data...', { icon: '⏳' });
       return;
     }
-    
-    console.info('=== Closing/Cancelling BLE operation ===');
     
     // Clear all timeouts
     clearBleOperationTimeout();
