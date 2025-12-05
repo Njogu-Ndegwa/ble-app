@@ -189,6 +189,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Service completion states
   const [isCompletingService, setIsCompletingService] = useState(false);
   const [isMqttConnected, setIsMqttConnected] = useState(false);
+  const [serviceCompletionError, setServiceCompletionError] = useState<string | null>(null);
   
   // Registration ID
   const [registrationId, setRegistrationId] = useState<string>('');
@@ -2125,6 +2126,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     const salespersonId = employeeUser?.id?.toString() || 'salesperson-001';
     
     setIsCompletingService(true);
+    setServiceCompletionError(null); // Clear any previous error
 
     // Generate correlation ID for tracking
     const correlationId = `sales-svc-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -2168,19 +2170,27 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     const responseTopic = `echo/abs/attendant/plan/${subscriptionId}/payment_and_service`;
     
     console.info('[SALES SERVICE] Request topic:', requestTopic);
+    console.info('[SALES SERVICE] Response topic:', responseTopic);
+    console.info('[SALES SERVICE] Correlation ID:', correlationId);
     console.info('[SALES SERVICE] Payload:', JSON.stringify(paymentAndServicePayload, null, 2));
 
     // Store correlation ID for response matching
     (window as any).__serviceCompletionCorrelationId = correlationId;
 
-    // Set a timeout for service completion
+    // Track if we've already processed the response
+    let responseProcessed = false;
+
+    // Set a timeout for service completion (30 seconds)
     const timeoutId = setTimeout(() => {
-      console.warn('Service completion timeout - proceeding anyway');
-      // On timeout, still proceed to success (optimistic)
-      finalizeServiceCompletion();
+      if (responseProcessed) return;
+      responseProcessed = true;
+      console.error('[SALES SERVICE] Service completion timed out after 30 seconds');
+      toast.error('Request timed out. Please try again.');
+      setServiceCompletionError('Service completion timed out');
+      setIsCompletingService(false);
     }, 30000);
 
-    // Function to finalize the service after confirmation or timeout
+    // Function to finalize the service after successful confirmation
     const finalizeServiceCompletion = () => {
       clearTimeout(timeoutId);
       
@@ -2197,36 +2207,225 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       advanceToStep(7);
     };
 
-    // Subscribe to response topic
+    // Function to handle service completion failure
+    const handleServiceError = (errorMsg: string, actionRequired?: string) => {
+      clearTimeout(timeoutId);
+      const fullErrorMsg = actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg;
+      console.error('[SALES SERVICE] Service completion failed:', fullErrorMsg);
+      toast.error(fullErrorMsg);
+      setServiceCompletionError(fullErrorMsg);
+      setIsCompletingService(false);
+      // Don't advance to step 7 - stay on battery assignment step
+    };
+
+    // Subscribe to response topic and register handler
     if (window.WebViewJavascriptBridge) {
+      // Register handler for MQTT response BEFORE subscribing
+      window.WebViewJavascriptBridge.registerHandler(
+        'mqttMsgArrivedCallBack',
+        (data: string, responseCallback: (response: any) => void) => {
+          try {
+            const parsedMqttData = JSON.parse(data);
+            const topic = parsedMqttData.topic;
+            const rawMessageContent = parsedMqttData.message;
+
+            console.info('[SALES SERVICE] MQTT Message Arrived');
+            console.info('[SALES SERVICE] Received topic:', topic);
+            console.info('[SALES SERVICE] Expected topic:', responseTopic);
+
+            // Check if this is our response topic
+            if (topic === responseTopic) {
+              console.info('[SALES SERVICE] ✅ Topic MATCHED! Processing service completion response');
+              console.info('[SALES SERVICE] Response data:', JSON.stringify(parsedMqttData, null, 2));
+
+              let responseData: any;
+              try {
+                responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+              } catch {
+                responseData = rawMessageContent;
+              }
+
+              // Check correlation ID
+              const storedCorrelationId = (window as any).__serviceCompletionCorrelationId;
+              const responseCorrelationId = responseData?.correlation_id;
+
+              const correlationMatches =
+                Boolean(storedCorrelationId) &&
+                Boolean(responseCorrelationId) &&
+                (responseCorrelationId === storedCorrelationId ||
+                  responseCorrelationId.startsWith(storedCorrelationId) ||
+                  storedCorrelationId.startsWith(responseCorrelationId));
+
+              if (correlationMatches && !responseProcessed) {
+                responseProcessed = true;
+                
+                const success = responseData?.data?.success ?? false;
+                const signals = responseData?.data?.signals || [];
+                const metadata = responseData?.data?.metadata || {};
+
+                console.info('[SALES SERVICE] Response - success:', success, 'signals:', signals);
+
+                // Check for error signals - these indicate failure even if success is true
+                // Backend may return success:true with error signals for validation failures
+                const errorSignals = [
+                  'SERVICE_COMPLETION_FAILED',
+                  'QUOTA_EXHAUSTED',
+                  'SERVICE_REJECTED',
+                  'TOPUP_REQUIRED',
+                  'BATTERY_MISMATCH',
+                  'ASSET_VALIDATION_FAILED',
+                  'SECURITY_ALERT',
+                  'VALIDATION_FAILED',
+                  'PAYMENT_FAILED',
+                  'RATE_LIMIT_EXCEEDED'
+                ];
+                const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
+
+                // Check for success signals
+                const isIdempotent = signals.includes('IDEMPOTENT_OPERATION_DETECTED');
+                const hasServiceCompletedSignal = signals.includes('SERVICE_COMPLETED');
+                const hasAssetSignals = signals.includes('ASSET_RETURNED') || signals.includes('ASSET_ALLOCATED');
+
+                const hasSuccessSignal = success === true &&
+                  !hasErrorSignal &&
+                  Array.isArray(signals) &&
+                  (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
+
+                if (hasErrorSignal) {
+                  // Error signals present - treat as failure regardless of success flag
+                  console.error('[SALES SERVICE] Failed with error signals:', signals);
+                  const errorMsg = metadata?.reason || metadata?.message || metadata?.service_result?.reason || responseData?.data?.error || 'Service completion failed';
+                  const actionRequired = metadata?.action_required || metadata?.service_result?.action_required;
+                  
+                  // Provide specific error messages for common error types
+                  let userFriendlyError = errorMsg;
+                  if (signals.includes('QUOTA_EXHAUSTED') || signals.includes('TOPUP_REQUIRED')) {
+                    userFriendlyError = 'Customer quota exhausted. Payment required before service can proceed.';
+                  } else if (signals.includes('SERVICE_REJECTED')) {
+                    userFriendlyError = metadata?.service_result?.reason || 'Service was rejected. Please check customer quota.';
+                  }
+                  
+                  handleServiceError(userFriendlyError, actionRequired);
+                  
+                  // Clear the correlation ID
+                  (window as any).__serviceCompletionCorrelationId = null;
+                } else if (hasSuccessSignal) {
+                  console.info('[SALES SERVICE] Completed successfully!', isIdempotent ? '(idempotent)' : '');
+                  
+                  // Clear the correlation ID
+                  (window as any).__serviceCompletionCorrelationId = null;
+                  
+                  finalizeServiceCompletion();
+                } else if (success && signals.length === 0) {
+                  // Success without any signals - treat as generic success
+                  console.info('[SALES SERVICE] Completed (generic success, no signals)');
+                  
+                  // Clear the correlation ID
+                  (window as any).__serviceCompletionCorrelationId = null;
+                  
+                  finalizeServiceCompletion();
+                } else {
+                  // Response received but not successful or has unknown signals
+                  console.error('[SALES SERVICE] Failed - success:', success, 'signals:', signals);
+                  const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || 'Failed to complete service';
+                  handleServiceError(errorMsg);
+                  
+                  // Clear the correlation ID
+                  (window as any).__serviceCompletionCorrelationId = null;
+                }
+              }
+            }
+            responseCallback({});
+          } catch (err) {
+            console.error('[SALES SERVICE] Error processing MQTT response:', err);
+          }
+        }
+      );
+
+      // Subscribe to response topic
       window.WebViewJavascriptBridge.callHandler(
         'mqttSubTopic',
-        { topic: responseTopic, qos: 0 },
+        { topic: responseTopic, qos: 1 },
         (subscribeResponse: string) => {
-          
-          // After subscribing, publish the request
-          setTimeout(() => {
-            mqttPublish(requestTopic, paymentAndServicePayload);
-            
-            // For now, finalize after a short delay (optimistic approach)
-            // In production, this would wait for actual MQTT response
-            setTimeout(() => {
-              finalizeServiceCompletion();
-            }, 2000);
-          }, 100);
+          try {
+            const subResp = typeof subscribeResponse === 'string'
+              ? JSON.parse(subscribeResponse)
+              : subscribeResponse;
+
+            if (subResp?.respCode === '200') {
+              console.info('[SALES SERVICE] ✅ Successfully subscribed to response topic:', responseTopic);
+
+              // Wait a moment after subscribe before publishing
+              setTimeout(() => {
+                try {
+                  console.info('[SALES SERVICE] Publishing service completion request...');
+                  window.WebViewJavascriptBridge?.callHandler(
+                    'mqttPublishMsg',
+                    JSON.stringify({
+                      topic: requestTopic,
+                      qos: 0,
+                      content: paymentAndServicePayload,
+                    }),
+                    (publishResponse: any) => {
+                      console.info('[SALES SERVICE] Publish callback received:', publishResponse);
+                      try {
+                        const pubResp = typeof publishResponse === 'string'
+                          ? JSON.parse(publishResponse)
+                          : publishResponse;
+
+                        if (pubResp?.error || pubResp?.respCode !== '200') {
+                          console.error('[SALES SERVICE] Failed to publish:', pubResp?.respDesc || pubResp?.error);
+                          if (!responseProcessed) {
+                            responseProcessed = true;
+                            handleServiceError('Failed to send request. Please try again.');
+                          }
+                        } else {
+                          console.info('[SALES SERVICE] Request published, waiting for backend response...');
+                          // Do NOT assume success - we must wait for the actual response
+                        }
+                      } catch (err) {
+                        console.error('[SALES SERVICE] Error parsing publish response:', err);
+                        if (!responseProcessed) {
+                          responseProcessed = true;
+                          handleServiceError('Error sending request. Please try again.');
+                        }
+                      }
+                    }
+                  );
+                } catch (err) {
+                  console.error('[SALES SERVICE] Exception calling publish:', err);
+                  if (!responseProcessed) {
+                    responseProcessed = true;
+                    handleServiceError('Error sending request. Please try again.');
+                  }
+                }
+              }, 300);
+            } else {
+              console.error('[SALES SERVICE] Failed to subscribe:', subResp?.respDesc || subResp?.error);
+              if (!responseProcessed) {
+                responseProcessed = true;
+                handleServiceError('Failed to connect. Please try again.');
+              }
+            }
+          } catch (err) {
+            console.error('[SALES SERVICE] Error parsing subscribe response:', err);
+            if (!responseProcessed) {
+              responseProcessed = true;
+              handleServiceError('Error connecting. Please try again.');
+            }
+          }
         }
       );
     } else {
-      // No bridge available - finalize anyway (for testing)
-      console.warn('No bridge available - finalizing service anyway');
-      finalizeServiceCompletion();
+      // No bridge available - show error (can't complete service without MQTT)
+      console.error('[SALES SERVICE] No bridge available - cannot complete service');
+      handleServiceError('Connection not available. Please restart the app.');
     }
   }, [
     scannedBatteryPending, 
     confirmedSubscriptionCode, 
     subscriptionData, 
-    advanceToStep,
-    mqttPublish
+    advanceToStep
   ]);
 
   // Handle back navigation
@@ -2369,6 +2568,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setAssignedBattery(null);
         setScannedBatteryPending(null);
         setIsCompletingService(false);
+        setServiceCompletionError(null);
         setRegistrationId('');
         // Reset session restored flag to allow new session tracking
         setSessionRestored(true);
@@ -2513,7 +2713,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           />
         );
       case 7:
-        // Success
+        // Success - Show receipt with all purchases
         return (
           <Step7Success 
             formData={formData}
@@ -2522,6 +2722,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             registrationId={registrationId}
             paymentReference={paymentReference}
             plans={availablePlans}
+            selectedPackage={selectedPackage}
+            subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode}
+            amountPaid={paymentAmountPaid}
           />
         );
       default:
