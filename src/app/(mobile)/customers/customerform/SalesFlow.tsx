@@ -503,42 +503,88 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, []);
 
   // Extract energy from DTA service data
+  // rcap = Remaining Capacity in mAh (milliamp-hours)
+  // fccp = Full Charge Capacity in mAh
+  // pckv = Pack Voltage in mV (millivolts)
+  // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+  // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null on failure
   const populateEnergyFromDta = useCallback((serviceData: any): { energy: number; fullCapacity: number; chargePercent: number } | null => {
     if (!serviceData || !Array.isArray(serviceData.characteristicList)) {
       console.warn('Invalid DTA service data for energy calculation');
       return null;
     }
 
-    let rcap: number | null = null;
-    let fccp: number | null = null;
-    let pckv: number | null = null;
+    // Helper to get characteristic value by name - matches AttendantFlow implementation
+    const getCharValue = (name: string) => {
+      const char = serviceData.characteristicList.find(
+        (c: any) => c.name?.toLowerCase() === name.toLowerCase()
+      );
+      return char?.realVal ?? null;
+    };
 
-    for (const characteristic of serviceData.characteristicList) {
-      if (!characteristic.property_name) continue;
-      
-      const propName = characteristic.property_name.toLowerCase();
-      const value = characteristic.value;
-      
-      if (propName.includes('rcap')) {
-        rcap = typeof value === 'number' ? value : parseInt(value, 10);
-      } else if (propName.includes('fccp')) {
-        fccp = typeof value === 'number' ? value : parseInt(value, 10);
-      } else if (propName.includes('pckv')) {
-        pckv = typeof value === 'number' ? value : parseInt(value, 10);
-      }
+    const rcapRaw = getCharValue('rcap');  // Remaining Capacity in mAh
+    const fccpRaw = getCharValue('fccp');  // Full Charge Capacity in mAh
+    const pckvRaw = getCharValue('pckv');  // Pack Voltage in mV
+    const rsocRaw = getCharValue('rsoc');  // Relative State of Charge (%)
+
+    const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
+    const fccp = fccpRaw !== null ? parseFloat(fccpRaw) : NaN;
+    const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
+    const rsoc = rsocRaw !== null ? parseFloat(rsocRaw) : NaN;
+
+    if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
+      console.warn('[SALES BATTERY] Unable to parse rcap/pckv from DTA service', {
+        rcapRaw,
+        pckvRaw,
+      });
+      return null;
     }
 
-    if (rcap !== null && fccp !== null && pckv !== null && 
-        !isNaN(rcap) && !isNaN(fccp) && !isNaN(pckv) && 
-        fccp > 0 && pckv > 0) {
-      const energyWh = (rcap * pckv) / 1_000_000;
-      const fullCapacityWh = (fccp * pckv) / 1_000_000;
-      const chargePercent = Math.round((rcap / fccp) * 100);
-      
-      return { energy: energyWh, fullCapacity: fullCapacityWh, chargePercent };
+    // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
+    // Example: 15290 mAh × 75470 mV / 1,000,000 = 1,154 Wh = 1.15 kWh
+    const energy = (rcap * pckv) / 1_000_000;
+    const fullCapacity = Number.isFinite(fccp) ? (fccp * pckv) / 1_000_000 : 0;
+
+    if (!Number.isFinite(energy)) {
+      console.warn('[SALES BATTERY] Computed energy is not a finite number', {
+        rcap,
+        pckv,
+        energy,
+      });
+      return null;
     }
 
-    return null;
+    // Calculate charge percentage from rcap/fccp, fallback to rsoc if fccp unavailable
+    let chargePercent: number;
+    if (Number.isFinite(fccp) && fccp > 0) {
+      chargePercent = Math.round((rcap / fccp) * 100);
+    } else if (Number.isFinite(rsoc)) {
+      chargePercent = Math.round(rsoc);
+    } else {
+      chargePercent = 0;
+    }
+
+    // Clamp charge percent to 0-100
+    chargePercent = Math.max(0, Math.min(100, chargePercent));
+
+    console.info('[SALES BATTERY] Energy calculated from DTA service:', {
+      rcap_mAh: rcap,
+      fccp_mAh: fccp,
+      pckv_mV: pckv,
+      pckv_V: pckv / 1000,
+      rsoc_percent: rsoc,
+      computed_energy_Wh: energy,
+      computed_energy_kWh: energy / 1000,
+      computed_fullCapacity_Wh: fullCapacity,
+      computed_fullCapacity_kWh: fullCapacity / 1000,
+      computed_chargePercent: chargePercent,
+    });
+
+    return {
+      energy: Math.round(energy * 100) / 100, // Round to 2 decimal places (Wh)
+      fullCapacity: Math.round(fullCapacity * 100) / 100,
+      chargePercent,
+    };
   }, []);
 
   // Connect to BLE device
