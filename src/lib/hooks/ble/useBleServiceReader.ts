@@ -77,7 +77,6 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   const refreshRetryRef = useRef(0);
   const pendingServiceRef = useRef<string | null>(null);
   const pendingMacRef = useRef<string | null>(null);
-  const bridgeInitRef = useRef(false);
 
   // Callback refs
   const onServiceDataRef = useRef(onServiceData);
@@ -186,15 +185,19 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   // ============================================
 
   useEffect(() => {
+    let retryTimeout: NodeJS.Timeout | null = null;
+    let isCleanedUp = false;
+    
     const setupHandlers = () => {
+      if (isCleanedUp) return;
+      
       if (!window.WebViewJavascriptBridge) {
-        setTimeout(setupHandlers, 500);
+        log('Bridge not available yet, retrying in 500ms...');
+        retryTimeout = setTimeout(setupHandlers, 500);
         return;
       }
 
-      if (bridgeInitRef.current) return;
-      bridgeInitRef.current = true;
-
+      // Always register handlers - this replaces any existing handlers
       log('Setting up service reader handlers');
 
       // NOTE: bridge.init() is already called in bridgeContext.tsx
@@ -355,8 +358,13 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
     setupHandlers();
 
     return () => {
+      isCleanedUp = true;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       clearReadTimeout();
       toast.dismiss('service-refresh');
+      log('Service reader cleanup complete');
     };
   }, [clearReadTimeout, log]);
 

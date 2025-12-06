@@ -76,7 +76,6 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
 
   // Device storage ref (for immediate access without re-renders)
   const detectedDevicesRef = useRef<BleDevice[]>([]);
-  const bridgeInitRef = useRef(false);
 
   // ============================================
   // CORE OPERATIONS
@@ -162,17 +161,29 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
   // BRIDGE HANDLER SETUP
   // ============================================
 
+  // Use a ref to store the current nameFilter so the handler always has latest value
+  const nameFilterRef = useRef(nameFilter);
   useEffect(() => {
+    nameFilterRef.current = nameFilter;
+  }, [nameFilter]);
+
+  useEffect(() => {
+    let retryTimeout: NodeJS.Timeout | null = null;
+    let isCleanedUp = false;
+    
     const setupHandler = () => {
+      if (isCleanedUp) return;
+      
       if (!window.WebViewJavascriptBridge) {
-        setTimeout(setupHandler, 500);
+        log('Bridge not available yet, retrying in 500ms...');
+        retryTimeout = setTimeout(setupHandler, 500);
         return;
       }
 
-      if (bridgeInitRef.current) return;
-      bridgeInitRef.current = true;
-
-      log('Setting up BLE scanner handler');
+      // Always register the handler - this replaces any existing handler
+      // We need to re-register whenever this effect runs to capture the latest
+      // nameFilter value in the handler's closure
+      log('Setting up BLE scanner handler (nameFilter:', nameFilterRef.current, ')');
 
       // NOTE: bridge.init() is already called in bridgeContext.tsx
       // Do NOT call init() again here as it causes the app to hang
@@ -187,16 +198,31 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
             const deviceName = d.name || '';
             const rssi = Number(d.rssi) || -100;
             
+            // Log all incoming devices for debugging (only when debug is enabled)
+            if (debug) {
+              console.info('[BLE Scanner] Device callback received:', {
+                name: deviceName,
+                mac: macAddress,
+                rssi,
+                currentFilter: nameFilterRef.current,
+              });
+            }
+            
             if (!macAddress) {
+              log('Skipping device: no MAC address');
               resp({ received: true });
               return;
             }
             
-            // Apply name filter if specified
-            if (nameFilter && !deviceName.includes(nameFilter)) {
+            // Apply name filter if specified (use ref to get latest value)
+            const currentFilter = nameFilterRef.current;
+            if (currentFilter && !deviceName.includes(currentFilter)) {
+              // Device doesn't match filter - skip silently
               resp({ received: true });
               return;
             }
+            
+            log('Device matched filter:', deviceName, macAddress);
             
             const normalizedMac = macAddress.toUpperCase();
             const device: BleDevice = {
@@ -214,6 +240,7 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
             if (existingIndex >= 0) {
               detectedDevicesRef.current[existingIndex] = device;
             } else {
+              log('New device added:', deviceName, '- Total devices:', detectedDevicesRef.current.length + 1);
               detectedDevicesRef.current.push(device);
             }
             
@@ -228,19 +255,20 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
             
             resp({ success: true });
           } catch (err) {
-            log('Error parsing device data:', err);
+            log('Error parsing device data:', err, 'Raw data:', data);
             resp({ success: false });
           }
         }
       );
 
-      log('BLE scanner handler registered');
+      log('BLE scanner handler registered successfully');
       setIsReady(true);
 
       // Auto-start if requested
       if (autoStart) {
         setTimeout(() => {
-          if (window.WebViewJavascriptBridge) {
+          if (window.WebViewJavascriptBridge && !isCleanedUp) {
+            log('Auto-starting BLE scan');
             window.WebViewJavascriptBridge.callHandler('startBleScan', '', () => {});
             setScanState(prev => ({ ...prev, isScanning: true }));
           }
@@ -251,12 +279,17 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
     setupHandler();
 
     return () => {
+      isCleanedUp = true;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       // Stop scanning on cleanup
       if (window.WebViewJavascriptBridge) {
         window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
       }
+      log('BLE scanner cleanup complete');
     };
-  }, [nameFilter, autoStart, log]);
+  }, [autoStart, log, debug]);
 
   // ============================================
   // RETURN

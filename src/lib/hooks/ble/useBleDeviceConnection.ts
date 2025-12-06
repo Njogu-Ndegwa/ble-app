@@ -79,7 +79,6 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
   const retryCountRef = useRef(0);
   const isConnectedRef = useRef(false);
   const pendingMacRef = useRef<string | null>(null);
-  const bridgeInitRef = useRef(false);
 
   // Callback refs
   const onConnectedRef = useRef(onConnected);
@@ -230,15 +229,19 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
   // ============================================
 
   useEffect(() => {
+    let retryTimeout: NodeJS.Timeout | null = null;
+    let isCleanedUp = false;
+    
     const setupHandlers = () => {
+      if (isCleanedUp) return;
+      
       if (!window.WebViewJavascriptBridge) {
-        setTimeout(setupHandlers, 500);
+        log('Bridge not available yet, retrying in 500ms...');
+        retryTimeout = setTimeout(setupHandlers, 500);
         return;
       }
 
-      if (bridgeInitRef.current) return;
-      bridgeInitRef.current = true;
-
+      // Always register handlers - this replaces any existing handlers
       log('Setting up connection handlers');
 
       // NOTE: bridge.init() is already called in bridgeContext.tsx
@@ -341,7 +344,12 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     setupHandlers();
 
     return () => {
+      isCleanedUp = true;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       clearAllTimeouts();
+      log('Connection handlers cleanup complete');
     };
   }, [clearAllTimeouts, clearConnectionTimeout, clearGlobalTimeout, log]);
 
