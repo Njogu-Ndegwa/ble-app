@@ -118,6 +118,9 @@ export default function Step4AssignBattery({
         {t('sales.scanBatteryQr')}
       </p>
 
+      {/* Bluetooth Reminder Banner */}
+      <BluetoothReminderBanner />
+
       {/* Customer Preview Card */}
       <div className="preview-card">
         <div className="preview-header">
@@ -178,5 +181,35 @@ function InfoIcon() {
       <circle cx="12" cy="12" r="10"/>
       <path d="M12 16v-4M12 8h.01"/>
     </svg>
+  );
+}
+
+/**
+ * Bluetooth Reminder Banner - Shows a reminder for users to enable Bluetooth
+ */
+function BluetoothReminderBanner() {
+  return (
+    <div className="bluetooth-reminder">
+      <div className="bluetooth-reminder-icon">
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          width="20"
+          height="20"
+        >
+          <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+        </svg>
+      </div>
+      <div className="bluetooth-reminder-content">
+        <span className="bluetooth-reminder-title">Bluetooth Required</span>
+        <span className="bluetooth-reminder-text">
+          Make sure Bluetooth is turned ON in your phone settings before scanning.
+        </span>
+      </div>
+    </div>
   );
 }

@@ -167,6 +167,9 @@ export default function BatteryScanBind({
           <h1 className="scan-title">{displayTitle}</h1>
           <p className="scan-subtitle">{displaySubtitle}</p>
           
+          {/* Bluetooth Reminder Banner */}
+          <BluetoothReminder />
+          
           <ScannerArea 
             onClick={onScan} 
             type="battery" 
@@ -345,6 +348,9 @@ export function BatteryScanBindWithHook({
           <h1 className="scan-title">{displayTitle}</h1>
           <p className="scan-subtitle">{displaySubtitle}</p>
           
+          {/* Bluetooth Reminder Banner */}
+          <BluetoothReminder />
+          
           <ScannerArea 
             onClick={handleScan} 
             type="battery" 
@@ -449,7 +455,8 @@ function BleConnectionProgress({
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
-  const [showCancelButton, setShowCancelButton] = useState(false);
+  // Track if we already triggered timeout cancel to prevent multiple calls
+  const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   
   // Track elapsed time and countdown
@@ -462,7 +469,7 @@ function BleConnectionProgress({
       startTimeRef.current = Date.now();
       setElapsedTime(0);
       setCountdown(COUNTDOWN_START_SECONDS);
-      setShowCancelButton(false);
+      setHasTimedOut(false);
     }
     
     const timer = setInterval(() => {
@@ -472,20 +479,17 @@ function BleConnectionProgress({
       const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
       setCountdown(remaining);
       
-      // Auto-close after countdown reaches 0
-      if (remaining <= 0 && !showCancelButton) {
-        setShowCancelButton(true);
-        // Auto-trigger cancel after a brief moment to show the expired message
+      // When countdown reaches 0, automatically cancel - modal will close
+      if (remaining <= 0 && !hasTimedOut) {
+        setHasTimedOut(true);
         if (onCancel) {
-          setTimeout(() => {
-            onCancel();
-          }, 2000);
+          onCancel();
         }
       }
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [onCancel, showCancelButton]);
+  }, [onCancel, hasTimedOut]);
   
   // Rotate tips every 5 seconds
   useEffect(() => {
@@ -565,7 +569,7 @@ function BleConnectionProgress({
           </span>
         ) : (
           <span className="countdown-expired">
-            Taking longer than expected. Closing and retrying...
+            Connection timed out...
           </span>
         )}
       </div>
@@ -583,17 +587,6 @@ function BleConnectionProgress({
           {WAITING_TIPS[currentTipIndex]}
         </p>
       </div>
-      
-      {/* Cancel button - show after 60 seconds or if already visible */}
-      {onCancel && showCancelButton && (
-        <button 
-          className="btn btn-secondary btn-sm connection-cancel-btn" 
-          onClick={onCancel}
-          type="button"
-        >
-          {t('common.cancel') || 'Cancel & Retry'}
-        </button>
-      )}
     </div>
   );
 }
@@ -646,6 +639,43 @@ function BleErrorState({
             {t('common.close') || 'Close'}
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// BLUETOOTH REMINDER COMPONENT
+// ============================================
+
+/**
+ * Bluetooth Reminder - Shows a prominent reminder for users to enable Bluetooth
+ * 
+ * This is displayed on battery scanning steps to ensure users have Bluetooth enabled
+ * before attempting to scan and connect to batteries.
+ */
+function BluetoothReminder() {
+  return (
+    <div className="bluetooth-reminder">
+      <div className="bluetooth-reminder-icon">
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          width="20"
+          height="20"
+        >
+          <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+        </svg>
+      </div>
+      <div className="bluetooth-reminder-content">
+        <span className="bluetooth-reminder-title">Bluetooth Required</span>
+        <span className="bluetooth-reminder-text">
+          Make sure Bluetooth is turned ON in your phone settings before scanning.
+        </span>
       </div>
     </div>
   );

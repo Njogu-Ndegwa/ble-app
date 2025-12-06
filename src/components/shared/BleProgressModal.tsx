@@ -35,13 +35,17 @@ export function BleProgressModal({
   // Countdown timer state
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   const [showCancelButton, setShowCancelButton] = useState(false);
+  // Track if we already triggered timeout cancel to prevent multiple calls
+  const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   // Track if we've ever been active in this session to prevent reset during stage transitions
   const wasActiveRef = useRef(false);
   
   // Determine if modal should be visible
-  const isModalVisible = bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed;
+  // Only show when actively connecting/reading - NOT when connectionFailed (to prevent reopening)
   const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
+  // Show modal when active OR when connection failed (but not after our timeout triggered the cancel)
+  const isModalVisible = isActive || (bleScanState.connectionFailed && !hasTimedOut);
   
   // Reset timer state when modal becomes hidden (not just when isActive changes)
   // This prevents timer reset during transitions between Connect → Read stages
@@ -52,6 +56,7 @@ export function BleProgressModal({
       wasActiveRef.current = false;
       setCountdown(COUNTDOWN_START_SECONDS);
       setShowCancelButton(false);
+      setHasTimedOut(false);
     }
   }, [isModalVisible]);
   
@@ -65,6 +70,7 @@ export function BleProgressModal({
         wasActiveRef.current = true;
         setCountdown(COUNTDOWN_START_SECONDS);
         setShowCancelButton(false);
+        setHasTimedOut(false);
       }
       
       const timer = setInterval(() => {
@@ -72,13 +78,12 @@ export function BleProgressModal({
         const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
         setCountdown(remaining);
         
-        // Auto-close modal after countdown reaches 0
-        if (remaining <= 0 && !showCancelButton) {
-          setShowCancelButton(true);
-          // Auto-trigger cancel after a brief moment to show the expired message
-          setTimeout(() => {
-            onCancel();
-          }, 2000);
+        // When countdown reaches 0, automatically close the modal
+        // Mark as timed out so we don't reopen when hook sets connectionFailed
+        if (remaining <= 0 && !hasTimedOut) {
+          setHasTimedOut(true);
+          // Cancel immediately - modal will close
+          onCancel();
         }
       }, 1000);
       
@@ -87,10 +92,10 @@ export function BleProgressModal({
     // Note: We intentionally don't reset startTimeRef when isActive becomes false
     // because we might just be transitioning between stages (Connect → Read).
     // The reset only happens when the modal fully closes (isModalVisible becomes false).
-  }, [isActive, bleScanState.connectionFailed, showCancelButton, onCancel]);
+  }, [isActive, bleScanState.connectionFailed, hasTimedOut, onCancel]);
   
-  // Don't render if not in an active BLE operation state
-  if (!bleScanState.isConnecting && !bleScanState.isReadingEnergy && !bleScanState.connectionFailed) {
+  // Don't render if not visible
+  if (!isModalVisible) {
     return null;
   }
 
@@ -226,7 +231,7 @@ export function BleProgressModal({
                 </span>
               ) : (
                 <span className="ble-countdown-expired">
-                  Taking longer than expected. Closing and retrying...
+                  Connection timed out...
                 </span>
               )}
             </div>
@@ -255,8 +260,8 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Cancel/Close Button - Shown when connection failed OR after 60 second timeout */}
-          {(bleScanState.connectionFailed || showCancelButton) && (
+          {/* Cancel/Close Button - Shown when connection failed */}
+          {bleScanState.connectionFailed && (
             <button
               onClick={onCancel}
               className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
