@@ -36,15 +36,33 @@ export function BleProgressModal({
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   const [showCancelButton, setShowCancelButton] = useState(false);
   const startTimeRef = useRef<number | null>(null);
+  // Track if we've ever been active in this session to prevent reset during stage transitions
+  const wasActiveRef = useRef(false);
   
-  // Start countdown when modal becomes active
+  // Determine if modal should be visible
+  const isModalVisible = bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed;
+  const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
+  
+  // Reset timer state when modal becomes hidden (not just when isActive changes)
+  // This prevents timer reset during transitions between Connect → Read stages
   useEffect(() => {
-    const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
-    
+    if (!isModalVisible) {
+      // Modal is fully closed, reset everything for the next session
+      startTimeRef.current = null;
+      wasActiveRef.current = false;
+      setCountdown(COUNTDOWN_START_SECONDS);
+      setShowCancelButton(false);
+    }
+  }, [isModalVisible]);
+  
+  // Start/continue countdown when modal is active
+  useEffect(() => {
     if (isActive && !bleScanState.connectionFailed) {
-      // Reset countdown when starting a new connection
+      // Start countdown only when first becoming active in this session
+      // The 60s countdown covers ALL stages (Scan → Connect → Read) without resetting
       if (startTimeRef.current === null) {
         startTimeRef.current = Date.now();
+        wasActiveRef.current = true;
         setCountdown(COUNTDOWN_START_SECONDS);
         setShowCancelButton(false);
       }
@@ -65,13 +83,11 @@ export function BleProgressModal({
       }, 1000);
       
       return () => clearInterval(timer);
-    } else if (!isActive) {
-      // Reset when modal closes
-      startTimeRef.current = null;
-      setCountdown(COUNTDOWN_START_SECONDS);
-      setShowCancelButton(false);
     }
-  }, [bleScanState.isConnecting, bleScanState.isReadingEnergy, bleScanState.connectionFailed, showCancelButton, onCancel]);
+    // Note: We intentionally don't reset startTimeRef when isActive becomes false
+    // because we might just be transitioning between stages (Connect → Read).
+    // The reset only happens when the modal fully closes (isModalVisible becomes false).
+  }, [isActive, bleScanState.connectionFailed, showCancelButton, onCancel]);
   
   // Don't render if not in an active BLE operation state
   if (!bleScanState.isConnecting && !bleScanState.isReadingEnergy && !bleScanState.connectionFailed) {
