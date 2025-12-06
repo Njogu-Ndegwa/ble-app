@@ -34,6 +34,9 @@ import {
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 
+// Import modular BLE hook for battery scanning (available for future migration)
+import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
+
 // Import Odoo API functions for payment
 import {
   initiatePayment,

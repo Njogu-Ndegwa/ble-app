@@ -120,14 +120,21 @@ export {
 } from './energyUtils';
 
 // ============================================
-// HIGH-LEVEL COMPOSED HOOK
+// HIGH-LEVEL COMPOSED HOOKS
 // ============================================
 
-// Complete battery scan-to-bind workflow
+// Complete battery scan-to-bind workflow (generic)
 export {
   useBatteryScanAndBind,
   type UseBatteryScanAndBindOptions,
 } from './useBatteryScanAndBind';
+
+// Flow-specific battery scanning (for AttendantFlow/SalesFlow)
+export {
+  useFlowBatteryScan,
+  type UseFlowBatteryScanOptions,
+  type FlowBleScanState,
+} from './useFlowBatteryScan';
 
 // Default export for convenience
 export { useBatteryScanAndBind as default } from './useBatteryScanAndBind';
