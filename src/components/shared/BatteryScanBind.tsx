@@ -487,6 +487,13 @@ function BleConnectionProgress({
     return () => clearInterval(timer);
   }, [onCancel, showCancelButton]);
   
+  // Reset timer ref on unmount so next connection attempt starts fresh
+  useEffect(() => {
+    return () => {
+      startTimeRef.current = null;
+    };
+  }, []);
+  
   // Rotate tips every 5 seconds
   useEffect(() => {
     const tipTimer = setInterval(() => {
