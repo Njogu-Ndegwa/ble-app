@@ -36,12 +36,9 @@ export function BleProgressModal({
 }: BleProgressModalProps) {
   // Countdown timer state
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
-  const [showCancelButton, setShowCancelButton] = useState(false);
   // Track if we already triggered timeout cancel to prevent multiple calls
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
-  // Track if we've ever been active in this session to prevent reset during stage transitions
-  const wasActiveRef = useRef(false);
   
   // Determine if modal should be visible
   // ONLY show when actively connecting/reading - nothing else
@@ -53,9 +50,7 @@ export function BleProgressModal({
   useEffect(() => {
     if (!isModalVisible) {
       startTimeRef.current = null;
-      wasActiveRef.current = false;
       setCountdown(COUNTDOWN_START_SECONDS);
-      setShowCancelButton(false);
       setHasTimedOut(false);
     }
   }, [isModalVisible]);
@@ -67,9 +62,7 @@ export function BleProgressModal({
       // The 60s countdown covers ALL stages (Scan → Connect → Read) without resetting
       if (startTimeRef.current === null) {
         startTimeRef.current = Date.now();
-        wasActiveRef.current = true;
         setCountdown(COUNTDOWN_START_SECONDS);
-        setShowCancelButton(false);
         setHasTimedOut(false);
       }
       
@@ -78,12 +71,10 @@ export function BleProgressModal({
         const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
         setCountdown(remaining);
         
-        // When countdown reaches 0, automatically close the modal
-        // Mark as timed out so we don't reopen when hook sets connectionFailed
+        // When countdown reaches 0, automatically cancel and close the modal
         if (remaining <= 0 && !hasTimedOut) {
           setHasTimedOut(true);
-          // Cancel immediately - modal will close
-          onCancel();
+          onCancel(); // This triggers cleanup: stops scanning, cancels connection, resets state
         }
       }, 1000);
       
