@@ -450,17 +450,23 @@ function BleConnectionProgress({
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   const [showCancelButton, setShowCancelButton] = useState(false);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number | null>(null);
   
   // Track elapsed time and countdown
+  // IMPORTANT: Only initialize the timer once when component mounts.
+  // The 60s countdown is a contract with the customer - we don't reset it
+  // when transitioning between phases (e.g., connecting -> reading).
   useEffect(() => {
-    startTimeRef.current = Date.now();
-    setElapsedTime(0);
-    setCountdown(COUNTDOWN_START_SECONDS);
-    setShowCancelButton(false);
+    // Only set start time once when timer hasn't been initialized
+    if (startTimeRef.current === null) {
+      startTimeRef.current = Date.now();
+      setElapsedTime(0);
+      setCountdown(COUNTDOWN_START_SECONDS);
+      setShowCancelButton(false);
+    }
     
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const elapsed = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
       setElapsedTime(elapsed);
       
       const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
