@@ -31,6 +31,12 @@ export { default as BatteryScanBind, BatteryScanBindWithHook } from './BatterySc
 export type { BatteryScanMode } from './BatteryScanBind';
 
 // ============================================
+// BLE PROGRESS UI COMPONENTS
+// ============================================
+export { default as BleProgressModal, BleProgressModal as BleConnectionProgressModal } from './BleProgressModal';
+export type { BleProgressModalProps } from './BleProgressModal';
+
+// ============================================
 // PAYMENT COMPONENTS
 // ============================================
 export { default as PaymentCollection } from './PaymentCollection';
