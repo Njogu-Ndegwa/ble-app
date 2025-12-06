@@ -515,14 +515,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       }
       bridgeInitRef.current = true;
 
-      // Wrap init in try-catch to handle case where BridgeContext already called init()
-      try {
-        window.WebViewJavascriptBridge.init((message: any, responseCallback: (response: any) => void) => {
-          responseCallback({ success: true });
-        });
-      } catch (err) {
-        // Bridge was already initialized by BridgeContext - this is expected
-      }
+      // NOTE: bridge.init() is already called in bridgeContext.tsx
+      // Do NOT call init() again here as it causes the app to hang
 
       // QR Code result handler - MUST match Attendant flow handler name
       // The scanner returns JSON with respData.value containing the actual QR code text

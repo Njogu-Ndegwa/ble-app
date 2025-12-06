@@ -241,12 +241,8 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
 
       log('Setting up connection handlers');
 
-      // Try to init bridge
-      try {
-        window.WebViewJavascriptBridge.init((_m, r) => r('js success!'));
-      } catch {
-        // Already initialized
-      }
+      // NOTE: bridge.init() is already called in bridgeContext.tsx
+      // Do NOT call init() again here as it causes the app to hang
 
       // Connection success handler
       window.WebViewJavascriptBridge.registerHandler(

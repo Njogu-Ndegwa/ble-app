@@ -230,8 +230,6 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     setCalculatedPaymentAmount(calculatePaymentAmount);
   }, [calculatePaymentAmount]);
 
-  
-  const bridgeInitRef = useRef(false);
   const scanTypeRef = useRef<
     "customer" | "equipment" | "checkin" | "checkout" | "payment" | null
   >(null);
@@ -1320,14 +1318,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         return () => b.registerHandler(name, noop);
       };
 
-      if (!bridgeInitRef.current) {
-        bridgeInitRef.current = true;
-        try {
-          b.init((_m, r) => r("js success!"));
-        } catch (err) {
-          console.error("Bridge init error", err);
-        }
-      }
+      // NOTE: bridge.init() is already called in bridgeContext.tsx
+      // Do NOT call init() again here as it causes the app to hang
 
       // MQTT message callback for echo/# responses
       const offMqttRecv = reg(
