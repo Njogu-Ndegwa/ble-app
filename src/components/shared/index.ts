@@ -27,7 +27,7 @@ export { default as InputModeToggle } from './InputModeToggle';
 export { default as BatteryCard, BatterySwapVisual } from './BatteryCard';
 export type { BatteryCardVariant } from './BatteryCard';
 
-export { default as BatteryScanBind } from './BatteryScanBind';
+export { default as BatteryScanBind, BatteryScanBindWithHook } from './BatteryScanBind';
 export type { BatteryScanMode } from './BatteryScanBind';
 
 // ============================================
@@ -67,3 +67,11 @@ export type { ActionConfig, ActionIcon } from './FlowActionBar';
 // HOOKS
 // ============================================
 export { default as useBleScanner, useBleScanner as useBleScannerHook } from './hooks/useBleScanner';
+
+// Re-export the new unified BLE connection hook
+export { 
+  useBleConnection,
+  type BatteryData as BleConnectionBatteryData,
+  type BleDevice as BleConnectionDevice,
+  type BleScanState as BleConnectionState,
+} from '@/lib/hooks/useBleConnection';
