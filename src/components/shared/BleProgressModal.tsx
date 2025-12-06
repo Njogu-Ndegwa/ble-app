@@ -18,12 +18,14 @@ export interface BleProgressModalProps {
 /**
  * BLE Connection Progress Modal
  * 
- * Shows a modal overlay with:
+ * Shows a modal overlay during Bluetooth connection with:
  * - Connection progress bar and percentage
  * - Step indicators (Scan → Connect → Read)
  * - Status messages for each phase
- * - Bluetooth reset instructions when needed
- * - Cancel button when connection fails
+ * - 60 second countdown timer
+ * 
+ * The modal automatically closes after 60 seconds or when connection completes.
+ * No secondary "retry" modals - it just closes cleanly.
  * 
  * Used by both AttendantFlow and SalesFlow for battery scanning operations.
  */
@@ -42,27 +44,19 @@ export function BleProgressModal({
   const wasActiveRef = useRef(false);
   
   // Determine if modal should be visible
-  // Only show when actively connecting/reading - NOT when connectionFailed (to prevent reopening)
+  // ONLY show when actively connecting/reading - nothing else
+  // When connection ends (success, failure, timeout), modal just closes. No second modal ever.
   const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
-  // Show modal when active OR when connection failed (but not after our timeout triggered the cancel)
-  const isModalVisible = isActive || (bleScanState.connectionFailed && !hasTimedOut);
+  const isModalVisible = isActive;
   
-  // Reset timer state when modal becomes hidden (not just when isActive changes)
-  // This prevents timer reset during transitions between Connect → Read stages
+  // Reset all state when modal closes
   useEffect(() => {
     if (!isModalVisible) {
-      // Modal is fully closed, reset state for the next session
-      // NOTE: We do NOT reset hasTimedOut here! This is critical.
-      // If we reset hasTimedOut to false when the modal closes, and then
-      // connectionFailed becomes true (from a delayed BLE state update),
-      // the modal would reopen with "Cancel & Retry" even though we already
-      // auto-closed due to timeout. hasTimedOut is only reset when a new
-      // connection attempt genuinely starts (in the isActive effect below).
       startTimeRef.current = null;
       wasActiveRef.current = false;
       setCountdown(COUNTDOWN_START_SECONDS);
       setShowCancelButton(false);
-      // DO NOT reset hasTimedOut here - see note above
+      setHasTimedOut(false);
     }
   }, [isModalVisible]);
   
@@ -133,13 +127,6 @@ export function BleProgressModal({
   const getHelpText = () => {
     if (bleScanState.requiresBluetoothReset) {
       return 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.';
-    }
-    if (bleScanState.connectionFailed) {
-      // Check if error indicates device might already be connected
-      if (bleScanState.error?.includes('already connected')) {
-        return 'The device may already be connected to another phone or app. Turn your Bluetooth off and on, then try again.';
-      }
-      return 'Connection failed. Please ensure the battery is powered on and nearby, then try again.';
     }
     return 'Please wait while connecting. Make sure the battery is powered on and within 2 meters.';
   };
@@ -266,20 +253,6 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Cancel/Close Button - Shown when connection failed */}
-          {bleScanState.connectionFailed && (
-            <button
-              onClick={onCancel}
-              className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
-              title="Close and try again"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-              {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Cancel & Retry'}
-            </button>
-          )}
-          
           {/* Help Text */}
           <p className="ble-progress-help">
             {getHelpText()}
