@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useI18n } from '@/i18n';
-import ScannerArea from '../ScannerArea';
+import { ScannerArea } from '@/components/shared';
 
 interface Step1Props {
   inputMode: 'scan' | 'manual';

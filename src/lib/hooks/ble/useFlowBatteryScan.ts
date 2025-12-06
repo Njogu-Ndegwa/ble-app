@@ -250,12 +250,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         }
         
         // Notify appropriate callback based on scan type
+        // NOTE: Toast notifications are handled by the caller (AttendantFlow/SalesFlow)
+        // to avoid duplicate notifications
         if (pendingScanType === 'old_battery') {
           onOldBatteryReadRef.current?.(battery);
-          toast.success(`Old battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
         } else if (pendingScanType === 'new_battery') {
           onNewBatteryReadRef.current?.(battery);
-          toast.success(`New battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
         }
         
         // Clear pending state
