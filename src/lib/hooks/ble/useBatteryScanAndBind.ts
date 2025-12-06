@@ -93,12 +93,40 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   }, [debug]);
 
   // ============================================
-  // COMPOSED HOOKS
+  // COMPOSED HOOKS - Destructure stable functions/values to avoid infinite loops
+  // IMPORTANT: Do NOT put scanner/connection/serviceReader objects in dependency arrays!
+  // These are new object references on every render. Instead, use destructured functions.
   // ============================================
 
-  const scanner = useBleDeviceScanner({ debug, autoStart: autoStartScan });
-  const connection = useBleDeviceConnection({ debug });
-  const serviceReader = useBleServiceReader({ debug });
+  const {
+    scanState: scannerScanState,
+    isReady: scannerIsReady,
+    startScan: scannerStartScan,
+    stopScan: scannerStopScan,
+    clearDevices: scannerClearDevices,
+    findDeviceByNameSuffix: scannerFindDeviceByNameSuffix,
+    getDevices: scannerGetDevices,
+  } = useBleDeviceScanner({ debug, autoStart: autoStartScan });
+
+  const {
+    connectionState,
+    isReady: connectionIsReady,
+    isConnected,
+    connectedDevice,
+    connect: connectionConnect,
+    disconnect: connectionDisconnect,
+    cancelConnection,
+    resetState: connectionResetState,
+  } = useBleDeviceConnection({ debug });
+
+  const {
+    serviceState,
+    isReady: serviceReaderIsReady,
+    lastServiceData,
+    readDtaService,
+    cancelRead: serviceReaderCancelRead,
+    resetState: serviceReaderResetState,
+  } = useBleServiceReader({ debug });
 
   // ============================================
   // STATE
@@ -147,24 +175,24 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   useEffect(() => {
     setState(prev => ({
       ...prev,
-      isScanning: scanner.scanState.isScanning,
-      detectedDevices: scanner.scanState.detectedDevices,
-      isConnecting: connection.connectionState.isConnecting,
-      isConnected: connection.connectionState.isConnected,
-      connectedDevice: connection.connectionState.connectedDevice,
-      connectionProgress: connection.connectionState.connectionProgress,
-      connectionFailed: connection.connectionState.connectionFailed,
-      requiresBluetoothReset: connection.connectionState.requiresBluetoothReset,
-      isReadingService: serviceReader.serviceState.isReading,
-      error: scanner.scanState.error || 
-             connection.connectionState.error || 
-             serviceReader.serviceState.error || 
+      isScanning: scannerScanState.isScanning,
+      detectedDevices: scannerScanState.detectedDevices,
+      isConnecting: connectionState.isConnecting,
+      isConnected: connectionState.isConnected,
+      connectedDevice: connectionState.connectedDevice,
+      connectionProgress: connectionState.connectionProgress,
+      connectionFailed: connectionState.connectionFailed,
+      requiresBluetoothReset: connectionState.requiresBluetoothReset,
+      isReadingService: serviceState.isReading,
+      error: scannerScanState.error || 
+             connectionState.error || 
+             serviceState.error || 
              null,
     }));
   }, [
-    scanner.scanState,
-    connection.connectionState,
-    serviceReader.serviceState,
+    scannerScanState,
+    connectionState,
+    serviceState,
   ]);
 
   // ============================================
@@ -174,40 +202,40 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   // When connected, automatically read DTA service
   useEffect(() => {
     if (
-      connection.isConnected &&
-      connection.connectedDevice &&
+      isConnected &&
+      connectedDevice &&
       pendingBatteryId &&
       !isReadingEnergyRef.current
     ) {
       log('Connected! Starting DTA service read');
       isReadingEnergyRef.current = true;
-      serviceReader.readDtaService(connection.connectedDevice);
+      readDtaService(connectedDevice);
     }
   }, [
-    connection.isConnected,
-    connection.connectedDevice,
+    isConnected,
+    connectedDevice,
     pendingBatteryId,
-    serviceReader,
+    readDtaService,
     log,
   ]);
 
   // Handle service data received
   useEffect(() => {
     if (
-      serviceReader.lastServiceData &&
+      lastServiceData &&
       pendingBatteryId &&
       pendingScanType &&
       isReadingEnergyRef.current
     ) {
       log('Service data received, extracting energy');
       
-      const energyData = extractEnergyFromDta(serviceReader.lastServiceData);
+      const energyData = extractEnergyFromDta(lastServiceData);
       
       if (energyData) {
         const battery = createBatteryData(
           pendingBatteryId,
           energyData,
-          connection.connectedDevice || undefined
+          connectedDevice || undefined
         );
         
         log('Battery data extracted:', battery);
@@ -230,7 +258,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         isReadingEnergyRef.current = false;
       }
     }
-  }, [serviceReader.lastServiceData, pendingBatteryId, pendingScanType, connection.connectedDevice, log]);
+  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, log]);
 
   // ============================================
   // MAIN FUNCTION: SCAN AND BIND
@@ -262,9 +290,9 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     isReadingEnergyRef.current = false;
     
     // Start scanning if not already
-    if (!scanner.scanState.isScanning) {
+    if (!scannerScanState.isScanning) {
       log('Starting BLE scan');
-      scanner.startScan();
+      scannerStartScan();
     }
     
     // Clear any previous match timers
@@ -274,18 +302,18 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     const matchDevice = () => {
       const targetSuffix = batteryId.slice(-MATCH_CHARS).toLowerCase();
       log('Looking for device with suffix:', targetSuffix);
-      log('Available devices:', scanner.getDevices().map(d => d.name));
+      log('Available devices:', scannerGetDevices().map(d => d.name));
       
       // Find matching device
-      const matched = scanner.findDeviceByNameSuffix(batteryId, MATCH_CHARS);
+      const matched = scannerFindDeviceByNameSuffix(batteryId, MATCH_CHARS);
       
       if (matched) {
         log('Found matching device:', matched);
         clearMatchTimers();
-        scanner.stopScan();
+        scannerStopScan();
         
         // Connect to matched device
-        connection.connect(matched.macAddress);
+        connectionConnect(matched.macAddress);
         return true;
       }
       
@@ -305,7 +333,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     // Set timeout for device matching
     matchTimeoutRef.current = setTimeout(() => {
       clearMatchTimers();
-      scanner.stopScan();
+      scannerStopScan();
       
       log('Device matching timed out');
       
@@ -324,7 +352,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     }, DEVICE_MATCH_TIMEOUT);
     
     return true;
-  }, [scanner, connection, clearMatchTimers, log]);
+  }, [scannerScanState.isScanning, scannerStartScan, scannerStopScan, scannerGetDevices, scannerFindDeviceByNameSuffix, connectionConnect, clearMatchTimers, log]);
 
   // ============================================
   // CANCEL / RESET
@@ -337,14 +365,14 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     log('Cancelling operation');
     
     clearMatchTimers();
-    scanner.stopScan();
-    connection.cancelConnection();
-    serviceReader.cancelRead();
+    scannerStopScan();
+    cancelConnection();
+    serviceReaderCancelRead();
     
     setPendingBatteryId(null);
     setPendingScanType(null);
     isReadingEnergyRef.current = false;
-  }, [clearMatchTimers, scanner, connection, serviceReader, log]);
+  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, log]);
 
   /**
    * Reset all state
@@ -353,16 +381,16 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     log('Resetting state');
     
     clearMatchTimers();
-    scanner.clearDevices();
-    connection.resetState();
-    serviceReader.resetState();
+    scannerClearDevices();
+    connectionResetState();
+    serviceReaderResetState();
     
     setPendingBatteryId(null);
     setPendingScanType(null);
     isReadingEnergyRef.current = false;
     
     setState(INITIAL_STATE);
-  }, [clearMatchTimers, scanner, connection, serviceReader, log]);
+  }, [clearMatchTimers, scannerClearDevices, connectionResetState, serviceReaderResetState, log]);
 
   // ============================================
   // CLEANUP
@@ -384,7 +412,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     /** Pending battery ID */
     pendingBatteryId,
     /** Whether the hook is ready */
-    isReady: scanner.isReady && connection.isReady && serviceReader.isReady,
+    isReady: scannerIsReady && connectionIsReady && serviceReaderIsReady,
     /** Start scan-to-bind process */
     scanAndBind,
     /** Cancel ongoing operation */
@@ -392,15 +420,15 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     /** Reset all state */
     reset,
     /** Start BLE scanning (without binding) */
-    startScan: scanner.startScan,
+    startScan: scannerStartScan,
     /** Stop BLE scanning */
-    stopScan: scanner.stopScan,
+    stopScan: scannerStopScan,
     /** Get detected devices */
-    getDevices: scanner.getDevices,
+    getDevices: scannerGetDevices,
     /** Find device by name suffix */
-    findDevice: scanner.findDeviceByNameSuffix,
+    findDevice: scannerFindDeviceByNameSuffix,
     /** Disconnect from device */
-    disconnect: connection.disconnect,
+    disconnect: connectionDisconnect,
   };
 }
 
