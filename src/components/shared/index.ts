@@ -68,10 +68,26 @@ export type { ActionConfig, ActionIcon } from './FlowActionBar';
 // ============================================
 export { default as useBleScanner, useBleScanner as useBleScannerHook } from './hooks/useBleScanner';
 
-// Re-export the new unified BLE connection hook
+// Re-export modular BLE hooks from lib/hooks/ble
 export { 
-  useBleConnection,
-  type BatteryData as BleConnectionBatteryData,
-  type BleDevice as BleConnectionDevice,
-  type BleScanState as BleConnectionState,
-} from '@/lib/hooks/useBleConnection';
+  // Low-level hooks
+  useBleDeviceScanner,
+  useBleDeviceConnection,
+  useBleServiceReader,
+  // High-level composed hook
+  useBatteryScanAndBind,
+  // Types
+  type BatteryData,
+  type BleDevice,
+  type BleScanState,
+  type BleFullState,
+  type EnergyData,
+  // Utilities
+  extractEnergyFromDta,
+  calculateEnergyDiff,
+  calculateSwapCost,
+  parseBatteryIdFromQr,
+} from '@/lib/hooks/ble';
+
+// Legacy alias for backwards compatibility
+export { useBleConnection } from '@/lib/hooks/useBleConnection';

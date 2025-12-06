@@ -3,7 +3,14 @@
 import React, { useEffect, useCallback } from 'react';
 import { useI18n } from '@/i18n';
 import ScannerArea from './ScannerArea';
-import { useBleConnection, type BatteryData, type BleScanState } from '@/lib/hooks/useBleConnection';
+import { 
+  useBatteryScanAndBind, 
+  type BatteryData, 
+  type BleFullState,
+} from '@/lib/hooks/ble';
+
+// Legacy type alias for backwards compatibility
+export type BleScanState = BleFullState;
 
 export type BatteryScanMode = 'return' | 'issue' | 'assign';
 
@@ -15,7 +22,7 @@ interface BatteryScanBindProps {
   /** Whether scanner is currently opening */
   isScannerOpening?: boolean;
   /** BLE scan state - if provided, component is in "controlled" mode */
-  bleScanState?: BleScanState;
+  bleScanState?: BleFullState;
   /** Scanned battery data (when successfully connected) */
   scannedBattery?: BatteryData | null;
   /** For first-time customer handling in return mode */
@@ -127,7 +134,7 @@ export default function BatteryScanBind({
   const displayHint = t(hintKey) || FALLBACK_HINTS[mode];
 
   // Check if we're in an active BLE operation
-  const isConnecting = bleScanState?.isConnecting || bleScanState?.isReadingEnergy;
+  const isConnecting = bleScanState?.isConnecting || bleScanState?.isReadingService;
   const hasError = bleScanState?.error || bleScanState?.connectionFailed;
 
   return (
@@ -210,7 +217,7 @@ interface BatteryScanBindWithHookProps {
 /**
  * BatteryScanBindWithHook - Self-contained version with built-in BLE handling
  * 
- * This version includes the useBleConnection hook internally,
+ * This version uses the modular useBatteryScanAndBind hook internally,
  * making it completely self-contained for BLE operations.
  * 
  * @example
@@ -236,35 +243,26 @@ export function BatteryScanBindWithHook({
 }: BatteryScanBindWithHookProps) {
   const { t } = useI18n();
   
-  // Use the BLE connection hook
+  // Use the modular battery scan-and-bind hook
   const {
-    bleScanState,
+    state,
     isReady,
+    scanAndBind,
+    cancel,
+    reset,
     startScan,
     stopScan,
-    scanAndBindBattery,
-    cancelOperation,
-    resetState,
-  } = useBleConnection({
+  } = useBatteryScanAndBind({
     onBatteryRead: (battery, type) => {
       if (type === scanType) {
         onBatteryRead(battery);
       }
     },
-    onError: (error, requiresReset) => {
+    onError: (error) => {
       onError?.(error);
     },
+    autoStartScan,
   });
-
-  // Auto-start BLE scanning when ready
-  useEffect(() => {
-    if (autoStartScan && isReady) {
-      startScan();
-    }
-    return () => {
-      stopScan();
-    };
-  }, [autoStartScan, isReady, startScan, stopScan]);
 
   // Handle scan trigger
   const handleScan = useCallback(() => {
@@ -273,22 +271,29 @@ export function BatteryScanBindWithHook({
 
   // Handle retry
   const handleRetry = useCallback(() => {
-    resetState();
+    reset();
     if (autoStartScan) {
       startScan();
     }
-  }, [resetState, startScan, autoStartScan]);
+  }, [reset, startScan, autoStartScan]);
 
-  // Expose scanAndBindBattery for external use (e.g., after QR scan result)
+  // Expose scanAndBind for external use (e.g., after QR scan result)
   // This is stored on window for the QR callback to access
   useEffect(() => {
     (window as any).__bleScanAndBind = (qrData: string) => {
-      scanAndBindBattery(qrData, scanType);
+      scanAndBind(qrData, scanType);
     };
     return () => {
       delete (window as any).__bleScanAndBind;
     };
-  }, [scanAndBindBattery, scanType]);
+  }, [scanAndBind, scanType]);
+
+  // Stop scanning on unmount
+  useEffect(() => {
+    return () => {
+      stopScan();
+    };
+  }, [stopScan]);
 
   const config = MODE_CONFIG[mode];
   
@@ -309,8 +314,12 @@ export function BatteryScanBindWithHook({
     : config.hintKey;
   const displayHint = t(hintKey) || FALLBACK_HINTS[mode];
 
-  const isConnecting = bleScanState.isConnecting || bleScanState.isReadingEnergy;
-  const hasError = bleScanState.error || bleScanState.connectionFailed;
+  // Map new state structure to legacy flags
+  const isConnecting = state.isConnecting || state.isReadingService;
+  const hasError = state.error || state.connectionFailed;
+
+  // Create legacy-compatible state object for sub-components
+  const legacyState: BleFullState = state;
 
   return (
     <div className={`battery-scan-bind ${className}`}>
@@ -320,16 +329,16 @@ export function BatteryScanBindWithHook({
 
       {isConnecting && (
         <BleConnectionProgress
-          bleScanState={bleScanState}
-          onCancel={cancelOperation}
+          bleScanState={legacyState}
+          onCancel={cancel}
         />
       )}
 
       {hasError && !isConnecting && (
         <BleErrorState
-          bleScanState={bleScanState}
+          bleScanState={legacyState}
           onRetry={handleRetry}
-          onCancel={cancelOperation}
+          onCancel={cancel}
         />
       )}
 
@@ -408,21 +417,21 @@ function BleConnectionProgress({
   bleScanState, 
   onCancel 
 }: { 
-  bleScanState: BleScanState;
+  bleScanState: BleFullState;
   onCancel?: () => void;
 }) {
   const { t } = useI18n();
   
   const statusMessage = bleScanState.isConnecting 
     ? t('attendant.connecting') || 'Connecting to battery...'
-    : bleScanState.isReadingEnergy 
+    : bleScanState.isReadingService 
       ? t('attendant.readingEnergy') || 'Reading energy data...'
       : t('attendant.scanning') || 'Scanning...';
 
   // Only show progress bar when we have actual progress from BLE operations
   // Don't show fake progress during device matching phase
   const showProgress = bleScanState.connectionProgress > 0 && 
-    (bleScanState.isConnecting || bleScanState.isReadingEnergy);
+    (bleScanState.isConnecting || bleScanState.isReadingService);
 
   return (
     <div className="ble-connection-progress">
@@ -459,7 +468,7 @@ function BleErrorState({
   onRetry,
   onCancel,
 }: {
-  bleScanState: BleScanState;
+  bleScanState: BleFullState;
   onRetry?: () => void;
   onCancel?: () => void;
 }) {

@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { BatteryScanBind } from '@/components/shared';
-import type { BleScanState, BatteryData } from '@/components/shared';
+import type { BleFullState, BatteryData } from '@/components/shared';
 
 interface Step3Props {
   oldBattery: BatteryData | null;
   onScanNewBattery: () => void;
   isScannerOpening?: boolean;
-  bleScanState?: BleScanState;
+  bleScanState?: BleFullState;
   scannedBattery?: BatteryData | null;
   onCancelBleOperation?: () => void;
   onRetryConnection?: () => void;

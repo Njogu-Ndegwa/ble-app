@@ -73,17 +73,8 @@ const INITIAL_BLE_STATE: BleScanState = {
 // BRIDGE TYPE
 // ============================================
 
-interface WebViewJavascriptBridge {
-  init: (callback: (message: unknown, responseCallback: (response: unknown) => void) => void) => void;
-  registerHandler: (handlerName: string, handler: (data: string, responseCallback: (response: unknown) => void) => void) => void;
-  callHandler: (handlerName: string, data: unknown, callback: (responseData: string) => void) => void;
-}
-
-declare global {
-  interface Window {
-    WebViewJavascriptBridge?: WebViewJavascriptBridge;
-  }
-}
+// Note: WebViewJavascriptBridge is declared globally in the app elsewhere.
+// We just reference it via window.WebViewJavascriptBridge.
 
 // ============================================
 // HELPER FUNCTIONS
