@@ -15,6 +15,12 @@ export interface BleProgressModalProps {
   onCancel: () => void;
 }
 
+// State for timeout expiration - shown when 60s elapses without connection
+interface TimeoutState {
+  hasExpired: boolean;
+  showRetryInstructions: boolean;
+}
+
 /**
  * BLE Connection Progress Modal
  * 
@@ -35,29 +41,39 @@ export function BleProgressModal({
   // Countdown timer state
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   const [showCancelButton, setShowCancelButton] = useState(false);
+  // New: Track if countdown has expired - shows retry instructions instead of auto-retry
+  const [timeoutState, setTimeoutState] = useState<TimeoutState>({
+    hasExpired: false,
+    showRetryInstructions: false,
+  });
   const startTimeRef = useRef<number | null>(null);
   // Track if we've ever been active in this session to prevent reset during stage transitions
   const wasActiveRef = useRef(false);
   
   // Determine if modal should be visible
-  const isModalVisible = bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed;
-  const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
+  // IMPORTANT: When timeout expires, we keep modal visible with retry instructions
+  // Don't reopen based on connectionFailed from the hook's global timeout
+  const isConnectionActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
+  const isModalVisible = isConnectionActive || bleScanState.connectionFailed || timeoutState.hasExpired;
+  const isActive = isConnectionActive;
   
   // Reset timer state when modal becomes hidden (not just when isActive changes)
   // This prevents timer reset during transitions between Connect → Read stages
   useEffect(() => {
-    if (!isModalVisible) {
+    // Only reset when both: not active AND not showing timeout instructions
+    if (!isActive && !bleScanState.connectionFailed && !timeoutState.hasExpired) {
       // Modal is fully closed, reset everything for the next session
       startTimeRef.current = null;
       wasActiveRef.current = false;
       setCountdown(COUNTDOWN_START_SECONDS);
       setShowCancelButton(false);
+      setTimeoutState({ hasExpired: false, showRetryInstructions: false });
     }
-  }, [isModalVisible]);
+  }, [isActive, bleScanState.connectionFailed, timeoutState.hasExpired]);
   
   // Start/continue countdown when modal is active
   useEffect(() => {
-    if (isActive && !bleScanState.connectionFailed) {
+    if (isActive && !bleScanState.connectionFailed && !timeoutState.hasExpired) {
       // Start countdown only when first becoming active in this session
       // The 60s countdown covers ALL stages (Scan → Connect → Read) without resetting
       if (startTimeRef.current === null) {
@@ -72,13 +88,14 @@ export function BleProgressModal({
         const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
         setCountdown(remaining);
         
-        // Auto-close modal after countdown reaches 0
-        if (remaining <= 0 && !showCancelButton) {
+        // When countdown reaches 0, show retry instructions instead of auto-retrying
+        // The system does NOT auto-retry - user must manually toggle Bluetooth and retry
+        if (remaining <= 0 && !timeoutState.hasExpired) {
+          setTimeoutState({ hasExpired: true, showRetryInstructions: true });
           setShowCancelButton(true);
-          // Auto-trigger cancel after a brief moment to show the expired message
-          setTimeout(() => {
-            onCancel();
-          }, 2000);
+          // Cancel the operation to stop any ongoing BLE operations
+          // but keep the modal open with instructions
+          onCancel();
         }
       }, 1000);
       
@@ -87,14 +104,28 @@ export function BleProgressModal({
     // Note: We intentionally don't reset startTimeRef when isActive becomes false
     // because we might just be transitioning between stages (Connect → Read).
     // The reset only happens when the modal fully closes (isModalVisible becomes false).
-  }, [isActive, bleScanState.connectionFailed, showCancelButton, onCancel]);
+  }, [isActive, bleScanState.connectionFailed, timeoutState.hasExpired, onCancel]);
   
-  // Don't render if not in an active BLE operation state
-  if (!bleScanState.isConnecting && !bleScanState.isReadingEnergy && !bleScanState.connectionFailed) {
+  // Don't render if not in an active BLE operation state and no timeout
+  if (!bleScanState.isConnecting && !bleScanState.isReadingEnergy && !bleScanState.connectionFailed && !timeoutState.hasExpired) {
     return null;
   }
 
+  // Handle user closing the timeout instructions
+  const handleCloseTimeoutInstructions = () => {
+    setTimeoutState({ hasExpired: false, showRetryInstructions: false });
+    startTimeRef.current = null;
+    wasActiveRef.current = false;
+    setCountdown(COUNTDOWN_START_SECONDS);
+    setShowCancelButton(false);
+    onCancel();
+  };
+
   const getStatusMessage = () => {
+    // Don't show status message when timeout instructions are displayed
+    if (timeoutState.showRetryInstructions) {
+      return '';
+    }
     if (bleScanState.requiresBluetoothReset) {
       return 'The Bluetooth connection was lost. Please toggle Bluetooth to reset it.';
     }
@@ -120,6 +151,10 @@ export function BleProgressModal({
   };
 
   const getHelpText = () => {
+    // Don't show help text when timeout instructions are displayed
+    if (timeoutState.showRetryInstructions) {
+      return '';
+    }
     if (bleScanState.requiresBluetoothReset) {
       return 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.';
     }
@@ -137,32 +172,34 @@ export function BleProgressModal({
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
       <div className="w-full max-w-md px-4">
         <div className="ble-progress-container">
-          {/* Header */}
-          <div className="ble-progress-header">
-            <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
-              {bleScanState.requiresBluetoothReset ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
-                </svg>
-              )}
+          {/* Header - Hide when timeout instructions are shown (they have their own header) */}
+          {!timeoutState.showRetryInstructions && (
+            <div className="ble-progress-header">
+              <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
+                {bleScanState.requiresBluetoothReset ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
+                  </svg>
+                )}
+              </div>
+              <div className="ble-progress-title">
+                  {bleScanState.requiresBluetoothReset
+                      ? 'Bluetooth Reset Required'
+                      : bleScanState.isReadingEnergy 
+                      ? 'Reading Battery Data' 
+                      : 'Connecting to Battery'}
+              </div>
             </div>
-            <div className="ble-progress-title">
-                {bleScanState.requiresBluetoothReset
-                    ? 'Bluetooth Reset Required'
-                    : bleScanState.isReadingEnergy 
-                    ? 'Reading Battery Data' 
-                    : 'Connecting to Battery'}
-            </div>
-          </div>
+          )}
 
-          {/* Bluetooth Reset Instructions - Show when Bluetooth reset is required */}
-          {bleScanState.requiresBluetoothReset && (
+          {/* Bluetooth Reset Instructions - Show when Bluetooth reset is required (not during timeout) */}
+          {bleScanState.requiresBluetoothReset && !timeoutState.showRetryInstructions && (
             <div className="ble-reset-instructions">
               <div className="ble-reset-steps">
                 <div className="ble-reset-step">
@@ -189,8 +226,8 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Battery ID Display - Show which battery we're connecting to (hide when reset required) */}
-          {pendingBatteryId && !bleScanState.requiresBluetoothReset && (
+          {/* Battery ID Display - Show which battery we're connecting to (hide when reset required or timeout) */}
+          {pendingBatteryId && !bleScanState.requiresBluetoothReset && !timeoutState.showRetryInstructions && (
             <div className="ble-battery-id">
               <span className="ble-battery-id-label">Battery ID:</span>
               <span className="ble-battery-id-value">
@@ -201,6 +238,7 @@ export function BleProgressModal({
 
           {/* Progress Bar - Show from 0% when connecting starts for visual consistency */}
           {!bleScanState.requiresBluetoothReset && 
+           !timeoutState.showRetryInstructions &&
            (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-progress-bar-container">
               <div className="ble-progress-bar-bg">
@@ -218,6 +256,7 @@ export function BleProgressModal({
           {/* Countdown Timer - Show estimated time remaining */}
           {!bleScanState.requiresBluetoothReset && 
            !bleScanState.connectionFailed &&
+           !timeoutState.hasExpired &&
            (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-countdown-timer">
               {countdown > 0 ? (
@@ -226,19 +265,69 @@ export function BleProgressModal({
                 </span>
               ) : (
                 <span className="ble-countdown-expired">
-                  Taking longer than expected. Closing and retrying...
+                  Connection timed out...
                 </span>
               )}
             </div>
           )}
 
-          {/* Status Message */}
-          <div className="ble-progress-status">
-            {getStatusMessage()}
-          </div>
+          {/* Timeout Instructions - Shown when 60s expires without successful connection */}
+          {timeoutState.showRetryInstructions && (
+            <div className="ble-timeout-instructions">
+              <div className="ble-timeout-header">
+                <svg className="ble-timeout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <span className="ble-timeout-title">Connection Timed Out</span>
+              </div>
+              <p className="ble-timeout-message">
+                We couldn&apos;t connect to the battery. Please follow these steps and try again:
+              </p>
+              <div className="ble-reset-steps">
+                <div className="ble-reset-step">
+                  <span className="ble-reset-step-number">1</span>
+                  <span>Go to your phone&apos;s Settings</span>
+                </div>
+                <div className="ble-reset-step">
+                  <span className="ble-reset-step-number">2</span>
+                  <span>Turn Bluetooth <strong>OFF</strong></span>
+                </div>
+                <div className="ble-reset-step">
+                  <span className="ble-reset-step-number">3</span>
+                  <span>Wait 5 seconds</span>
+                </div>
+                <div className="ble-reset-step">
+                  <span className="ble-reset-step-number">4</span>
+                  <span>Turn Bluetooth <strong>ON</strong></span>
+                </div>
+                <div className="ble-reset-step">
+                  <span className="ble-reset-step-number">5</span>
+                  <span>Return here and scan the battery again</span>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseTimeoutInstructions}
+                className="ble-cancel-button ble-cancel-button-primary"
+                title="Close and try again"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+                Close &amp; Retry
+              </button>
+            </div>
+          )}
 
-          {/* Step Indicators - Hide when Bluetooth reset is required */}
-          {!bleScanState.requiresBluetoothReset && (
+          {/* Status Message - Hide when timeout instructions are shown */}
+          {!timeoutState.showRetryInstructions && (
+            <div className="ble-progress-status">
+              {getStatusMessage()}
+            </div>
+          )}
+
+          {/* Step Indicators - Hide when Bluetooth reset is required or timeout instructions shown */}
+          {!bleScanState.requiresBluetoothReset && !timeoutState.showRetryInstructions && (
             <div className="ble-progress-steps">
               <div className="ble-step active completed">
                 <div className="ble-step-dot" />
@@ -255,8 +344,8 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Cancel/Close Button - Shown when connection failed OR after 60 second timeout */}
-          {(bleScanState.connectionFailed || showCancelButton) && (
+          {/* Cancel/Close Button - Shown when connection failed (not during timeout instructions, which has its own button) */}
+          {(bleScanState.connectionFailed || (showCancelButton && !timeoutState.showRetryInstructions)) && (
             <button
               onClick={onCancel}
               className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
@@ -269,10 +358,12 @@ export function BleProgressModal({
             </button>
           )}
           
-          {/* Help Text */}
-          <p className="ble-progress-help">
-            {getHelpText()}
-          </p>
+          {/* Help Text - Hide when timeout instructions are shown */}
+          {!timeoutState.showRetryInstructions && (
+            <p className="ble-progress-help">
+              {getHelpText()}
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -167,6 +167,9 @@ export default function BatteryScanBind({
           <h1 className="scan-title">{displayTitle}</h1>
           <p className="scan-subtitle">{displaySubtitle}</p>
           
+          {/* Bluetooth Reminder Banner */}
+          <BluetoothReminder />
+          
           <ScannerArea 
             onClick={onScan} 
             type="battery" 
@@ -345,6 +348,9 @@ export function BatteryScanBindWithHook({
           <h1 className="scan-title">{displayTitle}</h1>
           <p className="scan-subtitle">{displaySubtitle}</p>
           
+          {/* Bluetooth Reminder Banner */}
+          <BluetoothReminder />
+          
           <ScannerArea 
             onClick={handleScan} 
             type="battery" 
@@ -450,6 +456,8 @@ function BleConnectionProgress({
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   const [showCancelButton, setShowCancelButton] = useState(false);
+  // New: Track if countdown has expired - shows retry instructions instead of auto-retry
+  const [showTimeoutInstructions, setShowTimeoutInstructions] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   
   // Track elapsed time and countdown
@@ -463,6 +471,7 @@ function BleConnectionProgress({
       setElapsedTime(0);
       setCountdown(COUNTDOWN_START_SECONDS);
       setShowCancelButton(false);
+      setShowTimeoutInstructions(false);
     }
     
     const timer = setInterval(() => {
@@ -472,20 +481,20 @@ function BleConnectionProgress({
       const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
       setCountdown(remaining);
       
-      // Auto-close after countdown reaches 0
-      if (remaining <= 0 && !showCancelButton) {
+      // When countdown reaches 0, show retry instructions instead of auto-retrying
+      // The system does NOT auto-retry - user must manually toggle Bluetooth and retry
+      if (remaining <= 0 && !showTimeoutInstructions) {
         setShowCancelButton(true);
-        // Auto-trigger cancel after a brief moment to show the expired message
+        setShowTimeoutInstructions(true);
+        // Cancel the operation to stop any ongoing BLE operations
         if (onCancel) {
-          setTimeout(() => {
-            onCancel();
-          }, 2000);
+          onCancel();
         }
       }
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [onCancel, showCancelButton]);
+  }, [onCancel, showTimeoutInstructions]);
   
   // Rotate tips every 5 seconds
   useEffect(() => {
@@ -517,6 +526,57 @@ function BleConnectionProgress({
 
   // Show progress bar from 0% for visual consistency
   const showProgress = bleScanState.isConnecting || bleScanState.isReadingService;
+
+  // If timeout instructions are showing, render them instead of the normal progress
+  if (showTimeoutInstructions) {
+    return (
+      <div className="ble-connection-progress">
+        <div className="ble-timeout-instructions">
+          <div className="ble-timeout-header">
+            <div className="ble-timeout-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+            </div>
+            <span className="ble-timeout-title">Connection Timed Out</span>
+          </div>
+          <p className="ble-timeout-message">
+            We couldn&apos;t connect to the battery. Please follow these steps and try again:
+          </p>
+          <div className="ble-reset-steps">
+            <div className="ble-reset-step">
+              <span className="ble-reset-step-number">1</span>
+              <span>Go to your phone&apos;s Settings</span>
+            </div>
+            <div className="ble-reset-step">
+              <span className="ble-reset-step-number">2</span>
+              <span>Turn Bluetooth <strong>OFF</strong></span>
+            </div>
+            <div className="ble-reset-step">
+              <span className="ble-reset-step-number">3</span>
+              <span>Wait 5 seconds</span>
+            </div>
+            <div className="ble-reset-step">
+              <span className="ble-reset-step-number">4</span>
+              <span>Turn Bluetooth <strong>ON</strong></span>
+            </div>
+            <div className="ble-reset-step">
+              <span className="ble-reset-step-number">5</span>
+              <span>Return here and scan the battery again</span>
+            </div>
+          </div>
+          <button 
+            className="btn btn-primary btn-sm connection-cancel-btn" 
+            onClick={onCancel}
+            type="button"
+          >
+            {t('common.close') || 'Close & Retry'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ble-connection-progress">
@@ -565,7 +625,7 @@ function BleConnectionProgress({
           </span>
         ) : (
           <span className="countdown-expired">
-            Taking longer than expected. Closing and retrying...
+            Connection timed out...
           </span>
         )}
       </div>
@@ -584,8 +644,8 @@ function BleConnectionProgress({
         </p>
       </div>
       
-      {/* Cancel button - show after 60 seconds or if already visible */}
-      {onCancel && showCancelButton && (
+      {/* Cancel button - show after 60 seconds or if already visible (but not during timeout instructions) */}
+      {onCancel && showCancelButton && !showTimeoutInstructions && (
         <button 
           className="btn btn-secondary btn-sm connection-cancel-btn" 
           onClick={onCancel}
@@ -646,6 +706,43 @@ function BleErrorState({
             {t('common.close') || 'Close'}
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// BLUETOOTH REMINDER COMPONENT
+// ============================================
+
+/**
+ * Bluetooth Reminder - Shows a prominent reminder for users to enable Bluetooth
+ * 
+ * This is displayed on battery scanning steps to ensure users have Bluetooth enabled
+ * before attempting to scan and connect to batteries.
+ */
+function BluetoothReminder() {
+  return (
+    <div className="bluetooth-reminder">
+      <div className="bluetooth-reminder-icon">
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          width="20"
+          height="20"
+        >
+          <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+        </svg>
+      </div>
+      <div className="bluetooth-reminder-content">
+        <span className="bluetooth-reminder-title">Bluetooth Required</span>
+        <span className="bluetooth-reminder-text">
+          Make sure Bluetooth is turned ON in your phone settings before scanning.
+        </span>
       </div>
     </div>
   );
