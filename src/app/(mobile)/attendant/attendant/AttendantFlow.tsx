@@ -287,9 +287,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Ref for tracking current scan type
   const scanTypeRef = useRef<'customer' | 'old_battery' | 'new_battery' | 'payment' | null>(null);
   
-  // Bridge initialization ref (for preventing double init() calls)
-  const bridgeInitRef = useRef<boolean>(false);
-  
   // Track if QR scan was initiated to detect when user returns without scanning
   const qrScanInitiatedRef = useRef<boolean>(false);
   
@@ -1119,14 +1116,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return () => b.registerHandler(name, noop);
     };
 
-    if (!bridgeInitRef.current) {
-      bridgeInitRef.current = true;
-      try {
-        b.init((_m, r) => r("js success!"));
-      } catch (err) {
-        console.error("Bridge init error", err);
-      }
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx
+    // Do NOT call init() again here as it causes the app to hang
 
     // QR code scan callback - follows existing pattern from swap.tsx
     const offQr = reg(

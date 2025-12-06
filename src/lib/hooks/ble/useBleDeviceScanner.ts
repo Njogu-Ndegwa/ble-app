@@ -174,12 +174,8 @@ export function useBleDeviceScanner(options: UseBleDeviceScannerOptions = {}) {
 
       log('Setting up BLE scanner handler');
 
-      // Try to init bridge (may already be initialized)
-      try {
-        window.WebViewJavascriptBridge.init((_m, r) => r('js success!'));
-      } catch {
-        // Already initialized
-      }
+      // NOTE: bridge.init() is already called in bridgeContext.tsx
+      // Do NOT call init() again here as it causes the app to hang
 
       // Device discovery handler
       window.WebViewJavascriptBridge.registerHandler(

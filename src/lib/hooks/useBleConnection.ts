@@ -537,12 +537,8 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
 
       log('Setting up BLE bridge handlers');
 
-      // Wrap init in try-catch (BridgeContext may have already called it)
-      try {
-        window.WebViewJavascriptBridge.init((_m, r) => r('js success!'));
-      } catch {
-        // Already initialized
-      }
+      // NOTE: bridge.init() is already called in bridgeContext.tsx
+      // Do NOT call init() again here as it causes the app to hang
 
       // ============================================
       // DEVICE DISCOVERY HANDLER
