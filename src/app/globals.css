@@ -4286,6 +4286,283 @@ html.theme-transition *::after {
   }
 }
 
+/* ================================================= */
+/* BLE CONNECTION PROGRESS - Enhanced UX Components  */
+/* ================================================= */
+
+.ble-connection-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  min-height: 300px;
+  text-align: center;
+}
+
+.connection-spinner-container {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.connection-spinner {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.connection-spinner .spinner-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(59, 130, 246, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spinnerRotate 1s linear infinite;
+}
+
+@keyframes spinnerRotate {
+  to { transform: rotate(360deg); }
+}
+
+.spinner-phase-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-radius: 50%;
+  color: #3b82f6;
+  animation: phaseIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes phaseIconPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.95); }
+}
+
+.spinner-phase-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Phase Info */
+.connection-phase-info {
+  margin-bottom: 20px;
+}
+
+.connection-phase-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.connection-phase-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Progress Container */
+.connection-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 240px;
+  margin-bottom: 16px;
+}
+
+.connection-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.connection-progress-bar .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, var(--accent) 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+  position: relative;
+}
+
+.connection-progress-bar .progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.connection-progress-percent {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3b82f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  min-width: 36px;
+}
+
+/* Elapsed Time */
+.connection-elapsed-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+}
+
+.connection-elapsed-time svg {
+  opacity: 0.7;
+}
+
+/* Tip Section */
+.connection-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  max-width: 280px;
+  text-align: left;
+}
+
+.connection-tip svg {
+  flex-shrink: 0;
+  color: #fbbf24;
+  margin-top: 2px;
+}
+
+.connection-tip .tip-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Patience Message */
+.connection-patience-message {
+  margin-bottom: 16px;
+}
+
+.connection-patience-message p {
+  font-size: 12px;
+  color: rgba(251, 191, 36, 0.9);
+  margin: 0;
+  font-style: italic;
+}
+
+/* Cancel Button */
+.connection-cancel-btn {
+  margin-top: 8px;
+}
+
+/* Error State */
+.ble-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.ble-error-state .error-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.15);
+  border-radius: 50%;
+  margin-bottom: 16px;
+}
+
+.ble-error-state .error-icon svg {
+  width: 28px;
+  height: 28px;
+  color: #ef4444;
+}
+
+.ble-error-state .error-message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 20px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.ble-error-state .error-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Small screen adjustments */
+@media (max-height: 650px) {
+  .ble-connection-progress {
+    padding: 24px 20px;
+    min-height: 250px;
+  }
+  
+  .connection-spinner {
+    width: 64px;
+    height: 64px;
+  }
+  
+  .spinner-phase-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .spinner-phase-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .connection-phase-title {
+    font-size: 16px;
+  }
+  
+  .connection-phase-subtitle {
+    font-size: 13px;
+  }
+  
+  .connection-tip {
+    padding: 10px 12px;
+  }
+  
+  .connection-tip .tip-text {
+    font-size: 12px;
+  }
+}
+
 /* ===================== */
 /* RESUME SESSION MODAL  */
 /* ===================== */

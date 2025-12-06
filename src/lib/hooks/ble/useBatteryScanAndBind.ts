@@ -173,6 +173,12 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   // ============================================
 
   useEffect(() => {
+    // Determine the correct progress to show based on current phase
+    // During service reading, use serviceState.progress; otherwise use connectionState.connectionProgress
+    const currentProgress = serviceState.isReading 
+      ? serviceState.progress 
+      : connectionState.connectionProgress;
+
     setState(prev => ({
       ...prev,
       isScanning: scannerScanState.isScanning,
@@ -180,7 +186,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       isConnecting: connectionState.isConnecting,
       isConnected: connectionState.isConnected,
       connectedDevice: connectionState.connectedDevice,
-      connectionProgress: connectionState.connectionProgress,
+      connectionProgress: currentProgress,
       connectionFailed: connectionState.connectionFailed,
       requiresBluetoothReset: connectionState.requiresBluetoothReset,
       isReadingService: serviceState.isReading,

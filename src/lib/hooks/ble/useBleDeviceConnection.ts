@@ -139,7 +139,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       isConnecting: true,
       isConnected: false,
       connectedDevice: null,
-      connectionProgress: 10,
+      connectionProgress: 0, // Don't show fake progress - wait for real progress from bridge
       error: null,
       connectionFailed: false,
       requiresBluetoothReset: false,
@@ -302,7 +302,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
             
             setConnectionState(prev => ({
               ...prev,
-              connectionProgress: 10,
+              connectionProgress: 0, // Reset to 0, not fake 10%
               error: null,
             }));
             

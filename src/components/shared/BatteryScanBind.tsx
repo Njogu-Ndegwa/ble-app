@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useI18n } from '@/i18n';
 import ScannerArea from './ScannerArea';
 import { 
@@ -406,8 +406,34 @@ function BatteryReturnCard({ battery }: { battery: BatteryData }) {
   );
 }
 
+// Helpful tips shown during the long wait
+const WAITING_TIPS = [
+  'Make sure the battery is powered on and nearby',
+  'This process loads device firmware for accurate readings',
+  'Keep your phone close to the battery',
+  'Bluetooth communication may take a moment',
+  'Please wait while we establish a secure connection',
+  'Reading battery data requires loading device information',
+];
+
+// Phase-specific messages for better feedback
+const PHASE_MESSAGES = {
+  scanning: {
+    title: 'Searching for Device',
+    subtitle: 'Looking for the battery nearby...',
+  },
+  connecting: {
+    title: 'Connecting',
+    subtitle: 'Establishing Bluetooth connection...',
+  },
+  reading: {
+    title: 'Reading Battery Data',
+    subtitle: 'Loading device information...',
+  },
+};
+
 /**
- * Shows BLE connection progress
+ * Shows BLE connection progress with improved UX for long wait times
  */
 function BleConnectionProgress({ 
   bleScanState, 
@@ -417,35 +443,121 @@ function BleConnectionProgress({
   onCancel?: () => void;
 }) {
   const { t } = useI18n();
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  const startTimeRef = useRef<number>(Date.now());
   
-  const statusMessage = bleScanState.isConnecting 
-    ? t('attendant.connecting') || 'Connecting to battery...'
-    : bleScanState.isReadingService 
-      ? t('attendant.readingEnergy') || 'Reading energy data...'
-      : t('attendant.scanning') || 'Scanning...';
+  // Track elapsed time
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+    setElapsedTime(0);
+    
+    const timer = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Rotate tips every 5 seconds
+  useEffect(() => {
+    const tipTimer = setInterval(() => {
+      setCurrentTipIndex(prev => (prev + 1) % WAITING_TIPS.length);
+    }, 5000);
+    
+    return () => clearInterval(tipTimer);
+  }, []);
+  
+  // Determine current phase
+  const phase = bleScanState.isReadingService 
+    ? 'reading' 
+    : bleScanState.isConnecting 
+      ? 'connecting' 
+      : 'scanning';
+  
+  const phaseInfo = PHASE_MESSAGES[phase];
+  
+  // Format elapsed time
+  const formatTime = (seconds: number) => {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
 
   // Only show progress bar when we have actual progress from BLE operations
-  // Don't show fake progress during device matching phase
   const showProgress = bleScanState.connectionProgress > 0 && 
     (bleScanState.isConnecting || bleScanState.isReadingService);
 
+  // Show longer wait message after 15 seconds
+  const showLongerWaitMessage = elapsedTime >= 15;
+
   return (
     <div className="ble-connection-progress">
-      <div className="connection-spinner">
-        <div className="spinner-ring" />
+      {/* Animated spinner with phase indicator */}
+      <div className="connection-spinner-container">
+        <div className="connection-spinner">
+          <div className="spinner-ring" />
+          <div className="spinner-phase-icon">
+            {phase === 'scanning' && <SearchIcon />}
+            {phase === 'connecting' && <BluetoothIcon />}
+            {phase === 'reading' && <BatteryIcon />}
+          </div>
+        </div>
       </div>
-      <p className="connection-status">{statusMessage}</p>
+      
+      {/* Phase title and subtitle */}
+      <div className="connection-phase-info">
+        <h3 className="connection-phase-title">
+          {t(`ble.${phase}Title`) || phaseInfo.title}
+        </h3>
+        <p className="connection-phase-subtitle">
+          {t(`ble.${phase}Subtitle`) || phaseInfo.subtitle}
+        </p>
+      </div>
+      
+      {/* Progress bar */}
       {showProgress && (
-        <div className="connection-progress-bar">
-          <div 
-            className="progress-fill" 
-            style={{ width: `${bleScanState.connectionProgress}%` }}
-          />
+        <div className="connection-progress-container">
+          <div className="connection-progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ width: `${bleScanState.connectionProgress}%` }}
+            />
+          </div>
+          <span className="connection-progress-percent">
+            {bleScanState.connectionProgress}%
+          </span>
         </div>
       )}
+      
+      {/* Elapsed time indicator */}
+      <div className="connection-elapsed-time">
+        <ClockIcon />
+        <span>{formatTime(elapsedTime)}</span>
+      </div>
+      
+      {/* Helpful tip with fade animation */}
+      <div className="connection-tip">
+        <LightbulbIcon />
+        <p key={currentTipIndex} className="tip-text">
+          {WAITING_TIPS[currentTipIndex]}
+        </p>
+      </div>
+      
+      {/* Longer wait encouragement message */}
+      {showLongerWaitMessage && (
+        <div className="connection-patience-message">
+          <p>This is taking a bit longer than usual. Please be patient...</p>
+        </div>
+      )}
+      
+      {/* Cancel button */}
       {onCancel && (
         <button 
-          className="btn btn-secondary btn-sm" 
+          className="btn btn-secondary btn-sm connection-cancel-btn" 
           onClick={onCancel}
           type="button"
         >
@@ -536,6 +648,94 @@ function ErrorCircleIcon() {
     >
       <circle cx="12" cy="12" r="10"/>
       <path d="M15 9l-6 6M9 9l6 6"/>
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="24"
+      height="24"
+    >
+      <circle cx="11" cy="11" r="8"/>
+      <path d="M21 21l-4.35-4.35"/>
+    </svg>
+  );
+}
+
+function BluetoothIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="24"
+      height="24"
+    >
+      <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+    </svg>
+  );
+}
+
+function BatteryIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="24"
+      height="24"
+    >
+      <rect x="1" y="6" width="18" height="12" rx="2" ry="2"/>
+      <line x1="23" y1="10" x2="23" y2="14"/>
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="16"
+      height="16"
+    >
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  );
+}
+
+function LightbulbIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="16"
+      height="16"
+    >
+      <path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
     </svg>
   );
 }
