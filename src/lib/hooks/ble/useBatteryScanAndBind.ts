@@ -350,7 +350,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         connectionFailed: true,
       }));
       
-      toast.error('Device may already be connected. Try turning Bluetooth off and on, then try again after 1 minute.');
+      toast.error('Device may already be connected. Try turning Bluetooth off and on, then try again.');
       onErrorRef.current?.('Device may already be connected');
       
       // Clear pending state

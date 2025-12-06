@@ -466,14 +466,20 @@ function BleConnectionProgress({
       const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
       setCountdown(remaining);
       
-      // Show cancel button after countdown reaches 0
-      if (remaining <= 0) {
+      // Auto-close after countdown reaches 0
+      if (remaining <= 0 && !showCancelButton) {
         setShowCancelButton(true);
+        // Auto-trigger cancel after a brief moment to show the expired message
+        if (onCancel) {
+          setTimeout(() => {
+            onCancel();
+          }, 2000);
+        }
       }
     }, 1000);
     
     return () => clearInterval(timer);
-  }, []);
+  }, [onCancel, showCancelButton]);
   
   // Rotate tips every 5 seconds
   useEffect(() => {
@@ -553,7 +559,7 @@ function BleConnectionProgress({
           </span>
         ) : (
           <span className="countdown-expired">
-            Taking longer than expected. Try turning Bluetooth off and on, then reconnect after 1 minute.
+            Taking longer than expected. Closing and retrying...
           </span>
         )}
       </div>
@@ -606,7 +612,7 @@ function BleErrorState({
   const errorMessage = bleScanState.requiresBluetoothReset
     ? t('attendant.bleResetRequired') || 'Please toggle Bluetooth off and on, then try again'
     : isAlreadyConnectedError
-      ? 'Device may already be connected. Turn Bluetooth off and on, wait 1 minute, then try again.'
+      ? 'Device may already be connected. Turn Bluetooth off and on, then try again.'
       : bleScanState.error || t('attendant.connectionFailed') || 'Connection failed';
 
   return (

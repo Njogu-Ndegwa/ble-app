@@ -54,9 +54,13 @@ export function BleProgressModal({
         const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
         setCountdown(remaining);
         
-        // Show cancel button after countdown reaches 0
-        if (remaining <= 0) {
+        // Auto-close modal after countdown reaches 0
+        if (remaining <= 0 && !showCancelButton) {
           setShowCancelButton(true);
+          // Auto-trigger cancel after a brief moment to show the expired message
+          setTimeout(() => {
+            onCancel();
+          }, 2000);
         }
       }, 1000);
       
@@ -67,7 +71,7 @@ export function BleProgressModal({
       setCountdown(COUNTDOWN_START_SECONDS);
       setShowCancelButton(false);
     }
-  }, [bleScanState.isConnecting, bleScanState.isReadingEnergy, bleScanState.connectionFailed]);
+  }, [bleScanState.isConnecting, bleScanState.isReadingEnergy, bleScanState.connectionFailed, showCancelButton, onCancel]);
   
   // Don't render if not in an active BLE operation state
   if (!bleScanState.isConnecting && !bleScanState.isReadingEnergy && !bleScanState.connectionFailed) {
@@ -106,7 +110,7 @@ export function BleProgressModal({
     if (bleScanState.connectionFailed) {
       // Check if error indicates device might already be connected
       if (bleScanState.error?.includes('already connected')) {
-        return 'The device may already be connected to another phone or app. Turn your Bluetooth off and on, wait 1 minute, then try again.';
+        return 'The device may already be connected to another phone or app. Turn your Bluetooth off and on, then try again.';
       }
       return 'Connection failed. Please ensure the battery is powered on and nearby, then try again.';
     }
@@ -206,7 +210,7 @@ export function BleProgressModal({
                 </span>
               ) : (
                 <span className="ble-countdown-expired">
-                  Taking longer than expected. Try turning Bluetooth off and on, then reconnect after 1 minute.
+                  Taking longer than expected. Closing and retrying...
                 </span>
               )}
             </div>
