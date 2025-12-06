@@ -455,9 +455,8 @@ function BleConnectionProgress({
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
-  const [showCancelButton, setShowCancelButton] = useState(false);
-  // New: Track if countdown has expired - shows retry instructions instead of auto-retry
-  const [showTimeoutInstructions, setShowTimeoutInstructions] = useState(false);
+  // Track if we already triggered timeout cancel to prevent multiple calls
+  const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   
   // Track elapsed time and countdown
@@ -470,8 +469,7 @@ function BleConnectionProgress({
       startTimeRef.current = Date.now();
       setElapsedTime(0);
       setCountdown(COUNTDOWN_START_SECONDS);
-      setShowCancelButton(false);
-      setShowTimeoutInstructions(false);
+      setHasTimedOut(false);
     }
     
     const timer = setInterval(() => {
@@ -481,12 +479,9 @@ function BleConnectionProgress({
       const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
       setCountdown(remaining);
       
-      // When countdown reaches 0, show retry instructions instead of auto-retrying
-      // The system does NOT auto-retry - user must manually toggle Bluetooth and retry
-      if (remaining <= 0 && !showTimeoutInstructions) {
-        setShowCancelButton(true);
-        setShowTimeoutInstructions(true);
-        // Cancel the operation to stop any ongoing BLE operations
+      // When countdown reaches 0, automatically cancel - modal will close
+      if (remaining <= 0 && !hasTimedOut) {
+        setHasTimedOut(true);
         if (onCancel) {
           onCancel();
         }
@@ -494,7 +489,7 @@ function BleConnectionProgress({
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [onCancel, showTimeoutInstructions]);
+  }, [onCancel, hasTimedOut]);
   
   // Rotate tips every 5 seconds
   useEffect(() => {
@@ -526,57 +521,6 @@ function BleConnectionProgress({
 
   // Show progress bar from 0% for visual consistency
   const showProgress = bleScanState.isConnecting || bleScanState.isReadingService;
-
-  // If timeout instructions are showing, render them instead of the normal progress
-  if (showTimeoutInstructions) {
-    return (
-      <div className="ble-connection-progress">
-        <div className="ble-timeout-instructions">
-          <div className="ble-timeout-header">
-            <div className="ble-timeout-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
-              </svg>
-            </div>
-            <span className="ble-timeout-title">Connection Timed Out</span>
-          </div>
-          <p className="ble-timeout-message">
-            We couldn&apos;t connect to the battery. Please follow these steps and try again:
-          </p>
-          <div className="ble-reset-steps">
-            <div className="ble-reset-step">
-              <span className="ble-reset-step-number">1</span>
-              <span>Go to your phone&apos;s Settings</span>
-            </div>
-            <div className="ble-reset-step">
-              <span className="ble-reset-step-number">2</span>
-              <span>Turn Bluetooth <strong>OFF</strong></span>
-            </div>
-            <div className="ble-reset-step">
-              <span className="ble-reset-step-number">3</span>
-              <span>Wait 5 seconds</span>
-            </div>
-            <div className="ble-reset-step">
-              <span className="ble-reset-step-number">4</span>
-              <span>Turn Bluetooth <strong>ON</strong></span>
-            </div>
-            <div className="ble-reset-step">
-              <span className="ble-reset-step-number">5</span>
-              <span>Return here and scan the battery again</span>
-            </div>
-          </div>
-          <button 
-            className="btn btn-primary btn-sm connection-cancel-btn" 
-            onClick={onCancel}
-            type="button"
-          >
-            {t('common.close') || 'Close & Retry'}
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="ble-connection-progress">
@@ -643,17 +587,6 @@ function BleConnectionProgress({
           {WAITING_TIPS[currentTipIndex]}
         </p>
       </div>
-      
-      {/* Cancel button - show after 60 seconds or if already visible (but not during timeout instructions) */}
-      {onCancel && showCancelButton && !showTimeoutInstructions && (
-        <button 
-          className="btn btn-secondary btn-sm connection-cancel-btn" 
-          onClick={onCancel}
-          type="button"
-        >
-          {t('common.cancel') || 'Cancel & Retry'}
-        </button>
-      )}
     </div>
   );
 }
