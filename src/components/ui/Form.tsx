@@ -29,9 +29,9 @@ interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
 }
 
 const SIZE_STYLES: Record<InputSize, React.CSSProperties> = {
-  sm: { height: 'var(--input-height-sm)', padding: '0 var(--space-3)', fontSize: 'var(--font-sm)' },
-  md: { height: 'var(--input-height-md)', padding: '0 var(--space-3-5)', fontSize: 'var(--font-base)' },
-  lg: { height: 'var(--input-height-lg)', padding: '0 var(--space-4)', fontSize: 'var(--font-md)' },
+  sm: { height: '36px', padding: '8px 10px', fontSize: '12px' },
+  md: { height: '40px', padding: '10px 12px', fontSize: '12px' },
+  lg: { height: '48px', padding: '12px 14px', fontSize: '14px' },
 };
 
 /**
@@ -69,15 +69,16 @@ export function FormInput({
   };
 
   return (
-    <div className={`form-group ${className}`} style={{ marginBottom: 'var(--space-4)' }}>
+    <div className={`form-group ${className}`} style={{ marginBottom: 'var(--space-2)' }}>
       {label && (
         <label className="text-label" style={{
           display: 'block',
-          marginBottom: 'var(--space-1-5)',
+          marginBottom: '4px',
+          fontSize: 'var(--font-sm)',
+          fontWeight: 500,
           color: 'var(--text-secondary)',
         }}>
           {label}
-          {required && <span style={{ color: 'var(--color-error)', marginLeft: 'var(--space-1)' }}>*</span>}
         </label>
       )}
       <div style={{ position: 'relative' }}>
@@ -198,9 +199,14 @@ export function FormSection({
   className = '',
 }: FormSectionProps) {
   return (
-    <div className={`form-section ${className}`} style={{ marginBottom: 'var(--space-6)' }}>
-      <div style={{ marginBottom: 'var(--space-4)' }}>
-        <h3 className="text-h5" style={{ marginBottom: 'var(--space-1)' }}>{title}</h3>
+    <div className={`form-section ${className}`} style={{ marginBottom: '16px' }}>
+      <div style={{ marginBottom: '8px' }}>
+        <h3 style={{ 
+          fontSize: '13px',
+          fontWeight: 500,
+          marginBottom: '4px',
+          color: 'var(--text-secondary)',
+        }}>{title}</h3>
         {description && (
           <p className="text-caption text-muted" style={{ margin: 0 }}>{description}</p>
         )}
@@ -208,7 +214,7 @@ export function FormSection({
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-3)',
+        gap: '0',
       }}>
         {children}
       </div>
@@ -237,7 +243,7 @@ interface FormRowProps {
 export function FormRow({
   children,
   columns = 2,
-  gap = 12,
+  gap = 8,
   className = '',
 }: FormRowProps) {
   return (

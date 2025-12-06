@@ -1,21 +1,28 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useI18n } from '@/i18n';
 import ScannerArea from './ScannerArea';
-import { BatteryData, BleScanState, getBatteryClass, formatEnergyKwh } from './types';
+import { 
+  useBatteryScanAndBind, 
+  type BatteryData, 
+  type BleFullState,
+} from '@/lib/hooks/ble';
+
+// Legacy type alias for backwards compatibility
+export type BleScanState = BleFullState;
 
 export type BatteryScanMode = 'return' | 'issue' | 'assign';
 
 interface BatteryScanBindProps {
   /** Mode determines the UI messaging */
   mode: BatteryScanMode;
-  /** Callback when scan is triggered */
+  /** Callback when scan is triggered (opens QR scanner) */
   onScan: () => void;
   /** Whether scanner is currently opening */
   isScannerOpening?: boolean;
-  /** BLE scan state for showing progress */
-  bleScanState?: BleScanState;
+  /** BLE scan state - if provided, component is in "controlled" mode */
+  bleScanState?: BleFullState;
   /** Scanned battery data (when successfully connected) */
   scannedBattery?: BatteryData | null;
   /** For first-time customer handling in return mode */
@@ -45,20 +52,27 @@ const MODE_CONFIG: Record<BatteryScanMode, {
   return: {
     titleKey: 'attendant.returnBattery',
     subtitleKey: 'attendant.scanReturnBattery',
-    hintKey: 'attendant.scanReturnBattery',
+    hintKey: 'attendant.scanReturnHint',
     firstTimeTitle: 'attendant.skipReturn',
     firstTimeSubtitle: 'attendant.firstTimeCustomer',
   },
   issue: {
     titleKey: 'attendant.issueNewBattery',
     subtitleKey: 'attendant.scanNewBattery',
-    hintKey: 'attendant.scanNewBattery',
+    hintKey: 'attendant.scanNewHint',
   },
   assign: {
     titleKey: 'sales.assignBattery',
     subtitleKey: 'sales.scanBatteryQr',
-    hintKey: 'sales.scanBatteryQr',
+    hintKey: 'sales.scanBatteryHint',
   },
+};
+
+// Fallback hints for when translations aren't available
+const FALLBACK_HINTS: Record<BatteryScanMode, string> = {
+  return: 'Scan the QR code on the battery being returned',
+  issue: 'Scan the QR code on the new battery to issue',
+  assign: 'Scan the QR code on the battery to assign to customer',
 };
 
 /**
@@ -113,12 +127,14 @@ export default function BatteryScanBind({
       : t(config.subtitleKey)
   );
 
-  const displayHint = isFirstTimeCustomer && config.firstTimeSubtitle
-    ? t(config.firstTimeSubtitle)
-    : t(config.hintKey);
+  // Get hint text with fallback
+  const hintKey = isFirstTimeCustomer && config.firstTimeSubtitle
+    ? config.firstTimeSubtitle
+    : config.hintKey;
+  const displayHint = t(hintKey) || FALLBACK_HINTS[mode];
 
   // Check if we're in an active BLE operation
-  const isConnecting = bleScanState?.isConnecting || bleScanState?.isReadingEnergy;
+  const isConnecting = bleScanState?.isConnecting || bleScanState?.isReadingService;
   const hasError = bleScanState?.error || bleScanState?.connectionFailed;
 
   return (
@@ -170,8 +186,197 @@ export default function BatteryScanBind({
 }
 
 // ============================================
+// STANDALONE COMPONENT WITH BUILT-IN BLE HANDLING
+// ============================================
+
+interface BatteryScanBindWithHookProps {
+  /** Mode determines the UI messaging */
+  mode: BatteryScanMode;
+  /** Scan type identifier (e.g., 'old_battery', 'new_battery') */
+  scanType: string;
+  /** Called when QR code scanner should open */
+  onOpenScanner: () => void;
+  /** Called when battery data is successfully read */
+  onBatteryRead: (battery: BatteryData) => void;
+  /** Called on error */
+  onError?: (error: string) => void;
+  /** For first-time customer handling in return mode */
+  isFirstTimeCustomer?: boolean;
+  /** Previously returned battery (shown in issue mode) */
+  previousBattery?: BatteryData | null;
+  /** Custom title override */
+  title?: string;
+  /** Custom subtitle override */
+  subtitle?: string;
+  /** Whether to auto-start BLE scanning when mounted */
+  autoStartScan?: boolean;
+  /** Optional className */
+  className?: string;
+}
+
+/**
+ * BatteryScanBindWithHook - Self-contained version with built-in BLE handling
+ * 
+ * This version uses the modular useBatteryScanAndBind hook internally,
+ * making it completely self-contained for BLE operations.
+ * 
+ * @example
+ * <BatteryScanBindWithHook
+ *   mode="return"
+ *   scanType="old_battery"
+ *   onOpenScanner={() => startQrCodeScan()}
+ *   onBatteryRead={(battery) => setOldBattery(battery)}
+ * />
+ */
+export function BatteryScanBindWithHook({
+  mode,
+  scanType,
+  onOpenScanner,
+  onBatteryRead,
+  onError,
+  isFirstTimeCustomer = false,
+  previousBattery,
+  title,
+  subtitle,
+  autoStartScan = true,
+  className = '',
+}: BatteryScanBindWithHookProps) {
+  const { t } = useI18n();
+  
+  // Use the modular battery scan-and-bind hook
+  const {
+    state,
+    isReady,
+    scanAndBind,
+    cancel,
+    reset,
+    startScan,
+    stopScan,
+  } = useBatteryScanAndBind({
+    onBatteryRead: (battery, type) => {
+      if (type === scanType) {
+        onBatteryRead(battery);
+      }
+    },
+    onError: (error) => {
+      onError?.(error);
+    },
+    autoStartScan,
+  });
+
+  // Handle scan trigger
+  const handleScan = useCallback(() => {
+    onOpenScanner();
+  }, [onOpenScanner]);
+
+  // Handle retry
+  const handleRetry = useCallback(() => {
+    reset();
+    if (autoStartScan) {
+      startScan();
+    }
+  }, [reset, startScan, autoStartScan]);
+
+  // Expose scanAndBind for external use (e.g., after QR scan result)
+  // This is stored on window for the QR callback to access
+  useEffect(() => {
+    (window as any).__bleScanAndBind = (qrData: string) => {
+      scanAndBind(qrData, scanType);
+    };
+    return () => {
+      delete (window as any).__bleScanAndBind;
+    };
+  }, [scanAndBind, scanType]);
+
+  // Stop scanning on unmount
+  useEffect(() => {
+    return () => {
+      stopScan();
+    };
+  }, [stopScan]);
+
+  const config = MODE_CONFIG[mode];
+  
+  const displayTitle = title || (
+    isFirstTimeCustomer && config.firstTimeTitle 
+      ? t(config.firstTimeTitle) 
+      : t(config.titleKey)
+  );
+  
+  const displaySubtitle = subtitle || (
+    isFirstTimeCustomer && config.firstTimeSubtitle
+      ? t(config.firstTimeSubtitle)
+      : t(config.subtitleKey)
+  );
+
+  const hintKey = isFirstTimeCustomer && config.firstTimeSubtitle
+    ? config.firstTimeSubtitle
+    : config.hintKey;
+  const displayHint = t(hintKey) || FALLBACK_HINTS[mode];
+
+  // Map new state structure to legacy flags
+  const isConnecting = state.isConnecting || state.isReadingService;
+  const hasError = state.error || state.connectionFailed;
+
+  // Create legacy-compatible state object for sub-components
+  const legacyState: BleFullState = state;
+
+  return (
+    <div className={`battery-scan-bind ${className}`}>
+      {mode === 'issue' && previousBattery && (
+        <BatteryReturnCard battery={previousBattery} />
+      )}
+
+      {isConnecting && (
+        <BleConnectionProgress
+          bleScanState={legacyState}
+          onCancel={cancel}
+        />
+      )}
+
+      {hasError && !isConnecting && (
+        <BleErrorState
+          bleScanState={legacyState}
+          onRetry={handleRetry}
+          onCancel={cancel}
+        />
+      )}
+
+      {!isConnecting && !hasError && (
+        <div className="scan-prompt">
+          <h1 className="scan-title">{displayTitle}</h1>
+          <p className="scan-subtitle">{displaySubtitle}</p>
+          
+          <ScannerArea 
+            onClick={handleScan} 
+            type="battery" 
+            size="small" 
+            disabled={false}
+            label={t('common.tapToScan') || 'Tap to scan'}
+          />
+          
+          <p className="scan-hint">
+            <InfoIcon />
+            {displayHint}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
 // SUB-COMPONENTS
 // ============================================
+
+/**
+ * Get battery class based on charge level
+ */
+function getBatteryClass(level: number): 'full' | 'medium' | 'low' {
+  if (level >= 80) return 'full';
+  if (level >= 40) return 'medium';
+  return 'low';
+}
 
 /**
  * Shows the returned battery card (used in issue mode)
@@ -185,11 +390,11 @@ function BatteryReturnCard({ battery }: { battery: BatteryData }) {
   return (
     <div className="battery-return-card">
       <div className="battery-return-header">
-        <span className="battery-return-label">{t('attendant.returnedBattery')}</span>
-        <span className="battery-return-status">✓ Connected</span>
+        <span className="battery-return-label">{t('attendant.returnedBattery') || 'Returned Battery'}</span>
+        <span className="battery-return-status">✓ {t('common.connected') || 'Connected'}</span>
       </div>
       <div className="battery-return-content">
-        <div className="battery-return-id">{battery.shortId || '---'}</div>
+        <div className="battery-return-id">{battery.shortId || battery.id || '---'}</div>
         <div className="battery-return-charge">
           <div className={`battery-return-icon ${batteryClass}`}>
             <div 
@@ -198,7 +403,7 @@ function BatteryReturnCard({ battery }: { battery: BatteryData }) {
             />
           </div>
           <span className="battery-return-percent">{energyKwh.toFixed(3)} kWh</span>
-          <span className="battery-return-unit">{t('attendant.energyRemaining')}</span>
+          <span className="battery-return-unit">{t('attendant.energyRemaining') || 'remaining'}</span>
         </div>
       </div>
     </div>
@@ -212,16 +417,21 @@ function BleConnectionProgress({
   bleScanState, 
   onCancel 
 }: { 
-  bleScanState: BleScanState;
+  bleScanState: BleFullState;
   onCancel?: () => void;
 }) {
   const { t } = useI18n();
   
   const statusMessage = bleScanState.isConnecting 
     ? t('attendant.connecting') || 'Connecting to battery...'
-    : bleScanState.isReadingEnergy 
+    : bleScanState.isReadingService 
       ? t('attendant.readingEnergy') || 'Reading energy data...'
       : t('attendant.scanning') || 'Scanning...';
+
+  // Only show progress bar when we have actual progress from BLE operations
+  // Don't show fake progress during device matching phase
+  const showProgress = bleScanState.connectionProgress > 0 && 
+    (bleScanState.isConnecting || bleScanState.isReadingService);
 
   return (
     <div className="ble-connection-progress">
@@ -229,7 +439,7 @@ function BleConnectionProgress({
         <div className="spinner-ring" />
       </div>
       <p className="connection-status">{statusMessage}</p>
-      {bleScanState.connectionProgress > 0 && (
+      {showProgress && (
         <div className="connection-progress-bar">
           <div 
             className="progress-fill" 
@@ -258,7 +468,7 @@ function BleErrorState({
   onRetry,
   onCancel,
 }: {
-  bleScanState: BleScanState;
+  bleScanState: BleFullState;
   onRetry?: () => void;
   onCancel?: () => void;
 }) {

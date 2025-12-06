@@ -7,7 +7,6 @@ import { Globe } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantUser, clearEmployeeLogin } from '@/lib/attendant-auth';
-import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
@@ -28,11 +27,13 @@ import {
   SwapData,
   AttendantStep,
   FlowError,
-  BleDevice,
-  BleScanState,
   PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
+import { BleProgressModal } from '@/components/shared';
+
+// Import modular BLE hook for battery scanning (available for future migration)
+import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 
 // Import Odoo API functions for payment
 import {
@@ -165,44 +166,105 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
   
-  // BLE Scan-to-Bind state for battery energy reading
-  const [bleScanState, setBleScanState] = useState<BleScanState>({
-    isScanning: false,
-    isConnecting: false,
-    isReadingEnergy: false,
-    connectedDevice: null,
-    detectedDevices: [],
-    connectionProgress: 0,
-    error: null,
-    connectionFailed: false,
-    requiresBluetoothReset: false,
+  // ============================================
+  // BLE SCAN-TO-BIND HOOK (Modular BLE handling)
+  // ============================================
+  
+  // Ref for electricity service to use in callbacks without recreation
+  const electricityServiceRef = useRef<typeof electricityService>(undefined);
+  
+  // BLE scan-to-bind hook - handles all BLE operations for battery scanning
+  const {
+    bleScanState,
+    pendingBatteryId,
+    isReady: bleIsReady,
+    startScanning: hookStartScanning,
+    stopScanning: hookStopScanning,
+    handleQrScanned: hookHandleQrScanned,
+    cancelOperation: hookCancelOperation,
+    resetState: hookResetState,
+    retryConnection: hookRetryConnection,
+  } = useFlowBatteryScan({
+    onOldBatteryRead: (battery) => {
+      console.info('Old battery read via hook:', battery);
+      setSwapData(prev => ({ ...prev, oldBattery: battery }));
+      advanceToStep(3);
+      toast.success(`Old battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
+      setIsScanning(false);
+      scanTypeRef.current = null;
+    },
+    onNewBatteryRead: (battery) => {
+      console.info('New battery read via hook:', battery);
+      // Calculate energy difference and cost
+      setSwapData(prev => {
+        const oldEnergy = prev.oldBattery?.energy || 0;
+        const energyDiffWh = battery.energy - oldEnergy;
+        const energyDiffKwh = energyDiffWh / 1000;
+        
+        // Get rate from electricity service
+        const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
+        
+        // Get remaining electricity quota
+        const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
+        const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
+        const remainingQuotaKwh = Math.max(0, elecQuota - elecUsed);
+        
+        // Calculate quota deduction
+        const quotaDeduction = energyDiffKwh > 0 
+          ? Math.min(remainingQuotaKwh, energyDiffKwh) 
+          : 0;
+        
+        // Chargeable energy after quota
+        const chargeableEnergy = Math.max(0, energyDiffKwh - quotaDeduction);
+        
+        // Cost based on chargeable energy
+        const cost = Math.round(chargeableEnergy * rate * 100) / 100;
+        
+        console.info('Energy differential calculated:', {
+          oldEnergyWh: oldEnergy,
+          newEnergyWh: battery.energy,
+          energyDiffKwh,
+          remainingQuotaKwh,
+          quotaDeduction,
+          chargeableEnergy,
+          ratePerKwh: rate,
+          cost,
+        });
+        
+        return {
+          ...prev,
+          newBattery: battery,
+          energyDiff: Math.round(energyDiffKwh * 1000) / 1000,
+          quotaDeduction: Math.round(quotaDeduction * 1000) / 1000,
+          chargeableEnergy: Math.round(chargeableEnergy * 1000) / 1000,
+          cost: cost > 0 ? cost : 0,
+        };
+      });
+      advanceToStep(4);
+      toast.success(`New battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
+      setIsScanning(false);
+      scanTypeRef.current = null;
+    },
+    onError: (error, requiresReset) => {
+      console.error('BLE error via hook:', error, { requiresReset });
+      setIsScanning(false);
+      scanTypeRef.current = null;
+    },
+    debug: true,
   });
   
-  // BLE operation timeout ref - for cancelling stuck operations
-  const bleOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // BLE handlers ready flag - hook is ready when bleIsReady is true
+  const [bleHandlersReady, setBleHandlersReady] = useState<boolean>(false);
   
-  // Global BLE timeout ref - last resort when connection hangs without error callbacks
-  const bleGlobalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Sync bleHandlersReady with hook's isReady
+  useEffect(() => {
+    if (bleIsReady && !bleHandlersReady) {
+      setBleHandlersReady(true);
+    }
+  }, [bleIsReady, bleHandlersReady]);
   
-  // BLE retry state
-  const bleRetryCountRef = useRef<number>(0);
-  // Track whether connection was successful - prevents retrying when already connected but initializing services
-  const isConnectionSuccessfulRef = useRef<boolean>(false);
-  const MAX_BLE_RETRIES = 3;
-  const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds for connection
-  const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds for data reading
-  const BLE_GLOBAL_TIMEOUT = 90000; // 90 seconds (1m 30s) - last resort timeout when no error callbacks received
-  
-  // Refs for BLE scanning
-  const detectedBleDevicesRef = useRef<BleDevice[]>([]);
-  const pendingBatteryQrCodeRef = useRef<string | null>(null);
-  const pendingBatteryScanTypeRef = useRef<'old_battery' | 'new_battery' | null>(null);
-  const pendingConnectionMacRef = useRef<string | null>(null); // MAC address we're attempting to connect to
-  
-  // DTA refresh retry state - for retrying when DTA values are missing/invalid
-  const dtaRefreshRetryCountRef = useRef<number>(0);
-  const MAX_DTA_REFRESH_RETRIES = 2; // Retry up to 2 times (total 3 attempts)
-  const DTA_REFRESH_DELAY = 1500; // 1.5 seconds delay between DTA refresh retries
+  // NOTE: All BLE refs (pendingBatteryQrCodeRef, detectedBleDevicesRef, etc.) 
+  // are now managed internally by the useFlowBatteryScan hook
   
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
@@ -231,9 +293,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Track if QR scan was initiated to detect when user returns without scanning
   const qrScanInitiatedRef = useRef<boolean>(false);
   
-  // BLE handlers ready flag - ensures we don't start scanning before handlers are registered
-  const [bleHandlersReady, setBleHandlersReady] = useState<boolean>(false);
-  
   // Timeout ref for scan operations (customer identification, battery scans)
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -260,79 +319,30 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     scanTypeRef.current = null;
   }, [clearScanTimeout]);
 
-  // Helper to clear BLE operation timeout
-  const clearBleOperationTimeout = useCallback(() => {
-    if (bleOperationTimeoutRef.current) {
-      clearTimeout(bleOperationTimeoutRef.current);
-      bleOperationTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Helper to clear global BLE timeout (90s last resort)
-  const clearBleGlobalTimeout = useCallback(() => {
-    if (bleGlobalTimeoutRef.current) {
-      clearTimeout(bleGlobalTimeoutRef.current);
-      bleGlobalTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Cancel/Close ongoing BLE operation - allows user to dismiss failure state and try again
-  // NOTE: Cancellation is blocked when already connected and reading data to prevent orphaned connections
+  // Cancel/Close ongoing BLE operation - delegates to hook
   const cancelBleOperation = useCallback(() => {
-    // SAFETY CHECK: Don't allow cancellation if we've successfully connected
-    // and are reading energy data - this would leave the device in a bad state
-    if (isConnectionSuccessfulRef.current) {
-      console.warn('=== Cancel blocked: Battery is already connected and reading data ===');
-      toast('Please wait while reading battery data...', { icon: '⏳' });
-      return;
-    }
-    
-    console.info('=== Closing/Cancelling BLE operation ===');
-    
-    // Clear all timeouts
-    clearBleOperationTimeout();
-    clearBleGlobalTimeout();
+    console.info('=== Cancelling BLE operation via hook ===');
     clearScanTimeout();
-    
-    // Stop BLE scan if running
-    if (window.WebViewJavascriptBridge) {
-      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-      
-      // Disconnect any connected device
-      const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-      if (connectedMac) {
-        window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
-        sessionStorage.removeItem('connectedDeviceMac');
-      }
-    }
-    
-    // Reset all BLE state
-    setBleScanState({
-      isScanning: false,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      detectedDevices: [],
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    });
-    
-    // Reset scan state
+    hookCancelOperation();
     setIsScanning(false);
     scanTypeRef.current = null;
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
-    pendingConnectionMacRef.current = null;
-    bleRetryCountRef.current = 0;
-    isConnectionSuccessfulRef.current = false;
-  }, [clearBleOperationTimeout, clearBleGlobalTimeout, clearScanTimeout]);
+  }, [clearScanTimeout, hookCancelOperation]);
+  
+  // Retry BLE connection - delegates to hook
+  const retryBleConnection = useCallback(() => {
+    console.info('=== Retrying BLE connection via hook ===');
+    hookRetryConnection();
+  }, [hookRetryConnection]);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
   );
+  
+  // Keep electricityServiceRef in sync for use in BLE hook callbacks
+  useEffect(() => {
+    electricityServiceRef.current = electricityService;
+  }, [electricityService]);
 
   // Get swap-count service from service states
   const swapCountService = serviceStates.find(
@@ -453,291 +463,18 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     return `${rssi}db ~ ${distance.toFixed(0)}m`;
   }, []);
 
-  // Start BLE scanning for nearby devices
-  // NOTE: This does NOT clear detected devices - devices accumulate over time
-  // This mirrors keypad behavior where BLE scan runs continuously and devices build up
+  // Start BLE scanning - delegates to hook
   const startBleScan = useCallback(() => {
-    if (!window.WebViewJavascriptBridge) {
-      console.error('WebViewJavascriptBridge not available for BLE scan');
-      return;
-    }
+    console.info('Starting BLE scan via hook');
+    hookStartScanning();
+  }, [hookStartScanning]);
 
-    window.WebViewJavascriptBridge.callHandler(
-      'startBleScan',
-      '',
-      (responseData: string) => {
-        console.info('BLE scan started:', responseData);
-      }
-    );
-    
-    // Just set isScanning flag - DON'T clear detected devices
-    // Devices accumulate over time for better matching
-    setBleScanState(prev => ({
-      ...prev,
-      isScanning: true,
-      error: null,
-    }));
-  }, []);
-
-  // Stop BLE scanning
+  // Stop BLE scanning - delegates to hook
   const stopBleScan = useCallback(() => {
-    if (!window.WebViewJavascriptBridge) return;
+    console.info('Stopping BLE scan via hook');
+    hookStopScanning();
+  }, [hookStopScanning]);
 
-    window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-    setBleScanState(prev => ({
-      ...prev,
-      isScanning: false,
-    }));
-  }, []);
-
-  // Connect to a BLE device by MAC address with timeout handling
-  const connectBleDevice = useCallback((macAddress: string) => {
-    if (!window.WebViewJavascriptBridge) {
-      toast.error('Bluetooth bridge not available');
-      return;
-    }
-
-    // Clear any existing timeout
-    clearBleOperationTimeout();
-    
-    // Reset connection success flag - this will be set to true in bleConnectSuccessCallBack
-    isConnectionSuccessfulRef.current = false;
-    
-    // Reset retry count when starting a fresh connection
-    bleRetryCountRef.current = 0;
-    
-    // Store the MAC address we're trying to connect to (for retry logic in failure callback)
-    pendingConnectionMacRef.current = macAddress;
-    
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: true,
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    }));
-
-    // NOTE: We intentionally do NOT set a timeout for retries here.
-    // Retries should ONLY happen when we receive an actual failure callback
-    // from bleConnectFailCallBack. This prevents retrying during normal
-    // connection + initialization time which can take longer than expected.
-    // The bleConnectFailCallBack and bleConnectSuccessCallBack will handle
-    // all connection state updates.
-
-    connBleByMacAddress(macAddress, (responseData: string) => {
-      console.info('BLE connection initiated:', responseData);
-    });
-  }, [clearBleOperationTimeout]);
-
-  // Extract energy from DTA service data
-  // rcap = Remaining Capacity in mAh (milliamp-hours)
-  // fccp = Full Charge Capacity in mAh
-  // pckv = Pack Voltage in mV (millivolts)
-  // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
-  // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null on failure
-  const populateEnergyFromDta = useCallback((serviceData: any): { energy: number; fullCapacity: number; chargePercent: number } | null => {
-    if (!serviceData || !Array.isArray(serviceData.characteristicList)) {
-      console.warn('Invalid DTA service data for energy calculation');
-      return null;
-    }
-
-    const getCharValue = (name: string) => {
-      const char = serviceData.characteristicList.find(
-        (c: any) => c.name?.toLowerCase() === name.toLowerCase()
-      );
-      return char?.realVal ?? null;
-    };
-
-    const rcapRaw = getCharValue('rcap');  // Remaining Capacity in mAh
-    const fccpRaw = getCharValue('fccp');  // Full Charge Capacity in mAh
-    const pckvRaw = getCharValue('pckv');  // Pack Voltage in mV
-    const rsocRaw = getCharValue('rsoc');  // Relative State of Charge (%)
-
-    const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
-    const fccp = fccpRaw !== null ? parseFloat(fccpRaw) : NaN;
-    const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
-    const rsoc = rsocRaw !== null ? parseFloat(rsocRaw) : NaN;
-
-    if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
-      console.warn('Unable to parse rcap/pckv from DTA service', {
-        rcapRaw,
-        pckvRaw,
-      });
-      return null;
-    }
-
-    // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
-    // Example: 15290 mAh × 75470 mV / 1,000,000 = 1,154 Wh = 1.15 kWh
-    const energy = (rcap * pckv) / 1_000_000;
-    const fullCapacity = Number.isFinite(fccp) ? (fccp * pckv) / 1_000_000 : 0;
-
-    if (!Number.isFinite(energy)) {
-      console.warn('Computed energy is not a finite number', {
-        rcap,
-        pckv,
-        energy,
-      });
-      return null;
-    }
-
-    // Calculate charge percentage from rcap/fccp, fallback to rsoc if fccp unavailable
-    let chargePercent: number;
-    if (Number.isFinite(fccp) && fccp > 0) {
-      chargePercent = Math.round((rcap / fccp) * 100);
-    } else if (Number.isFinite(rsoc)) {
-      chargePercent = Math.round(rsoc);
-    } else {
-      chargePercent = 0;
-    }
-
-    // Clamp charge percent to 0-100
-    chargePercent = Math.max(0, Math.min(100, chargePercent));
-
-    console.info('Energy calculated from DTA service:', {
-      rcap_mAh: rcap,
-      fccp_mAh: fccp,
-      pckv_mV: pckv,
-      pckv_V: pckv / 1000,
-      rsoc_percent: rsoc,
-      computed_energy_Wh: energy,
-      computed_energy_kWh: energy / 1000,
-      computed_fullCapacity_Wh: fullCapacity,
-      computed_fullCapacity_kWh: fullCapacity / 1000,
-      computed_chargePercent: chargePercent,
-    });
-
-    return {
-      energy: Math.round(energy * 100) / 100, // Round to 2 decimal places (Wh)
-      fullCapacity: Math.round(fullCapacity * 100) / 100,
-      chargePercent,
-    };
-  }, []);
-
-  // Handle matching QR code to detected BLE device and initiate connection
-  // Uses exponential backoff retry strategy for better reliability
-  const handleBleDeviceMatch = useCallback((qrCode: string, retryAttempt: number = 0) => {
-    const MAX_MATCH_RETRIES = 4; // Total 5 attempts (0-4)
-    const RETRY_DELAYS = [2000, 3000, 4000, 5000]; // Exponential backoff delays
-    
-    const last6 = qrCode.slice(-6).toLowerCase();
-    const devices = detectedBleDevicesRef.current;
-    
-    console.info('Attempting to match QR code to BLE device:', {
-      qrCode,
-      last6,
-      detectedDevices: devices.length,
-      attempt: retryAttempt + 1,
-      maxAttempts: MAX_MATCH_RETRIES + 1,
-    });
-
-    // Start global timeout on first attempt (when modal first appears)
-    // This is a last resort safety net - if no success or error after 90 seconds,
-    // show user instructions to toggle Bluetooth
-    if (retryAttempt === 0) {
-      clearBleGlobalTimeout();
-      bleGlobalTimeoutRef.current = setTimeout(() => {
-        console.warn('=== BLE GLOBAL TIMEOUT (90s) - Connection hung without error callback ===');
-        
-        // Clear other timeouts
-        clearBleOperationTimeout();
-        clearScanTimeout();
-        
-        // Stop BLE scan
-        if (window.WebViewJavascriptBridge) {
-          window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-        }
-        
-        // Show the Bluetooth reset instructions modal
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isReadingEnergy: false,
-          connectionProgress: 0,
-          error: 'Connection timed out',
-          connectionFailed: true,
-          requiresBluetoothReset: true,
-        }));
-        
-        toast.error('Connection timed out. Please toggle Bluetooth and try again.');
-        
-        // Reset scan state
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        isConnectionSuccessfulRef.current = false;
-      }, BLE_GLOBAL_TIMEOUT);
-    }
-
-    // Show connecting modal with progress based on retry attempt
-    const progressPercent = Math.min(5 + (retryAttempt * 15), 60);
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: true,
-      connectionProgress: progressPercent,
-      error: null, // Silently retry without affecting user confidence
-    }));
-
-    // Find device where last 6 chars of name match
-    const matchedDevice = devices.find(device => {
-      const deviceLast6 = (device.name || '').toLowerCase().slice(-6);
-      return deviceLast6 === last6;
-    });
-
-    if (matchedDevice) {
-      console.info('Found matching BLE device:', matchedDevice);
-      stopBleScan();
-      bleRetryCountRef.current = 0; // Reset retry count for connection phase
-      connectBleDevice(matchedDevice.macAddress);
-      return true;
-    } else {
-      console.warn(`No matching BLE device found (attempt ${retryAttempt + 1}). Available devices:`, 
-        devices.map(d => `${d.name} (${d.rssi})`));
-      
-      // Check if we should retry
-      if (retryAttempt < MAX_MATCH_RETRIES) {
-        const delay = RETRY_DELAYS[retryAttempt] || 5000;
-        console.info(`Will retry in ${delay}ms...`);
-        
-        // Update UI to show searching progress (silently retry without showing attempt count)
-        setBleScanState(prev => ({
-          ...prev,
-          connectionProgress: progressPercent + 5,
-          error: null, // Silently retry without affecting user confidence
-        }));
-        
-        // Schedule retry with exponential backoff
-        setTimeout(() => {
-          handleBleDeviceMatch(qrCode, retryAttempt + 1);
-        }, delay);
-        
-        return false;
-      } else {
-        // All retries exhausted
-        console.error('No matching BLE device found after all retries');
-        toast.error('Battery not found nearby. Please ensure the battery is powered on and close to this device.');
-        
-        // Clear global timeout since we've reached an error state
-        clearBleGlobalTimeout();
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isScanning: false,
-          connectionProgress: 0,
-          error: 'Battery not found',
-        }));
-        
-        // Reset state to allow user to try again
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        stopBleScan();
-        
-        return false;
-      }
-    }
-  }, [stopBleScan, connectBleDevice, clearBleGlobalTimeout, clearBleOperationTimeout, clearScanTimeout]);
 
   // Process customer QR code data and send MQTT identify_customer
   const processCustomerQRData = useCallback((qrCodeData: string) => {
@@ -1069,25 +806,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       }
     }
     
-    // Store the scanned battery ID for later use after BLE connection
-    pendingBatteryQrCodeRef.current = scannedBatteryId;
-    pendingBatteryScanTypeRef.current = 'old_battery';
-    
-    // Start scan-to-bind process - match QR code to BLE device
-    console.info('Old battery QR scanned, initiating scan-to-bind:', scannedBatteryId);
-    
-    // If BLE scanning hasn't started yet, start it (it should already be running)
-    if (!bleScanState.isScanning) {
-      startBleScan();
-      // Wait a moment for devices to be discovered before matching
-      setTimeout(() => {
-        handleBleDeviceMatch(scannedBatteryId);
-      }, 1000);
-    } else {
-      // BLE scan already running, try to match immediately
-      handleBleDeviceMatch(scannedBatteryId);
-    }
-  }, [customerType, customerData?.currentBatteryId, clearScanTimeout, stopBleScan, startBleScan, bleScanState.isScanning, handleBleDeviceMatch]);
+    // Initiate scan-to-bind via hook
+    console.info('Old battery QR scanned, initiating scan-to-bind via hook:', scannedBatteryId);
+    hookHandleQrScanned(qrCodeData, 'old_battery');
+  }, [customerType, customerData?.currentBatteryId, clearScanTimeout, stopBleScan, hookHandleQrScanned]);
 
   // Process new battery QR code data - initiates BLE connection to read energy
   const processNewBatteryQRData = useCallback((qrCodeData: string) => {
@@ -1140,25 +862,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Valid new battery detected - clear any previous flow error
     setFlowError(null);
     
-    // Store the scanned battery ID for later use after BLE connection
-    pendingBatteryQrCodeRef.current = scannedBatteryId;
-    pendingBatteryScanTypeRef.current = 'new_battery';
-    
-    // Start scan-to-bind process - match QR code to BLE device
-    console.info('New battery QR scanned, initiating scan-to-bind:', scannedBatteryId);
-    
-    // If BLE scanning hasn't started yet, start it (it should already be running)
-    if (!bleScanState.isScanning) {
-      startBleScan();
-      // Wait a moment for devices to be discovered before matching
-      setTimeout(() => {
-        handleBleDeviceMatch(scannedBatteryId);
-      }, 1000);
-    } else {
-      // BLE scan already running, try to match immediately
-      handleBleDeviceMatch(scannedBatteryId);
-    }
-  }, [clearScanTimeout, startBleScan, bleScanState.isScanning, handleBleDeviceMatch, swapData.oldBattery?.id, stopBleScan]);
+    // Initiate scan-to-bind via hook
+    console.info('New battery QR scanned, initiating scan-to-bind via hook:', scannedBatteryId);
+    hookHandleQrScanned(qrCodeData, 'new_battery');
+  }, [clearScanTimeout, swapData.oldBattery?.id, stopBleScan, hookHandleQrScanned]);
 
   // Create payment request/ticket with Odoo FIRST, then optionally send STK push
   // This MUST be done before collecting payment from the customer.
@@ -1367,14 +1074,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     processPaymentQRDataRef.current = processPaymentQRData;
   }, [processPaymentQRData]);
 
-  // Ref for populateEnergyFromDta to use in callbacks
-  const populateEnergyFromDtaRef = useRef(populateEnergyFromDta);
-  useEffect(() => {
-    populateEnergyFromDtaRef.current = populateEnergyFromDta;
-  }, [populateEnergyFromDta]);
-
-  // Ref for electricityService to avoid re-registering handlers when service data changes
-  const electricityServiceRef = useRef(electricityService);
+  // NOTE: populateEnergyFromDta is now handled internally by useFlowBatteryScan hook
+  // which uses extractEnergyFromDta from energyUtils.ts
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
@@ -1482,618 +1183,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       }
     );
 
-    // BLE device discovery callback - for scan-to-bind functionality
-    const offFindBle = reg(
-      "findBleDeviceCallBack",
-      (data: string, resp: (r: { success: boolean; error?: string }) => void) => {
-        try {
-          const d: any = JSON.parse(data);
-          
-          // Log ALL incoming BLE devices for debugging (even non-OVES)
-          console.info(`[BLE] Device found: ${d.name || 'unnamed'} (${d.macAddress}) RSSI: ${d.rssi}`);
-          
-          // Only process OVES devices (same filter as swap.tsx)
-          if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
-            const raw = Number(d.rssi);
-            const formattedRssi = `${raw}db`;
-            
-            const device: BleDevice = {
-              macAddress: d.macAddress,
-              name: d.name,
-              rssi: formattedRssi,
-              rawRssi: raw,
-            };
-            
-            // Update detected devices ref for immediate matching
-            const exists = detectedBleDevicesRef.current.some(p => p.macAddress === d.macAddress);
-            if (exists) {
-              detectedBleDevicesRef.current = detectedBleDevicesRef.current.map(p =>
-                p.macAddress === d.macAddress ? { ...p, rssi: formattedRssi, rawRssi: raw } : p
-              );
-            } else {
-              console.info(`[BLE] New OVES device added: ${d.name} - Total: ${detectedBleDevicesRef.current.length + 1}`);
-              detectedBleDevicesRef.current = [...detectedBleDevicesRef.current, device];
-            }
-            
-            // Sort by signal strength (highest first)
-            detectedBleDevicesRef.current.sort((a, b) => b.rawRssi - a.rawRssi);
-            
-            // Also update state for UI feedback
-            setBleScanState(prev => ({
-              ...prev,
-              detectedDevices: [...detectedBleDevicesRef.current],
-            }));
-            
-            resp({ success: true });
-          } else {
-            // Silently ignore non-OVES devices
-            resp({ success: true });
-          }
-        } catch (err: any) {
-          console.error("Error parsing BLE device data:", err);
-          resp({ success: false, error: err.message });
-        }
-      }
-    );
-
-    // BLE connection success callback - This fires when step 2 (BLE connection) succeeds
-    // FLOW: Scan → Connect (step 2) → Init/Read DTA data (step 3)
-    // Step 3 takes longer, so we must NOT allow retries during it
-    const offBleConnectSuccess = reg(
-      "bleConnectSuccessCallBack",
-      (macAddress: string, resp: any) => {
-        console.info("BLE connection successful (step 2 complete):", macAddress);
-        sessionStorage.setItem("connectedDeviceMac", macAddress);
-        
-        // CRITICAL: Mark connection as successful IMMEDIATELY before starting step 3
-        // This prevents bleConnectFailCallBack from triggering retries during step 3 (init/read)
-        // which can take a long time. Any failure callback after this point is ignored.
-        isConnectionSuccessfulRef.current = true;
-        
-        // Clear any pending timeout since we connected successfully
-        if (bleOperationTimeoutRef.current) {
-          clearTimeout(bleOperationTimeoutRef.current);
-          bleOperationTimeoutRef.current = null;
-        }
-        bleRetryCountRef.current = 0; // Reset retry count
-        pendingConnectionMacRef.current = null; // Clear pending MAC since we're now connected
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isReadingEnergy: true,
-          connectedDevice: macAddress,
-          connectionProgress: 100,
-          error: null,
-          connectionFailed: false, // Explicitly mark as not failed
-          requiresBluetoothReset: false,
-        }));
-        
-        // Set timeout for data reading phase
-        bleOperationTimeoutRef.current = setTimeout(() => {
-          console.warn('BLE data reading timed out after', BLE_DATA_READ_TIMEOUT, 'ms');
-          
-          setBleScanState(prev => ({
-            ...prev,
-            isReadingEnergy: false,
-            error: 'Data reading timed out',
-          }));
-          
-          // Disconnect from device
-          if (window.WebViewJavascriptBridge) {
-            window.WebViewJavascriptBridge.callHandler("disconnectBle", macAddress, () => {});
-          }
-          
-          toast.error('Could not read battery data. Please try scanning again.');
-          setIsScanning(false);
-          scanTypeRef.current = null;
-          pendingBatteryQrCodeRef.current = null;
-          pendingBatteryScanTypeRef.current = null;
-          isConnectionSuccessfulRef.current = false;
-        }, BLE_DATA_READ_TIMEOUT);
-        
-        // Request DTA service to read energy data
-        console.info("Requesting DTA service data for energy calculation...");
-        initServiceBleData(
-          { serviceName: "DTA", macAddress },
-          () => {
-            console.info("DTA service data requested for:", macAddress);
-          }
-        );
-        
-        resp(macAddress);
-      }
-    );
-
-    // BLE connection failure callback - ONLY place where retries should happen
-    // This fires when step 2 (BLE connection) explicitly fails
-    // IMPORTANT: We ONLY retry here on actual failure callbacks, NOT on timeouts
-    // FLOW: Scan → Connect (step 2) → Init/Read DTA data (step 3)
-    const offBleConnectFail = reg(
-      "bleConnectFailCallBack",
-      (data: string, resp: any) => {
-        console.error("BLE connection failed (step 2):", data);
-        
-        // Clear any existing timeout since we got an explicit response
-        if (bleOperationTimeoutRef.current) {
-          clearTimeout(bleOperationTimeoutRef.current);
-          bleOperationTimeoutRef.current = null;
-        }
-        
-        // CRITICAL: If step 2 already succeeded and we're now in step 3 (init/read),
-        // ignore this callback - it's likely a stale/delayed failure from an earlier attempt
-        if (isConnectionSuccessfulRef.current) {
-          console.info("Connection failure callback received but step 2 already succeeded (now in step 3) - ignoring");
-          resp(data);
-          return;
-        }
-        
-        // Get the MAC address we were trying to connect to from our ref
-        const pendingMac = pendingConnectionMacRef.current;
-        
-        // Check if we should auto-retry (only on explicit failure callback)
-        if (bleRetryCountRef.current < MAX_BLE_RETRIES && pendingMac) {
-          bleRetryCountRef.current += 1;
-          console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
-          
-          // Silently retry without showing retry count to user (to maintain user confidence)
-          setBleScanState(prev => ({
-            ...prev,
-            connectionProgress: 10,
-            error: null, // Silently retry without affecting user confidence
-            connectionFailed: false, // Not yet failed, still retrying
-          }));
-          
-          // Retry connection with exponential backoff delay
-          setTimeout(() => {
-            // Double-check we haven't connected successfully in the meantime
-            if (isConnectionSuccessfulRef.current) {
-              console.info("Connection succeeded during retry delay - cancelling retry from failure handler");
-              return;
-            }
-            connBleByMacAddress(pendingMac, () => {
-              console.info("BLE retry connection initiated");
-            });
-          }, 1000 * bleRetryCountRef.current); // Exponential backoff
-          
-          resp(data);
-          return;
-        }
-        
-        // All retries exhausted - mark as definitively failed
-        console.error("BLE connection failed after all retries or no MAC address available");
-        bleRetryCountRef.current = 0;
-        isConnectionSuccessfulRef.current = false;
-        pendingConnectionMacRef.current = null;
-        
-        // Clear global timeout since we've reached an error state
-        if (bleGlobalTimeoutRef.current) {
-          clearTimeout(bleGlobalTimeoutRef.current);
-          bleGlobalTimeoutRef.current = null;
-        }
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isReadingEnergy: false,
-          connectionProgress: 0,
-          error: 'Connection failed. Please try again.',
-          connectionFailed: true, // Mark as definitively failed
-          requiresBluetoothReset: false,
-        }));
-        
-        toast.error('Battery connection failed. Please try again.');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        
-        resp(data);
-      }
-    );
-
-    // BLE service data progress callback - used when reading service data (DTA for energy)
-    // IMPORTANT: This is bleInitServiceDataOnProgressCallBack, NOT bleInitDataOnProgressCallBack
-    // The former is for initServiceBleData (specific service), the latter is for initBleData (all data)
-    const offBleServiceProgress = reg(
-      "bleInitServiceDataOnProgressCallBack",
-      (data: string) => {
-        try {
-          const p = JSON.parse(data);
-          const progress = Math.round((p.progress / p.total) * 100);
-          console.info("BLE service data progress:", progress, "%");
-          setBleScanState(prev => ({
-            ...prev,
-            connectionProgress: progress,
-          }));
-        } catch (err) {
-          console.error("Service progress callback error:", err);
-        }
-      }
-    );
-
-    // BLE service data complete callback - this is where we get the energy data
-    const offBleInitServiceComplete = reg(
-      "bleInitServiceDataOnCompleteCallBack",
-      (data: string, resp: any) => {
-        try {
-          const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-          
-          // Check if this response indicates an error (e.g., "Bluetooth device not connected")
-          // This can happen when the DTA refresh is called but the device becomes unreachable
-          const respCode = parsedData?.respCode || parsedData?.responseData?.respCode;
-          const respDesc = parsedData?.respDesc || parsedData?.responseData?.respDesc || '';
-          
-          if (respCode && respCode !== "200" && respCode !== 200) {
-            console.error("DTA service returned error:", { respCode, respDesc, parsedData });
-            
-            // Check if this is a "Bluetooth device not connected" error
-            const isBluetoothDisconnected = 
-              typeof respDesc === 'string' && (
-                respDesc.toLowerCase().includes('bluetooth device not connected') ||
-                respDesc.toLowerCase().includes('device not connected') ||
-                respDesc.toLowerCase().includes('not connected')
-              );
-            
-            if (isBluetoothDisconnected) {
-              console.warn("Detected 'Bluetooth device not connected' in DTA response - requiring Bluetooth reset");
-              
-              // Clear global timeout since we've reached an error state
-              if (bleGlobalTimeoutRef.current) {
-                clearTimeout(bleGlobalTimeoutRef.current);
-                bleGlobalTimeoutRef.current = null;
-              }
-              
-              setBleScanState(prev => ({
-                ...prev,
-                isReadingEnergy: false,
-                error: 'Bluetooth connection lost',
-                connectionFailed: true,
-                requiresBluetoothReset: true,
-              }));
-              
-              // Reset state
-              dtaRefreshRetryCountRef.current = 0;
-              toast.dismiss('dta-refresh');
-              setIsScanning(false);
-              scanTypeRef.current = null;
-              pendingBatteryQrCodeRef.current = null;
-              pendingBatteryScanTypeRef.current = null;
-              isConnectionSuccessfulRef.current = false;
-              
-              toast.error('Please turn Bluetooth OFF then ON and try again.');
-              resp({ success: false, error: respDesc });
-              return;
-            }
-          }
-          
-          // Only process DTA_SERVICE responses
-          if (parsedData?.serviceNameEnum === "DTA_SERVICE") {
-            console.info("DTA service data received:", parsedData);
-            
-            // Clear data reading timeout since we got data
-            if (bleOperationTimeoutRef.current) {
-              clearTimeout(bleOperationTimeoutRef.current);
-              bleOperationTimeoutRef.current = null;
-            }
-            
-            // Extract energy data from DTA service
-            // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null
-            const energyData = populateEnergyFromDtaRef.current(parsedData);
-            const scannedBatteryId = pendingBatteryQrCodeRef.current;
-            const scanType = pendingBatteryScanTypeRef.current;
-            const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-            
-            // Helper function to disconnect and reset BLE state
-            const disconnectAndResetBleState = () => {
-              if (window.WebViewJavascriptBridge && connectedMac) {
-                window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {});
-              }
-              setBleScanState(prev => ({
-                ...prev,
-                isReadingEnergy: false,
-                connectedDevice: null,
-              }));
-            };
-            
-            if (energyData !== null && scannedBatteryId) {
-              // Success - disconnect now
-              disconnectAndResetBleState();
-              const { energy, chargePercent } = energyData;
-              console.info(`Battery energy read: ${energy} Wh (${(energy / 1000).toFixed(3)} kWh) at ${chargePercent}% for ${scanType}`);
-              
-              if (scanType === 'old_battery') {
-                // Create old battery data with actual energy from rcap (in Wh)
-                const oldBattery: BatteryData = {
-                  id: scannedBatteryId,
-                  shortId: String(scannedBatteryId).slice(-6),
-                  chargeLevel: chargePercent,
-                  energy: energy, // rcap in Wh
-                  macAddress: sessionStorage.getItem("connectedDeviceMac") || undefined,
-                };
-                
-                setSwapData(prev => ({ ...prev, oldBattery }));
-                advanceToStep(3);
-                toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
-              } else if (scanType === 'new_battery') {
-                // Create new battery data and calculate differential
-                const newBattery: BatteryData = {
-                  id: scannedBatteryId,
-                  shortId: String(scannedBatteryId).slice(-6),
-                  chargeLevel: chargePercent,
-                  energy: energy, // rcap in Wh
-                  macAddress: sessionStorage.getItem("connectedDeviceMac") || undefined,
-                };
-                
-                // Calculate energy difference and cost using actual energy values
-                // Energy from BLE (rcap) is in Wh, rate is per kWh - convert Wh to kWh
-                setSwapData(prev => {
-                  const oldEnergy = prev.oldBattery?.energy || 0;
-                  const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
-                  const energyDiffKwh = energyDiffWh / 1000; // Convert to kWh for billing
-                  
-                  // Use ref to get latest electricityService value without causing callback recreation
-                  const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
-                  
-                  // Get remaining electricity quota from service
-                  const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
-                  const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
-                  const remainingQuotaKwh = Math.max(0, elecQuota - elecUsed);
-                  
-                  // Calculate quota deduction: min of (remaining quota, energy needed)
-                  // Only apply quota deduction if energyDiff is positive (customer receives more than they return)
-                  const quotaDeduction = energyDiffKwh > 0 
-                    ? Math.min(remainingQuotaKwh, energyDiffKwh) 
-                    : 0;
-                  
-                  // Chargeable energy is the energy diff minus the quota applied
-                  const chargeableEnergy = Math.max(0, energyDiffKwh - quotaDeduction);
-                  
-                  // Cost is based on chargeable energy (after quota deduction)
-                  const cost = Math.round(chargeableEnergy * rate * 100) / 100;
-                  
-                  console.info('Energy differential calculated:', {
-                    oldEnergyWh: oldEnergy,
-                    oldEnergyKwh: oldEnergy / 1000,
-                    newEnergyWh: energy,
-                    newEnergyKwh: energy / 1000,
-                    energyDiffWh,
-                    energyDiffKwh,
-                    remainingQuotaKwh,
-                    quotaDeduction,
-                    chargeableEnergy,
-                    ratePerKwh: rate,
-                    cost,
-                  });
-                  
-                  return {
-                    ...prev,
-                    newBattery,
-                    energyDiff: Math.round(energyDiffKwh * 1000) / 1000, // Store in kWh with 3 decimal places
-                    quotaDeduction: Math.round(quotaDeduction * 1000) / 1000,
-                    chargeableEnergy: Math.round(chargeableEnergy * 1000) / 1000,
-                    cost: cost > 0 ? cost : 0,
-                  };
-                });
-                
-                advanceToStep(4);
-                toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
-              }
-            } else {
-              // DTA data received but energy values are missing/invalid
-              // Implement refresh mechanism similar to BLE Details Page
-              
-              if (!scannedBatteryId) {
-                // No battery ID - this is a different error, don't retry
-                console.warn("Missing battery ID - cannot proceed");
-                toast.error('Could not identify battery. Please try again.');
-                
-                // Disconnect and reset
-                disconnectAndResetBleState();
-                dtaRefreshRetryCountRef.current = 0;
-                setIsScanning(false);
-                scanTypeRef.current = null;
-                pendingBatteryQrCodeRef.current = null;
-                pendingBatteryScanTypeRef.current = null;
-                isConnectionSuccessfulRef.current = false;
-              } else if (dtaRefreshRetryCountRef.current < MAX_DTA_REFRESH_RETRIES && connectedMac) {
-                // Energy values missing but we have battery ID and connection
-                // Retry by refreshing DTA service (like the refresh button in BLE Details Page)
-                dtaRefreshRetryCountRef.current += 1;
-                console.info(
-                  `DTA data incomplete, refreshing DTA service (attempt ${dtaRefreshRetryCountRef.current}/${MAX_DTA_REFRESH_RETRIES})...`,
-                  { scannedBatteryId, connectedMac }
-                );
-                
-                // Show user feedback that we're retrying
-                toast.loading('Reading battery energy...', { id: 'dta-refresh' });
-                
-                // Keep reading state active - DON'T disconnect, we need to stay connected
-                setBleScanState(prev => ({
-                  ...prev,
-                  isReadingEnergy: true,
-                  connectionProgress: 50 + (dtaRefreshRetryCountRef.current * 15), // Progress feedback
-                }));
-                
-                // Delay before retry to allow device to stabilize
-                setTimeout(() => {
-                  console.info("Refreshing DTA service data...");
-                  initServiceBleData(
-                    { serviceName: "DTA", macAddress: connectedMac },
-                    () => {
-                      console.info("DTA service refresh requested for:", connectedMac);
-                    }
-                  );
-                }, DTA_REFRESH_DELAY);
-                
-                // Don't clear state - we're retrying
-                // Return early to prevent state cleanup below
-                resp(parsedData);
-                return;
-              } else {
-                // Exceeded retry limit or no connection - fail gracefully
-                console.warn(
-                  "Could not extract energy from DTA data after all retries",
-                  { retryCount: dtaRefreshRetryCountRef.current, maxRetries: MAX_DTA_REFRESH_RETRIES }
-                );
-                toast.dismiss('dta-refresh'); // Dismiss loading toast
-                toast.error('Could not read battery energy values. Please try again.');
-                
-                // Disconnect and reset
-                disconnectAndResetBleState();
-                dtaRefreshRetryCountRef.current = 0;
-                setBleScanState(prev => ({
-                  ...prev,
-                  error: 'Could not read energy values',
-                }));
-                setIsScanning(false);
-                scanTypeRef.current = null;
-                pendingBatteryQrCodeRef.current = null;
-                pendingBatteryScanTypeRef.current = null;
-                isConnectionSuccessfulRef.current = false;
-              }
-            }
-            
-            // Success path - reset DTA retry count and clear pending state
-            if (energyData !== null && scannedBatteryId) {
-              dtaRefreshRetryCountRef.current = 0;
-              toast.dismiss('dta-refresh'); // Dismiss loading toast if any
-              
-              // Clear global timeout since operation completed successfully
-              if (bleGlobalTimeoutRef.current) {
-                clearTimeout(bleGlobalTimeoutRef.current);
-                bleGlobalTimeoutRef.current = null;
-              }
-              
-              // Clear pending state - reset connection flag for next operation
-              setIsScanning(false);
-              scanTypeRef.current = null;
-              pendingBatteryQrCodeRef.current = null;
-              pendingBatteryScanTypeRef.current = null;
-              isConnectionSuccessfulRef.current = false;
-            }
-          }
-          
-          resp(parsedData);
-        } catch (err) {
-          console.error("Error parsing BLE service data:", err);
-          setBleScanState(prev => ({
-            ...prev,
-            isReadingEnergy: false,
-            error: 'Failed to read energy data',
-          }));
-          // Reset DTA retry count on error
-          dtaRefreshRetryCountRef.current = 0;
-          toast.dismiss('dta-refresh');
-          setIsScanning(false);
-          scanTypeRef.current = null;
-          pendingBatteryQrCodeRef.current = null;
-          pendingBatteryScanTypeRef.current = null;
-          isConnectionSuccessfulRef.current = false;
-          toast.error('Failed to read battery energy data.');
-          resp({ success: false, error: String(err) });
-        }
-      }
-    );
-
-    // BLE service data failure callback
-    const offBleInitServiceFail = reg(
-      "bleInitServiceDataFailureCallBack",
-      (data: string) => {
-        console.error("Failed to read DTA service:", data);
-        
-        // Check if this is a "Bluetooth device not connected" error
-        // This typically happens when the connection was established but the device becomes unreachable
-        // The solution is for the user to toggle Bluetooth off and on
-        let errorMessage = 'Failed to read energy data';
-        let requiresReset = false;
-        
-        try {
-          const parsedError = JSON.parse(data);
-          const respDesc = parsedError?.responseData?.respDesc || parsedError?.respDesc || '';
-          const errorStr = typeof respDesc === 'string' ? respDesc : '';
-          
-          if (errorStr.toLowerCase().includes('bluetooth device not connected') ||
-              errorStr.toLowerCase().includes('device not connected') ||
-              errorStr.toLowerCase().includes('not connected')) {
-            errorMessage = 'Bluetooth connection lost';
-            requiresReset = true;
-            console.warn("Detected 'Bluetooth device not connected' error - requiring Bluetooth reset");
-          }
-        } catch {
-          // If parsing fails, check the raw string
-          if (data.toLowerCase().includes('bluetooth device not connected') ||
-              data.toLowerCase().includes('device not connected') ||
-              data.toLowerCase().includes('not connected')) {
-            errorMessage = 'Bluetooth connection lost';
-            requiresReset = true;
-            console.warn("Detected 'Bluetooth device not connected' error (raw) - requiring Bluetooth reset");
-          }
-        }
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isReadingEnergy: false,
-          error: errorMessage,
-          connectionFailed: true,
-          requiresBluetoothReset: requiresReset,
-        }));
-        
-        // Reset DTA retry count on failure
-        dtaRefreshRetryCountRef.current = 0;
-        toast.dismiss('dta-refresh');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        isConnectionSuccessfulRef.current = false;
-        
-        if (requiresReset) {
-          toast.error('Please turn Bluetooth OFF then ON and try again.');
-        } else {
-          toast.error('Unable to read battery energy. Please try again.');
-        }
-      }
-    );
-
-    // Signal that BLE handlers are now registered and ready
-    // This is crucial - the scan effect should not start BLE scanning until this is set
-    console.info('=== BLE handlers registered, setting bleHandlersReady = true ===');
-    setBleHandlersReady(true);
+    // NOTE: BLE handlers (findBleDeviceCallBack, bleConnectSuccessCallBack, etc.) 
+    // are now handled by the useFlowBatteryScan hook internally.
+    // This keeps the bridge setup cleaner and consolidates BLE logic.
 
     return () => {
       offQr();
-      offFindBle();
-      offBleConnectSuccess();
-      offBleConnectFail();
-      offBleServiceProgress();
-      offBleInitServiceComplete();
-      offBleInitServiceFail();
-      // Clear any pending BLE operation timeouts
-      if (bleOperationTimeoutRef.current) {
-        clearTimeout(bleOperationTimeoutRef.current);
-        bleOperationTimeoutRef.current = null;
-      }
-      // Clear global timeout
-      if (bleGlobalTimeoutRef.current) {
-        clearTimeout(bleGlobalTimeoutRef.current);
-        bleGlobalTimeoutRef.current = null;
-      }
-      // Stop BLE scan on cleanup
-      if (window.WebViewJavascriptBridge) {
-        window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
-        // Disconnect any connected device
-        const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-        if (connectedMac) {
-          window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {});
-        }
-      }
-      // Reset the flag on cleanup
-      setBleHandlersReady(false);
+      // BLE handlers are now managed by useFlowBatteryScan hook
     };
-  // Note: We removed the processing callback functions from dependencies since we now use refs
-  // The refs are always up-to-date via useEffect hooks, so the bridge handler always calls the latest version
-  // electricityService is also accessed via ref to prevent handler re-registration when service data loads
   }, [clearScanTimeout]);
 
   // Setup bridge when ready
@@ -2136,7 +1233,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     if (isBatteryScanStep) {
       console.info(`=== Starting BLE scan cycle for Step ${currentStep} (battery scanning) ===`);
-      console.info(`Detected devices before scan: ${detectedBleDevicesRef.current.length}`);
+      console.info(`Detected devices before scan: ${bleScanState.detectedDevices.length}`);
       
       // IMPORTANT: Stop-before-start pattern (matches keypad behavior)
       // The native BLE layer needs a clean stop before starting a fresh scan cycle
@@ -2482,19 +1579,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Clear any existing flow error when retrying
     setFlowError(null);
     
-    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
-    // This preserves devices that were discovered while user was viewing Step 2
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      connectionProgress: 0,
-      error: null,
-    }));
-    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
     
     setIsScanning(true);
     scanTypeRef.current = 'old_battery';
@@ -2504,11 +1590,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     console.info(`=== Scanning Old Battery ===`);
     console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
     console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
-    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
-    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    console.info(`Detected devices count: ${bleScanState.detectedDevices.length}`);
+    console.info('Detected devices:', bleScanState.detectedDevices.map(d => `${d.name} (${d.rssi})`));
     
     // If no devices detected yet, warn the user
-    if (detectedBleDevicesRef.current.length === 0) {
+    if (bleScanState.detectedDevices.length === 0) {
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
@@ -2534,19 +1620,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Clear any existing flow error when retrying (e.g., after scanning old battery as new by mistake)
     setFlowError(null);
 
-    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
-    // This preserves devices that were discovered while user was viewing Step 3
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      connectionProgress: 0,
-      error: null,
-    }));
-    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
     
     setIsScanning(true);
     scanTypeRef.current = 'new_battery';
@@ -2556,11 +1631,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     console.info(`=== Scanning New Battery ===`);
     console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
     console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
-    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
-    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    console.info(`Detected devices count: ${bleScanState.detectedDevices.length}`);
+    console.info('Detected devices:', bleScanState.detectedDevices.map(d => `${d.name} (${d.rssi})`));
     
     // If no devices detected yet, warn the user
-    if (detectedBleDevicesRef.current.length === 0) {
+    if (bleScanState.detectedDevices.length === 0) {
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
@@ -3134,23 +2209,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setFlowError(null); // Clear any flow errors
     cancelOngoingScan(); // Clear any pending timeouts
     
-    // Clear BLE state for fresh start - devices will be rediscovered when reaching Step 2
-    setBleScanState({
-      isScanning: false,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      detectedDevices: [],
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    });
-    detectedBleDevicesRef.current = [];
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
-    pendingConnectionMacRef.current = null;
-  }, [cancelOngoingScan]);
+    // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
+    hookResetState();
+  }, [cancelOngoingScan, hookResetState]);
 
   // Go back one step
   const handleBack = useCallback(() => {
@@ -3409,152 +2470,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         </div>
       )}
 
-      {/* BLE Connection Progress Overlay - Shows when connecting, reading energy, or when connection failed */}
-      {(bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed) && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
-          <div className="w-full max-w-md px-4">
-            <div className="ble-progress-container">
-              {/* Header */}
-              <div className="ble-progress-header">
-                <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
-                  {bleScanState.requiresBluetoothReset ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
-                    </svg>
-                  )}
-                </div>
-                <div className="ble-progress-title">
-                  {bleScanState.requiresBluetoothReset
-                    ? 'Bluetooth Reset Required'
-                    : bleScanState.isReadingEnergy 
-                    ? 'Reading Battery Data' 
-                    : 'Connecting to Battery'}
-                </div>
-              </div>
-
-              {/* Bluetooth Reset Instructions - Show when Bluetooth reset is required */}
-              {bleScanState.requiresBluetoothReset && (
-                <div className="ble-reset-instructions">
-                  <div className="ble-reset-steps">
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">1</span>
-                      <span>Open your phone&apos;s Settings</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">2</span>
-                      <span>Turn Bluetooth OFF</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">3</span>
-                      <span>Wait 3 seconds</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">4</span>
-                      <span>Turn Bluetooth ON</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">5</span>
-                      <span>Return here and try again</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Battery ID Display - Show which battery we're connecting to (hide when reset required) */}
-              {pendingBatteryQrCodeRef.current && !bleScanState.requiresBluetoothReset && (
-                <div className="ble-battery-id">
-                  <span className="ble-battery-id-label">Battery ID:</span>
-                  <span className="ble-battery-id-value">
-                    ...{String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase()}
-                  </span>
-                </div>
-              )}
-
-              {/* Progress Bar - Hide when Bluetooth reset is required */}
-              {!bleScanState.requiresBluetoothReset && (
-                <div className="ble-progress-bar-container">
-                  <div className="ble-progress-bar-bg">
-                    <div 
-                      className="ble-progress-bar-fill"
-                      style={{ width: `${bleScanState.connectionProgress}%` }}
-                    />
-                  </div>
-                  <div className="ble-progress-percent">
-                    {bleScanState.connectionProgress}%
-                  </div>
-                </div>
-              )}
-
-              {/* Status Message - More specific messages about what's happening */}
-              <div className="ble-progress-status">
-                {bleScanState.requiresBluetoothReset
-                  ? 'The Bluetooth connection was lost. Please toggle Bluetooth to reset it.'
-                  : bleScanState.error 
-                  ? bleScanState.error
-                  : bleScanState.isReadingEnergy 
-                  ? 'Reading energy level from battery...'
-                  : bleScanState.connectionProgress >= 75
-                  ? 'Finalizing connection...'
-                  : bleScanState.connectionProgress >= 50
-                  ? 'Establishing secure connection...'
-                  : bleScanState.connectionProgress >= 25
-                  ? 'Authenticating with battery...'
-                  : bleScanState.connectionProgress >= 10
-                  ? 'Locating battery via Bluetooth...'
-                  : `Connecting to battery ${pendingBatteryQrCodeRef.current ? '...' + String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase() : ''}...`}
-              </div>
-
-              {/* Step Indicators - Hide when Bluetooth reset is required */}
-              {!bleScanState.requiresBluetoothReset && (
-                <div className="ble-progress-steps">
-                  <div className={`ble-step active completed`}>
-                    <div className="ble-step-dot" />
-                    <span>Scan</span>
-                  </div>
-                  <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
-                    <div className="ble-step-dot" />
-                    <span>Connect</span>
-                  </div>
-                  <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
-                    <div className="ble-step-dot" />
-                    <span>Read</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Cancel/Close Button - Only shown when connection has definitively failed */}
-              {/* This prevents users from cancelling during normal connection/initialization which can take time */}
-              {bleScanState.connectionFailed && (
-                <button
-                  onClick={cancelBleOperation}
-                  className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
-                  title="Close and try again"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                  {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Close'}
-                </button>
-              )}
-              
-              {/* Help Text - Show different message based on failure state */}
-              <p className="ble-progress-help">
-                {bleScanState.requiresBluetoothReset
-                  ? 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.'
-                  : bleScanState.connectionFailed 
-                  ? 'Connection failed. Please ensure the battery is powered on and nearby, then try again.'
-                  : 'Please wait while connecting. Make sure the battery is powered on and within 2 meters.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* BLE Connection Progress Modal - Reusable component for connection/reading progress */}
+      <BleProgressModal
+        bleScanState={bleScanState}
+        pendingBatteryId={pendingBatteryId}
+        onCancel={cancelBleOperation}
+      />
     </div>
   );
 }
