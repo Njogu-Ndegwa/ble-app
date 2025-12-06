@@ -416,6 +416,9 @@ const WAITING_TIPS = [
   'Reading battery data requires loading device information',
 ];
 
+// Countdown timer constants
+const COUNTDOWN_START_SECONDS = 60;
+
 // Phase-specific messages for better feedback
 const PHASE_MESSAGES = {
   scanning: {
@@ -445,15 +448,28 @@ function BleConnectionProgress({
   const { t } = useI18n();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
+  const [showCancelButton, setShowCancelButton] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
   
-  // Track elapsed time
+  // Track elapsed time and countdown
   useEffect(() => {
     startTimeRef.current = Date.now();
     setElapsedTime(0);
+    setCountdown(COUNTDOWN_START_SECONDS);
+    setShowCancelButton(false);
     
     const timer = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setElapsedTime(elapsed);
+      
+      const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
+      setCountdown(remaining);
+      
+      // Show cancel button after countdown reaches 0
+      if (remaining <= 0) {
+        setShowCancelButton(true);
+      }
     }, 1000);
     
     return () => clearInterval(timer);
@@ -487,12 +503,8 @@ function BleConnectionProgress({
     return `${mins}m ${secs}s`;
   };
 
-  // Only show progress bar when we have actual progress from BLE operations
-  const showProgress = bleScanState.connectionProgress > 0 && 
-    (bleScanState.isConnecting || bleScanState.isReadingService);
-
-  // Show longer wait message after 15 seconds
-  const showLongerWaitMessage = elapsedTime >= 15;
+  // Show progress bar from 0% for visual consistency
+  const showProgress = bleScanState.isConnecting || bleScanState.isReadingService;
 
   return (
     <div className="ble-connection-progress">
@@ -518,7 +530,7 @@ function BleConnectionProgress({
         </p>
       </div>
       
-      {/* Progress bar */}
+      {/* Progress bar - show from 0% */}
       {showProgress && (
         <div className="connection-progress-container">
           <div className="connection-progress-bar">
@@ -532,6 +544,19 @@ function BleConnectionProgress({
           </span>
         </div>
       )}
+      
+      {/* Countdown timer */}
+      <div className="connection-countdown">
+        {countdown > 0 ? (
+          <span className="countdown-text">
+            Connection will complete in about <strong>{countdown}s</strong>
+          </span>
+        ) : (
+          <span className="countdown-expired">
+            Taking longer than expected. Try turning Bluetooth off and on, then reconnect after 1 minute.
+          </span>
+        )}
+      </div>
       
       {/* Elapsed time indicator */}
       <div className="connection-elapsed-time">
@@ -547,21 +572,14 @@ function BleConnectionProgress({
         </p>
       </div>
       
-      {/* Longer wait encouragement message */}
-      {showLongerWaitMessage && (
-        <div className="connection-patience-message">
-          <p>This is taking a bit longer than usual. Please be patient...</p>
-        </div>
-      )}
-      
-      {/* Cancel button */}
-      {onCancel && (
+      {/* Cancel button - show after 60 seconds or if already visible */}
+      {onCancel && showCancelButton && (
         <button 
           className="btn btn-secondary btn-sm connection-cancel-btn" 
           onClick={onCancel}
           type="button"
         >
-          {t('common.cancel') || 'Cancel'}
+          {t('common.cancel') || 'Cancel & Retry'}
         </button>
       )}
     </div>
@@ -582,9 +600,14 @@ function BleErrorState({
 }) {
   const { t } = useI18n();
   
+  // Check if error indicates device might already be connected
+  const isAlreadyConnectedError = bleScanState.error?.includes('already connected');
+  
   const errorMessage = bleScanState.requiresBluetoothReset
     ? t('attendant.bleResetRequired') || 'Please toggle Bluetooth off and on, then try again'
-    : bleScanState.error || t('attendant.connectionFailed') || 'Connection failed';
+    : isAlreadyConnectedError
+      ? 'Device may already be connected. Turn Bluetooth off and on, wait 1 minute, then try again.'
+      : bleScanState.error || t('attendant.connectionFailed') || 'Connection failed';
 
   return (
     <div className="ble-error-state">
@@ -593,7 +616,7 @@ function BleErrorState({
       </div>
       <p className="error-message">{errorMessage}</p>
       <div className="error-actions">
-        {onRetry && !bleScanState.requiresBluetoothReset && (
+        {onRetry && !bleScanState.requiresBluetoothReset && !isAlreadyConnectedError && (
           <button 
             className="btn btn-primary btn-sm"
             onClick={onRetry}
