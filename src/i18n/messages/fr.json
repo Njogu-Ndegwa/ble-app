@@ -24,6 +24,7 @@
   "auth.error.invalidCredentials": "Identifiants invalides",
   "auth.error.userNotFound": "Utilisateur introuvable",
   "common.na": "N/D",
+  "common.tapToScan": "Appuyez pour scanner",
   "common.refresh": "Rafraîchir",
   "common.description": "Description",
   "common.copied": "Valeur copiée dans le presse-papiers",
@@ -1098,6 +1099,7 @@
   
   "attendant.returnBattery": "Retourner la batterie",
   "attendant.scanReturnBattery": "Scanner Retour",
+  "attendant.scanReturnHint": "Scannez le code QR sur la batterie à retourner",
   "attendant.batteryReturned": "Batterie retournée",
   "attendant.chargeLevel": "Niveau de charge",
   "attendant.energyRemaining": "Énergie restante",
@@ -1106,6 +1108,7 @@
   
   "attendant.issueNewBattery": "Émettre une nouvelle batterie",
   "attendant.scanNewBattery": "Scanner Nouveau",
+  "attendant.scanNewHint": "Scannez le code QR sur la nouvelle batterie à émettre",
   "attendant.newBatteryAssigned": "Nouvelle batterie attribuée",
   "attendant.batteryId": "ID de la batterie",
   

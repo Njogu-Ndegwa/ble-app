@@ -135,8 +135,11 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Progress Bar - Hide when Bluetooth reset is required */}
-          {!bleScanState.requiresBluetoothReset && (
+          {/* Progress Bar - Only show real backend progress (not during retries or initial matching) */}
+          {/* Only show progress bar when actively connecting or reading, and progress is above initial state */}
+          {!bleScanState.requiresBluetoothReset && 
+           bleScanState.connectionProgress > 0 &&
+           (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-progress-bar-container">
               <div className="ble-progress-bar-bg">
                 <div 

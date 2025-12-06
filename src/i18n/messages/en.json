@@ -24,6 +24,7 @@
   "auth.error.invalidCredentials": "Invalid credentials",
   "auth.error.userNotFound": "User not found",
   "common.na": "N/A",
+  "common.tapToScan": "Tap to scan",
   "common.refresh": "Refresh",
   "common.description": "Description",
   "common.copied": "Value copied to clipboard",
@@ -1107,6 +1108,7 @@
   
   "attendant.returnBattery": "Return Battery",
   "attendant.scanReturnBattery": "Scan Return",
+  "attendant.scanReturnHint": "Scan the QR code on the battery being returned",
   "attendant.batteryReturned": "Battery Returned",
   "attendant.chargeLevel": "Charge Level",
   "attendant.energyRemaining": "Energy Remaining",
@@ -1115,6 +1117,7 @@
   
   "attendant.issueNewBattery": "Issue New Battery",
   "attendant.scanNewBattery": "Scan New",
+  "attendant.scanNewHint": "Scan the QR code on the new battery to issue",
   "attendant.newBatteryAssigned": "New Battery Assigned",
   "attendant.batteryId": "Battery ID",
   

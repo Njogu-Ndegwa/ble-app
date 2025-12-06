@@ -1,18 +1,24 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 
 interface ScannerAreaProps {
   onClick: () => void;
   type?: 'qr' | 'battery'; // Kept for backward compatibility, but all types use same QR icon
   size?: 'normal' | 'small'; // Deprecated - all scanners now use consistent size
   disabled?: boolean; // Prevent clicks while scanner is opening
+  label?: string; // Custom label for the scanner prompt
 }
 
-export default function ScannerArea({ onClick, disabled = false }: ScannerAreaProps) {
+export default function ScannerArea({ onClick, disabled = false, label }: ScannerAreaProps) {
+  const { t } = useI18n();
   // Consistent size for all scan areas in the Attendant workflow
   // Using 140x140px as a balanced size that works well across all steps
   const consistentStyle = { width: '140px', height: '140px', margin: '16px auto' };
+  
+  // Use provided label or fall back to translated text or default
+  const displayLabel = label || t('common.tapToScan') || 'Tap to scan';
 
   const handleClick = () => {
     // Prevent triggering if disabled (scanner already opening)
@@ -57,7 +63,7 @@ export default function ScannerArea({ onClick, disabled = false }: ScannerAreaPr
             </div>
             {/* Clear prompt so users know to tap */}
             <div className="scanner-tap-prompt">
-              <span>Tap to scan</span>
+              <span>{displayLabel}</span>
             </div>
           </>
         )}
