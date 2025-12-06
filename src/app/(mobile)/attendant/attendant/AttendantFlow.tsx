@@ -178,6 +178,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // BLE scan-to-bind hook - handles all BLE operations for battery scanning
   const {
     bleScanState,
+    pendingBatteryId,
     isReady: bleIsReady,
     startScanning: hookStartScanning,
     stopScanning: hookStopScanning,
@@ -264,12 +265,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     }
   }, [bleIsReady, bleHandlersReady]);
   
-  // Legacy refs kept for UI feedback and reset operations
-  // These are read by the reset and debug functions but no longer actively written by handlers
-  const pendingBatteryQrCodeRef = useRef<string | null>(null);
-  const pendingBatteryScanTypeRef = useRef<'old_battery' | 'new_battery' | null>(null);
-  const pendingConnectionMacRef = useRef<string | null>(null);
-  const detectedBleDevicesRef = useRef<BleDevice[]>([]);
+  // NOTE: All BLE refs (pendingBatteryQrCodeRef, detectedBleDevicesRef, etc.) 
+  // are now managed internally by the useFlowBatteryScan hook
   
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
@@ -1238,7 +1235,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     if (isBatteryScanStep) {
       console.info(`=== Starting BLE scan cycle for Step ${currentStep} (battery scanning) ===`);
-      console.info(`Detected devices before scan: ${detectedBleDevicesRef.current.length}`);
+      console.info(`Detected devices before scan: ${bleScanState.detectedDevices.length}`);
       
       // IMPORTANT: Stop-before-start pattern (matches keypad behavior)
       // The native BLE layer needs a clean stop before starting a fresh scan cycle
@@ -1584,19 +1581,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Clear any existing flow error when retrying
     setFlowError(null);
     
-    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
-    // This preserves devices that were discovered while user was viewing Step 2
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      connectionProgress: 0,
-      error: null,
-    }));
-    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
     
     setIsScanning(true);
     scanTypeRef.current = 'old_battery';
@@ -1606,11 +1592,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     console.info(`=== Scanning Old Battery ===`);
     console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
     console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
-    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
-    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    console.info(`Detected devices count: ${bleScanState.detectedDevices.length}`);
+    console.info('Detected devices:', bleScanState.detectedDevices.map(d => `${d.name} (${d.rssi})`));
     
     // If no devices detected yet, warn the user
-    if (detectedBleDevicesRef.current.length === 0) {
+    if (bleScanState.detectedDevices.length === 0) {
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
@@ -1636,19 +1622,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Clear any existing flow error when retrying (e.g., after scanning old battery as new by mistake)
     setFlowError(null);
 
-    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
-    // This preserves devices that were discovered while user was viewing Step 3
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      connectionProgress: 0,
-      error: null,
-    }));
-    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
     
     setIsScanning(true);
     scanTypeRef.current = 'new_battery';
@@ -1658,11 +1633,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     console.info(`=== Scanning New Battery ===`);
     console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
     console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
-    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
-    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    console.info(`Detected devices count: ${bleScanState.detectedDevices.length}`);
+    console.info('Detected devices:', bleScanState.detectedDevices.map(d => `${d.name} (${d.rssi})`));
     
     // If no devices detected yet, warn the user
-    if (detectedBleDevicesRef.current.length === 0) {
+    if (bleScanState.detectedDevices.length === 0) {
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
@@ -2236,23 +2211,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setFlowError(null); // Clear any flow errors
     cancelOngoingScan(); // Clear any pending timeouts
     
-    // Clear BLE state for fresh start - devices will be rediscovered when reaching Step 2
-    setBleScanState({
-      isScanning: false,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      detectedDevices: [],
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    });
-    detectedBleDevicesRef.current = [];
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
-    pendingConnectionMacRef.current = null;
-  }, [cancelOngoingScan]);
+    // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
+    hookResetState();
+  }, [cancelOngoingScan, hookResetState]);
 
   // Go back one step
   const handleBack = useCallback(() => {
@@ -2569,11 +2530,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               )}
 
               {/* Battery ID Display - Show which battery we're connecting to (hide when reset required) */}
-              {pendingBatteryQrCodeRef.current && !bleScanState.requiresBluetoothReset && (
+              {pendingBatteryId && !bleScanState.requiresBluetoothReset && (
                 <div className="ble-battery-id">
                   <span className="ble-battery-id-label">Battery ID:</span>
                   <span className="ble-battery-id-value">
-                    ...{String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase()}
+                    ...{String(pendingBatteryId).slice(-6).toUpperCase()}
                   </span>
                 </div>
               )}
@@ -2609,7 +2570,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                   ? 'Authenticating with battery...'
                   : bleScanState.connectionProgress >= 10
                   ? 'Locating battery via Bluetooth...'
-                  : `Connecting to battery ${pendingBatteryQrCodeRef.current ? '...' + String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase() : ''}...`}
+                  : `Connecting to battery ${pendingBatteryId ? '...' + String(pendingBatteryId).slice(-6).toUpperCase() : ''}...`}
               </div>
 
               {/* Step Indicators - Hide when Bluetooth reset is required */}
