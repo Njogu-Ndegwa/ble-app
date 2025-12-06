@@ -144,6 +144,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const matchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const matchIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingRef = useRef(false);
+  // Track when we're in device matching phase (after QR scan, before actual connection)
+  const isDeviceMatchingRef = useRef(false);
 
   // Callback refs (updated on every render to avoid stale closures)
   const onOldBatteryReadRef = useRef(onOldBatteryRead);
@@ -176,23 +178,29 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   // ============================================
 
   useEffect(() => {
-    setState(prev => ({
-      ...prev,
-      isScanning: scannerScanState.isScanning,
-      detectedDevices: scannerScanState.detectedDevices,
-      isConnecting: connectionState.isConnecting,
-      connectedDevice: connectionState.connectedDevice,
-      connectionProgress: serviceState.isReading 
-        ? serviceState.progress 
-        : connectionState.connectionProgress,
-      connectionFailed: connectionState.connectionFailed,
-      requiresBluetoothReset: connectionState.requiresBluetoothReset,
-      isReadingEnergy: serviceState.isReading,
-      error: scannerScanState.error || 
-             connectionState.error || 
-             serviceState.error || 
-             null,
-    }));
+    setState(prev => {
+      // Preserve isConnecting=true when in device matching phase (after QR scan, before actual connection)
+      // This ensures the progress modal stays visible during device discovery
+      const shouldBeConnecting = connectionState.isConnecting || isDeviceMatchingRef.current;
+      
+      return {
+        ...prev,
+        isScanning: scannerScanState.isScanning,
+        detectedDevices: scannerScanState.detectedDevices,
+        isConnecting: shouldBeConnecting,
+        connectedDevice: connectionState.connectedDevice,
+        connectionProgress: serviceState.isReading 
+          ? serviceState.progress 
+          : connectionState.connectionProgress,
+        connectionFailed: connectionState.connectionFailed,
+        requiresBluetoothReset: connectionState.requiresBluetoothReset,
+        isReadingEnergy: serviceState.isReading,
+        error: scannerScanState.error || 
+               connectionState.error || 
+               serviceState.error || 
+               null,
+      };
+    });
   }, [
     scannerScanState,
     connectionState,
@@ -364,10 +372,14 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     // Clear any previous match timers
     clearMatchTimers();
     
+    // Enter device matching phase - this keeps isConnecting=true until we find a device
+    isDeviceMatchingRef.current = true;
+    
     // Update state to show connecting
     setState(prev => ({
       ...prev,
       isConnecting: true,
+      connectionProgress: 0, // Start at 0%
       error: null,
       connectionFailed: false,
     }));
@@ -387,6 +399,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         log('Found matching device:', matched);
         clearMatchTimers();
         scannerStopScan();
+        
+        // Exit device matching phase - actual connection is starting
+        isDeviceMatchingRef.current = false;
         
         // Connect to matched device
         connectionConnect(matched.macAddress);
@@ -410,6 +425,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     matchTimeoutRef.current = setTimeout(() => {
       clearMatchTimers();
       scannerStopScan();
+      
+      // Exit device matching phase
+      isDeviceMatchingRef.current = false;
       
       log('Device matching timed out');
       
@@ -450,6 +468,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     cancelConnection();
     serviceReaderCancelRead();
     
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
+    
     setPendingBatteryId(null);
     setPendingScanType(null);
     isProcessingRef.current = false;
@@ -468,6 +489,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     scannerClearDevices();
     connectionResetState();
     serviceReaderResetState();
+    
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
     
     setPendingBatteryId(null);
     setPendingScanType(null);

@@ -143,6 +143,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   const matchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const matchIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isReadingEnergyRef = useRef(false);
+  // Track when we're in device matching phase (after QR scan, before actual connection)
+  const isDeviceMatchingRef = useRef(false);
 
   // Callback refs
   const onBatteryReadRef = useRef(onBatteryRead);
@@ -179,11 +181,15 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       ? serviceState.progress 
       : connectionState.connectionProgress;
 
+    // Preserve isConnecting=true when in device matching phase (after QR scan, before actual connection)
+    // This ensures the progress modal stays visible during device discovery
+    const shouldBeConnecting = connectionState.isConnecting || isDeviceMatchingRef.current;
+
     setState(prev => ({
       ...prev,
       isScanning: scannerScanState.isScanning,
       detectedDevices: scannerScanState.detectedDevices,
-      isConnecting: connectionState.isConnecting,
+      isConnecting: shouldBeConnecting,
       isConnected: connectionState.isConnected,
       connectedDevice: connectionState.connectedDevice,
       connectionProgress: currentProgress,
@@ -304,6 +310,18 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     // Clear any previous match timers
     clearMatchTimers();
     
+    // Enter device matching phase - this keeps isConnecting=true until we find a device
+    isDeviceMatchingRef.current = true;
+    
+    // Update state to show connecting
+    setState(prev => ({
+      ...prev,
+      isConnecting: true,
+      connectionProgress: 0, // Start at 0%
+      error: null,
+      connectionFailed: false,
+    }));
+    
     // Set up device matching
     const matchDevice = () => {
       const targetSuffix = batteryId.slice(-MATCH_CHARS).toLowerCase();
@@ -317,6 +335,9 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         log('Found matching device:', matched);
         clearMatchTimers();
         scannerStopScan();
+        
+        // Exit device matching phase - actual connection is starting
+        isDeviceMatchingRef.current = false;
         
         // Connect to matched device
         connectionConnect(matched.macAddress);
@@ -341,11 +362,15 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       clearMatchTimers();
       scannerStopScan();
       
+      // Exit device matching phase
+      isDeviceMatchingRef.current = false;
+      
       log('Device matching timed out');
       
       setState(prev => ({
         ...prev,
         isScanning: false,
+        isConnecting: false,
         error: 'Device may already be connected',
         connectionFailed: true,
       }));
@@ -376,6 +401,9 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     cancelConnection();
     serviceReaderCancelRead();
     
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
+    
     setPendingBatteryId(null);
     setPendingScanType(null);
     isReadingEnergyRef.current = false;
@@ -391,6 +419,9 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     scannerClearDevices();
     connectionResetState();
     serviceReaderResetState();
+    
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
     
     setPendingBatteryId(null);
     setPendingScanType(null);
