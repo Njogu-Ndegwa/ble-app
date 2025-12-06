@@ -51,12 +51,18 @@ export function BleProgressModal({
   // This prevents timer reset during transitions between Connect → Read stages
   useEffect(() => {
     if (!isModalVisible) {
-      // Modal is fully closed, reset everything for the next session
+      // Modal is fully closed, reset state for the next session
+      // NOTE: We do NOT reset hasTimedOut here! This is critical.
+      // If we reset hasTimedOut to false when the modal closes, and then
+      // connectionFailed becomes true (from a delayed BLE state update),
+      // the modal would reopen with "Cancel & Retry" even though we already
+      // auto-closed due to timeout. hasTimedOut is only reset when a new
+      // connection attempt genuinely starts (in the isActive effect below).
       startTimeRef.current = null;
       wasActiveRef.current = false;
       setCountdown(COUNTDOWN_START_SECONDS);
       setShowCancelButton(false);
-      setHasTimedOut(false);
+      // DO NOT reset hasTimedOut here - see note above
     }
   }, [isModalVisible]);
   
