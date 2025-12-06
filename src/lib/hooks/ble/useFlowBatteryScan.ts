@@ -417,12 +417,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         ...prev,
         isScanning: false,
         isConnecting: false,
-        error: 'Device not found',
+        error: 'Device may already be connected',
         connectionFailed: true,
       }));
       
-      toast.error('Battery device not found. Make sure the battery is nearby and powered on.');
-      onErrorRef.current?.('Device not found');
+      toast.error('Device may already be connected. Try turning Bluetooth off and on, then try again.');
+      onErrorRef.current?.('Device may already be connected');
       
       // Clear pending state
       setPendingBatteryId(null);

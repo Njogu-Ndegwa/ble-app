@@ -7,7 +7,7 @@ import { BatteryData, BleDevice, BleScanState, convertRssiToDistance } from '../
 // BLE operation constants
 const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds
 const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds
-const BLE_GLOBAL_TIMEOUT = 90000; // 90 seconds - last resort
+const BLE_GLOBAL_TIMEOUT = 60000; // 60 seconds - last resort
 const MAX_BLE_RETRIES = 3;
 
 interface UseBleScanner {

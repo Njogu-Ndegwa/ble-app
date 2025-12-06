@@ -1,7 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { FlowBleScanState } from '@/lib/hooks/ble';
+
+// Connection process typically takes 25-40 seconds, countdown from 60s
+const COUNTDOWN_START_SECONDS = 60;
 
 export interface BleProgressModalProps {
   /** BLE scan state from useFlowBatteryScan hook */
@@ -29,6 +32,47 @@ export function BleProgressModal({
   pendingBatteryId,
   onCancel,
 }: BleProgressModalProps) {
+  // Countdown timer state
+  const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
+  const [showCancelButton, setShowCancelButton] = useState(false);
+  const startTimeRef = useRef<number | null>(null);
+  
+  // Start countdown when modal becomes active
+  useEffect(() => {
+    const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
+    
+    if (isActive && !bleScanState.connectionFailed) {
+      // Reset countdown when starting a new connection
+      if (startTimeRef.current === null) {
+        startTimeRef.current = Date.now();
+        setCountdown(COUNTDOWN_START_SECONDS);
+        setShowCancelButton(false);
+      }
+      
+      const timer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - (startTimeRef.current || Date.now())) / 1000);
+        const remaining = Math.max(0, COUNTDOWN_START_SECONDS - elapsed);
+        setCountdown(remaining);
+        
+        // Auto-close modal after countdown reaches 0
+        if (remaining <= 0 && !showCancelButton) {
+          setShowCancelButton(true);
+          // Auto-trigger cancel after a brief moment to show the expired message
+          setTimeout(() => {
+            onCancel();
+          }, 2000);
+        }
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    } else if (!isActive) {
+      // Reset when modal closes
+      startTimeRef.current = null;
+      setCountdown(COUNTDOWN_START_SECONDS);
+      setShowCancelButton(false);
+    }
+  }, [bleScanState.isConnecting, bleScanState.isReadingEnergy, bleScanState.connectionFailed, showCancelButton, onCancel]);
+  
   // Don't render if not in an active BLE operation state
   if (!bleScanState.isConnecting && !bleScanState.isReadingEnergy && !bleScanState.connectionFailed) {
     return null;
@@ -64,6 +108,10 @@ export function BleProgressModal({
       return 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.';
     }
     if (bleScanState.connectionFailed) {
+      // Check if error indicates device might already be connected
+      if (bleScanState.error?.includes('already connected')) {
+        return 'The device may already be connected to another phone or app. Turn your Bluetooth off and on, then try again.';
+      }
       return 'Connection failed. Please ensure the battery is powered on and nearby, then try again.';
     }
     return 'Please wait while connecting. Make sure the battery is powered on and within 2 meters.';
@@ -135,10 +183,8 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Progress Bar - Only show real backend progress (not during retries or initial matching) */}
-          {/* Only show progress bar when actively connecting or reading, and progress is above initial state */}
+          {/* Progress Bar - Show from 0% when connecting starts for visual consistency */}
           {!bleScanState.requiresBluetoothReset && 
-           bleScanState.connectionProgress > 0 &&
            (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
             <div className="ble-progress-bar-container">
               <div className="ble-progress-bar-bg">
@@ -150,6 +196,23 @@ export function BleProgressModal({
               <div className="ble-progress-percent">
                 {bleScanState.connectionProgress}%
               </div>
+            </div>
+          )}
+          
+          {/* Countdown Timer - Show estimated time remaining */}
+          {!bleScanState.requiresBluetoothReset && 
+           !bleScanState.connectionFailed &&
+           (bleScanState.isConnecting || bleScanState.isReadingEnergy) && (
+            <div className="ble-countdown-timer">
+              {countdown > 0 ? (
+                <span className="ble-countdown-text">
+                  Connection will complete in about <strong>{countdown}s</strong>
+                </span>
+              ) : (
+                <span className="ble-countdown-expired">
+                  Taking longer than expected. Closing and retrying...
+                </span>
+              )}
             </div>
           )}
 
@@ -176,8 +239,8 @@ export function BleProgressModal({
             </div>
           )}
 
-          {/* Cancel/Close Button - Only shown when connection has definitively failed */}
-          {bleScanState.connectionFailed && (
+          {/* Cancel/Close Button - Shown when connection failed OR after 60 second timeout */}
+          {(bleScanState.connectionFailed || showCancelButton) && (
             <button
               onClick={onCancel}
               className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
@@ -186,7 +249,7 @@ export function BleProgressModal({
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
-              {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Close'}
+              {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Cancel & Retry'}
             </button>
           )}
           

@@ -50,7 +50,7 @@ export interface BleConnectionOptions {
 
 const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds for connection
 const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds for data reading
-const BLE_GLOBAL_TIMEOUT = 90000; // 90 seconds - last resort
+const BLE_GLOBAL_TIMEOUT = 60000; // 60 seconds - last resort
 const MAX_BLE_RETRIES = 3;
 const MAX_DEVICE_MATCH_RETRIES = 4;
 const DEVICE_MATCH_RETRY_DELAYS = [2000, 3000, 4000, 5000];
