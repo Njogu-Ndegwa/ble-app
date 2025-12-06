@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/i18n';
 
 export type ScannerType = 'qr' | 'battery';
+// Size prop kept for backward compatibility but all scanners use consistent 140px size
 export type ScannerSize = 'normal' | 'small' | 'large';
 
 interface ScannerAreaProps {
@@ -10,21 +12,22 @@ interface ScannerAreaProps {
   onClick: () => void;
   /** Type of scan - kept for semantics but both use QR icon */
   type?: ScannerType;
-  /** Size variant - defaults to 'normal' */
+  /** Size variant - deprecated, all scanners now use consistent 140px size */
   size?: ScannerSize;
   /** Disable the scanner (e.g., while scanner is opening) */
   disabled?: boolean;
-  /** Custom label for accessibility */
+  /** Custom label - falls back to translated "Tap to scan" */
   label?: string;
   /** Optional custom className */
   className?: string;
 }
 
-// Size mappings
-const SIZE_STYLES: Record<ScannerSize, React.CSSProperties> = {
-  small: { width: '120px', height: '120px', margin: '12px auto' },
-  normal: { width: '140px', height: '140px', margin: '16px auto' },
-  large: { width: '160px', height: '160px', margin: '20px auto' },
+// Consistent size for all scan areas across workflows
+// Using 140x140px as a balanced size that works well across all steps
+const CONSISTENT_STYLE: React.CSSProperties = { 
+  width: '140px', 
+  height: '140px', 
+  margin: '16px auto' 
 };
 
 /**
@@ -41,14 +44,18 @@ const SIZE_STYLES: Record<ScannerSize, React.CSSProperties> = {
 export default function ScannerArea({
   onClick,
   type = 'qr',
-  size = 'normal',
+  size = 'normal', // Kept for backward compatibility but ignored
   disabled = false,
-  label = 'Tap to scan',
+  label,
   className = '',
 }: ScannerAreaProps) {
-  const sizeStyle = SIZE_STYLES[size];
+  const { t } = useI18n();
+  
+  // Use provided label or fall back to translated text or default
+  const displayLabel = label || t('common.tapToScan') || 'Tap to scan';
 
   const handleClick = () => {
+    // Prevent triggering if disabled (scanner already opening)
     if (disabled) return;
     onClick();
   };
@@ -58,14 +65,14 @@ export default function ScannerArea({
       className={`scanner-area ${disabled ? 'scanner-area-disabled' : ''} ${className}`}
       onClick={handleClick}
       style={{
-        ...sizeStyle,
+        ...CONSISTENT_STYLE,
         opacity: disabled ? 0.6 : 1,
         pointerEvents: disabled ? 'none' : 'auto',
         cursor: disabled ? 'not-allowed' : 'pointer',
       }}
       role="button"
       tabIndex={disabled ? -1 : 0}
-      aria-label={label}
+      aria-label={displayLabel}
       aria-disabled={disabled}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -80,6 +87,7 @@ export default function ScannerArea({
           <div className="scanner-corner-br"></div>
         </div>
         
+        {/* Show loading spinner when scanner is opening */}
         {disabled ? (
           <div className="scanner-loading">
             <div className="scanner-spinner"></div>
@@ -87,7 +95,7 @@ export default function ScannerArea({
         ) : (
           <>
             <div className="scanner-icon">
-              {/* QR code icon - used for all scan types since all scan QR codes */}
+              {/* Consistent QR code icon for all scan types - since all steps scan QR codes */}
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -102,8 +110,9 @@ export default function ScannerArea({
                 <rect x="3" y="14" width="7" height="7" />
               </svg>
             </div>
+            {/* Clear prompt so users know to tap */}
             <div className="scanner-tap-prompt">
-              <span>{label}</span>
+              <span>{displayLabel}</span>
             </div>
           </>
         )}

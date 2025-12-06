@@ -170,9 +170,7 @@ export default function BatteryScanBind({
           <ScannerArea 
             onClick={onScan} 
             type="battery" 
-            size="small" 
             disabled={isScannerOpening}
-            label={t('common.tapToScan') || 'Tap to scan'}
           />
           
           <p className="scan-hint">
@@ -350,9 +348,7 @@ export function BatteryScanBindWithHook({
           <ScannerArea 
             onClick={handleScan} 
             type="battery" 
-            size="small" 
             disabled={false}
-            label={t('common.tapToScan') || 'Tap to scan'}
           />
           
           <p className="scan-hint">
