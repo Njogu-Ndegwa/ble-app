@@ -108,29 +108,28 @@ export default function Step2SelectPlan({
                     </div>
                     <div style={{ 
                       fontSize: '10px', 
-                      color: 'rgba(255, 255, 255, 0.5)',
+                      color: 'var(--text-muted, #5a8080)',
                     }}>
                       {plan.description}
                     </div>
                   </div>
                   <div style={{ 
-                    textAlign: 'right',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--color-brand, #00e5e5)',
                     flexShrink: 0,
+                    whiteSpace: 'nowrap',
                   }}>
-                    <div style={{ 
-                      fontWeight: 600, 
-                      fontSize: '12px',
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--color-brand, #00e5e5)',
-                    }}>
-                      {currencySymbol} {plan.price.toLocaleString()}
-                    </div>
-                    <div style={{ 
+                    {currencySymbol} {plan.price.toLocaleString()}
+                    <span style={{ 
                       fontSize: '9px', 
-                      color: 'rgba(255, 255, 255, 0.4)',
+                      color: 'var(--text-muted, #5a8080)',
+                      fontWeight: 400,
+                      marginLeft: '2px',
                     }}>
                       {period}
-                    </div>
+                    </span>
                   </div>
                 </div>
               </SelectableCard>
