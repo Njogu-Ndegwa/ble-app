@@ -90,32 +90,43 @@ export default function Step2SelectPlan({
                 showRadio
                 showCheck={false}
                 className="plan-card"
-                style={{ padding: '10px 12px', height: '56px' }}
+                style={{ padding: '12px' }}
               >
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
+                  justifyContent: 'space-between',
                   gap: '10px',
                   width: '100%',
-                  height: '100%',
+                  minHeight: '32px', /* Consistent height for all cards */
                 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ 
+                    flex: 1, 
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                  }}>
                     <div style={{ 
                       fontWeight: 500, 
                       fontSize: '12px',
-                      marginBottom: '1px',
                       lineHeight: '1.3',
                     }}>
                       {plan.name}
                     </div>
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: 'var(--text-muted, #5a8080)',
-                      lineHeight: '1.3',
-                      height: '13px', /* Reserve space for description */
-                    }}>
-                      {plan.description || '\u00A0'} {/* Non-breaking space if no description */}
-                    </div>
+                    {plan.description && (
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: 'var(--text-muted, #5a8080)',
+                        lineHeight: '1.3',
+                        marginTop: '2px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {plan.description}
+                      </div>
+                    )}
                   </div>
                   <div style={{ 
                     fontFamily: 'var(--font-mono)',
