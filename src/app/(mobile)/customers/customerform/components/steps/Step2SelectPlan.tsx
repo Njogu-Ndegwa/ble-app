@@ -90,28 +90,33 @@ export default function Step2SelectPlan({
                 showRadio
                 showCheck={false}
                 className="plan-card"
-                style={{ padding: '10px 12px' }}
+                style={{ padding: '10px 12px', minHeight: '56px' }}
               >
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '10px',
                   width: '100%',
+                  minHeight: '36px',
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ 
                       fontWeight: 500, 
                       fontSize: '12px',
-                      marginBottom: '1px',
+                      marginBottom: plan.description ? '1px' : '0',
+                      lineHeight: '1.3',
                     }}>
                       {plan.name}
                     </div>
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: 'var(--text-muted, #5a8080)',
-                    }}>
-                      {plan.description}
-                    </div>
+                    {plan.description && (
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: 'var(--text-muted, #5a8080)',
+                        lineHeight: '1.3',
+                      }}>
+                        {plan.description}
+                      </div>
+                    )}
                   </div>
                   <div style={{ 
                     fontFamily: 'var(--font-mono)',
