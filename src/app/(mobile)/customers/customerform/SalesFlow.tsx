@@ -1930,7 +1930,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           />
         );
       case 6:
-        // Battery assignment
+        // Battery assignment - Uses shared BatteryScanBind component
+        // Note: BLE progress/errors are handled by BleProgressModal below
         return (
           <Step6AssignBattery 
             formData={formData}

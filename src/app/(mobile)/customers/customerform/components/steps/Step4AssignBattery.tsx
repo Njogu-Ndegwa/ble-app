@@ -4,11 +4,11 @@ import React from 'react';
 import { CreditCard, CheckCircle } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
-  ScannerArea,
+  BatteryScanBind,
   BatteryCard,
   getInitials,
 } from '@/components/shared';
-import type { BatteryData, BleScanState } from '@/components/shared';
+import type { BatteryData } from '@/components/shared';
 import { CustomerFormData, PlanData } from '../types';
 
 interface Step4Props {
@@ -23,15 +23,20 @@ interface Step4Props {
   scannedBattery?: BatteryData | null;
   onCompleteService?: () => void;
   isCompletingService?: boolean;
-  bleScanState?: BleScanState;
-  onCancelBleOperation?: () => void;
-  onRetryConnection?: () => void;
 }
 
 /**
  * Step4AssignBattery - Assign battery to new customer
  * 
- * Uses shared ScannerArea and BatteryCard components
+ * Uses the shared BatteryScanBind component (same as Attendant workflow)
+ * with mode="assign" for consistent scan-to-bind functionality.
+ * 
+ * Note: BLE connection progress is handled by the parent flow's BleProgressModal,
+ * following the same pattern as the Attendant workflow.
+ * 
+ * Shows:
+ * - Pre-scan: Customer preview card + BatteryScanBind scanner
+ * - Post-scan: Battery card + customer summary + Complete Service button
  */
 export default function Step4AssignBattery({ 
   formData, 
@@ -109,59 +114,78 @@ export default function Step4AssignBattery({
   }
 
   // Initial state - No battery scanned yet
+  // Uses shared BatteryScanBind component with mode="assign"
   return (
     <div className="screen active">
-      <h2 className="scan-title" style={{ textAlign: 'center', marginBottom: '4px' }}>
-        {t('sales.assignBattery')}
-      </h2>
-      <p className="scan-subtitle" style={{ textAlign: 'center', marginBottom: '10px' }}>
-        {t('sales.scanBatteryQr')}
-      </p>
-
-      {/* Bluetooth Reminder Banner */}
-      <BluetoothReminderBanner />
-
-      {/* Customer Preview Card */}
-      <div className="preview-card">
-        <div className="preview-header">
-          <div className="preview-avatar">{initials}</div>
-          <div>
-            <div className="preview-name">{customerName}</div>
-            <div className="preview-phone font-mono-oves">{formData.phone || '+254 XXX XXX XXX'}</div>
-          </div>
-          <span className="preview-badge">{selectedPlan?.name || 'No Plan'}</span>
-        </div>
-        <div className="preview-details">
-          <div className="detail-item">
-            <div className="detail-label">{t('sales.emailAddress')}</div>
-            <div className="detail-value">{formData.email || 'N/A'}</div>
-          </div>
-          {subscriptionCode && (
-            <div className="detail-item">
-              <div className="detail-label">
-                <CreditCard size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                {t('sales.subscriptionId') || 'Subscription ID'}
-              </div>
-              <div className="detail-value font-mono-oves" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
-                {subscriptionCode}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Battery Scanner using shared component */}
-      <ScannerArea 
-        onClick={onScanBattery} 
-        type="battery" 
-        disabled={isScannerOpening}
-        label={t('common.tapToScan') || 'Tap to scan'}
+      {/* Customer Preview Card - Sales-specific context before scanner */}
+      <CustomerPreviewCard
+        customerName={customerName}
+        initials={initials}
+        phone={formData.phone}
+        email={formData.email}
+        planName={selectedPlan?.name}
+        subscriptionCode={subscriptionCode}
       />
 
-      <p className="scan-hint">
-        <InfoIcon />
-        {t('sales.scanBatteryQr')}
-      </p>
+      {/* Battery Scanner - Shared BatteryScanBind component */}
+      {/* Note: BLE progress/errors are handled by BleProgressModal at the flow level */}
+      <BatteryScanBind
+        mode="assign"
+        onScan={onScanBattery}
+        isScannerOpening={isScannerOpening}
+      />
+    </div>
+  );
+}
+
+/**
+ * CustomerPreviewCard - Shows customer info context before battery scan
+ * Sales-specific component that displays customer details.
+ */
+function CustomerPreviewCard({
+  customerName,
+  initials,
+  phone,
+  email,
+  planName,
+  subscriptionCode,
+}: {
+  customerName: string;
+  initials: string;
+  phone: string;
+  email: string;
+  planName?: string;
+  subscriptionCode?: string;
+}) {
+  const { t } = useI18n();
+  
+  return (
+    <div className="preview-card" style={{ marginBottom: '16px' }}>
+      <div className="preview-header">
+        <div className="preview-avatar">{initials}</div>
+        <div>
+          <div className="preview-name">{customerName}</div>
+          <div className="preview-phone font-mono-oves">{phone || '+254 XXX XXX XXX'}</div>
+        </div>
+        <span className="preview-badge">{planName || 'No Plan'}</span>
+      </div>
+      <div className="preview-details">
+        <div className="detail-item">
+          <div className="detail-label">{t('sales.emailAddress')}</div>
+          <div className="detail-value">{email || 'N/A'}</div>
+        </div>
+        {subscriptionCode && (
+          <div className="detail-item">
+            <div className="detail-label">
+              <CreditCard size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+              {t('sales.subscriptionId') || 'Subscription ID'}
+            </div>
+            <div className="detail-value font-mono-oves" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+              {subscriptionCode}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -181,35 +205,5 @@ function InfoIcon() {
       <circle cx="12" cy="12" r="10"/>
       <path d="M12 16v-4M12 8h.01"/>
     </svg>
-  );
-}
-
-/**
- * Bluetooth Reminder Banner - Shows a reminder for users to enable Bluetooth
- */
-function BluetoothReminderBanner() {
-  return (
-    <div className="bluetooth-reminder">
-      <div className="bluetooth-reminder-icon">
-        <svg 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-          width="20"
-          height="20"
-        >
-          <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
-        </svg>
-      </div>
-      <div className="bluetooth-reminder-content">
-        <span className="bluetooth-reminder-title">Bluetooth Required</span>
-        <span className="bluetooth-reminder-text">
-          Make sure Bluetooth is turned ON in your phone settings before scanning.
-        </span>
-      </div>
-    </div>
   );
 }
