@@ -168,6 +168,8 @@ interface SelectableCardProps {
   disabled?: boolean;
   /** Custom className */
   className?: string;
+  /** Custom style */
+  style?: React.CSSProperties;
 }
 
 /**
@@ -181,6 +183,7 @@ export function SelectableCard({
   showRadio = false,
   disabled = false,
   className = '',
+  style,
 }: SelectableCardProps) {
   return (
     <Card 
@@ -189,7 +192,7 @@ export function SelectableCard({
       onClick={onSelect}
       disabled={disabled}
       className={`selectable-card ${className}`}
-      style={{ position: 'relative' }}
+      style={{ position: 'relative', ...style }}
     >
       {showCheck && selected && (
         <div style={{

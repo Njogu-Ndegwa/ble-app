@@ -57,14 +57,20 @@ export default function Step4Preview({
         <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>
           {t('sales.orderSummary') || 'Order Summary'}
         </h2>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
-            {t('sales.total') || 'Total'}
+        <div style={{ 
+          textAlign: 'right',
+          backgroundColor: 'rgba(0, 229, 229, 0.1)',
+          padding: '8px 12px',
+          borderRadius: '8px',
+        }}>
+          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 500 }}>
+            {t('sales.totalAmount') || 'Total'}
           </div>
           <div style={{ 
-            fontSize: '20px', 
-            fontWeight: 700,
+            fontSize: '16px', 
+            fontWeight: 600,
             fontFamily: 'var(--font-mono)',
+            color: 'var(--color-brand, #00e5e5)',
           }}>
             {currencySymbol} {totalAmount.toLocaleString()}
           </div>

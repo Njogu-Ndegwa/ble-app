@@ -77,7 +77,7 @@ export default function Step2SelectPlan({
           hint={t('sales.noPlansHint') || 'If this persists, please contact support'}
         />
       ) : (
-        <Grid columns={1} gap={12}>
+        <Grid columns={1} gap={8}>
           {plans.map((plan) => {
             const period = plan.period || getPeriodFromName(plan.name);
             const currencySymbol = plan.currencySymbol || 'KES';
@@ -89,45 +89,47 @@ export default function Step2SelectPlan({
                 onSelect={() => onPlanSelect(plan.id)}
                 showRadio
                 showCheck={false}
+                className="plan-card"
+                style={{ padding: '10px 12px' }}
               >
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  gap: '12px',
+                  gap: '10px',
                   width: '100%',
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ 
-                      fontWeight: 600, 
-                      fontSize: '15px',
-                      marginBottom: '4px',
+                      fontWeight: 500, 
+                      fontSize: '12px',
+                      marginBottom: '1px',
                     }}>
                       {plan.name}
                     </div>
                     <div style={{ 
-                      fontSize: '12px', 
-                      color: 'rgba(255, 255, 255, 0.5)',
+                      fontSize: '10px', 
+                      color: 'var(--text-muted, #5a8080)',
                     }}>
                       {plan.description}
                     </div>
                   </div>
                   <div style={{ 
-                    textAlign: 'right',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--color-brand, #00e5e5)',
                     flexShrink: 0,
+                    whiteSpace: 'nowrap',
                   }}>
-                    <div style={{ 
-                      fontWeight: 700, 
-                      fontSize: '16px',
-                      fontFamily: 'var(--font-mono)',
-                    }}>
-                      {currencySymbol} {plan.price.toLocaleString()}
-                    </div>
-                    <div style={{ 
-                      fontSize: '11px', 
-                      color: 'rgba(255, 255, 255, 0.4)',
+                    {currencySymbol} {plan.price.toLocaleString()}
+                    <span style={{ 
+                      fontSize: '9px', 
+                      color: 'var(--text-muted, #5a8080)',
+                      fontWeight: 400,
+                      marginLeft: '2px',
                     }}>
                       {period}
-                    </div>
+                    </span>
                   </div>
                 </div>
               </SelectableCard>
