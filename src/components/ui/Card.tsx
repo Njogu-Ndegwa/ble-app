@@ -185,6 +185,28 @@ export function SelectableCard({
   className = '',
   style,
 }: SelectableCardProps) {
+  const radioButton = showRadio ? (
+    <div style={{
+      width: 'var(--space-5)',
+      height: 'var(--space-5)',
+      borderRadius: 'var(--radius-full)',
+      border: `2px solid ${selected ? 'var(--color-brand)' : 'var(--border-default)'}`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {selected && (
+        <div style={{
+          width: 'var(--space-2-5)',
+          height: 'var(--space-2-5)',
+          borderRadius: 'var(--radius-full)',
+          backgroundColor: 'var(--color-brand)',
+        }} />
+      )}
+    </div>
+  ) : null;
+
   return (
     <Card 
       variant="outlined" 
@@ -210,29 +232,21 @@ export function SelectableCard({
           <CheckIcon size={14} color="var(--text-inverse)" strokeWidth={3} />
         </div>
       )}
-      {showRadio && (
+      {showRadio ? (
         <div style={{
-          width: 'var(--space-5)',
-          height: 'var(--space-5)',
-          borderRadius: 'var(--radius-full)',
-          border: `2px solid ${selected ? 'var(--color-brand)' : 'var(--border-default)'}`,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          marginRight: 'var(--space-3)',
+          gap: 'var(--space-3)',
+          width: '100%',
         }}>
-          {selected && (
-            <div style={{
-              width: 'var(--space-2-5)',
-              height: 'var(--space-2-5)',
-              borderRadius: 'var(--radius-full)',
-              backgroundColor: 'var(--color-brand)',
-            }} />
-          )}
+          {radioButton}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {children}
+          </div>
         </div>
+      ) : (
+        children
       )}
-      {children}
     </Card>
   );
 }

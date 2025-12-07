@@ -90,27 +90,31 @@ export default function Step2SelectPlan({
                 showRadio
                 showCheck={false}
                 className="plan-card"
-                style={{ padding: '10px 12px' }}
+                style={{ padding: '10px 12px', height: '56px' }}
               >
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '10px',
                   width: '100%',
+                  height: '100%',
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ 
                       fontWeight: 500, 
                       fontSize: '12px',
                       marginBottom: '1px',
+                      lineHeight: '1.3',
                     }}>
                       {plan.name}
                     </div>
                     <div style={{ 
                       fontSize: '10px', 
                       color: 'var(--text-muted, #5a8080)',
+                      lineHeight: '1.3',
+                      height: '13px', /* Reserve space for description */
                     }}>
-                      {plan.description}
+                      {plan.description || '\u00A0'} {/* Non-breaking space if no description */}
                     </div>
                   </div>
                   <div style={{ 
