@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useI18n } from '@/i18n';
-import { SwapData, CustomerData, getInitials } from '../types';
+import { SwapData, CustomerData, getInitials, getBatteryClass } from '../types';
 
 interface Step4Props {
   swapData: SwapData;
@@ -25,186 +25,128 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // Should skip payment: either has sufficient quota OR rounded cost is zero
   const shouldSkipPayment = hasSufficientQuota || isZeroCost;
 
-  // Calculate money values for batteries
+  // Calculate values
   const oldBatteryKwh = (swapData.oldBattery?.energy || 0) / 1000;
   const newBatteryKwh = (swapData.newBattery?.energy || 0) / 1000;
-  const oldBatteryValue = Math.round(oldBatteryKwh * swapData.rate);
-  const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
-  const energyDiffValue = Math.round(swapData.energyDiff * swapData.rate);
-  const quotaDeductionValue = Math.round(swapData.quotaDeduction * swapData.rate);
-  const chargeableEnergyValue = Math.round(swapData.chargeableEnergy * swapData.rate);
+  const oldLevel = swapData.oldBattery?.chargeLevel ?? 0;
+  const newLevel = swapData.newBattery?.chargeLevel ?? 0;
+  const quotaValue = Math.round(swapData.quotaDeduction * swapData.rate);
+
+  // Currency symbol from backend
+  const currency = swapData.currencySymbol;
   
   return (
-    <div className="screen active" style={{ padding: '0 4px' }}>
-      {/* Hero: Customer + Payment Status */}
+    <div className="screen active" style={{ padding: '0 8px' }}>
+      {/* Customer Header - Minimal */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
         gap: '10px', 
-        padding: '10px 12px',
-        background: shouldSkipPayment 
-          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)'
-          : 'linear-gradient(135deg, rgba(0, 229, 229, 0.15) 0%, rgba(0, 229, 229, 0.05) 100%)',
-        borderRadius: '12px',
-        border: `1px solid ${shouldSkipPayment ? 'rgba(16, 185, 129, 0.3)' : 'rgba(0, 229, 229, 0.3)'}`,
-        marginBottom: '10px'
+        padding: '8px 12px',
+        background: 'rgba(255,255,255,0.03)',
+        borderRadius: '10px',
+        marginBottom: '12px'
       }}>
         {customerData && (
-          <div className="customer-avatar" style={{ width: '40px', height: '40px', fontSize: '13px', flexShrink: 0 }}>
+          <div className="customer-avatar" style={{ width: '36px', height: '36px', fontSize: '12px', flexShrink: 0 }}>
             {getInitials(customerData.name)}
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ 
             fontWeight: 600, 
-            fontSize: '15px', 
+            fontSize: '14px', 
             color: 'white', 
             overflow: 'hidden', 
             textOverflow: 'ellipsis', 
-            whiteSpace: 'nowrap',
-            marginBottom: '2px'
+            whiteSpace: 'nowrap'
           }}>
             {customerData?.name || 'Customer'}
           </div>
-          <div style={{ 
-            fontSize: '11px', 
-            color: shouldSkipPayment ? '#10b981' : '#00e5e5',
-            fontWeight: 500
-          }}>
-            {shouldSkipPayment 
-              ? (hasSufficientQuota 
-                  ? (t('attendant.coveredByQuota') || 'Covered by quota')
-                  : (t('attendant.zeroCostSwap') || 'Zero cost swap'))
-              : `${t('attendant.toPay') || 'To pay'}: ${swapData.currencySymbol} ${displayCost}`}
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+            {customerData?.subscriptionId || customerData?.id || ''}
           </div>
-        </div>
-        {/* Payment Status Icon */}
-        <div style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '50%',
-          background: shouldSkipPayment ? '#10b981' : '#00e5e5',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0
-        }}>
-          {shouldSkipPayment ? (
-            <svg viewBox="0 0 24 24" fill="white" width="20" height="20">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-            </svg>
-          ) : (
-            <span style={{ color: '#0a1a2e', fontSize: '14px', fontWeight: 700 }}>
-              {swapData.currencySymbol}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Battery Swap Cards - Side by Side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '6px', marginBottom: '10px', alignItems: 'center' }}>
-        {/* Returning Battery */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.04) 100%)',
-          borderRadius: '10px',
-          padding: '10px',
-          border: '1px solid rgba(239, 68, 68, 0.2)'
-        }}>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-            {t('attendant.returning') || 'Returning'}
+      {/* Battery Swap Visual - Classic Style */}
+      <div className="battery-swap-visual" style={{ 
+        padding: '14px 12px',
+        marginBottom: '12px',
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)'
+      }}>
+        {/* Old Battery */}
+        <div className="battery-swap-item" style={{ paddingTop: '10px' }}>
+          <div className={`battery-icon-swap ${getBatteryClass(oldLevel)}`} style={{ width: '52px', height: '72px' }}>
+            <div 
+              className="battery-level-swap" 
+              style={{ '--level': `${oldLevel}%` } as React.CSSProperties}
+            />
+            <span className="battery-percent" style={{ fontSize: '12px' }}>{oldBatteryKwh.toFixed(1)}</span>
           </div>
-          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', marginBottom: '4px' }}>
-            {swapData.oldBattery?.shortId || '---'}
+          <div className="battery-swap-label" style={{ marginTop: '4px' }}>
+            {t('attendant.returning') || 'RETURNING'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '2px' }}>
-            <span style={{ fontSize: '18px', fontWeight: 700, color: '#ef4444' }}>
-              {swapData.currencySymbol} {oldBatteryValue}
-            </span>
-          </div>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>
-            {oldBatteryKwh.toFixed(2)} kWh
-          </div>
+          <div className="battery-swap-id">{swapData.oldBattery?.shortId || '---'}</div>
         </div>
-
+        
         {/* Arrow */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          color: '#00e5e5',
-          padding: '0 2px'
-        }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+        <div className="swap-arrow-icon" style={{ width: '32px', height: '32px' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </div>
-
-        {/* Receiving Battery */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.04) 100%)',
-          borderRadius: '10px',
-          padding: '10px',
-          border: '1px solid rgba(16, 185, 129, 0.2)'
-        }}>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-            {t('attendant.receiving') || 'Receiving'}
+        
+        {/* New Battery */}
+        <div className="battery-swap-item" style={{ paddingTop: '10px' }}>
+          <div className={`battery-icon-swap ${getBatteryClass(newLevel)}`} style={{ width: '52px', height: '72px' }}>
+            <div 
+              className="battery-level-swap" 
+              style={{ '--level': `${newLevel}%` } as React.CSSProperties}
+            />
+            <span className="battery-percent" style={{ fontSize: '12px' }}>{newBatteryKwh.toFixed(1)}</span>
           </div>
-          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', marginBottom: '4px' }}>
-            {swapData.newBattery?.shortId || '---'}
+          <div className="battery-swap-label" style={{ marginTop: '4px' }}>
+            {t('attendant.receiving') || 'RECEIVING'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '2px' }}>
-            <span style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>
-              {swapData.currencySymbol} {newBatteryValue}
-            </span>
-          </div>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>
-            {newBatteryKwh.toFixed(2)} kWh
-          </div>
+          <div className="battery-swap-id">{swapData.newBattery?.shortId || '---'}</div>
         </div>
       </div>
 
-      {/* Energy Difference Highlight */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.1) 0%, rgba(0, 229, 229, 0.03) 100%)',
-        borderRadius: '10px',
-        padding: '10px 12px',
-        marginBottom: '10px',
-        border: '1px solid rgba(0, 229, 229, 0.2)'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', marginBottom: '2px' }}>
-              {t('attendant.energyGain') || 'Energy Gain'}
-            </div>
-            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>
-              <span style={{ color: '#00e5e5', fontWeight: 600 }}>+{swapData.energyDiff.toFixed(2)} kWh</span>
-              <span style={{ color: 'rgba(255,255,255,0.4)', margin: '0 6px' }}>×</span>
-              <span>{swapData.currencySymbol} {swapData.rate}/kWh</span>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', marginBottom: '2px' }}>
-              {t('attendant.worth') || 'Worth'}
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#00e5e5' }}>
-              {swapData.currencySymbol} {energyDiffValue}
-            </div>
-          </div>
-        </div>
+      {/* Energy Gain Badge */}
+      <div className="energy-diff-badge" style={{ marginBottom: '12px' }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <span>+{swapData.energyDiff.toFixed(2)} kWh</span>
       </div>
 
-      {/* Payment Breakdown - Compact */}
+      {/* Compact Pricing Section */}
       <div style={{
         background: 'rgba(255,255,255,0.03)',
         borderRadius: '10px',
-        padding: '10px 12px',
+        padding: '12px',
         border: '1px solid rgba(255,255,255,0.08)'
       }}>
-        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          {t('attendant.paymentSummary') || 'Payment Summary'}
+        {/* Rate Info */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          paddingBottom: '8px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          marginBottom: '8px'
+        }}>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+            {t('attendant.rate') || 'Rate'}
+          </span>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
+            {currency} {swapData.rate}/{t('attendant.perKwh') || 'kWh'}
+          </span>
         </div>
 
-        {/* Quota Applied Row */}
+        {/* Quota Applied (if any) */}
         {(hasPartialQuota || hasSufficientQuota) && swapData.quotaDeduction > 0 && (
           <div style={{ 
             display: 'flex', 
@@ -213,7 +155,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
             padding: '6px 8px',
             background: 'rgba(16, 185, 129, 0.1)',
             borderRadius: '6px',
-            marginBottom: '6px'
+            marginBottom: '8px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <svg viewBox="0 0 24 24" fill="#10b981" width="14" height="14">
@@ -223,75 +165,68 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
                 {t('attendant.quotaCovered') || 'Quota Credit'}
               </span>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>
-                -{swapData.currencySymbol} {quotaDeductionValue}
-              </span>
-              <span style={{ fontSize: '10px', color: 'rgba(16, 185, 129, 0.7)', marginLeft: '4px' }}>
-                ({swapData.quotaDeduction.toFixed(2)} kWh)
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Remaining to Pay (if partial) */}
-        {hasPartialQuota && (
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '4px 0',
-            marginBottom: '4px'
-          }}>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
-              {t('attendant.remainingToPay') || 'Remaining to Pay'}
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#10b981' }}>
+              -{currency} {quotaValue}
             </span>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.9)' }}>
-                {swapData.currencySymbol} {chargeableEnergyValue}
-              </span>
-              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginLeft: '4px' }}>
-                ({swapData.chargeableEnergy.toFixed(2)} kWh)
-              </span>
-            </div>
           </div>
         )}
 
-        {/* Divider before total */}
-        <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '8px 0' }} />
-
-        {/* Total */}
+        {/* Total Amount - Hero Display */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center'
+          alignItems: 'center',
+          padding: '10px 0'
         }}>
           <span style={{ 
             fontSize: '13px', 
-            fontWeight: 600, 
-            color: shouldSkipPayment ? '#10b981' : 'white'
+            fontWeight: 500, 
+            color: 'rgba(255,255,255,0.8)'
           }}>
             {shouldSkipPayment 
               ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
               : (t('attendant.customerPays') || 'Customer Pays')}
           </span>
-          <div style={{ 
-            fontSize: '22px', 
-            fontWeight: 700, 
-            color: shouldSkipPayment ? '#10b981' : '#00e5e5'
-          }}>
-            {shouldSkipPayment ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                </svg>
-                <span style={{ fontSize: '14px' }}>{t('common.free') || 'FREE'}</span>
-              </div>
-            ) : (
-              `${swapData.currencySymbol} ${displayCost}`
-            )}
-          </div>
+          
+          {shouldSkipPayment ? (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              padding: '6px 12px',
+              background: 'rgba(16, 185, 129, 0.15)',
+              borderRadius: '20px'
+            }}>
+              <svg viewBox="0 0 24 24" fill="#10b981" width="18" height="18">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+              </svg>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#10b981' }}>
+                {t('common.free') || 'FREE'}
+              </span>
+            </div>
+          ) : (
+            <div style={{ 
+              fontSize: '24px', 
+              fontWeight: 700, 
+              color: 'var(--accent)',
+              fontFamily: "'DM Mono', monospace"
+            }}>
+              {currency} {displayCost}
+            </div>
+          )}
         </div>
+
+        {/* Partial quota - show remaining */}
+        {hasPartialQuota && !shouldSkipPayment && (
+          <div style={{ 
+            fontSize: '11px', 
+            color: 'rgba(255,255,255,0.4)', 
+            textAlign: 'right',
+            marginTop: '-4px'
+          }}>
+            {t('attendant.afterQuota') || 'After quota applied'} ({swapData.chargeableEnergy.toFixed(2)} kWh)
+          </div>
+        )}
       </div>
     </div>
   );

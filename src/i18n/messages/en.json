@@ -1197,6 +1197,8 @@
   "attendant.noPaymentNeeded": "No Payment Needed",
   "attendant.customerPays": "Customer Pays",
   "common.free": "FREE",
+  "attendant.perKwh": "kWh",
+  "attendant.afterQuota": "After quota applied",
 
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",
