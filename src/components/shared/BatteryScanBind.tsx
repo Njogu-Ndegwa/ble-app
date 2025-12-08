@@ -605,14 +605,24 @@ function BleErrorState({
 }) {
   const { t } = useI18n();
   
-  // Check if error indicates device might already be connected
+  // Check if error indicates device might already be connected or MAC mismatch
   const isAlreadyConnectedError = bleScanState.error?.includes('already connected');
+  const isMacMismatchError = bleScanState.error?.toLowerCase().includes('macaddress') ||
+                             bleScanState.error?.toLowerCase().includes('mac address') ||
+                             bleScanState.error?.toLowerCase().includes('connection stuck');
   
-  const errorMessage = bleScanState.requiresBluetoothReset
-    ? t('attendant.bleResetRequired') || 'Please toggle Bluetooth off and on, then try again'
-    : isAlreadyConnectedError
-      ? 'Device may already be connected. Turn Bluetooth off and on, then try again.'
-      : bleScanState.error || t('attendant.connectionFailed') || 'Connection failed';
+  // Determine error message based on error type
+  let errorMessage: string;
+  if (bleScanState.requiresBluetoothReset || isMacMismatchError) {
+    errorMessage = t('ble.connectionStuck') || t('attendant.bleResetRequired') || 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
+  } else if (isAlreadyConnectedError) {
+    errorMessage = t('ble.macAddressMismatch') || 'Device may already be connected. Turn Bluetooth off and on, then try again.';
+  } else {
+    errorMessage = bleScanState.error || t('attendant.connectionFailed') || 'Connection failed';
+  }
+  
+  // Show reset instructions if needed
+  const showResetInstructions = bleScanState.requiresBluetoothReset || isMacMismatchError || isAlreadyConnectedError;
 
   return (
     <div className="ble-error-state">
@@ -620,8 +630,15 @@ function BleErrorState({
         <ErrorCircleIcon />
       </div>
       <p className="error-message">{errorMessage}</p>
+      
+      {showResetInstructions && (
+        <p className="error-instructions">
+          {t('ble.resetInstructions') || 'Toggle Bluetooth OFF then ON in your phone settings to clear the stuck connection.'}
+        </p>
+      )}
+      
       <div className="error-actions">
-        {onRetry && !bleScanState.requiresBluetoothReset && !isAlreadyConnectedError && (
+        {onRetry && !showResetInstructions && (
           <button 
             className="btn btn-primary btn-sm"
             onClick={onRetry}
