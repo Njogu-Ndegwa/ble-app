@@ -24,6 +24,7 @@
   "auth.error.invalidCredentials": "Identifiants invalides",
   "auth.error.userNotFound": "Utilisateur introuvable",
   "common.na": "N/D",
+  "common.or": "ou sélectionnez dans la liste",
   "common.tapToScan": "Appuyez pour scanner",
   "common.refresh": "Rafraîchir",
   "common.description": "Description",
@@ -1150,5 +1151,29 @@
   "attendant.issued": "Émise",
   "attendant.energy": "Énergie",
   "attendant.time": "Heure",
-  "attendant.startNewSwap": "Nouvel échange"
+  "attendant.startNewSwap": "Nouvel échange",
+  "attendant.selectReturnBattery": "Sélectionner la batterie à retourner",
+  "attendant.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",
+  "attendant.selectNewBattery": "Sélectionner une nouvelle batterie",
+  "attendant.remaining": "restant",
+
+  "sales.selectBatteryManually": "Sélectionner la batterie",
+  "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",
+  "sales.scanBatteryHint": "Scannez le code QR sur la batterie à attribuer",
+  
+  "battery.scanQr": "Scanner QR",
+  "battery.selectManually": "Sélection manuelle",
+  
+  "ble.bluetoothRequired": "Bluetooth requis",
+  "ble.bluetoothRequiredManual": "Assurez-vous que le Bluetooth est activé pour détecter les batteries à proximité",
+  "ble.bluetoothRequiredScan": "Assurez-vous que le Bluetooth est activé avant de scanner",
+  "ble.nearbyDevices": "Appareils à proximité",
+  "ble.searchDevices": "Rechercher par ID ou MAC...",
+  "ble.noDevicesFound": "Aucun appareil trouvé à proximité",
+  "ble.noDevicesHint": "Assurez-vous que la batterie est allumée et que le Bluetooth est activé",
+  "ble.noMatchingDevices": "Aucun appareil ne correspond à votre recherche",
+  "ble.rescan": "Rescanner",
+  "ble.scanning": "Recherche d'autres appareils...",
+  "ble.deviceFound": "appareil trouvé",
+  "ble.devicesFound": "appareils trouvés"
 }

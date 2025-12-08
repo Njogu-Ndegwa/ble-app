@@ -24,6 +24,7 @@
   "auth.error.invalidCredentials": "凭证无效",
   "auth.error.userNotFound": "用户未找到",
   "common.na": "无",
+  "common.or": "或从列表中选择",
   "common.tapToScan": "点击扫描",
   "common.refresh": "刷新",
   "common.description": "描述",
@@ -1061,5 +1062,29 @@
   "attendant.energy": "能量",
   "attendant.time": "时间",
   "attendant.transactionId": "交易ID",
-  "attendant.startNewSwap": "开始新的更换"
+  "attendant.startNewSwap": "开始新的更换",
+  "attendant.selectReturnBattery": "选择要退回的电池",
+  "attendant.selectFromNearbyDevices": "从附近设备中选择",
+  "attendant.selectNewBattery": "选择新电池",
+  "attendant.remaining": "剩余",
+
+  "sales.selectBatteryManually": "选择电池",
+  "sales.selectFromNearbyDevices": "从附近设备中选择",
+  "sales.scanBatteryHint": "扫描电池上的二维码进行分配",
+  
+  "battery.scanQr": "扫描二维码",
+  "battery.selectManually": "手动选择",
+  
+  "ble.bluetoothRequired": "需要蓝牙",
+  "ble.bluetoothRequiredManual": "请确保蓝牙已开启以检测附近的电池",
+  "ble.bluetoothRequiredScan": "扫描前请确保蓝牙已开启",
+  "ble.nearbyDevices": "附近设备",
+  "ble.searchDevices": "按ID或MAC搜索...",
+  "ble.noDevicesFound": "附近未找到设备",
+  "ble.noDevicesHint": "请确保电池已开启且蓝牙已启用",
+  "ble.noMatchingDevices": "没有匹配您搜索的设备",
+  "ble.rescan": "重新扫描",
+  "ble.scanning": "正在搜索更多设备...",
+  "ble.deviceFound": "个设备",
+  "ble.devicesFound": "个设备"
 }

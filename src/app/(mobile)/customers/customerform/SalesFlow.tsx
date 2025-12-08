@@ -1329,7 +1329,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     setSelectedPlanId(planId);
   }, []);
 
-  // Handle battery scan
+  // Handle battery scan (QR mode)
   const handleScanBattery = useCallback(() => {
     console.info('[SALES BATTERY] Step 0: handleScanBattery called - user clicked scan button');
     console.info('[SALES BATTERY] Step 0a: Setting scanType to "battery"');
@@ -1337,6 +1337,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     console.info('[SALES BATTERY] Step 0b: Calling startQrCodeScan...');
     startQrCodeScan();
   }, [startQrCodeScan]);
+
+  // Handle battery device selection (manual mode)
+  const handleBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
+    console.info('[SALES BATTERY] Manual device selected:', device);
+    scanTypeRef.current = 'battery';
+    
+    // Use the device name as QR data (hook will match by last 6 chars)
+    hookHandleQrScanned(device.name, 'old_battery');
+  }, [hookHandleQrScanned]);
 
   // Handle service completion - reports first battery assignment to backend via MQTT
   // This is for first-time customer with quota (promotional first battery)
@@ -1937,8 +1946,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             formData={formData}
             selectedPlanId={selectedPlanId}
             onScanBattery={handleScanBattery}
+            onDeviceSelect={handleBatteryDeviceSelect}
+            detectedDevices={bleScanState.detectedDevices}
             isBleScanning={bleScanState.isScanning}
-            detectedDevicesCount={bleScanState.detectedDevices.length}
+            onStartScan={hookStartScanning}
             isScannerOpening={isScannerOpening}
             plans={availablePlans}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}
