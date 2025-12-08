@@ -373,11 +373,13 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // === Check 1: Electricity Quota ===
     let hasEnoughElectricity = false;
     
-    // If rounded cost is 0 or negative, no electricity payment is needed
+    // If ACTUAL cost is 0 or negative, no electricity payment is needed
     // This handles cases where customer returns equal or more energy than they receive
-    // or when the calculated cost rounds down to 0 (e.g., 0.54 -> 0)
-    if (roundedCost <= 0) {
-      console.info('Electricity check: rounded cost is 0 or negative', { 
+    // NOTE: We use swapData.cost (not roundedCost) to distinguish between:
+    //   - True zero/negative cost (customer returning energy) → quota-based, no payment_data
+    //   - Zero-cost rounding (e.g., 0.54 → 0) → NOT quota-based, include payment_data with ZERO_COST_ROUNDING
+    if (swapData.cost <= 0) {
+      console.info('Electricity check: actual cost is 0 or negative (not zero-cost rounding)', { 
         cost: swapData.cost, 
         roundedCost 
       });
