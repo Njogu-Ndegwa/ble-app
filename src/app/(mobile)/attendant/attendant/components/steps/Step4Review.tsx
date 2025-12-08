@@ -32,6 +32,11 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   const newLevel = swapData.newBattery?.chargeLevel ?? 0;
   const quotaValue = Math.round(swapData.quotaDeduction * swapData.rate);
 
+  // Calculate monetary values for battery capacities
+  const oldBatteryValue = Math.round(oldBatteryKwh * swapData.rate);
+  const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
+  const energyDiffValue = Math.round(swapData.energyDiff * swapData.rate);
+
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
   
@@ -85,6 +90,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           </div>
           <div className="battery-details">
             <span className="battery-energy">{oldBatteryKwh.toFixed(2)} kWh</span>
+            <span className="battery-value">{currency} {oldBatteryValue}</span>
             <span className="battery-id">{swapData.oldBattery?.shortId || '---'}</span>
           </div>
         </div>
@@ -110,6 +116,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           </div>
           <div className="battery-details">
             <span className="battery-energy">{newBatteryKwh.toFixed(2)} kWh</span>
+            <span className="battery-value">{currency} {newBatteryValue}</span>
             <span className="battery-id">{swapData.newBattery?.shortId || '---'}</span>
           </div>
         </div>
@@ -120,7 +127,10 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
-        <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
+        <div className="energy-info">
+          <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
+          <span className="energy-money">{currency} {energyDiffValue}</span>
+        </div>
       </div>
 
       {/* Pricing Summary */}
@@ -146,7 +156,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         {/* Partial quota note */}
         {hasPartialQuota && !shouldSkipPayment && (
           <div className="summary-note">
-            {t('attendant.chargeableEnergy') || 'To Pay'}: {swapData.chargeableEnergy.toFixed(2)} kWh
+            {t('attendant.chargeableEnergy') || 'To Pay'}: {swapData.chargeableEnergy.toFixed(2)} kWh = {currency} {Math.round(swapData.chargeableEnergy * swapData.rate)}
           </div>
         )}
       </div>
@@ -272,6 +282,13 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           color: var(--text-primary);
         }
 
+        .battery-value {
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--accent);
+          font-family: var(--font-mono);
+        }
+
         .battery-id {
           font-size: 10px;
           color: var(--text-muted);
@@ -307,11 +324,28 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         .review-energy-gain svg {
           width: 18px;
           height: 18px;
+          flex-shrink: 0;
+        }
+
+        .energy-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
         }
 
         .energy-value {
           font-size: 16px;
           font-weight: 600;
+        }
+
+        .energy-money {
+          font-size: 14px;
+          font-weight: 600;
+          font-family: var(--font-mono);
+          padding: 2px 8px;
+          background: var(--accent);
+          color: var(--bg-primary);
+          border-radius: 4px;
         }
 
         /* Summary */
