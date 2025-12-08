@@ -23,17 +23,8 @@ const STATION = "STATION_001";
 const PAYMENT_CONFIRMATION_ENDPOINT =
   "https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm";
 
-interface MqttConfig {
-  username: string;
-  password: string;
-  clientId: string;
-  hostname: string;
-  port: number;
-  protocol?: string;
-  clean?: boolean;
-  connectTimeout?: number;
-  reconnectPeriod?: number;
-}
+// NOTE: MQTT connection is handled globally by bridgeContext.tsx
+// No need for local MqttConfig - uses global connection with auto-reconnection
 
 interface WebViewJavascriptBridge {
   init: (
@@ -68,7 +59,9 @@ interface SwapProps {
 
 const Swap: React.FC<SwapProps> = ({ customer }) => {
   const { t } = useI18n();
-  const { bridge, isBridgeReady, isMqttConnected: globalMqttConnected } = useBridge();
+  // Use global MQTT connection from bridgeContext (connects at splash screen)
+  // This leverages the auto-reconnection mechanism for unstable networks
+  const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
   const [currentPhase, setCurrentPhase] = useState<"A1" | "A3">("A1");
   const [customerType, setCustomerType] = useState<
     "first-time" | "returning" | null
@@ -240,7 +233,7 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
   const modalScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const equipmentSectionRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledToEquipmentRef = useRef<boolean>(false);
-  const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
+  // NOTE: isMqttConnected now comes from useBridge() - global connection with auto-reconnect
 
   const formatDisplayValue = (
     value?: string | number | null,
@@ -1933,125 +1926,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         }
       );
 
-      const offConnectMqtt = reg(
-        "connectMqttCallBack",
-        (data: string, resp: any) => {
-          try {
-            const parsedData =
-              typeof data === "string" ? JSON.parse(data) : data;
-            console.info("=== MQTT Connection Callback ===");
-            console.info(
-              "Connection Callback Data:",
-              JSON.stringify(parsedData, null, 2)
-            );
-
-            // Handle nested data structure - the actual response may be inside a 'data' field as a string
-            let actualData = parsedData;
-            if (parsedData?.data && typeof parsedData.data === "string") {
-              try {
-                actualData = JSON.parse(parsedData.data);
-                console.info("Parsed nested data:", JSON.stringify(actualData, null, 2));
-              } catch {
-                // If nested data parsing fails, use the original
-                actualData = parsedData;
-              }
-            }
-
-            // Check if connection was successful - check both outer and inner data
-            const isConnected =
-              parsedData?.connected === true ||
-              parsedData?.status === "connected" ||
-              parsedData?.respCode === "200" ||
-              actualData?.connected === true ||
-              actualData?.status === "connected" ||
-              actualData?.respCode === "200" ||
-              actualData?.respData === true ||
-              (actualData && !actualData.error && !parsedData.error);
-
-            if (isConnected) {
-              console.info("MQTT connection confirmed as connected");
-              setIsMqttConnected(true);
-            } else {
-              console.warn(
-                "MQTT connection callback indicates not connected:",
-                parsedData
-              );
-              setIsMqttConnected(false);
-            }
-            resp("Received MQTT Connection Callback");
-          } catch (err) {
-            console.error("Error parsing MQTT connection callback:", err);
-            // If we can parse it, assume connection might be OK but log the error
-            console.warn("Assuming MQTT connection is OK despite parse error");
-            setIsMqttConnected(true);
-            resp("Received MQTT Connection Callback");
-          }
-        }
-      );
-
-      // Generate unique client ID to avoid conflicts when multiple devices connect
-      // Format: attendant-{timestamp}-{random}
-      const generateClientId = () => {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substring(2, 9);
-        return `attendant-${ATTENDANT_ID}-${timestamp}-${random}`;
-      };
-
-      const mqttConfig: MqttConfig = {
-        username: "Admin",
-        password: "7xzUV@MT",
-        clientId: generateClientId(),
-        hostname: "mqtt.omnivoltaic.com",
-        port: 1883,
-        protocol: "mqtt",
-        clean: true,
-        connectTimeout: 40000,
-        reconnectPeriod: 1000,
-      };
-
-      console.info("=== Initiating MQTT Connection ===");
-      console.info("MQTT Config:", { ...mqttConfig, password: "***" });
-
-      b.callHandler("connectMqtt", mqttConfig, (resp: string) => {
-        try {
-          const p = typeof resp === "string" ? JSON.parse(resp) : resp;
-          console.info("=== MQTT Connect Response ===");
-          console.info("Connect Response:", JSON.stringify(p, null, 2));
-
-          // Handle nested data structure
-          let actualResp = p;
-          if (p?.responseData && typeof p.responseData === "string") {
-            try {
-              actualResp = JSON.parse(p.responseData);
-              console.info("Parsed nested responseData:", JSON.stringify(actualResp, null, 2));
-            } catch {
-              actualResp = p;
-            }
-          }
-
-          if (p.error || actualResp.error) {
-            const errorMsg = p.error?.message || p.error || actualResp.error?.message || actualResp.error;
-            console.error("MQTT connection error:", errorMsg);
-            setIsMqttConnected(false);
-          } else if (p.respCode === "200" || actualResp.respCode === "200" || p.success === true || actualResp.respData === true) {
-            console.info("MQTT connection initiated successfully");
-            // Connection state will be confirmed by connectMqttCallBack
-          } else {
-            console.warn(
-              "MQTT connection response indicates potential issue:",
-              p
-            );
-          }
-        } catch (err) {
-          console.error("Error parsing MQTT response:", err);
-          // Don't set connection to false on parse error, wait for callback
-        }
-      });
+      // NOTE: MQTT connection is handled globally by bridgeContext.tsx (connects at splash screen)
+      // This provides auto-reconnection for unstable networks (e.g., VPN issues in China)
+      // No need to connect here - just use the global connection from useBridge()
 
       return () => {
         offMqttRecv();
         offQr();
-        offConnectMqtt();
         offFindBle();
         offBleConnectSuccess();
         offBleConnectFail();

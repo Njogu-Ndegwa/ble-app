@@ -74,18 +74,8 @@ declare global {
   }
 }
 
-// MQTT Configuration for service completion reporting
-interface MqttConfig {
-  username: string;
-  password: string;
-  clientId: string;
-  hostname: string;
-  port: number;
-  protocol?: string;
-  clean?: boolean;
-  connectTimeout?: number;
-  reconnectPeriod?: number;
-}
+// NOTE: MQTT connection is handled globally by bridgeContext.tsx
+// No need for local MqttConfig - uses global connection with auto-reconnection
 
 // Salesperson station info (similar to attendant)
 const SALESPERSON_STATION = "STATION_001";
@@ -97,7 +87,9 @@ interface SalesFlowProps {
 
 export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const router = useRouter();
-  const { bridge, isBridgeReady } = useBridge();
+  // Use global MQTT connection from bridgeContext (connects at splash screen)
+  // This leverages the auto-reconnection mechanism for unstable networks
+  const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
   const { locale, setLocale, t } = useI18n();
   
   // Lock body overflow for fixed container
@@ -189,7 +181,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   
   // Service completion states
   const [isCompletingService, setIsCompletingService] = useState(false);
-  const [isMqttConnected, setIsMqttConnected] = useState(false);
+  // NOTE: isMqttConnected now comes from useBridge() - global connection with auto-reconnect
   const [serviceCompletionError, setServiceCompletionError] = useState<string | null>(null);
   
   // Registration ID
@@ -587,34 +579,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
       console.info('[SALES BATTERY] BLE handlers managed by useFlowBatteryScan hook');
 
-      // Setup MQTT connection for service completion reporting
-      // Generate unique client ID
-      const generateClientId = () => {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substring(2, 9);
-        return `salesperson-${timestamp}-${random}`;
-      };
-
-      // Register MQTT connection callback
-      window.WebViewJavascriptBridge.registerHandler(
-        'connectMqttCallBack',
-        (data: string, resp: (response: any) => void) => {
-          try {
-            const p = typeof data === 'string' ? JSON.parse(data) : data;
-            if (p?.connected || p?.respCode === '200' || p?.success === true) {
-              setIsMqttConnected(true);
-            } else {
-              console.warn('MQTT connection callback received, status unclear:', p);
-              // Assume connected if we got a callback
-              setIsMqttConnected(true);
-            }
-          } catch (e) {
-            console.warn('MQTT callback parse error, assuming connected');
-            setIsMqttConnected(true);
-          }
-          resp({ received: true });
-        }
-      );
+      // NOTE: MQTT connection is handled globally by bridgeContext.tsx (connects at splash screen)
+      // This provides auto-reconnection for unstable networks (e.g., VPN issues in China)
+      // We only need to register the message handler here for service completion responses
 
       // MQTT message arrival callback (for response handling)
       window.WebViewJavascriptBridge.registerHandler(
@@ -646,34 +613,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             console.error('Error parsing MQTT message:', e);
           }
           resp({ received: true });
-        }
-      );
-
-      // Connect to MQTT broker
-      const mqttConfig: MqttConfig = {
-        username: 'Admin',
-        password: '7xzUV@MT',
-        clientId: generateClientId(),
-        hostname: 'mqtt.omnivoltaic.com',
-        port: 1883,
-        protocol: 'mqtt',
-        clean: true,
-        connectTimeout: 40000,
-        reconnectPeriod: 1000,
-      };
-
-      window.WebViewJavascriptBridge.callHandler(
-        'connectMqtt',
-        mqttConfig,
-        (resp: string) => {
-            try {
-              const p = typeof resp === 'string' ? JSON.parse(resp) : resp;
-              if (p.respCode !== '200' && p.success !== true && p.respData !== true) {
-                console.warn('MQTT connection response:', p);
-              }
-            } catch (err) {
-              console.error('Error parsing MQTT connect response:', err);
-            }
         }
       );
     };
