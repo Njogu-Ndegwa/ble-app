@@ -869,6 +869,13 @@
   
   "Location not available. Please wait for GPS to initialize.": "Location not available. Please wait for GPS to initialize.",
   "MQTT not connected. Please wait a moment and try again.": "MQTT not connected. Please wait a moment and try again.",
+  "mqtt.reconnecting": "Reconnecting to server...",
+  "mqtt.reconnectingAttempt": "Reconnecting (attempt {{attempt}})",
+  "mqtt.reconnectingIn": "Reconnecting in {{seconds}}s...",
+  "mqtt.reconnected": "Connection restored",
+  "mqtt.reconnectFailed": "Connection failed. Tap to retry.",
+  "mqtt.maxRetriesReached": "Unable to connect after multiple attempts. Please check your network.",
+  "mqtt.manualReconnect": "Tap to reconnect",
   "Please log in to find stations.": "Please log in to find stations.",
   "Partner information not available. Please log in again.": "Partner information not available. Please log in again.",
   "Checking subscription status...": "Checking subscription status...",

@@ -782,6 +782,13 @@
   
   "Location not available. Please wait for GPS to initialize.": "位置不可用。请等待GPS初始化。",
   "MQTT not connected. Please wait a moment and try again.": "MQTT未连接。请稍等并重试。",
+  "mqtt.reconnecting": "正在重新连接服务器...",
+  "mqtt.reconnectingAttempt": "正在重连 (第{{attempt}}次尝试)",
+  "mqtt.reconnectingIn": "{{seconds}}秒后重连...",
+  "mqtt.reconnected": "连接已恢复",
+  "mqtt.reconnectFailed": "连接失败。点击重试。",
+  "mqtt.maxRetriesReached": "多次尝试后仍无法连接。请检查您的网络。",
+  "mqtt.manualReconnect": "点击重新连接",
   "Please log in to find stations.": "请登录以查找站点。",
   "Partner information not available. Please log in again.": "合作伙伴信息不可用。请重新登录。",
   "Checking subscription status...": "正在检查订阅状态...",

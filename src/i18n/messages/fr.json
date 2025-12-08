@@ -860,6 +860,13 @@
   
   "Location not available. Please wait for GPS to initialize.": "Localisation non disponible. Veuillez attendre l'initialisation du GPS.",
   "MQTT not connected. Please wait a moment and try again.": "MQTT non connecté. Veuillez attendre un moment et réessayer.",
+  "mqtt.reconnecting": "Reconnexion au serveur...",
+  "mqtt.reconnectingAttempt": "Reconnexion (tentative {{attempt}})",
+  "mqtt.reconnectingIn": "Reconnexion dans {{seconds}}s...",
+  "mqtt.reconnected": "Connexion rétablie",
+  "mqtt.reconnectFailed": "Connexion échouée. Appuyez pour réessayer.",
+  "mqtt.maxRetriesReached": "Impossible de se connecter après plusieurs tentatives. Veuillez vérifier votre réseau.",
+  "mqtt.manualReconnect": "Appuyez pour vous reconnecter",
   "Please log in to find stations.": "Veuillez vous connecter pour trouver des stations.",
   "Partner information not available. Please log in again.": "Informations du partenaire non disponibles. Veuillez vous reconnecter.",
   "Checking subscription status...": "Vérification du statut de l'abonnement...",
