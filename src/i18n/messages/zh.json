@@ -1113,7 +1113,7 @@
   "ble.bluetoothRequiredManual": "请确保蓝牙已开启以检测附近的电池",
   "ble.bluetoothRequiredScan": "扫描前请确保蓝牙已开启",
   "ble.nearbyDevices": "附近设备",
-  "ble.searchDevices": "按ID或MAC搜索...",
+  "ble.searchDevices": "按名称或ID搜索（如：0006）...",
   "ble.noDevicesFound": "附近未找到设备",
   "ble.noDevicesHint": "请确保电池已开启且蓝牙已启用",
   "ble.noMatchingDevices": "没有匹配您搜索的设备",

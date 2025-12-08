@@ -247,18 +247,28 @@ export default function BleDeviceList({
         )}
       </div>
 
-      {/* Search - only show if not hidden by parent and there are enough devices */}
-      {!hideSearch && devices.length > 3 && (
+      {/* Search - always show when not hidden by parent */}
+      {!hideSearch && (
         <div className="ble-device-search">
           <SearchIcon />
           <input
             type="text"
-            placeholder={t('ble.searchDevices') || 'Search by ID or MAC...'}
+            placeholder={t('ble.searchDevices') || 'Search by name or ID (e.g., 0006)...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="ble-device-search-input"
             disabled={disabled}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              className="ble-device-search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+            >
+              <ClearIcon />
+            </button>
+          )}
         </div>
       )}
 
@@ -445,32 +455,58 @@ export default function BleDeviceList({
           align-items: center;
         }
 
-        .ble-device-search :global(svg) {
+        .ble-device-search > :global(svg:first-child) {
           position: absolute;
           left: ${spacing[3]};
-          width: 16px;
-          height: 16px;
+          width: 18px;
+          height: 18px;
           color: ${colors.text.muted};
+          pointer-events: none;
         }
 
         .ble-device-search-input {
           width: 100%;
-          padding: ${spacing[2]} ${spacing[3]} ${spacing[2]} ${spacing[10]};
-          font-size: ${fontSize.sm};
+          padding: ${spacing[3]} ${spacing[10]} ${spacing[3]} ${spacing[10]};
+          font-size: ${fontSize.base};
           color: ${colors.text.primary};
           background: ${colors.bg.tertiary};
-          border: 1px solid ${colors.border.default};
-          border-radius: ${radius.md};
+          border: 2px solid ${colors.border.default};
+          border-radius: ${radius.lg};
           outline: none;
-          transition: border-color 0.2s;
+          transition: all 0.2s ease;
         }
 
         .ble-device-search-input:focus {
           border-color: ${colors.brand.primary};
+          background: ${colors.bg.secondary};
+          box-shadow: 0 0 0 3px ${colors.brand.primary}20;
         }
 
         .ble-device-search-input::placeholder {
           color: ${colors.text.muted};
+          font-size: ${fontSize.sm};
+        }
+
+        .ble-device-search-clear {
+          position: absolute;
+          right: ${spacing[2]};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          background: ${colors.bg.elevated};
+          border: none;
+          border-radius: ${radius.full};
+          color: ${colors.text.secondary};
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .ble-device-search-clear:hover {
+          background: ${colors.bg.tertiary};
+          color: ${colors.text.primary};
         }
 
         .ble-device-list-items {
@@ -780,6 +816,24 @@ function CheckIcon() {
       height="12"
     >
       <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  );
+}
+
+function ClearIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="16"
+      height="16"
+    >
+      <line x1="18" y1="6" x2="6" y2="18"/>
+      <line x1="6" y1="6" x2="18" y2="18"/>
     </svg>
   );
 }
