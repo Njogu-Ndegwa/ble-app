@@ -76,8 +76,10 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSu
     case 4:
       // Show "Complete Swap" with check icon when:
       // 1. Customer has sufficient quota, OR
-      // 2. Total cost is zero or negative (nothing to collect)
-      const shouldSkipPayment = hasSufficientQuota || (swapCost !== undefined && swapCost <= 0);
+      // 2. Rounded cost is zero or negative (nothing to collect)
+      // NOTE: We use Math.floor because customers can't pay decimals (e.g., 0.54 rounds to 0)
+      const roundedCost = swapCost !== undefined ? Math.floor(swapCost) : undefined;
+      const shouldSkipPayment = hasSufficientQuota || (roundedCost !== undefined && roundedCost <= 0);
       if (shouldSkipPayment) {
         return { showBack: true, mainTextKey: 'attendant.completeSwap', mainIcon: 'check', mainClass: 'btn-success' };
       }

@@ -17,10 +17,14 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // Check if customer has partial quota (some quota but not enough to cover full energy diff)
   const hasPartialQuota = swapData.quotaDeduction > 0 && swapData.chargeableEnergy > 0;
   
-  // Check if cost is zero or negative (no payment needed regardless of quota status)
-  const isZeroCost = swapData.cost <= 0;
+  // Round down the cost for display and payment decision - customers can't pay decimals
+  // Example: 20.54 becomes 20, 0.54 becomes 0
+  const displayCost = Math.floor(swapData.cost);
   
-  // Should skip payment: either has sufficient quota OR cost is zero
+  // Check if rounded cost is zero or negative (no payment needed regardless of quota status)
+  const isZeroCost = displayCost <= 0;
+  
+  // Should skip payment: either has sufficient quota OR rounded cost is zero
   const shouldSkipPayment = hasSufficientQuota || isZeroCost;
   
   return (
@@ -168,7 +172,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <span className="cost-total-value" style={{ fontSize: '16px' }}>
             {hasSufficientQuota 
               ? `${swapData.energyDiff.toFixed(3)} kWh` 
-              : `${swapData.currencySymbol} ${swapData.cost.toFixed(0)}`}
+              : `${swapData.currencySymbol} ${displayCost}`}
           </span>
         </div>
       </div>
