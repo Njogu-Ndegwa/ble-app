@@ -33,7 +33,7 @@ export type { BatteryScanMode } from './BatteryScanBind';
 // ============================================
 // BATTERY INPUT COMPONENTS (Scan & Manual Selection)
 // ============================================
-export { default as BleDeviceList } from './BleDeviceList';
+export { default as BleDeviceList, isBatteryDevice, filterBatteryDevices } from './BleDeviceList';
 export { default as BatteryInputSelector } from './BatteryInputSelector';
 export type { BatteryInputMode, BatteryOperationMode } from './BatteryInputSelector';
 
