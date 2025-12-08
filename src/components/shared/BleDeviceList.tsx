@@ -46,6 +46,10 @@ interface BleDeviceListProps {
   onRescan?: () => void;
   /** Callback to stop scanning (called when scanning) */
   onStopScan?: () => void;
+  /** Callback when QR scan button is clicked (shown inside search input) */
+  onScanQr?: () => void;
+  /** Whether QR scanner is currently opening (shows spinner on button) */
+  isScannerOpening?: boolean;
   /** Title for the list */
   title?: string;
   /** Subtitle for the list */
@@ -187,6 +191,8 @@ export default function BleDeviceList({
   onSelectDevice,
   onRescan,
   onStopScan,
+  onScanQr,
+  isScannerOpening = false,
   title,
   subtitle,
   maxHeight = '300px',
@@ -259,16 +265,34 @@ export default function BleDeviceList({
             className="ble-device-search-input"
             disabled={disabled}
           />
-          {searchQuery && (
-            <button
-              type="button"
-              className="ble-device-search-clear"
-              onClick={() => setSearchQuery('')}
-              aria-label="Clear search"
-            >
-              <ClearIcon />
-            </button>
-          )}
+          <div className="ble-device-search-actions">
+            {searchQuery && (
+              <button
+                type="button"
+                className="ble-device-search-clear"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+              >
+                <ClearIcon />
+              </button>
+            )}
+            {onScanQr && (
+              <button
+                type="button"
+                className="ble-device-qr-btn"
+                onClick={onScanQr}
+                disabled={isScannerOpening || disabled}
+                aria-label={t('battery.scanQr') || 'Scan QR Code'}
+                title={t('battery.scanQr') || 'Scan QR Code'}
+              >
+                {isScannerOpening ? (
+                  <div className="ble-device-qr-spinner" />
+                ) : (
+                  <QrScanIcon />
+                )}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -466,7 +490,8 @@ export default function BleDeviceList({
 
         .ble-device-search-input {
           width: 100%;
-          padding: ${spacing[3]} ${spacing[10]} ${spacing[3]} ${spacing[10]};
+          padding: ${spacing[3]} ${spacing[3]} ${spacing[3]} ${spacing[10]};
+          padding-right: calc(${spacing[3]} + var(--search-actions-width, 40px));
           font-size: ${fontSize.base};
           color: ${colors.text.primary};
           background: ${colors.bg.tertiary};
@@ -487,9 +512,15 @@ export default function BleDeviceList({
           font-size: ${fontSize.sm};
         }
 
-        .ble-device-search-clear {
+        .ble-device-search-actions {
           position: absolute;
           right: ${spacing[2]};
+          display: flex;
+          align-items: center;
+          gap: ${spacing[2]};
+        }
+
+        .ble-device-search-clear {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -507,6 +538,53 @@ export default function BleDeviceList({
         .ble-device-search-clear:hover {
           background: ${colors.bg.tertiary};
           color: ${colors.text.primary};
+        }
+
+        .ble-device-qr-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          background: ${colors.brand.primary};
+          border: none;
+          border-radius: ${radius.md};
+          color: ${colors.bg.primary};
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .ble-device-qr-btn:hover:not(:disabled) {
+          background: ${colors.brand.primaryDark};
+          transform: scale(1.05);
+        }
+
+        .ble-device-qr-btn:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+
+        .ble-device-qr-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .ble-device-qr-btn :global(svg) {
+          width: 20px;
+          height: 20px;
+        }
+
+        .ble-device-qr-spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: qr-spin 0.8s linear infinite;
+        }
+
+        @keyframes qr-spin {
+          to { transform: rotate(360deg); }
         }
 
         .ble-device-list-items {
@@ -834,6 +912,32 @@ function ClearIcon() {
     >
       <line x1="18" y1="6" x2="6" y2="18"/>
       <line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  );
+}
+
+function QrScanIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      {/* QR code pattern */}
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="3" height="3" rx="0.5"/>
+      <rect x="18" y="14" width="3" height="3" rx="0.5"/>
+      <rect x="14" y="18" width="3" height="3" rx="0.5"/>
+      <rect x="18" y="18" width="3" height="3" rx="0.5"/>
+      {/* Inner squares */}
+      <rect x="5" y="5" width="3" height="3" fill="currentColor"/>
+      <rect x="16" y="5" width="3" height="3" fill="currentColor"/>
+      <rect x="5" y="16" width="3" height="3" fill="currentColor"/>
     </svg>
   );
 }

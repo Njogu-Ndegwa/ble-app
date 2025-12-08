@@ -205,32 +205,7 @@ export default function BatteryInputSelector({
         </div>
       )}
 
-      {/* Action Bar - QR Scan button with instruction text */}
-      {!isFirstTimeCustomer && (
-        <div className="battery-search-bar">
-          <div className="battery-search-icon">
-            <QrScanIcon />
-          </div>
-          <span className="battery-search-placeholder">
-            {t('common.scanOrSelect') || 'Scan QR code or select from list below'}
-          </span>
-          <button
-            type="button"
-            className="battery-qr-btn"
-            onClick={onScan}
-            disabled={isScannerOpening || disabled}
-            aria-label={t(config.scanButtonKey) || fallback.scanButton}
-          >
-            {isScannerOpening ? (
-              <div className="battery-qr-spinner" />
-            ) : (
-              <QrScanIcon />
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Device List - Always visible with search for quick filtering */}
+      {/* Device List with integrated search and QR scan button */}
       {/* Filter to show only battery devices (those with "BATT" or "Batt" in name) */}
       {!isFirstTimeCustomer && (
         <div className="battery-input-device-list">
@@ -241,6 +216,8 @@ export default function BatteryInputSelector({
             onSelectDevice={onDeviceSelect}
             onRescan={onStartScan}
             onStopScan={onStopScan}
+            onScanQr={onScan}
+            isScannerOpening={isScannerOpening}
             disabled={disabled}
             hideSearch={false}
             maxHeight="320px"
@@ -317,86 +294,6 @@ export default function BatteryInputSelector({
           color: ${colors.text.secondary};
         }
 
-        /* Compact Search Bar with QR Scan - Like Keypad */
-        .battery-search-bar {
-          display: flex;
-          align-items: center;
-          gap: ${spacing[2]};
-          padding: ${spacing[2]} ${spacing[3]};
-          background: ${colors.bg.tertiary};
-          border: 1px solid ${colors.border.default};
-          border-radius: ${radius.lg};
-          transition: border-color 0.2s;
-        }
-
-        .battery-search-bar:focus-within {
-          border-color: ${colors.brand.primary};
-        }
-
-        .battery-search-icon {
-          flex-shrink: 0;
-          color: ${colors.text.muted};
-        }
-
-        .battery-search-icon :global(svg) {
-          width: 18px;
-          height: 18px;
-        }
-
-        .battery-search-placeholder {
-          flex: 1;
-          font-size: ${fontSize.sm};
-          color: ${colors.text.muted};
-        }
-
-        .battery-qr-btn {
-          flex-shrink: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 36px;
-          height: 36px;
-          padding: 0;
-          background: ${colors.brand.primary};
-          border: none;
-          border-radius: ${radius.md};
-          color: ${colors.bg.primary};
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .battery-qr-btn:hover:not(:disabled) {
-          background: ${colors.brand.primaryDark};
-          transform: scale(1.05);
-        }
-
-        .battery-qr-btn:active:not(:disabled) {
-          transform: scale(0.98);
-        }
-
-        .battery-qr-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .battery-qr-btn :global(svg) {
-          width: 20px;
-          height: 20px;
-        }
-
-        .battery-qr-spinner {
-          width: 18px;
-          height: 18px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
         /* Device List Container */
         .battery-input-device-list {
           display: flex;
@@ -407,48 +304,3 @@ export default function BatteryInputSelector({
   );
 }
 
-// ============================================
-// ICON COMPONENTS
-// ============================================
-
-function QrScanIcon() {
-  return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      {/* QR code pattern */}
-      <rect x="3" y="3" width="7" height="7" rx="1"/>
-      <rect x="14" y="3" width="7" height="7" rx="1"/>
-      <rect x="3" y="14" width="7" height="7" rx="1"/>
-      <rect x="14" y="14" width="3" height="3" rx="0.5"/>
-      <rect x="18" y="14" width="3" height="3" rx="0.5"/>
-      <rect x="14" y="18" width="3" height="3" rx="0.5"/>
-      <rect x="18" y="18" width="3" height="3" rx="0.5"/>
-      {/* Inner squares */}
-      <rect x="5" y="5" width="3" height="3" fill="currentColor"/>
-      <rect x="16" y="5" width="3" height="3" fill="currentColor"/>
-      <rect x="5" y="16" width="3" height="3" fill="currentColor"/>
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <circle cx="11" cy="11" r="8"/>
-      <path d="M21 21l-4.35-4.35"/>
-    </svg>
-  );
-}
