@@ -353,8 +353,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Check if we can skip payment collection
   // Returns true if BOTH conditions are met:
-  // 1. Electricity quota: remaining kWh >= energy being transferred (or cost <= 0)
+  // 1. Electricity quota: remaining kWh >= energy being transferred (or rounded cost <= 0)
   // 2. Swap count quota: remaining swaps >= 1
+  // NOTE: We use Math.floor(cost) for this decision since customers can't pay decimals
   const hasSufficientQuota = useMemo(() => {
     // Only check quota/cost once we have battery data (Step 4 - Review)
     // Without new battery data, we can't determine if payment is needed
@@ -362,13 +363,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return false;
     }
     
+    // Calculate rounded cost - customers can't pay decimals so we round down
+    // Example: 20.54 becomes 20, 0.54 becomes 0
+    const roundedCost = Math.floor(swapData.cost);
+    
     // === Check 1: Electricity Quota ===
     let hasEnoughElectricity = false;
     
-    // If cost is 0 or negative, no electricity payment is needed
+    // If rounded cost is 0 or negative, no electricity payment is needed
     // This handles cases where customer returns equal or more energy than they receive
-    if (swapData.cost <= 0) {
-      console.info('Electricity check: cost is 0 or negative', { cost: swapData.cost });
+    // or when the calculated cost rounds down to 0 (e.g., 0.54 -> 0)
+    if (roundedCost <= 0) {
+      console.info('Electricity check: rounded cost is 0 or negative', { 
+        cost: swapData.cost, 
+        roundedCost 
+      });
       hasEnoughElectricity = true;
     } else if (electricityService) {
       const elecQuota = Number(electricityService.quota ?? 0);
@@ -883,19 +892,25 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     try {
       // Step 1: Create payment request/ticket FIRST
-      // Store the expected amount at time of request creation
-      const amountRequired = swapData.cost;
+      // We send the ROUNDED DOWN amount to Odoo - this is what we ask the customer to pay
+      // (customers can't pay decimals, e.g., 20.54 becomes 20)
+      // BUT we store the original amount for backend quota reporting later
+      const amountCalculated = swapData.cost; // Original calculated amount (e.g., 20.54)
+      const amountRequired = Math.floor(swapData.cost); // Rounded down for payment (e.g., 20)
+      
+      // Store the ROUNDED amount as expected - this is what customer will actually pay
       setExpectedPaymentAmount(amountRequired);
       
       console.log('Creating payment request with Odoo:', {
         subscription_code: subscriptionCode,
-        amount_required: amountRequired,
+        amount_calculated: amountCalculated,
+        amount_required: amountRequired, // Rounded down
         description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
       });
 
       const paymentRequestResponse = await createPaymentRequest({
         subscription_code: subscriptionCode,
-        amount_required: amountRequired,
+        amount_required: amountRequired, // Send rounded amount to Odoo
         description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
       });
 
@@ -1036,8 +1051,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           setPaymentReceipt(receipt);
           setTransactionId(receipt);
           toast.success('Payment confirmed successfully');
-          // Pass actual total_paid to publishPaymentAndService
-          publishPaymentAndService(receipt, false, totalPaid);
+          // Report payment - uses original calculated cost for accurate quota tracking
+          publishPaymentAndService(receipt, false);
         } else {
           throw new Error('Payment confirmation failed');
         }
@@ -1078,7 +1093,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [electricityService]);
 
   // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
-  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, amountPaid?: number) => void>(() => {});
+  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -1726,22 +1741,27 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [hookResetState, hookHandleQrScanned, clearScanTimeout]);
 
   // Step 4: Proceed to payment - initiate payment with Odoo first
-  // OR skip payment if customer has sufficient quota OR cost is zero
+  // OR skip payment if customer has sufficient quota OR rounded cost is zero
   const handleProceedToPayment = useCallback(async () => {
     setIsProcessing(true);
     try {
+      // Calculate rounded cost - customers can't pay decimals so we round down
+      // Example: 20.54 becomes 20, 0.54 becomes 0
+      const roundedCost = Math.floor(swapData.cost);
+      
       // Check if we should skip payment collection:
       // 1. Customer has sufficient quota (both electricity and swap count)
-      // 2. OR total cost is 0 or negative (nothing to collect)
-      const shouldSkipPayment = hasSufficientQuota || swapData.cost <= 0;
+      // 2. OR rounded cost is 0 or negative (nothing to collect since we round down)
+      const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
       
       if (shouldSkipPayment) {
         const reason = hasSufficientQuota 
           ? 'sufficient quota' 
-          : 'zero cost';
+          : 'zero cost (rounded)';
         console.info(`Skipping payment step - ${reason}`, { 
           hasSufficientQuota, 
-          cost: swapData.cost 
+          cost: swapData.cost,
+          roundedCost
         });
         toast.success(hasSufficientQuota 
           ? 'Using quota credit - no payment required' 
@@ -1848,8 +1868,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           setPaymentAmountRemaining(remainingToPay);
           
           // CRITICAL: Check if total_paid >= expected amount for THIS swap
-          // This is the amount we calculated (energy * unit price) and displayed to the attendant
-          const requiredAmount = expectedPaymentAmount || swapData.cost;
+          // We use the ROUNDED amount (what we asked customer to pay, not the calculated amount)
+          // Example: if cost is 20.54, we ask for 20, so customer needs to pay at least 20
+          const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
           if (totalPaid < requiredAmount) {
             // Payment insufficient for this swap
             const shortfall = requiredAmount - totalPaid;
@@ -1865,8 +1886,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           setTransactionId(receipt);
           toast.success('Payment confirmed successfully');
           
-          // Now publish payment_and_service with actual total_paid
-          publishPaymentAndService(receipt, false, totalPaid);
+          // Report payment - uses original calculated cost for accurate quota tracking
+          publishPaymentAndService(receipt, false);
         } else {
           throw new Error('Payment confirmation failed');
         }
@@ -1883,8 +1904,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Publish payment_and_service via MQTT
   // isQuotaBased: When true, customer is using their existing quota credit (no payment required)
-  // amountPaid: The actual amount paid by customer (from Odoo response), used instead of swapData.cost
-  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, amountPaid?: number) => {
+  // NOTE: We always report the ORIGINAL calculated amount (swapData.cost) for quota calculations,
+  // even though customer pays the rounded-down amount. This ensures accurate quota tracking.
+  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false) => {
     if (!bridge) {
       console.error("Bridge not available for payment_and_service");
       toast.error('Bridge not available. Please restart the app.');
@@ -1919,14 +1941,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     if (energyTransferred < 0) energyTransferred = 0;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    // Use actual amount_paid from Odoo response (customer may pay more than expected, never less)
-    // Fall back to swapData.cost if amountPaid is not provided
-    const paymentAmount = amountPaid ?? swapData.cost;
+    // IMPORTANT: Report the ORIGINAL calculated amount (not rounded) for accurate quota calculations
+    // Even though customer pays the rounded amount (e.g., 20), we report the full precision (e.g., 20.54)
+    // This ensures quota tracking is accurate since the customer received 20.54 worth of energy
+    const paymentAmount = swapData.cost; // Always use original calculated cost for backend reporting
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     console.info('Publishing payment_and_service:', {
       isQuotaBased,
-      ...(isQuotaBased ? {} : { paymentAmount, paymentReference }),
+      ...(isQuotaBased ? {} : { 
+        paymentAmount, // Full precision for quota calc
+        paymentAmountRoundedForCustomer: Math.floor(swapData.cost), // What customer actually paid
+        paymentReference 
+      }),
       energyTransferred,
       oldBatteryId,
       newBatteryId,
@@ -2454,13 +2481,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           />
         );
       case 6:
+        // Display rounded amounts on receipt (what customer actually paid/owed)
+        // Example: if cost was 20.54, we show 20 as amount due
         return (
           <Step6Success 
             swapData={swapData} 
             customerData={customerData} 
             transactionId={transactionId}
-            amountDue={swapData.cost}
-            amountPaid={actualAmountPaid}
+            amountDue={Math.floor(swapData.cost)}
+            amountPaid={Math.floor(actualAmountPaid)}
           />
         );
       default:

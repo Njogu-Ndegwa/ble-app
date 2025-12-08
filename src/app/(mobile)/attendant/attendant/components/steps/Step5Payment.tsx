@@ -23,6 +23,8 @@ interface Step5Props {
  * Step5Payment - Collect payment from customer
  * 
  * Uses the shared PaymentCollection component
+ * NOTE: Displays rounded down cost since customers can't pay decimals
+ * (e.g., 20.54 becomes 20)
  */
 export default function Step5Payment({ 
   swapData, 
@@ -38,11 +40,15 @@ export default function Step5Payment({
   amountPaid = 0,
 }: Step5Props) {
   const hasPartialPayment = amountRemaining > 0 && amountPaid > 0;
+  
+  // Round down the cost for display - customers can't pay decimals
+  // Example: 20.54 becomes 20
+  const displayAmount = Math.floor(swapData.cost);
 
   return (
     <div className="screen active">
       <PaymentCollection
-        amount={swapData.cost}
+        amount={displayAmount}
         currencySymbol={swapData.currencySymbol}
         customer={customerData ? { name: customerData.name } : null}
         inputMode={inputMode}
