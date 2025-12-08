@@ -25,6 +25,7 @@
   "auth.error.userNotFound": "User not found",
   "common.na": "N/A",
   "common.or": "or select from list",
+  "common.scanOrSelect": "Scan QR code or select from list below",
   "common.tapToScan": "Tap to scan",
   "common.refresh": "Refresh",
   "common.description": "Description",

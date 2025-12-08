@@ -202,14 +202,14 @@ export default function BatteryInputSelector({
         </div>
       )}
 
-      {/* Compact Search Bar with integrated QR Scan - Like Keypad page */}
+      {/* Action Bar - QR Scan button with instruction text */}
       {!isFirstTimeCustomer && (
         <div className="battery-search-bar">
           <div className="battery-search-icon">
-            <SearchIcon />
+            <QrScanIcon />
           </div>
           <span className="battery-search-placeholder">
-            {t('battery.searchOrScan') || 'Search device or scan QR...'}
+            {t('common.scanOrSelect') || 'Scan QR code or select from list below'}
           </span>
           <button
             type="button"
@@ -237,6 +237,7 @@ export default function BatteryInputSelector({
             onSelectDevice={onDeviceSelect}
             onRescan={onStartScan}
             disabled={disabled}
+            hideSearch={true}
             maxHeight="320px"
           />
         </div>

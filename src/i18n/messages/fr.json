@@ -25,6 +25,7 @@
   "auth.error.userNotFound": "Utilisateur introuvable",
   "common.na": "N/D",
   "common.or": "ou sélectionnez dans la liste",
+  "common.scanOrSelect": "Scannez le QR ou sélectionnez dans la liste ci-dessous",
   "common.tapToScan": "Appuyez pour scanner",
   "common.refresh": "Rafraîchir",
   "common.description": "Description",
