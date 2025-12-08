@@ -66,17 +66,18 @@ function getSignalStrength(rawRssi: number): { level: 'excellent' | 'good' | 'fa
 }
 
 /**
- * Extract device ID from device name (typically last 6 characters)
+ * Extract device model and ID from device name
+ * Shows full device name for better identification (matching Keypad behavior)
  */
-function extractDeviceId(deviceName: string): string {
-  // Try to extract the ID from the name (e.g., "OVES BATT 45AH12345" -> "12345")
+function extractDeviceDisplay(deviceName: string): { name: string; id: string } {
+  // Return full device name like "OVES BATT 45AH2311000102"
+  // Also extract the ID portion (last part after spaces)
   const parts = deviceName.split(' ');
-  if (parts.length > 0) {
-    const lastPart = parts[parts.length - 1];
-    // Return last 6 chars if it looks like an ID
-    return lastPart.length >= 6 ? lastPart.slice(-6).toUpperCase() : lastPart.toUpperCase();
-  }
-  return deviceName.slice(-6).toUpperCase();
+  const lastPart = parts.length > 0 ? parts[parts.length - 1] : deviceName;
+  return {
+    name: deviceName, // Full name like "OVES BATT 45AH2311000102"
+    id: lastPart.toUpperCase(), // ID portion like "45AH2311000102"
+  };
 }
 
 /**
@@ -240,7 +241,7 @@ export default function BleDeviceList({
         {/* Device Items */}
         {sortedDevices.map((device) => {
           const signal = getSignalStrength(device.rawRssi);
-          const deviceId = extractDeviceId(device.name);
+          const deviceDisplay = extractDeviceDisplay(device.name);
           const isSelected = selectedDevice === device.macAddress;
 
           return (
@@ -271,10 +272,7 @@ export default function BleDeviceList({
 
               {/* Device Info */}
               <div className="ble-device-info">
-                <div className="ble-device-id">
-                  <span className="ble-device-id-label">ID:</span>
-                  <span className="ble-device-id-value font-mono-oves">{deviceId}</span>
-                </div>
+                <div className="ble-device-name font-mono-oves">{deviceDisplay.name}</div>
                 <div className="ble-device-mac font-mono-oves">
                   {device.macAddress}
                 </div>
@@ -472,22 +470,14 @@ export default function BleDeviceList({
           min-width: 0;
         }
 
-        .ble-device-id {
-          display: flex;
-          align-items: center;
-          gap: ${spacing[1]};
-          margin-bottom: ${spacing[1]};
-        }
-
-        .ble-device-id-label {
-          font-size: ${fontSize.xs};
-          color: ${colors.text.muted};
-        }
-
-        .ble-device-id-value {
-          font-size: ${fontSize.base};
+        .ble-device-name {
+          font-size: ${fontSize.sm};
           font-weight: ${fontWeight.semibold};
           color: ${colors.text.primary};
+          margin-bottom: ${spacing[1]};
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .ble-device-mac {

@@ -180,13 +180,13 @@ export default function BatteryInputSelector({
 
   return (
     <div className={`battery-input-selector ${className}`}>
-      {/* Header */}
+      {/* Compact Header */}
       <div className="battery-input-header">
-        <h1 className="battery-input-title">{displayTitle}</h1>
+        <h2 className="battery-input-title">{displayTitle}</h2>
         <p className="battery-input-subtitle">{displaySubtitle}</p>
       </div>
 
-      {/* Previous Battery Card (issue mode) */}
+      {/* Previous Battery Card (issue mode) - Compact */}
       {mode === 'issue' && previousBattery && (
         <div className="battery-return-card">
           <div className="battery-return-header">
@@ -202,41 +202,32 @@ export default function BatteryInputSelector({
         </div>
       )}
 
-      {/* QR Scan Button - Large, prominent */}
+      {/* Compact Search Bar with integrated QR Scan - Like Keypad page */}
       {!isFirstTimeCustomer && (
-        <button
-          type="button"
-          className="battery-scan-btn"
-          onClick={onScan}
-          disabled={isScannerOpening || disabled}
-        >
-          <div className="battery-scan-btn-content">
-            <div className="battery-scan-icon">
-              <QrScanIcon />
-            </div>
-            <div className="battery-scan-text">
-              <span className="battery-scan-label">
-                {t(config.scanButtonKey) || fallback.scanButton}
-              </span>
-              <span className="battery-scan-hint">
-                {t(config.hintKey) || fallback.hint}
-              </span>
-            </div>
+        <div className="battery-search-bar">
+          <div className="battery-search-icon">
+            <SearchIcon />
           </div>
-          {isScannerOpening && (
-            <div className="battery-scan-spinner" />
-          )}
-        </button>
-      )}
-
-      {/* Divider with "or" text */}
-      {!isFirstTimeCustomer && detectedDevices.length > 0 && (
-        <div className="battery-divider">
-          <span className="battery-divider-text">{t('common.or') || 'or select from list'}</span>
+          <span className="battery-search-placeholder">
+            {t('battery.searchOrScan') || 'Search device or scan QR...'}
+          </span>
+          <button
+            type="button"
+            className="battery-qr-btn"
+            onClick={onScan}
+            disabled={isScannerOpening || disabled}
+            aria-label={t(config.scanButtonKey) || fallback.scanButton}
+          >
+            {isScannerOpening ? (
+              <div className="battery-qr-spinner" />
+            ) : (
+              <QrScanIcon />
+            )}
+          </button>
         </div>
       )}
 
-      {/* Device List - Always visible when devices are detected */}
+      {/* Device List - Always visible, no scrolling needed to discover */}
       {!isFirstTimeCustomer && (
         <div className="battery-input-device-list">
           <BleDeviceList
@@ -246,7 +237,7 @@ export default function BatteryInputSelector({
             onSelectDevice={onDeviceSelect}
             onRescan={onStartScan}
             disabled={disabled}
-            maxHeight="240px"
+            maxHeight="320px"
           />
         </div>
       )}
@@ -255,7 +246,7 @@ export default function BatteryInputSelector({
         .battery-input-selector {
           display: flex;
           flex-direction: column;
-          gap: ${spacing[4]};
+          gap: ${spacing[3]};
         }
 
         .battery-input-header {
@@ -264,19 +255,19 @@ export default function BatteryInputSelector({
 
         .battery-input-title {
           margin: 0;
-          font-size: ${fontSize['2xl']};
+          font-size: ${fontSize.xl};
           font-weight: ${fontWeight.bold};
           color: ${colors.text.primary};
         }
 
         .battery-input-subtitle {
-          margin: ${spacing[2]} 0 0;
-          font-size: ${fontSize.base};
+          margin: ${spacing[1]} 0 0;
+          font-size: ${fontSize.sm};
           color: ${colors.text.secondary};
         }
 
         .battery-return-card {
-          padding: ${spacing[3]};
+          padding: ${spacing[2]} ${spacing[3]};
           background: ${colors.successSoft};
           border: 1px solid ${colors.success}40;
           border-radius: ${radius.lg};
@@ -286,7 +277,7 @@ export default function BatteryInputSelector({
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: ${spacing[2]};
+          margin-bottom: ${spacing[1]};
         }
 
         .battery-return-label {
@@ -309,119 +300,95 @@ export default function BatteryInputSelector({
         }
 
         .battery-return-id {
-          font-size: ${fontSize.lg};
+          font-size: ${fontSize.base};
           font-weight: ${fontWeight.semibold};
           color: ${colors.text.primary};
           font-family: var(--font-mono);
         }
 
         .battery-return-energy {
-          font-size: ${fontSize.sm};
+          font-size: ${fontSize.xs};
           color: ${colors.text.secondary};
         }
 
-        /* QR Scan Button - Large, prominent */
-        .battery-scan-btn {
-          position: relative;
+        /* Compact Search Bar with QR Scan - Like Keypad */
+        .battery-search-bar {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          width: 100%;
-          padding: ${spacing[4]};
-          background: linear-gradient(135deg, ${colors.brand.primary}15, ${colors.brand.primary}08);
-          border: 2px dashed ${colors.brand.primary}60;
-          border-radius: ${radius.xl};
+          gap: ${spacing[2]};
+          padding: ${spacing[2]} ${spacing[3]};
+          background: ${colors.bg.tertiary};
+          border: 1px solid ${colors.border.default};
+          border-radius: ${radius.lg};
+          transition: border-color 0.2s;
+        }
+
+        .battery-search-bar:focus-within {
+          border-color: ${colors.brand.primary};
+        }
+
+        .battery-search-icon {
+          flex-shrink: 0;
+          color: ${colors.text.muted};
+        }
+
+        .battery-search-icon :global(svg) {
+          width: 18px;
+          height: 18px;
+        }
+
+        .battery-search-placeholder {
+          flex: 1;
+          font-size: ${fontSize.sm};
+          color: ${colors.text.muted};
+        }
+
+        .battery-qr-btn {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          background: ${colors.brand.primary};
+          border: none;
+          border-radius: ${radius.md};
+          color: ${colors.bg.primary};
           cursor: pointer;
           transition: all 0.2s ease;
         }
 
-        .battery-scan-btn:hover:not(:disabled) {
-          background: linear-gradient(135deg, ${colors.brand.primary}25, ${colors.brand.primary}15);
-          border-color: ${colors.brand.primary};
-          transform: translateY(-1px);
+        .battery-qr-btn:hover:not(:disabled) {
+          background: ${colors.brand.primaryDark};
+          transform: scale(1.05);
         }
 
-        .battery-scan-btn:active:not(:disabled) {
-          transform: translateY(0);
+        .battery-qr-btn:active:not(:disabled) {
+          transform: scale(0.98);
         }
 
-        .battery-scan-btn:disabled {
+        .battery-qr-btn:disabled {
           opacity: 0.6;
           cursor: not-allowed;
         }
 
-        .battery-scan-btn-content {
-          display: flex;
-          align-items: center;
-          gap: ${spacing[4]};
+        .battery-qr-btn :global(svg) {
+          width: 20px;
+          height: 20px;
         }
 
-        .battery-scan-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 56px;
-          height: 56px;
-          background: ${colors.brand.primary};
-          border-radius: ${radius.lg};
-          color: ${colors.bg.primary};
-        }
-
-        .battery-scan-icon :global(svg) {
-          width: 28px;
-          height: 28px;
-        }
-
-        .battery-scan-text {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: ${spacing[1]};
-        }
-
-        .battery-scan-label {
-          font-size: ${fontSize.lg};
-          font-weight: ${fontWeight.semibold};
-          color: ${colors.text.primary};
-        }
-
-        .battery-scan-hint {
-          font-size: ${fontSize.sm};
-          color: ${colors.text.secondary};
-        }
-
-        .battery-scan-spinner {
-          width: 24px;
-          height: 24px;
-          border: 2px solid ${colors.brand.primary}40;
-          border-top-color: ${colors.brand.primary};
+        .battery-qr-spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-
-        /* Divider */
-        .battery-divider {
-          display: flex;
-          align-items: center;
-          gap: ${spacing[3]};
-        }
-
-        .battery-divider::before,
-        .battery-divider::after {
-          content: '';
-          flex: 1;
-          height: 1px;
-          background: ${colors.border.default};
-        }
-
-        .battery-divider-text {
-          font-size: ${fontSize.sm};
-          color: ${colors.text.muted};
-          white-space: nowrap;
         }
 
         /* Device List Container */
@@ -460,6 +427,22 @@ function QrScanIcon() {
       <rect x="5" y="5" width="3" height="3" fill="currentColor"/>
       <rect x="16" y="5" width="3" height="3" fill="currentColor"/>
       <rect x="5" y="16" width="3" height="3" fill="currentColor"/>
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <circle cx="11" cy="11" r="8"/>
+      <path d="M21 21l-4.35-4.35"/>
     </svg>
   );
 }
