@@ -1343,7 +1343,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     const correlationId = `sales-svc-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
     // Calculate energy transferred in kWh (energy is stored in Wh)
-    const energyTransferred = scannedBatteryPending.energy / 1000;
+    // IMPORTANT: Round energy to 2 decimal places BEFORE using for calculations
+    // This ensures consistent values (e.g., 2.54530003 kWh becomes 2.54 kWh)
+    const energyTransferred = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100;
 
     // Use the FULL battery ID from QR scan - not truncated
     const fullBatteryId = scannedBatteryPending.id;
