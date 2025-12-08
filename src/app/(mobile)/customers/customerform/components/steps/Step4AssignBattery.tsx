@@ -24,6 +24,8 @@ interface Step4Props {
   isBleScanning?: boolean;
   /** Callback to start/restart BLE scanning */
   onStartScan?: () => void;
+  /** Callback to stop BLE scanning */
+  onStopScan?: () => void;
   /** Currently selected device MAC */
   selectedDeviceMac?: string | null;
   detectedDevicesCount?: number;
@@ -63,6 +65,7 @@ export default function Step4AssignBattery({
   detectedDevices = [],
   isBleScanning = false,
   onStartScan,
+  onStopScan,
   selectedDeviceMac,
   isScannerOpening = false,
   plans,
@@ -196,6 +199,7 @@ export default function Step4AssignBattery({
         detectedDevices={detectedDevices}
         isScanning={isBleScanning}
         onStartScan={onStartScan}
+        onStopScan={onStopScan}
         selectedDeviceMac={selectedDeviceMac}
         isScannerOpening={isScannerOpening}
         inputMode={inputMode}

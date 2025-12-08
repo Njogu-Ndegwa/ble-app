@@ -1920,6 +1920,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             detectedDevices={bleScanState.detectedDevices}
             isBleScanning={bleScanState.isScanning}
             onStartScan={hookStartScanning}
+            onStopScan={hookStopScanning}
             isScannerOpening={isScannerOpening}
             plans={availablePlans}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}

@@ -17,6 +17,8 @@ interface Step3Props {
   isScanning?: boolean;
   /** Callback to start/restart BLE scanning */
   onStartScan?: () => void;
+  /** Callback to stop BLE scanning */
+  onStopScan?: () => void;
   /** Currently selected device MAC */
   selectedDeviceMac?: string | null;
   /** Whether scanner is currently opening */
@@ -49,6 +51,7 @@ export default function Step3NewBattery({
   detectedDevices = [],
   isScanning = false,
   onStartScan,
+  onStopScan,
   selectedDeviceMac,
   isScannerOpening = false,
   bleScanState,
@@ -74,6 +77,7 @@ export default function Step3NewBattery({
         detectedDevices={detectedDevices}
         isScanning={isScanning}
         onStartScan={onStartScan}
+        onStopScan={onStopScan}
         selectedDeviceMac={selectedDeviceMac}
         isScannerOpening={isScannerOpening}
         previousBattery={oldBattery}

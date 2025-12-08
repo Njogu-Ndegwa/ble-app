@@ -15,6 +15,8 @@ interface Step2Props {
   isScanning?: boolean;
   /** Callback to start/restart BLE scanning */
   onStartScan?: () => void;
+  /** Callback to stop BLE scanning */
+  onStopScan?: () => void;
   /** Currently selected device MAC */
   selectedDeviceMac?: string | null;
   /** For first-time customer handling */
@@ -47,6 +49,7 @@ export default function Step2OldBattery({
   detectedDevices = [],
   isScanning = false,
   onStartScan,
+  onStopScan,
   selectedDeviceMac,
   isFirstTimeCustomer = false,
   isScannerOpening = false,
@@ -73,6 +76,7 @@ export default function Step2OldBattery({
         detectedDevices={detectedDevices}
         isScanning={isScanning}
         onStartScan={onStartScan}
+        onStopScan={onStopScan}
         selectedDeviceMac={selectedDeviceMac}
         isScannerOpening={isScannerOpening}
         isFirstTimeCustomer={isFirstTimeCustomer}
