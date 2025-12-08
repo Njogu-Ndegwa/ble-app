@@ -1,45 +1,84 @@
 'use client';
 
 import React from 'react';
-import { BatteryScanBind } from '@/components/shared';
-import type { BleFullState, BatteryData } from '@/components/shared';
+import { BatteryInputSelector } from '@/components/shared';
+import type { BleFullState, BatteryData, BleDevice, BatteryInputMode } from '@/components/shared';
 
 interface Step3Props {
+  /** Previously returned battery (shown as context) */
   oldBattery: BatteryData | null;
+  /** Callback when QR scan is triggered */
   onScanNewBattery: () => void;
+  /** Callback when a device is manually selected */
+  onDeviceSelect?: (device: BleDevice) => void;
+  /** List of detected BLE devices for manual selection */
+  detectedDevices?: BleDevice[];
+  /** Whether BLE scanning is in progress */
+  isScanning?: boolean;
+  /** Callback to start/restart BLE scanning */
+  onStartScan?: () => void;
+  /** Currently selected device MAC */
+  selectedDeviceMac?: string | null;
+  /** Whether scanner is currently opening */
   isScannerOpening?: boolean;
+  /** BLE scan state (legacy, for compatibility) */
   bleScanState?: BleFullState;
+  /** Scanned battery data (legacy, for compatibility) */
   scannedBattery?: BatteryData | null;
+  /** Callback to cancel BLE operation (legacy) */
   onCancelBleOperation?: () => void;
+  /** Callback to retry connection (legacy) */
   onRetryConnection?: () => void;
+  /** Current input mode */
+  inputMode?: BatteryInputMode;
+  /** Callback when input mode changes */
+  onInputModeChange?: (mode: BatteryInputMode) => void;
 }
 
 /**
- * Step3NewBattery - Scan the new battery to issue
+ * Step3NewBattery - Scan or select the new battery to issue
  * 
- * Uses the shared BatteryScanBind component with mode="issue"
- * Shows the returned battery card alongside the scanner
+ * Uses the shared BatteryInputSelector component with mode="issue"
+ * Shows the returned battery card alongside the scanner/selector
+ * Supports both QR scanning and manual device selection
  */
 export default function Step3NewBattery({ 
   oldBattery, 
   onScanNewBattery,
+  onDeviceSelect,
+  detectedDevices = [],
+  isScanning = false,
+  onStartScan,
+  selectedDeviceMac,
   isScannerOpening = false,
   bleScanState,
   scannedBattery,
   onCancelBleOperation,
   onRetryConnection,
+  inputMode,
+  onInputModeChange,
 }: Step3Props) {
+  // Handle device selection
+  const handleDeviceSelect = (device: BleDevice) => {
+    if (onDeviceSelect) {
+      onDeviceSelect(device);
+    }
+  };
+
   return (
     <div className="screen active">
-      <BatteryScanBind
+      <BatteryInputSelector
         mode="issue"
         onScan={onScanNewBattery}
+        onDeviceSelect={handleDeviceSelect}
+        detectedDevices={detectedDevices}
+        isScanning={isScanning}
+        onStartScan={onStartScan}
+        selectedDeviceMac={selectedDeviceMac}
         isScannerOpening={isScannerOpening}
         previousBattery={oldBattery}
-        bleScanState={bleScanState}
-        scannedBattery={scannedBattery}
-        onCancelBleOperation={onCancelBleOperation}
-        onRetryConnection={onRetryConnection}
+        inputMode={inputMode}
+        onInputModeChange={onInputModeChange}
       />
     </div>
   );

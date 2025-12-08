@@ -85,6 +85,12 @@ export interface FlowError {
 
 export type InputMode = 'scan' | 'manual';
 
+// Battery input mode for battery selection component
+export type BatteryInputMode = 'scan' | 'manual';
+
+// Battery operation mode for different workflow steps
+export type BatteryOperationMode = 'return' | 'issue' | 'assign';
+
 // ============================================
 // CUSTOMER TYPES
 // ============================================

@@ -31,6 +31,13 @@ export { default as BatteryScanBind, BatteryScanBindWithHook } from './BatterySc
 export type { BatteryScanMode } from './BatteryScanBind';
 
 // ============================================
+// BATTERY INPUT COMPONENTS (Scan & Manual Selection)
+// ============================================
+export { default as BleDeviceList } from './BleDeviceList';
+export { default as BatteryInputSelector } from './BatteryInputSelector';
+export type { BatteryInputMode, BatteryOperationMode } from './BatteryInputSelector';
+
+// ============================================
 // BLE PROGRESS UI COMPONENTS
 // ============================================
 export { default as BleProgressModal, BleProgressModal as BleConnectionProgressModal } from './BleProgressModal';
