@@ -1131,6 +1131,8 @@
   
   "attendant.quotaCreditAvailable": "Crédit de quota disponible",
   "attendant.noPaymentRequired": "Aucun paiement requis - utilisation du crédit existant",
+  "attendant.zeroCostSwap": "Échange sans frais",
+  "attendant.noPaymentRequiredZeroCost": "Aucun paiement requis - coût total zéro",
   "attendant.quotaDeduction": "Déduction du quota",
   "attendant.quotaApplied": "Quota Appliqué",
   "attendant.chargeableEnergy": "À Payer",

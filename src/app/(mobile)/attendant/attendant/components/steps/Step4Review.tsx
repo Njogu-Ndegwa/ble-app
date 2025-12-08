@@ -17,6 +17,12 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // Check if customer has partial quota (some quota but not enough to cover full energy diff)
   const hasPartialQuota = swapData.quotaDeduction > 0 && swapData.chargeableEnergy > 0;
   
+  // Check if cost is zero or negative (no payment needed regardless of quota status)
+  const isZeroCost = swapData.cost <= 0;
+  
+  // Should skip payment: either has sufficient quota OR cost is zero
+  const shouldSkipPayment = hasSufficientQuota || isZeroCost;
+  
   return (
     <div className="screen active">
       {/* Compact Header with Customer + Battery Summary */}
@@ -72,8 +78,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         />
       </div>
 
-      {/* Quota Credit Banner - Shows when customer has sufficient quota (full coverage) */}
-      {hasSufficientQuota && (
+      {/* No Payment Banner - Shows when customer has sufficient quota OR cost is zero */}
+      {shouldSkipPayment && (
         <div className="quota-credit-banner" style={{ margin: '0 0 8px 0', padding: '10px 12px' }}>
           <div className="quota-credit-icon" style={{ width: '28px', height: '28px' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -82,8 +88,16 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
             </svg>
           </div>
           <div className="quota-credit-text">
-            <div className="quota-credit-title" style={{ fontSize: '13px' }}>{t('attendant.quotaCreditAvailable') || 'Quota Credit Available'}</div>
-            <div className="quota-credit-subtitle" style={{ fontSize: '11px' }}>{t('attendant.noPaymentRequired') || 'No payment required - using existing credit'}</div>
+            <div className="quota-credit-title" style={{ fontSize: '13px' }}>
+              {hasSufficientQuota 
+                ? (t('attendant.quotaCreditAvailable') || 'Quota Credit Available')
+                : (t('attendant.zeroCostSwap') || 'Zero Cost Swap')}
+            </div>
+            <div className="quota-credit-subtitle" style={{ fontSize: '11px' }}>
+              {hasSufficientQuota 
+                ? (t('attendant.noPaymentRequired') || 'No payment required - using existing credit')
+                : (t('attendant.noPaymentRequiredZeroCost') || 'No payment required - zero total cost')}
+            </div>
           </div>
         </div>
       )}
@@ -145,7 +159,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '8px 0' }} />
 
         {/* Total */}
-        <div className={`cost-total ${hasSufficientQuota ? 'cost-total-credit' : ''}`} style={{ padding: '6px 0' }}>
+        <div className={`cost-total ${shouldSkipPayment ? 'cost-total-credit' : ''}`} style={{ padding: '6px 0' }}>
           <span className="cost-total-label" style={{ fontSize: '13px' }}>
             {hasSufficientQuota 
               ? (t('attendant.quotaDeduction') || 'Quota Deduction') 
