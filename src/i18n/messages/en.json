@@ -24,6 +24,7 @@
   "auth.error.invalidCredentials": "Invalid credentials",
   "auth.error.userNotFound": "User not found",
   "common.na": "N/A",
+  "common.or": "or select from list",
   "common.tapToScan": "Tap to scan",
   "common.refresh": "Refresh",
   "common.description": "Description",
@@ -1159,5 +1160,29 @@
   "attendant.issued": "Issued",
   "attendant.energy": "Energy",
   "attendant.time": "Time",
-  "attendant.startNewSwap": "Start New Swap"
+  "attendant.startNewSwap": "Start New Swap",
+  "attendant.selectReturnBattery": "Select Battery to Return",
+  "attendant.selectFromNearbyDevices": "Choose from nearby devices",
+  "attendant.selectNewBattery": "Select New Battery",
+  "attendant.remaining": "remaining",
+
+  "sales.selectBatteryManually": "Select Battery",
+  "sales.selectFromNearbyDevices": "Choose from nearby devices",
+  "sales.scanBatteryHint": "Scan the QR code on the battery to assign",
+  
+  "battery.scanQr": "Scan QR",
+  "battery.selectManually": "Select Manually",
+  
+  "ble.bluetoothRequired": "Bluetooth Required",
+  "ble.bluetoothRequiredManual": "Make sure Bluetooth is ON to detect nearby batteries",
+  "ble.bluetoothRequiredScan": "Make sure Bluetooth is ON before scanning",
+  "ble.nearbyDevices": "Nearby Devices",
+  "ble.searchDevices": "Search by ID or MAC...",
+  "ble.noDevicesFound": "No devices found nearby",
+  "ble.noDevicesHint": "Make sure the battery is powered on and Bluetooth is enabled",
+  "ble.noMatchingDevices": "No devices match your search",
+  "ble.rescan": "Rescan",
+  "ble.scanning": "Scanning for more devices...",
+  "ble.deviceFound": "device found",
+  "ble.devicesFound": "devices found"
 }

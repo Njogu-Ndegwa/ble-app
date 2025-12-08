@@ -1601,6 +1601,31 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     startQrCodeScan();
   }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
 
+  // Step 2: Handle device selection for old battery (manual mode)
+  const handleOldBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
+    console.info('Manual device selected for old battery:', device);
+    
+    // Clear any existing flow error when retrying
+    setFlowError(null);
+    
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
+    
+    setIsScanning(true);
+    scanTypeRef.current = 'old_battery';
+    
+    // Set timeout for battery scan-to-bind
+    clearScanTimeout();
+    scanTimeoutRef.current = setTimeout(() => {
+      console.warn("Old battery device connect timed out after 30 seconds");
+      toast.error("Connection timed out. Please try again.");
+      cancelOngoingScan();
+    }, 30000);
+    
+    // Use the device name as QR data (hook will match by last 6 chars)
+    hookHandleQrScanned(device.name, 'old_battery');
+  }, [hookResetState, hookHandleQrScanned, clearScanTimeout, cancelOngoingScan]);
+
   // Step 3: Scan New Battery with Scan-to-Bind
   const handleScanNewBattery = useCallback(async () => {
     if (!window.WebViewJavascriptBridge) {
@@ -1641,6 +1666,31 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
   }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
+
+  // Step 3: Handle device selection for new battery (manual mode)
+  const handleNewBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
+    console.info('Manual device selected for new battery:', device);
+    
+    // Clear any existing flow error when retrying
+    setFlowError(null);
+    
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
+    
+    setIsScanning(true);
+    scanTypeRef.current = 'new_battery';
+    
+    // Set timeout for battery scan-to-bind
+    clearScanTimeout();
+    scanTimeoutRef.current = setTimeout(() => {
+      console.warn("New battery device connect timed out after 30 seconds");
+      toast.error("Connection timed out. Please try again.");
+      cancelOngoingScan();
+    }, 30000);
+    
+    // Use the device name as QR data (hook will match by last 6 chars)
+    hookHandleQrScanned(device.name, 'new_battery');
+  }, [hookResetState, hookHandleQrScanned, clearScanTimeout, cancelOngoingScan]);
 
   // Step 4: Proceed to payment - initiate payment with Odoo first
   // OR skip payment if customer has sufficient quota
@@ -2313,6 +2363,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return (
           <Step2OldBattery 
             onScanOldBattery={handleScanOldBattery}
+            onDeviceSelect={handleOldBatteryDeviceSelect}
+            detectedDevices={bleScanState.detectedDevices}
+            isScanning={bleScanState.isScanning}
+            onStartScan={hookStartScanning}
             isFirstTimeCustomer={customerType === 'first-time'}
             isScannerOpening={isScanning}
           />
@@ -2322,6 +2376,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           <Step3NewBattery 
             oldBattery={swapData.oldBattery} 
             onScanNewBattery={handleScanNewBattery}
+            onDeviceSelect={handleNewBatteryDeviceSelect}
+            detectedDevices={bleScanState.detectedDevices}
+            isScanning={bleScanState.isScanning}
+            onStartScan={hookStartScanning}
             isScannerOpening={isScanning}
           />
         );
