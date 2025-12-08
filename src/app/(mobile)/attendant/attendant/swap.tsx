@@ -1829,7 +1829,35 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           setIsComputingEnergy(false); // Energy computation failed
           stopBleScan();
           scanTypeRef.current = null;
-          toast.error(t("BLE connection failed. Please try again."));
+          
+          // CRITICAL: Clear any stale MAC address state to prevent "macAddress is not match" error
+          // Even though connection failed, there might be stale state from a previous attempt
+          const staleMac = sessionStorage.getItem("connectedDeviceMac");
+          if (staleMac && window.WebViewJavascriptBridge) {
+            console.info("Clearing stale BLE connection state for:", staleMac);
+            window.WebViewJavascriptBridge.callHandler("disconnectBle", staleMac, () => {});
+          }
+          sessionStorage.removeItem("connectedDeviceMac");
+          setConnectedBleDevice(null);
+          
+          // Check if this is a MAC mismatch error
+          let isMacMismatch = false;
+          try {
+            const parsed = typeof data === "string" ? JSON.parse(data) : data;
+            const respDesc = parsed?.respDesc || "";
+            const respCode = parsed?.respCode || "";
+            isMacMismatch = respCode === "7" || 
+                           respDesc.toLowerCase().includes("macaddress is not match") ||
+                           respDesc.toLowerCase().includes("macaddress not match");
+          } catch {
+            isMacMismatch = typeof data === "string" && data.toLowerCase().includes("macaddress");
+          }
+          
+          if (isMacMismatch) {
+            toast.error(t("ble.connectionStuck") || "Bluetooth connection stuck. Please turn Bluetooth OFF then ON.");
+          } else {
+            toast.error(t("BLE connection failed. Please try again."));
+          }
           resp(data);
         }
       );
@@ -1871,7 +1899,37 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         (data: string) => {
           console.error("Failed to initialize DTA service:", data);
           setIsComputingEnergy(false); // Energy computation failed
-          toast.error(t("Unable to read device energy data. Please try again."));
+          
+          // CRITICAL: Clear BLE state to prevent "macAddress is not match" error on next attempt
+          // When DTA service read fails, the native layer may have disconnected but we still have stale state
+          const connectedMac = sessionStorage.getItem("connectedDeviceMac");
+          if (connectedMac && window.WebViewJavascriptBridge) {
+            console.info("Disconnecting from device after DTA service failure:", connectedMac);
+            window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {
+              console.info("Disconnected from device after DTA service failure");
+            });
+          }
+          sessionStorage.removeItem("connectedDeviceMac");
+          setConnectedBleDevice(null);
+          
+          // Check if this is a MAC mismatch error (respCode 7)
+          let isMacMismatch = false;
+          try {
+            const parsed = JSON.parse(data);
+            const respDesc = parsed?.responseData?.respDesc || parsed?.respDesc || "";
+            const respCode = parsed?.responseData?.respCode || parsed?.respCode || "";
+            isMacMismatch = respCode === "7" || 
+                           respDesc.toLowerCase().includes("macaddress is not match") ||
+                           respDesc.toLowerCase().includes("macaddress not match");
+          } catch {
+            isMacMismatch = data.toLowerCase().includes("macaddress");
+          }
+          
+          if (isMacMismatch) {
+            toast.error(t("ble.connectionStuck") || "Bluetooth connection stuck. Please turn Bluetooth OFF then ON.");
+          } else {
+            toast.error(t("Unable to read device energy data. Please try again."));
+          }
         }
       );
 

@@ -118,6 +118,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     disconnect: connectionDisconnect,
     cancelConnection,
     resetState: connectionResetState,
+    forceBleReset: connectionForceBleReset,
   } = useBleDeviceConnection({ debug });
 
   const {
@@ -309,14 +310,26 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       clearMatchTimers();
       
       const requiresReset = connectionState.requiresBluetoothReset;
-      onErrorRef.current?.('Connection failed', requiresReset);
+      
+      // Check if error indicates MAC address mismatch
+      const isMacMismatch = connectionState.error?.toLowerCase().includes('macaddress') ||
+                           connectionState.error?.toLowerCase().includes('mac address') ||
+                           connectionState.error?.toLowerCase().includes('connection stuck');
+      
+      if (isMacMismatch || requiresReset) {
+        // Force reset BLE state when MAC mismatch or reset required
+        log('MAC mismatch or reset required - forcing BLE reset');
+        connectionForceBleReset();
+      }
+      
+      onErrorRef.current?.('Connection failed', requiresReset || isMacMismatch);
       
       // Clear pending state
       setPendingBatteryId(null);
       setPendingScanType(null);
       isProcessingRef.current = false;
     }
-  }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, pendingBatteryId, clearMatchTimers, log]);
+  }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, clearMatchTimers, connectionForceBleReset, log]);
 
   // ============================================
   // PUBLIC API
@@ -510,6 +523,31 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   }, [resetState, scannerStartScan, log]);
 
   /**
+   * Force reset BLE state in both app and native layer
+   * Use this when the BLE native layer gets into a stuck state (e.g., "macAddress is not match" error)
+   */
+  const forceBleReset = useCallback(() => {
+    log('Force resetting BLE state');
+    
+    clearMatchTimers();
+    scannerStopScan();
+    scannerClearDevices();
+    connectionForceBleReset();
+    serviceReaderResetState();
+    
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
+    
+    setPendingBatteryId(null);
+    setPendingScanType(null);
+    isProcessingRef.current = false;
+    
+    setState(INITIAL_STATE);
+    
+    log('BLE state fully reset');
+  }, [clearMatchTimers, scannerStopScan, scannerClearDevices, connectionForceBleReset, serviceReaderResetState, log]);
+
+  /**
    * Get detected devices (for debugging/display)
    */
   const getDetectedDevices = useCallback(() => {
@@ -552,6 +590,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     resetState,
     /** Retry after failure */
     retryConnection,
+    /** Force reset BLE state in both app and native layer - use when stuck */
+    forceBleReset,
     /** Get detected devices */
     getDetectedDevices,
   };
