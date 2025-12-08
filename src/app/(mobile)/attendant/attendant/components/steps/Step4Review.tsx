@@ -161,7 +161,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         {/* Partial quota note */}
         {hasPartialQuota && !shouldSkipPayment && (
           <div className="summary-note">
-            {t('attendant.chargeableEnergy') || 'To Pay'}: {swapData.chargeableEnergy.toFixed(2)} kWh = {currency} {Math.round(swapData.chargeableEnergy * swapData.rate)}
+            {t('attendant.chargeableEnergy') || 'To Pay'}: {swapData.chargeableEnergy.toFixed(2)} kWh = {currency} {displayCost}
           </div>
         )}
       </div>
