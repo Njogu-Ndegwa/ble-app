@@ -224,6 +224,52 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     setConnectionState(INITIAL_CONNECTION_STATE);
   }, [clearAllTimeouts]);
 
+  /**
+   * Force reset the BLE state in both app and native layer
+   * This clears ALL known MAC addresses and attempts to disconnect from any stuck connections
+   * Use this when the native layer gets into a stuck state (e.g., "macAddress is not match" error)
+   */
+  const forceBleReset = useCallback(() => {
+    log('Force resetting BLE connection state');
+    clearAllTimeouts();
+    
+    if (window.WebViewJavascriptBridge) {
+      // Get ALL known MAC addresses that might be stuck
+      const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+      const pendingMac = sessionStorage.getItem('pendingBleMac');
+      const currentPendingMac = pendingMacRef.current;
+      
+      // Create a set to avoid duplicate disconnects
+      const macsToDisconnect = new Set<string>();
+      if (connectedMac) macsToDisconnect.add(connectedMac);
+      if (pendingMac) macsToDisconnect.add(pendingMac);
+      if (currentPendingMac) macsToDisconnect.add(currentPendingMac);
+      
+      // Disconnect from ALL known MAC addresses
+      const bridge = window.WebViewJavascriptBridge;
+      if (bridge) {
+        macsToDisconnect.forEach(mac => {
+          log('Force disconnecting from:', mac);
+          bridge.callHandler('disconnectBle', mac, (resp: unknown) => {
+            log('Force disconnect response for', mac, ':', resp);
+          });
+        });
+      }
+      
+      // Clear all sessionStorage entries
+      sessionStorage.removeItem('connectedDeviceMac');
+      sessionStorage.removeItem('pendingBleMac');
+    }
+    
+    // Reset all state
+    retryCountRef.current = 0;
+    isConnectedRef.current = false;
+    pendingMacRef.current = null;
+    setConnectionState(INITIAL_CONNECTION_STATE);
+    
+    log('BLE connection state fully reset');
+  }, [clearAllTimeouts, log]);
+
   // ============================================
   // BRIDGE HANDLER SETUP
   // ============================================
@@ -318,6 +364,17 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
           
           // All retries exhausted
           log('Connection failed after all retries');
+          
+          // Force disconnect from the pending MAC to clear native layer state
+          const failedMac = pendingMacRef.current;
+          if (failedMac && window.WebViewJavascriptBridge) {
+            log('Force disconnecting from failed MAC:', failedMac);
+            window.WebViewJavascriptBridge.callHandler('disconnectBle', failedMac, () => {});
+          }
+          
+          // Also clear any other pending MACs in sessionStorage
+          sessionStorage.removeItem('pendingBleMac');
+          
           clearGlobalTimeout();
           retryCountRef.current = 0;
           isConnectedRef.current = false;
@@ -374,6 +431,8 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     cancelConnection,
     /** Reset connection state */
     resetState,
+    /** Force reset BLE state in both app and native layer - use when stuck */
+    forceBleReset,
   };
 }
 

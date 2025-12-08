@@ -242,18 +242,50 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
                 respDesc.toLowerCase().includes('not connected')
               );
               
-              if (isDisconnected) {
+              // Check for MAC address mismatch error (respCode 7)
+              const isMacMismatch = respCode === '7' || respCode === 7 || (
+                typeof respDesc === 'string' && (
+                  respDesc.toLowerCase().includes('macaddress is not match') ||
+                  respDesc.toLowerCase().includes('mac address is not match') ||
+                  respDesc.toLowerCase().includes('macaddress not match')
+                )
+              );
+              
+              if (isDisconnected || isMacMismatch) {
                 clearReadTimeout();
                 toast.dismiss('service-refresh');
+                
+                // Force disconnect from ALL known MACs to clear native layer state
+                const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+                const pendingMac = sessionStorage.getItem('pendingBleMac');
+                
+                if (window.WebViewJavascriptBridge) {
+                  if (connectedMac) {
+                    log('Force disconnecting from connectedMac:', connectedMac);
+                    window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+                  }
+                  if (pendingMac && pendingMac !== connectedMac) {
+                    log('Force disconnecting from pendingMac:', pendingMac);
+                    window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMac, () => {});
+                  }
+                }
+                
+                // Clear sessionStorage
+                sessionStorage.removeItem('connectedDeviceMac');
+                sessionStorage.removeItem('pendingBleMac');
+                
+                const errorMessage = isMacMismatch 
+                  ? 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.'
+                  : 'Bluetooth connection lost';
                 
                 setServiceState(prev => ({
                   ...prev,
                   isReading: false,
-                  error: 'Bluetooth connection lost',
+                  error: errorMessage,
                 }));
                 
                 toast.error('Please turn Bluetooth OFF then ON and try again.');
-                onErrorRef.current?.('Bluetooth connection lost');
+                onErrorRef.current?.(errorMessage);
                 resp({ success: false, error: respDesc });
                 return;
               }
@@ -311,6 +343,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
           toast.dismiss('service-refresh');
           
           let errorMessage = 'Failed to read service data';
+          let requiresReset = false;
           
           const checkForDisconnect = (str: string) => {
             return str.toLowerCase().includes('bluetooth device not connected') ||
@@ -318,17 +351,56 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
                    str.toLowerCase().includes('not connected');
           };
           
+          const checkForMacMismatch = (str: string) => {
+            return str.toLowerCase().includes('macaddress is not match') ||
+                   str.toLowerCase().includes('mac address is not match') ||
+                   str.toLowerCase().includes('macaddress not match');
+          };
+          
           try {
             const parsed = JSON.parse(data);
             const respDesc = parsed?.responseData?.respDesc || parsed?.respDesc || '';
+            const respCode = parsed?.responseData?.respCode || parsed?.respCode || '';
+            
             if (checkForDisconnect(String(respDesc))) {
               errorMessage = 'Bluetooth connection lost';
+              requiresReset = true;
+            } else if (checkForMacMismatch(String(respDesc)) || respCode === '7') {
+              errorMessage = 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
+              requiresReset = true;
             }
           } catch {
             if (checkForDisconnect(data)) {
               errorMessage = 'Bluetooth connection lost';
+              requiresReset = true;
+            } else if (checkForMacMismatch(data)) {
+              errorMessage = 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
+              requiresReset = true;
             }
           }
+          
+          // Force disconnect from ALL known MACs to clear native layer state
+          const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+          const pendingStoredMac = sessionStorage.getItem('pendingBleMac');
+          
+          if (window.WebViewJavascriptBridge) {
+            if (connectedMac) {
+              log('Force disconnecting from connectedMac:', connectedMac);
+              window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+            }
+            if (pendingStoredMac && pendingStoredMac !== connectedMac) {
+              log('Force disconnecting from pendingMac:', pendingStoredMac);
+              window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingStoredMac, () => {});
+            }
+            if (pendingMacRef.current && pendingMacRef.current !== connectedMac && pendingMacRef.current !== pendingStoredMac) {
+              log('Force disconnecting from pendingMacRef:', pendingMacRef.current);
+              window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
+            }
+          }
+          
+          // Clear sessionStorage
+          sessionStorage.removeItem('connectedDeviceMac');
+          sessionStorage.removeItem('pendingBleMac');
           
           setServiceState(prev => ({
             ...prev,
@@ -340,7 +412,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
           pendingServiceRef.current = null;
           pendingMacRef.current = null;
           
-          if (errorMessage.includes('connection lost')) {
+          if (requiresReset) {
             toast.error('Please turn Bluetooth OFF then ON and try again.');
           } else {
             toast.error('Unable to read device data. Please try again.');

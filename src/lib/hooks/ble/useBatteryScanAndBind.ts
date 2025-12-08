@@ -117,6 +117,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     disconnect: connectionDisconnect,
     cancelConnection,
     resetState: connectionResetState,
+    forceBleReset: connectionForceBleReset,
   } = useBleDeviceConnection({ debug });
 
   const {
@@ -430,6 +431,31 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     setState(INITIAL_STATE);
   }, [clearMatchTimers, scannerClearDevices, connectionResetState, serviceReaderResetState, log]);
 
+  /**
+   * Force reset BLE state in both app and native layer
+   * Use this when the BLE native layer gets into a stuck state (e.g., "macAddress is not match" error)
+   */
+  const forceBleReset = useCallback(() => {
+    log('Force resetting BLE state');
+    
+    clearMatchTimers();
+    scannerStopScan();
+    scannerClearDevices();
+    connectionForceBleReset();
+    serviceReaderResetState();
+    
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
+    
+    setPendingBatteryId(null);
+    setPendingScanType(null);
+    isReadingEnergyRef.current = false;
+    
+    setState(INITIAL_STATE);
+    
+    log('BLE state fully reset');
+  }, [clearMatchTimers, scannerStopScan, scannerClearDevices, connectionForceBleReset, serviceReaderResetState, log]);
+
   // ============================================
   // CLEANUP
   // ============================================
@@ -457,6 +483,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     cancel,
     /** Reset all state */
     reset,
+    /** Force reset BLE state in both app and native layer - use when stuck */
+    forceBleReset,
     /** Start BLE scanning (without binding) */
     startScan: scannerStartScan,
     /** Stop BLE scanning */

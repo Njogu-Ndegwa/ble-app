@@ -1187,5 +1187,10 @@
   "ble.rescan": "Rescanner",
   "ble.scanning": "Recherche d'autres appareils...",
   "ble.deviceFound": "appareil trouvé",
-  "ble.devicesFound": "appareils trouvés"
+  "ble.devicesFound": "appareils trouvés",
+  "ble.connectionStuck": "Connexion Bluetooth bloquée. Veuillez désactiver puis réactiver le Bluetooth.",
+  "ble.macAddressMismatch": "Incompatibilité de l'appareil Bluetooth. Veuillez basculer le Bluetooth et réessayer.",
+  "ble.resetRequired": "Veuillez désactiver le Bluetooth, attendre 3 secondes, puis le réactiver.",
+  "ble.forceReset": "Réinitialiser le Bluetooth",
+  "ble.resetInstructions": "Désactivez puis réactivez le Bluetooth dans les paramètres de votre téléphone pour effacer la connexion bloquée."
 }

@@ -1098,5 +1098,10 @@
   "ble.rescan": "重新扫描",
   "ble.scanning": "正在搜索更多设备...",
   "ble.deviceFound": "个设备",
-  "ble.devicesFound": "个设备"
+  "ble.devicesFound": "个设备",
+  "ble.connectionStuck": "蓝牙连接卡住。请关闭然后打开蓝牙。",
+  "ble.macAddressMismatch": "蓝牙设备不匹配。请切换蓝牙然后重试。",
+  "ble.resetRequired": "请关闭蓝牙，等待3秒，然后重新打开。",
+  "ble.forceReset": "重置蓝牙",
+  "ble.resetInstructions": "在手机设置中关闭然后打开蓝牙以清除卡住的连接。"
 }

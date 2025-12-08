@@ -473,6 +473,61 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
   }, [bleScanState.isScanning, startScan, matchAndConnect, log]);
 
   /**
+   * Force reset the BLE state in both app and native layer
+   * This clears ALL known MAC addresses and attempts to disconnect from any stuck connections
+   * Use this when the native layer gets into a stuck state (e.g., "macAddress is not match" error)
+   */
+  const forceBleReset = useCallback(() => {
+    log('Force resetting BLE state');
+    clearAllTimeouts();
+    
+    if (window.WebViewJavascriptBridge) {
+      // Stop any ongoing scan
+      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
+      
+      // Get ALL known MAC addresses that might be stuck
+      const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+      const pendingMac = sessionStorage.getItem('pendingBleMac');
+      const pendingConnectionMac = pendingConnectionMacRef.current;
+      
+      // Create a set to avoid duplicate disconnects
+      const macsToDisconnect = new Set<string>();
+      if (connectedMac) macsToDisconnect.add(connectedMac);
+      if (pendingMac) macsToDisconnect.add(pendingMac);
+      if (pendingConnectionMac) macsToDisconnect.add(pendingConnectionMac);
+      
+      // Disconnect from ALL known MAC addresses
+      // This ensures the native layer's state is fully cleared
+      const bridge = window.WebViewJavascriptBridge;
+      if (bridge) {
+        macsToDisconnect.forEach(mac => {
+          log('Force disconnecting from:', mac);
+          bridge.callHandler('disconnectBle', mac, (resp: unknown) => {
+            log('Force disconnect response for', mac, ':', resp);
+          });
+        });
+      }
+      
+      // Clear all sessionStorage entries
+      sessionStorage.removeItem('connectedDeviceMac');
+      sessionStorage.removeItem('pendingBleMac');
+    }
+    
+    // Reset all app state
+    setBleScanState(INITIAL_BLE_STATE);
+    detectedBleDevicesRef.current = [];
+    pendingBatteryQrCodeRef.current = null;
+    pendingBatteryIdRef.current = null;
+    pendingScanTypeRef.current = null;
+    pendingConnectionMacRef.current = null;
+    bleRetryCountRef.current = 0;
+    dtaRefreshRetryCountRef.current = 0;
+    isConnectionSuccessfulRef.current = false;
+    
+    log('BLE state fully reset');
+  }, [clearAllTimeouts, log]);
+
+  /**
    * Cancel ongoing BLE operation
    * NOTE: Blocked when already connected and reading data
    */
@@ -483,28 +538,9 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
     }
 
     log('Cancelling BLE operation');
-    clearAllTimeouts();
-    
-    if (window.WebViewJavascriptBridge) {
-      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-      
-      const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-      if (connectedMac) {
-        window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
-        sessionStorage.removeItem('connectedDeviceMac');
-      }
-    }
-    
-    setBleScanState(INITIAL_BLE_STATE);
-    detectedBleDevicesRef.current = [];
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryIdRef.current = null;
-    pendingScanTypeRef.current = null;
-    pendingConnectionMacRef.current = null;
-    bleRetryCountRef.current = 0;
-    dtaRefreshRetryCountRef.current = 0;
-    isConnectionSuccessfulRef.current = false;
-  }, [clearAllTimeouts, log]);
+    // Use forceBleReset to ensure native layer state is fully cleared
+    forceBleReset();
+  }, [forceBleReset, log]);
 
   /**
    * Reset state for a new operation
@@ -693,6 +729,17 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
           
           // All retries exhausted
           log('Connection failed after all retries');
+          
+          // Force disconnect from the pending MAC to clear native layer state
+          const failedMac = pendingConnectionMacRef.current;
+          if (failedMac && window.WebViewJavascriptBridge) {
+            log('Force disconnecting from failed MAC:', failedMac);
+            window.WebViewJavascriptBridge.callHandler('disconnectBle', failedMac, () => {});
+          }
+          
+          // Also clear any other pending MACs in sessionStorage
+          sessionStorage.removeItem('pendingBleMac');
+          
           bleRetryCountRef.current = 0;
           isConnectionSuccessfulRef.current = false;
           pendingConnectionMacRef.current = null;
@@ -765,6 +812,23 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
                 clearGlobalTimeout();
                 clearOperationTimeout();
                 
+                // Force disconnect from ALL known MACs to clear native layer state
+                const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+                const pendingMac = sessionStorage.getItem('pendingBleMac');
+                const macsToDisconnect = new Set<string>();
+                if (connectedMac) macsToDisconnect.add(connectedMac);
+                if (pendingMac) macsToDisconnect.add(pendingMac);
+                if (pendingConnectionMacRef.current) macsToDisconnect.add(pendingConnectionMacRef.current);
+                
+                macsToDisconnect.forEach(mac => {
+                  log('Force disconnecting from:', mac);
+                  window.WebViewJavascriptBridge?.callHandler('disconnectBle', mac, () => {});
+                });
+                
+                // Clear sessionStorage
+                sessionStorage.removeItem('connectedDeviceMac');
+                sessionStorage.removeItem('pendingBleMac');
+                
                 setBleScanState(prev => ({
                   ...prev,
                   isReadingEnergy: false,
@@ -778,6 +842,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
                 pendingBatteryQrCodeRef.current = null;
                 pendingBatteryIdRef.current = null;
                 pendingScanTypeRef.current = null;
+                pendingConnectionMacRef.current = null;
                 
                 toast.error('Please turn Bluetooth OFF then ON and try again.');
                 onErrorRef.current?.('Bluetooth connection lost', true);
@@ -920,22 +985,55 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
                    str.toLowerCase().includes('not connected');
           };
           
+          // Also check for MAC address mismatch error
+          const checkForMacMismatch = (str: string) => {
+            return str.toLowerCase().includes('macaddress is not match') ||
+                   str.toLowerCase().includes('mac address is not match') ||
+                   str.toLowerCase().includes('macaddress not match');
+          };
+          
           try {
             const parsed = JSON.parse(data);
             const respDesc = parsed?.responseData?.respDesc || parsed?.respDesc || '';
+            const respCode = parsed?.responseData?.respCode || parsed?.respCode || '';
+            
             if (checkForDisconnect(String(respDesc))) {
               errorMessage = 'Bluetooth connection lost';
+              requiresReset = true;
+            } else if (checkForMacMismatch(String(respDesc)) || respCode === '7') {
+              // MAC mismatch error - native layer is in stuck state
+              errorMessage = 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
               requiresReset = true;
             }
           } catch {
             if (checkForDisconnect(data)) {
               errorMessage = 'Bluetooth connection lost';
               requiresReset = true;
+            } else if (checkForMacMismatch(data)) {
+              errorMessage = 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
+              requiresReset = true;
             }
           }
           
           clearGlobalTimeout();
           clearOperationTimeout();
+          
+          // Force disconnect from ALL known MACs to clear native layer state
+          const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+          const pendingMac = sessionStorage.getItem('pendingBleMac');
+          const macsToDisconnect = new Set<string>();
+          if (connectedMac) macsToDisconnect.add(connectedMac);
+          if (pendingMac) macsToDisconnect.add(pendingMac);
+          if (pendingConnectionMacRef.current) macsToDisconnect.add(pendingConnectionMacRef.current);
+          
+          macsToDisconnect.forEach(mac => {
+            log('Force disconnecting from:', mac);
+            window.WebViewJavascriptBridge?.callHandler('disconnectBle', mac, () => {});
+          });
+          
+          // Clear sessionStorage
+          sessionStorage.removeItem('connectedDeviceMac');
+          sessionStorage.removeItem('pendingBleMac');
           
           setBleScanState(prev => ({
             ...prev,
@@ -950,6 +1048,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
           pendingBatteryQrCodeRef.current = null;
           pendingBatteryIdRef.current = null;
           pendingScanTypeRef.current = null;
+          pendingConnectionMacRef.current = null;
           
           if (requiresReset) {
             toast.error('Please turn Bluetooth OFF then ON and try again.');
@@ -1001,6 +1100,8 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
     resetState,
     /** Get list of currently detected devices */
     getDetectedDevices,
+    /** Force reset BLE state in both app and native layer - use when stuck */
+    forceBleReset,
   };
 }
 
