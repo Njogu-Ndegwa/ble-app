@@ -35,7 +35,10 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // Calculate monetary values for battery capacities
   const oldBatteryValue = Math.round(oldBatteryKwh * swapData.rate);
   const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
-  const energyDiffValue = Math.round(swapData.energyDiff * swapData.rate);
+  // Use displayCost (the actual amount customer pays) to be consistent with the hero section
+  // Previously this was: Math.round(swapData.energyDiff * swapData.rate) which showed gross value
+  // before quota deduction, causing a mismatch with the hero section
+  const energyDiffValue = displayCost;
 
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
@@ -129,7 +132,9 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         </svg>
         <div className="energy-info">
           <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
-          <span className="energy-money">{currency} {energyDiffValue}</span>
+          <span className={`energy-money ${shouldSkipPayment ? 'free' : ''}`}>
+            {shouldSkipPayment ? (t('common.free') || 'FREE') : `${currency} ${energyDiffValue}`}
+          </span>
         </div>
       </div>
 
@@ -346,6 +351,11 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           background: var(--accent);
           color: var(--bg-primary);
           border-radius: 4px;
+        }
+
+        .energy-money.free {
+          background: #10b981;
+          color: white;
         }
 
         /* Summary */
