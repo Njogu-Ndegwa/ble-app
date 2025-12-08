@@ -27,7 +27,41 @@ Currency should flow from:
 
 Only use `PAYMENT.defaultCurrency` from `@/lib/constants` as a last-resort fallback.
 
-### 2. Use the Design System
+### 2. Internationalization - ALWAYS Add Translation Keys
+**When adding new user-facing text, you MUST add translation keys to ALL translation files.**
+
+Translation files are located in `/src/i18n/messages/`:
+- `en.json` - English
+- `fr.json` - French
+- `zh.json` - Chinese
+
+```typescript
+// ❌ WRONG - Hardcoded strings
+<span>Connected</span>
+toast.error('Connection failed');
+
+// ❌ WRONG - Using translation key that doesn't exist (shows as "common.Connected")
+<span>{t('common.Connected')}</span>  // Key doesn't exist in translation files!
+
+// ✅ CORRECT - Use i18n with existing keys, with fallback
+<span>{t('common.connected') || 'Connected'}</span>
+toast.error(t('attendant.connectionFailed') || 'Connection failed');
+```
+
+**When creating new components or adding new text:**
+1. Use the `t()` function from `useI18n()` hook
+2. Add the translation key to ALL three translation files (en.json, fr.json, zh.json)
+3. Follow the naming convention: `namespace.keyName` (e.g., `attendant.scanCustomer`, `common.retry`)
+4. Always provide a fallback string with `|| 'Fallback'` for safety
+
+**Common namespaces:**
+- `common.*` - Shared across the app (e.g., `common.retry`, `common.back`, `common.connected`)
+- `attendant.*` - Attendant workflow
+- `sales.*` - Sales/customer workflow
+- `ble.*` - Bluetooth-related messages
+- `auth.*` - Authentication messages
+
+### 3. Use the Design System
 All UI must use the established design system. Never create ad-hoc styles.
 
 ```typescript
@@ -316,6 +350,53 @@ function Component() {
 }
 ```
 
+### Adding New Translation Keys
+
+**CRITICAL: When you add new text, you MUST add the translation key to ALL translation files!**
+
+1. Open `/src/i18n/messages/en.json`, `/src/i18n/messages/fr.json`, and `/src/i18n/messages/zh.json`
+2. Add the key with appropriate translations to each file
+3. Use the established naming patterns
+
+```json
+// In en.json
+{
+  "attendant.newFeature": "New Feature Text",
+  "common.newAction": "New Action"
+}
+
+// In fr.json  
+{
+  "attendant.newFeature": "Texte de nouvelle fonctionnalité",
+  "common.newAction": "Nouvelle action"
+}
+
+// In zh.json
+{
+  "attendant.newFeature": "新功能文本",
+  "common.newAction": "新操作"
+}
+```
+
+### Translation Key Naming Conventions
+
+- **Namespace prefixes**: Use `common.`, `attendant.`, `sales.`, `ble.`, `auth.`, etc.
+- **camelCase keys**: Use camelCase after the namespace (e.g., `attendant.scanCustomer`)
+- **Descriptive names**: Keys should describe the content (e.g., `common.connectionFailed` not `common.error1`)
+- **Group related keys**: Keep related keys together in the JSON files
+
+### Fallback Pattern
+
+Always provide a fallback for safety in case translation is missing:
+
+```typescript
+// Good - with fallback
+{t('attendant.newMessage') || 'Default message'}
+
+// Also good for complex fallbacks
+const message = t('attendant.customMessage') || `Fallback with ${variable}`;
+```
+
 ---
 
 ## 🔌 API & Data
@@ -356,6 +437,7 @@ Before submitting code, verify:
 - [ ] Using design tokens, not magic numbers
 - [ ] Types are properly defined
 - [ ] Using i18n for user-facing strings
+- [ ] **All new translation keys added to ALL translation files (en.json, fr.json, zh.json)**
 - [ ] Constants from `/lib/constants.ts` for configuration
 - [ ] Custom hooks from `/lib/hooks.ts` for common patterns
 - [ ] Proper error handling with user-friendly messages
@@ -372,6 +454,8 @@ Before submitting code, verify:
 5. **Direct DOM manipulation** - Use React patterns
 6. **Console.log in production** - Use proper logging
 7. **Ignoring TypeScript errors** - Fix them properly
+8. **Missing translation keys** - Always add new keys to ALL translation files (en, fr, zh)
+9. **Hardcoded user-facing strings** - Always use `t()` from `useI18n()`
 
 ---
 
@@ -389,6 +473,9 @@ When making changes, consult these files:
 - `/src/styles/tokens.ts` - Design tokens
 - `/src/components/ui/index.ts` - UI components
 - `/src/components/shared/index.ts` - Shared business components
+- `/src/i18n/messages/en.json` - English translations
+- `/src/i18n/messages/fr.json` - French translations
+- `/src/i18n/messages/zh.json` - Chinese translations
 
 ---
 
@@ -480,3 +567,44 @@ export async function myNewApiCall(
   });
 }
 ```
+
+### Adding New Translation Keys
+When adding any new user-facing text:
+
+1. **Identify the namespace** - Use existing ones like `common.`, `attendant.`, `sales.`, or create a new one if needed
+2. **Add to ALL translation files** - en.json, fr.json, zh.json
+3. **Use in component** with fallback
+
+```typescript
+// Step 1: Add to /src/i18n/messages/en.json
+{
+  "myFeature.newMessage": "This is a new message"
+}
+
+// Step 2: Add to /src/i18n/messages/fr.json
+{
+  "myFeature.newMessage": "Ceci est un nouveau message"
+}
+
+// Step 3: Add to /src/i18n/messages/zh.json
+{
+  "myFeature.newMessage": "这是一条新消息"
+}
+
+// Step 4: Use in component
+import { useI18n } from '@/i18n';
+
+function MyComponent() {
+  const { t } = useI18n();
+  return <span>{t('myFeature.newMessage') || 'This is a new message'}</span>;
+}
+```
+
+**Common translation keys to use:**
+- `common.connected` - "Connected"
+- `common.failed` - "Failed"
+- `common.retry` - "Retry"
+- `common.processing` - "Processing..."
+- `common.back` - "Back"
+- `common.close` - "Close"
+- `common.tryAgain` - "Try Again"

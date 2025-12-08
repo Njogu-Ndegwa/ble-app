@@ -1085,6 +1085,11 @@
   "sales.package": "Package",
   "sales.subscription": "Subscription",
   "common.tryAgain": "Try Again",
+  "common.connected": "Connected",
+  "common.failed": "Failed",
+  "common.retry": "Retry",
+  "common.processing": "Processing...",
+  "common.back": "Back",
   
   "attendant.step.customer": "Customer",
   "attendant.step.return": "Return",
@@ -1166,6 +1171,10 @@
   "attendant.selectFromNearbyDevices": "Choose from nearby devices",
   "attendant.selectNewBattery": "Select New Battery",
   "attendant.remaining": "remaining",
+  "attendant.bleResetRequired": "Please toggle Bluetooth off and on, then try again",
+  "attendant.connectionFailed": "Connection failed",
+  "attendant.wrongBattery": "Wrong battery! This battery does not belong to the customer.",
+  "attendant.batteryMismatch": "Battery does not belong to this customer",
 
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",
