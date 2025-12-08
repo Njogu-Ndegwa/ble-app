@@ -1079,6 +1079,7 @@
   "sales.completeService": "Terminer le service",
   "sales.completingService": "Finalisation du service...",
   "sales.firstBatteryPromo": "La première batterie est fournie à titre promotionnel",
+  "sales.scanDifferentBattery": "Scanner une autre batterie",
   "sales.purchasedItems": "Articles achetés",
   "sales.package": "Forfait",
   "sales.subscription": "Abonnement",
