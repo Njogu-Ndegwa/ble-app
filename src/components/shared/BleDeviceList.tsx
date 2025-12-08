@@ -34,6 +34,8 @@ interface BleDeviceListProps {
   maxHeight?: string;
   /** Whether the list is disabled */
   disabled?: boolean;
+  /** Hide the internal search input (useful when parent provides search) */
+  hideSearch?: boolean;
   /** Optional className */
   className?: string;
 }
@@ -142,6 +144,7 @@ export default function BleDeviceList({
   subtitle,
   maxHeight = '300px',
   disabled = false,
+  hideSearch = false,
   className = '',
 }: BleDeviceListProps) {
   const { t } = useI18n();
@@ -190,8 +193,8 @@ export default function BleDeviceList({
         )}
       </div>
 
-      {/* Search */}
-      {devices.length > 3 && (
+      {/* Search - only show if not hidden by parent and there are enough devices */}
+      {!hideSearch && devices.length > 3 && (
         <div className="ble-device-search">
           <SearchIcon />
           <input

@@ -25,6 +25,7 @@
   "auth.error.userNotFound": "用户未找到",
   "common.na": "无",
   "common.or": "或从列表中选择",
+  "common.scanOrSelect": "扫描二维码或从下方列表中选择",
   "common.tapToScan": "点击扫描",
   "common.refresh": "刷新",
   "common.description": "描述",
