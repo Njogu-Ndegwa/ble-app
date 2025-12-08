@@ -632,6 +632,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
         (macAddress: string, resp: (r: unknown) => void) => {
           log('Connection successful:', macAddress);
           sessionStorage.setItem('connectedDeviceMac', macAddress);
+          sessionStorage.removeItem('pendingBleMac'); // Clear pending since we're now connected
           
           // CRITICAL: Mark connection as successful immediately
           isConnectionSuccessfulRef.current = true;

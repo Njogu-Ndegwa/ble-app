@@ -305,8 +305,9 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
           clearGlobalTimeout();
           retryCountRef.current = 0;
           
-          // Store connected device
+          // Store connected device and clear pending state
           sessionStorage.setItem('connectedDeviceMac', macAddress);
+          sessionStorage.removeItem('pendingBleMac'); // Clear pending since we're now connected
           pendingMacRef.current = null;
           
           setConnectionState({
