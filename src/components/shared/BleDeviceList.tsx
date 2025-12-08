@@ -42,8 +42,10 @@ interface BleDeviceListProps {
   isScanning?: boolean;
   /** Callback when a device is selected for connection */
   onSelectDevice: (device: BleDevice) => void;
-  /** Callback to rescan for devices */
+  /** Callback to start/rescan for devices (called when not scanning) */
   onRescan?: () => void;
+  /** Callback to stop scanning (called when scanning) */
+  onStopScan?: () => void;
   /** Title for the list */
   title?: string;
   /** Subtitle for the list */
@@ -175,6 +177,7 @@ function SignalBars({ bars, level }: { bars: number; level: string }) {
  *   isScanning={isScanning}
  *   onSelectDevice={(device) => connectToDevice(device.macAddress)}
  *   onRescan={() => startBleScan()}
+ *   onStopScan={() => stopBleScan()}
  * />
  */
 export default function BleDeviceList({
@@ -183,6 +186,7 @@ export default function BleDeviceList({
   isScanning = false,
   onSelectDevice,
   onRescan,
+  onStopScan,
   title,
   subtitle,
   maxHeight = '300px',
@@ -223,15 +227,22 @@ export default function BleDeviceList({
             <p className="ble-device-list-subtitle">{subtitle}</p>
           )}
         </div>
-        {onRescan && (
+        {(onRescan || onStopScan) && (
           <button
             type="button"
             className={`ble-rescan-btn ${isScanning ? 'scanning' : ''}`}
-            onClick={onRescan}
-            disabled={isScanning || disabled}
-            aria-label={t('ble.rescan') || 'Rescan'}
+            onClick={() => {
+              if (isScanning && onStopScan) {
+                onStopScan();
+              } else if (!isScanning && onRescan) {
+                onRescan();
+              }
+            }}
+            disabled={disabled}
+            aria-label={isScanning ? (t('ble.stopScanning') || 'Stop scanning') : (t('ble.rescan') || 'Rescan')}
+            title={isScanning ? (t('ble.tapToStop') || 'Tap to stop scanning') : (t('ble.tapToRescan') || 'Tap to rescan')}
           >
-            <RefreshIcon />
+            {isScanning ? <StopIcon /> : <RefreshIcon />}
           </button>
         )}
       </div>
@@ -717,6 +728,23 @@ function RefreshIcon() {
       <polyline points="23 4 23 10 17 10"/>
       <polyline points="1 20 1 14 7 14"/>
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="18"
+      height="18"
+    >
+      <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   );
 }

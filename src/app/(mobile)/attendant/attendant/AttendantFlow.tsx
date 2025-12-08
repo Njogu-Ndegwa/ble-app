@@ -2467,6 +2467,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             detectedDevices={bleScanState.detectedDevices}
             isScanning={bleScanState.isScanning}
             onStartScan={hookStartScanning}
+            onStopScan={hookStopScanning}
             isFirstTimeCustomer={customerType === 'first-time'}
             isScannerOpening={isScanning}
           />
@@ -2480,6 +2481,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             detectedDevices={bleScanState.detectedDevices}
             isScanning={bleScanState.isScanning}
             onStartScan={hookStartScanning}
+            onStopScan={hookStopScanning}
             isScannerOpening={isScanning}
           />
         );

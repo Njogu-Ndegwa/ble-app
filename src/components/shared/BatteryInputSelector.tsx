@@ -79,6 +79,8 @@ interface BatteryInputSelectorProps {
   isScanning?: boolean;
   /** Callback to start/restart BLE scanning */
   onStartScan?: () => void;
+  /** Callback to stop BLE scanning */
+  onStopScan?: () => void;
   /** Whether scanner is currently opening */
   isScannerOpening?: boolean;
   /** Currently selected device MAC (for highlighting) */
@@ -140,6 +142,7 @@ export default function BatteryInputSelector({
   detectedDevices = [],
   isScanning = false,
   onStartScan,
+  onStopScan,
   isScannerOpening = false,
   selectedDeviceMac,
   isFirstTimeCustomer = false,
@@ -237,6 +240,7 @@ export default function BatteryInputSelector({
             isScanning={isScanning}
             onSelectDevice={onDeviceSelect}
             onRescan={onStartScan}
+            onStopScan={onStopScan}
             disabled={disabled}
             hideSearch={true}
             maxHeight="320px"
