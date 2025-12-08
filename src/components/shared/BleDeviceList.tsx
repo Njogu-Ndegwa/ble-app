@@ -59,6 +59,29 @@ interface BleDeviceListProps {
 }
 
 /**
+ * Check if a device is a battery based on its name
+ * Batteries have "BATT" or "Batt" as the second word in their name
+ * Example device names: "OVES BATT 45AH2311000102", "OVES Batt 45AH2311000103"
+ */
+export function isBatteryDevice(deviceName: string): boolean {
+  const nameParts = deviceName.split(' ');
+  if (nameParts.length >= 2) {
+    const deviceType = nameParts[1].toLowerCase();
+    return deviceType === 'batt';
+  }
+  return false;
+}
+
+/**
+ * Filter a list of BLE devices to only include batteries
+ * @param devices - Array of BLE devices to filter
+ * @returns Array of devices that are batteries
+ */
+export function filterBatteryDevices(devices: BleDevice[]): BleDevice[] {
+  return devices.filter(device => isBatteryDevice(device.name));
+}
+
+/**
  * Get device image URL based on device name
  * Returns null for unmapped devices (better to show nothing than confuse users)
  */

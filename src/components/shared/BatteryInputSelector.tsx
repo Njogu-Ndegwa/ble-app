@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useI18n } from '@/i18n';
 import { colors, spacing, radius, fontSize, fontWeight } from '@/styles';
-import BleDeviceList from './BleDeviceList';
+import BleDeviceList, { filterBatteryDevices } from './BleDeviceList';
 import type { BleDevice, BatteryData } from './types';
 
 /**
@@ -228,10 +228,11 @@ export default function BatteryInputSelector({
       )}
 
       {/* Device List - Always visible, no scrolling needed to discover */}
+      {/* Filter to show only battery devices (those with "BATT" or "Batt" in name) */}
       {!isFirstTimeCustomer && (
         <div className="battery-input-device-list">
           <BleDeviceList
-            devices={detectedDevices}
+            devices={filterBatteryDevices(detectedDevices)}
             selectedDevice={selectedDeviceMac}
             isScanning={isScanning}
             onSelectDevice={onDeviceSelect}
