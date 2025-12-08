@@ -1188,6 +1188,8 @@
   "attendant.noPaymentNeeded": "Aucun paiement requis",
   "attendant.customerPays": "Le client paie",
   "common.free": "GRATUIT",
+  "attendant.perKwh": "kWh",
+  "attendant.afterQuota": "Après application du quota",
 
   "sales.selectBatteryManually": "Sélectionner la batterie",
   "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",

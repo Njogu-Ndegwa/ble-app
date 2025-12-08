@@ -1099,6 +1099,8 @@
   "attendant.noPaymentNeeded": "无需支付",
   "attendant.customerPays": "客户支付",
   "common.free": "免费",
+  "attendant.perKwh": "kWh",
+  "attendant.afterQuota": "应用配额后",
 
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",
