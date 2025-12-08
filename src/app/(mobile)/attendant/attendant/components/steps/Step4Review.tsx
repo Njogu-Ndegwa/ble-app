@@ -13,9 +13,6 @@ interface Step4Props {
 export default function Step4Review({ swapData, customerData, hasSufficientQuota = false }: Step4Props) {
   const { t } = useI18n();
   
-  // Check if customer has partial quota (some quota but not enough to cover full energy diff)
-  const hasPartialQuota = swapData.quotaDeduction > 0 && swapData.chargeableEnergy > 0;
-  
   // Round down the cost for display and payment decision - customers can't pay decimals
   const displayCost = Math.floor(swapData.cost);
   
@@ -30,15 +27,20 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   const newBatteryKwh = (swapData.newBattery?.energy || 0) / 1000;
   const oldLevel = swapData.oldBattery?.chargeLevel ?? 0;
   const newLevel = swapData.newBattery?.chargeLevel ?? 0;
-  const quotaValue = Math.round(swapData.quotaDeduction * swapData.rate);
-
+  
   // Calculate monetary values for battery capacities
   const oldBatteryValue = Math.round(oldBatteryKwh * swapData.rate);
   const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
-  // Use displayCost (the actual amount customer pays) to be consistent with the hero section
-  // Previously this was: Math.round(swapData.energyDiff * swapData.rate) which showed gross value
-  // before quota deduction, causing a mismatch with the hero section
-  const energyDiffValue = displayCost;
+  
+  // Gross cost of the power differential (before quota deduction)
+  // This is: energyDiff × rate - the raw value of the energy being transferred
+  const grossEnergyDiffValue = swapData.energyDiff * swapData.rate;
+  
+  // Quota credit value (the monetary value of quota being applied)
+  const quotaCreditValue = swapData.quotaDeduction * swapData.rate;
+  
+  // Balance after quota (the raw balance before rounding)
+  const balanceAfterQuota = grossEnergyDiffValue - quotaCreditValue;
 
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
@@ -125,43 +127,78 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         </div>
       </div>
 
-      {/* Energy Gain */}
+      {/* Energy Gain - Shows gross value of power differential */}
       <div className="review-energy-gain">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
         <div className="energy-info">
           <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
-          <span className={`energy-money ${shouldSkipPayment ? 'free' : ''}`}>
-            {shouldSkipPayment ? (t('common.free') || 'FREE') : `${currency} ${energyDiffValue}`}
+          <span className="energy-money">
+            {currency} {grossEnergyDiffValue.toFixed(2)}
           </span>
         </div>
       </div>
 
-      {/* Pricing Summary */}
+      {/* Pricing Summary - Full Calculation Breakdown */}
       <div className="review-summary">
-        <div className="summary-row">
-          <span>{t('attendant.rate') || 'Rate'}</span>
-          <span>{currency} {swapData.rate}/{t('attendant.perKwh') || 'kWh'}</span>
+        {/* Header with rate info */}
+        <div className="summary-header">
+          <span>{t('attendant.costBreakdown') || 'Cost Breakdown'}</span>
+          <span className="rate-badge">{currency} {swapData.rate}/{t('attendant.perKwh') || 'kWh'}</span>
         </div>
 
-        {/* Quota Applied (if any) */}
-        {(hasPartialQuota || hasSufficientQuota) && swapData.quotaDeduction > 0 && (
-          <div className="summary-row quota">
-            <span>
+        {/* Step 1: Energy being transferred (gross cost) */}
+        <div className="summary-row calculation">
+          <span className="calc-label">{t('attendant.powerBeingSold') || 'Energy purchased'}</span>
+          <span className="calc-formula">
+            {swapData.energyDiff.toFixed(2)} × {swapData.rate} = <strong>{currency} {grossEnergyDiffValue.toFixed(2)}</strong>
+          </span>
+        </div>
+
+        {/* Step 2: Quota credit applied (if any) */}
+        {swapData.quotaDeduction > 0 && (
+          <div className="summary-row calculation quota">
+            <span className="calc-label">
               <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
               </svg>
-              {t('attendant.quotaCovered') || 'Quota Credit'} ({swapData.quotaDeduction.toFixed(2)} kWh)
+              {t('attendant.quotaYouHave') || 'Your quota'}
             </span>
-            <span>-{currency} {quotaValue}</span>
+            <span className="calc-formula">
+              {swapData.quotaDeduction.toFixed(2)} × {swapData.rate} = <strong>-{currency} {quotaCreditValue.toFixed(2)}</strong>
+            </span>
           </div>
         )}
 
-        {/* Partial quota note */}
-        {hasPartialQuota && !shouldSkipPayment && (
+        {/* Divider */}
+        <div className="summary-divider" />
+
+        {/* Step 3: Balance / Final amount */}
+        <div className="summary-row total">
+          <span className="calc-label">
+            {shouldSkipPayment 
+              ? (t('attendant.balance') || 'Balance')
+              : (t('attendant.amountToPay') || 'Amount to pay')}
+          </span>
+          <span className={`calc-total ${shouldSkipPayment ? 'free' : ''}`}>
+            {shouldSkipPayment ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                </svg>
+                {t('common.free') || 'FREE'}
+              </>
+            ) : (
+              <strong>{currency} {displayCost}</strong>
+            )}
+          </span>
+        </div>
+
+        {/* Rounding note - only show when there's actual rounding and payment is due */}
+        {!shouldSkipPayment && balanceAfterQuota !== displayCost && (
           <div className="summary-note">
-            {t('attendant.chargeableEnergy') || 'To Pay'}: {swapData.chargeableEnergy.toFixed(2)} kWh = {currency} {displayCost}
+            {t('attendant.roundingNote') || 'Decimals rounded down'}: {currency} {balanceAfterQuota.toFixed(2)} → {currency} {displayCost}
           </div>
         )}
       </div>
@@ -362,10 +399,31 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         .review-summary {
           display: flex;
           flex-direction: column;
-          gap: 8px;
-          padding: 12px 16px;
+          gap: 10px;
+          padding: 14px 16px;
           background: var(--bg-secondary);
           border-radius: 12px;
+        }
+
+        .summary-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-primary);
+          padding-bottom: 8px;
+          border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
+        }
+
+        .rate-badge {
+          font-size: 11px;
+          font-weight: 500;
+          color: var(--accent);
+          background: rgba(0, 229, 229, 0.1);
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-family: var(--font-mono);
         }
 
         .summary-row {
@@ -376,21 +434,77 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           color: var(--text-secondary);
         }
 
-        .summary-row.quota {
-          color: #10b981;
-          font-weight: 500;
+        .summary-row.calculation {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
         }
 
-        .summary-row.quota span:first-child {
+        .calc-label {
+          font-size: 12px;
+          color: var(--text-muted);
           display: flex;
           align-items: center;
           gap: 4px;
         }
 
+        .calc-formula {
+          font-size: 13px;
+          color: var(--text-secondary);
+          font-family: var(--font-mono);
+          padding-left: 4px;
+        }
+
+        .calc-formula strong {
+          color: var(--text-primary);
+        }
+
+        .summary-row.quota .calc-label {
+          color: #10b981;
+        }
+
+        .summary-row.quota .calc-formula strong {
+          color: #10b981;
+        }
+
+        .summary-divider {
+          height: 1px;
+          background: var(--border-color, rgba(255,255,255,0.1));
+          margin: 4px 0;
+        }
+
+        .summary-row.total {
+          padding-top: 4px;
+        }
+
+        .summary-row.total .calc-label {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .calc-total {
+          font-size: 16px;
+          font-weight: 700;
+          color: var(--text-primary);
+          font-family: var(--font-mono);
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .calc-total.free {
+          color: #10b981;
+          font-size: 14px;
+        }
+
         .summary-note {
-          font-size: 11px;
+          font-size: 10px;
           color: var(--text-muted);
           text-align: right;
+          font-style: italic;
+          padding-top: 2px;
+          font-family: var(--font-mono);
         }
       `}</style>
     </div>
