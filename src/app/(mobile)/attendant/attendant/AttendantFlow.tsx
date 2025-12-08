@@ -1608,6 +1608,43 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Clear any existing flow error when retrying
     setFlowError(null);
     
+    // For returning customers, validate the selected device matches their assigned battery
+    // This is the same validation done in processOldBatteryQRData for QR scans
+    if (customerType === 'returning' && customerData?.currentBatteryId) {
+      const expectedBatteryId = customerData.currentBatteryId;
+      const selectedDeviceName = device.name;
+      
+      // Normalize IDs for comparison (remove prefixes, compare last 6 chars, case insensitive)
+      const normalizeId = (id: string) => {
+        // Remove common prefixes like "BAT_NEW_", "BAT_RETURN_ATT_", "OVES BATT", etc.
+        const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_|OVES\s+BATT\s+)/i, '');
+        return cleaned.toLowerCase();
+      };
+      
+      const selectedNormalized = normalizeId(String(selectedDeviceName));
+      const expectedNormalized = normalizeId(String(expectedBatteryId));
+      
+      // Check if IDs match (exact match, one contains the other, or last 6 chars match)
+      const isMatch = selectedNormalized === expectedNormalized ||
+        selectedNormalized.includes(expectedNormalized) ||
+        expectedNormalized.includes(selectedNormalized) ||
+        selectedNormalized.slice(-6) === expectedNormalized.slice(-6);
+      
+      if (!isMatch) {
+        // Battery doesn't match - show error and stop process
+        console.error(`Battery mismatch: selected ${selectedDeviceName}, expected ${expectedBatteryId}`);
+        
+        setFlowError({
+          step: 2,
+          message: t('attendant.batteryMismatch') || 'Battery does not belong to this customer',
+          details: `Selected: ...${String(selectedDeviceName).slice(-6)} | Expected: ...${String(expectedBatteryId).slice(-6)}`,
+        });
+        
+        toast.error(t('attendant.wrongBattery') || 'Wrong battery! This battery does not belong to the customer.');
+        return; // Don't proceed to connection
+      }
+    }
+    
     // Reset BLE state via hook (keeps detected devices for matching)
     hookResetState();
     
@@ -1624,7 +1661,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     // Use the device name as QR data (hook will match by last 6 chars)
     hookHandleQrScanned(device.name, 'old_battery');
-  }, [hookResetState, hookHandleQrScanned, clearScanTimeout, cancelOngoingScan]);
+  }, [hookResetState, hookHandleQrScanned, clearScanTimeout, cancelOngoingScan, customerType, customerData?.currentBatteryId, t]);
 
   // Step 3: Scan New Battery with Scan-to-Bind
   const handleScanNewBattery = useCallback(async () => {

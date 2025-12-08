@@ -1076,6 +1076,11 @@
   "sales.package": "Forfait",
   "sales.subscription": "Abonnement",
   "common.tryAgain": "Réessayer",
+  "common.connected": "Connecté",
+  "common.failed": "Échoué",
+  "common.retry": "Réessayer",
+  "common.processing": "Traitement...",
+  "common.back": "Retour",
   
   "attendant.step.customer": "Client",
   "attendant.step.return": "Retour",
@@ -1157,6 +1162,10 @@
   "attendant.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",
   "attendant.selectNewBattery": "Sélectionner une nouvelle batterie",
   "attendant.remaining": "restant",
+  "attendant.bleResetRequired": "Veuillez éteindre puis rallumer le Bluetooth, puis réessayez",
+  "attendant.connectionFailed": "Échec de la connexion",
+  "attendant.wrongBattery": "Mauvaise batterie ! Cette batterie n'appartient pas au client.",
+  "attendant.batteryMismatch": "La batterie n'appartient pas à ce client",
 
   "sales.selectBatteryManually": "Sélectionner la batterie",
   "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",

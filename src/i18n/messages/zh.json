@@ -987,6 +987,11 @@
   "sales.package": "套餐",
   "sales.subscription": "订阅",
   "common.tryAgain": "重试",
+  "common.connected": "已连接",
+  "common.failed": "失败",
+  "common.retry": "重试",
+  "common.processing": "处理中...",
+  "common.back": "返回",
   
   "attendant.step.customer": "客户",
   "attendant.step.return": "归还",
@@ -1068,6 +1073,10 @@
   "attendant.selectFromNearbyDevices": "从附近设备中选择",
   "attendant.selectNewBattery": "选择新电池",
   "attendant.remaining": "剩余",
+  "attendant.bleResetRequired": "请关闭然后重新打开蓝牙，然后重试",
+  "attendant.connectionFailed": "连接失败",
+  "attendant.wrongBattery": "错误的电池！此电池不属于该客户。",
+  "attendant.batteryMismatch": "电池不属于此客户",
 
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",
