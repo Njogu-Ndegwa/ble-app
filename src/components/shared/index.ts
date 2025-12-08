@@ -77,6 +77,12 @@ export {
 export type { ActionConfig, ActionIcon } from './FlowActionBar';
 
 // ============================================
+// MQTT CONNECTION STATUS COMPONENTS
+// ============================================
+export { default as MqttReconnectBanner } from './MqttReconnectBanner';
+export type { MqttReconnectBannerProps } from './MqttReconnectBanner';
+
+// ============================================
 // HOOKS
 // ============================================
 export { default as useBleScanner, useBleScanner as useBleScannerHook } from './hooks/useBleScanner';

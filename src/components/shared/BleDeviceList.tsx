@@ -5,11 +5,9 @@ import { useI18n } from '@/i18n';
 import { colors, spacing, radius, fontSize, fontWeight } from '@/styles';
 import type { BleDevice } from './types';
 
-// Default battery image for detected devices
-const DEFAULT_BATTERY_IMAGE = 'https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1731146523/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_bxwpf9.png';
-
 // Device image mapping based on name patterns
 // This should match the itemImageMap used in Keypad and BLE Device Manager pages
+// NOTE: No default image - unmapped devices show no image to avoid confusing users
 const DEVICE_IMAGE_MAP: Record<string, string> = {
   // Integrated Home Energy Systems
   PPSP: "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1739505681/OVES-PRODUCTS/CROSS-GRID/Integrated%20Home%20Energy%20Systems%20-%20Oasis%E2%84%A2%20Series/ovT20-2400W/T20-2400W_efw5mh.png",
@@ -62,8 +60,9 @@ interface BleDeviceListProps {
 
 /**
  * Get device image URL based on device name
+ * Returns null for unmapped devices (better to show nothing than confuse users)
  */
-function getDeviceImage(deviceName: string): string {
+function getDeviceImage(deviceName: string): string | null {
   const nameParts = deviceName.split(' ');
   if (nameParts.length >= 2) {
     const keyword = nameParts[1];
@@ -74,7 +73,8 @@ function getDeviceImage(deviceName: string): string {
       return DEVICE_IMAGE_MAP[mapKey];
     }
   }
-  return DEFAULT_BATTERY_IMAGE;
+  // Return null for unmapped devices - show nothing rather than confuse users
+  return null;
 }
 
 /**
@@ -266,6 +266,7 @@ export default function BleDeviceList({
           const signal = getSignalStrength(device.rawRssi);
           const deviceDisplay = extractDeviceDisplay(device.name);
           const isSelected = selectedDevice === device.macAddress;
+          const deviceImageUrl = getDeviceImage(device.name);
 
           return (
             <div
@@ -281,17 +282,20 @@ export default function BleDeviceList({
                 }
               }}
             >
-              {/* Device Image */}
-              <div className="ble-device-image-container">
-                <img
-                  src={getDeviceImage(device.name)}
-                  alt={device.name}
-                  className="ble-device-image"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = DEFAULT_BATTERY_IMAGE;
-                  }}
-                />
-              </div>
+              {/* Device Image - only show if we have a mapped image */}
+              {deviceImageUrl && (
+                <div className="ble-device-image-container">
+                  <img
+                    src={deviceImageUrl}
+                    alt={device.name}
+                    className="ble-device-image"
+                    onError={(e) => {
+                      // Hide the container if image fails to load
+                      (e.target as HTMLImageElement).parentElement!.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Device Info */}
               <div className="ble-device-info">
