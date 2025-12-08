@@ -216,6 +216,10 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
       }
     }
     
+    // IMPORTANT: Round energy to 2 decimal places BEFORE calculating cost
+    // This ensures consistent pricing (e.g., 2.54530003 kWh → 2.54 kWh)
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
+    
     // Only calculate if energy transferred is positive
     if (energyTransferred <= 0) {
       return null;
@@ -2580,6 +2584,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       ? parseFloat(checkinEnergyTransferred)
       : 0;
     
+    // Calculate energy transferred and round to 2 decimal places BEFORE using for any calculations
     let energyTransferred = 0;
     if (customerType === "returning") {
       energyTransferred = checkoutEnergy - checkinEnergy;
@@ -2589,6 +2594,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     if (energyTransferred < 0) {
       energyTransferred = 0;
     }
+    // IMPORTANT: Round to 2 decimal places for consistent pricing (e.g., 2.54530003 → 2.54)
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
 
     const serviceCompletionDetails: Record<string, any> = {
       new_battery_id: formattedCheckoutId,
@@ -2760,6 +2767,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       ? parseFloat(checkinEnergyTransferred)
       : 0;
 
+    // Calculate energy transferred and round to 2 decimal places BEFORE using for any calculations
     let energyTransferred = 0;
     if (customerType === "returning") {
       energyTransferred = checkoutEnergy - checkinEnergy;
@@ -2769,6 +2777,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     if (energyTransferred < 0) {
       energyTransferred = 0;
     }
+    // IMPORTANT: Round to 2 decimal places for consistent pricing (e.g., 2.54530003 → 2.54)
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
 
     const serviceId = electricityService?.service_id || "service-electricity-togo-1";
     const paymentAmount =
