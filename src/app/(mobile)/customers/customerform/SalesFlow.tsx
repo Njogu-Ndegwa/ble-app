@@ -34,7 +34,7 @@ import {
 
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
-import { BleProgressModal } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 
 // Import Odoo API functions
 import {
@@ -1290,6 +1290,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // This is for first-time customer with quota (promotional first battery)
   // Following the Attendant workflow pattern for customers with available quota
   const handleCompleteService = useCallback(async () => {
+    // Guard: Check MQTT connection before proceeding
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[SALES SERVICE] Cannot complete service - MQTT not connected');
+      return;
+    }
+
     if (!scannedBatteryPending) {
       toast.error('No battery scanned');
       return;
@@ -1607,7 +1614,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     scannedBatteryPending, 
     confirmedSubscriptionCode, 
     subscriptionData, 
-    advanceToStep
+    advanceToStep,
+    isMqttConnected,
+    t
   ]);
 
   // Handle back navigation
@@ -1968,6 +1977,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           </div>
         </div>
       </header>
+
+      {/* MQTT Reconnection Banner - shows when connection is lost */}
+      <div className="px-4 pt-2">
+        <MqttReconnectBanner />
+      </div>
 
       {/* Timeline */}
       <SalesTimeline 

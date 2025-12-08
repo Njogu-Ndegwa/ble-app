@@ -15,6 +15,7 @@ import {
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import { initServiceBleData } from "@/app/utils";
+import { MqttReconnectBanner } from "@/components/shared";
 
 // ABS topics use hardcoded payloads as per docs; publish via bridge like BLE page..
 // PLAN_ID is now dynamically set from subscription_code in scanned QR code
@@ -2012,6 +2013,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   }, [t]);
 
   const handleStartCustomerScan = () => {
+    // Guard: Check MQTT connection before starting customer scan
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[ATTENDANT] Cannot start customer scan - MQTT not connected');
+      return;
+    }
+    
     setCustomerData(null);
     setCustomerIdentified(false);
     setPaymentState(null);
@@ -2036,6 +2044,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   }, [detectedBleDevices]);
 
   const handleStartCheckinScan = () => {
+    // Guard: Check MQTT connection before starting checkin scan
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[ATTENDANT] Cannot start checkin scan - MQTT not connected');
+      return;
+    }
+    
     setCheckinEquipmentId(null);
     setCheckinEquipmentIdFull(null);
     setDetectedBleDevices([]);
@@ -2057,6 +2072,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   };
 
   const handleStartCheckoutScan = () => {
+    // Guard: Check MQTT connection before starting checkout scan
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[ATTENDANT] Cannot start checkout scan - MQTT not connected');
+      return;
+    }
+    
     setCheckoutEquipmentId(null);
     scanTypeRef.current = "checkout";
     setIsScanningCheckout(true);
@@ -3503,6 +3525,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
               </button>
             )}
           </div>
+          {/* MQTT Reconnection Banner - shows when connection is lost */}
+          <div className="px-4 pt-2">
+            <MqttReconnectBanner />
+          </div>
           <div className="overflow-y-auto flex-1" ref={modalScrollContainerRef}>
             {renderModalContent()}
           </div>
@@ -3514,18 +3540,24 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
 
   if (!isSwapModalOpen) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex">
-        <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-none md:rounded-r-2xl shadow-2xl space-y-6 p-8 md:p-10 text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">
-            {t("Start Swap")}
-          </h1>
-          <button
-            onClick={handleStartSwap}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3 transition-all duration-200"
-          >
-            <QrCode className="w-5 h-5" />
-            {t("Start Swap")}
-          </button>
+      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex flex-col">
+        {/* MQTT Reconnection Banner - shows when connection is lost */}
+        <div className="px-4 pt-4">
+          <MqttReconnectBanner />
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-none md:rounded-r-2xl shadow-2xl space-y-6 p-8 md:p-10 text-center">
+            <h1 className="text-2xl font-bold text-white mb-4">
+              {t("Start Swap")}
+            </h1>
+            <button
+              onClick={handleStartSwap}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3 transition-all duration-200"
+            >
+              <QrCode className="w-5 h-5" />
+              {t("Start Swap")}
+            </button>
+          </div>
         </div>
       </div>
     );
