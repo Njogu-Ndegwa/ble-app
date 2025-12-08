@@ -1042,6 +1042,8 @@
   
   "attendant.quotaCreditAvailable": "可用配额余额",
   "attendant.noPaymentRequired": "无需支付 - 使用现有额度",
+  "attendant.zeroCostSwap": "零费用更换",
+  "attendant.noPaymentRequiredZeroCost": "无需支付 - 总费用为零",
   "attendant.quotaDeduction": "配额扣除",
   "attendant.quotaApplied": "已应用配额",
   "attendant.chargeableEnergy": "需支付",

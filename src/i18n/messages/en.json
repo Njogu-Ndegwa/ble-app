@@ -1140,6 +1140,8 @@
   
   "attendant.quotaCreditAvailable": "Quota Credit Available",
   "attendant.noPaymentRequired": "No payment required - using existing credit",
+  "attendant.zeroCostSwap": "Zero Cost Swap",
+  "attendant.noPaymentRequiredZeroCost": "No payment required - zero total cost",
   "attendant.quotaDeduction": "Quota Deduction",
   "attendant.quotaApplied": "Quota Applied",
   "attendant.chargeableEnergy": "To Pay",

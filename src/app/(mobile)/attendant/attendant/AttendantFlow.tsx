@@ -1726,14 +1726,26 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [hookResetState, hookHandleQrScanned, clearScanTimeout]);
 
   // Step 4: Proceed to payment - initiate payment with Odoo first
-  // OR skip payment if customer has sufficient quota
+  // OR skip payment if customer has sufficient quota OR cost is zero
   const handleProceedToPayment = useCallback(async () => {
     setIsProcessing(true);
     try {
-      // Check if customer has sufficient quota to skip payment
-      if (hasSufficientQuota) {
-        console.info('Customer has sufficient quota - skipping payment step');
-        toast.success('Using quota credit - no payment required');
+      // Check if we should skip payment collection:
+      // 1. Customer has sufficient quota (both electricity and swap count)
+      // 2. OR total cost is 0 or negative (nothing to collect)
+      const shouldSkipPayment = hasSufficientQuota || swapData.cost <= 0;
+      
+      if (shouldSkipPayment) {
+        const reason = hasSufficientQuota 
+          ? 'sufficient quota' 
+          : 'zero cost';
+        console.info(`Skipping payment step - ${reason}`, { 
+          hasSufficientQuota, 
+          cost: swapData.cost 
+        });
+        toast.success(hasSufficientQuota 
+          ? 'Using quota credit - no payment required' 
+          : 'No payment required - zero cost');
         
         // Skip payment step and directly record the service
         // Use a quota-based payment reference
@@ -1743,7 +1755,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         setTransactionId(quotaReference);
         
         // Call publishPaymentAndService via ref to avoid circular dependency
-        publishPaymentAndServiceRef.current(quotaReference, true); // true indicates quota-based service
+        // Pass isQuotaBased=true since no actual payment was collected
+        publishPaymentAndServiceRef.current(quotaReference, true);
         return;
       }
       
@@ -1759,7 +1772,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2533,6 +2546,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         inputMode={inputMode}
         paymentInputMode={paymentInputMode}
         hasSufficientQuota={hasSufficientQuota}
+        swapCost={swapData.cost}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
