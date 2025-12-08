@@ -4,18 +4,28 @@ import React from 'react';
 import { CreditCard, CheckCircle } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
-  BatteryScanBind,
+  BatteryInputSelector,
   BatteryCard,
   getInitials,
 } from '@/components/shared';
-import type { BatteryData } from '@/components/shared';
+import type { BatteryData, BleDevice, BatteryInputMode } from '@/components/shared';
 import { CustomerFormData, PlanData } from '../types';
 
 interface Step4Props {
   formData: CustomerFormData;
   selectedPlanId: string;
+  /** Callback when QR scan is triggered */
   onScanBattery: () => void;
+  /** Callback when a device is manually selected */
+  onDeviceSelect?: (device: BleDevice) => void;
+  /** List of detected BLE devices for manual selection */
+  detectedDevices?: BleDevice[];
+  /** Whether BLE scanning is in progress */
   isBleScanning?: boolean;
+  /** Callback to start/restart BLE scanning */
+  onStartScan?: () => void;
+  /** Currently selected device MAC */
+  selectedDeviceMac?: string | null;
   detectedDevicesCount?: number;
   isScannerOpening?: boolean;
   plans: PlanData[];
@@ -23,36 +33,55 @@ interface Step4Props {
   scannedBattery?: BatteryData | null;
   onCompleteService?: () => void;
   isCompletingService?: boolean;
+  /** Current input mode */
+  inputMode?: BatteryInputMode;
+  /** Callback when input mode changes */
+  onInputModeChange?: (mode: BatteryInputMode) => void;
 }
 
 /**
  * Step4AssignBattery - Assign battery to new customer
  * 
- * Uses the shared BatteryScanBind component (same as Attendant workflow)
+ * Uses the shared BatteryInputSelector component (same as Attendant workflow)
  * with mode="assign" for consistent scan-to-bind functionality.
+ * Supports both QR scanning and manual device selection.
  * 
  * Note: BLE connection progress is handled by the parent flow's BleProgressModal,
  * following the same pattern as the Attendant workflow.
  * 
  * Shows:
- * - Pre-scan: Customer preview card + BatteryScanBind scanner
+ * - Pre-scan: Customer preview card + BatteryInputSelector
  * - Post-scan: Battery card + customer summary + Complete Service button
  */
 export default function Step4AssignBattery({ 
   formData, 
   selectedPlanId, 
   onScanBattery,
+  onDeviceSelect,
+  detectedDevices = [],
+  isBleScanning = false,
+  onStartScan,
+  selectedDeviceMac,
   isScannerOpening = false,
   plans,
   subscriptionCode = '',
   scannedBattery = null,
   onCompleteService,
   isCompletingService = false,
+  inputMode,
+  onInputModeChange,
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
+
+  // Handle device selection
+  const handleDeviceSelect = (device: BleDevice) => {
+    if (onDeviceSelect) {
+      onDeviceSelect(device);
+    }
+  };
 
   // If battery has been scanned, show simplified battery details and Complete Service button
   if (scannedBattery) {
@@ -114,7 +143,7 @@ export default function Step4AssignBattery({
   }
 
   // Initial state - No battery scanned yet
-  // Uses shared BatteryScanBind component with mode="assign"
+  // Uses shared BatteryInputSelector component with mode="assign"
   return (
     <div className="screen active">
       {/* Customer Preview Card - Sales-specific context before scanner */}
@@ -127,12 +156,19 @@ export default function Step4AssignBattery({
         subscriptionCode={subscriptionCode}
       />
 
-      {/* Battery Scanner - Shared BatteryScanBind component */}
+      {/* Battery Selector - Shared BatteryInputSelector component */}
       {/* Note: BLE progress/errors are handled by BleProgressModal at the flow level */}
-      <BatteryScanBind
+      <BatteryInputSelector
         mode="assign"
         onScan={onScanBattery}
+        onDeviceSelect={handleDeviceSelect}
+        detectedDevices={detectedDevices}
+        isScanning={isBleScanning}
+        onStartScan={onStartScan}
+        selectedDeviceMac={selectedDeviceMac}
         isScannerOpening={isScannerOpening}
+        inputMode={inputMode}
+        onInputModeChange={onInputModeChange}
       />
     </div>
   );
