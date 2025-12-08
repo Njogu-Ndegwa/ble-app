@@ -1589,19 +1589,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
-    // Set timeout for QR scanning only (30 seconds to scan the QR code)
-    // This timeout is cleared when QR is scanned (in processOldBatteryQRData)
-    // BLE connection timeouts are handled separately by the hooks and BleProgressModal
+    // NOTE: No external timeout needed for QR scanning
+    // - User cancels QR scan → bridge returns empty qrCode → state is reset in qrCodeCallBack handler
+    // - App goes to background → visibilitychange handler resets state
+    // - QR scanned successfully → processOldBatteryQRData handles it
+    // - BLE connection after QR scan → handled by BleProgressModal (60s) + BLE hooks
     clearScanTimeout();
-    scanTimeoutRef.current = setTimeout(() => {
-      console.warn("Old battery QR scan timed out after 30 seconds");
-      toast.error("Scan timed out. Please try again.");
-      cancelOngoingScan();
-    }, 30000);
     
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
+  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning]);
 
   // Step 2: Handle device selection for old battery (manual mode)
   const handleOldBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
@@ -1693,19 +1690,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
-    // Set timeout for QR scanning only (30 seconds to scan the QR code)
-    // This timeout is cleared when QR is scanned (in processNewBatteryQRData)
-    // BLE connection timeouts are handled separately by the hooks and BleProgressModal
+    // NOTE: No external timeout needed for QR scanning
+    // - User cancels QR scan → bridge returns empty qrCode → state is reset in qrCodeCallBack handler
+    // - App goes to background → visibilitychange handler resets state
+    // - QR scanned successfully → processNewBatteryQRData handles it
+    // - BLE connection after QR scan → handled by BleProgressModal (60s) + BLE hooks
     clearScanTimeout();
-    scanTimeoutRef.current = setTimeout(() => {
-      console.warn("New battery QR scan timed out after 30 seconds");
-      toast.error("Scan timed out. Please try again.");
-      cancelOngoingScan();
-    }, 30000);
     
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
+  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning]);
 
   // Step 3: Handle device selection for new battery (manual mode)
   const handleNewBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
