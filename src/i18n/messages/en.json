@@ -1199,6 +1199,11 @@
   "common.free": "FREE",
   "attendant.perKwh": "kWh",
   "attendant.afterQuota": "After quota applied",
+  "attendant.powerBeingSold": "Energy purchased",
+  "attendant.quotaYouHave": "Your quota",
+  "attendant.balance": "Balance",
+  "attendant.amountToPay": "Amount to pay",
+  "attendant.roundingNote": "Decimals rounded down",
 
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",

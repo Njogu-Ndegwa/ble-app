@@ -1101,6 +1101,11 @@
   "common.free": "免费",
   "attendant.perKwh": "kWh",
   "attendant.afterQuota": "应用配额后",
+  "attendant.powerBeingSold": "购买的能量",
+  "attendant.quotaYouHave": "您的配额",
+  "attendant.balance": "余额",
+  "attendant.amountToPay": "应付金额",
+  "attendant.roundingNote": "小数已向下取整",
 
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",
