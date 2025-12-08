@@ -619,6 +619,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 const sourceData = isIdempotent ? metadata?.cached_result : metadata;
                 const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
                 const serviceBundle = sourceData?.service_bundle;
+                const commonTerms = sourceData?.common_terms;
                 const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
                 
                 if (servicePlanData) {
@@ -651,9 +652,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     (s: any) => s.service_id?.includes('service-swap-count')
                   );
                   
-                  if (elecService?.usageUnitPrice) {
-                    setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
-                  }
+                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
+                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
+                  
+                  // Update swap data with rate and currency from customer's service plan
+                  setSwapData(prev => ({ 
+                    ...prev, 
+                    rate: elecService?.usageUnitPrice || prev.rate,
+                    currencySymbol: billingCurrency 
+                  }));
                   
                   // Check for infinite quota services (quota > 100,000 indicates management services)
                   const INFINITE_QUOTA_THRESHOLD = 100000;
@@ -1411,6 +1418,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 const sourceData = isIdempotent ? metadata?.cached_result : metadata;
                 const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
                 const serviceBundle = sourceData?.service_bundle;
+                const commonTerms = sourceData?.common_terms;
                 const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
                 
                 if (servicePlanData) {
@@ -1443,9 +1451,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                     (s: any) => s.service_id?.includes('service-swap-count')
                   );
                   
-                  if (elecService?.usageUnitPrice) {
-                    setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
-                  }
+                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
+                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
+                  
+                  // Update swap data with rate and currency from customer's service plan
+                  setSwapData(prev => ({ 
+                    ...prev, 
+                    rate: elecService?.usageUnitPrice || prev.rate,
+                    currencySymbol: billingCurrency 
+                  }));
                   
                   // Check for infinite quota services (quota > 100,000 indicates management services)
                   const INFINITE_QUOTA_THRESHOLD = 100000;
