@@ -184,10 +184,18 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       // This ensures the progress modal stays visible during device discovery
       const shouldBeConnecting = connectionState.isConnecting || isDeviceMatchingRef.current;
       
+      // Filter out the connected device from the detected devices list
+      // This prevents showing a device we're already connected to when rescanning
+      const filteredDevices = connectionState.connectedDevice
+        ? scannerScanState.detectedDevices.filter(
+            device => device.macAddress.toUpperCase() !== connectionState.connectedDevice?.toUpperCase()
+          )
+        : scannerScanState.detectedDevices;
+      
       return {
         ...prev,
         isScanning: scannerScanState.isScanning,
-        detectedDevices: scannerScanState.detectedDevices,
+        detectedDevices: filteredDevices,
         isConnecting: shouldBeConnecting,
         connectedDevice: connectionState.connectedDevice,
         connectionProgress: serviceState.isReading 
