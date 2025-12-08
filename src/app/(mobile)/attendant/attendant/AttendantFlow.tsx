@@ -199,7 +199,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setSwapData(prev => {
         const oldEnergy = prev.oldBattery?.energy || 0;
         const energyDiffWh = battery.energy - oldEnergy;
-        const energyDiffKwh = energyDiffWh / 1000;
+        // IMPORTANT: Round energy to 2 decimal places BEFORE using for calculations
+        // This ensures consistent pricing (e.g., 2.54530003 kWh becomes 2.54 kWh)
+        const energyDiffKwh = Math.floor((energyDiffWh / 1000) * 100) / 100;
         
         // Get rate from electricity service
         const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
@@ -234,9 +236,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return {
           ...prev,
           newBattery: battery,
-          energyDiff: Math.round(energyDiffKwh * 1000) / 1000,
-          quotaDeduction: Math.round(quotaDeduction * 1000) / 1000,
-          chargeableEnergy: Math.round(chargeableEnergy * 1000) / 1000,
+          // Energy values rounded to 2 decimal places for consistency with pricing
+          energyDiff: Math.floor(energyDiffKwh * 100) / 100,
+          quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
+          chargeableEnergy: Math.floor(chargeableEnergy * 100) / 100,
           cost: cost > 0 ? cost : 0,
         };
       });
@@ -1093,7 +1096,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [electricityService]);
 
   // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
-  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean) => void>(() => {});
+  // isQuotaBased: true when customer has sufficient quota credit (no payment_data sent)
+  // isZeroCostRounding: true when cost rounds to 0 but NOT quota-based (payment_data sent with original amount)
+  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, isZeroCostRounding?: boolean) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -1755,11 +1760,13 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
       
       if (shouldSkipPayment) {
+        const isZeroCostRounding = !hasSufficientQuota && roundedCost <= 0;
         const reason = hasSufficientQuota 
           ? 'sufficient quota' 
           : 'zero cost (rounded)';
         console.info(`Skipping payment step - ${reason}`, { 
           hasSufficientQuota, 
+          isZeroCostRounding,
           cost: swapData.cost,
           roundedCost
         });
@@ -1768,15 +1775,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           : 'No payment required - zero cost');
         
         // Skip payment step and directly record the service
-        // Use a quota-based payment reference
-        const quotaReference = `QUOTA_${Date.now()}`;
+        // Use a quota-based or zero-cost payment reference
+        const skipReference = isZeroCostRounding 
+          ? `ZERO_COST_${Date.now()}` 
+          : `QUOTA_${Date.now()}`;
         setPaymentConfirmed(true);
-        setPaymentReceipt(quotaReference);
-        setTransactionId(quotaReference);
+        setPaymentReceipt(skipReference);
+        setTransactionId(skipReference);
         
         // Call publishPaymentAndService via ref to avoid circular dependency
-        // Pass isQuotaBased=true since no actual payment was collected
-        publishPaymentAndServiceRef.current(quotaReference, true);
+        // Pass isQuotaBased=true for quota-based, isZeroCostRounding=true for rounded-down-to-zero
+        // When isZeroCostRounding=true, we still include payment_data with original amount so backend
+        // knows the actual service value even though customer didn't pay
+        publishPaymentAndServiceRef.current(skipReference, hasSufficientQuota, isZeroCostRounding);
         return;
       }
       
@@ -1903,10 +1914,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [dynamicPlanId, swapData.cost, customerData, paymentRequestCreated, paymentRequestOrderId, expectedPaymentAmount, initiateOdooPayment]);
 
   // Publish payment_and_service via MQTT
-  // isQuotaBased: When true, customer is using their existing quota credit (no payment required)
+  // isQuotaBased: When true, customer is using their existing quota credit (no payment_data sent)
+  // isZeroCostRounding: When true, cost rounded to 0 but NOT quota-based - include payment_data
+  //                     with original amount so backend knows the service value for tracking
   // NOTE: We always report the ORIGINAL calculated amount (swapData.cost) for quota calculations,
   // even though customer pays the rounded-down amount. This ensures accurate quota tracking.
-  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false) => {
+  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, isZeroCostRounding: boolean = false) => {
     if (!bridge) {
       console.error("Bridge not available for payment_and_service");
       toast.error('Bridge not available. Please restart the app.');
@@ -1947,13 +1960,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const paymentAmount = swapData.cost; // Always use original calculated cost for backend reporting
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+    // Determine if we should include payment_data:
+    // - isQuotaBased && !isZeroCostRounding: No payment_data (true quota credit)
+    // - isZeroCostRounding: Include payment_data with original amount (customer received service worth X but paid 0)
+    // - Normal payment: Include payment_data
+    const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
+
     console.info('Publishing payment_and_service:', {
       isQuotaBased,
-      ...(isQuotaBased ? {} : { 
-        paymentAmount, // Full precision for quota calc
-        paymentAmountRoundedForCustomer: Math.floor(swapData.cost), // What customer actually paid
+      isZeroCostRounding,
+      shouldIncludePaymentData,
+      ...(shouldIncludePaymentData ? { 
+        paymentAmount, // Full precision amount (what customer should have paid / service value)
+        paymentAmountRoundedForCustomer: Math.floor(swapData.cost), // What customer actually paid (0 for zero-cost rounding)
         paymentReference 
-      }),
+      } : {}),
       energyTransferred,
       oldBatteryId,
       newBatteryId,
@@ -1963,8 +1984,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
     if (customerType === 'returning' && oldBatteryId) {
       // Returning customer payload
-      if (isQuotaBased) {
-        // Quota-based: No payment_data needed - customer is using existing quota credit
+      if (isQuotaBased && !isZeroCostRounding) {
+        // True quota-based: No payment_data needed - customer is using existing quota credit
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -1982,7 +2003,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           },
         };
       } else {
-        // Regular payment flow: Include payment_data
+        // Regular payment flow OR zero-cost rounding: Include payment_data
+        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
+        // even though customer paid 0 - this allows backend to track actual service value
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -1995,7 +2018,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               service_id: serviceId,
               payment_amount: paymentAmount,
               payment_reference: paymentReference,
-              payment_method: "MPESA",
+              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
               payment_type: "TOP_UP",
             },
             service_data: {
@@ -2009,8 +2032,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       }
     } else if (customerType === 'first-time' && newBatteryId) {
       // First-time customer payload
-      if (isQuotaBased) {
-        // Quota-based: No payment_data needed - customer is using existing quota credit
+      if (isQuotaBased && !isZeroCostRounding) {
+        // True quota-based: No payment_data needed - customer is using existing quota credit
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -2027,7 +2050,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           },
         };
       } else {
-        // Regular payment flow: Include payment_data
+        // Regular payment flow OR zero-cost rounding: Include payment_data
+        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
+        // even though customer paid 0 - this allows backend to track actual service value
         paymentAndServicePayload = {
           timestamp: new Date().toISOString(),
           plan_id: dynamicPlanId,
@@ -2040,7 +2065,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               service_id: serviceId,
               payment_amount: paymentAmount,
               payment_reference: paymentReference,
-              payment_method: "MPESA",
+              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
               payment_type: "DEPOSIT",
             },
             service_data: {
