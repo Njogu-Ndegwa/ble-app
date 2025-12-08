@@ -230,7 +230,7 @@ export default function BatteryInputSelector({
         </div>
       )}
 
-      {/* Device List - Always visible, no scrolling needed to discover */}
+      {/* Device List - Always visible with search for quick filtering */}
       {/* Filter to show only battery devices (those with "BATT" or "Batt" in name) */}
       {!isFirstTimeCustomer && (
         <div className="battery-input-device-list">
@@ -242,7 +242,7 @@ export default function BatteryInputSelector({
             onRescan={onStartScan}
             onStopScan={onStopScan}
             disabled={disabled}
-            hideSearch={true}
+            hideSearch={false}
             maxHeight="320px"
           />
         </div>

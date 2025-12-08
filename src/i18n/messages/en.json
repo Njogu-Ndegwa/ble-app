@@ -1211,7 +1211,7 @@
   "ble.bluetoothRequiredManual": "Make sure Bluetooth is ON to detect nearby batteries",
   "ble.bluetoothRequiredScan": "Make sure Bluetooth is ON before scanning",
   "ble.nearbyDevices": "Nearby Devices",
-  "ble.searchDevices": "Search by ID or MAC...",
+  "ble.searchDevices": "Search by name or ID (e.g., 0006)...",
   "ble.noDevicesFound": "No devices found nearby",
   "ble.noDevicesHint": "Make sure the battery is powered on and Bluetooth is enabled",
   "ble.noMatchingDevices": "No devices match your search",

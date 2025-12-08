@@ -1202,7 +1202,7 @@
   "ble.bluetoothRequiredManual": "Assurez-vous que le Bluetooth est activé pour détecter les batteries à proximité",
   "ble.bluetoothRequiredScan": "Assurez-vous que le Bluetooth est activé avant de scanner",
   "ble.nearbyDevices": "Appareils à proximité",
-  "ble.searchDevices": "Rechercher par ID ou MAC...",
+  "ble.searchDevices": "Rechercher par nom ou ID (ex: 0006)...",
   "ble.noDevicesFound": "Aucun appareil trouvé à proximité",
   "ble.noDevicesHint": "Assurez-vous que la batterie est allumée et que le Bluetooth est activé",
   "ble.noMatchingDevices": "Aucun appareil ne correspond à votre recherche",

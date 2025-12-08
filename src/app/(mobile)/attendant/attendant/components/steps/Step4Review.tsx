@@ -32,268 +32,323 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   const newLevel = swapData.newBattery?.chargeLevel ?? 0;
   const quotaValue = Math.round(swapData.quotaDeduction * swapData.rate);
 
-  // Calculate cost of energy in each battery
-  const oldBatteryValue = Math.round(oldBatteryKwh * swapData.rate);
-  const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
-  const energyDiffValue = Math.round(swapData.energyDiff * swapData.rate);
-
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
   
   return (
-    <div className="screen active" style={{ padding: '0 8px' }}>
-      {/* Payment Amount - Hero Section (Immediately Visible) */}
-      <div style={{
-        background: shouldSkipPayment 
-          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05))'
-          : 'linear-gradient(135deg, rgba(0, 229, 229, 0.15), rgba(0, 229, 229, 0.05))',
-        borderRadius: '12px',
-        padding: '12px 14px',
-        marginBottom: '10px',
-        border: shouldSkipPayment 
-          ? '1px solid rgba(16, 185, 129, 0.3)'
-          : '1px solid rgba(0, 229, 229, 0.3)'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {customerData && (
-              <div className="customer-avatar" style={{ width: '32px', height: '32px', fontSize: '11px', flexShrink: 0 }}>
-                {getInitials(customerData.name)}
-              </div>
-            )}
-            <div>
-              <div style={{ 
-                fontSize: '11px', 
-                color: 'rgba(255,255,255,0.5)',
-                marginBottom: '2px'
-              }}>
-                {shouldSkipPayment 
-                  ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
-                  : (t('attendant.customerPays') || 'Customer Pays')}
-              </div>
-              <div style={{ 
-                fontSize: '12px', 
-                color: 'rgba(255,255,255,0.7)',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: '120px'
-              }}>
-                {customerData?.name || 'Customer'}
-              </div>
+    <div className="review-screen">
+      {/* Customer & Payment Header */}
+      <div className="review-header">
+        <div className="review-customer">
+          {customerData && (
+            <div className="review-avatar">
+              {getInitials(customerData.name)}
             </div>
+          )}
+          <div className="review-customer-info">
+            <span className="review-customer-name">{customerData?.name || 'Customer'}</span>
+            <span className="review-label">
+              {shouldSkipPayment 
+                ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
+                : (t('attendant.customerPays') || 'Amount Due')}
+            </span>
           </div>
-          
+        </div>
+        
+        <div className={`review-amount ${shouldSkipPayment ? 'free' : ''}`}>
           {shouldSkipPayment ? (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              padding: '6px 14px',
-              background: 'rgba(16, 185, 129, 0.2)',
-              borderRadius: '20px'
-            }}>
-              <svg viewBox="0 0 24 24" fill="#10b981" width="18" height="18">
+            <>
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
               </svg>
-              <span style={{ fontSize: '16px', fontWeight: 700, color: '#10b981' }}>
-                {t('common.free') || 'FREE'}
-              </span>
-            </div>
+              <span>{t('common.free') || 'FREE'}</span>
+            </>
           ) : (
-            <div style={{ 
-              fontSize: '28px', 
-              fontWeight: 700, 
-              color: 'var(--accent)',
-              fontFamily: "'DM Mono', monospace"
-            }}>
-              {currency} {displayCost}
-            </div>
+            <span className="amount-value">{currency} {displayCost}</span>
           )}
         </div>
       </div>
 
-      {/* Compact Battery Comparison */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr',
-        gap: '8px',
-        alignItems: 'center',
-        background: 'var(--bg-secondary)',
-        borderRadius: '10px',
-        padding: '10px',
-        marginBottom: '10px',
-        border: '1px solid var(--border)'
-      }}>
+      {/* Battery Comparison */}
+      <div className="review-batteries">
         {/* Old Battery */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '10px', 
-            color: 'rgba(255,255,255,0.5)', 
-            marginBottom: '4px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            {t('attendant.returning') || 'RETURNING'}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <div className={`battery-icon-swap ${getBatteryClass(oldLevel)}`} style={{ width: '36px', height: '52px' }}>
+        <div className="review-battery">
+          <span className="battery-label">{t('attendant.returning') || 'Returning'}</span>
+          <div className="battery-visual">
+            <div className={`battery-icon-swap ${getBatteryClass(oldLevel)}`}>
               <div 
                 className="battery-level-swap" 
                 style={{ '--level': `${oldLevel}%` } as React.CSSProperties}
               />
-              <span className="battery-percent" style={{ fontSize: '10px' }}>{oldLevel}%</span>
-            </div>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>
-                {oldBatteryKwh.toFixed(2)} <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>kWh</span>
-              </div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
-                {currency} {oldBatteryValue}
-              </div>
+              <span className="battery-percent">{oldLevel}%</span>
             </div>
           </div>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
-            {swapData.oldBattery?.shortId || '---'}
+          <div className="battery-details">
+            <span className="battery-energy">{oldBatteryKwh.toFixed(2)} kWh</span>
+            <span className="battery-id">{swapData.oldBattery?.shortId || '---'}</span>
           </div>
         </div>
         
         {/* Arrow */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          width: '28px',
-          height: '28px',
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.05)'
-        }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '14px', height: '14px' }}>
+        <div className="review-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </div>
         
         {/* New Battery */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '10px', 
-            color: 'rgba(255,255,255,0.5)', 
-            marginBottom: '4px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}>
-            {t('attendant.receiving') || 'RECEIVING'}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <div className={`battery-icon-swap ${getBatteryClass(newLevel)}`} style={{ width: '36px', height: '52px' }}>
+        <div className="review-battery">
+          <span className="battery-label">{t('attendant.receiving') || 'Receiving'}</span>
+          <div className="battery-visual">
+            <div className={`battery-icon-swap ${getBatteryClass(newLevel)}`}>
               <div 
                 className="battery-level-swap" 
                 style={{ '--level': `${newLevel}%` } as React.CSSProperties}
               />
-              <span className="battery-percent" style={{ fontSize: '10px' }}>{newLevel}%</span>
-            </div>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'white' }}>
-                {newBatteryKwh.toFixed(2)} <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>kWh</span>
-              </div>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
-                {currency} {newBatteryValue}
-              </div>
+              <span className="battery-percent">{newLevel}%</span>
             </div>
           </div>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
-            {swapData.newBattery?.shortId || '---'}
+          <div className="battery-details">
+            <span className="battery-energy">{newBatteryKwh.toFixed(2)} kWh</span>
+            <span className="battery-id">{swapData.newBattery?.shortId || '---'}</span>
           </div>
         </div>
       </div>
 
-      {/* Energy Differential with kWh and Cost */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '12px',
-        background: 'rgba(0, 229, 229, 0.08)',
-        borderRadius: '8px',
-        padding: '8px 12px',
-        marginBottom: '10px',
-        border: '1px solid rgba(0, 229, 229, 0.15)'
-      }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px', flexShrink: 0 }}>
+      {/* Energy Gain */}
+      <div className="review-energy-gain">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-          <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--accent)' }}>
-            +{swapData.energyDiff.toFixed(2)} kWh
-          </span>
-          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
-            ({t('attendant.worth') || 'Worth'} {currency} {energyDiffValue})
-          </span>
-        </div>
+        <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
       </div>
 
-      {/* Compact Pricing Details */}
-      <div style={{
-        background: 'rgba(255,255,255,0.03)',
-        borderRadius: '8px',
-        padding: '10px 12px',
-        border: '1px solid rgba(255,255,255,0.06)'
-      }}>
-        {/* Rate */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          fontSize: '11px',
-          color: 'rgba(255,255,255,0.5)',
-          marginBottom: (hasPartialQuota || hasSufficientQuota) && swapData.quotaDeduction > 0 ? '6px' : '0'
-        }}>
+      {/* Pricing Summary */}
+      <div className="review-summary">
+        <div className="summary-row">
           <span>{t('attendant.rate') || 'Rate'}</span>
           <span>{currency} {swapData.rate}/{t('attendant.perKwh') || 'kWh'}</span>
         </div>
 
         {/* Quota Applied (if any) */}
         {(hasPartialQuota || hasSufficientQuota) && swapData.quotaDeduction > 0 && (
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            padding: '5px 8px',
-            background: 'rgba(16, 185, 129, 0.1)',
-            borderRadius: '5px',
-            marginTop: '4px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <svg viewBox="0 0 24 24" fill="#10b981" width="12" height="12">
+          <div className="summary-row quota">
+            <span>
+              <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
               </svg>
-              <span style={{ fontSize: '11px', color: '#10b981' }}>
-                {t('attendant.quotaCovered') || 'Quota Credit'} ({swapData.quotaDeduction.toFixed(2)} kWh)
-              </span>
-            </div>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#10b981' }}>
-              -{currency} {quotaValue}
+              {t('attendant.quotaCovered') || 'Quota Credit'} ({swapData.quotaDeduction.toFixed(2)} kWh)
             </span>
+            <span>-{currency} {quotaValue}</span>
           </div>
         )}
 
         {/* Partial quota note */}
         {hasPartialQuota && !shouldSkipPayment && (
-          <div style={{ 
-            fontSize: '10px', 
-            color: 'rgba(255,255,255,0.4)', 
-            textAlign: 'right',
-            marginTop: '4px'
-          }}>
+          <div className="summary-note">
             {t('attendant.chargeableEnergy') || 'To Pay'}: {swapData.chargeableEnergy.toFixed(2)} kWh
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        .review-screen {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          padding: 0 8px;
+        }
+
+        /* Header */
+        .review-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+        }
+
+        .review-customer {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .review-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: var(--accent);
+          color: var(--bg-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .review-customer-info {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .review-customer-name {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .review-label {
+          font-size: 12px;
+          color: var(--text-muted);
+        }
+
+        .review-amount {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 24px;
+          font-weight: 700;
+          color: var(--text-primary);
+          font-family: var(--font-mono);
+        }
+
+        .review-amount.free {
+          color: #10b981;
+          font-size: 16px;
+        }
+
+        /* Batteries */
+        .review-batteries {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          gap: 12px;
+          align-items: center;
+          padding: 16px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+        }
+
+        .review-battery {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .battery-label {
+          font-size: 11px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .battery-visual {
+          display: flex;
+          justify-content: center;
+        }
+
+        .battery-visual .battery-icon-swap {
+          width: 40px;
+          height: 56px;
+        }
+
+        .battery-visual .battery-percent {
+          font-size: 10px;
+        }
+
+        .battery-details {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+        }
+
+        .battery-energy {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .battery-id {
+          font-size: 10px;
+          color: var(--text-muted);
+          font-family: var(--font-mono);
+        }
+
+        .review-arrow {
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--accent);
+        }
+
+        .review-arrow svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        /* Energy Gain */
+        .review-energy-gain {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+          color: var(--accent);
+        }
+
+        .review-energy-gain svg {
+          width: 18px;
+          height: 18px;
+        }
+
+        .energy-value {
+          font-size: 16px;
+          font-weight: 600;
+        }
+
+        /* Summary */
+        .review-summary {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 12px 16px;
+          background: var(--bg-secondary);
+          border-radius: 12px;
+        }
+
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+
+        .summary-row.quota {
+          color: #10b981;
+          font-weight: 500;
+        }
+
+        .summary-row.quota span:first-child {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .summary-note {
+          font-size: 11px;
+          color: var(--text-muted);
+          text-align: right;
+        }
+      `}</style>
     </div>
   );
 }
