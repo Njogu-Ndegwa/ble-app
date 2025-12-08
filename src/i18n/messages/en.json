@@ -1088,6 +1088,7 @@
   "sales.completeService": "Complete Service",
   "sales.completingService": "Completing Service...",
   "sales.firstBatteryPromo": "First battery is provided as a promotional offer",
+  "sales.scanDifferentBattery": "Scan Different Battery",
   "sales.purchasedItems": "Purchased Items",
   "sales.package": "Package",
   "sales.subscription": "Subscription",

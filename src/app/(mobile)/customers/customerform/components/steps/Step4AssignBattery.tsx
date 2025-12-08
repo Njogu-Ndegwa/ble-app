@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CreditCard, CheckCircle } from 'lucide-react';
+import { CreditCard, CheckCircle, RefreshCw } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   BatteryInputSelector,
@@ -37,6 +37,8 @@ interface Step4Props {
   inputMode?: BatteryInputMode;
   /** Callback when input mode changes */
   onInputModeChange?: (mode: BatteryInputMode) => void;
+  /** Callback to re-scan a different battery (clears current scanned battery) */
+  onRescanBattery?: () => void;
 }
 
 /**
@@ -70,6 +72,7 @@ export default function Step4AssignBattery({
   isCompletingService = false,
   inputMode,
   onInputModeChange,
+  onRescanBattery,
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
@@ -133,6 +136,34 @@ export default function Step4AssignBattery({
             </>
           )}
         </button>
+
+        {/* Rescan Battery Button - allows scanning a different battery */}
+        {onRescanBattery && !isCompletingService && (
+          <button
+            className="rescan-battery-btn"
+            onClick={onRescanBattery}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '12px 16px',
+              marginTop: '12px',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              borderRadius: '8px',
+              color: 'var(--color-text-secondary)',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <RefreshCw size={16} />
+            <span>{t('sales.scanDifferentBattery') || 'Scan Different Battery'}</span>
+          </button>
+        )}
 
         <p className="scan-hint" style={{ marginTop: '16px', fontSize: '12px' }}>
           <InfoIcon />

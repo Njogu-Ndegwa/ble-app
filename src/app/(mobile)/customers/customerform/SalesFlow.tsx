@@ -1286,6 +1286,28 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     hookHandleQrScanned(device.name, 'old_battery');
   }, [hookHandleQrScanned]);
 
+  // Handle re-scanning a different battery - clears current scanned battery and allows scanning again
+  const handleRescanBattery = useCallback(() => {
+    console.info('[SALES BATTERY] Rescan requested - clearing current battery');
+    
+    // Clear the scanned battery state
+    setScannedBatteryPending(null);
+    
+    // Reset BLE state for a fresh scan
+    hookResetState();
+    
+    // Clear scanner state
+    setIsScannerOpening(false);
+    scanTypeRef.current = null;
+    
+    // Restart BLE scanning for device detection
+    if (bleIsReady) {
+      startBleScan();
+    }
+    
+    toast('Ready to scan a new battery');
+  }, [hookResetState, bleIsReady, startBleScan]);
+
   // Handle service completion - reports first battery assignment to backend via MQTT
   // This is for first-time customer with quota (promotional first battery)
   // Following the Attendant workflow pattern for customers with available quota
@@ -1904,6 +1926,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             scannedBattery={scannedBatteryPending}
             onCompleteService={handleCompleteService}
             isCompletingService={isCompletingService}
+            onRescanBattery={handleRescanBattery}
           />
         );
       case 7:
