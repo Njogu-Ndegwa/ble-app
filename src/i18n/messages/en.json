@@ -1236,6 +1236,7 @@
   "rider.phoneNumber": "Phone Number",
   "rider.enterPhone": "Enter your phone number",
   "rider.enterPhoneAndPassword": "Please enter phone number and password",
+  "rider.invalidPhoneRequest": "Invalid request. Please ensure your phone number is correct.",
   "rider.demoLoginSuccess": "Demo login successful",
   "rider.demoHint": "For demo access, use:",
   "rider.demoCredentials": "Phone: demo | Password: demo"
