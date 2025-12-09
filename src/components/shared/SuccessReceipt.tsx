@@ -181,6 +181,7 @@ export function buildSwapReceiptRows(
     },
     { 
       label: t('attendant.energy') || 'Energy', 
+      // data.energyDiff is already floored to 2 decimals
       value: `${data.energyDiff.toFixed(2)} kWh`,
       mono: true 
     },

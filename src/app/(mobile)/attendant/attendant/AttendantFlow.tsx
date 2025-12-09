@@ -216,11 +216,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           ? Math.min(remainingQuotaKwh, energyDiffKwh) 
           : 0;
         
-        // Chargeable energy after quota
-        const chargeableEnergy = Math.max(0, energyDiffKwh - quotaDeduction);
+        // Chargeable energy after quota - floor to 2 decimal places for consistency
+        const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
+        const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
         
-        // Cost based on chargeable energy
-        const cost = Math.round(chargeableEnergy * rate * 100) / 100;
+        // Cost = floored energy × rate (exact multiplication, no flooring)
+        // This is the true value of the energy for accurate quota tracking
+        // Customer pays Math.floor(cost) - whole number rounded down
+        const cost = chargeableEnergyFloored * rate;
         
         console.info('Energy differential calculated:', {
           oldEnergyWh: oldEnergy,
@@ -228,7 +231,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           energyDiffKwh,
           remainingQuotaKwh,
           quotaDeduction,
-          chargeableEnergy,
+          chargeableEnergy: chargeableEnergyFloored,
           ratePerKwh: rate,
           cost,
         });
@@ -236,10 +239,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return {
           ...prev,
           newBattery: battery,
-          // Energy values rounded to 2 decimal places for consistency with pricing
-          energyDiff: Math.floor(energyDiffKwh * 100) / 100,
+          // All values already floored to 2 decimal places above
+          energyDiff: energyDiffKwh,
           quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
-          chargeableEnergy: Math.floor(chargeableEnergy * 100) / 100,
+          chargeableEnergy: chargeableEnergyFloored,
           cost: cost > 0 ? cost : 0,
         };
       });
@@ -1959,21 +1962,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const newBatteryId = swapData.newBattery?.id || null;
     const oldBatteryId = swapData.oldBattery?.id || null;
 
-    // Battery energy is stored in Wh, convert to kWh for backend (divide by 1000)
-    const checkoutEnergyWh = swapData.newBattery?.energy || 0;
-    const checkinEnergyWh = swapData.oldBattery?.energy || 0;
-    const checkoutEnergyKwh = checkoutEnergyWh / 1000;
-    const checkinEnergyKwh = checkinEnergyWh / 1000;
-    let energyTransferred = customerType === 'returning' 
-      ? checkoutEnergyKwh - checkinEnergyKwh 
-      : checkoutEnergyKwh;
-    if (energyTransferred < 0) energyTransferred = 0;
+    // energyTransferred is already floored to 2 decimal places in swapData.energyDiff
+    const energyTransferred = Math.max(0, swapData.energyDiff);
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    // IMPORTANT: Report the ORIGINAL calculated amount (not rounded) for accurate quota calculations
-    // Even though customer pays the rounded amount (e.g., 20), we report the full precision (e.g., 20.54)
-    // This ensures quota tracking is accurate since the customer received 20.54 worth of energy
-    const paymentAmount = swapData.cost; // Always use original calculated cost for backend reporting
+    
+    // paymentAmount = swapData.cost (already floored to 2 decimals)
+    // swapData.cost = chargeableEnergy × rate, where chargeableEnergy is already floored
+    const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     // Determine if we should include payment_data:
@@ -1986,12 +1982,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       isQuotaBased,
       isZeroCostRounding,
       shouldIncludePaymentData,
-      ...(shouldIncludePaymentData ? { 
-        paymentAmount, // Full precision amount (what customer should have paid / service value)
-        paymentAmountRoundedForCustomer: Math.floor(swapData.cost), // What customer actually paid (0 for zero-cost rounding)
-        paymentReference 
-      } : {}),
-      energyTransferred,
+      // Energy and payment values (all floored to 2 decimals)
+      energyTransferred,                      // Total energy transferred (kWh)
+      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh)
+      rate: swapData.rate,                    // Rate per kWh
+      paymentAmount,                          // = chargeableEnergy × rate
+      ...(shouldIncludePaymentData ? { paymentReference } : {}),
       oldBatteryId,
       newBatteryId,
     });
