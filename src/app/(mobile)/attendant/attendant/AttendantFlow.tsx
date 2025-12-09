@@ -239,8 +239,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return {
           ...prev,
           newBattery: battery,
-          // Energy values floored to 2 decimal places for consistency with pricing
-          energyDiff: Math.floor(energyDiffKwh * 100) / 100,
+          // All values already floored to 2 decimal places above
+          energyDiff: energyDiffKwh,
           quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
           chargeableEnergy: chargeableEnergyFloored,
           cost: cost > 0 ? cost : 0,
