@@ -220,10 +220,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
         const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
         
-        // Cost based on floored chargeable energy
-        // IMPORTANT: Use Math.floor to round DOWN - ensures payment is never more than service value
-        // This guarantees the recorded payment amount matches the displayed/charged amount
-        const cost = Math.floor(chargeableEnergyFloored * rate * 100) / 100;
+        // Cost = floored energy × rate (exact multiplication, no flooring)
+        // This is the true value of the energy for accurate quota tracking
+        // Customer pays Math.floor(cost) - whole number rounded down
+        const cost = chargeableEnergyFloored * rate;
         
         console.info('Energy differential calculated:', {
           oldEnergyWh: oldEnergy,
