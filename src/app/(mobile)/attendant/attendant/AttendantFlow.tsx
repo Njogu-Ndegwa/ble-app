@@ -1962,21 +1962,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const newBatteryId = swapData.newBattery?.id || null;
     const oldBatteryId = swapData.oldBattery?.id || null;
 
-    // Use the pre-calculated energyDiff which is already floored to 2 decimal places
-    // This ensures consistency between what's displayed and what's reported to backend
-    let energyTransferred = swapData.energyDiff;
-    if (energyTransferred < 0) energyTransferred = 0;
-    // Floor to 2 decimal places to ensure consistent reporting
-    energyTransferred = Math.floor(energyTransferred * 100) / 100;
+    // energyTransferred is already floored to 2 decimal places in swapData.energyDiff
+    const energyTransferred = Math.max(0, swapData.energyDiff);
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
     
-    // IMPORTANT: Payment is calculated directly from the RECORDED energy values
-    // chargeableEnergy = energyDiff - quotaDeduction (already floored to 2 decimals)
-    // paymentAmount = chargeableEnergy × rate, floored to 2 decimals
-    // This ensures: payment = f(recorded_energy) - the payment is an exact function of recorded energy
-    const chargeableEnergyRecorded = Math.floor(swapData.chargeableEnergy * 100) / 100;
-    const paymentAmount = Math.floor(chargeableEnergyRecorded * swapData.rate * 100) / 100;
+    // paymentAmount = swapData.cost (already floored to 2 decimals)
+    // swapData.cost = chargeableEnergy × rate, where chargeableEnergy is already floored
+    const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     // Determine if we should include payment_data:
@@ -1990,10 +1983,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       isZeroCostRounding,
       shouldIncludePaymentData,
       // Energy and payment values (all floored to 2 decimals)
-      energyTransferred,           // Total energy: newBattery - oldBattery (kWh)
-      chargeableEnergyRecorded,    // After quota deduction (kWh)
-      rate: swapData.rate,         // Rate per kWh
-      paymentAmount,               // = chargeableEnergy × rate (floored)
+      energyTransferred,                      // Total energy transferred (kWh)
+      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh)
+      rate: swapData.rate,                    // Rate per kWh
+      paymentAmount,                          // = chargeableEnergy × rate
       ...(shouldIncludePaymentData ? { paymentReference } : {}),
       oldBatteryId,
       newBatteryId,
