@@ -261,10 +261,9 @@ const AppContainer: React.FC = () => {
           setCurrentPage("products");
         }
       } else {
-        // No token or email, redirect to products/login
+        // No token or phone stored - show login immediately (no delay needed)
         setCurrentPage("products");
       }
-      await new Promise(resolve => setTimeout(resolve, 2000));
       setIsCheckingAuth(false);
     };
 
