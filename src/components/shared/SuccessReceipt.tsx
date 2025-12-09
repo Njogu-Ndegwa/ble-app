@@ -181,7 +181,8 @@ export function buildSwapReceiptRows(
     },
     { 
       label: t('attendant.energy') || 'Energy', 
-      value: `${data.energyDiff.toFixed(2)} kWh`,
+      // Round DOWN to 2 decimal places (floor) for consistent energy reporting
+      value: `${(Math.floor(data.energyDiff * 100) / 100).toFixed(2)} kWh`,
       mono: true 
     },
     { 

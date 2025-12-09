@@ -133,7 +133,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
         </svg>
         <div className="energy-info">
-          <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
+          {/* Round DOWN energy to 2 decimal places for consistent reporting */}
+          <span className="energy-value">+{(Math.floor(swapData.energyDiff * 100) / 100).toFixed(2)} kWh</span>
           <span className="energy-money">
             {currency} {grossEnergyDiffValue.toFixed(2)}
           </span>
@@ -152,7 +153,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         <div className="summary-row calculation">
           <span className="calc-label">{t('attendant.powerBeingSold') || 'Energy purchased'}</span>
           <span className="calc-formula">
-            {swapData.energyDiff.toFixed(2)} × {swapData.rate} = <strong>{currency} {grossEnergyDiffValue.toFixed(2)}</strong>
+            {/* Round DOWN energy to 2 decimal places for consistent reporting */}
+            {(Math.floor(swapData.energyDiff * 100) / 100).toFixed(2)} × {swapData.rate} = <strong>{currency} {grossEnergyDiffValue.toFixed(2)}</strong>
           </span>
         </div>
 
