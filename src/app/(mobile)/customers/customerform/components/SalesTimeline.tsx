@@ -13,25 +13,41 @@ interface SalesTimelineProps {
 // Map step icons to translation keys
 const STEP_LABEL_KEYS: Record<string, string> = {
   customer: 'sales.step.customer',
-  plan: 'sales.step.plan',
+  package: 'sales.step.package',
+  plan: 'sales.step.subscription',
+  preview: 'sales.step.preview',
   payment: 'sales.step.payment',
   battery: 'sales.step.battery',
   done: 'sales.step.done',
 };
 
 // Step icons as SVG components
-const StepIcons = {
+const StepIcons: Record<string, React.ReactNode> = {
   customer: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
       <circle cx="12" cy="7" r="4"/>
     </svg>
   ),
+  package: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+  ),
   plan: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <path d="M14 2v6h6"/>
-      <path d="M16 13H8M16 17H8M10 9H8"/>
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
+  preview: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
     </svg>
   ),
   payment: (
@@ -59,7 +75,7 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
   
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
-      return step === 5 ? 'success' : 'active';
+      return step === 7 ? 'success' : 'active';
     }
     if (step < currentStep) return 'completed';
     if (step <= maxStepReached) return 'reachable';

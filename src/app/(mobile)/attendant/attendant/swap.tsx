@@ -15,6 +15,7 @@ import {
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import { initServiceBleData } from "@/app/utils";
+import { MqttReconnectBanner } from "@/components/shared";
 
 // ABS topics use hardcoded payloads as per docs; publish via bridge like BLE page..
 // PLAN_ID is now dynamically set from subscription_code in scanned QR code
@@ -23,17 +24,8 @@ const STATION = "STATION_001";
 const PAYMENT_CONFIRMATION_ENDPOINT =
   "https://crm-omnivoltaic.odoo.com/api/lipay/manual-confirm";
 
-interface MqttConfig {
-  username: string;
-  password: string;
-  clientId: string;
-  hostname: string;
-  port: number;
-  protocol?: string;
-  clean?: boolean;
-  connectTimeout?: number;
-  reconnectPeriod?: number;
-}
+// NOTE: MQTT connection is handled globally by bridgeContext.tsx
+// No need for local MqttConfig - uses global connection with auto-reconnection
 
 interface WebViewJavascriptBridge {
   init: (
@@ -68,7 +60,9 @@ interface SwapProps {
 
 const Swap: React.FC<SwapProps> = ({ customer }) => {
   const { t } = useI18n();
-  const { bridge, isBridgeReady, isMqttConnected: globalMqttConnected } = useBridge();
+  // Use global MQTT connection from bridgeContext (connects at splash screen)
+  // This leverages the auto-reconnection mechanism for unstable networks
+  const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
   const [currentPhase, setCurrentPhase] = useState<"A1" | "A3">("A1");
   const [customerType, setCustomerType] = useState<
     "first-time" | "returning" | null
@@ -216,6 +210,10 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
       }
     }
     
+    // IMPORTANT: Round energy to 2 decimal places BEFORE calculating cost
+    // This ensures consistent pricing (e.g., 2.54530003 kWh → 2.54 kWh)
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
+    
     // Only calculate if energy transferred is positive
     if (energyTransferred <= 0) {
       return null;
@@ -230,15 +228,13 @@ const Swap: React.FC<SwapProps> = ({ customer }) => {
     setCalculatedPaymentAmount(calculatePaymentAmount);
   }, [calculatePaymentAmount]);
 
-  
-  const bridgeInitRef = useRef(false);
   const scanTypeRef = useRef<
     "customer" | "equipment" | "checkin" | "checkout" | "payment" | null
   >(null);
   const modalScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const equipmentSectionRef = useRef<HTMLDivElement | null>(null);
   const hasScrolledToEquipmentRef = useRef<boolean>(false);
-  const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
+  // NOTE: isMqttConnected now comes from useBridge() - global connection with auto-reconnect
 
   const formatDisplayValue = (
     value?: string | number | null,
@@ -1320,14 +1316,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         return () => b.registerHandler(name, noop);
       };
 
-      if (!bridgeInitRef.current) {
-        bridgeInitRef.current = true;
-        try {
-          b.init((_m, r) => r("js success!"));
-        } catch (err) {
-          console.error("Bridge init error", err);
-        }
-      }
+      // NOTE: bridge.init() is already called in bridgeContext.tsx
+      // Do NOT call init() again here as it causes the app to hang
 
       // MQTT message callback for echo/# responses
       const offMqttRecv = reg(
@@ -1833,7 +1823,35 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
           setIsComputingEnergy(false); // Energy computation failed
           stopBleScan();
           scanTypeRef.current = null;
-          toast.error(t("BLE connection failed. Please try again."));
+          
+          // CRITICAL: Clear any stale MAC address state to prevent "macAddress is not match" error
+          // Even though connection failed, there might be stale state from a previous attempt
+          const staleMac = sessionStorage.getItem("connectedDeviceMac");
+          if (staleMac && window.WebViewJavascriptBridge) {
+            console.info("Clearing stale BLE connection state for:", staleMac);
+            window.WebViewJavascriptBridge.callHandler("disconnectBle", staleMac, () => {});
+          }
+          sessionStorage.removeItem("connectedDeviceMac");
+          setConnectedBleDevice(null);
+          
+          // Check if this is a MAC mismatch error
+          let isMacMismatch = false;
+          try {
+            const parsed = typeof data === "string" ? JSON.parse(data) : data;
+            const respDesc = parsed?.respDesc || "";
+            const respCode = parsed?.respCode || "";
+            isMacMismatch = respCode === "7" || 
+                           respDesc.toLowerCase().includes("macaddress is not match") ||
+                           respDesc.toLowerCase().includes("macaddress not match");
+          } catch {
+            isMacMismatch = typeof data === "string" && data.toLowerCase().includes("macaddress");
+          }
+          
+          if (isMacMismatch) {
+            toast.error(t("ble.connectionStuck") || "Bluetooth connection stuck. Please turn Bluetooth OFF then ON.");
+          } else {
+            toast.error(t("BLE connection failed. Please try again."));
+          }
           resp(data);
         }
       );
@@ -1875,129 +1893,47 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
         (data: string) => {
           console.error("Failed to initialize DTA service:", data);
           setIsComputingEnergy(false); // Energy computation failed
-          toast.error(t("Unable to read device energy data. Please try again."));
-        }
-      );
-
-      const offConnectMqtt = reg(
-        "connectMqttCallBack",
-        (data: string, resp: any) => {
+          
+          // CRITICAL: Clear BLE state to prevent "macAddress is not match" error on next attempt
+          // When DTA service read fails, the native layer may have disconnected but we still have stale state
+          const connectedMac = sessionStorage.getItem("connectedDeviceMac");
+          if (connectedMac && window.WebViewJavascriptBridge) {
+            console.info("Disconnecting from device after DTA service failure:", connectedMac);
+            window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {
+              console.info("Disconnected from device after DTA service failure");
+            });
+          }
+          sessionStorage.removeItem("connectedDeviceMac");
+          setConnectedBleDevice(null);
+          
+          // Check if this is a MAC mismatch error (respCode 7)
+          let isMacMismatch = false;
           try {
-            const parsedData =
-              typeof data === "string" ? JSON.parse(data) : data;
-            console.info("=== MQTT Connection Callback ===");
-            console.info(
-              "Connection Callback Data:",
-              JSON.stringify(parsedData, null, 2)
-            );
-
-            // Handle nested data structure - the actual response may be inside a 'data' field as a string
-            let actualData = parsedData;
-            if (parsedData?.data && typeof parsedData.data === "string") {
-              try {
-                actualData = JSON.parse(parsedData.data);
-                console.info("Parsed nested data:", JSON.stringify(actualData, null, 2));
-              } catch {
-                // If nested data parsing fails, use the original
-                actualData = parsedData;
-              }
-            }
-
-            // Check if connection was successful - check both outer and inner data
-            const isConnected =
-              parsedData?.connected === true ||
-              parsedData?.status === "connected" ||
-              parsedData?.respCode === "200" ||
-              actualData?.connected === true ||
-              actualData?.status === "connected" ||
-              actualData?.respCode === "200" ||
-              actualData?.respData === true ||
-              (actualData && !actualData.error && !parsedData.error);
-
-            if (isConnected) {
-              console.info("MQTT connection confirmed as connected");
-              setIsMqttConnected(true);
-            } else {
-              console.warn(
-                "MQTT connection callback indicates not connected:",
-                parsedData
-              );
-              setIsMqttConnected(false);
-            }
-            resp("Received MQTT Connection Callback");
-          } catch (err) {
-            console.error("Error parsing MQTT connection callback:", err);
-            // If we can parse it, assume connection might be OK but log the error
-            console.warn("Assuming MQTT connection is OK despite parse error");
-            setIsMqttConnected(true);
-            resp("Received MQTT Connection Callback");
+            const parsed = JSON.parse(data);
+            const respDesc = parsed?.responseData?.respDesc || parsed?.respDesc || "";
+            const respCode = parsed?.responseData?.respCode || parsed?.respCode || "";
+            isMacMismatch = respCode === "7" || 
+                           respDesc.toLowerCase().includes("macaddress is not match") ||
+                           respDesc.toLowerCase().includes("macaddress not match");
+          } catch {
+            isMacMismatch = data.toLowerCase().includes("macaddress");
+          }
+          
+          if (isMacMismatch) {
+            toast.error(t("ble.connectionStuck") || "Bluetooth connection stuck. Please turn Bluetooth OFF then ON.");
+          } else {
+            toast.error(t("Unable to read device energy data. Please try again."));
           }
         }
       );
 
-      // Generate unique client ID to avoid conflicts when multiple devices connect
-      // Format: attendant-{timestamp}-{random}
-      const generateClientId = () => {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substring(2, 9);
-        return `attendant-${ATTENDANT_ID}-${timestamp}-${random}`;
-      };
-
-      const mqttConfig: MqttConfig = {
-        username: "Admin",
-        password: "7xzUV@MT",
-        clientId: generateClientId(),
-        hostname: "mqtt.omnivoltaic.com",
-        port: 1883,
-        protocol: "mqtt",
-        clean: true,
-        connectTimeout: 40000,
-        reconnectPeriod: 1000,
-      };
-
-      console.info("=== Initiating MQTT Connection ===");
-      console.info("MQTT Config:", { ...mqttConfig, password: "***" });
-
-      b.callHandler("connectMqtt", mqttConfig, (resp: string) => {
-        try {
-          const p = typeof resp === "string" ? JSON.parse(resp) : resp;
-          console.info("=== MQTT Connect Response ===");
-          console.info("Connect Response:", JSON.stringify(p, null, 2));
-
-          // Handle nested data structure
-          let actualResp = p;
-          if (p?.responseData && typeof p.responseData === "string") {
-            try {
-              actualResp = JSON.parse(p.responseData);
-              console.info("Parsed nested responseData:", JSON.stringify(actualResp, null, 2));
-            } catch {
-              actualResp = p;
-            }
-          }
-
-          if (p.error || actualResp.error) {
-            const errorMsg = p.error?.message || p.error || actualResp.error?.message || actualResp.error;
-            console.error("MQTT connection error:", errorMsg);
-            setIsMqttConnected(false);
-          } else if (p.respCode === "200" || actualResp.respCode === "200" || p.success === true || actualResp.respData === true) {
-            console.info("MQTT connection initiated successfully");
-            // Connection state will be confirmed by connectMqttCallBack
-          } else {
-            console.warn(
-              "MQTT connection response indicates potential issue:",
-              p
-            );
-          }
-        } catch (err) {
-          console.error("Error parsing MQTT response:", err);
-          // Don't set connection to false on parse error, wait for callback
-        }
-      });
+      // NOTE: MQTT connection is handled globally by bridgeContext.tsx (connects at splash screen)
+      // This provides auto-reconnection for unstable networks (e.g., VPN issues in China)
+      // No need to connect here - just use the global connection from useBridge()
 
       return () => {
         offMqttRecv();
         offQr();
-        offConnectMqtt();
         offFindBle();
         offBleConnectSuccess();
         offBleConnectFail();
@@ -2077,6 +2013,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   }, [t]);
 
   const handleStartCustomerScan = () => {
+    // Guard: Check MQTT connection before starting customer scan
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[ATTENDANT] Cannot start customer scan - MQTT not connected');
+      return;
+    }
+    
     setCustomerData(null);
     setCustomerIdentified(false);
     setPaymentState(null);
@@ -2101,6 +2044,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   }, [detectedBleDevices]);
 
   const handleStartCheckinScan = () => {
+    // Guard: Check MQTT connection before starting checkin scan
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[ATTENDANT] Cannot start checkin scan - MQTT not connected');
+      return;
+    }
+    
     setCheckinEquipmentId(null);
     setCheckinEquipmentIdFull(null);
     setDetectedBleDevices([]);
@@ -2122,6 +2072,13 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
   };
 
   const handleStartCheckoutScan = () => {
+    // Guard: Check MQTT connection before starting checkout scan
+    if (!isMqttConnected) {
+      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      console.error('[ATTENDANT] Cannot start checkout scan - MQTT not connected');
+      return;
+    }
+    
     setCheckoutEquipmentId(null);
     scanTypeRef.current = "checkout";
     setIsScanningCheckout(true);
@@ -2588,6 +2545,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       ? parseFloat(checkinEnergyTransferred)
       : 0;
     
+    // Calculate energy transferred and round to 2 decimal places BEFORE using for any calculations
     let energyTransferred = 0;
     if (customerType === "returning") {
       energyTransferred = checkoutEnergy - checkinEnergy;
@@ -2597,6 +2555,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     if (energyTransferred < 0) {
       energyTransferred = 0;
     }
+    // IMPORTANT: Round to 2 decimal places for consistent pricing (e.g., 2.54530003 → 2.54)
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
 
     const serviceCompletionDetails: Record<string, any> = {
       new_battery_id: formattedCheckoutId,
@@ -2768,6 +2728,7 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
       ? parseFloat(checkinEnergyTransferred)
       : 0;
 
+    // Calculate energy transferred and round to 2 decimal places BEFORE using for any calculations
     let energyTransferred = 0;
     if (customerType === "returning") {
       energyTransferred = checkoutEnergy - checkinEnergy;
@@ -2777,6 +2738,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
     if (energyTransferred < 0) {
       energyTransferred = 0;
     }
+    // IMPORTANT: Round to 2 decimal places for consistent pricing (e.g., 2.54530003 → 2.54)
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
 
     const serviceId = electricityService?.service_id || "service-electricity-togo-1";
     const paymentAmount =
@@ -3090,43 +3053,64 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                       )}
                     </div>
                     
-                    {/* Service States */}
+                    {/* Service States - Filter out infinite quota services (quota > 100,000) */}
                     {serviceStates && serviceStates.length > 0 && (
                       <div className="pt-2 border-t border-gray-500">
                         <p className="text-sm font-medium text-white mb-2">{t("Service States")}:</p>
                         <div className="space-y-2">
-                          {serviceStates.map((service, index) => (
-                            <div key={index} className="bg-gray-700 rounded-lg p-3 space-y-1">
-                              <p className="text-xs text-gray-300">
-                                <span className="font-medium text-white">{t("Service ID")}:</span>{" "}
-                                {formatDisplayValue(service.service_id)}
-                              </p>
-                              {service.name && (
-                                <p className="text-xs text-gray-300">
-                                  <span className="font-medium text-white">{t("Name")}:</span>{" "}
-                                  {formatDisplayValue(service.name)}
-                                </p>
-                              )}
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-300">
-                                  <span className="font-medium text-white">{t("Used")}:</span> {service.used}
-                                </span>
-                                <span className="text-gray-300">
-                                  <span className="font-medium text-white">{t("Quota")}:</span> {service.quota.toLocaleString()}
-                                </span>
-                              </div>
-                              {service.usageUnitPrice !== undefined && (
-                                <p className="text-xs text-gray-300">
-                                  <span className="font-medium text-white">{t("Usage Unit Price")}:</span>{" "}
-                                  {service.usageUnitPrice.toLocaleString()}
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-300">
-                                <span className="font-medium text-white">{t("Current Asset")}:</span>{" "}
-                                {formatDisplayValue(service.current_asset, t("None"))}
-                              </p>
-                            </div>
-                          ))}
+                          {serviceStates
+                            .filter((service) => service.quota <= 100000) // Filter out infinite quota management services
+                            .map((service, index) => {
+                              // Calculate remaining quota and its value
+                              const remaining = service.quota - service.used;
+                              const quotaValue = service.usageUnitPrice !== undefined 
+                                ? remaining * service.usageUnitPrice 
+                                : undefined;
+                              
+                              return (
+                                <div key={index} className="bg-gray-700 rounded-lg p-3 space-y-1">
+                                  <p className="text-xs text-gray-300">
+                                    <span className="font-medium text-white">{t("Service ID")}:</span>{" "}
+                                    {formatDisplayValue(service.service_id)}
+                                  </p>
+                                  {service.name && (
+                                    <p className="text-xs text-gray-300">
+                                      <span className="font-medium text-white">{t("Name")}:</span>{" "}
+                                      {formatDisplayValue(service.name)}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-300">
+                                      <span className="font-medium text-white">{t("Used")}:</span> {service.used}
+                                    </span>
+                                    <span className="text-gray-300">
+                                      <span className="font-medium text-white">{t("Quota")}:</span> {service.quota.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  {/* Show remaining quota with value */}
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-300">
+                                      <span className="font-medium text-white">{t("Remaining")}:</span> {remaining.toLocaleString()}
+                                    </span>
+                                    {quotaValue !== undefined && (
+                                      <span className="text-green-400 font-medium">
+                                        ≈ {Math.round(quotaValue).toLocaleString()} XOF
+                                      </span>
+                                    )}
+                                  </div>
+                                  {service.usageUnitPrice !== undefined && (
+                                    <p className="text-xs text-gray-300">
+                                      <span className="font-medium text-white">{t("Usage Unit Price")}:</span>{" "}
+                                      {service.usageUnitPrice.toLocaleString()}
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-gray-300">
+                                    <span className="font-medium text-white">{t("Current Asset")}:</span>{" "}
+                                    {formatDisplayValue(service.current_asset, t("None"))}
+                                  </p>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     )}
@@ -3541,6 +3525,10 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
               </button>
             )}
           </div>
+          {/* MQTT Reconnection Banner - shows when connection is lost */}
+          <div className="px-4 pt-2">
+            <MqttReconnectBanner />
+          </div>
           <div className="overflow-y-auto flex-1" ref={modalScrollContainerRef}>
             {renderModalContent()}
           </div>
@@ -3552,18 +3540,24 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
 
   if (!isSwapModalOpen) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex">
-        <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-none md:rounded-r-2xl shadow-2xl space-y-6 p-8 md:p-10 text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">
-            {t("Start Swap")}
-          </h1>
-          <button
-            onClick={handleStartSwap}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3 transition-all duration-200"
-          >
-            <QrCode className="w-5 h-5" />
-            {t("Start Swap")}
-          </button>
+      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex flex-col">
+        {/* MQTT Reconnection Banner - shows when connection is lost */}
+        <div className="px-4 pt-4">
+          <MqttReconnectBanner />
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-md bg-gray-800 border border-gray-700 rounded-none md:rounded-r-2xl shadow-2xl space-y-6 p-8 md:p-10 text-center">
+            <h1 className="text-2xl font-bold text-white mb-4">
+              {t("Start Swap")}
+            </h1>
+            <button
+              onClick={handleStartSwap}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3 transition-all duration-200"
+            >
+              <QrCode className="w-5 h-5" />
+              {t("Start Swap")}
+            </button>
+          </div>
         </div>
       </div>
     );

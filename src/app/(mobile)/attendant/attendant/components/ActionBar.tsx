@@ -10,6 +10,9 @@ interface ActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   inputMode?: 'scan' | 'manual';
+  paymentInputMode?: 'scan' | 'manual';
+  hasSufficientQuota?: boolean;
+  swapCost?: number;
 }
 
 // Icon components for action bar
@@ -34,6 +37,11 @@ const ActionIcons = {
       <path d="M5 12h14M12 5l7 7-7 7"/>
     </svg>
   ),
+  check: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  ),
   plus: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14M5 12h14"/>
@@ -53,7 +61,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSufficientQuota?: boolean, paymentInputMode?: 'scan' | 'manual', swapCost?: number): StepActionConfig => {
   switch (step) {
     case 1:
       // Show different text/icon based on input mode
@@ -66,9 +74,23 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): Step
     case 3:
       return { showBack: true, mainTextKey: 'attendant.scanNewBattery', mainIcon: 'scan' };
     case 4:
+      // Show "Complete Swap" with check icon when:
+      // 1. Customer has sufficient quota, OR
+      // 2. Rounded cost is zero or negative (nothing to collect)
+      // NOTE: We use Math.floor because customers can't pay decimals (e.g., 0.54 rounds to 0)
+      const roundedCost = swapCost !== undefined ? Math.floor(swapCost) : undefined;
+      const shouldSkipPayment = hasSufficientQuota || (roundedCost !== undefined && roundedCost <= 0);
+      if (shouldSkipPayment) {
+        return { showBack: true, mainTextKey: 'attendant.completeSwap', mainIcon: 'check', mainClass: 'btn-success' };
+      }
       return { showBack: true, mainTextKey: 'attendant.collectPayment', mainIcon: 'arrow' };
     case 5:
-      return { showBack: true, mainTextKey: 'attendant.confirmPayment', mainIcon: 'qr' };
+      // Show appropriate icon based on payment input mode (scan QR or manual entry)
+      return { 
+        showBack: true, 
+        mainTextKey: 'attendant.confirmPayment', 
+        mainIcon: paymentInputMode === 'manual' ? 'check' : 'qr' 
+      };
     case 6:
       return { showBack: false, mainTextKey: 'attendant.startNewSwap', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
@@ -76,13 +98,12 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual'): Step
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode }: ActionBarProps) {
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost }: ActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, inputMode);
+  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode, swapCost);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
-  // Don't show for step 5 either - Step5Payment has its own action buttons for both scan and manual modes
-  const hideMainButton = (currentStep === 1 && inputMode === 'manual') || currentStep === 5;
+  const hideMainButton = currentStep === 1 && inputMode === 'manual';
 
   return (
     <div className="action-bar">

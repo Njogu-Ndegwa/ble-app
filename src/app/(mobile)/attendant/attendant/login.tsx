@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from 'next/navigation';
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
+import { Globe } from 'lucide-react';
 import Image from "next/image";
 import { 
   employeeLogin, 
@@ -53,7 +55,8 @@ interface FormErrors {
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' }) => {
-  const { t } = useI18n();
+  const router = useRouter();
+  const { locale, setLocale, t } = useI18n();
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -67,6 +70,25 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
       setEmail(storedEmail);
     }
   }, []);
+
+  // Lock body overflow for fixed container
+  useEffect(() => {
+    document.body.classList.add('overflow-locked');
+    return () => {
+      document.body.classList.remove('overflow-locked');
+    };
+  }, []);
+
+  // Toggle locale function
+  const toggleLocale = useCallback(() => {
+    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
+    setLocale(nextLocale);
+  }, [locale, setLocale]);
+
+  // Navigate back to roles page
+  const handleBackToRoles = useCallback(() => {
+    router.push('/');
+  }, [router]);
   
   // Registration form state
   const [formData, setFormData] = useState<FormData>({
@@ -319,26 +341,48 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
   // Registration Form
   if (showRegister) {
     return (
-    <div className="login-container">
-      {/* Back Button */}
-      <button className="back-link" onClick={() => setShowRegister(false)} style={{ position: 'absolute', top: 16, left: 16 }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        {t('Back')}
-      </button>
+    <div className="login-page-container">
+      <div className="login-bg-gradient" />
+      
+      {/* Header with Back + Logo on left, Language Toggle on right */}
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          <div className="flow-header-left">
+            <button 
+              className="flow-header-back" 
+              onClick={() => setShowRegister(false)}
+              aria-label={t('Back')}
+              title={t('Back')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+          </div>
+          <div className="flow-header-right">
+            <button
+              className="flow-header-lang"
+              onClick={toggleLocale}
+              aria-label={t('role.switchLanguage')}
+            >
+              <Globe size={14} />
+              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* Logo */}
-      <div className="login-logo" style={{ marginBottom: 24 }}>
-        <Image
-          src="/assets/Logo-Oves.png"
-          alt="Omnivoltaic"
-          width={140}
-          height={48}
-          style={{ objectFit: 'contain' }}
-          priority
-        />
-      </div>
+      <div className="login-container">
 
       {/* Header */}
       <div className="login-header">
@@ -534,35 +578,65 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
           </p>
         </div>
       </div>
+    </div>
     );
   }
 
   // Login Form
   return (
-    <div className="login-container">
-      {/* Logo */}
-      <div className="login-logo" style={{ marginBottom: 24 }}>
-        <Image
-          src="/assets/Logo-Oves.png"
-          alt="Omnivoltaic"
-          width={140}
-          height={48}
-          style={{ objectFit: 'contain' }}
-          priority
-        />
-      </div>
-
-      {/* Header */}
-      <div className="login-header">
-        <div className="login-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
-          </svg>
+    <div className="login-page-container">
+      <div className="login-bg-gradient" />
+      
+      {/* Header with Back + Logo on left, Language Toggle on right */}
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          <div className="flow-header-left">
+            <button 
+              className="flow-header-back" 
+              onClick={handleBackToRoles}
+              aria-label={t('Back')}
+              title={t('Back')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+          </div>
+          <div className="flow-header-right">
+            <button
+              className="flow-header-lang"
+              onClick={toggleLocale}
+              aria-label={t('role.switchLanguage')}
+            >
+              <Globe size={14} />
+              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+          </div>
         </div>
-        <h1 className="login-title">{t('Staff Login')}</h1>
-        <p className="login-subtitle">{t('Sign in to access your workspace')}</p>
-      </div>
+      </header>
+
+      <div className="login-container">
+        {/* Header */}
+        <div className="login-header">
+          <div className="login-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <h1 className="login-title">{t('Staff Login')}</h1>
+          <p className="login-subtitle">{t('Sign in to access your workspace')}</p>
+        </div>
 
       {/* Login Form */}
       <div className="login-form">
@@ -666,6 +740,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
           {t('Need help? Contact your supervisor')}
         </p>
       </div>
+    </div>
     </div>
   );
 };

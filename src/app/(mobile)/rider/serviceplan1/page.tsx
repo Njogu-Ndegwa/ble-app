@@ -131,7 +131,7 @@ const AppContainer: React.FC = () => {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
   const [pendingOrder, setPendingOrder] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "login" | "settings" | "qr-generator" | "payment-qr">("login");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "products" | "transactions" | "charging stations" | "support" | "settings" | "qr-generator" | "payment-qr">("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isLocationListenerActive, setIsLocationListenerActive] = useState<boolean>(false);
   const [lastKnownLocation, setLastKnownLocation] = useState<LocationData | null>(null);
@@ -1720,7 +1720,7 @@ const AppContainer: React.FC = () => {
       case "dashboard":
         return <Dashboard customer={customer} />;
       case "products":
-        return isLoggedIn ? (
+        return (
           <Products 
             allPlans={allPlans} 
             onSelectPlan={handleSelectPlan}
@@ -1731,7 +1731,7 @@ const AppContainer: React.FC = () => {
             isLoading={isLoadingPlans}
             onPageChange={handlePlansPageChange}
           />
-        ) : <Login onLoginSuccess={handleLoginSuccess} />;
+        );
       case "transactions":
         return <Payments paymentHistory={paymentHistory} />;
       case "charging stations":
@@ -1744,8 +1744,6 @@ const AppContainer: React.FC = () => {
         return <PaymentQR customer={customer} />;
       case "qr-generator":
         return <QRGenerator customer={customer} isMqttConnected={isMqttConnected} />;
-      case "login":
-        return <Login onLoginSuccess={handleLoginSuccess} />;
       default:
         return <Dashboard customer={customer} />;
     }
@@ -1755,14 +1753,58 @@ const AppContainer: React.FC = () => {
     console.log("Current state:", { isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds });
   }, [isLoggedIn, selectedPlan, customer, currentPage, allPlans, orderId, lastKnownLocation, fleetIds]);
 
+  // Show loading state while checking auth (same as Attendant)
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-gray-600" />
+      <div className="splash-screen">
+        <div className="splash-loading">
+          <div className="splash-loading-dots">
+            <div className="splash-loading-dot"></div>
+            <div className="splash-loading-dot"></div>
+            <div className="splash-loading-dot"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // When not logged in, render Login directly (same pattern as Attendant/Sales)
+  if (!isLoggedIn) {
+    return (
+      <>
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: "var(--bg-tertiary)",
+              color: "var(--text-primary)",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: "1px solid var(--border)",
+              fontSize: "13px",
+              fontFamily: "'Outfit', sans-serif",
+            },
+            success: {
+              iconTheme: {
+                primary: "#00d9a0",
+                secondary: "white",
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ff5a5a",
+                secondary: "white",
+              },
+            },
+          }}
+        />
+        <Login onLoginSuccess={handleLoginSuccess} />
+      </>
+    );
+  }
+
+  // When logged in, render the full app with sidebar and navigation
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex">
       <Toaster
@@ -2034,90 +2076,86 @@ const AppContainer: React.FC = () => {
         </div>
       )}
 
-      {!isLoggedIn ? (
-        <Login onLoginSuccess={handleLoginSuccess} />
-      ) : (
-        <>
-          <div
-            className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform ${
-              sidebarOpen ? "translate-x-0" : "-translate-x-full"
-            } transition-transform duration-300 ease-in-out`}
+      {/* Sidebar */}
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } transition-transform duration-300 ease-in-out`}
+      >
+        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
+          <h2 className="text-xl font-bold text-white">{t("Menu")}</h2>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="text-gray-400 hover:text-white"
           >
-            <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
-              <h2 className="text-xl font-bold text-white">{t("Menu")}</h2>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+            <X className="w-6 h-6" />
+          </button>
+        </div>
 
-            <div className="flex flex-col h-full">
-              <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-                {menuItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        if (item.id === "logout") {
-                          handleSignOut();
-                        } else {
-                          setCurrentPage(item.id as any);
-                          setSidebarOpen(false);
-                        }
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-all duration-200 ${
-                        currentPage === item.id
-                          ? "bg-gray-600 text-white shadow-lg"
-                          : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      {t(item.labelKey)}
-                    </button>
-                  );
-                })}
-              </nav>
+        <div className="flex flex-col h-full">
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.id === "logout") {
+                      handleSignOut();
+                    } else {
+                      setCurrentPage(item.id as any);
+                      setSidebarOpen(false);
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-all duration-200 ${
+                    currentPage === item.id
+                      ? "bg-gray-600 text-white shadow-lg"
+                      : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {t(item.labelKey)}
+                </button>
+              );
+            })}
+          </nav>
 
-              <div className="p-4 border-t border-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-600 rounded-full p-2">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{customer?.name || "User"}</p>
-                    <p className="text-xs text-gray-400 truncate">{customer?.email || "No email"}</p>
-                  </div>
-                </div>
+          <div className="p-4 border-t border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 rounded-full p-2">
+                <User className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{customer?.name || "User"}</p>
+                <p className="text-xs text-gray-400 truncate">{customer?.email || "No email"}</p>
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-40"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
-
-          <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
-            <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="text-gray-400 hover:text-white"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
-              <h1 className="text-xl font-bold text-white capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
-              <div className="w-6" />
-            </div>
-
-            <div className="flex-1 p-6 overflow-auto">{renderMainContent()}</div>
-          </div>
-        </>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
+
+      {/* Main content area */}
+      <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
+        <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-gray-400 hover:text-white"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <h1 className="text-xl font-bold text-white capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
+          <div className="w-6" />
+        </div>
+
+        <div className="flex-1 p-6 overflow-auto">{renderMainContent()}</div>
+      </div>
     </div>
   );
 };

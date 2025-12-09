@@ -30,6 +30,59 @@ export interface OdooSession {
   user: OdooRegisteredCustomer;
 }
 
+// Physical product data (bikes, tuks, etc.) from main_service category
+export interface ProductData {
+  id: string;           // Will be product ID from Odoo
+  odooProductId: number; // Original Odoo product ID
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  currencySymbol: string;
+  imageUrl: string | null;  // Cloudinary URL for product image
+  categoryName: string;
+  defaultCode: string;
+}
+
+// Package component - individual items within a package
+export interface PackageComponent {
+  id: number;
+  name: string;
+  default_code: string;
+  description: string;
+  list_price: number;
+  price_unit: number;
+  quantity: number;
+  currency_id: number;
+  currency_name: string;
+  currencySymbol: string;
+  category_id: number;
+  category_name: string;
+  image_url: string | null;
+  is_main_service: boolean;  // True if this is the main product (bike, tuk, etc.)
+  is_battery_swap: boolean;  // True if this is a battery swap privilege
+}
+
+// Package data - combines product + privilege into a bundle
+// Think of it like a hotel dish: you don't separate the cost of chef, meat, and rice
+export interface PackageData {
+  id: string;
+  odooPackageId: number;
+  name: string;
+  description: string;
+  price: number;          // Total package price (what customer pays)
+  currency: string;
+  currencySymbol: string;
+  imageUrl: string | null;  // Image from main service component
+  defaultCode: string;
+  isPackage: boolean;
+  componentCount: number;
+  components: PackageComponent[];
+  // Extracted component details for easy access
+  mainProduct?: PackageComponent;      // The main product (bike, tuk, etc.)
+  batterySwapPrivilege?: PackageComponent;  // The battery swap privilege
+}
+
 // Plan data from Odoo subscription products API
 export interface PlanData {
   id: string;           // Will be product ID from Odoo
@@ -90,20 +143,23 @@ export interface BleScanState {
   requiresBluetoothReset: boolean;
 }
 
-export type SalesStep = 1 | 2 | 3 | 4 | 5;
+// Sales flow now has 7 steps: Customer -> Package -> Subscription -> Preview -> Payment -> Battery -> Done
+export type SalesStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface StepConfig {
   step: number;
   label: string;
-  icon: 'customer' | 'plan' | 'payment' | 'battery' | 'done';
+  icon: 'customer' | 'package' | 'plan' | 'preview' | 'payment' | 'battery' | 'done';
 }
 
 export const STEP_CONFIGS: StepConfig[] = [
   { step: 1, label: 'Customer', icon: 'customer' },
-  { step: 2, label: 'Plan', icon: 'plan' },
-  { step: 3, label: 'Payment', icon: 'payment' },
-  { step: 4, label: 'Battery', icon: 'battery' },
-  { step: 5, label: 'Done', icon: 'done' },
+  { step: 2, label: 'Package', icon: 'package' },
+  { step: 3, label: 'Subscription', icon: 'plan' },
+  { step: 4, label: 'Preview', icon: 'preview' },
+  { step: 5, label: 'Payment', icon: 'payment' },
+  { step: 6, label: 'Battery', icon: 'battery' },
+  { step: 7, label: 'Done', icon: 'done' },
 ];
 
 // No fallback plans - Odoo is the only source of truth for subscription plans

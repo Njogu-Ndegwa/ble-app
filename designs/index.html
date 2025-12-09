@@ -1911,6 +1911,7 @@
             margin-bottom: 1px;
         }
 
+
         .stat-label {
             font-size: 10px;
             text-transform: uppercase;
@@ -2873,6 +2874,136 @@
             font-weight: 400;
         }
 
+        /* Vehicle Product Selection Grid */
+        .vehicle-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .vehicle-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .vehicle-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--accent-soft) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .vehicle-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px -6px var(--accent-glow);
+        }
+
+        .vehicle-card:hover::before {
+            opacity: 1;
+        }
+
+        .vehicle-card.selected {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .vehicle-card.selected::before {
+            opacity: 1;
+        }
+
+        .vehicle-card-check {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            z-index: 2;
+        }
+
+        .vehicle-card.selected .vehicle-card-check {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .vehicle-card-check svg {
+            width: 12px;
+            height: 12px;
+            color: var(--text-muted);
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.2s ease;
+        }
+
+        .vehicle-card.selected .vehicle-card-check svg {
+            color: var(--logo-icon-text);
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .vehicle-image {
+            width: 100%;
+            height: 90px;
+            object-fit: contain;
+            position: relative;
+            z-index: 1;
+            margin-bottom: 8px;
+        }
+
+        .vehicle-info {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            width: 100%;
+        }
+
+        .vehicle-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .vehicle-type {
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .vehicle-price {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            background: var(--bg-tertiary);
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            display: inline-block;
+        }
+
+        .vehicle-card.selected .vehicle-price {
+            background: var(--accent);
+            color: var(--logo-icon-text);
+        }
+
         /* Customer Preview Card */
         .preview-card {
             background: var(--bg-secondary);
@@ -3111,6 +3242,229 @@
             font-size: 12px;
         }
 
+        /* QR Modal Styles */
+        .qr-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--loading-overlay);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 250;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            padding: 20px;
+        }
+        
+        .qr-modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .qr-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            width: 100%;
+            max-width: 340px;
+            overflow: hidden;
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        
+        .qr-modal-overlay.active .qr-modal {
+            transform: scale(1) translateY(0);
+        }
+        
+        .qr-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .qr-modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .qr-modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .qr-modal-close:hover {
+            background: var(--accent-soft);
+        }
+        
+        .qr-modal-close svg {
+            width: 18px;
+            height: 18px;
+            color: var(--text-secondary);
+        }
+        
+        .qr-modal-body {
+            padding: 20px;
+        }
+        
+        .qr-modal-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        
+        .qr-input-group {
+            margin-bottom: 16px;
+        }
+        
+        .qr-input-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        
+        .qr-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-family: 'DM Mono', monospace;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+        
+        .qr-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+        
+        .qr-input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        .qr-generate-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            color: #0a0f0f;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .qr-generate-btn:hover {
+            background: #00d4d4;
+            transform: translateY(-1px);
+        }
+        
+        .qr-generate-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .qr-display-section {
+            text-align: center;
+        }
+        
+        .qr-code-container {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 16px;
+            padding: 12px;
+            background: #ffffff;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .qr-code-container svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .qr-transaction-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            margin-bottom: 12px;
+        }
+        
+        .qr-transaction-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .qr-transaction-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .qr-instruction {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+        
+        .qr-new-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .qr-new-btn:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+        
+        .qr-new-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
         /* Back to Roles Button */
         .back-to-roles {
             display: flex;
@@ -3150,6 +3504,1433 @@
         .main::-webkit-scrollbar-thumb {
             background: var(--border);
             border-radius: 2px;
+        }
+
+        /* ===================== */
+        /* RIDER MODULE STYLES   */
+        /* ===================== */
+        
+        /* Bottom Navigation Bar for Rider */
+        .rider-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 430px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 8px 16px 24px;
+            display: flex;
+            justify-content: space-around;
+            z-index: 100;
+        }
+        
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .rider-nav {
+                padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            }
+        }
+        
+        .rider-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+        }
+        
+        .rider-nav-item:hover {
+            color: var(--text-secondary);
+        }
+        
+        .rider-nav-item.active {
+            color: var(--accent);
+        }
+        
+        .rider-nav-item svg {
+            width: 22px;
+            height: 22px;
+            transition: all 0.2s ease;
+        }
+        
+        .rider-nav-item.active svg {
+            color: var(--accent);
+        }
+        
+        .rider-nav-label {
+            font-size: 10px;
+            font-weight: 500;
+        }
+        
+        /* Rider Dashboard Header */
+        .rider-dashboard-header {
+            padding: 0 0 12px;
+        }
+        
+        .rider-greeting {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        
+        .rider-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        /* Rider Bike Card - Shows rider's vehicle */
+        .rider-bike-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 16px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .rider-bike-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .rider-bike-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .rider-bike-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .rider-bike-model {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .rider-bike-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .rider-bike-status.active {
+            background: var(--success-soft);
+            color: var(--success);
+        }
+        
+        .rider-bike-status.inactive {
+            background: var(--error-soft);
+            color: var(--error);
+        }
+        
+        .rider-bike-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .rider-bike-image {
+            width: 100px;
+            height: 80px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .rider-bike-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+        }
+        
+        .rider-bike-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .rider-bike-detail {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .rider-bike-detail-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .rider-bike-detail-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        /* Battery Hero Card - Main dashboard widget */
+        .battery-hero-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 16px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .battery-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .battery-hero-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .battery-hero-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .battery-hero-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .battery-hero-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .battery-hero-status.charged {
+            background: var(--success-soft);
+            color: var(--success);
+        }
+        
+        .battery-hero-status.low {
+            background: var(--error-soft);
+            color: var(--error);
+        }
+        
+        .battery-hero-status.charging {
+            background: var(--info-soft);
+            color: var(--info);
+        }
+        
+        .battery-visual {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Circular battery gauge */
+        .battery-gauge {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            flex-shrink: 0;
+        }
+        
+        .battery-gauge-bg {
+            stroke: var(--border);
+            fill: none;
+            stroke-width: 8;
+        }
+        
+        .battery-gauge-fill {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            transition: stroke-dasharray 0.5s ease;
+        }
+        
+        .battery-gauge-fill.good {
+            stroke: var(--success);
+        }
+        
+        .battery-gauge-fill.warning {
+            stroke: #f0a500;
+        }
+        
+        .battery-gauge-fill.critical {
+            stroke: var(--error);
+        }
+        
+        .battery-gauge-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .battery-gauge-percent {
+            font-family: 'DM Mono', monospace;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: block;
+            line-height: 1;
+        }
+        
+        .battery-gauge-label {
+            font-size: 9px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        .battery-hero-info {
+            flex: 1;
+        }
+        
+        .battery-hero-range {
+            margin-bottom: 10px;
+        }
+        
+        .battery-hero-range-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+        
+        .battery-hero-range-unit {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+        
+        .battery-hero-range-label {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        
+        .battery-hero-stats {
+            display: flex;
+            gap: 16px;
+        }
+        
+        .battery-hero-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .battery-hero-stat-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .battery-hero-stat-label {
+            font-size: 9px;
+            color: var(--text-muted);
+        }
+        
+        /* Account Balance Card */
+        .account-balance-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 14px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .account-balance-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .account-balance-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            background: var(--accent-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .account-balance-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--accent);
+        }
+        
+        .account-balance-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+        
+        .account-balance-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .account-balance-action {
+            padding: 8px 14px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .account-balance-action:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px -4px var(--accent-glow);
+        }
+        
+        /* Section Headers */
+        .rider-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        
+        .rider-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .rider-section-link {
+            font-size: 11px;
+            color: var(--accent);
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+        
+        .rider-section-link:hover {
+            opacity: 0.8;
+        }
+        
+        /* Nearby Stations Map */
+        .stations-map-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        
+        .stations-map {
+            height: 180px;
+            background: var(--bg-tertiary);
+            position: relative;
+        }
+        
+        .stations-map-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            gap: 8px;
+        }
+        
+        .stations-map-placeholder svg {
+            width: 32px;
+            height: 32px;
+            opacity: 0.5;
+        }
+        
+        .stations-map-placeholder span {
+            font-size: 11px;
+        }
+        
+        /* Simulated Map with Station Pins */
+        .map-visual {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-elevated) 100%);
+            overflow: hidden;
+        }
+        
+        .map-grid {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(var(--border-subtle) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+            background-size: 30px 30px;
+            opacity: 0.5;
+        }
+        
+        .map-user-marker {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: var(--accent);
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0, 229, 229, 0.5);
+            z-index: 10;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .map-user-pulse {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: mapPulse 2s ease-out infinite;
+            opacity: 0.5;
+        }
+        
+        @keyframes mapPulse {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+        
+        .map-station-pin {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            z-index: 5;
+        }
+        
+        .map-station-pin:hover {
+            transform: scale(1.1);
+            z-index: 11;
+        }
+        
+        .map-station-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--success);
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 217, 160, 0.4);
+        }
+        
+        .map-station-icon svg {
+            width: 14px;
+            height: 14px;
+            color: white;
+            transform: rotate(45deg);
+        }
+        
+        .map-station-label {
+            margin-top: 4px;
+            padding: 2px 6px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            font-size: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Station List */
+        .stations-list {
+            padding: 10px;
+        }
+        
+        .station-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .station-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .station-item:hover {
+            background: var(--bg-elevated);
+        }
+        
+        .station-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            background: var(--success-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .station-icon svg {
+            width: 18px;
+            height: 18px;
+            color: var(--success);
+        }
+        
+        .station-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .station-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+        
+        .station-details {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        
+        .station-distance {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .station-distance svg {
+            width: 10px;
+            height: 10px;
+        }
+        
+        .station-availability {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .station-availability-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+        
+        .station-availability-dot.low {
+            background: #f0a500;
+        }
+        
+        .station-nav-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent-soft);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .station-nav-btn svg {
+            width: 16px;
+            height: 16px;
+            color: var(--accent);
+        }
+        
+        .station-nav-btn:hover {
+            background: var(--accent);
+        }
+        
+        .station-nav-btn:hover svg {
+            color: white;
+        }
+        
+        /* History/Activity Screen */
+        .activity-filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        
+        .activity-filters::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .activity-filter {
+            padding: 8px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+        
+        .activity-filter:hover {
+            border-color: var(--accent);
+        }
+        
+        .activity-filter.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-primary);
+        }
+        
+        /* Activity/Transaction List */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .activity-date-header {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            padding: 8px 0 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .activity-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .activity-item:hover {
+            border-color: var(--accent);
+        }
+        
+        .activity-item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .activity-item-icon.swap {
+            background: var(--accent-soft);
+        }
+        
+        .activity-item-icon.swap svg {
+            color: var(--accent);
+        }
+        
+        .activity-item-icon.payment {
+            background: var(--success-soft);
+        }
+        
+        .activity-item-icon.payment svg {
+            color: var(--success);
+        }
+        
+        .activity-item-icon.topup {
+            background: var(--info-soft);
+        }
+        
+        .activity-item-icon.topup svg {
+            color: var(--info);
+        }
+        
+        .activity-item-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .activity-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .activity-item-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+        
+        .activity-item-subtitle {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        
+        .activity-item-meta {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        
+        .activity-item-amount {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .activity-item-amount.negative {
+            color: var(--text-primary);
+        }
+        
+        .activity-item-amount.positive {
+            color: var(--success);
+        }
+        
+        .activity-item-time {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        
+        /* Profile/Account Screen */
+        .profile-header {
+            text-align: center;
+            padding: 16px 0 24px;
+        }
+        
+        .profile-avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            font-weight: 600;
+            color: white;
+            margin: 0 auto 12px;
+            box-shadow: 0 4px 16px -4px var(--accent-glow);
+        }
+        
+        .profile-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .profile-phone {
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        
+        /* Subscription Card */
+        .subscription-card {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .subscription-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .subscription-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .subscription-plan {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 4px;
+        }
+        
+        .subscription-validity {
+            font-size: 11px;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 12px;
+        }
+        
+        .subscription-stats {
+            display: flex;
+            gap: 16px;
+        }
+        
+        .subscription-stat {
+            flex: 1;
+            background: rgba(255,255,255,0.15);
+            border-radius: var(--radius-md);
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .subscription-stat-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .subscription-stat-label {
+            font-size: 9px;
+            color: rgba(255,255,255,0.8);
+            text-transform: uppercase;
+        }
+        
+        /* Energy Service Card - Profile Page */
+        .energy-service-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 16px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .energy-service-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .energy-service-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+        
+        .energy-service-icon svg {
+            width: 24px;
+            height: 24px;
+            color: #0a0f0f;
+        }
+        
+        .energy-service-title {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .energy-service-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .energy-service-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--success);
+            font-weight: 500;
+        }
+        
+        .energy-service-status .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+        
+        .energy-service-visual {
+            position: relative;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+        
+        .energy-service-bike {
+            max-height: 90px;
+            max-width: 160px;
+            object-fit: contain;
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
+        }
+        
+        .energy-service-glow {
+            position: absolute;
+            width: 200px;
+            height: 60px;
+            background: radial-gradient(ellipse, var(--accent-soft) 0%, transparent 70%);
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+        
+        .energy-service-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .energy-stat-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+        
+        .energy-stat-card.primary {
+            background: linear-gradient(135deg, var(--accent-soft) 0%, var(--bg-tertiary) 100%);
+            border-color: var(--accent);
+        }
+        
+        .energy-stat-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .energy-stat-card.primary .energy-stat-icon {
+            background: var(--accent);
+        }
+        
+        .energy-stat-icon svg {
+            width: 18px;
+            height: 18px;
+            color: var(--accent);
+        }
+        
+        .energy-stat-card.primary .energy-stat-icon svg {
+            color: #0a0f0f;
+        }
+        
+        .energy-stat-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .energy-stat-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .energy-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .energy-service-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        
+        .energy-plan-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .energy-plan-validity {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        /* Menu List */
+        .menu-list {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .menu-item:last-child {
+            border-bottom: none;
+        }
+        
+        .menu-item:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .menu-item-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .menu-item-icon svg {
+            width: 18px;
+            height: 18px;
+            color: var(--text-secondary);
+        }
+        
+        .menu-item-content {
+            flex: 1;
+        }
+        
+        .menu-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .menu-item-subtitle {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        
+        .menu-item-arrow {
+            color: var(--text-muted);
+        }
+        
+        .menu-item-arrow svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .menu-item.logout {
+            color: var(--error);
+        }
+        
+        .menu-item.logout .menu-item-icon {
+            background: var(--error-soft);
+        }
+        
+        .menu-item.logout .menu-item-icon svg {
+            color: var(--error);
+        }
+        
+        .menu-item.logout .menu-item-title {
+            color: var(--error);
+        }
+        
+        /* Quick Actions Grid */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .quick-action {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .quick-action:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px -4px var(--accent-glow);
+        }
+        
+        .quick-action-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--accent-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .quick-action-icon svg {
+            width: 22px;
+            height: 22px;
+            color: var(--accent);
+        }
+        
+        .quick-action-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-primary);
+            text-align: center;
+        }
+        
+        /* Full Map Screen */
+        .full-map-container {
+            position: relative;
+            height: calc(100vh - 200px);
+            min-height: 400px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        
+        .full-map-container .map-visual {
+            position: absolute;
+            inset: 0;
+        }
+        
+        /* Station Detail Card - Floating */
+        .station-detail-card {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 14px;
+            box-shadow: 0 8px 32px -8px rgba(0,0,0,0.4);
+            z-index: 20;
+        }
+        
+        .station-detail-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .station-detail-info {
+            flex: 1;
+        }
+        
+        .station-detail-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .station-detail-address {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .station-detail-stats {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .station-detail-stat {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .station-detail-stat-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .station-detail-stat-label {
+            font-size: 9px;
+            color: var(--text-muted);
+        }
+        
+        .station-detail-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .station-detail-actions .btn {
+            font-size: 12px;
+            padding: 10px;
+        }
+        
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+        
+        .empty-state-icon svg {
+            width: 28px;
+            height: 28px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .empty-state-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        
+        /* Rider screen animations */
+        .rider-screen {
+            display: none;
+            animation: fadeSlideIn 0.3s ease-out;
+        }
+        
+        .rider-screen.active {
+            display: block;
+        }
+        
+        /* Rider module main area padding adjustment */
+        #module-rider .main {
+            padding-bottom: 100px;
         }
     </style>
 </head>
@@ -3363,7 +5144,7 @@
                         </div>
 
                         <!-- Rider -->
-                        <div class="role-applet disabled" onclick="toggleRoleSelection(this, 'rider')" data-role="rider">
+                        <div class="role-applet" onclick="toggleRoleSelection(this, 'rider')" data-role="rider">
                             <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M20 6L9 17l-5-5"/>
                             </svg>
@@ -3371,7 +5152,6 @@
                                 <img src="assets/Rider.png" alt="Rider">
                             </div>
                             <span class="role-applet-label">Rider</span>
-                            <span class="role-applet-badge">Coming Soon</span>
                         </div>
                     </div>
 
@@ -3417,12 +5197,13 @@
                     <!-- Login Form -->
                     <div class="login-form">
                         <div class="form-group">
-                            <label class="form-label">Phone Number</label>
+                            <label class="form-label">Email Address</label>
                             <div class="input-with-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                    <path d="M22 6l-10 7L2 6"/>
                                 </svg>
-                                <input type="tel" class="form-input" id="login-phone" placeholder="+254 7XX XXX XXX">
+                                <input type="email" class="form-input" id="login-email" placeholder="yourname@oves.com">
                             </div>
                         </div>
 
@@ -3846,11 +5627,11 @@
                         </div>
                         <div class="cost-row">
                             <span class="cost-label">Rate</span>
-                            <span class="cost-value">KES 120/kWh</span>
+                            <span class="cost-value">XOF 565/kWh</span>
                         </div>
                         <div class="cost-total">
                             <span class="cost-total-label">Total Due</span>
-                            <span class="cost-total-value">KES 196</span>
+                            <span class="cost-total-value">XOF 920</span>
                         </div>
                     </div>
                 </div>
@@ -3860,7 +5641,7 @@
                     <div class="cost-card" style="margin-bottom: 8px;">
                         <div class="cost-total" style="margin-top: 0;">
                             <span class="cost-total-label">Amount to Collect</span>
-                            <span class="cost-total-value">KES 196</span>
+                            <span class="cost-total-value">XOF 920</span>
                         </div>
                     </div>
 
@@ -3902,7 +5683,7 @@
                                 </div>
                             </div>
                             
-                            <div class="payment-amount">KES 196.00</div>
+                            <div class="payment-amount">XOF 920</div>
                             <div class="payment-status">Tap to scan customer QR</div>
                         </div>
                         
@@ -3923,7 +5704,7 @@
                                 </button>
                             </div>
                             
-                            <div class="payment-amount" style="margin-top: 8px;">KES 196.00</div>
+                            <div class="payment-amount" style="margin-top: 8px;">XOF 920</div>
                             <p class="scan-hint" style="margin-top: 4px;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10"/>
@@ -3969,7 +5750,7 @@
                             </div>
                             <div class="receipt-row">
                                 <span class="receipt-label">Amount Paid</span>
-                                <span class="receipt-value" style="color: var(--success);">KES 196.00</span>
+                                <span class="receipt-value" style="color: var(--success);">XOF 920</span>
                             </div>
                             <div class="receipt-row">
                                 <span class="receipt-label">Time</span>
@@ -4011,7 +5792,7 @@
                 Change Role
             </div>
 
-            <!-- Interactive Timeline - 4 steps -->
+            <!-- Interactive Timeline - 6 steps -->
             <div class="flow-timeline" id="sales-timeline">
                 <div class="timeline-track">
                     <!-- Step 1: Customer -->
@@ -4026,8 +5807,22 @@
                     </div>
                     <div class="timeline-connector" data-after="1"></div>
                     
-                    <!-- Step 2: Plan -->
+                    <!-- Step 2: Product -->
                     <div class="timeline-step disabled" data-step="2" onclick="salesTimelineClick(2)">
+                        <div class="timeline-dot">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="7" cy="17" r="2"/>
+                                <circle cx="17" cy="17" r="2"/>
+                                <path d="M5 17H3v-6l2-4h9l4 4h3v6h-2"/>
+                                <path d="M9 17h6"/>
+                            </svg>
+                        </div>
+                        <span class="timeline-label">Vehicle</span>
+                    </div>
+                    <div class="timeline-connector" data-after="2"></div>
+                    
+                    <!-- Step 3: Plan -->
+                    <div class="timeline-step disabled" data-step="3" onclick="salesTimelineClick(3)">
                         <div class="timeline-dot">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -4037,10 +5832,22 @@
                         </div>
                         <span class="timeline-label">Plan</span>
                     </div>
-                    <div class="timeline-connector" data-after="2"></div>
+                    <div class="timeline-connector" data-after="3"></div>
                     
-                    <!-- Step 3: Battery -->
-                    <div class="timeline-step disabled" data-step="3" onclick="salesTimelineClick(3)">
+                    <!-- Step 4: Payment -->
+                    <div class="timeline-step disabled" data-step="4" onclick="salesTimelineClick(4)">
+                        <div class="timeline-dot">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="1" y="4" width="22" height="16" rx="2"/>
+                                <path d="M1 10h22"/>
+                            </svg>
+                        </div>
+                        <span class="timeline-label">Payment</span>
+                    </div>
+                    <div class="timeline-connector" data-after="4"></div>
+                    
+                    <!-- Step 5: Battery -->
+                    <div class="timeline-step disabled" data-step="5" onclick="salesTimelineClick(5)">
                         <div class="timeline-dot">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="2" y="7" width="16" height="10" rx="2"/>
@@ -4050,10 +5857,10 @@
                         </div>
                         <span class="timeline-label">Battery</span>
                     </div>
-                    <div class="timeline-connector" data-after="3"></div>
+                    <div class="timeline-connector" data-after="5"></div>
                     
-                    <!-- Step 4: Done -->
-                    <div class="timeline-step disabled" data-step="4" onclick="salesTimelineClick(4)">
+                    <!-- Step 6: Done -->
+                    <div class="timeline-step disabled" data-step="6" onclick="salesTimelineClick(6)">
                         <div class="timeline-dot">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M20 6L9 17l-5-5"/>
@@ -4071,108 +5878,254 @@
                     <p class="scan-subtitle" style="text-align: center; margin-bottom: 12px;">Enter customer details to get started</p>
 
                     <div class="form-section">
-                        <div class="form-section-title">Personal Information</div>
+                        <div class="form-section-title">Contact Information</div>
                         
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">First Name</label>
-                                <input type="text" class="form-input" id="firstName" placeholder="John">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Last Name</label>
-                                <input type="text" class="form-input" id="lastName" placeholder="Doe">
-                            </div>
+                        <div class="form-group">
+                            <label class="form-label">Customer Name</label>
+                            <input type="text" class="form-input" id="customerName" placeholder="ABC Customer Ltd">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-input" id="customerEmail" placeholder="customer@example.com">
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">Phone Number</label>
-                            <input type="tel" class="form-input" id="phone" placeholder="+254 7XX XXX XXX">
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">National ID</label>
-                            <input type="text" class="form-input" id="nationalId" placeholder="Enter ID number">
+                            <input type="tel" class="form-input" id="customerPhone" placeholder="+254712345678">
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <div class="form-section-title">Vehicle Information</div>
+                        <div class="form-section-title">Address</div>
                         
                         <div class="form-group">
-                            <label class="form-label">Vehicle Registration</label>
-                            <input type="text" class="form-input" id="vehicleReg" placeholder="KXX 000X">
+                            <label class="form-label">Street Address</label>
+                            <input type="text" class="form-input" id="customerStreet" placeholder="123 Main Street">
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label class="form-label">Vehicle Type</label>
-                                <input type="text" class="form-input" id="vehicleType" placeholder="Motorcycle">
+                                <label class="form-label">City</label>
+                                <input type="text" class="form-input" id="customerCity" placeholder="Nairobi">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Model</label>
-                                <input type="text" class="form-input" id="vehicleModel" placeholder="TVS HLX 125">
+                                <label class="form-label">ZIP Code</label>
+                                <input type="text" class="form-input" id="customerZip" placeholder="00100">
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Screen 2: Select Subscription -->
+                <!-- Screen 2: Select Product (Vehicle) -->
+                <div class="screen" id="sales-screen-product">
+                    <h2 class="scan-title" style="text-align: center; margin-bottom: 4px;">Select Vehicle</h2>
+                    <p class="scan-subtitle" style="text-align: center; margin-bottom: 12px;">Choose the product to purchase</p>
+
+                    <div class="vehicle-grid">
+                        <div class="vehicle-card selected" onclick="selectVehicle(this, 'tuktuk2')">
+                            <div class="vehicle-card-check">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 6L9 17l-5-5"/>
+                                </svg>
+                            </div>
+                            <img src="assets/Tuk-2.png" alt="Tuk-Tuk" class="vehicle-image">
+                            <div class="vehicle-info">
+                                <div class="vehicle-name">Oves Tuk-Tuk</div>
+                                <div class="vehicle-type">Electric Tuk-Tuk</div>
+                                <div class="vehicle-price">XOF 1,175,000</div>
+                            </div>
+                        </div>
+
+                        <div class="vehicle-card" onclick="selectVehicle(this, 'etrike')">
+                            <div class="vehicle-card-check">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 6L9 17l-5-5"/>
+                                </svg>
+                            </div>
+                            <img src="assets/E-3-one.png" alt="E-Trike" class="vehicle-image">
+                            <div class="vehicle-info">
+                                <div class="vehicle-name">E-Trike 3X</div>
+                                <div class="vehicle-type">Electric Tricycle</div>
+                                <div class="vehicle-price">XOF 565,000</div>
+                            </div>
+                        </div>
+
+                        <div class="vehicle-card" onclick="selectVehicle(this, 'etrike-cargo')">
+                            <div class="vehicle-card-check">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 6L9 17l-5-5"/>
+                                </svg>
+                            </div>
+                            <img src="assets/F-3-one.png" alt="E-Trike Cargo" class="vehicle-image">
+                            <div class="vehicle-info">
+                                <div class="vehicle-name">E-Trike Cargo</div>
+                                <div class="vehicle-type">Cargo Tricycle</div>
+                                <div class="vehicle-price">XOF 680,000</div>
+                            </div>
+                        </div>
+
+                        <div class="vehicle-card" onclick="selectVehicle(this, 'tuktuk')">
+                            <div class="vehicle-card-check">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 6L9 17l-5-5"/>
+                                </svg>
+                            </div>
+                            <img src="assets/Tuk-One.png" alt="Tuk-Tuk" class="vehicle-image">
+                            <div class="vehicle-info">
+                                <div class="vehicle-name">Oves Tuk-Tuk</div>
+                                <div class="vehicle-type">Passenger Vehicle</div>
+                                <div class="vehicle-price">XOF 1,315,000</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 3: Select Subscription -->
                 <div class="screen" id="sales-screen-subscription">
-                    <h2 class="scan-title" style="text-align: center; margin-bottom: 4px;">Choose Plan</h2>
-                    <p class="scan-subtitle" style="text-align: center; margin-bottom: 12px;">Select a subscription package</p>
+                    <h2 class="scan-title" style="text-align: center; margin-bottom: 4px;">Battery Plan</h2>
+                    <p class="scan-subtitle" style="text-align: center; margin-bottom: 12px;">Select battery subscription package</p>
 
                     <div class="product-grid">
-                        <div class="product-card" onclick="selectProduct(this, 'daily')">
+                        <div class="product-card" onclick="selectPlan(this, 'daily')">
                             <div class="product-radio"></div>
                             <div class="product-info">
                                 <div class="product-name">Daily Pass</div>
                                 <div class="product-desc">Unlimited swaps for 24 hours</div>
                             </div>
                             <div class="product-price">
-                                KES 150
+                                XOF 705
                                 <span class="product-price-period">/day</span>
                             </div>
                         </div>
 
-                        <div class="product-card selected" onclick="selectProduct(this, 'weekly')">
+                        <div class="product-card selected" onclick="selectPlan(this, 'weekly')">
                             <div class="product-radio"></div>
                             <div class="product-info">
                                 <div class="product-name">Weekly Plan</div>
                                 <div class="product-desc">Unlimited swaps for 7 days</div>
                             </div>
                             <div class="product-price">
-                                KES 800
+                                XOF 3,760
                                 <span class="product-price-period">/week</span>
                             </div>
                         </div>
 
-                        <div class="product-card" onclick="selectProduct(this, 'monthly')">
+                        <div class="product-card" onclick="selectPlan(this, 'monthly')">
                             <div class="product-radio"></div>
                             <div class="product-info">
                                 <div class="product-name">Monthly Plan</div>
                                 <div class="product-desc">Unlimited swaps for 30 days</div>
                             </div>
                             <div class="product-price">
-                                KES 2,500
+                                XOF 11,750
                                 <span class="product-price-period">/month</span>
                             </div>
                         </div>
 
-                        <div class="product-card" onclick="selectProduct(this, 'payperswap')">
+                        <div class="product-card" onclick="selectPlan(this, 'payperswap')">
                             <div class="product-radio"></div>
                             <div class="product-info">
                                 <div class="product-name">Pay-Per-Swap</div>
                                 <div class="product-desc">Pay only when you swap</div>
                             </div>
                             <div class="product-price">
-                                KES 0
+                                XOF 0
                                 <span class="product-price-period">deposit</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Screen 3: Assign Battery -->
+                <!-- Screen 4: Confirm Payment -->
+                <div class="screen" id="sales-screen-payment">
+                    <div class="cost-card" style="margin-bottom: 8px;">
+                        <div class="cost-item">
+                            <span class="cost-label" id="sales-product-label">Oves E-Bike</span>
+                            <span class="cost-value" id="sales-product-price">XOF 400,000</span>
+                        </div>
+                        <div class="cost-item">
+                            <span class="cost-label" id="sales-plan-label">Weekly Plan</span>
+                            <span class="cost-value" id="sales-plan-price">XOF 3,760</span>
+                        </div>
+                        <div class="cost-total" style="margin-top: 8px;">
+                            <span class="cost-total-label">Total Amount</span>
+                            <span class="cost-total-value" id="sales-payment-amount">XOF 403,760</span>
+                        </div>
+                    </div>
+
+                    <div class="payment-scan">
+                        <h2 class="payment-title">Confirm Payment</h2>
+                        
+                        <!-- Toggle between Scan and Manual -->
+                        <div class="input-toggle">
+                            <button class="toggle-btn active" id="toggle-sales-payment-scan" onclick="toggleSalesPaymentInput('scan')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="7"/>
+                                    <rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="14" y="14" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/>
+                                </svg>
+                                Scan QR
+                            </button>
+                            <button class="toggle-btn" id="toggle-sales-payment-manual" onclick="toggleSalesPaymentInput('manual')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 20h9"/>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                                </svg>
+                                Enter ID
+                            </button>
+                        </div>
+                        
+                        <!-- Scan QR Option -->
+                        <div class="payment-input-mode" id="sales-payment-scan-mode">
+                            <p class="payment-subtitle">Scan customer's QR after payment</p>
+                            
+                            <div class="qr-scanner-area" onclick="salesConfirmPayment()">
+                                <div class="qr-scanner-frame">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="7" height="7"/>
+                                        <rect x="14" y="3" width="7" height="7"/>
+                                        <rect x="14" y="14" width="7" height="7"/>
+                                        <rect x="3" y="14" width="7" height="7"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <div class="payment-amount" id="sales-payment-display">XOF 3,760</div>
+                            <div class="payment-status">Tap to scan customer QR</div>
+                        </div>
+                        
+                        <!-- Manual Entry Option -->
+                        <div class="payment-input-mode hidden" id="sales-payment-manual-mode">
+                            <p class="payment-subtitle">Enter payment transaction ID</p>
+                            
+                            <div class="manual-entry-form">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label">Payment / Transaction ID</label>
+                                    <input type="text" class="form-input manual-id-input" id="salesPaymentId" placeholder="e.g. TXN-892741 or M-PESA code" autocomplete="off">
+                                </div>
+                                <button class="btn btn-primary" onclick="salesLookupPayment()" style="width: 100%; margin-top: 8px;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 6L9 17l-5-5"/>
+                                    </svg>
+                                    Confirm Payment
+                                </button>
+                            </div>
+                            
+                            <div class="payment-amount" style="margin-top: 8px;" id="sales-payment-display-manual">XOF 3,760</div>
+                            <p class="scan-hint" style="margin-top: 4px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 16v-4M12 8h.01"/>
+                                </svg>
+                                Enter M-PESA code or receipt number
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 5: Assign Battery -->
                 <div class="screen" id="sales-screen-battery">
                     <h2 class="scan-title" style="text-align: center; margin-bottom: 4px;">Assign Battery</h2>
                     <p class="scan-subtitle" style="text-align: center; margin-bottom: 10px;">Scan a battery to assign to customer</p>
@@ -4180,21 +6133,21 @@
                     <!-- Customer Preview -->
                     <div class="preview-card">
                         <div class="preview-header">
-                            <div class="preview-avatar" id="sales-avatar">JD</div>
+                            <div class="preview-avatar" id="sales-avatar">AC</div>
                             <div>
-                                <div class="preview-name" id="sales-customer-name">John Doe</div>
-                                <div class="preview-phone" id="sales-customer-phone">+254 712 345 678</div>
+                                <div class="preview-name" id="sales-customer-name">ABC Customer Ltd</div>
+                                <div class="preview-phone" id="sales-customer-phone">+254712345678</div>
                             </div>
                             <span class="preview-badge" id="sales-plan-badge">Weekly Plan</span>
                         </div>
                         <div class="preview-details">
                             <div class="detail-item">
-                                <div class="detail-label">Vehicle</div>
-                                <div class="detail-value" id="sales-vehicle">KXX 000X</div>
+                                <div class="detail-label">Email</div>
+                                <div class="detail-value" id="sales-email">customer@example.com</div>
                             </div>
                             <div class="detail-item">
-                                <div class="detail-label">National ID</div>
-                                <div class="detail-value" id="sales-id">*****678</div>
+                                <div class="detail-label">Location</div>
+                                <div class="detail-value" id="sales-location">Nairobi, 00100</div>
                             </div>
                         </div>
                     </div>
@@ -4226,7 +6179,7 @@
                     </p>
                 </div>
 
-                <!-- Screen 4: Checkout/Success -->
+                <!-- Screen 6: Checkout/Success -->
                 <div class="screen" id="sales-screen-checkout">
                     <div class="success-screen" style="padding-top: 30px;">
                         <div class="success-icon">
@@ -4245,14 +6198,26 @@
                             </div>
                             <div class="checkout-item">
                                 <span class="checkout-item-label">Customer</span>
-                                <span class="checkout-item-value" id="checkout-name">John Doe</span>
+                                <span class="checkout-item-value" id="checkout-name">ABC Customer Ltd</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Email</span>
+                                <span class="checkout-item-value" id="checkout-email">customer@example.com</span>
                             </div>
                             <div class="checkout-item">
                                 <span class="checkout-item-label">Phone</span>
-                                <span class="checkout-item-value" id="checkout-phone">+254 712 345 678</span>
+                                <span class="checkout-item-value" id="checkout-phone">+254712345678</span>
                             </div>
                             <div class="checkout-item">
-                                <span class="checkout-item-label">Plan</span>
+                                <span class="checkout-item-label">Address</span>
+                                <span class="checkout-item-value" id="checkout-address">Nairobi, 00100</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Vehicle</span>
+                                <span class="checkout-item-value" id="checkout-product">Oves E-Bike</span>
+                            </div>
+                            <div class="checkout-item">
+                                <span class="checkout-item-label">Battery Plan</span>
                                 <span class="checkout-item-value" id="checkout-plan">Weekly Plan</span>
                             </div>
                             <div class="checkout-item">
@@ -4264,8 +6229,8 @@
                                 <span class="checkout-item-value" style="color: var(--success);">100%</span>
                             </div>
                             <div class="checkout-total">
-                                <span class="checkout-total-label">Amount Due</span>
-                                <span class="checkout-total-value" id="checkout-amount">KES 800</span>
+                                <span class="checkout-total-label">Amount Paid</span>
+                                <span class="checkout-total-value" id="checkout-amount">XOF 403,760</span>
                             </div>
                         </div>
                     </div>
@@ -4291,10 +6256,674 @@
             </div>
         </div>
 
+        <!-- ==================== -->
+        <!-- RIDER MODULE         -->
+        <!-- ==================== -->
+        <div class="module" id="module-rider">
+            <!-- Back to Roles - At very top -->
+            <div class="back-to-roles" onclick="backToRoles()" style="margin: 0 16px 8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Change Role
+            </div>
+
+            <main class="main">
+                <!-- Screen 1: Home/Dashboard -->
+                <div class="rider-screen active" id="rider-screen-home">
+                    <!-- Dashboard Header -->
+                    <div class="rider-dashboard-header">
+                        <div class="rider-greeting">Good afternoon,</div>
+                        <div class="rider-name" id="rider-user-name">James Mwangi</div>
+                    </div>
+
+                    <!-- My Bike Card - Shows rider's vehicle -->
+                    <div class="rider-bike-card">
+                        <div class="rider-bike-header">
+                            <div>
+                                <div class="rider-bike-label">My Bike</div>
+                                <div class="rider-bike-model" id="rider-bike-model">E-Trike 3X</div>
+                            </div>
+                            <span class="rider-bike-status active" id="rider-bike-status">Active</span>
+                        </div>
+                        <div class="rider-bike-content">
+                            <div class="rider-bike-image">
+                                <img src="assets/E-3-one.png" alt="My E-Trike">
+                            </div>
+                            <div class="rider-bike-info">
+                                <div class="rider-bike-detail">
+                                    <span class="rider-bike-detail-label">Vehicle ID</span>
+                                    <span class="rider-bike-detail-value" id="rider-vehicle-id">VEH-2024-8847</span>
+                                </div>
+                                <div class="rider-bike-detail">
+                                    <span class="rider-bike-detail-label">Last Swap</span>
+                                    <span class="rider-bike-detail-value" id="rider-last-swap">2h ago</span>
+                                </div>
+                                <div class="rider-bike-detail">
+                                    <span class="rider-bike-detail-label">Total Swaps</span>
+                                    <span class="rider-bike-detail-value" id="rider-total-swaps">47</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Account Balance Card (shows money equivalent) -->
+                    <div class="account-balance-card" id="rider-balance-card">
+                        <div class="account-balance-info">
+                            <div class="account-balance-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 6v12M8 10h8M8 14h8" stroke="var(--bg-primary)" stroke-width="2" fill="none"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="account-balance-label">Account Balance</div>
+                                <div class="account-balance-value" id="rider-balance-value">XOF 3,100</div>
+                            </div>
+                        </div>
+                        <button class="account-balance-action" onclick="riderShowTopUp()">Top Up</button>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <div class="quick-action" onclick="riderGoToScreen('map')">
+                            <div class="quick-action-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                    <circle cx="12" cy="10" r="3"/>
+                                </svg>
+                            </div>
+                            <span class="quick-action-label">Find Station</span>
+                        </div>
+                        <div class="quick-action" onclick="riderShowQRCode()">
+                            <div class="quick-action-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="7"/>
+                                    <rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="14" y="14" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/>
+                                </svg>
+                            </div>
+                            <span class="quick-action-label">My QR Code</span>
+                        </div>
+                    </div>
+
+                    <!-- Nearby Stations Section -->
+                    <div class="rider-section-header">
+                        <span class="rider-section-title">Nearby Stations</span>
+                        <span class="rider-section-link" onclick="riderGoToScreen('map')">View Map</span>
+                    </div>
+                    
+                    <div class="stations-map-container">
+                        <!-- Simulated Map -->
+                        <div class="stations-map">
+                            <div class="map-visual">
+                                <div class="map-grid"></div>
+                                <!-- User Location -->
+                                <div class="map-user-pulse"></div>
+                                <div class="map-user-marker"></div>
+                                <!-- Station Pins -->
+                                <div class="map-station-pin" style="top: 25%; left: 30%;" onclick="riderSelectStation(0)">
+                                    <div class="map-station-icon">
+                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                        </svg>
+                                    </div>
+                                    <span class="map-station-label">Lome Central</span>
+                                </div>
+                                <div class="map-station-pin" style="top: 60%; left: 70%;" onclick="riderSelectStation(1)">
+                                    <div class="map-station-icon">
+                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                        </svg>
+                                    </div>
+                                    <span class="map-station-label">Tokoin Market</span>
+                                </div>
+                                <div class="map-station-pin" style="top: 35%; left: 75%;" onclick="riderSelectStation(2)">
+                                    <div class="map-station-icon">
+                                        <svg viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                        </svg>
+                                    </div>
+                                    <span class="map-station-label">Agoe Station</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Station List -->
+                        <div class="stations-list">
+                            <div class="station-item" onclick="riderSelectStation(0)">
+                                <div class="station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <div class="station-info">
+                                    <div class="station-name">Lome Central Station</div>
+                                    <div class="station-details">
+                                        <span class="station-distance">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                                <circle cx="12" cy="10" r="3"/>
+                                            </svg>
+                                            0.8 km
+                                        </span>
+                                        <span class="station-availability">
+                                            <span class="station-availability-dot"></span>
+                                            12 batteries
+                                        </span>
+                                    </div>
+                                </div>
+                                <button class="station-nav-btn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <div class="station-item" onclick="riderSelectStation(1)">
+                                <div class="station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <div class="station-info">
+                                    <div class="station-name">Tokoin Market Station</div>
+                                    <div class="station-details">
+                                        <span class="station-distance">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                                <circle cx="12" cy="10" r="3"/>
+                                            </svg>
+                                            1.4 km
+                                        </span>
+                                        <span class="station-availability">
+                                            <span class="station-availability-dot low"></span>
+                                            3 batteries
+                                        </span>
+                                    </div>
+                                </div>
+                                <button class="station-nav-btn">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 2: Activity/History -->
+                <div class="rider-screen" id="rider-screen-activity">
+                    <h2 class="scan-title" style="margin-bottom: 4px;">Activity</h2>
+                    <p class="scan-subtitle" style="margin-bottom: 16px;">Your swaps and payments</p>
+
+                    <!-- Activity Filters -->
+                    <div class="activity-filters">
+                        <button class="activity-filter active" onclick="riderFilterActivity('all')">All</button>
+                        <button class="activity-filter" onclick="riderFilterActivity('swaps')">Swaps</button>
+                        <button class="activity-filter" onclick="riderFilterActivity('payments')">Payments</button>
+                        <button class="activity-filter" onclick="riderFilterActivity('topups')">Top-ups</button>
+                    </div>
+
+                    <!-- Activity List -->
+                    <div class="activity-list" id="rider-activity-list">
+                        <div class="activity-date-header">Today</div>
+                        
+                        <div class="activity-item">
+                            <div class="activity-item-icon swap">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                                </svg>
+                            </div>
+                            <div class="activity-item-content">
+                                <div class="activity-item-title">Battery Swap</div>
+                                <div class="activity-item-subtitle">Lome Central Station</div>
+                            </div>
+                            <div class="activity-item-meta">
+                                <div class="activity-item-amount negative">-XOF 920</div>
+                                <div class="activity-item-time">14:32</div>
+                            </div>
+                        </div>
+
+                        <div class="activity-date-header">Yesterday</div>
+                        
+                        <div class="activity-item">
+                            <div class="activity-item-icon topup">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                                </svg>
+                            </div>
+                            <div class="activity-item-content">
+                                <div class="activity-item-title">Balance Top-up</div>
+                                <div class="activity-item-subtitle">Mobile Money - MTN</div>
+                            </div>
+                            <div class="activity-item-meta">
+                                <div class="activity-item-amount positive">+XOF 5,000</div>
+                                <div class="activity-item-time">09:15</div>
+                            </div>
+                        </div>
+                        
+                        <div class="activity-item">
+                            <div class="activity-item-icon swap">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                                </svg>
+                            </div>
+                            <div class="activity-item-content">
+                                <div class="activity-item-title">Battery Swap</div>
+                                <div class="activity-item-subtitle">Tokoin Market Station</div>
+                            </div>
+                            <div class="activity-item-meta">
+                                <div class="activity-item-amount negative">-XOF 1,185</div>
+                                <div class="activity-item-time">16:48</div>
+                            </div>
+                        </div>
+                        
+                        <div class="activity-item">
+                            <div class="activity-item-icon swap">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+                                </svg>
+                            </div>
+                            <div class="activity-item-content">
+                                <div class="activity-item-title">Battery Swap</div>
+                                <div class="activity-item-subtitle">Agoe Station</div>
+                            </div>
+                            <div class="activity-item-meta">
+                                <div class="activity-item-amount negative">-XOF 850</div>
+                                <div class="activity-item-time">08:22</div>
+                            </div>
+                        </div>
+
+                        <div class="activity-date-header">Dec 2, 2025</div>
+                        
+                        <div class="activity-item">
+                            <div class="activity-item-icon payment">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="1" y="4" width="22" height="16" rx="2"/>
+                                    <path d="M1 10h22"/>
+                                </svg>
+                            </div>
+                            <div class="activity-item-content">
+                                <div class="activity-item-title">Weekly Plan Renewal</div>
+                                <div class="activity-item-subtitle">7-Day Lux Plan</div>
+                            </div>
+                            <div class="activity-item-meta">
+                                <div class="activity-item-amount negative">XOF 3,760</div>
+                                <div class="activity-item-time">00:00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 3: Full Map View -->
+                <div class="rider-screen" id="rider-screen-map">
+                    <h2 class="scan-title" style="margin-bottom: 4px;">Swap Stations</h2>
+                    <p class="scan-subtitle" style="margin-bottom: 16px;">Find a station near you</p>
+
+                    <div class="full-map-container">
+                        <div class="map-visual">
+                            <div class="map-grid"></div>
+                            <!-- User Location -->
+                            <div class="map-user-pulse"></div>
+                            <div class="map-user-marker"></div>
+                            <!-- Station Pins -->
+                            <div class="map-station-pin" style="top: 20%; left: 25%;" onclick="riderSelectStation(0)">
+                                <div class="map-station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <span class="map-station-label">Lome Central</span>
+                            </div>
+                            <div class="map-station-pin" style="top: 65%; left: 60%;" onclick="riderSelectStation(1)">
+                                <div class="map-station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <span class="map-station-label">Tokoin Market</span>
+                            </div>
+                            <div class="map-station-pin" style="top: 30%; left: 70%;" onclick="riderSelectStation(2)">
+                                <div class="map-station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <span class="map-station-label">Agoe Station</span>
+                            </div>
+                            <div class="map-station-pin" style="top: 75%; left: 30%;" onclick="riderSelectStation(3)">
+                                <div class="map-station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <span class="map-station-label">Be Station</span>
+                            </div>
+                            <div class="map-station-pin" style="top: 45%; left: 85%;" onclick="riderSelectStation(4)">
+                                <div class="map-station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <span class="map-station-label">Adidogome</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Selected Station Detail Card -->
+                        <div class="station-detail-card" id="rider-station-detail" style="display: none;">
+                            <div class="station-detail-header">
+                                <div class="station-icon">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                    </svg>
+                                </div>
+                                <div class="station-detail-info">
+                                    <div class="station-detail-name" id="station-detail-name">Lome Central Station</div>
+                                    <div class="station-detail-address" id="station-detail-address">Rue du Commerce, Lome</div>
+                                </div>
+                            </div>
+                            <div class="station-detail-stats">
+                                <div class="station-detail-stat">
+                                    <div class="station-detail-stat-value" id="station-detail-distance">0.8 km</div>
+                                    <div class="station-detail-stat-label">Distance</div>
+                                </div>
+                                <div class="station-detail-stat">
+                                    <div class="station-detail-stat-value" id="station-detail-batteries">12</div>
+                                    <div class="station-detail-stat-label">Batteries</div>
+                                </div>
+                                <div class="station-detail-stat">
+                                    <div class="station-detail-stat-value" id="station-detail-wait">~3 min</div>
+                                    <div class="station-detail-stat-label">Wait Time</div>
+                                </div>
+                            </div>
+                            <div class="station-detail-actions">
+                                <button class="btn btn-secondary" onclick="riderHideStationDetail()">
+                                    Close
+                                </button>
+                                <button class="btn btn-primary" onclick="riderNavigateToStation()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                                    </svg>
+                                    Navigate
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 4: Profile/Account -->
+                <div class="rider-screen" id="rider-screen-profile">
+                    <!-- Profile Header -->
+                    <div class="profile-header">
+                        <div class="profile-avatar" id="rider-profile-avatar">JM</div>
+                        <div class="profile-name" id="rider-profile-name">James Mwangi</div>
+                        <div class="profile-phone" id="rider-profile-phone">+228 91 234 567</div>
+                    </div>
+
+                    <!-- Energy Service Card -->
+                    <div class="energy-service-card">
+                        <div class="energy-service-header">
+                            <div class="energy-service-icon">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                </svg>
+                            </div>
+                            <div class="energy-service-title">
+                                <span class="energy-service-name">Energy Service</span>
+                                <span class="energy-service-status">
+                                    <span class="status-dot"></span>
+                                    Active
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="energy-service-visual">
+                            <img src="assets/E-3-one.png" alt="E-Trike" class="energy-service-bike">
+                            <div class="energy-service-glow"></div>
+                        </div>
+                        
+                        <div class="energy-service-stats">
+                            <div class="energy-stat-card primary">
+                                <div class="energy-stat-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M12 6v12M8 10h8M8 14h8"/>
+                                    </svg>
+                                </div>
+                                <div class="energy-stat-info">
+                                    <span class="energy-stat-value" id="rider-sub-balance">XOF 3,100</span>
+                                    <span class="energy-stat-label">Account Balance</span>
+                                </div>
+                            </div>
+                            <div class="energy-stat-card">
+                                <div class="energy-stat-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M23 6l-9.5 9.5-5-5L1 18"/>
+                                        <path d="M17 6h6v6"/>
+                                    </svg>
+                                </div>
+                                <div class="energy-stat-info">
+                                    <span class="energy-stat-value" id="rider-sub-swaps">18</span>
+                                    <span class="energy-stat-label">Swaps This Month</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="energy-service-footer">
+                            <span class="energy-plan-name">7-Day Lux Plan</span>
+                            <span class="energy-plan-validity">Valid until Dec 9, 2025</span>
+                        </div>
+                    </div>
+
+                    <!-- Menu List -->
+                    <div class="menu-list">
+                        <div class="menu-item" onclick="riderShowAccountDetails()">
+                            <div class="menu-item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                            <div class="menu-item-content">
+                                <div class="menu-item-title">Account Details</div>
+                                <div class="menu-item-subtitle">Personal information & settings</div>
+                            </div>
+                            <div class="menu-item-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="menu-item" onclick="riderShowVehicle()">
+                            <div class="menu-item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="7" cy="17" r="2"/>
+                                    <circle cx="17" cy="17" r="2"/>
+                                    <path d="M5 17H3v-6l2-4h9l4 4h3v6h-2"/>
+                                    <path d="M9 17h6"/>
+                                </svg>
+                            </div>
+                            <div class="menu-item-content">
+                                <div class="menu-item-title">My Vehicle</div>
+                                <div class="menu-item-subtitle">Oves Tuk-Tuk • REG-2024-KE</div>
+                            </div>
+                            <div class="menu-item-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="menu-item" onclick="riderShowPlanDetails()">
+                            <div class="menu-item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <path d="M14 2v6h6"/>
+                                    <path d="M16 13H8M16 17H8M10 9H8"/>
+                                </svg>
+                            </div>
+                            <div class="menu-item-content">
+                                <div class="menu-item-title">Subscription Plan</div>
+                                <div class="menu-item-subtitle">Manage your plan & billing</div>
+                            </div>
+                            <div class="menu-item-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="menu-item" onclick="riderShowPaymentMethods()">
+                            <div class="menu-item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="1" y="4" width="22" height="16" rx="2"/>
+                                    <path d="M1 10h22"/>
+                                </svg>
+                            </div>
+                            <div class="menu-item-content">
+                                <div class="menu-item-title">Payment Methods</div>
+                                <div class="menu-item-subtitle">MTN Mobile Money</div>
+                            </div>
+                            <div class="menu-item-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="menu-item" onclick="riderShowSupport()">
+                            <div class="menu-item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                    <path d="M12 17h.01"/>
+                                </svg>
+                            </div>
+                            <div class="menu-item-content">
+                                <div class="menu-item-title">Help & Support</div>
+                                <div class="menu-item-subtitle">FAQs, contact support</div>
+                            </div>
+                            <div class="menu-item-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="menu-list">
+                        <div class="menu-item logout" onclick="riderLogout()">
+                            <div class="menu-item-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                            </div>
+                            <div class="menu-item-content">
+                                <div class="menu-item-title">Log Out</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Bottom Navigation Bar -->
+            <nav class="rider-nav">
+                <button class="rider-nav-item active" onclick="riderGoToScreen('home')" id="rider-nav-home">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    <span class="rider-nav-label">Home</span>
+                </button>
+                <button class="rider-nav-item" onclick="riderGoToScreen('map')" id="rider-nav-map">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    <span class="rider-nav-label">Stations</span>
+                </button>
+                <button class="rider-nav-item" onclick="riderGoToScreen('activity')" id="rider-nav-activity">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span class="rider-nav-label">Activity</span>
+                </button>
+                <button class="rider-nav-item" onclick="riderGoToScreen('profile')" id="rider-nav-profile">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <span class="rider-nav-label">Profile</span>
+                </button>
+            </nav>
+        </div>
+
         <!-- Loading Overlay -->
         <div class="loading-overlay" id="loading">
             <div class="loading-spinner"></div>
             <div class="loading-text" id="loading-text">Processing...</div>
+        </div>
+
+        <!-- QR Code Modal for Rider -->
+        <div class="qr-modal-overlay" id="qr-modal" onclick="if(event.target === this) closeQRModal()">
+            <div class="qr-modal">
+                <div class="qr-modal-header">
+                    <h3 class="qr-modal-title">Payment QR Code</h3>
+                    <button class="qr-modal-close" onclick="closeQRModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="qr-modal-body">
+                    <!-- Input Section -->
+                    <div class="qr-input-section" id="qr-input-section">
+                        <p class="qr-modal-desc">Enter your payment transaction ID from MTN Mobile Money, Flooz, or bank transfer to generate a QR code for the attendant.</p>
+                        
+                        <div class="qr-input-group">
+                            <label class="qr-input-label">Transaction ID</label>
+                            <input type="text" class="qr-input" id="qr-transaction-id" placeholder="e.g. TXN-892741 or M-PESA code" autocomplete="off">
+                        </div>
+                        
+                        <button class="qr-generate-btn" onclick="generateTransactionQR()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="7" height="7"/>
+                                <rect x="14" y="3" width="7" height="7"/>
+                                <rect x="14" y="14" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/>
+                            </svg>
+                            Generate QR Code
+                        </button>
+                    </div>
+                    
+                    <!-- QR Display Section (hidden initially) -->
+                    <div class="qr-display-section hidden" id="qr-display-section">
+                        <div class="qr-code-container" id="qr-code-display">
+                            <!-- QR code will be generated here -->
+                        </div>
+                        <div class="qr-transaction-info">
+                            <span class="qr-transaction-label">Transaction ID:</span>
+                            <span class="qr-transaction-value" id="qr-transaction-display">-</span>
+                        </div>
+                        <p class="qr-instruction">Show this QR code to the swap attendant to verify your payment.</p>
+                        
+                        <button class="qr-new-btn" onclick="resetQRModal()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 4v6h6M23 20v-6h-6"/>
+                                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                            </svg>
+                            Enter New Transaction
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -4456,11 +7085,11 @@
             currentRole = selectedRole;
             
             // Roles that require login
-            const requiresLogin = ['attendant', 'sales'];
+            const requiresLogin = ['attendant', 'sales', 'rider'];
             
             if (requiresLogin.includes(currentRole)) {
-                // Check if user is already logged in for this role
-                const loginKey = `oves-${currentRole}-login`;
+                // Check if user is already logged in (shared login for attendant and sales)
+                const loginKey = 'oves-staff-login';
                 const savedLogin = localStorage.getItem(loginKey);
                 
                 if (savedLogin) {
@@ -4488,7 +7117,8 @@
             // Set title based on role
             const roleNames = {
                 'attendant': 'Attendant',
-                'sales': 'Sales Rep'
+                'sales': 'Sales Rep',
+                'rider': 'Rider'
             };
             loginTitle.textContent = `${roleNames[currentRole]} Login`;
             
@@ -4508,17 +7138,17 @@
                 loginSubtitle.textContent = 'Sign in to access your workspace';
                 
                 // Clear form
-                document.getElementById('login-phone').value = '';
+                document.getElementById('login-email').value = '';
                 document.getElementById('login-pin').value = '';
             }
         }
 
         function handleLogin() {
-            const phone = document.getElementById('login-phone').value.trim();
+            const email = document.getElementById('login-email').value.trim();
             const pin = document.getElementById('login-pin').value.trim();
             
-            if (!phone) {
-                document.getElementById('login-phone').focus();
+            if (!email) {
+                document.getElementById('login-email').focus();
                 return;
             }
             if (!pin || pin.length < 4) {
@@ -4532,15 +7162,15 @@
             setTimeout(() => {
                 hideLoading();
                 
-                // Save login state
+                // Save login state (shared for attendant and sales)
                 const userData = {
                     name: 'James Mwangi',
                     initials: 'JM',
-                    phone: phone,
+                    email: email,
                     loginTime: Date.now()
                 };
                 
-                const loginKey = `oves-${currentRole}-login`;
+                const loginKey = 'oves-staff-login';
                 localStorage.setItem(loginKey, JSON.stringify(userData));
                 
                 // Go to role module
@@ -4558,7 +7188,7 @@
 
         function switchUser() {
             // Clear current login and show form
-            const loginKey = `oves-${currentRole}-login`;
+            const loginKey = 'oves-staff-login';
             localStorage.removeItem(loginKey);
             showLoginScreen(false);
         }
@@ -4578,6 +7208,10 @@
                 salesGoToScreen(1);
                 // Check timeline scroll after a brief delay for DOM update
                 setTimeout(checkSalesTimelineScroll, 100);
+            } else if (currentRole === 'rider') {
+                document.getElementById('module-rider').classList.add('active');
+                // Initialize rider module with data
+                initRiderModule();
             }
         }
 
@@ -5155,17 +7789,35 @@
         // =====================
         let salesCurrentScreen = 1;
         let selectedPlan = 'weekly';
+        let selectedVehicle = 'tuktuk2';
+
+        const vehicleData = {
+            'tuktuk2': { name: 'Oves Tuk-Tuk', type: 'Electric Tuk-Tuk', price: 1175000 },
+            'etrike': { name: 'E-Trike 3X', type: 'Electric Tricycle', price: 565000 },
+            'etrike-cargo': { name: 'E-Trike Cargo', type: 'Cargo Tricycle', price: 680000 },
+            'tuktuk': { name: 'Oves Tuk-Tuk', type: 'Passenger Vehicle', price: 1315000 }
+        };
+
+        const planData = {
+            'daily': { name: 'Daily Pass', price: 705 },
+            'weekly': { name: 'Weekly Plan', price: 3760 },
+            'monthly': { name: 'Monthly Plan', price: 11750 },
+            'payperswap': { name: 'Pay-Per-Swap', price: 0 }
+        };
 
         const salesScreenConfig = {
             1: { btnText: 'Continue', btnIcon: 'arrow', showBack: false },
             2: { btnText: 'Continue', btnIcon: 'arrow', showBack: true },
-            3: { btnText: 'Scan Battery', btnIcon: 'scan', showBack: true },
-            4: { btnText: 'New Registration', btnIcon: 'plus', showBack: false, btnClass: 'btn-success' }
+            3: { btnText: 'Continue', btnIcon: 'arrow', showBack: true },
+            4: { btnText: 'Confirm Payment', btnIcon: 'qr', showBack: true },
+            5: { btnText: 'Scan Battery', btnIcon: 'scan', showBack: true },
+            6: { btnText: 'New Registration', btnIcon: 'plus', showBack: false, btnClass: 'btn-success' }
         };
 
         const salesIcons = {
             arrow: `<path d="M5 12h14M12 5l7 7-7 7"/>`,
             scan: `<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>`,
+            qr: `<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>`,
             plus: `<path d="M12 5v14M5 12h14"/>`
         };
 
@@ -5190,8 +7842,13 @@
             btnMain.className = 'btn ' + (config.btnClass || 'btn-primary');
             salesCurrentScreen = screenNum;
 
-            // Update preview on screen 3
-            if (screenNum === 3) {
+            // Update payment amounts on screen 4
+            if (screenNum === 4) {
+                updateSalesPaymentAmount();
+            }
+
+            // Update preview on screen 5
+            if (screenNum === 5) {
                 updateSalesPreview();
             }
         }
@@ -5213,7 +7870,7 @@
                     step.classList.add('completed');
                 } else if (stepNum === screenNum) {
                     // Current step
-                    if (screenNum === 4) {
+                    if (screenNum === 6) {
                         // Final step shows success state
                         step.classList.add('success');
                     } else {
@@ -5269,38 +7926,44 @@
         }
 
         function salesGetScreenName(num) {
-            return { 1: 'register', 2: 'subscription', 3: 'battery', 4: 'checkout' }[num];
+            return { 1: 'register', 2: 'product', 3: 'subscription', 4: 'payment', 5: 'battery', 6: 'checkout' }[num];
         }
 
-        function selectProduct(element, plan) {
-            document.querySelectorAll('.product-card').forEach(card => card.classList.remove('selected'));
+        function selectVehicle(element, vehicle) {
+            document.querySelectorAll('.vehicle-card').forEach(card => card.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedVehicle = vehicle;
+        }
+
+        function selectPlan(element, plan) {
+            document.querySelectorAll('#sales-screen-subscription .product-card').forEach(card => card.classList.remove('selected'));
             element.classList.add('selected');
             selectedPlan = plan;
         }
 
         function updateSalesPreview() {
-            const firstName = document.getElementById('firstName').value || 'John';
-            const lastName = document.getElementById('lastName').value || 'Doe';
-            const phone = document.getElementById('phone').value || '+254 712 345 678';
-            const vehicle = document.getElementById('vehicleReg').value || 'KXX 000X';
-            const nationalId = document.getElementById('nationalId').value || '12345678';
+            const name = document.getElementById('customerName').value || 'ABC Customer Ltd';
+            const email = document.getElementById('customerEmail').value || 'customer@example.com';
+            const phone = document.getElementById('customerPhone').value || '+254712345678';
+            const city = document.getElementById('customerCity').value || 'Nairobi';
+            const zip = document.getElementById('customerZip').value || '00100';
             
-            const initials = (firstName[0] || 'J') + (lastName[0] || 'D');
-            const fullName = firstName + ' ' + lastName;
+            // Create initials from name (first letter of first two words)
+            const words = name.split(' ').filter(w => w.length > 0);
+            const initials = words.length >= 2 
+                ? (words[0][0] + words[1][0]).toUpperCase()
+                : name.substring(0, 2).toUpperCase();
             
-            document.getElementById('sales-avatar').textContent = initials.toUpperCase();
-            document.getElementById('sales-customer-name').textContent = fullName;
+            document.getElementById('sales-avatar').textContent = initials;
+            document.getElementById('sales-customer-name').textContent = name;
             document.getElementById('sales-customer-phone').textContent = phone;
-            document.getElementById('sales-vehicle').textContent = vehicle;
-            document.getElementById('sales-id').textContent = '*****' + nationalId.slice(-3);
+            document.getElementById('sales-email').textContent = email;
+            document.getElementById('sales-location').textContent = city + ', ' + zip;
             
-            const planNames = {
-                'daily': 'Daily Pass',
-                'weekly': 'Weekly Plan',
-                'monthly': 'Monthly Plan',
-                'payperswap': 'Pay-Per-Swap'
-            };
-            document.getElementById('sales-plan-badge').textContent = planNames[selectedPlan];
+            // Show vehicle + plan info
+            const vehicle = vehicleData[selectedVehicle];
+            const plan = planData[selectedPlan];
+            document.getElementById('sales-plan-badge').textContent = vehicle.name + ' • ' + plan.name;
         }
 
         function salesSimulateBatteryScan() {
@@ -5308,33 +7971,28 @@
             setTimeout(() => {
                 hideLoading();
                 updateCheckoutSummary();
-                salesGoToScreen(4);
+                salesGoToScreen(6); // Go to checkout screen
             }, 1500);
         }
 
         function updateCheckoutSummary() {
-            const firstName = document.getElementById('firstName').value || 'John';
-            const lastName = document.getElementById('lastName').value || 'Doe';
-            const phone = document.getElementById('phone').value || '+254 712 345 678';
+            const name = document.getElementById('customerName').value || 'ABC Customer Ltd';
+            const email = document.getElementById('customerEmail').value || 'customer@example.com';
+            const phone = document.getElementById('customerPhone').value || '+254712345678';
+            const city = document.getElementById('customerCity').value || 'Nairobi';
+            const zip = document.getElementById('customerZip').value || '00100';
             
-            const planNames = {
-                'daily': 'Daily Pass',
-                'weekly': 'Weekly Plan',
-                'monthly': 'Monthly Plan',
-                'payperswap': 'Pay-Per-Swap'
-            };
+            const vehicle = vehicleData[selectedVehicle];
+            const plan = planData[selectedPlan];
+            const total = vehicle.price + plan.price;
             
-            const planPrices = {
-                'daily': 'KES 150',
-                'weekly': 'KES 800',
-                'monthly': 'KES 2,500',
-                'payperswap': 'KES 0'
-            };
-            
-            document.getElementById('checkout-name').textContent = firstName + ' ' + lastName;
+            document.getElementById('checkout-name').textContent = name;
+            document.getElementById('checkout-email').textContent = email;
             document.getElementById('checkout-phone').textContent = phone;
-            document.getElementById('checkout-plan').textContent = planNames[selectedPlan];
-            document.getElementById('checkout-amount').textContent = planPrices[selectedPlan];
+            document.getElementById('checkout-address').textContent = city + ', ' + zip;
+            document.getElementById('checkout-product').textContent = vehicle.name;
+            document.getElementById('checkout-plan').textContent = plan.name;
+            document.getElementById('checkout-amount').textContent = 'XOF ' + total.toLocaleString();
             document.getElementById('sales-reg-id').textContent = '#REG-' + Math.floor(100000 + Math.random() * 900000);
             document.getElementById('checkout-battery').textContent = 'BAT-2024-' + Math.floor(1000 + Math.random() * 9000);
         }
@@ -5343,16 +8001,25 @@
             switch(salesCurrentScreen) {
                 case 1: salesGoToScreen(2); break;
                 case 2: salesGoToScreen(3); break;
-                case 3: salesSimulateBatteryScan(); break;
-                case 4: 
-                    // Reset form
-                    document.getElementById('firstName').value = '';
-                    document.getElementById('lastName').value = '';
-                    document.getElementById('phone').value = '';
-                    document.getElementById('nationalId').value = '';
-                    document.getElementById('vehicleReg').value = '';
-                    document.getElementById('vehicleType').value = '';
-                    document.getElementById('vehicleModel').value = '';
+                case 3: salesGoToScreen(4); break;
+                case 4: salesConfirmPayment(); break;
+                case 5: salesSimulateBatteryScan(); break;
+                case 6: 
+                    // Reset form and selections
+                    document.getElementById('customerName').value = '';
+                    document.getElementById('customerEmail').value = '';
+                    document.getElementById('customerPhone').value = '';
+                    document.getElementById('customerStreet').value = '';
+                    document.getElementById('customerCity').value = '';
+                    document.getElementById('customerZip').value = '';
+                    selectedVehicle = 'tuktuk2';
+                    selectedPlan = 'weekly';
+                    // Reset vehicle selection UI
+                    document.querySelectorAll('.vehicle-card').forEach(card => card.classList.remove('selected'));
+                    document.querySelector('.vehicle-card[onclick*="tuktuk2"]').classList.add('selected');
+                    // Reset plan selection UI
+                    document.querySelectorAll('#sales-screen-subscription .product-card').forEach(card => card.classList.remove('selected'));
+                    document.querySelector('#sales-screen-subscription .product-card[onclick*="weekly"]').classList.add('selected');
                     salesGoToScreen(1);
                     break;
             }
@@ -5360,6 +8027,60 @@
 
         function salesGoBack() {
             if (salesCurrentScreen > 1) salesGoToScreen(salesCurrentScreen - 1);
+        }
+
+        // Sales Payment Functions
+        function updateSalesPaymentAmount() {
+            const vehicle = vehicleData[selectedVehicle];
+            const plan = planData[selectedPlan];
+            const total = vehicle.price + plan.price;
+            
+            // Update breakdown
+            document.getElementById('sales-product-label').textContent = vehicle.name;
+            document.getElementById('sales-product-price').textContent = 'XOF ' + vehicle.price.toLocaleString();
+            document.getElementById('sales-plan-label').textContent = plan.name;
+            document.getElementById('sales-plan-price').textContent = 'XOF ' + plan.price.toLocaleString();
+            
+            // Update totals
+            document.getElementById('sales-payment-amount').textContent = 'XOF ' + total.toLocaleString();
+            document.getElementById('sales-payment-display').textContent = 'XOF ' + total.toLocaleString();
+            document.getElementById('sales-payment-display-manual').textContent = 'XOF ' + total.toLocaleString();
+        }
+
+        function toggleSalesPaymentInput(mode) {
+            const scanBtn = document.getElementById('toggle-sales-payment-scan');
+            const manualBtn = document.getElementById('toggle-sales-payment-manual');
+            const scanMode = document.getElementById('sales-payment-scan-mode');
+            const manualMode = document.getElementById('sales-payment-manual-mode');
+            
+            if (mode === 'scan') {
+                scanBtn.classList.add('active');
+                manualBtn.classList.remove('active');
+                scanMode.classList.remove('hidden');
+                manualMode.classList.add('hidden');
+            } else {
+                manualBtn.classList.add('active');
+                scanBtn.classList.remove('active');
+                manualMode.classList.remove('hidden');
+                scanMode.classList.add('hidden');
+            }
+        }
+
+        function salesConfirmPayment() {
+            showLoading('Confirming payment...');
+            setTimeout(() => {
+                hideLoading();
+                salesGoToScreen(5); // Go to battery screen
+            }, 1500);
+        }
+
+        function salesLookupPayment() {
+            const paymentId = document.getElementById('salesPaymentId').value;
+            if (!paymentId) {
+                alert('Please enter a payment/transaction ID');
+                return;
+            }
+            salesConfirmPayment();
         }
 
         // =====================
@@ -5418,7 +8139,7 @@
         });
 
         // Touch feedback for interactive elements
-        document.querySelectorAll('.btn, .toggle-btn, .scanner-area, .qr-scanner-area, .theme-toggle, .role-applet, .product-card').forEach(el => {
+        document.querySelectorAll('.btn, .toggle-btn, .scanner-area, .qr-scanner-area, .theme-toggle, .role-applet, .product-card, .vehicle-card, .rider-nav-item, .quick-action, .station-item, .activity-item, .menu-item, .activity-filter').forEach(el => {
             el.addEventListener('touchstart', function() { 
                 if (!this.classList.contains('disabled')) {
                     this.style.transform = 'scale(0.96)'; 
@@ -5446,6 +8167,393 @@
             // Only respond to system changes if no saved preference
             // Since we default to dark, we don't auto-switch based on system
         });
+
+        // =====================
+        // Rider Module
+        // =====================
+        let riderCurrentScreen = 'home';
+        
+        // Mock rider data
+        const riderData = {
+            user: {
+                name: 'James Mwangi',
+                initials: 'JM',
+                phone: '+228 91 234 567'
+            },
+            bike: {
+                model: 'E-Trike 3X',
+                vehicleId: 'VEH-2024-8847',
+                lastSwap: '2h ago',
+                totalSwaps: 47,
+                status: 'active'
+            },
+            balance: {
+                moneyBalance: 3100, // XOF
+                swapsRemaining: 18
+            },
+            subscription: {
+                plan: '7-Day Lux Plan',
+                validUntil: 'Dec 9, 2025',
+                status: 'active'
+            }
+        };
+        
+        // Mock stations data
+        const stationsData = [
+            { id: 0, name: 'Lome Central Station', address: 'Rue du Commerce, Lome', distance: '0.8 km', batteries: 12, waitTime: '~3 min' },
+            { id: 1, name: 'Tokoin Market Station', address: 'Avenue Tokoin, Lome', distance: '1.4 km', batteries: 3, waitTime: '~8 min' },
+            { id: 2, name: 'Agoe Station', address: 'Route d\'Agoe, Lome', distance: '2.1 km', batteries: 8, waitTime: '~5 min' },
+            { id: 3, name: 'Be Station', address: 'Quartier Be, Lome', distance: '2.8 km', batteries: 15, waitTime: '~2 min' },
+            { id: 4, name: 'Adidogome Station', address: 'Adidogome, Lome', distance: '3.5 km', batteries: 6, waitTime: '~6 min' }
+        ];
+        
+        // Navigate between rider screens
+        function riderGoToScreen(screenName) {
+            const module = document.getElementById('module-rider');
+            module.querySelectorAll('.rider-screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(`rider-screen-${screenName}`).classList.add('active');
+            
+            // Update navigation
+            module.querySelectorAll('.rider-nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`rider-nav-${screenName}`).classList.add('active');
+            
+            riderCurrentScreen = screenName;
+            
+            // Hide station detail if switching away from map
+            if (screenName !== 'map') {
+                riderHideStationDetail();
+            }
+        }
+        
+        // Update battery gauge display
+        function riderUpdateBatteryGauge(percent) {
+            const circumference = 2 * Math.PI * 42; // radius is 42
+            const offset = circumference * (percent / 100);
+            const gauge = document.getElementById('rider-battery-gauge');
+            if (gauge) {
+                gauge.style.strokeDasharray = `${offset} ${circumference}`;
+                
+                // Update color based on charge level
+                gauge.classList.remove('good', 'warning', 'critical');
+                if (percent >= 50) {
+                    gauge.classList.add('good');
+                } else if (percent >= 20) {
+                    gauge.classList.add('warning');
+                } else {
+                    gauge.classList.add('critical');
+                }
+            }
+            
+            // Update percent text
+            const percentEl = document.getElementById('rider-battery-percent');
+            if (percentEl) {
+                percentEl.textContent = percent + '%';
+            }
+            
+            // Update status badge
+            const statusEl = document.getElementById('rider-battery-status');
+            if (statusEl) {
+                statusEl.classList.remove('charged', 'low', 'charging');
+                if (percent >= 50) {
+                    statusEl.textContent = 'Good';
+                    statusEl.classList.add('charged');
+                } else if (percent >= 20) {
+                    statusEl.textContent = 'Low';
+                    statusEl.classList.add('low');
+                } else {
+                    statusEl.textContent = 'Critical';
+                    statusEl.classList.add('low');
+                }
+            }
+        }
+        
+        // Update balance display (always shows money/XOF)
+        function riderUpdateBalanceDisplay() {
+            const balanceValue = document.getElementById('rider-balance-value');
+            if (balanceValue) {
+                balanceValue.textContent = `XOF ${riderData.balance.moneyBalance.toLocaleString()}`;
+            }
+        }
+        
+        // Show QR Code Modal for transaction ID entry
+        function riderShowQRCode() {
+            const modal = document.getElementById('qr-modal');
+            modal.classList.add('active');
+            // Reset to input view
+            document.getElementById('qr-input-section').classList.remove('hidden');
+            document.getElementById('qr-display-section').classList.add('hidden');
+            document.getElementById('qr-transaction-id').value = '';
+            document.getElementById('qr-transaction-id').focus();
+        }
+        
+        // Close QR Modal
+        function closeQRModal() {
+            const modal = document.getElementById('qr-modal');
+            modal.classList.remove('active');
+        }
+        
+        // Reset QR Modal to input state
+        function resetQRModal() {
+            document.getElementById('qr-input-section').classList.remove('hidden');
+            document.getElementById('qr-display-section').classList.add('hidden');
+            document.getElementById('qr-transaction-id').value = '';
+            document.getElementById('qr-transaction-id').focus();
+        }
+        
+        // Generate QR code from transaction ID
+        function generateTransactionQR() {
+            const transactionId = document.getElementById('qr-transaction-id').value.trim();
+            
+            if (!transactionId) {
+                alert('Please enter your transaction ID');
+                return;
+            }
+            
+            // Show loading
+            showLoading('Generating QR Code...');
+            
+            setTimeout(() => {
+                hideLoading();
+                
+                // Generate a simple QR code pattern (SVG-based visual representation)
+                const qrPattern = generateQRPattern(transactionId);
+                document.getElementById('qr-code-display').innerHTML = qrPattern;
+                document.getElementById('qr-transaction-display').textContent = transactionId;
+                
+                // Switch to display view
+                document.getElementById('qr-input-section').classList.add('hidden');
+                document.getElementById('qr-display-section').classList.remove('hidden');
+            }, 600);
+        }
+        
+        // Generate a visual QR pattern (simplified SVG representation)
+        function generateQRPattern(data) {
+            // Create a deterministic pattern based on the input string
+            const size = 21; // QR code module count
+            const moduleSize = 156 / size;
+            const hash = simpleHash(data);
+            
+            let svg = `<svg viewBox="0 0 156 156" xmlns="http://www.w3.org/2000/svg">`;
+            svg += `<rect width="156" height="156" fill="#ffffff"/>`;
+            
+            // Position detection patterns (corners)
+            svg += drawFinderPattern(0, 0, moduleSize);
+            svg += drawFinderPattern(14 * moduleSize, 0, moduleSize);
+            svg += drawFinderPattern(0, 14 * moduleSize, moduleSize);
+            
+            // Generate data modules based on hash
+            for (let row = 0; row < size; row++) {
+                for (let col = 0; col < size; col++) {
+                    // Skip finder pattern areas
+                    if ((row < 8 && col < 8) || (row < 8 && col > 12) || (row > 12 && col < 8)) continue;
+                    
+                    // Use hash to determine if module is filled
+                    const index = row * size + col;
+                    const shouldFill = ((hash >> (index % 32)) & 1) ^ ((row + col) % 2);
+                    
+                    if (shouldFill) {
+                        svg += `<rect x="${col * moduleSize}" y="${row * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="#000"/>`;
+                    }
+                }
+            }
+            
+            svg += `</svg>`;
+            return svg;
+        }
+        
+        // Draw QR finder pattern
+        function drawFinderPattern(x, y, moduleSize) {
+            const s = moduleSize;
+            return `
+                <rect x="${x}" y="${y}" width="${7*s}" height="${7*s}" fill="#000"/>
+                <rect x="${x+s}" y="${y+s}" width="${5*s}" height="${5*s}" fill="#fff"/>
+                <rect x="${x+2*s}" y="${y+2*s}" width="${3*s}" height="${3*s}" fill="#000"/>
+            `;
+        }
+        
+        // Simple string hash function
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            return Math.abs(hash);
+        }
+        
+        // Show Top-up flow
+        function riderShowTopUp() {
+            showLoading('Loading top-up options...');
+            setTimeout(() => {
+                hideLoading();
+                // In production, this would open a top-up modal/screen
+                alert('Top-up options:\n\n• MTN Mobile Money\n• Flooz\n• Bank Card\n\nSelect your preferred method to add energy credits.');
+            }, 600);
+        }
+        
+        // Filter activity list
+        function riderFilterActivity(filter) {
+            // Update filter buttons
+            document.querySelectorAll('.activity-filter').forEach(f => f.classList.remove('active'));
+            document.querySelector(`.activity-filter[onclick*="${filter}"]`).classList.add('active');
+            
+            // In production, this would filter the activity list
+            // For now, just show all items
+            const activityList = document.getElementById('rider-activity-list');
+            const items = activityList.querySelectorAll('.activity-item');
+            
+            items.forEach(item => {
+                const iconEl = item.querySelector('.activity-item-icon');
+                let show = true;
+                
+                if (filter === 'swaps') {
+                    show = iconEl.classList.contains('swap');
+                } else if (filter === 'payments') {
+                    show = iconEl.classList.contains('payment');
+                } else if (filter === 'topups') {
+                    show = iconEl.classList.contains('topup');
+                }
+                
+                item.style.display = show ? 'flex' : 'none';
+            });
+            
+            // Also hide/show date headers appropriately (simplified)
+            const headers = activityList.querySelectorAll('.activity-date-header');
+            headers.forEach(h => {
+                h.style.display = filter === 'all' ? 'block' : 'block';
+            });
+        }
+        
+        // Select station on map
+        function riderSelectStation(stationId) {
+            const station = stationsData[stationId];
+            if (!station) return;
+            
+            // Update detail card
+            document.getElementById('station-detail-name').textContent = station.name;
+            document.getElementById('station-detail-address').textContent = station.address;
+            document.getElementById('station-detail-distance').textContent = station.distance;
+            document.getElementById('station-detail-batteries').textContent = station.batteries;
+            document.getElementById('station-detail-wait').textContent = station.waitTime;
+            
+            // Show detail card
+            document.getElementById('rider-station-detail').style.display = 'block';
+        }
+        
+        // Hide station detail card
+        function riderHideStationDetail() {
+            const detail = document.getElementById('rider-station-detail');
+            if (detail) detail.style.display = 'none';
+        }
+        
+        // Navigate to station (would open maps app)
+        function riderNavigateToStation() {
+            showLoading('Opening navigation...');
+            setTimeout(() => {
+                hideLoading();
+                alert('Opening directions in Maps app...\n\nIn production, this would launch Google Maps or Apple Maps with directions to the selected station.');
+            }, 800);
+        }
+        
+        // Profile menu actions
+        function riderShowAccountDetails() {
+            showLoading('Loading account details...');
+            setTimeout(() => {
+                hideLoading();
+                alert('Account Details\n\nName: James Mwangi\nPhone: +228 91 234 567\nEmail: james.m@email.com\nCustomer ID: CUS-8847-KE\n\nJoined: November 2024');
+            }, 600);
+        }
+        
+        function riderShowVehicle() {
+            showLoading('Loading vehicle info...');
+            setTimeout(() => {
+                hideLoading();
+                alert('Vehicle Information\n\nType: E-Trike 3X\nVehicle ID: VEH-2024-8847\nBattery Type: 72V 40Ah\nPurchase Date: Nov 15, 2024\n\nTotal Swaps: 47\nTotal Spent: XOF 26,500');
+            }, 600);
+        }
+        
+        function riderShowPlanDetails() {
+            showLoading('Loading plan details...');
+            setTimeout(() => {
+                hideLoading();
+                alert('7-Day Lux Plan\n\nWeekly Budget: XOF 5,000\nSwap Limit: 21 swaps/week\nPer Swap: ~XOF 920\n\nValid: Dec 2 - Dec 9, 2025\nStatus: Active\nPayment: Current\n\nRenews automatically via MTN Mobile Money');
+            }, 600);
+        }
+        
+        function riderShowPaymentMethods() {
+            showLoading('Loading payment methods...');
+            setTimeout(() => {
+                hideLoading();
+                alert('Payment Methods\n\n✓ MTN Mobile Money (Primary)\n   +228 91 234 567\n\n+ Add payment method');
+            }, 600);
+        }
+        
+        function riderShowSupport() {
+            showLoading('Loading support options...');
+            setTimeout(() => {
+                hideLoading();
+                alert('Help & Support\n\n📞 Call: +228 22 123 456\n📧 Email: support@oves.com\n💬 WhatsApp: +228 91 000 001\n\nFAQ Topics:\n• How to swap a battery\n• Understanding your plan\n• Troubleshooting\n• Station locations');
+            }, 600);
+        }
+        
+        function riderLogout() {
+            if (confirm('Are you sure you want to log out?')) {
+                showLoading('Logging out...');
+                setTimeout(() => {
+                    hideLoading();
+                    // Reset rider state
+                    riderCurrentScreen = 'home';
+                    // Go back to roles
+                    backToRoles();
+                }, 800);
+            }
+        }
+        
+        // Initialize rider module
+        function initRiderModule() {
+            // Update greeting based on time
+            const hour = new Date().getHours();
+            let greeting = 'Good evening';
+            if (hour < 12) greeting = 'Good morning';
+            else if (hour < 17) greeting = 'Good afternoon';
+            
+            const greetingEl = document.querySelector('.rider-greeting');
+            if (greetingEl) greetingEl.textContent = greeting + ',';
+            
+            // Update user name
+            const nameEl = document.getElementById('rider-user-name');
+            if (nameEl) nameEl.textContent = riderData.user.name;
+            
+            // Update bike display
+            const bikeModelEl = document.getElementById('rider-bike-model');
+            if (bikeModelEl) bikeModelEl.textContent = riderData.bike.model;
+            
+            const vehicleIdEl = document.getElementById('rider-vehicle-id');
+            if (vehicleIdEl) vehicleIdEl.textContent = riderData.bike.vehicleId;
+            
+            const lastSwapEl = document.getElementById('rider-last-swap');
+            if (lastSwapEl) lastSwapEl.textContent = riderData.bike.lastSwap;
+            
+            const totalSwapsEl = document.getElementById('rider-total-swaps');
+            if (totalSwapsEl) totalSwapsEl.textContent = riderData.bike.totalSwaps;
+            
+            // Update balance (money display)
+            const balanceValueEl = document.getElementById('rider-balance-value');
+            if (balanceValueEl) balanceValueEl.textContent = 'XOF ' + riderData.balance.moneyBalance.toLocaleString();
+            
+            // Update profile
+            document.getElementById('rider-profile-avatar').textContent = riderData.user.initials;
+            document.getElementById('rider-profile-name').textContent = riderData.user.name;
+            document.getElementById('rider-profile-phone').textContent = riderData.user.phone;
+            
+            // Update subscription stats (show money instead of energy)
+            document.getElementById('rider-sub-balance').textContent = 'XOF ' + riderData.balance.moneyBalance.toLocaleString();
+            document.getElementById('rider-sub-swaps').textContent = riderData.balance.swapsRemaining;
+            
+            // Reset to home screen
+            riderGoToScreen('home');
+        }
     </script>
 </body>
 </html>

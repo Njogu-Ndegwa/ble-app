@@ -71,8 +71,7 @@ declare global {
     WebViewJavascriptBridge?: WebViewJavascriptBridge;
   }
 }
-const defaultImageUrl =
-  "https://res.cloudinary.com/dhffnvn2d/image/upload/v1740005127/Bat48100TP_Right_Side_uesgfn-modified_u6mvuc.png";
+// NOTE: No default image - unmapped devices show no image to avoid confusing users
 
 const AppContainer = () => {
   const { t, locale, setLocale } = useI18n();
@@ -190,7 +189,8 @@ const AppContainer = () => {
     UBP1: "https://res.cloudinary.com/oves/image/upload/t_BLE%20APP%20500X500/v1743147157/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-1K/UBP1K_AC_Output_250W_ee1ar3.png",
     UBP2: "https://res.cloudinary.com/oves/image/upload/t_BLE%20APP%20500X500/v1743155669/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-2K/UBP_2_AC_Output_._ottb1j.png",
   };
-  const getImageUrl = (name: string): string => {
+  // Get device image - returns undefined for unmapped devices (show nothing rather than confuse users)
+  const getImageUrl = (name: string): string | undefined => {
     const parts = name.split(" ");
     if (parts.length >= 2) {
       const keyword = parts[1];
@@ -198,11 +198,10 @@ const AppContainer = () => {
         (k) => k.toLowerCase() === keyword.toLowerCase()
       );
       if (mapKey) {
-        const url = itemImageMap[mapKey];
-        return url || defaultImageUrl;
+        return itemImageMap[mapKey] || undefined;
       }
     }
-    return defaultImageUrl;
+    return undefined;
   };
 
   function convertRssiToFormattedString(
@@ -410,10 +409,17 @@ const AppContainer = () => {
       setLoadingService(null)
     );
 
+    // Generate unique client ID to avoid MQTT broker kicking off other connections
+    const generateClientId = () => {
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      return `oves-keypad-${timestamp}-${random}`;
+    };
+
     const mqttConfig: MqttConfig = {
       username: "Admin",
       password: "7xzUV@MT",
-      clientId: "123",
+      clientId: generateClientId(),
       hostname: "mqtt.omnivoltaic.com",
       port: 1883,
     };

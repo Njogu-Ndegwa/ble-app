@@ -63,7 +63,8 @@ export interface RegisterCustomerResponse {
   email_sent: boolean;
 }
 
-// Subscription Product Types - matches actual Odoo API response
+// Product Types - matches actual Odoo API response
+// Used for all product categories: subscription, battery_swap, main_service, packages
 export interface SubscriptionProduct {
   id: number;
   name: string;
@@ -76,15 +77,24 @@ export interface SubscriptionProduct {
   category_id?: number;
   category_name?: string;
   recurring_invoice?: boolean;
-  image_url?: string | null;
+  is_package?: boolean;
+  image_url?: string | null;  // Cloudinary URL for product images
   company_id?: number;
   company_name: string;
 }
 
-// Raw API response structure (data at root level)
+// Categorized products from API response
+export interface ProductCategories {
+  subscription: SubscriptionProduct[];
+  battery_swap: SubscriptionProduct[];
+  main_service: SubscriptionProduct[];
+  packages: SubscriptionProduct[];
+}
+
+// Raw API response structure - products are now categorized
 export interface SubscriptionProductsRawResponse {
   success: boolean;
-  products: SubscriptionProduct[];
+  categories: ProductCategories;
   pagination: {
     current_page: number;
     per_page: number;
@@ -95,9 +105,12 @@ export interface SubscriptionProductsRawResponse {
   };
 }
 
-// Normalized response for internal use
+// Normalized response for internal use - includes all categories
 export interface SubscriptionProductsResponse {
-  products: SubscriptionProduct[];
+  products: SubscriptionProduct[];  // Subscription products (legacy, for backward compatibility)
+  mainServiceProducts: SubscriptionProduct[];  // Physical products like bikes (main_service)
+  batterySwapProducts: SubscriptionProduct[];  // Battery swap privileges
+  packageProducts: SubscriptionProduct[];  // Product packages
   pagination: {
     page: number;
     limit: number;
@@ -106,7 +119,7 @@ export interface SubscriptionProductsResponse {
   };
 }
 
-// Subscription Purchase Types
+// Subscription Purchase Types (legacy - single product)
 export interface PurchaseSubscriptionPayload {
   customer_id: number;
   product_id: number;
@@ -115,6 +128,23 @@ export interface PurchaseSubscriptionPayload {
   cycle_interval: number;
   cycle_unit: 'day' | 'week' | 'month' | 'year';
   price_unit: number;
+  notes?: string;
+}
+
+// Multi-product purchase payload (Package + Subscription)
+// This is the new format that sends all items in one order
+export interface ProductOrderItem {
+  product_id: number;
+  quantity: number;
+  price_unit: number;
+}
+
+export interface PurchaseMultiProductPayload {
+  customer_id: number;
+  company_id: number;
+  products: ProductOrderItem[];  // All products: subscription, main product, privilege
+  cycle_interval: number;
+  cycle_unit: 'day' | 'week' | 'month' | 'year';
   notes?: string;
 }
 
@@ -208,19 +238,100 @@ export interface InitiatePaymentResponse {
 
 // Manual Payment Confirmation Types
 export interface ManualConfirmPaymentPayload {
-  subscription_code: string;
+  order_id: number;
   receipt: string;
-  customer_id?: string;
 }
 
 export interface ManualConfirmPaymentResponse {
   message: string;
-  note: string;
-  subscription_code: string;
+  note?: string;
+  subscription_code?: string;
   receipt: string;
+  order_id?: number;
+  order_name?: string;
+  total_paid: number;
+  expected_to_pay?: number;
+  remaining_to_pay?: number;
+  // Legacy fields for backward compatibility
+  amount_paid?: number;
+  amount_expected?: number;
+  amount_remaining?: number;
+  // Duplicate detection
+  is_duplicate?: boolean;
+  receipt_used?: boolean;
+  receipt_status?: string;
+}
+
+// Payment Request Types (create ticket before collecting payment)
+export interface CreatePaymentRequestPayload {
+  subscription_code: string;
+  amount_required: number;
+  description: string;
+  external_reference?: string;
+}
+
+export interface PaymentRequestCustomer {
+  id: number;
+  name: string;
+}
+
+export interface PaymentRequestOrder {
+  id: number;
+  name: string;
+  state: string;
+}
+
+export interface PaymentRequestInvoice {
+  id: number;
+  name: string;
+  state: string;
+}
+
+export interface PaymentRequestData {
+  id: number;
+  name: string;
+  subscription_code: string;
+  amount_required: number;
   amount_paid: number;
-  amount_expected: number;
   amount_remaining: number;
+  status: string;
+  payment_type: string;
+  customer: PaymentRequestCustomer;
+  sale_order: PaymentRequestOrder;
+  invoice: PaymentRequestInvoice;
+  payment_instructions: string;
+  payment_endpoint: string;
+  payment_params: {
+    subscription_code: string;
+    phone_number: string;
+    amount: string;
+  };
+  check_status_url: string;
+}
+
+export interface CreatePaymentRequestResponse {
+  success: boolean;
+  message: string;
+  payment_request?: PaymentRequestData;
+  // Error fields when request fails
+  error?: string;
+  business_rule?: string;
+  instructions?: string[];
+  existing_request?: {
+    id: number;
+    name: string;
+    amount_required: number;
+    amount_paid: number;
+    amount_remaining: number;
+    status: string;
+    progress_percentage: number;
+    description: string;
+    created_at: string;
+    actions: {
+      check_status: string;
+      cancel_request: string;
+    };
+  };
 }
 
 // Subscription Status Types
@@ -329,7 +440,7 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 
 /**
  * Fetch available subscription products/plans
- * Note: Odoo API returns products at root level, we normalize to { data: { products, pagination } }
+ * Note: Odoo API returns products categorized by type (subscription, main_service, battery_swap, packages)
  * 
  * @param page - Page number for pagination (default: 1)
  * @param limit - Number of items per page (default: 20)
@@ -362,16 +473,36 @@ export async function getSubscriptionProducts(
       throw new Error((rawData as any)?.error || `HTTP ${response.status}`);
     }
 
-    // Transform root-level response to normalized format with data wrapper
+    // Handle both old format (products array) and new format (categories object)
+    let subscriptionProducts: SubscriptionProduct[] = [];
+    let mainServiceProducts: SubscriptionProduct[] = [];
+    let batterySwapProducts: SubscriptionProduct[] = [];
+    let packageProducts: SubscriptionProduct[] = [];
+
+    if (rawData.categories) {
+      // New format: products are categorized
+      subscriptionProducts = rawData.categories.subscription || [];
+      mainServiceProducts = rawData.categories.main_service || [];
+      batterySwapProducts = rawData.categories.battery_swap || [];
+      packageProducts = rawData.categories.packages || [];
+    } else if ((rawData as any).products) {
+      // Legacy format: flat products array (backward compatibility)
+      subscriptionProducts = (rawData as any).products || [];
+    }
+
+    // Transform to normalized format with data wrapper
     return {
       success: rawData.success,
       data: {
-        products: rawData.products,
+        products: subscriptionProducts,  // Subscription plans
+        mainServiceProducts,  // Physical products (bikes, tuks, etc.)
+        batterySwapProducts,  // Battery swap privileges
+        packageProducts,  // Product packages
         pagination: {
-          page: rawData.pagination.current_page,
-          limit: rawData.pagination.per_page,
-          total: rawData.pagination.total_records,
-          pages: rawData.pagination.total_pages,
+          page: rawData.pagination?.current_page || 1,
+          limit: rawData.pagination?.per_page || 20,
+          total: rawData.pagination?.total_records || 0,
+          pages: rawData.pagination?.total_pages || 1,
         },
       },
     };
@@ -459,6 +590,112 @@ export async function purchaseSubscription(
 }
 
 /**
+ * Purchase multiple products in one order (Package + Subscription)
+ * This is the new format that bundles all items together:
+ * - Main product (e.g., E3 bike)
+ * - Privilege (e.g., E3 Swap Privilege)
+ * - Subscription plan
+ * 
+ * @param payload - Multi-product purchase data with all items
+ * @param authToken - Optional employee/salesperson token for authorization
+ */
+export async function purchaseMultiProducts(
+  payload: PurchaseMultiProductPayload,
+  authToken?: string
+): Promise<OdooApiResponse<PurchaseSubscriptionResponse>> {
+  const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  // Log the request payload for debugging
+  console.info('=== PURCHASE MULTI PRODUCTS (CREATE ORDER) - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const rawData = await response.json();
+
+    // Log the full response for debugging
+    console.info('=== PURCHASE MULTI PRODUCTS (CREATE ORDER) - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(rawData, null, 2));
+
+    // Check HTTP status first
+    if (!response.ok) {
+      console.error('Odoo API Error (HTTP):', rawData);
+      throw new Error(rawData?.message || rawData?.error || `HTTP ${response.status}`);
+    }
+
+    // Check success field - API might return HTTP 200 with success: false
+    if (!rawData.success) {
+      console.error('Odoo API Error (success=false):', rawData);
+      throw new Error(rawData?.message || rawData?.error || 'Order creation failed');
+    }
+
+    // Validate required fields exist
+    if (!rawData.order || !rawData.order.id) {
+      console.error('Odoo API Error: Missing order in response', rawData);
+      throw new Error('Order creation failed - no order returned');
+    }
+
+    if (!rawData.subscription || !rawData.subscription.subscription_code) {
+      console.error('Odoo API Error: Missing subscription in response', rawData);
+      throw new Error('Order creation failed - no subscription returned');
+    }
+
+    // Get currency symbol based on currency code
+    const getCurrencySymbol = (currency: string): string => {
+      const symbols: Record<string, string> = {
+        'USD': '$',
+        'EUR': '€',
+        'KES': 'KSh',
+        'XOF': 'CFA',
+        'GBP': '£',
+        'CNY': '¥',
+      };
+      return symbols[currency] || currency;
+    };
+
+    // Transform root-level response to normalized format with data wrapper
+    // Note: order_id is also available at root level as rawData.order_id
+    return {
+      success: true,
+      data: {
+        subscription: {
+          id: rawData.subscription.subscription_id,
+          subscription_code: rawData.subscription.subscription_code,
+          status: rawData.subscription.status,
+          product_name: rawData.subscription.product_name,
+          price_at_signup: rawData.subscription.price_at_signup,
+          currency: rawData.subscription.currency,
+          currency_symbol: getCurrencySymbol(rawData.subscription.currency),
+        },
+        order: rawData.order,
+        invoice: rawData.invoice,
+      },
+    };
+  } catch (error: any) {
+    console.error('=== PURCHASE MULTI PRODUCTS - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+/**
  * Get subscription status
  */
 export async function getSubscriptionStatus(
@@ -513,10 +750,79 @@ export async function initiatePayment(
 }
 
 /**
+ * Create a payment request/ticket before collecting payment
+ * This MUST be called before collecting payment from the customer.
+ * 
+ * The response includes payment_request.sale_order.id which MUST be used as order_id
+ * when calling confirmPaymentManual.
+ * 
+ * IMPORTANT: If there's already an active payment request, the API returns:
+ * - success: false
+ * - error: Description of the problem
+ * - existing_request: Details about the existing active request
+ * - instructions: Options for how to proceed (complete, cancel, or pay remaining)
+ * 
+ * The caller MUST treat this as an error and inform the user - do NOT silently reuse
+ * the existing request or fall back to subscription_code for confirm payment.
+ * 
+ * @param payload - Payment request data (subscription_code, amount_required, description, external_reference?)
+ * @param authToken - Optional employee/salesperson token for authorization
+ */
+export async function createPaymentRequest(
+  payload: CreatePaymentRequestPayload,
+  authToken?: string
+): Promise<CreatePaymentRequestResponse> {
+  const url = `${ODOO_BASE_URL}/api/payment-request/create`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  // Log the request payload for debugging
+  console.info('=== CREATE PAYMENT REQUEST - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data: CreatePaymentRequestResponse = await response.json();
+    
+    // Log the full response for debugging
+    console.info('=== CREATE PAYMENT REQUEST - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    // Note: API returns success: false for business rule violations (e.g., existing active request)
+    // We return the full response so caller can handle accordingly
+    return data;
+  } catch (error: any) {
+    console.error('=== CREATE PAYMENT REQUEST - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+/**
  * Manually confirm a payment with M-Pesa receipt
  * Used after customer has paid and we have the receipt code
  * 
- * @param payload - Payment confirmation data (subscription_code, receipt, customer_id)
+ * REQUIRES: order_id from createPaymentRequest response
+ * The order_id is obtained from payment_request.sale_order.id after creating a payment request
+ * 
+ * IMPORTANT: Check that total_paid >= expected amount before proceeding
+ * 
+ * @param payload - Payment confirmation data (order_id + receipt)
  * @param authToken - Optional employee/salesperson token for authorization
  */
 export async function confirmPaymentManual(

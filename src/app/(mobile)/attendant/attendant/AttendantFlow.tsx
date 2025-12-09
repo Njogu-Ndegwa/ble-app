@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantUser } from '@/lib/attendant-auth';
-import { connBleByMacAddress, initServiceBleData } from '@/app/utils';
+import { getAttendantUser, clearEmployeeLogin } from '@/lib/attendant-auth';
+import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
 // Import components
@@ -27,17 +27,23 @@ import {
   SwapData,
   AttendantStep,
   FlowError,
-  BleDevice,
-  BleScanState,
   PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
+import { BleProgressModal } from '@/components/shared';
+
+// Import modular BLE hook for battery scanning (available for future migration)
+import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 
 // Import Odoo API functions for payment
 import {
   initiatePayment,
   confirmPaymentManual,
+  createPaymentRequest,
+  type CreatePaymentRequestResponse,
+  type PaymentRequestData,
 } from '@/lib/odoo-api';
+import { PAYMENT } from '@/lib/constants';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -54,9 +60,10 @@ declare global {
 
 interface AttendantFlowProps {
   onBack?: () => void;
+  onLogout?: () => void;
 }
 
-export default function AttendantFlow({ onBack }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -116,8 +123,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     oldBattery: null,
     newBattery: null,
     energyDiff: 0,
+    quotaDeduction: 0,  // Amount of remaining quota to apply (in kWh)
+    chargeableEnergy: 0,  // Energy to charge for after quota deduction (in kWh)
     cost: 0,
     rate: 120, // Will be updated from service response
+    currencySymbol: PAYMENT.defaultCurrency, // Will be updated from service/subscription response
   });
   
   // Service states from MQTT response
@@ -143,50 +153,124 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [paymentInitiationData, setPaymentInitiationData] = useState<PaymentInitiation | null>(null);
   
+  // Payment request states (ticket created before collecting payment)
+  const [paymentRequestCreated, setPaymentRequestCreated] = useState(false);
+  const [paymentRequestData, setPaymentRequestData] = useState<PaymentRequestData | null>(null);
+  const [paymentRequestOrderId, setPaymentRequestOrderId] = useState<number | null>(null);
+  // Expected amount the customer needs to pay for this swap (swapData.cost at time of request creation)
+  const [expectedPaymentAmount, setExpectedPaymentAmount] = useState<number>(0);
+  
   // Phase states
   const [paymentAndServiceStatus, setPaymentAndServiceStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
   
-  // BLE Scan-to-Bind state for battery energy reading
-  const [bleScanState, setBleScanState] = useState<BleScanState>({
-    isScanning: false,
-    isConnecting: false,
-    isReadingEnergy: false,
-    connectedDevice: null,
-    detectedDevices: [],
-    connectionProgress: 0,
-    error: null,
-    connectionFailed: false,
-    requiresBluetoothReset: false,
+  // ============================================
+  // BLE SCAN-TO-BIND HOOK (Modular BLE handling)
+  // ============================================
+  
+  // Ref for electricity service to use in callbacks without recreation
+  const electricityServiceRef = useRef<typeof electricityService>(undefined);
+  
+  // BLE scan-to-bind hook - handles all BLE operations for battery scanning
+  const {
+    bleScanState,
+    pendingBatteryId,
+    isReady: bleIsReady,
+    startScanning: hookStartScanning,
+    stopScanning: hookStopScanning,
+    handleQrScanned: hookHandleQrScanned,
+    cancelOperation: hookCancelOperation,
+    resetState: hookResetState,
+    retryConnection: hookRetryConnection,
+  } = useFlowBatteryScan({
+    onOldBatteryRead: (battery) => {
+      console.info('Old battery read via hook:', battery);
+      setSwapData(prev => ({ ...prev, oldBattery: battery }));
+      advanceToStep(3);
+      toast.success(`Old battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
+      setIsScanning(false);
+      scanTypeRef.current = null;
+    },
+    onNewBatteryRead: (battery) => {
+      console.info('New battery read via hook:', battery);
+      // Calculate energy difference and cost
+      setSwapData(prev => {
+        const oldEnergy = prev.oldBattery?.energy || 0;
+        const energyDiffWh = battery.energy - oldEnergy;
+        // IMPORTANT: Round energy to 2 decimal places BEFORE using for calculations
+        // This ensures consistent pricing (e.g., 2.54530003 kWh becomes 2.54 kWh)
+        const energyDiffKwh = Math.floor((energyDiffWh / 1000) * 100) / 100;
+        
+        // Get rate from electricity service
+        const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
+        
+        // Get remaining electricity quota
+        const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
+        const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
+        const remainingQuotaKwh = Math.max(0, elecQuota - elecUsed);
+        
+        // Calculate quota deduction
+        const quotaDeduction = energyDiffKwh > 0 
+          ? Math.min(remainingQuotaKwh, energyDiffKwh) 
+          : 0;
+        
+        // Chargeable energy after quota - floor to 2 decimal places for consistency
+        const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
+        const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
+        
+        // Cost = floored energy × rate (exact multiplication, no flooring)
+        // This is the true value of the energy for accurate quota tracking
+        // Customer pays Math.floor(cost) - whole number rounded down
+        const cost = chargeableEnergyFloored * rate;
+        
+        console.info('Energy differential calculated:', {
+          oldEnergyWh: oldEnergy,
+          newEnergyWh: battery.energy,
+          energyDiffKwh,
+          remainingQuotaKwh,
+          quotaDeduction,
+          chargeableEnergy: chargeableEnergyFloored,
+          ratePerKwh: rate,
+          cost,
+        });
+        
+        return {
+          ...prev,
+          newBattery: battery,
+          // All values already floored to 2 decimal places above
+          energyDiff: energyDiffKwh,
+          quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
+          chargeableEnergy: chargeableEnergyFloored,
+          cost: cost > 0 ? cost : 0,
+        };
+      });
+      advanceToStep(4);
+      toast.success(`New battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
+      setIsScanning(false);
+      scanTypeRef.current = null;
+    },
+    onError: (error, requiresReset) => {
+      console.error('BLE error via hook:', error, { requiresReset });
+      setIsScanning(false);
+      scanTypeRef.current = null;
+    },
+    debug: true,
   });
   
-  // BLE operation timeout ref - for cancelling stuck operations
-  const bleOperationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // BLE handlers ready flag - hook is ready when bleIsReady is true
+  const [bleHandlersReady, setBleHandlersReady] = useState<boolean>(false);
   
-  // Global BLE timeout ref - last resort when connection hangs without error callbacks
-  const bleGlobalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Sync bleHandlersReady with hook's isReady
+  useEffect(() => {
+    if (bleIsReady && !bleHandlersReady) {
+      setBleHandlersReady(true);
+    }
+  }, [bleIsReady, bleHandlersReady]);
   
-  // BLE retry state
-  const bleRetryCountRef = useRef<number>(0);
-  // Track whether connection was successful - prevents retrying when already connected but initializing services
-  const isConnectionSuccessfulRef = useRef<boolean>(false);
-  const MAX_BLE_RETRIES = 3;
-  const BLE_CONNECTION_TIMEOUT = 15000; // 15 seconds for connection
-  const BLE_DATA_READ_TIMEOUT = 20000; // 20 seconds for data reading
-  const BLE_GLOBAL_TIMEOUT = 90000; // 90 seconds (1m 30s) - last resort timeout when no error callbacks received
-  
-  // Refs for BLE scanning
-  const detectedBleDevicesRef = useRef<BleDevice[]>([]);
-  const pendingBatteryQrCodeRef = useRef<string | null>(null);
-  const pendingBatteryScanTypeRef = useRef<'old_battery' | 'new_battery' | null>(null);
-  const pendingConnectionMacRef = useRef<string | null>(null); // MAC address we're attempting to connect to
-  
-  // DTA refresh retry state - for retrying when DTA values are missing/invalid
-  const dtaRefreshRetryCountRef = useRef<number>(0);
-  const MAX_DTA_REFRESH_RETRIES = 2; // Retry up to 2 times (total 3 attempts)
-  const DTA_REFRESH_DELAY = 1500; // 1.5 seconds delay between DTA refresh retries
+  // NOTE: All BLE refs (pendingBatteryQrCodeRef, detectedBleDevicesRef, etc.) 
+  // are now managed internally by the useFlowBatteryScan hook
   
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
@@ -194,20 +278,23 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
   // Transaction ID
   const [transactionId, setTransactionId] = useState<string>('');
   
+  // Payment step input mode (scan QR or manual entry)
+  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  // Manual payment ID input
+  const [manualPaymentId, setManualPaymentId] = useState<string>('');
+  // Payment amount tracking - amount_remaining from Odoo response (0 means fully paid)
+  const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
+  // Actual amount paid by customer (from Odoo response)
+  const [actualAmountPaid, setActualAmountPaid] = useState<number>(0);
+  
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
   
   // Ref for tracking current scan type
   const scanTypeRef = useRef<'customer' | 'old_battery' | 'new_battery' | 'payment' | null>(null);
   
-  // Bridge initialization ref (for preventing double init() calls)
-  const bridgeInitRef = useRef<boolean>(false);
-  
   // Track if QR scan was initiated to detect when user returns without scanning
   const qrScanInitiatedRef = useRef<boolean>(false);
-  
-  // BLE handlers ready flag - ensures we don't start scanning before handlers are registered
-  const [bleHandlersReady, setBleHandlersReady] = useState<boolean>(false);
   
   // Timeout ref for scan operations (customer identification, battery scans)
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -235,84 +322,127 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     scanTypeRef.current = null;
   }, [clearScanTimeout]);
 
-  // Helper to clear BLE operation timeout
-  const clearBleOperationTimeout = useCallback(() => {
-    if (bleOperationTimeoutRef.current) {
-      clearTimeout(bleOperationTimeoutRef.current);
-      bleOperationTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Helper to clear global BLE timeout (90s last resort)
-  const clearBleGlobalTimeout = useCallback(() => {
-    if (bleGlobalTimeoutRef.current) {
-      clearTimeout(bleGlobalTimeoutRef.current);
-      bleGlobalTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Cancel/Close ongoing BLE operation - allows user to dismiss failure state and try again
-  // NOTE: Cancellation is blocked when already connected and reading data to prevent orphaned connections
+  // Cancel/Close ongoing BLE operation - delegates to hook
   const cancelBleOperation = useCallback(() => {
-    // SAFETY CHECK: Don't allow cancellation if we've successfully connected
-    // and are reading energy data - this would leave the device in a bad state
-    if (isConnectionSuccessfulRef.current) {
-      console.warn('=== Cancel blocked: Battery is already connected and reading data ===');
-      toast('Please wait while reading battery data...', { icon: '⏳' });
-      return;
-    }
-    
-    console.info('=== Closing/Cancelling BLE operation ===');
-    
-    // Clear all timeouts
-    clearBleOperationTimeout();
-    clearBleGlobalTimeout();
+    console.info('=== Cancelling BLE operation via hook ===');
     clearScanTimeout();
-    
-    // Stop BLE scan if running
-    if (window.WebViewJavascriptBridge) {
-      window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-      
-      // Disconnect any connected device
-      const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-      if (connectedMac) {
-        window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
-        sessionStorage.removeItem('connectedDeviceMac');
-      }
-    }
-    
-    // Reset all BLE state
-    setBleScanState({
-      isScanning: false,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      detectedDevices: [],
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    });
-    
-    // Reset scan state
+    hookCancelOperation();
     setIsScanning(false);
     scanTypeRef.current = null;
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
-    pendingConnectionMacRef.current = null;
-    bleRetryCountRef.current = 0;
-    isConnectionSuccessfulRef.current = false;
-  }, [clearBleOperationTimeout, clearBleGlobalTimeout, clearScanTimeout]);
+  }, [clearScanTimeout, hookCancelOperation]);
+  
+  // Retry BLE connection - delegates to hook
+  const retryBleConnection = useCallback(() => {
+    console.info('=== Retrying BLE connection via hook ===');
+    hookRetryConnection();
+  }, [hookRetryConnection]);
 
   // Get electricity service from service states
   const electricityService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
+  );
+  
+  // Keep electricityServiceRef in sync for use in BLE hook callbacks
+  useEffect(() => {
+    electricityServiceRef.current = electricityService;
+  }, [electricityService]);
+
+  // Get swap-count service from service states
+  const swapCountService = serviceStates.find(
+    (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-swap-count')
   );
 
   // Get battery fleet service (to check current_asset for customer type)
   const batteryFleetService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-battery-fleet')
   );
+
+  // Check if we can skip payment collection
+  // Returns true if BOTH conditions are met:
+  // 1. Electricity quota: remaining kWh >= energy being transferred (or rounded cost <= 0)
+  // 2. Swap count quota: remaining swaps >= 1
+  // NOTE: We use Math.floor(cost) for this decision since customers can't pay decimals
+  const hasSufficientQuota = useMemo(() => {
+    // Only check quota/cost once we have battery data (Step 4 - Review)
+    // Without new battery data, we can't determine if payment is needed
+    if (!swapData.newBattery) {
+      return false;
+    }
+    
+    // Calculate rounded cost - customers can't pay decimals so we round down
+    // Example: 20.54 becomes 20, 0.54 becomes 0
+    const roundedCost = Math.floor(swapData.cost);
+    
+    // === Check 1: Electricity Quota ===
+    let hasEnoughElectricity = false;
+    
+    // If ACTUAL cost is 0 or negative, no electricity payment is needed
+    // This handles cases where customer returns equal or more energy than they receive
+    // NOTE: We use swapData.cost (not roundedCost) to distinguish between:
+    //   - True zero/negative cost (customer returning energy) → quota-based, no payment_data
+    //   - Zero-cost rounding (e.g., 0.54 → 0) → NOT quota-based, include payment_data with ZERO_COST_ROUNDING
+    if (swapData.cost <= 0) {
+      console.info('Electricity check: actual cost is 0 or negative (not zero-cost rounding)', { 
+        cost: swapData.cost, 
+        roundedCost 
+      });
+      hasEnoughElectricity = true;
+    } else if (electricityService) {
+      const elecQuota = Number(electricityService.quota ?? 0);
+      const elecUsed = Number(electricityService.used ?? 0);
+      const remainingElecQuota = elecQuota - elecUsed;
+      const energyNeeded = swapData.energyDiff;
+      
+      hasEnoughElectricity = Number.isFinite(remainingElecQuota) && 
+                             Number.isFinite(energyNeeded) && 
+                             remainingElecQuota >= energyNeeded &&
+                             energyNeeded > 0;
+      
+      console.info('Electricity quota check:', {
+        quota: elecQuota,
+        used: elecUsed,
+        remainingQuota: remainingElecQuota,
+        energyNeeded,
+        hasEnough: hasEnoughElectricity,
+      });
+    } else {
+      console.info('Electricity check: no electricity service found');
+      hasEnoughElectricity = false;
+    }
+    
+    // === Check 2: Swap Count Quota ===
+    let hasEnoughSwaps = false;
+    
+    if (swapCountService) {
+      const swapQuota = Number(swapCountService.quota ?? 0);
+      const swapUsed = Number(swapCountService.used ?? 0);
+      const remainingSwaps = swapQuota - swapUsed;
+      
+      // Need at least 1 swap remaining
+      hasEnoughSwaps = Number.isFinite(remainingSwaps) && remainingSwaps >= 1;
+      
+      console.info('Swap count quota check:', {
+        quota: swapQuota,
+        used: swapUsed,
+        remainingSwaps,
+        hasEnough: hasEnoughSwaps,
+      });
+    } else {
+      console.info('Swap count check: no swap-count service found');
+      hasEnoughSwaps = false;
+    }
+    
+    // BOTH checks must pass to skip payment
+    const canSkipPayment = hasEnoughElectricity && hasEnoughSwaps;
+    
+    console.info('Final quota check result:', {
+      hasEnoughElectricity,
+      hasEnoughSwaps,
+      canSkipPayment,
+    });
+    
+    return canSkipPayment;
+  }, [electricityService, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
@@ -347,291 +477,18 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     return `${rssi}db ~ ${distance.toFixed(0)}m`;
   }, []);
 
-  // Start BLE scanning for nearby devices
-  // NOTE: This does NOT clear detected devices - devices accumulate over time
-  // This mirrors keypad behavior where BLE scan runs continuously and devices build up
+  // Start BLE scanning - delegates to hook
   const startBleScan = useCallback(() => {
-    if (!window.WebViewJavascriptBridge) {
-      console.error('WebViewJavascriptBridge not available for BLE scan');
-      return;
-    }
+    console.info('Starting BLE scan via hook');
+    hookStartScanning();
+  }, [hookStartScanning]);
 
-    window.WebViewJavascriptBridge.callHandler(
-      'startBleScan',
-      '',
-      (responseData: string) => {
-        console.info('BLE scan started:', responseData);
-      }
-    );
-    
-    // Just set isScanning flag - DON'T clear detected devices
-    // Devices accumulate over time for better matching
-    setBleScanState(prev => ({
-      ...prev,
-      isScanning: true,
-      error: null,
-    }));
-  }, []);
-
-  // Stop BLE scanning
+  // Stop BLE scanning - delegates to hook
   const stopBleScan = useCallback(() => {
-    if (!window.WebViewJavascriptBridge) return;
+    console.info('Stopping BLE scan via hook');
+    hookStopScanning();
+  }, [hookStopScanning]);
 
-    window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-    setBleScanState(prev => ({
-      ...prev,
-      isScanning: false,
-    }));
-  }, []);
-
-  // Connect to a BLE device by MAC address with timeout handling
-  const connectBleDevice = useCallback((macAddress: string) => {
-    if (!window.WebViewJavascriptBridge) {
-      toast.error('Bluetooth bridge not available');
-      return;
-    }
-
-    // Clear any existing timeout
-    clearBleOperationTimeout();
-    
-    // Reset connection success flag - this will be set to true in bleConnectSuccessCallBack
-    isConnectionSuccessfulRef.current = false;
-    
-    // Reset retry count when starting a fresh connection
-    bleRetryCountRef.current = 0;
-    
-    // Store the MAC address we're trying to connect to (for retry logic in failure callback)
-    pendingConnectionMacRef.current = macAddress;
-    
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: true,
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    }));
-
-    // NOTE: We intentionally do NOT set a timeout for retries here.
-    // Retries should ONLY happen when we receive an actual failure callback
-    // from bleConnectFailCallBack. This prevents retrying during normal
-    // connection + initialization time which can take longer than expected.
-    // The bleConnectFailCallBack and bleConnectSuccessCallBack will handle
-    // all connection state updates.
-
-    connBleByMacAddress(macAddress, (responseData: string) => {
-      console.info('BLE connection initiated:', responseData);
-    });
-  }, [clearBleOperationTimeout]);
-
-  // Extract energy from DTA service data
-  // rcap = Remaining Capacity in mAh (milliamp-hours)
-  // fccp = Full Charge Capacity in mAh
-  // pckv = Pack Voltage in mV (millivolts)
-  // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
-  // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null on failure
-  const populateEnergyFromDta = useCallback((serviceData: any): { energy: number; fullCapacity: number; chargePercent: number } | null => {
-    if (!serviceData || !Array.isArray(serviceData.characteristicList)) {
-      console.warn('Invalid DTA service data for energy calculation');
-      return null;
-    }
-
-    const getCharValue = (name: string) => {
-      const char = serviceData.characteristicList.find(
-        (c: any) => c.name?.toLowerCase() === name.toLowerCase()
-      );
-      return char?.realVal ?? null;
-    };
-
-    const rcapRaw = getCharValue('rcap');  // Remaining Capacity in mAh
-    const fccpRaw = getCharValue('fccp');  // Full Charge Capacity in mAh
-    const pckvRaw = getCharValue('pckv');  // Pack Voltage in mV
-    const rsocRaw = getCharValue('rsoc');  // Relative State of Charge (%)
-
-    const rcap = rcapRaw !== null ? parseFloat(rcapRaw) : NaN;
-    const fccp = fccpRaw !== null ? parseFloat(fccpRaw) : NaN;
-    const pckv = pckvRaw !== null ? parseFloat(pckvRaw) : NaN;
-    const rsoc = rsocRaw !== null ? parseFloat(rsocRaw) : NaN;
-
-    if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
-      console.warn('Unable to parse rcap/pckv from DTA service', {
-        rcapRaw,
-        pckvRaw,
-      });
-      return null;
-    }
-
-    // Energy (Wh) = Capacity (mAh) × Voltage (mV) / 1,000,000
-    // Example: 15290 mAh × 75470 mV / 1,000,000 = 1,154 Wh = 1.15 kWh
-    const energy = (rcap * pckv) / 1_000_000;
-    const fullCapacity = Number.isFinite(fccp) ? (fccp * pckv) / 1_000_000 : 0;
-
-    if (!Number.isFinite(energy)) {
-      console.warn('Computed energy is not a finite number', {
-        rcap,
-        pckv,
-        energy,
-      });
-      return null;
-    }
-
-    // Calculate charge percentage from rcap/fccp, fallback to rsoc if fccp unavailable
-    let chargePercent: number;
-    if (Number.isFinite(fccp) && fccp > 0) {
-      chargePercent = Math.round((rcap / fccp) * 100);
-    } else if (Number.isFinite(rsoc)) {
-      chargePercent = Math.round(rsoc);
-    } else {
-      chargePercent = 0;
-    }
-
-    // Clamp charge percent to 0-100
-    chargePercent = Math.max(0, Math.min(100, chargePercent));
-
-    console.info('Energy calculated from DTA service:', {
-      rcap_mAh: rcap,
-      fccp_mAh: fccp,
-      pckv_mV: pckv,
-      pckv_V: pckv / 1000,
-      rsoc_percent: rsoc,
-      computed_energy_Wh: energy,
-      computed_energy_kWh: energy / 1000,
-      computed_fullCapacity_Wh: fullCapacity,
-      computed_fullCapacity_kWh: fullCapacity / 1000,
-      computed_chargePercent: chargePercent,
-    });
-
-    return {
-      energy: Math.round(energy * 100) / 100, // Round to 2 decimal places (Wh)
-      fullCapacity: Math.round(fullCapacity * 100) / 100,
-      chargePercent,
-    };
-  }, []);
-
-  // Handle matching QR code to detected BLE device and initiate connection
-  // Uses exponential backoff retry strategy for better reliability
-  const handleBleDeviceMatch = useCallback((qrCode: string, retryAttempt: number = 0) => {
-    const MAX_MATCH_RETRIES = 4; // Total 5 attempts (0-4)
-    const RETRY_DELAYS = [2000, 3000, 4000, 5000]; // Exponential backoff delays
-    
-    const last6 = qrCode.slice(-6).toLowerCase();
-    const devices = detectedBleDevicesRef.current;
-    
-    console.info('Attempting to match QR code to BLE device:', {
-      qrCode,
-      last6,
-      detectedDevices: devices.length,
-      attempt: retryAttempt + 1,
-      maxAttempts: MAX_MATCH_RETRIES + 1,
-    });
-
-    // Start global timeout on first attempt (when modal first appears)
-    // This is a last resort safety net - if no success or error after 90 seconds,
-    // show user instructions to toggle Bluetooth
-    if (retryAttempt === 0) {
-      clearBleGlobalTimeout();
-      bleGlobalTimeoutRef.current = setTimeout(() => {
-        console.warn('=== BLE GLOBAL TIMEOUT (90s) - Connection hung without error callback ===');
-        
-        // Clear other timeouts
-        clearBleOperationTimeout();
-        clearScanTimeout();
-        
-        // Stop BLE scan
-        if (window.WebViewJavascriptBridge) {
-          window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-        }
-        
-        // Show the Bluetooth reset instructions modal
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isReadingEnergy: false,
-          connectionProgress: 0,
-          error: 'Connection timed out',
-          connectionFailed: true,
-          requiresBluetoothReset: true,
-        }));
-        
-        toast.error('Connection timed out. Please toggle Bluetooth and try again.');
-        
-        // Reset scan state
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        isConnectionSuccessfulRef.current = false;
-      }, BLE_GLOBAL_TIMEOUT);
-    }
-
-    // Show connecting modal with progress based on retry attempt
-    const progressPercent = Math.min(5 + (retryAttempt * 15), 60);
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: true,
-      connectionProgress: progressPercent,
-      error: null, // Silently retry without affecting user confidence
-    }));
-
-    // Find device where last 6 chars of name match
-    const matchedDevice = devices.find(device => {
-      const deviceLast6 = (device.name || '').toLowerCase().slice(-6);
-      return deviceLast6 === last6;
-    });
-
-    if (matchedDevice) {
-      console.info('Found matching BLE device:', matchedDevice);
-      stopBleScan();
-      bleRetryCountRef.current = 0; // Reset retry count for connection phase
-      connectBleDevice(matchedDevice.macAddress);
-      return true;
-    } else {
-      console.warn(`No matching BLE device found (attempt ${retryAttempt + 1}). Available devices:`, 
-        devices.map(d => `${d.name} (${d.rssi})`));
-      
-      // Check if we should retry
-      if (retryAttempt < MAX_MATCH_RETRIES) {
-        const delay = RETRY_DELAYS[retryAttempt] || 5000;
-        console.info(`Will retry in ${delay}ms...`);
-        
-        // Update UI to show searching progress (silently retry without showing attempt count)
-        setBleScanState(prev => ({
-          ...prev,
-          connectionProgress: progressPercent + 5,
-          error: null, // Silently retry without affecting user confidence
-        }));
-        
-        // Schedule retry with exponential backoff
-        setTimeout(() => {
-          handleBleDeviceMatch(qrCode, retryAttempt + 1);
-        }, delay);
-        
-        return false;
-      } else {
-        // All retries exhausted
-        console.error('No matching BLE device found after all retries');
-        toast.error('Battery not found nearby. Please ensure the battery is powered on and close to this device.');
-        
-        // Clear global timeout since we've reached an error state
-        clearBleGlobalTimeout();
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isScanning: false,
-          connectionProgress: 0,
-          error: 'Battery not found',
-        }));
-        
-        // Reset state to allow user to try again
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        stopBleScan();
-        
-        return false;
-      }
-    }
-  }, [stopBleScan, connectBleDevice, clearBleGlobalTimeout, clearBleOperationTimeout, clearScanTimeout]);
 
   // Process customer QR code data and send MQTT identify_customer
   const processCustomerQRData = useCallback((qrCodeData: string) => {
@@ -765,6 +622,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 const sourceData = isIdempotent ? metadata?.cached_result : metadata;
                 const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
                 const serviceBundle = sourceData?.service_bundle;
+                const commonTerms = sourceData?.common_terms;
                 const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
                 
                 if (servicePlanData) {
@@ -797,9 +655,26 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     (s: any) => s.service_id?.includes('service-swap-count')
                   );
                   
-                  if (elecService?.usageUnitPrice) {
-                    setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
-                  }
+                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
+                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
+                  
+                  // Update swap data with rate and currency from customer's service plan
+                  setSwapData(prev => ({ 
+                    ...prev, 
+                    rate: elecService?.usageUnitPrice || prev.rate,
+                    currencySymbol: billingCurrency 
+                  }));
+                  
+                  // Check for infinite quota services (quota > 100,000 indicates management services)
+                  const INFINITE_QUOTA_THRESHOLD = 100000;
+                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  
+                  // Calculate remaining quota values
+                  const energyRemaining = elecService ? (elecService.quota - elecService.used) : 0;
+                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
+                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
+                  const energyValue = energyRemaining * energyUnitPrice;
                   
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId || customerId,
@@ -809,10 +684,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     phone: normalizedData.phone || '', // For M-Pesa payment
                     swapCount: swapCountService?.used || 0,
                     lastSwap: 'N/A',
-                    energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
+                    energyRemaining: energyRemaining,
                     energyTotal: elecService?.quota || 0,
+                    energyValue: energyValue,
+                    energyUnitPrice: energyUnitPrice,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
+                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
+                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
                     paymentState: servicePlanData.paymentState || 'INITIAL',
                     serviceState: servicePlanData.serviceState || 'INITIAL',
                     currentBatteryId: batteryFleet?.current_asset || undefined,
@@ -948,25 +827,10 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     }
     
-    // Store the scanned battery ID for later use after BLE connection
-    pendingBatteryQrCodeRef.current = scannedBatteryId;
-    pendingBatteryScanTypeRef.current = 'old_battery';
-    
-    // Start scan-to-bind process - match QR code to BLE device
-    console.info('Old battery QR scanned, initiating scan-to-bind:', scannedBatteryId);
-    
-    // If BLE scanning hasn't started yet, start it (it should already be running)
-    if (!bleScanState.isScanning) {
-      startBleScan();
-      // Wait a moment for devices to be discovered before matching
-      setTimeout(() => {
-        handleBleDeviceMatch(scannedBatteryId);
-      }, 1000);
-    } else {
-      // BLE scan already running, try to match immediately
-      handleBleDeviceMatch(scannedBatteryId);
-    }
-  }, [customerType, customerData?.currentBatteryId, clearScanTimeout, stopBleScan, startBleScan, bleScanState.isScanning, handleBleDeviceMatch]);
+    // Initiate scan-to-bind via hook
+    console.info('Old battery QR scanned, initiating scan-to-bind via hook:', scannedBatteryId);
+    hookHandleQrScanned(qrCodeData, 'old_battery');
+  }, [customerType, customerData?.currentBatteryId, clearScanTimeout, stopBleScan, hookHandleQrScanned]);
 
   // Process new battery QR code data - initiates BLE connection to read energy
   const processNewBatteryQRData = useCallback((qrCodeData: string) => {
@@ -1019,35 +883,22 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     // Valid new battery detected - clear any previous flow error
     setFlowError(null);
     
-    // Store the scanned battery ID for later use after BLE connection
-    pendingBatteryQrCodeRef.current = scannedBatteryId;
-    pendingBatteryScanTypeRef.current = 'new_battery';
-    
-    // Start scan-to-bind process - match QR code to BLE device
-    console.info('New battery QR scanned, initiating scan-to-bind:', scannedBatteryId);
-    
-    // If BLE scanning hasn't started yet, start it (it should already be running)
-    if (!bleScanState.isScanning) {
-      startBleScan();
-      // Wait a moment for devices to be discovered before matching
-      setTimeout(() => {
-        handleBleDeviceMatch(scannedBatteryId);
-      }, 1000);
-    } else {
-      // BLE scan already running, try to match immediately
-      handleBleDeviceMatch(scannedBatteryId);
-    }
-  }, [clearScanTimeout, startBleScan, bleScanState.isScanning, handleBleDeviceMatch, swapData.oldBattery?.id, stopBleScan]);
+    // Initiate scan-to-bind via hook
+    console.info('New battery QR scanned, initiating scan-to-bind via hook:', scannedBatteryId);
+    hookHandleQrScanned(qrCodeData, 'new_battery');
+  }, [clearScanTimeout, swapData.oldBattery?.id, stopBleScan, hookHandleQrScanned]);
 
-  // Initiate payment with Odoo (tell Odoo we're about to collect payment)
+  // Create payment request/ticket with Odoo FIRST, then optionally send STK push
+  // This MUST be done before collecting payment from the customer.
   // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
   const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
     // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
     const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
     
     if (!subscriptionCode) {
-      console.log('No subscription ID, skipping payment initiation');
+      console.log('No subscription ID, skipping payment request creation');
       setPaymentInitiated(true);
+      setPaymentRequestCreated(true);
       return true;
     }
 
@@ -1055,46 +906,101 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     const phoneNumber = customerData?.phone || '';
     
     try {
-      console.log('Initiating payment with Odoo:', {
+      // Step 1: Create payment request/ticket FIRST
+      // We send the ROUNDED DOWN amount to Odoo - this is what we ask the customer to pay
+      // (customers can't pay decimals, e.g., 20.54 becomes 20)
+      // BUT we store the original amount for backend quota reporting later
+      const amountCalculated = swapData.cost; // Original calculated amount (e.g., 20.54)
+      const amountRequired = Math.floor(swapData.cost); // Rounded down for payment (e.g., 20)
+      
+      // Store the ROUNDED amount as expected - this is what customer will actually pay
+      setExpectedPaymentAmount(amountRequired);
+      
+      console.log('Creating payment request with Odoo:', {
         subscription_code: subscriptionCode,
-        phone_number: phoneNumber,
-        amount: swapData.cost,
+        amount_calculated: amountCalculated,
+        amount_required: amountRequired, // Rounded down
+        description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
       });
 
-      const response = await initiatePayment({
+      const paymentRequestResponse = await createPaymentRequest({
         subscription_code: subscriptionCode,
-        phone_number: phoneNumber,
-        amount: swapData.cost,
+        amount_required: amountRequired, // Send rounded amount to Odoo
+        description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
       });
 
-      if (response.success && response.data) {
-        console.log('Payment initiated:', response.data);
-        setPaymentInitiated(true);
-        setPaymentInitiationData({
-          transactionId: response.data.transaction_id,
-          checkoutRequestId: response.data.checkout_request_id,
-          merchantRequestId: response.data.merchant_request_id,
-          instructions: response.data.instructions,
-        });
-        
-        if (phoneNumber) {
-          toast.success(response.data.instructions || 'Check customer phone for M-Pesa prompt');
-        }
-        return true;
+      if (paymentRequestResponse.success && paymentRequestResponse.payment_request) {
+        // Payment request created successfully
+        console.log('Payment request created:', paymentRequestResponse.payment_request);
+        setPaymentRequestCreated(true);
+        setPaymentRequestData(paymentRequestResponse.payment_request);
+        setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
+        toast.success('Payment ticket created. Collect payment from customer.');
       } else {
-        throw new Error('Payment initiation failed');
+        // Payment request creation failed - show error to user
+        // This includes the case when there's an existing active payment request
+        console.error('Payment request creation failed:', paymentRequestResponse.error);
+        
+        // Build a detailed error message
+        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
+        
+        // If there's an existing request, include details about it
+        if (paymentRequestResponse.existing_request) {
+          const existingReq = paymentRequestResponse.existing_request;
+          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: ${swapData.currencySymbol} ${existingReq.amount_remaining} remaining (${existingReq.status})`;
+          
+          // Log the available actions for debugging
+          console.log('Existing request actions:', existingReq.actions);
+        }
+        
+        // Show instructions if available
+        if (paymentRequestResponse.instructions && paymentRequestResponse.instructions.length > 0) {
+          console.log('Instructions:', paymentRequestResponse.instructions);
+        }
+        
+        toast.error(errorMessage);
+        return false;
       }
-    } catch (error: any) {
-      console.error('Failed to initiate payment:', error);
-      // Don't block the flow - user can still enter receipt manually
+
+      // Step 2: Optionally try to send STK push (don't block if it fails)
+      if (phoneNumber) {
+        try {
+          console.log('Sending STK push to customer phone:', phoneNumber);
+          const stkResponse = await initiatePayment({
+            subscription_code: subscriptionCode,
+            phone_number: phoneNumber,
+            amount: amountRequired,
+          });
+
+          if (stkResponse.success && stkResponse.data) {
+            console.log('STK push sent:', stkResponse.data);
+            setPaymentInitiated(true);
+            setPaymentInitiationData({
+              transactionId: stkResponse.data.transaction_id,
+              checkoutRequestId: stkResponse.data.checkout_request_id,
+              merchantRequestId: stkResponse.data.merchant_request_id,
+              instructions: stkResponse.data.instructions,
+            });
+            toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
+          }
+        } catch (stkError) {
+          console.warn('STK push failed (non-blocking):', stkError);
+          // Don't show error toast - customer can still pay manually
+        }
+      }
+      
       setPaymentInitiated(true);
-      toast.error('Could not send M-Pesa prompt. Customer must enter receipt manually.');
-      return true; // Allow to continue
+      return true;
+    } catch (error: any) {
+      console.error('Failed to create payment request:', error);
+      toast.error(error.message || 'Failed to create payment request. Please try again.');
+      return false;
     }
-  }, [customerData, dynamicPlanId, swapData.cost]);
+  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff]);
 
   // Process payment QR code data - verify with Odoo
-  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
+  // Uses order_id (preferred) or subscription_code to confirm payment
+  // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
   const processPaymentQRData = useCallback((qrCodeData: string) => {
     let qrData: any;
     try {
@@ -1106,40 +1012,64 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     // Confirm payment with Odoo
     const confirmPayment = async () => {
-      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
+      const orderId = paymentRequestOrderId;
       
       try {
-        if (subscriptionCode) {
-          // Use Odoo manual confirmation endpoint
-          console.log('Confirming payment with Odoo:', {
-            subscription_code: subscriptionCode,
-            receipt,
-            customer_id: customerData?.id,
-          });
+        // order_id is REQUIRED - payment request must be created first
+        if (!orderId) {
+          toast.error('Payment request not created. Please go back and try again.');
+          setIsScanning(false);
+          scanTypeRef.current = null;
+          return;
+        }
 
-          const response = await confirmPaymentManual({
-            subscription_code: subscriptionCode,
-            receipt,
-            customer_id: customerData?.id,
+        // Use Odoo manual confirmation endpoint with order_id ONLY
+        console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
+        const response = await confirmPaymentManual({ order_id: orderId, receipt });
+        
+        if (response.success) {
+          // Extract payment amounts from response
+          // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
+          const responseData = response.data || (response as any);
+          // Use total_paid (new format) or amount_paid (legacy format)
+          const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
+          const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
+          
+          console.log('Payment validation response:', {
+            total_paid: totalPaid,
+            remaining_to_pay: remainingToPay,
+            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
+            order_id: responseData.order_id,
+            expectedPaymentAmount,
           });
           
-          if (response.success) {
-            setPaymentConfirmed(true);
-            setPaymentReceipt(receipt);
-            setTransactionId(receipt);
-            toast.success('Payment submitted for validation');
-            publishPaymentAndService(receipt);
-          } else {
-            throw new Error('Payment confirmation failed');
+          // Update state with payment amounts
+          setActualAmountPaid(totalPaid);
+          setPaymentAmountRemaining(remainingToPay);
+          
+          // CRITICAL: Check if total_paid >= expected amount for THIS swap
+          // This is the amount we calculated (energy * unit price) and displayed to the attendant
+          const requiredAmount = expectedPaymentAmount || swapData.cost;
+          if (totalPaid < requiredAmount) {
+            // Payment insufficient for this swap
+            const shortfall = requiredAmount - totalPaid;
+            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
+            setIsScanning(false);
+            scanTypeRef.current = null;
+            // Don't proceed - customer needs to pay more
+            return;
           }
-        } else {
-          // No subscription ID - just proceed with MQTT flow
+          
+          // Payment sufficient - proceed with service completion
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
           setTransactionId(receipt);
-          toast.success('Payment confirmed');
-          publishPaymentAndService(receipt);
+          toast.success('Payment confirmed successfully');
+          // Report payment - uses original calculated cost for accurate quota tracking
+          publishPaymentAndService(receipt, false);
+        } else {
+          throw new Error('Payment confirmation failed');
         }
       } catch (err: any) {
         console.error('Payment confirmation error:', err);
@@ -1151,7 +1081,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     confirmPayment();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost, customerData]);
+  }, [dynamicPlanId, swapData.cost, customerData, paymentRequestOrderId, expectedPaymentAmount]);
 
   // Keep processing function refs up to date to avoid stale closures in bridge handlers
   // This ensures the bridge callback always calls the latest version of each processing function
@@ -1171,17 +1101,16 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     processPaymentQRDataRef.current = processPaymentQRData;
   }, [processPaymentQRData]);
 
-  // Ref for populateEnergyFromDta to use in callbacks
-  const populateEnergyFromDtaRef = useRef(populateEnergyFromDta);
-  useEffect(() => {
-    populateEnergyFromDtaRef.current = populateEnergyFromDta;
-  }, [populateEnergyFromDta]);
-
-  // Ref for electricityService to avoid re-registering handlers when service data changes
-  const electricityServiceRef = useRef(electricityService);
+  // NOTE: populateEnergyFromDta is now handled internally by useFlowBatteryScan hook
+  // which uses extractEnergyFromDta from energyUtils.ts
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
+
+  // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
+  // isQuotaBased: true when customer has sufficient quota credit (no payment_data sent)
+  // isZeroCostRounding: true when cost rounds to 0 but NOT quota-based (payment_data sent with original amount)
+  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, isZeroCostRounding?: boolean) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -1219,14 +1148,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return () => b.registerHandler(name, noop);
     };
 
-    if (!bridgeInitRef.current) {
-      bridgeInitRef.current = true;
-      try {
-        b.init((_m, r) => r("js success!"));
-      } catch (err) {
-        console.error("Bridge init error", err);
-      }
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx
+    // Do NOT call init() again here as it causes the app to hang
 
     // QR code scan callback - follows existing pattern from swap.tsx
     const offQr = reg(
@@ -1283,596 +1206,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
 
-    // BLE device discovery callback - for scan-to-bind functionality
-    const offFindBle = reg(
-      "findBleDeviceCallBack",
-      (data: string, resp: (r: { success: boolean; error?: string }) => void) => {
-        try {
-          const d: any = JSON.parse(data);
-          
-          // Log ALL incoming BLE devices for debugging (even non-OVES)
-          console.info(`[BLE] Device found: ${d.name || 'unnamed'} (${d.macAddress}) RSSI: ${d.rssi}`);
-          
-          // Only process OVES devices (same filter as swap.tsx)
-          if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
-            const raw = Number(d.rssi);
-            const formattedRssi = `${raw}db`;
-            
-            const device: BleDevice = {
-              macAddress: d.macAddress,
-              name: d.name,
-              rssi: formattedRssi,
-              rawRssi: raw,
-            };
-            
-            // Update detected devices ref for immediate matching
-            const exists = detectedBleDevicesRef.current.some(p => p.macAddress === d.macAddress);
-            if (exists) {
-              detectedBleDevicesRef.current = detectedBleDevicesRef.current.map(p =>
-                p.macAddress === d.macAddress ? { ...p, rssi: formattedRssi, rawRssi: raw } : p
-              );
-            } else {
-              console.info(`[BLE] New OVES device added: ${d.name} - Total: ${detectedBleDevicesRef.current.length + 1}`);
-              detectedBleDevicesRef.current = [...detectedBleDevicesRef.current, device];
-            }
-            
-            // Sort by signal strength (highest first)
-            detectedBleDevicesRef.current.sort((a, b) => b.rawRssi - a.rawRssi);
-            
-            // Also update state for UI feedback
-            setBleScanState(prev => ({
-              ...prev,
-              detectedDevices: [...detectedBleDevicesRef.current],
-            }));
-            
-            resp({ success: true });
-          } else {
-            // Silently ignore non-OVES devices
-            resp({ success: true });
-          }
-        } catch (err: any) {
-          console.error("Error parsing BLE device data:", err);
-          resp({ success: false, error: err.message });
-        }
-      }
-    );
-
-    // BLE connection success callback - This fires when step 2 (BLE connection) succeeds
-    // FLOW: Scan → Connect (step 2) → Init/Read DTA data (step 3)
-    // Step 3 takes longer, so we must NOT allow retries during it
-    const offBleConnectSuccess = reg(
-      "bleConnectSuccessCallBack",
-      (macAddress: string, resp: any) => {
-        console.info("BLE connection successful (step 2 complete):", macAddress);
-        sessionStorage.setItem("connectedDeviceMac", macAddress);
-        
-        // CRITICAL: Mark connection as successful IMMEDIATELY before starting step 3
-        // This prevents bleConnectFailCallBack from triggering retries during step 3 (init/read)
-        // which can take a long time. Any failure callback after this point is ignored.
-        isConnectionSuccessfulRef.current = true;
-        
-        // Clear any pending timeout since we connected successfully
-        if (bleOperationTimeoutRef.current) {
-          clearTimeout(bleOperationTimeoutRef.current);
-          bleOperationTimeoutRef.current = null;
-        }
-        bleRetryCountRef.current = 0; // Reset retry count
-        pendingConnectionMacRef.current = null; // Clear pending MAC since we're now connected
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isReadingEnergy: true,
-          connectedDevice: macAddress,
-          connectionProgress: 100,
-          error: null,
-          connectionFailed: false, // Explicitly mark as not failed
-          requiresBluetoothReset: false,
-        }));
-        
-        // Set timeout for data reading phase
-        bleOperationTimeoutRef.current = setTimeout(() => {
-          console.warn('BLE data reading timed out after', BLE_DATA_READ_TIMEOUT, 'ms');
-          
-          setBleScanState(prev => ({
-            ...prev,
-            isReadingEnergy: false,
-            error: 'Data reading timed out',
-          }));
-          
-          // Disconnect from device
-          if (window.WebViewJavascriptBridge) {
-            window.WebViewJavascriptBridge.callHandler("disconnectBle", macAddress, () => {});
-          }
-          
-          toast.error('Could not read battery data. Please try scanning again.');
-          setIsScanning(false);
-          scanTypeRef.current = null;
-          pendingBatteryQrCodeRef.current = null;
-          pendingBatteryScanTypeRef.current = null;
-          isConnectionSuccessfulRef.current = false;
-        }, BLE_DATA_READ_TIMEOUT);
-        
-        // Request DTA service to read energy data
-        console.info("Requesting DTA service data for energy calculation...");
-        initServiceBleData(
-          { serviceName: "DTA", macAddress },
-          () => {
-            console.info("DTA service data requested for:", macAddress);
-          }
-        );
-        
-        resp(macAddress);
-      }
-    );
-
-    // BLE connection failure callback - ONLY place where retries should happen
-    // This fires when step 2 (BLE connection) explicitly fails
-    // IMPORTANT: We ONLY retry here on actual failure callbacks, NOT on timeouts
-    // FLOW: Scan → Connect (step 2) → Init/Read DTA data (step 3)
-    const offBleConnectFail = reg(
-      "bleConnectFailCallBack",
-      (data: string, resp: any) => {
-        console.error("BLE connection failed (step 2):", data);
-        
-        // Clear any existing timeout since we got an explicit response
-        if (bleOperationTimeoutRef.current) {
-          clearTimeout(bleOperationTimeoutRef.current);
-          bleOperationTimeoutRef.current = null;
-        }
-        
-        // CRITICAL: If step 2 already succeeded and we're now in step 3 (init/read),
-        // ignore this callback - it's likely a stale/delayed failure from an earlier attempt
-        if (isConnectionSuccessfulRef.current) {
-          console.info("Connection failure callback received but step 2 already succeeded (now in step 3) - ignoring");
-          resp(data);
-          return;
-        }
-        
-        // Get the MAC address we were trying to connect to from our ref
-        const pendingMac = pendingConnectionMacRef.current;
-        
-        // Check if we should auto-retry (only on explicit failure callback)
-        if (bleRetryCountRef.current < MAX_BLE_RETRIES && pendingMac) {
-          bleRetryCountRef.current += 1;
-          console.info(`BLE connection failed, retrying (attempt ${bleRetryCountRef.current}/${MAX_BLE_RETRIES})...`);
-          
-          // Silently retry without showing retry count to user (to maintain user confidence)
-          setBleScanState(prev => ({
-            ...prev,
-            connectionProgress: 10,
-            error: null, // Silently retry without affecting user confidence
-            connectionFailed: false, // Not yet failed, still retrying
-          }));
-          
-          // Retry connection with exponential backoff delay
-          setTimeout(() => {
-            // Double-check we haven't connected successfully in the meantime
-            if (isConnectionSuccessfulRef.current) {
-              console.info("Connection succeeded during retry delay - cancelling retry from failure handler");
-              return;
-            }
-            connBleByMacAddress(pendingMac, () => {
-              console.info("BLE retry connection initiated");
-            });
-          }, 1000 * bleRetryCountRef.current); // Exponential backoff
-          
-          resp(data);
-          return;
-        }
-        
-        // All retries exhausted - mark as definitively failed
-        console.error("BLE connection failed after all retries or no MAC address available");
-        bleRetryCountRef.current = 0;
-        isConnectionSuccessfulRef.current = false;
-        pendingConnectionMacRef.current = null;
-        
-        // Clear global timeout since we've reached an error state
-        if (bleGlobalTimeoutRef.current) {
-          clearTimeout(bleGlobalTimeoutRef.current);
-          bleGlobalTimeoutRef.current = null;
-        }
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isReadingEnergy: false,
-          connectionProgress: 0,
-          error: 'Connection failed. Please try again.',
-          connectionFailed: true, // Mark as definitively failed
-          requiresBluetoothReset: false,
-        }));
-        
-        toast.error('Battery connection failed. Please try again.');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        
-        resp(data);
-      }
-    );
-
-    // BLE service data progress callback - used when reading service data (DTA for energy)
-    // IMPORTANT: This is bleInitServiceDataOnProgressCallBack, NOT bleInitDataOnProgressCallBack
-    // The former is for initServiceBleData (specific service), the latter is for initBleData (all data)
-    const offBleServiceProgress = reg(
-      "bleInitServiceDataOnProgressCallBack",
-      (data: string) => {
-        try {
-          const p = JSON.parse(data);
-          const progress = Math.round((p.progress / p.total) * 100);
-          console.info("BLE service data progress:", progress, "%");
-          setBleScanState(prev => ({
-            ...prev,
-            connectionProgress: progress,
-          }));
-        } catch (err) {
-          console.error("Service progress callback error:", err);
-        }
-      }
-    );
-
-    // BLE service data complete callback - this is where we get the energy data
-    const offBleInitServiceComplete = reg(
-      "bleInitServiceDataOnCompleteCallBack",
-      (data: string, resp: any) => {
-        try {
-          const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-          
-          // Check if this response indicates an error (e.g., "Bluetooth device not connected")
-          // This can happen when the DTA refresh is called but the device becomes unreachable
-          const respCode = parsedData?.respCode || parsedData?.responseData?.respCode;
-          const respDesc = parsedData?.respDesc || parsedData?.responseData?.respDesc || '';
-          
-          if (respCode && respCode !== "200" && respCode !== 200) {
-            console.error("DTA service returned error:", { respCode, respDesc, parsedData });
-            
-            // Check if this is a "Bluetooth device not connected" error
-            const isBluetoothDisconnected = 
-              typeof respDesc === 'string' && (
-                respDesc.toLowerCase().includes('bluetooth device not connected') ||
-                respDesc.toLowerCase().includes('device not connected') ||
-                respDesc.toLowerCase().includes('not connected')
-              );
-            
-            if (isBluetoothDisconnected) {
-              console.warn("Detected 'Bluetooth device not connected' in DTA response - requiring Bluetooth reset");
-              
-              // Clear global timeout since we've reached an error state
-              if (bleGlobalTimeoutRef.current) {
-                clearTimeout(bleGlobalTimeoutRef.current);
-                bleGlobalTimeoutRef.current = null;
-              }
-              
-              setBleScanState(prev => ({
-                ...prev,
-                isReadingEnergy: false,
-                error: 'Bluetooth connection lost',
-                connectionFailed: true,
-                requiresBluetoothReset: true,
-              }));
-              
-              // Reset state
-              dtaRefreshRetryCountRef.current = 0;
-              toast.dismiss('dta-refresh');
-              setIsScanning(false);
-              scanTypeRef.current = null;
-              pendingBatteryQrCodeRef.current = null;
-              pendingBatteryScanTypeRef.current = null;
-              isConnectionSuccessfulRef.current = false;
-              
-              toast.error('Please turn Bluetooth OFF then ON and try again.');
-              resp({ success: false, error: respDesc });
-              return;
-            }
-          }
-          
-          // Only process DTA_SERVICE responses
-          if (parsedData?.serviceNameEnum === "DTA_SERVICE") {
-            console.info("DTA service data received:", parsedData);
-            
-            // Clear data reading timeout since we got data
-            if (bleOperationTimeoutRef.current) {
-              clearTimeout(bleOperationTimeoutRef.current);
-              bleOperationTimeoutRef.current = null;
-            }
-            
-            // Extract energy data from DTA service
-            // Returns { energy: Wh, fullCapacity: Wh, chargePercent: % } or null
-            const energyData = populateEnergyFromDtaRef.current(parsedData);
-            const scannedBatteryId = pendingBatteryQrCodeRef.current;
-            const scanType = pendingBatteryScanTypeRef.current;
-            const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-            
-            // Helper function to disconnect and reset BLE state
-            const disconnectAndResetBleState = () => {
-              if (window.WebViewJavascriptBridge && connectedMac) {
-                window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {});
-              }
-              setBleScanState(prev => ({
-                ...prev,
-                isReadingEnergy: false,
-                connectedDevice: null,
-              }));
-            };
-            
-            if (energyData !== null && scannedBatteryId) {
-              // Success - disconnect now
-              disconnectAndResetBleState();
-              const { energy, chargePercent } = energyData;
-              console.info(`Battery energy read: ${energy} Wh (${(energy / 1000).toFixed(3)} kWh) at ${chargePercent}% for ${scanType}`);
-              
-              if (scanType === 'old_battery') {
-                // Create old battery data with actual energy from rcap (in Wh)
-                const oldBattery: BatteryData = {
-                  id: scannedBatteryId,
-                  shortId: String(scannedBatteryId).slice(-6),
-                  chargeLevel: chargePercent,
-                  energy: energy, // rcap in Wh
-                  macAddress: sessionStorage.getItem("connectedDeviceMac") || undefined,
-                };
-                
-                setSwapData(prev => ({ ...prev, oldBattery }));
-                advanceToStep(3);
-                toast.success(`Old battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
-              } else if (scanType === 'new_battery') {
-                // Create new battery data and calculate differential
-                const newBattery: BatteryData = {
-                  id: scannedBatteryId,
-                  shortId: String(scannedBatteryId).slice(-6),
-                  chargeLevel: chargePercent,
-                  energy: energy, // rcap in Wh
-                  macAddress: sessionStorage.getItem("connectedDeviceMac") || undefined,
-                };
-                
-                // Calculate energy difference and cost using actual energy values
-                // Energy from BLE (rcap) is in Wh, rate is per kWh - convert Wh to kWh
-                setSwapData(prev => {
-                  const oldEnergy = prev.oldBattery?.energy || 0;
-                  const energyDiffWh = energy - oldEnergy; // Energy diff in Wh
-                  const energyDiffKwh = energyDiffWh / 1000; // Convert to kWh for billing
-                  // Use ref to get latest electricityService value without causing callback recreation
-                  const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
-                  const cost = Math.round(energyDiffKwh * rate * 100) / 100; // Cost based on kWh
-                  
-                  console.info('Energy differential calculated:', {
-                    oldEnergyWh: oldEnergy,
-                    oldEnergyKwh: oldEnergy / 1000,
-                    newEnergyWh: energy,
-                    newEnergyKwh: energy / 1000,
-                    energyDiffWh,
-                    energyDiffKwh,
-                    ratePerKwh: rate,
-                    cost,
-                  });
-                  
-                  return {
-                    ...prev,
-                    newBattery,
-                    energyDiff: Math.round(energyDiffKwh * 1000) / 1000, // Store in kWh with 3 decimal places
-                    cost: cost > 0 ? cost : 0,
-                  };
-                });
-                
-                advanceToStep(4);
-                toast.success(`New battery scanned: ${(energy / 1000).toFixed(3)} kWh (${chargePercent}%)`);
-              }
-            } else {
-              // DTA data received but energy values are missing/invalid
-              // Implement refresh mechanism similar to BLE Details Page
-              
-              if (!scannedBatteryId) {
-                // No battery ID - this is a different error, don't retry
-                console.warn("Missing battery ID - cannot proceed");
-                toast.error('Could not identify battery. Please try again.');
-                
-                // Disconnect and reset
-                disconnectAndResetBleState();
-                dtaRefreshRetryCountRef.current = 0;
-                setIsScanning(false);
-                scanTypeRef.current = null;
-                pendingBatteryQrCodeRef.current = null;
-                pendingBatteryScanTypeRef.current = null;
-                isConnectionSuccessfulRef.current = false;
-              } else if (dtaRefreshRetryCountRef.current < MAX_DTA_REFRESH_RETRIES && connectedMac) {
-                // Energy values missing but we have battery ID and connection
-                // Retry by refreshing DTA service (like the refresh button in BLE Details Page)
-                dtaRefreshRetryCountRef.current += 1;
-                console.info(
-                  `DTA data incomplete, refreshing DTA service (attempt ${dtaRefreshRetryCountRef.current}/${MAX_DTA_REFRESH_RETRIES})...`,
-                  { scannedBatteryId, connectedMac }
-                );
-                
-                // Show user feedback that we're retrying
-                toast.loading('Reading battery energy...', { id: 'dta-refresh' });
-                
-                // Keep reading state active - DON'T disconnect, we need to stay connected
-                setBleScanState(prev => ({
-                  ...prev,
-                  isReadingEnergy: true,
-                  connectionProgress: 50 + (dtaRefreshRetryCountRef.current * 15), // Progress feedback
-                }));
-                
-                // Delay before retry to allow device to stabilize
-                setTimeout(() => {
-                  console.info("Refreshing DTA service data...");
-                  initServiceBleData(
-                    { serviceName: "DTA", macAddress: connectedMac },
-                    () => {
-                      console.info("DTA service refresh requested for:", connectedMac);
-                    }
-                  );
-                }, DTA_REFRESH_DELAY);
-                
-                // Don't clear state - we're retrying
-                // Return early to prevent state cleanup below
-                resp(parsedData);
-                return;
-              } else {
-                // Exceeded retry limit or no connection - fail gracefully
-                console.warn(
-                  "Could not extract energy from DTA data after all retries",
-                  { retryCount: dtaRefreshRetryCountRef.current, maxRetries: MAX_DTA_REFRESH_RETRIES }
-                );
-                toast.dismiss('dta-refresh'); // Dismiss loading toast
-                toast.error('Could not read battery energy values. Please try again.');
-                
-                // Disconnect and reset
-                disconnectAndResetBleState();
-                dtaRefreshRetryCountRef.current = 0;
-                setBleScanState(prev => ({
-                  ...prev,
-                  error: 'Could not read energy values',
-                }));
-                setIsScanning(false);
-                scanTypeRef.current = null;
-                pendingBatteryQrCodeRef.current = null;
-                pendingBatteryScanTypeRef.current = null;
-                isConnectionSuccessfulRef.current = false;
-              }
-            }
-            
-            // Success path - reset DTA retry count and clear pending state
-            if (energyData !== null && scannedBatteryId) {
-              dtaRefreshRetryCountRef.current = 0;
-              toast.dismiss('dta-refresh'); // Dismiss loading toast if any
-              
-              // Clear global timeout since operation completed successfully
-              if (bleGlobalTimeoutRef.current) {
-                clearTimeout(bleGlobalTimeoutRef.current);
-                bleGlobalTimeoutRef.current = null;
-              }
-              
-              // Clear pending state - reset connection flag for next operation
-              setIsScanning(false);
-              scanTypeRef.current = null;
-              pendingBatteryQrCodeRef.current = null;
-              pendingBatteryScanTypeRef.current = null;
-              isConnectionSuccessfulRef.current = false;
-            }
-          }
-          
-          resp(parsedData);
-        } catch (err) {
-          console.error("Error parsing BLE service data:", err);
-          setBleScanState(prev => ({
-            ...prev,
-            isReadingEnergy: false,
-            error: 'Failed to read energy data',
-          }));
-          // Reset DTA retry count on error
-          dtaRefreshRetryCountRef.current = 0;
-          toast.dismiss('dta-refresh');
-          setIsScanning(false);
-          scanTypeRef.current = null;
-          pendingBatteryQrCodeRef.current = null;
-          pendingBatteryScanTypeRef.current = null;
-          isConnectionSuccessfulRef.current = false;
-          toast.error('Failed to read battery energy data.');
-          resp({ success: false, error: String(err) });
-        }
-      }
-    );
-
-    // BLE service data failure callback
-    const offBleInitServiceFail = reg(
-      "bleInitServiceDataFailureCallBack",
-      (data: string) => {
-        console.error("Failed to read DTA service:", data);
-        
-        // Check if this is a "Bluetooth device not connected" error
-        // This typically happens when the connection was established but the device becomes unreachable
-        // The solution is for the user to toggle Bluetooth off and on
-        let errorMessage = 'Failed to read energy data';
-        let requiresReset = false;
-        
-        try {
-          const parsedError = JSON.parse(data);
-          const respDesc = parsedError?.responseData?.respDesc || parsedError?.respDesc || '';
-          const errorStr = typeof respDesc === 'string' ? respDesc : '';
-          
-          if (errorStr.toLowerCase().includes('bluetooth device not connected') ||
-              errorStr.toLowerCase().includes('device not connected') ||
-              errorStr.toLowerCase().includes('not connected')) {
-            errorMessage = 'Bluetooth connection lost';
-            requiresReset = true;
-            console.warn("Detected 'Bluetooth device not connected' error - requiring Bluetooth reset");
-          }
-        } catch {
-          // If parsing fails, check the raw string
-          if (data.toLowerCase().includes('bluetooth device not connected') ||
-              data.toLowerCase().includes('device not connected') ||
-              data.toLowerCase().includes('not connected')) {
-            errorMessage = 'Bluetooth connection lost';
-            requiresReset = true;
-            console.warn("Detected 'Bluetooth device not connected' error (raw) - requiring Bluetooth reset");
-          }
-        }
-        
-        setBleScanState(prev => ({
-          ...prev,
-          isReadingEnergy: false,
-          error: errorMessage,
-          connectionFailed: true,
-          requiresBluetoothReset: requiresReset,
-        }));
-        
-        // Reset DTA retry count on failure
-        dtaRefreshRetryCountRef.current = 0;
-        toast.dismiss('dta-refresh');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-        pendingBatteryQrCodeRef.current = null;
-        pendingBatteryScanTypeRef.current = null;
-        isConnectionSuccessfulRef.current = false;
-        
-        if (requiresReset) {
-          toast.error('Please turn Bluetooth OFF then ON and try again.');
-        } else {
-          toast.error('Unable to read battery energy. Please try again.');
-        }
-      }
-    );
-
-    // Signal that BLE handlers are now registered and ready
-    // This is crucial - the scan effect should not start BLE scanning until this is set
-    console.info('=== BLE handlers registered, setting bleHandlersReady = true ===');
-    setBleHandlersReady(true);
+    // NOTE: BLE handlers (findBleDeviceCallBack, bleConnectSuccessCallBack, etc.) 
+    // are now handled by the useFlowBatteryScan hook internally.
+    // This keeps the bridge setup cleaner and consolidates BLE logic.
 
     return () => {
       offQr();
-      offFindBle();
-      offBleConnectSuccess();
-      offBleConnectFail();
-      offBleServiceProgress();
-      offBleInitServiceComplete();
-      offBleInitServiceFail();
-      // Clear any pending BLE operation timeouts
-      if (bleOperationTimeoutRef.current) {
-        clearTimeout(bleOperationTimeoutRef.current);
-        bleOperationTimeoutRef.current = null;
-      }
-      // Clear global timeout
-      if (bleGlobalTimeoutRef.current) {
-        clearTimeout(bleGlobalTimeoutRef.current);
-        bleGlobalTimeoutRef.current = null;
-      }
-      // Stop BLE scan on cleanup
-      if (window.WebViewJavascriptBridge) {
-        window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
-        // Disconnect any connected device
-        const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-        if (connectedMac) {
-          window.WebViewJavascriptBridge.callHandler("disconnectBle", connectedMac, () => {});
-        }
-      }
-      // Reset the flag on cleanup
-      setBleHandlersReady(false);
+      // BLE handlers are now managed by useFlowBatteryScan hook
     };
-  // Note: We removed the processing callback functions from dependencies since we now use refs
-  // The refs are always up-to-date via useEffect hooks, so the bridge handler always calls the latest version
-  // electricityService is also accessed via ref to prevent handler re-registration when service data loads
   }, [clearScanTimeout]);
 
   // Setup bridge when ready
@@ -1915,7 +1256,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     if (isBatteryScanStep) {
       console.info(`=== Starting BLE scan cycle for Step ${currentStep} (battery scanning) ===`);
-      console.info(`Detected devices before scan: ${detectedBleDevicesRef.current.length}`);
+      console.info(`Detected devices before scan: ${bleScanState.detectedDevices.length}`);
       
       // IMPORTANT: Stop-before-start pattern (matches keypad behavior)
       // The native BLE layer needs a clean stop before starting a fresh scan cycle
@@ -2080,6 +1421,7 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                 const sourceData = isIdempotent ? metadata?.cached_result : metadata;
                 const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
                 const serviceBundle = sourceData?.service_bundle;
+                const commonTerms = sourceData?.common_terms;
                 const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
                 
                 if (servicePlanData) {
@@ -2112,9 +1454,26 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     (s: any) => s.service_id?.includes('service-swap-count')
                   );
                   
-                  if (elecService?.usageUnitPrice) {
-                    setSwapData(prev => ({ ...prev, rate: elecService.usageUnitPrice }));
-                  }
+                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
+                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
+                  
+                  // Update swap data with rate and currency from customer's service plan
+                  setSwapData(prev => ({ 
+                    ...prev, 
+                    rate: elecService?.usageUnitPrice || prev.rate,
+                    currencySymbol: billingCurrency 
+                  }));
+                  
+                  // Check for infinite quota services (quota > 100,000 indicates management services)
+                  const INFINITE_QUOTA_THRESHOLD = 100000;
+                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+                  
+                  // Calculate remaining quota values
+                  const energyRemaining = elecService ? (elecService.quota - elecService.used) : 0;
+                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
+                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
+                  const energyValue = energyRemaining * energyUnitPrice;
                   
                   setCustomerData({
                     id: identifiedCustomerId || servicePlanData.customerId,
@@ -2124,10 +1483,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
                     phone: '', // Will be entered separately if needed
                     swapCount: swapCountService?.used || 0,
                     lastSwap: 'N/A',
-                    energyRemaining: elecService ? (elecService.quota - elecService.used) : 0,
+                    energyRemaining: energyRemaining,
                     energyTotal: elecService?.quota || 0,
+                    energyValue: energyValue,
+                    energyUnitPrice: energyUnitPrice,
                     swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
                     swapsTotal: swapCountService?.quota || 21,
+                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
+                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
                     // FSM states from response
                     paymentState: servicePlanData.paymentState || 'INITIAL',
                     serviceState: servicePlanData.serviceState || 'INITIAL',
@@ -2246,19 +1609,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     // Clear any existing flow error when retrying
     setFlowError(null);
     
-    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
-    // This preserves devices that were discovered while user was viewing Step 2
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      connectionProgress: 0,
-      error: null,
-    }));
-    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
     
     setIsScanning(true);
     scanTypeRef.current = 'old_battery';
@@ -2268,25 +1620,85 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     console.info(`=== Scanning Old Battery ===`);
     console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
     console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
-    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
-    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    console.info(`Detected devices count: ${bleScanState.detectedDevices.length}`);
+    console.info('Detected devices:', bleScanState.detectedDevices.map(d => `${d.name} (${d.rssi})`));
     
     // If no devices detected yet, warn the user
-    if (detectedBleDevicesRef.current.length === 0) {
+    if (bleScanState.detectedDevices.length === 0) {
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
-    // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
+    // NOTE: No external timeout needed for QR scanning
+    // - User cancels QR scan → bridge returns empty qrCode → state is reset in qrCodeCallBack handler
+    // - App goes to background → visibilitychange handler resets state
+    // - QR scanned successfully → processOldBatteryQRData handles it
+    // - BLE connection after QR scan → handled by BleProgressModal (60s) + BLE hooks
     clearScanTimeout();
-    scanTimeoutRef.current = setTimeout(() => {
-      console.warn("Old battery scan-to-bind timed out after 30 seconds");
-      toast.error("Scan timed out. Please try again.");
-      cancelOngoingScan();
-    }, 30000);
     
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
+  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning]);
+
+  // Step 2: Handle device selection for old battery (manual mode)
+  const handleOldBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
+    console.info('Manual device selected for old battery:', device);
+    
+    // Clear any existing flow error when retrying
+    setFlowError(null);
+    
+    // For returning customers, validate the selected device matches their assigned battery
+    // This is the same validation done in processOldBatteryQRData for QR scans
+    if (customerType === 'returning' && customerData?.currentBatteryId) {
+      const expectedBatteryId = customerData.currentBatteryId;
+      const selectedDeviceName = device.name;
+      
+      // Normalize IDs for comparison (remove prefixes, compare last 6 chars, case insensitive)
+      const normalizeId = (id: string) => {
+        // Remove common prefixes like "BAT_NEW_", "BAT_RETURN_ATT_", "OVES BATT", etc.
+        const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_|OVES\s+BATT\s+)/i, '');
+        return cleaned.toLowerCase();
+      };
+      
+      const selectedNormalized = normalizeId(String(selectedDeviceName));
+      const expectedNormalized = normalizeId(String(expectedBatteryId));
+      
+      // Check if IDs match (exact match, one contains the other, or last 6 chars match)
+      const isMatch = selectedNormalized === expectedNormalized ||
+        selectedNormalized.includes(expectedNormalized) ||
+        expectedNormalized.includes(selectedNormalized) ||
+        selectedNormalized.slice(-6) === expectedNormalized.slice(-6);
+      
+      if (!isMatch) {
+        // Battery doesn't match - show error and stop process
+        console.error(`Battery mismatch: selected ${selectedDeviceName}, expected ${expectedBatteryId}`);
+        
+        setFlowError({
+          step: 2,
+          message: t('attendant.batteryMismatch') || 'Battery does not belong to this customer',
+          details: `Selected: ...${String(selectedDeviceName).slice(-6)} | Expected: ...${String(expectedBatteryId).slice(-6)}`,
+        });
+        
+        toast.error(t('attendant.wrongBattery') || 'Wrong battery! This battery does not belong to the customer.');
+        return; // Don't proceed to connection
+      }
+    }
+    
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
+    
+    setIsScanning(true);
+    scanTypeRef.current = 'old_battery';
+    
+    // NOTE: No external timeout needed for manual device selection
+    // Timeout management is handled by:
+    // 1. BleProgressModal (60s countdown, calls cancelBleOperation on timeout)
+    // 2. useBleDeviceConnection hook (60s BLE_GLOBAL_TIMEOUT)
+    // 3. useFlowBatteryScan hook (25s device matching timeout)
+    clearScanTimeout();
+    
+    // Use the device name as QR data (hook will match by last 6 chars)
+    hookHandleQrScanned(device.name, 'old_battery');
+  }, [hookResetState, hookHandleQrScanned, clearScanTimeout, customerType, customerData?.currentBatteryId, t]);
 
   // Step 3: Scan New Battery with Scan-to-Bind
   const handleScanNewBattery = useCallback(async () => {
@@ -2298,19 +1710,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     // Clear any existing flow error when retrying (e.g., after scanning old battery as new by mistake)
     setFlowError(null);
 
-    // Reset BLE connection state but KEEP detected devices (BLE scan is already running from useEffect)
-    // This preserves devices that were discovered while user was viewing Step 3
-    setBleScanState(prev => ({
-      ...prev,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      connectionProgress: 0,
-      error: null,
-    }));
-    // DON'T clear detectedBleDevicesRef - we need the devices already discovered!
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
     
     setIsScanning(true);
     scanTypeRef.current = 'new_battery';
@@ -2320,37 +1721,108 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     console.info(`=== Scanning New Battery ===`);
     console.info(`BLE Handlers Ready: ${bleHandlersReady}`);
     console.info(`BLE Scanning Active: ${bleScanState.isScanning}`);
-    console.info(`Detected devices count: ${detectedBleDevicesRef.current.length}`);
-    console.info('Detected devices:', detectedBleDevicesRef.current.map(d => `${d.name} (${d.rssi})`));
+    console.info(`Detected devices count: ${bleScanState.detectedDevices.length}`);
+    console.info('Detected devices:', bleScanState.detectedDevices.map(d => `${d.name} (${d.rssi})`));
     
     // If no devices detected yet, warn the user
-    if (detectedBleDevicesRef.current.length === 0) {
+    if (bleScanState.detectedDevices.length === 0) {
       console.warn('No BLE devices detected yet - scan may have just started or Bluetooth may be off');
     }
     
-    // Set timeout for battery scan-to-bind (30 seconds - longer due to BLE operations)
+    // NOTE: No external timeout needed for QR scanning
+    // - User cancels QR scan → bridge returns empty qrCode → state is reset in qrCodeCallBack handler
+    // - App goes to background → visibilitychange handler resets state
+    // - QR scanned successfully → processNewBatteryQRData handles it
+    // - BLE connection after QR scan → handled by BleProgressModal (60s) + BLE hooks
     clearScanTimeout();
-    scanTimeoutRef.current = setTimeout(() => {
-      console.warn("New battery scan-to-bind timed out after 30 seconds");
-      toast.error("Scan timed out. Please try again.");
-      cancelOngoingScan();
-    }, 30000);
     
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, cancelOngoingScan, bleHandlersReady, bleScanState.isScanning]);
+  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning]);
+
+  // Step 3: Handle device selection for new battery (manual mode)
+  const handleNewBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
+    console.info('Manual device selected for new battery:', device);
+    
+    // Clear any existing flow error when retrying
+    setFlowError(null);
+    
+    // Reset BLE state via hook (keeps detected devices for matching)
+    hookResetState();
+    
+    setIsScanning(true);
+    scanTypeRef.current = 'new_battery';
+    
+    // NOTE: No external timeout needed for manual device selection
+    // Timeout management is handled by:
+    // 1. BleProgressModal (60s countdown, calls cancelBleOperation on timeout)
+    // 2. useBleDeviceConnection hook (60s BLE_GLOBAL_TIMEOUT)
+    // 3. useFlowBatteryScan hook (25s device matching timeout)
+    clearScanTimeout();
+    
+    // Use the device name as QR data (hook will match by last 6 chars)
+    hookHandleQrScanned(device.name, 'new_battery');
+  }, [hookResetState, hookHandleQrScanned, clearScanTimeout]);
 
   // Step 4: Proceed to payment - initiate payment with Odoo first
+  // OR skip payment if customer has sufficient quota OR rounded cost is zero
   const handleProceedToPayment = useCallback(async () => {
     setIsProcessing(true);
     try {
-      // Initiate payment with Odoo to tell them we're collecting this amount
-      await initiateOdooPayment();
+      // Calculate rounded cost - customers can't pay decimals so we round down
+      // Example: 20.54 becomes 20, 0.54 becomes 0
+      const roundedCost = Math.floor(swapData.cost);
+      
+      // Check if we should skip payment collection:
+      // 1. Customer has sufficient quota (both electricity and swap count)
+      // 2. OR rounded cost is 0 or negative (nothing to collect since we round down)
+      const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
+      
+      if (shouldSkipPayment) {
+        const isZeroCostRounding = !hasSufficientQuota && roundedCost <= 0;
+        const reason = hasSufficientQuota 
+          ? 'sufficient quota' 
+          : 'zero cost (rounded)';
+        console.info(`Skipping payment step - ${reason}`, { 
+          hasSufficientQuota, 
+          isZeroCostRounding,
+          cost: swapData.cost,
+          roundedCost
+        });
+        toast.success(hasSufficientQuota 
+          ? 'Using quota credit - no payment required' 
+          : 'No payment required - zero cost');
+        
+        // Skip payment step and directly record the service
+        // Use a quota-based or zero-cost payment reference
+        const skipReference = isZeroCostRounding 
+          ? `ZERO_COST_${Date.now()}` 
+          : `QUOTA_${Date.now()}`;
+        setPaymentConfirmed(true);
+        setPaymentReceipt(skipReference);
+        setTransactionId(skipReference);
+        
+        // Call publishPaymentAndService via ref to avoid circular dependency
+        // Pass isQuotaBased=true for quota-based, isZeroCostRounding=true for rounded-down-to-zero
+        // When isZeroCostRounding=true, we still include payment_data with original amount so backend
+        // knows the actual service value even though customer didn't pay
+        publishPaymentAndServiceRef.current(skipReference, hasSufficientQuota, isZeroCostRounding);
+        return;
+      }
+      
+      // Normal flow: Create payment request with Odoo FIRST before collecting payment
+      // This is REQUIRED - we must have a ticket/order before collecting payment
+      const success = await initiateOdooPayment();
+      if (!success) {
+        // Payment request creation failed - don't proceed
+        console.error('Payment request creation failed, staying on review step');
+        return;
+      }
       advanceToStep(5);
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2359,66 +1831,95 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       return;
     }
 
-    // Ensure payment was initiated
-    if (!paymentInitiated) {
-      await initiateOdooPayment();
+    // Ensure payment request was created first
+    if (!paymentRequestCreated) {
+      const success = await initiateOdooPayment();
+      if (!success) {
+        toast.error('Failed to create payment request. Please try again.');
+        return;
+      }
     }
 
     setIsScanning(true);
     scanTypeRef.current = 'payment';
     startQrCodeScan();
-  }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
+  }, [startQrCodeScan, paymentRequestCreated, initiateOdooPayment]);
 
   // Step 5: Manual payment confirmation with Odoo
-  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
+  // Uses order_id ONLY to confirm payment (from createPaymentRequest response)
+  // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
   const handleManualPayment = useCallback((receipt: string) => {
     setIsProcessing(true);
     
     // Confirm payment with Odoo using manual confirmation endpoint
     const confirmManualPayment = async () => {
-      // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-      const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
+      // order_id is REQUIRED - must be obtained from createPaymentRequest response
+      const orderId = paymentRequestOrderId;
       
       try {
-        // Ensure payment was initiated first
-        if (!paymentInitiated) {
-          await initiateOdooPayment();
+        // Ensure payment request was created first
+        if (!paymentRequestCreated) {
+          const success = await initiateOdooPayment();
+          if (!success) {
+            setIsProcessing(false);
+            return;
+          }
         }
 
-        if (subscriptionCode) {
-          // Use Odoo manual confirmation endpoint
-          console.log('Confirming manual payment with Odoo:', {
-            subscription_code: subscriptionCode,
-            receipt,
-            customer_id: customerData?.id,
-          });
+        // order_id is REQUIRED - payment request must be created first
+        if (!orderId) {
+          toast.error('Payment request not created. Please go back and try again.');
+          setIsProcessing(false);
+          return;
+        }
 
-          const response = await confirmPaymentManual({
-            subscription_code: subscriptionCode,
-            receipt,
-            customer_id: customerData?.id,
+        // Use Odoo manual confirmation endpoint with order_id ONLY
+        console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
+        const response = await confirmPaymentManual({ order_id: orderId, receipt });
+        
+        if (response.success) {
+          // Extract payment amounts from response
+          // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
+          const responseData = response.data || (response as any);
+          // Use total_paid (new format) or amount_paid (legacy format)
+          const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
+          const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
+          
+          console.log('Manual payment validation response:', {
+            total_paid: totalPaid,
+            remaining_to_pay: remainingToPay,
+            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
+            order_id: responseData.order_id,
+            expectedPaymentAmount,
           });
           
-          if (response.success) {
-            setPaymentConfirmed(true);
-            setPaymentReceipt(receipt);
-            setTransactionId(receipt);
-            toast.success('Payment submitted for validation');
-            
-            // Now publish payment_and_service
-            publishPaymentAndService(receipt);
-          } else {
-            throw new Error('Payment confirmation failed');
+          // Update state with payment amounts
+          setActualAmountPaid(totalPaid);
+          setPaymentAmountRemaining(remainingToPay);
+          
+          // CRITICAL: Check if total_paid >= expected amount for THIS swap
+          // We use the ROUNDED amount (what we asked customer to pay, not the calculated amount)
+          // Example: if cost is 20.54, we ask for 20, so customer needs to pay at least 20
+          const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
+          if (totalPaid < requiredAmount) {
+            // Payment insufficient for this swap
+            const shortfall = requiredAmount - totalPaid;
+            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
+            setIsProcessing(false);
+            // Don't proceed - customer needs to pay more
+            return;
           }
-        } else {
-          // No subscription ID - just proceed with MQTT flow
+          
+          // Payment sufficient - proceed with service completion
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
           setTransactionId(receipt);
-          toast.success('Payment confirmed');
+          toast.success('Payment confirmed successfully');
           
-          // Now publish payment_and_service
-          publishPaymentAndService(receipt);
+          // Report payment - uses original calculated cost for accurate quota tracking
+          publishPaymentAndService(receipt, false);
+        } else {
+          throw new Error('Payment confirmation failed');
         }
       } catch (err: any) {
         console.error('Manual payment error:', err);
@@ -2429,10 +1930,15 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     
     confirmManualPayment();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost, customerData, paymentInitiated, initiateOdooPayment]);
+  }, [dynamicPlanId, swapData.cost, customerData, paymentRequestCreated, paymentRequestOrderId, expectedPaymentAmount, initiateOdooPayment]);
 
   // Publish payment_and_service via MQTT
-  const publishPaymentAndService = useCallback((paymentReference: string) => {
+  // isQuotaBased: When true, customer is using their existing quota credit (no payment_data sent)
+  // isZeroCostRounding: When true, cost rounded to 0 but NOT quota-based - include payment_data
+  //                     with original amount so backend knows the service value for tracking
+  // NOTE: We always report the ORIGINAL calculated amount (swapData.cost) for quota calculations,
+  // even though customer pays the rounded-down amount. This ensures accurate quota tracking.
+  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, isZeroCostRounding: boolean = false) => {
     if (!bridge) {
       console.error("Bridge not available for payment_and_service");
       toast.error('Bridge not available. Please restart the app.');
@@ -2452,80 +1958,136 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       setIsProcessing(false);
     }, 30000);
 
-    const formattedCheckoutId = swapData.newBattery?.id 
-      ? `BAT_NEW_${swapData.newBattery.id}` 
-      : null;
-    
-    const formattedCheckinId = swapData.oldBattery?.id
-      ? `BAT_RETURN_ATT_${swapData.oldBattery.id}`
-      : null;
+    // Use raw battery IDs without prefix - backend expects IDs like "B0723025100049"
+    const newBatteryId = swapData.newBattery?.id || null;
+    const oldBatteryId = swapData.oldBattery?.id || null;
 
-    const checkoutEnergy = swapData.newBattery?.energy || 0;
-    const checkinEnergy = swapData.oldBattery?.energy || 0;
-    let energyTransferred = customerType === 'returning' 
-      ? checkoutEnergy - checkinEnergy 
-      : checkoutEnergy;
-    if (energyTransferred < 0) energyTransferred = 0;
+    // energyTransferred is already floored to 2 decimal places in swapData.energyDiff
+    const energyTransferred = Math.max(0, swapData.energyDiff);
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
+    
+    // paymentAmount = swapData.cost (already floored to 2 decimals)
+    // swapData.cost = chargeableEnergy × rate, where chargeableEnergy is already floored
     const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+    // Determine if we should include payment_data:
+    // - isQuotaBased && !isZeroCostRounding: No payment_data (true quota credit)
+    // - isZeroCostRounding: Include payment_data with original amount (customer received service worth X but paid 0)
+    // - Normal payment: Include payment_data
+    const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
+
+    console.info('Publishing payment_and_service:', {
+      isQuotaBased,
+      isZeroCostRounding,
+      shouldIncludePaymentData,
+      // Energy and payment values (all floored to 2 decimals)
+      energyTransferred,                      // Total energy transferred (kWh)
+      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh)
+      rate: swapData.rate,                    // Rate per kWh
+      paymentAmount,                          // = chargeableEnergy × rate
+      ...(shouldIncludePaymentData ? { paymentReference } : {}),
+      oldBatteryId,
+      newBatteryId,
+    });
+
     let paymentAndServicePayload: any = null;
 
-    if (customerType === 'returning' && formattedCheckinId) {
+    if (customerType === 'returning' && oldBatteryId) {
       // Returning customer payload
-      const oldBatteryId = swapData.oldBattery?.id 
-        ? `BAT_NEW_${swapData.oldBattery.id}` 
-        : formattedCheckinId;
-
-      paymentAndServicePayload = {
-        timestamp: new Date().toISOString(),
-        plan_id: dynamicPlanId,
-        correlation_id: paymentCorrelationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-          attendant_station: attendantInfo.station,
-          payment_data: {
-            service_id: serviceId,
-            payment_amount: paymentAmount,
-            payment_reference: paymentReference,
-            payment_method: "MPESA",
-            payment_type: "TOP_UP",
+      if (isQuotaBased && !isZeroCostRounding) {
+        // True quota-based: No payment_data needed - customer is using existing quota credit
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            service_data: {
+              old_battery_id: oldBatteryId,
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-          service_data: {
-            old_battery_id: oldBatteryId,
-            new_battery_id: formattedCheckoutId,
-            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-            service_duration: 240,
+        };
+      } else {
+        // Regular payment flow OR zero-cost rounding: Include payment_data
+        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
+        // even though customer paid 0 - this allows backend to track actual service value
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            payment_data: {
+              service_id: serviceId,
+              payment_amount: paymentAmount,
+              payment_reference: paymentReference,
+              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
+              payment_type: "TOP_UP",
+            },
+            service_data: {
+              old_battery_id: oldBatteryId,
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-        },
-      };
-    } else if (customerType === 'first-time' && formattedCheckoutId) {
+        };
+      }
+    } else if (customerType === 'first-time' && newBatteryId) {
       // First-time customer payload
-      paymentAndServicePayload = {
-        timestamp: new Date().toISOString(),
-        plan_id: dynamicPlanId,
-        correlation_id: paymentCorrelationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-          attendant_station: attendantInfo.station,
-          payment_data: {
-            service_id: serviceId,
-            payment_amount: paymentAmount,
-            payment_reference: paymentReference,
-            payment_method: "MPESA",
-            payment_type: "DEPOSIT",
+      if (isQuotaBased && !isZeroCostRounding) {
+        // True quota-based: No payment_data needed - customer is using existing quota credit
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            service_data: {
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-          service_data: {
-            new_battery_id: formattedCheckoutId,
-            energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-            service_duration: 240,
+        };
+      } else {
+        // Regular payment flow OR zero-cost rounding: Include payment_data
+        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
+        // even though customer paid 0 - this allows backend to track actual service value
+        paymentAndServicePayload = {
+          timestamp: new Date().toISOString(),
+          plan_id: dynamicPlanId,
+          correlation_id: paymentCorrelationId,
+          actor: { type: "attendant", id: attendantInfo.id },
+          data: {
+            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
+            attendant_station: attendantInfo.station,
+            payment_data: {
+              service_id: serviceId,
+              payment_amount: paymentAmount,
+              payment_reference: paymentReference,
+              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
+              payment_type: "DEPOSIT",
+            },
+            service_data: {
+              new_battery_id: newBatteryId,
+              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
+              service_duration: 240,
+            },
           },
-        },
-      };
+        };
+      }
     }
 
     if (!paymentAndServicePayload) {
@@ -2599,8 +2161,23 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               
               const success = responseData?.data?.success ?? false;
               const signals = responseData?.data?.signals || [];
+              const metadata = responseData?.data?.metadata || {};
 
-              console.info("payment_and_service response - success:", success, "signals:", signals);
+              console.info("payment_and_service response - success:", success, "signals:", signals, "metadata:", metadata);
+
+              // Check for error signals - these indicate failure even if success is true
+              // Backend may return success:true with error signals for validation failures
+              const errorSignals = [
+                "BATTERY_MISMATCH", 
+                "ASSET_VALIDATION_FAILED", 
+                "SECURITY_ALERT", 
+                "VALIDATION_FAILED", 
+                "PAYMENT_FAILED",
+                "SERVICE_COMPLETION_FAILED",
+                "RATE_LIMIT_EXCEEDED",
+                "SERVICE_REJECTED"
+              ];
+              const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
 
               // Handle both fresh success and idempotent (cached) responses
               // Fresh success signals: ASSET_RETURNED, ASSET_ALLOCATED, SERVICE_COMPLETED
@@ -2610,32 +2187,40 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               const hasAssetSignals = signals.includes("ASSET_RETURNED") || signals.includes("ASSET_ALLOCATED");
               
               const hasSuccessSignal = success === true && 
+                !hasErrorSignal &&
                 Array.isArray(signals) && 
                 (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
 
-              if (hasSuccessSignal) {
+              if (hasErrorSignal) {
+                // Error signals present - treat as failure regardless of success flag
+                console.error("payment_and_service failed with error signals:", signals);
+                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
+                const actionRequired = metadata?.action_required;
+                toast.error(actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg);
+                setPaymentAndServiceStatus('error');
+              } else if (hasSuccessSignal) {
                 console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
                 
-                // Clear the correlation ID to prevent fire-and-forget fallback
+                // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
                 advanceToStep(6);
                 toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
-              } else if (success) {
-                // Success without specific signal - still treat as success
-                console.info("payment_and_service completed (generic success)");
+              } else if (success && signals.length === 0) {
+                // Success without any signals - treat as generic success
+                console.info("payment_and_service completed (generic success, no signals)");
                 
-                // Clear the correlation ID to prevent fire-and-forget fallback
+                // Clear the correlation ID
                 (window as any).__paymentAndServiceCorrelationId = null;
                 
                 setPaymentAndServiceStatus('success');
                 advanceToStep(6);
                 toast.success('Swap completed!');
               } else {
-                // Response received but not successful
+                // Response received but not successful or has unknown signals
                 console.error("payment_and_service failed - success:", success, "signals:", signals);
-                const errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message || "Failed to record swap";
+                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
                 toast.error(errorMsg);
                 setPaymentAndServiceStatus('error');
               }
@@ -2651,68 +2236,92 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       }
     );
 
-    // Publish the request
-    console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
+    // Subscribe to response topic first, then publish
+    console.info("=== Subscribing to response topic for payment_and_service ===");
     
-    try {
-      bridge.callHandler(
-        "mqttPublishMsg",
-        JSON.stringify(dataToPublish),
-        (publishResponse: any) => {
-          console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
-          try {
-            const pubResp = typeof publishResponse === 'string' 
-              ? JSON.parse(publishResponse) 
-              : publishResponse;
+    bridge.callHandler(
+      "mqttSubTopic",
+      { topic: responseTopic, qos: 1 },
+      (subscribeResponse: string) => {
+        try {
+          const subResp = typeof subscribeResponse === 'string' 
+            ? JSON.parse(subscribeResponse) 
+            : subscribeResponse;
+          
+          if (subResp?.respCode === "200") {
+            console.info("✅ Successfully subscribed to payment_and_service response topic:", responseTopic);
             
-            if (pubResp?.error || pubResp?.respCode !== "200") {
-              console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
-              toast.error("Failed to complete swap");
-              setPaymentAndServiceStatus('error');
-              clearTimeout(timeoutId);
-              setIsScanning(false);
-              setIsProcessing(false);
-            } else {
-              console.info("payment_and_service published successfully, waiting for response...");
-              // Don't complete yet - wait for response handler or timeout
-              // If backend doesn't send response, timeout will handle it
-              // For backward compatibility, also set success after a short delay
-              // in case no response comes (fire-and-forget fallback)
-              setTimeout(() => {
-                // Only complete if still pending (no response received yet)
-                if ((window as any).__paymentAndServiceCorrelationId === paymentCorrelationId) {
-                  console.info("No response received for payment_and_service, assuming success (fire-and-forget)");
-                  clearTimeout(timeoutId);
-                  setPaymentAndServiceStatus('success');
-                  advanceToStep(6);
-                  toast.success('Swap completed!');
-                  setIsScanning(false);
-                  setIsProcessing(false);
-                  // Clear the correlation ID
-                  (window as any).__paymentAndServiceCorrelationId = null;
-                }
-              }, 5000); // 5 second grace period for response
-            }
-          } catch (err) {
-            console.error("Error parsing payment_and_service publish response:", err);
-            toast.error("Error completing swap");
+            // Wait a moment after subscribe before publishing
+            setTimeout(() => {
+              try {
+                console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
+                bridge.callHandler(
+                  "mqttPublishMsg",
+                  JSON.stringify(dataToPublish),
+                  (publishResponse: any) => {
+                    console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
+                    try {
+                      const pubResp = typeof publishResponse === 'string' 
+                        ? JSON.parse(publishResponse) 
+                        : publishResponse;
+                      
+                      if (pubResp?.error || pubResp?.respCode !== "200") {
+                        console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
+                        toast.error("Failed to complete swap");
+                        setPaymentAndServiceStatus('error');
+                        clearTimeout(timeoutId);
+                        setIsScanning(false);
+                        setIsProcessing(false);
+                      } else {
+                        console.info("payment_and_service published successfully, waiting for backend response...");
+                        // Wait for the actual backend response via MQTT handler
+                        // The 30-second timeout will handle cases where no response is received
+                        // Do NOT assume success - we must wait for confirmation that quota was updated
+                      }
+                    } catch (err) {
+                      console.error("Error parsing payment_and_service publish response:", err);
+                      toast.error("Error completing swap");
+                      setPaymentAndServiceStatus('error');
+                      clearTimeout(timeoutId);
+                      setIsScanning(false);
+                      setIsProcessing(false);
+                    }
+                  }
+                );
+                console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
+              } catch (err) {
+                console.error("Exception calling bridge.callHandler for payment_and_service:", err);
+                toast.error("Error sending request. Please try again.");
+                setPaymentAndServiceStatus('error');
+                clearTimeout(timeoutId);
+                setIsScanning(false);
+                setIsProcessing(false);
+              }
+            }, 300);
+          } else {
+            console.error("Failed to subscribe to payment_and_service response topic:", subResp?.respDesc || subResp?.error);
+            toast.error("Failed to connect. Please try again.");
             setPaymentAndServiceStatus('error');
             clearTimeout(timeoutId);
             setIsScanning(false);
             setIsProcessing(false);
           }
+        } catch (err) {
+          console.error("Error parsing payment_and_service subscribe response:", err);
+          toast.error("Error connecting. Please try again.");
+          setPaymentAndServiceStatus('error');
+          clearTimeout(timeoutId);
+          setIsScanning(false);
+          setIsProcessing(false);
         }
-      );
-      console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
-    } catch (err) {
-      console.error("Exception calling bridge.callHandler for payment_and_service:", err);
-      toast.error("Error sending request. Please try again.");
-      setPaymentAndServiceStatus('error');
-      clearTimeout(timeoutId);
-      setIsScanning(false);
-      setIsProcessing(false);
-    }
+      }
+    );
   }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
+
+  // Keep publishPaymentAndService ref up to date to avoid circular dependency with handleProceedToPayment
+  useEffect(() => {
+    publishPaymentAndServiceRef.current = publishPaymentAndService;
+  }, [publishPaymentAndService]);
 
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
@@ -2723,8 +2332,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
       oldBattery: null,
       newBattery: null,
       energyDiff: 0,
+      quotaDeduction: 0,
+      chargeableEnergy: 0,
       cost: 0,
       rate: 120,
+      currencySymbol: PAYMENT.defaultCurrency,
     });
     setManualSubscriptionId('');
     setTransactionId('');
@@ -2734,27 +2346,23 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     setCustomerType(null);
     setPaymentConfirmed(false);
     setPaymentReceipt(null);
+    setPaymentInitiated(false);  // Reset STK push state
+    setPaymentInitiationData(null);
+    setPaymentRequestCreated(false);  // Reset payment request state
+    setPaymentRequestData(null);
+    setPaymentRequestOrderId(null);
+    setExpectedPaymentAmount(0);  // Reset expected payment amount
     setPaymentAndServiceStatus('idle');
+    setPaymentAmountRemaining(0);  // Reset partial payment tracking
+    setActualAmountPaid(0);  // Reset actual amount paid tracking
+    setPaymentInputMode('scan');  // Reset payment input mode
+    setManualPaymentId('');  // Clear manual payment ID
     setFlowError(null); // Clear any flow errors
     cancelOngoingScan(); // Clear any pending timeouts
     
-    // Clear BLE state for fresh start - devices will be rediscovered when reaching Step 2
-    setBleScanState({
-      isScanning: false,
-      isConnecting: false,
-      isReadingEnergy: false,
-      connectedDevice: null,
-      detectedDevices: [],
-      connectionProgress: 0,
-      error: null,
-      connectionFailed: false,
-      requiresBluetoothReset: false,
-    });
-    detectedBleDevicesRef.current = [];
-    pendingBatteryQrCodeRef.current = null;
-    pendingBatteryScanTypeRef.current = null;
-    pendingConnectionMacRef.current = null;
-  }, [cancelOngoingScan]);
+    // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
+    hookResetState();
+  }, [cancelOngoingScan, hookResetState]);
 
   // Go back one step
   const handleBack = useCallback(() => {
@@ -2787,6 +2395,17 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
     }
   }, [onBack, router]);
 
+  // Handle logout - clear authentication and notify parent
+  const handleLogout = useCallback(() => {
+    clearEmployeeLogin();
+    toast.success(t('Signed out successfully'));
+    if (onLogout) {
+      onLogout();
+    } else {
+      router.push('/');
+    }
+  }, [onLogout, router, t]);
+
   // Handle timeline step click - allow navigation to any step up to maxStepReached
   // This lets users go back to check something and return without losing progress
   const handleTimelineClick = useCallback((step: AttendantStep) => {
@@ -2815,13 +2434,23 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         handleProceedToPayment();
         break;
       case 5:
-        handleConfirmPayment();
+        // Handle payment based on input mode
+        if (paymentInputMode === 'scan') {
+          handleConfirmPayment();
+        } else {
+          // Manual mode - call backend with manual payment ID
+          if (manualPaymentId.trim()) {
+            handleManualPayment(manualPaymentId.trim());
+          } else {
+            toast.error(t('sales.enterTransactionId'));
+          }
+        }
         break;
       case 6:
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleNewSwap]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t]);
 
   // Render current step content
   const renderStepContent = () => {
@@ -2844,9 +2473,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         return (
           <Step2OldBattery 
             onScanOldBattery={handleScanOldBattery}
+            onDeviceSelect={handleOldBatteryDeviceSelect}
+            detectedDevices={bleScanState.detectedDevices}
+            isScanning={bleScanState.isScanning}
+            onStartScan={hookStartScanning}
+            onStopScan={hookStopScanning}
             isFirstTimeCustomer={customerType === 'first-time'}
-            isBleScanning={bleScanState.isScanning}
-            detectedDevicesCount={bleScanState.detectedDevices.length}
             isScannerOpening={isScanning}
           />
         );
@@ -2855,8 +2487,11 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           <Step3NewBattery 
             oldBattery={swapData.oldBattery} 
             onScanNewBattery={handleScanNewBattery}
-            isBleScanning={bleScanState.isScanning}
-            detectedDevicesCount={bleScanState.detectedDevices.length}
+            onDeviceSelect={handleNewBatteryDeviceSelect}
+            detectedDevices={bleScanState.detectedDevices}
+            isScanning={bleScanState.isScanning}
+            onStartScan={hookStartScanning}
+            onStopScan={hookStopScanning}
             isScannerOpening={isScanning}
           />
         );
@@ -2864,7 +2499,8 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         return (
           <Step4Review 
             swapData={swapData} 
-            customerData={customerData} 
+            customerData={customerData}
+            hasSufficientQuota={hasSufficientQuota}
           />
         );
       case 5:
@@ -2872,18 +2508,27 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
           <Step5Payment 
             swapData={swapData}
             customerData={customerData}
-            onConfirmPayment={handleConfirmPayment}
-            onManualPayment={handleManualPayment}
             isProcessing={isProcessing || paymentAndServiceStatus === 'pending'}
+            inputMode={paymentInputMode}
+            setInputMode={setPaymentInputMode}
+            paymentId={manualPaymentId}
+            setPaymentId={setManualPaymentId}
+            onScanPayment={handleConfirmPayment}
             isScannerOpening={isScanning}
+            amountRemaining={paymentAmountRemaining}
+            amountPaid={actualAmountPaid}
           />
         );
       case 6:
+        // Display rounded amounts on receipt (what customer actually paid/owed)
+        // Example: if cost was 20.54, we show 20 as amount due
         return (
           <Step6Success 
             swapData={swapData} 
             customerData={customerData} 
             transactionId={transactionId}
+            amountDue={Math.floor(swapData.cost)}
+            amountPaid={Math.floor(actualAmountPaid)}
           />
         );
       default:
@@ -2929,6 +2574,14 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
             </button>
+            <button
+              className="flow-header-logout"
+              onClick={handleLogout}
+              aria-label={t('common.logout')}
+              title={t('common.logout')}
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </header>
@@ -2959,6 +2612,9 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         onMainAction={handleMainAction}
         isLoading={isScanning || isProcessing || paymentAndServiceStatus === 'pending'}
         inputMode={inputMode}
+        paymentInputMode={paymentInputMode}
+        hasSufficientQuota={hasSufficientQuota}
+        swapCost={swapData.cost}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
@@ -2978,152 +2634,12 @@ export default function AttendantFlow({ onBack }: AttendantFlowProps) {
         </div>
       )}
 
-      {/* BLE Connection Progress Overlay - Shows when connecting, reading energy, or when connection failed */}
-      {(bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.connectionFailed) && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
-          <div className="w-full max-w-md px-4">
-            <div className="ble-progress-container">
-              {/* Header */}
-              <div className="ble-progress-header">
-                <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
-                  {bleScanState.requiresBluetoothReset ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" />
-                    </svg>
-                  )}
-                </div>
-                <div className="ble-progress-title">
-                  {bleScanState.requiresBluetoothReset
-                    ? 'Bluetooth Reset Required'
-                    : bleScanState.isReadingEnergy 
-                    ? 'Reading Battery Data' 
-                    : 'Connecting to Battery'}
-                </div>
-              </div>
-
-              {/* Bluetooth Reset Instructions - Show when Bluetooth reset is required */}
-              {bleScanState.requiresBluetoothReset && (
-                <div className="ble-reset-instructions">
-                  <div className="ble-reset-steps">
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">1</span>
-                      <span>Open your phone&apos;s Settings</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">2</span>
-                      <span>Turn Bluetooth OFF</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">3</span>
-                      <span>Wait 3 seconds</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">4</span>
-                      <span>Turn Bluetooth ON</span>
-                    </div>
-                    <div className="ble-reset-step">
-                      <span className="ble-reset-step-number">5</span>
-                      <span>Return here and try again</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Battery ID Display - Show which battery we're connecting to (hide when reset required) */}
-              {pendingBatteryQrCodeRef.current && !bleScanState.requiresBluetoothReset && (
-                <div className="ble-battery-id">
-                  <span className="ble-battery-id-label">Battery ID:</span>
-                  <span className="ble-battery-id-value">
-                    ...{String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase()}
-                  </span>
-                </div>
-              )}
-
-              {/* Progress Bar - Hide when Bluetooth reset is required */}
-              {!bleScanState.requiresBluetoothReset && (
-                <div className="ble-progress-bar-container">
-                  <div className="ble-progress-bar-bg">
-                    <div 
-                      className="ble-progress-bar-fill"
-                      style={{ width: `${bleScanState.connectionProgress}%` }}
-                    />
-                  </div>
-                  <div className="ble-progress-percent">
-                    {bleScanState.connectionProgress}%
-                  </div>
-                </div>
-              )}
-
-              {/* Status Message - More specific messages about what's happening */}
-              <div className="ble-progress-status">
-                {bleScanState.requiresBluetoothReset
-                  ? 'The Bluetooth connection was lost. Please toggle Bluetooth to reset it.'
-                  : bleScanState.error 
-                  ? bleScanState.error
-                  : bleScanState.isReadingEnergy 
-                  ? 'Reading energy level from battery...'
-                  : bleScanState.connectionProgress >= 75
-                  ? 'Finalizing connection...'
-                  : bleScanState.connectionProgress >= 50
-                  ? 'Establishing secure connection...'
-                  : bleScanState.connectionProgress >= 25
-                  ? 'Authenticating with battery...'
-                  : bleScanState.connectionProgress >= 10
-                  ? 'Locating battery via Bluetooth...'
-                  : `Connecting to battery ${pendingBatteryQrCodeRef.current ? '...' + String(pendingBatteryQrCodeRef.current).slice(-6).toUpperCase() : ''}...`}
-              </div>
-
-              {/* Step Indicators - Hide when Bluetooth reset is required */}
-              {!bleScanState.requiresBluetoothReset && (
-                <div className="ble-progress-steps">
-                  <div className={`ble-step active completed`}>
-                    <div className="ble-step-dot" />
-                    <span>Scan</span>
-                  </div>
-                  <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
-                    <div className="ble-step-dot" />
-                    <span>Connect</span>
-                  </div>
-                  <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
-                    <div className="ble-step-dot" />
-                    <span>Read</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Cancel/Close Button - Only shown when connection has definitively failed */}
-              {/* This prevents users from cancelling during normal connection/initialization which can take time */}
-              {bleScanState.connectionFailed && (
-                <button
-                  onClick={cancelBleOperation}
-                  className={`ble-cancel-button ${bleScanState.requiresBluetoothReset ? 'ble-cancel-button-primary' : ''}`}
-                  title="Close and try again"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                  {bleScanState.requiresBluetoothReset ? 'Close & Reset Bluetooth' : 'Close'}
-                </button>
-              )}
-              
-              {/* Help Text - Show different message based on failure state */}
-              <p className="ble-progress-help">
-                {bleScanState.requiresBluetoothReset
-                  ? 'This usually happens when the battery connection is interrupted. Toggling Bluetooth will clear the stuck connection.'
-                  : bleScanState.connectionFailed 
-                  ? 'Connection failed. Please ensure the battery is powered on and nearby, then try again.'
-                  : 'Please wait while connecting. Make sure the battery is powered on and within 2 meters.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* BLE Connection Progress Modal - Reusable component for connection/reading progress */}
+      <BleProgressModal
+        bleScanState={bleScanState}
+        pendingBatteryId={pendingBatteryId}
+        onCancel={cancelBleOperation}
+      />
     </div>
   );
 }

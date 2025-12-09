@@ -10,12 +10,14 @@ import {
   getEmployeeUserType,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
+import { clearSalesSession } from '@/lib/sales-session';
 
 export default function CustomerFormPage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
   const [user, setUser] = useState<EmployeeUser | null>(null);
 
   // Check login status on mount - verify user is logged in as sales
+  // Also clears sales session if token has expired
   useEffect(() => {
     const loggedIn = isEmployeeLoggedIn();
     const userType = getEmployeeUserType();
@@ -24,6 +26,10 @@ export default function CustomerFormPage() {
     setIsLoggedIn(loggedIn);
     if (loggedIn) {
       setUser(getEmployeeUser());
+    } else {
+      // Token has expired or user is not logged in
+      // Clear any stored sales session to start fresh when they log in again
+      clearSalesSession();
     }
   }, []);
 
@@ -36,6 +42,13 @@ export default function CustomerFormPage() {
       userType: 'sales',
     });
     setIsLoggedIn(true);
+  }, []);
+
+  // Handle logout - reset login state and clear sales session
+  const handleLogout = useCallback(() => {
+    clearSalesSession();
+    setUser(null);
+    setIsLoggedIn(false);
   }, []);
 
   // Show loading state while checking auth
@@ -83,7 +96,7 @@ export default function CustomerFormPage() {
         }}
       />
       {isLoggedIn ? (
-        <SalesFlow />
+        <SalesFlow onLogout={handleLogout} />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
       )}

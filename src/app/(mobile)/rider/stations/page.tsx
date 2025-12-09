@@ -9,7 +9,7 @@ interface Swap {
   riderName: string;
   depletedBattery: { percentage: number; range: string };
   newBattery: { percentage: number; range: string };
-  pricing: { batteryCharges: number; convenienceFee: number; total: number };
+  pricing: { batteryCharges: number; convenienceFee: number; total: number; currencySymbol: string };
 }
 
 export default function Home() {
