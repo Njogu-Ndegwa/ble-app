@@ -32,12 +32,12 @@ export default function RootLayout({
 }>) {
 
   // Enable VConsole for mobile debugging
-  // useEffect(() => {
-  //   import('vconsole').then((module) => {
-  //     const VConsole = module.default;
-  //     new VConsole();
-  //   });
-  // }, []);
+  useEffect(() => {
+    import('vconsole').then((module) => {
+      const VConsole = module.default;
+      new VConsole();
+    });
+  }, []);
   return (
     <html lang="en">
       <body
