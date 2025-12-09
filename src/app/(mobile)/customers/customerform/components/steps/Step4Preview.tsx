@@ -178,7 +178,7 @@ export default function Step4Preview({
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
-                  {t('sales.subscription') || 'Subscription'}
+                  {t('sales.subscription') || 'Plan'}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: '14px' }}>
                   {selectedPlan.name}
