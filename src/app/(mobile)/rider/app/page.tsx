@@ -57,11 +57,24 @@ interface ProfileData {
   electricityQuota?: number;
 }
 
+// Demo credentials for testing
+const DEMO_CREDENTIALS = {
+  phone: 'demo',
+  password: 'demo',
+  customer: {
+    id: 999,
+    name: 'Demo Rider',
+    email: 'demo@example.com',
+    phone: '+254700000000',
+    partner_id: 999,
+  },
+};
+
 // Login Component
 const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = ({ onLoginSuccess }) => {
   const router = useRouter();
   const { t, locale, setLocale } = useI18n();
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -76,12 +89,25 @@ const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = 
   };
 
   const handleSignIn = async () => {
-    if (!email.trim() || !password.trim()) {
-      toast.error(t('Please enter email and password'));
+    if (!phone.trim() || !password.trim()) {
+      toast.error(t('rider.enterPhoneAndPassword') || 'Please enter phone number and password');
       return;
     }
 
     setIsLoading(true);
+    
+    // Check for demo credentials
+    if (phone.trim().toLowerCase() === DEMO_CREDENTIALS.phone && password === DEMO_CREDENTIALS.password) {
+      // Demo login - bypass API
+      localStorage.setItem('authToken_rider', 'demo_token_' + Date.now());
+      localStorage.setItem('userPhone', DEMO_CREDENTIALS.customer.phone);
+      localStorage.setItem('customerData_rider', JSON.stringify(DEMO_CREDENTIALS.customer));
+      toast.success(t('rider.demoLoginSuccess') || 'Demo login successful');
+      onLoginSuccess(DEMO_CREDENTIALS.customer);
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -89,7 +115,7 @@ const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = 
           'Content-Type': 'application/json',
           'X-API-KEY': API_KEY,
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ phone, password }),
       });
 
       const data = await response.json();
@@ -99,14 +125,14 @@ const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = 
         if (token) {
           localStorage.setItem('authToken_rider', token);
         }
-        localStorage.setItem('userEmail', email);
+        localStorage.setItem('userPhone', phone);
 
         const sessionUser = data.session?.user;
         const customerData: Customer = {
           id: sessionUser?.id || data.customer?.id || 0,
           name: sessionUser?.name || data.customer?.name || '',
           email: sessionUser?.email || data.customer?.email || '',
-          phone: sessionUser?.phone || data.customer?.phone || '',
+          phone: sessionUser?.phone || data.customer?.phone || phone,
           partner_id: sessionUser?.partner_id || data.customer?.partner_id,
         };
 
@@ -162,18 +188,17 @@ const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = 
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <label className="form-label">{t('Email Address')}</label>
+            <label className="form-label">{t('rider.phoneNumber') || 'Phone Number'}</label>
             <div className="input-with-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
               </svg>
               <input
-                type="email"
+                type="tel"
                 className="form-input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t('Enter your email')}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={t('rider.enterPhone') || 'Enter your phone number'}
                 disabled={isLoading}
               />
             </div>
@@ -219,7 +244,7 @@ const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = 
           <button
             className="btn btn-primary"
             onClick={handleSignIn}
-            disabled={isLoading || !email.trim() || !password.trim()}
+            disabled={isLoading || !phone.trim() || !password.trim()}
             style={{ width: '100%', marginBottom: 12 }}
           >
             {isLoading ? (
@@ -237,9 +262,24 @@ const LoginScreen: React.FC<{ onLoginSuccess: (customer: Customer) => void }> = 
             )}
           </button>
 
-          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
             {t('Need help? Contact support')}
           </p>
+          
+          <div style={{ 
+            marginTop: 16, 
+            padding: 12, 
+            background: 'var(--bg-tertiary)', 
+            borderRadius: 8, 
+            border: '1px dashed var(--border)' 
+          }}>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 4 }}>
+              {t('rider.demoHint') || 'For demo access, use:'}
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center', fontFamily: 'monospace' }}>
+              {t('rider.demoCredentials') || 'Phone: demo | Password: demo'}
+            </p>
+          </div>
         </div>
       </main>
     </div>
@@ -463,7 +503,8 @@ const RiderApp: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('authToken_rider');
     localStorage.removeItem('customerData_rider');
-    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userPhone');
+    localStorage.removeItem('userEmail'); // Legacy cleanup
     setIsLoggedIn(false);
     setCustomer(null);
     setCurrentScreen('home');

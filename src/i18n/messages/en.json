@@ -1231,5 +1231,12 @@
   "ble.macAddressMismatch": "Bluetooth device mismatch. Please toggle Bluetooth and try again.",
   "ble.resetRequired": "Please turn Bluetooth OFF, wait 3 seconds, then turn it ON again.",
   "ble.forceReset": "Reset Bluetooth",
-  "ble.resetInstructions": "Toggle Bluetooth OFF then ON in your phone settings to clear the stuck connection."
+  "ble.resetInstructions": "Toggle Bluetooth OFF then ON in your phone settings to clear the stuck connection.",
+  
+  "rider.phoneNumber": "Phone Number",
+  "rider.enterPhone": "Enter your phone number",
+  "rider.enterPhoneAndPassword": "Please enter phone number and password",
+  "rider.demoLoginSuccess": "Demo login successful",
+  "rider.demoHint": "For demo access, use:",
+  "rider.demoCredentials": "Phone: demo | Password: demo"
 }
