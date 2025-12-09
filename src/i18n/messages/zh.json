@@ -1176,6 +1176,10 @@
   "rider.signInToAccess": "登录以访问您的账户",
   "rider.emailAddress": "电子邮件地址",
   "rider.enterEmail": "输入您的电子邮件",
+  "rider.phoneNumber": "手机号码",
+  "rider.enterPhone": "输入您的手机号码",
+  "rider.pleaseEnterPhone": "请输入您的手机号码",
+  "rider.invalidRequestPhone": "请求无效。请确保您的手机号码正确。",
   "rider.password": "密码",
   "rider.enterPassword": "输入您的密码",
   "rider.signIn": "登录",
@@ -1183,6 +1187,7 @@
   "rider.needHelp": "需要帮助？联系客服",
   "rider.loginFailed": "登录失败",
   "rider.pleaseEnterEmailPassword": "请输入电子邮件和密码",
+  "rider.pleaseEnterPhonePassword": "请输入手机号码和密码",
   
   "rider.profile": "个人资料",
   "rider.energyService": "能源服务",

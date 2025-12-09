@@ -1265,6 +1265,10 @@
   "rider.signInToAccess": "Connectez-vous pour accéder à votre compte",
   "rider.emailAddress": "Adresse e-mail",
   "rider.enterEmail": "Entrez votre e-mail",
+  "rider.phoneNumber": "Numéro de téléphone",
+  "rider.enterPhone": "Entrez votre numéro de téléphone",
+  "rider.pleaseEnterPhone": "Veuillez entrer votre numéro de téléphone",
+  "rider.invalidRequestPhone": "Requête invalide. Veuillez vérifier que votre numéro de téléphone est correct.",
   "rider.password": "Mot de passe",
   "rider.enterPassword": "Entrez votre mot de passe",
   "rider.signIn": "Se connecter",
@@ -1272,6 +1276,7 @@
   "rider.needHelp": "Besoin d'aide ? Contactez le support",
   "rider.loginFailed": "Échec de la connexion",
   "rider.pleaseEnterEmailPassword": "Veuillez entrer l'e-mail et le mot de passe",
+  "rider.pleaseEnterPhonePassword": "Veuillez entrer le numéro de téléphone et le mot de passe",
   
   "rider.profile": "Profil",
   "rider.energyService": "Service d'énergie",

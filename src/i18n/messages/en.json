@@ -1274,6 +1274,10 @@
   "rider.signInToAccess": "Sign in to access your account",
   "rider.emailAddress": "Email Address",
   "rider.enterEmail": "Enter your email",
+  "rider.phoneNumber": "Phone Number",
+  "rider.enterPhone": "Enter your phone number",
+  "rider.pleaseEnterPhone": "Please enter your phone number",
+  "rider.invalidRequestPhone": "Invalid request. Please ensure your phone number is correct.",
   "rider.password": "Password",
   "rider.enterPassword": "Enter your password",
   "rider.signIn": "Sign In",
@@ -1281,6 +1285,7 @@
   "rider.needHelp": "Need help? Contact support",
   "rider.loginFailed": "Login failed",
   "rider.pleaseEnterEmailPassword": "Please enter email and password",
+  "rider.pleaseEnterPhonePassword": "Please enter phone number and password",
   
   "rider.profile": "Profile",
   "rider.energyService": "Energy Service",
