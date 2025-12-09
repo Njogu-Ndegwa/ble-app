@@ -209,6 +209,28 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsSigningIn(true);
 
     try {
+      // Check for demo credentials
+      if (phoneNumber.trim().toLowerCase() === "demo" && password === "demo") {
+        console.log("Demo login detected");
+        
+        // Create demo customer data
+        const demoCustomer: Customer = {
+          id: 9999,
+          name: "Demo Rider",
+          email: "demo@example.com",
+          phone: "+254700000000",
+          partner_id: 9999,
+        };
+        
+        // Save demo session
+        localStorage.setItem("userPhone", "demo");
+        localStorage.setItem("authToken_rider", "demo_token_" + Date.now());
+        
+        toast.success(t("rider.demoLoginSuccess") || "Demo login successful");
+        onLoginSuccess(demoCustomer);
+        return;
+      }
+
       console.log("Attempting login with phone:", phoneNumber);
       console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
       const response = await fetch(
@@ -852,6 +874,22 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </svg>
           <span>{t('Create New Account')}</span>
         </button>
+
+        {/* Demo credentials hint */}
+        <div style={{ 
+          marginTop: 16, 
+          padding: '12px 16px', 
+          background: 'rgba(0, 229, 229, 0.1)', 
+          borderRadius: 8,
+          border: '1px solid rgba(0, 229, 229, 0.2)'
+        }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+            {t('rider.demoHint') || 'For demo access, use:'}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+            {t('rider.demoCredentials') || 'Phone: demo | Password: demo'}
+          </p>
+        </div>
 
         <p className="login-help">
           {t('Need help? Contact support')}
