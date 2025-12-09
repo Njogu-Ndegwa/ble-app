@@ -12,7 +12,10 @@
  * import { MqttService } from '@/lib/services';
  * 
  * // React hooks
- * import { useMqtt, useSubscription } from '@/lib/services/hooks';
+ * import { useMqtt, useSubscription, useRiderData } from '@/lib/services/hooks';
+ * 
+ * // Rider API
+ * import { getFleetAvatars, getServicePlanActions } from '@/lib/services';
  * ```
  */
 
@@ -27,6 +30,30 @@ export type {
   MqttPublishResponse,
   MqttSubscribeResponse,
 } from './mqtt-service';
+
+// Rider API Service
+export {
+  getFleetAvatars,
+  getServicePlanActions,
+  transformFleetToStations,
+  transformActionsToActivity,
+  buildAssetDiscoveryTopic,
+  buildAssetDiscoveryResponseTopic,
+  createAssetDiscoveryPayload,
+  extractFleetIds,
+} from './rider-api';
+export type {
+  SwapStation,
+  ActivityRecord,
+  FleetData,
+  FleetItem,
+  ChargeSlot,
+  ServicePlanActionsData,
+  PaymentAction,
+  ServiceAction,
+  AssetDiscoveryRequest,
+  AssetDiscoveryResponse,
+} from './rider-api';
 
 // Re-export hooks
 export * from './hooks';

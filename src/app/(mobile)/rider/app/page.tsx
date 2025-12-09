@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
-import { Globe } from 'lucide-react';
+import { Globe, RefreshCw } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
+import { useRiderData } from '@/lib/services/hooks/useRiderData';
 import {
   RiderNav,
   RiderHome,
@@ -55,6 +56,11 @@ interface ProfileData {
   currentBatteryId?: string;
   electricityUsed?: number;
   electricityQuota?: number;
+}
+
+interface UserLocation {
+  lat: number;
+  lng: number;
 }
 
 // Login Component
@@ -252,6 +258,19 @@ const RiderApp: React.FC = () => {
   const { t, locale, setLocale } = useI18n();
   const { bridge } = useBridge();
   
+  // Use the rider data hook for stations and activities
+  const {
+    stations: apiStations,
+    stationsLoading,
+    stationsError,
+    activities: apiActivities,
+    activitiesLoading,
+    activitiesError,
+    fetchStations,
+    fetchActivities,
+    refreshAll,
+  } = useRiderData();
+  
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -264,8 +283,8 @@ const RiderApp: React.FC = () => {
   // Data state
   const [balance, setBalance] = useState(0);
   const [currency, setCurrency] = useState('XOF');
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
+  const [userLocation, setUserLocation] = useState<UserLocation | undefined>(undefined);
+  const [servicePlanId, setServicePlanId] = useState<string>('');
   const [bike, setBike] = useState<BikeInfo>({
     model: 'E-Trike 3X',
     vehicleId: 'VEH-2024-0000',
@@ -277,6 +296,34 @@ const RiderApp: React.FC = () => {
   const [paymentState, setPaymentState] = useState<string>('PAID');
   const [electricityUsed, setElectricityUsed] = useState<number>(0);
   const [electricityQuota, setElectricityQuota] = useState<number>(0);
+  
+  // Data fetched flag
+  const dataFetchedRef = useRef(false);
+
+  // Convert API stations to component format
+  const stations: Station[] = apiStations.map(s => ({
+    id: s.id,
+    name: s.name,
+    address: s.address,
+    distance: s.distance || 'N/A',
+    batteries: s.availableBatteries,
+    waitTime: s.waitTime,
+    lat: s.lat,
+    lng: s.lng,
+  }));
+
+  // Convert API activities to component format
+  const activities: ActivityItem[] = apiActivities.map(a => ({
+    id: a.id,
+    type: a.type as ActivityItem['type'],
+    title: a.title,
+    subtitle: a.subtitle,
+    amount: a.amount,
+    currency: a.currency,
+    isPositive: a.isPositive,
+    time: a.time,
+    date: a.date,
+  }));
 
   // Check authentication on mount
   useEffect(() => {
@@ -301,6 +348,45 @@ const RiderApp: React.FC = () => {
     checkAuth();
   }, []);
 
+  // Get user location
+  useEffect(() => {
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.warn('Could not get user location:', error);
+          // Default to Nairobi as fallback
+          setUserLocation({ lat: -1.2921, lng: 36.8219 });
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }, []);
+
+  // Fetch rider data when logged in and we have required info
+  useEffect(() => {
+    if (isLoggedIn && customer && !dataFetchedRef.current) {
+      dataFetchedRef.current = true;
+      
+      // Use a default plan ID for now - in production this would come from customer data
+      const planId = servicePlanId || 'service-plan-basic-newest-d';
+      const customerId = customer.partner_id?.toString() || customer.id?.toString() || 'CUST-RIDER-001';
+      
+      // Fetch stations with location
+      fetchStations(planId, customerId, userLocation);
+      
+      // Fetch activities
+      if (servicePlanId) {
+        fetchActivities(servicePlanId, currency);
+      }
+    }
+  }, [isLoggedIn, customer, servicePlanId, userLocation, currency, fetchStations, fetchActivities]);
+
   // Fetch dashboard data from API
   const fetchDashboardData = async (token: string) => {
     try {
@@ -321,20 +407,15 @@ const RiderApp: React.FC = () => {
           setBalance(data.summary.total_paid || 0);
         }
 
-        // Map activities from API if available
-        if (data.activity_history) {
-          const mappedActivities: ActivityItem[] = data.activity_history.map((item: any, idx: number) => ({
-            id: item.id?.toString() || idx.toString(),
-            type: item.type || 'swap',
-            title: item.title || 'Transaction',
-            subtitle: item.subtitle || '',
-            amount: item.amount || 0,
-            currency: item.currency || 'XOF',
-            isPositive: item.is_positive || false,
-            time: item.time || '00:00',
-            date: item.date || new Date().toISOString().split('T')[0],
-          }));
-          setActivities(mappedActivities);
+        // Extract service plan ID if available
+        if (data.active_subscriptions?.length > 0) {
+          const subscription = data.active_subscriptions[0];
+          if (subscription.subscription_code) {
+            setServicePlanId(subscription.subscription_code);
+          }
+          if (subscription.currency_symbol) {
+            setCurrency(subscription.currency_symbol);
+          }
         }
       }
     } catch (error) {
@@ -384,55 +465,16 @@ const RiderApp: React.FC = () => {
     }
   };
 
-  // Fetch stations from API
-  const fetchStations = async () => {
-    try {
-      const token = localStorage.getItem('authToken_rider');
-      const response = await fetch(`${API_BASE}/stations/nearby`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': API_KEY,
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.stations) {
-          setStations(data.stations);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching stations:', error);
-      // Use mock data as fallback
-      setStations([
-        { id: 1, name: 'Lome Central Station', address: 'Rue du Commerce, Lome', distance: '0.8 km', batteries: 12, waitTime: '~3 min' },
-        { id: 2, name: 'Tokoin Market Station', address: 'Tokoin Market Area', distance: '1.4 km', batteries: 3, waitTime: '~5 min' },
-        { id: 3, name: 'Agoe Station', address: 'Agoe District', distance: '2.1 km', batteries: 8, waitTime: '~2 min' },
-        { id: 4, name: 'Be Station', address: 'Be Quarter', distance: '3.2 km', batteries: 15, waitTime: '~1 min' },
-        { id: 5, name: 'Adidogome Station', address: 'Adidogome Area', distance: '4.5 km', batteries: 6, waitTime: '~4 min' },
-      ]);
-    }
-  };
-
-  // Load mock activities data (fallback)
-  useEffect(() => {
-    if (isLoggedIn && activities.length === 0) {
-      // Set mock activities if API doesn't return any
-      const mockActivities: ActivityItem[] = [
-        { id: '1', type: 'swap', title: 'Battery Swap', subtitle: 'Lome Central Station', amount: 920, isPositive: false, time: '14:32', date: new Date().toISOString().split('T')[0] },
-        { id: '2', type: 'topup', title: 'Balance Top-up', subtitle: 'Mobile Money - MTN', amount: 5000, isPositive: true, time: '09:15', date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
-        { id: '3', type: 'swap', title: 'Battery Swap', subtitle: 'Tokoin Market Station', amount: 1185, isPositive: false, time: '16:48', date: new Date(Date.now() - 86400000).toISOString().split('T')[0] },
-        { id: '4', type: 'payment', title: 'Weekly Plan Renewal', subtitle: '7-Day Lux Plan', amount: 3760, isPositive: false, time: '00:00', date: new Date(Date.now() - 172800000).toISOString().split('T')[0] },
-      ];
-      setActivities(mockActivities);
-    }
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    if (!customer) return;
     
-    if (isLoggedIn && stations.length === 0) {
-      fetchStations();
-    }
-  }, [isLoggedIn, activities.length, stations.length]);
+    const planId = servicePlanId || 'service-plan-basic-newest-d';
+    const customerId = customer.partner_id?.toString() || customer.id?.toString() || 'CUST-RIDER-001';
+    
+    refreshAll(planId, customerId, servicePlanId || undefined, currency, userLocation);
+    toast.success(t('Refreshing data...'));
+  }, [customer, servicePlanId, currency, userLocation, refreshAll, t]);
 
   // Lock body overflow
   useEffect(() => {
@@ -454,6 +496,7 @@ const RiderApp: React.FC = () => {
   const handleLoginSuccess = (customerData: Customer) => {
     setCustomer(customerData);
     setIsLoggedIn(true);
+    dataFetchedRef.current = false; // Reset to allow fetching data
     const token = localStorage.getItem('authToken_rider');
     if (token) {
       fetchDashboardData(token);
@@ -467,13 +510,14 @@ const RiderApp: React.FC = () => {
     setIsLoggedIn(false);
     setCustomer(null);
     setCurrentScreen('home');
+    dataFetchedRef.current = false;
   };
 
   const handleTopUp = () => {
     toast.success(t('Top-up feature coming soon'));
   };
 
-  const handleSelectStation = (stationId: number) => {
+  const handleSelectStation = (stationId: number | string) => {
     setCurrentScreen('map');
     // Find and select the station
     const station = stations.find(s => s.id === stationId);
@@ -554,6 +598,14 @@ const RiderApp: React.FC = () => {
               </div>
             </div>
             <div className="flow-header-right">
+              <button 
+                className="flow-header-lang" 
+                onClick={handleRefresh} 
+                aria-label={t('Refresh')}
+                style={{ marginRight: 8 }}
+              >
+                <RefreshCw size={14} />
+              </button>
               <button className="flow-header-lang" onClick={toggleLocale} aria-label={t('Switch Language')}>
                 <Globe size={14} />
                 <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
@@ -570,11 +622,13 @@ const RiderApp: React.FC = () => {
               balance={balance}
               currency={currency}
               bike={bike}
-              nearbyStations={stations.map(s => ({
-                id: s.id,
+              nearbyStations={stations.slice(0, 5).map(s => ({
+                id: typeof s.id === 'string' ? parseInt(s.id) || 0 : s.id,
                 name: s.name,
                 distance: s.distance,
                 batteries: s.batteries,
+                lat: s.lat,
+                lng: s.lng,
               }))}
               onFindStation={() => setCurrentScreen('map')}
               onShowQRCode={() => setShowQRModal(true)}
@@ -585,13 +639,21 @@ const RiderApp: React.FC = () => {
           )}
           
           {currentScreen === 'activity' && (
-            <RiderActivity activities={activities} />
+            <RiderActivity 
+              activities={activities}
+              isLoading={activitiesLoading}
+              error={activitiesError}
+              onRefresh={handleRefresh}
+            />
           )}
           
           {currentScreen === 'map' && (
             <RiderStations
               stations={stations}
               onNavigateToStation={handleNavigateToStation}
+              userLocation={userLocation}
+              isLoading={stationsLoading}
+              error={stationsError}
             />
           )}
           
