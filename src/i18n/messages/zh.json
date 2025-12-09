@@ -1133,5 +1133,12 @@
   "ble.macAddressMismatch": "蓝牙设备不匹配。请切换蓝牙然后重试。",
   "ble.resetRequired": "请关闭蓝牙，等待3秒，然后重新打开。",
   "ble.forceReset": "重置蓝牙",
-  "ble.resetInstructions": "在手机设置中关闭然后打开蓝牙以清除卡住的连接。"
+  "ble.resetInstructions": "在手机设置中关闭然后打开蓝牙以清除卡住的连接。",
+  
+  "rider.phoneNumber": "电话号码",
+  "rider.enterPhone": "输入您的电话号码",
+  "rider.enterPhoneAndPassword": "请输入电话号码和密码",
+  "rider.demoLoginSuccess": "演示登录成功",
+  "rider.demoHint": "演示账号：",
+  "rider.demoCredentials": "电话：demo | 密码：demo"
 }
