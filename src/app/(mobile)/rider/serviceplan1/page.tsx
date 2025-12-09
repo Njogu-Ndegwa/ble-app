@@ -155,11 +155,11 @@ const AppContainer: React.FC = () => {
   // Check local storage for email on mount (unchanged)
   useEffect(() => {
     const checkAuth = async () => {
-      const storedEmail = localStorage.getItem("userEmail");
+      const storedPhone = localStorage.getItem("userPhone");
       const storedToken = localStorage.getItem("authToken_rider");
       
       // If we have a token, verify it's still valid by calling dashboard
-      if (storedToken && storedEmail) {
+      if (storedToken && storedPhone) {
         try {
           const headers: HeadersInit = {
             "Content-Type": "application/json",
@@ -212,8 +212,8 @@ const AppContainer: React.FC = () => {
               customerData = {
                 id: storedCustomerData.id || data.customer?.id || 0, // Use stored id, or dashboard id if stored is missing
                 name: data.customer?.name || storedCustomerData.name || "",
-                email: data.customer?.email || storedEmail || storedCustomerData.email || "",
-                phone: storedCustomerData.phone || data.customer?.phone || "",
+                email: data.customer?.email || storedCustomerData.email || "",
+                phone: storedCustomerData.phone || storedPhone || data.customer?.phone || "",
                 partner_id: partnerId, // Use stored, or fallback to dashboard customer.id
                 company_id: 14, // Hardcode company_id to 14
               };
@@ -225,8 +225,8 @@ const AppContainer: React.FC = () => {
               customerData = {
                 id: data.customer.id || 0,
                 name: data.customer.name || "",
-                email: data.customer.email || storedEmail || "",
-                phone: data.customer.phone || "",
+                email: data.customer.email || "",
+                phone: data.customer.phone || storedPhone || "",
                 partner_id: data.customer.partner_id || data.customer.id, // Use customer.id as partner_id
                 company_id: 14, // Hardcode company_id to 14
               };
@@ -241,30 +241,29 @@ const AppContainer: React.FC = () => {
             setCurrentPage("dashboard");
           } else {
               // No customer data available, clear and redirect
-            localStorage.removeItem("userEmail");
+            localStorage.removeItem("userPhone");
               localStorage.removeItem("authToken_rider");
               localStorage.removeItem("customerData_rider");
               setCurrentPage("products");
             }
           } else {
             // Token invalid, clear and redirect
-            localStorage.removeItem("userEmail");
+            localStorage.removeItem("userPhone");
             localStorage.removeItem("authToken_rider");
             localStorage.removeItem("customerData_rider");
             setCurrentPage("products");
           }
         } catch (error) {
           console.error("Error verifying token:", error);
-          localStorage.removeItem("userEmail");
+          localStorage.removeItem("userPhone");
           localStorage.removeItem("authToken_rider");
           localStorage.removeItem("customerData_rider");
           setCurrentPage("products");
         }
       } else {
-        // No token or email, redirect to products/login
+        // No token or phone stored - show login immediately (no delay needed)
         setCurrentPage("products");
       }
-      await new Promise(resolve => setTimeout(resolve, 2000));
       setIsCheckingAuth(false);
     };
 
@@ -1558,7 +1557,7 @@ const AppContainer: React.FC = () => {
       company_id: 14,
     };
     
-    localStorage.setItem("userEmail", customerWithCompanyId.email);
+    localStorage.setItem("userPhone", customerWithCompanyId.phone);
     // Save customer data to localStorage for restoration
     localStorage.setItem("customerData_rider", JSON.stringify(customerWithCompanyId));
     
@@ -1575,7 +1574,7 @@ const AppContainer: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem("userEmail");
+    localStorage.removeItem("userPhone");
     localStorage.removeItem("authToken_rider");
     localStorage.removeItem("customerData_rider");
     setIsLoggedIn(false);

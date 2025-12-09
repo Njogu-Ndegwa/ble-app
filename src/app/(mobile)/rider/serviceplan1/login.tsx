@@ -40,7 +40,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const { bridge } = useBridge();
-  const [email, setEmail] = useState<string>("");
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
@@ -197,8 +197,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const handleSignIn = async () => {
-    if (!email.trim()) {
-      toast.error(t("Please enter your email"));
+    if (!phoneNumber.trim()) {
+      toast.error(t("rider.enterPhone") || t("Please enter your phone number"));
       return;
     }
     if (!password.trim()) {
@@ -209,7 +209,29 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsSigningIn(true);
 
     try {
-      console.log("Attempting login with email:", email);
+      // Check for demo credentials
+      if (phoneNumber.trim().toLowerCase() === "demo" && password === "demo") {
+        console.log("Demo login detected");
+        
+        // Create demo customer data
+        const demoCustomer: Customer = {
+          id: 9999,
+          name: "Demo Rider",
+          email: "demo@example.com",
+          phone: "+254700000000",
+          partner_id: 9999,
+        };
+        
+        // Save demo session
+        localStorage.setItem("userPhone", "demo");
+        localStorage.setItem("authToken_rider", "demo_token_" + Date.now());
+        
+        toast.success(t("rider.demoLoginSuccess") || "Demo login successful");
+        onLoginSuccess(demoCustomer);
+        return;
+      }
+
+      console.log("Attempting login with phone:", phoneNumber);
       console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
       const response = await fetch(
         "https://crm-omnivoltaic.odoo.com/api/auth/login",
@@ -219,7 +241,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ phone: phoneNumber, password }),
         }
       );
 
@@ -230,11 +252,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       console.info("Response OK:", response.ok);
       console.info("Response Headers:", Object.fromEntries(response.headers.entries()));
       console.info("Full Response Data:", JSON.stringify(data, null, 2));
-      console.info("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
+      console.info("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
 
       if (response.status === 200) {
         console.log("Login successful");
-        localStorage.setItem("userEmail", email);
+        localStorage.setItem("userPhone", phoneNumber);
         // Save token to localStorage if present in response
         const token = data.session?.token || data.token;
         if (token) {
@@ -289,24 +311,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.error("Response Status:", response.status);
         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.error("Error Data:", JSON.stringify(data, null, 2));
-        console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
-        // Optionally pre-fill the registration email
-        setFormData(prev => ({ ...prev, email }));
+        // Optionally pre-fill the registration phone
+        setFormData(prev => ({ ...prev, phone: phoneNumber }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
         console.error("=== Login Error Response (400) ===");
         console.error("Response Status:", response.status);
         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.error("Error Data:", JSON.stringify(data, null, 2));
-        console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
-        throw new Error(t("Invalid request. Please ensure your email is correct."));
+        console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
+        throw new Error(t("rider.invalidPhoneRequest") || t("Invalid request. Please ensure your phone number is correct."));
       } else {
         console.error("=== Login Error Response ===");
         console.error("Response Status:", response.status);
         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.error("Error Data:", JSON.stringify(data, null, 2));
-        console.error("Payload Sent:", JSON.stringify({ email, password: "***" }, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
         throw new Error(data.message || t("Login failed. Please try again."));
       }
     } catch (error: any) {
@@ -379,9 +401,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       
       toast.success(t('Registration successful! You can now sign in.'));
       
-      // Switch back to login form and pre-fill email
+      // Switch back to login form and pre-fill phone
       setShowRegister(false);
-      setEmail(formData.email);
+      setPhoneNumber(formData.phone);
       
       // Reset registration form
       setFormData({
@@ -413,8 +435,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhoneNumber(e.target.value);
   };
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
@@ -753,26 +775,25 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </svg>
           </div>
           <h1 className="login-title">{t('Rider Login')}</h1>
-          <p className="login-subtitle">{t('Sign in to access your account')}</p>
+          <p className="login-subtitle">{t('rider.enterPhoneAndPassword') || 'Please enter phone number and password'}</p>
         </div>
 
       {/* Login Form */}
       <div className="login-form">
-        {/* Email Input */}
+        {/* Phone Number Input */}
         <div className="form-group">
-          <label className="form-label">{t('Email Address')}</label>
+          <label className="form-label">{t('rider.phoneNumber') || 'Phone Number'}</label>
           <div className="input-with-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-              <polyline points="22,6 12,13 2,6"/>
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
             </svg>
             <input
-              type="email"
+              type="tel"
               className="form-input"
-              value={email}
-              onChange={handleEmailChange}
+              value={phoneNumber}
+              onChange={handlePhoneChange}
               onKeyPress={handleKeyPress}
-              placeholder={t('Enter your email')}
+              placeholder={t('rider.enterPhone') || 'Enter your phone number'}
               disabled={isSigningIn}
             />
           </div>
@@ -822,7 +843,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <button
           className="btn btn-primary login-btn"
           onClick={handleSignIn}
-          disabled={isSigningIn || !email.trim() || !password.trim()}
+          disabled={isSigningIn || !phoneNumber.trim() || !password.trim()}
         >
           {isSigningIn ? (
             <>
@@ -853,6 +874,22 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </svg>
           <span>{t('Create New Account')}</span>
         </button>
+
+        {/* Demo credentials hint */}
+        <div style={{ 
+          marginTop: 16, 
+          padding: '12px 16px', 
+          background: 'rgba(0, 229, 229, 0.1)', 
+          borderRadius: 8,
+          border: '1px solid rgba(0, 229, 229, 0.2)'
+        }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+            {t('rider.demoHint') || 'For demo access, use:'}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+            {t('rider.demoCredentials') || 'Phone: demo | Password: demo'}
+          </p>
+        </div>
 
         <p className="login-help">
           {t('Need help? Contact support')}

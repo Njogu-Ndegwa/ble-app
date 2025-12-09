@@ -1138,6 +1138,7 @@
   "rider.phoneNumber": "电话号码",
   "rider.enterPhone": "输入您的电话号码",
   "rider.enterPhoneAndPassword": "请输入电话号码和密码",
+  "rider.invalidPhoneRequest": "请求无效。请确保您的电话号码正确。",
   "rider.demoLoginSuccess": "演示登录成功",
   "rider.demoHint": "演示账号：",
   "rider.demoCredentials": "电话：demo | 密码：demo"
