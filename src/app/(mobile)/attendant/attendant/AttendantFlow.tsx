@@ -216,11 +216,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           ? Math.min(remainingQuotaKwh, energyDiffKwh) 
           : 0;
         
-        // Chargeable energy after quota
-        const chargeableEnergy = Math.max(0, energyDiffKwh - quotaDeduction);
+        // Chargeable energy after quota - floor to 2 decimal places for consistency
+        const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
+        const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
         
-        // Cost based on chargeable energy
-        const cost = Math.round(chargeableEnergy * rate * 100) / 100;
+        // Cost based on floored chargeable energy
+        // IMPORTANT: Use Math.floor to round DOWN - ensures payment is never more than service value
+        // This guarantees the recorded payment amount matches the displayed/charged amount
+        const cost = Math.floor(chargeableEnergyFloored * rate * 100) / 100;
         
         console.info('Energy differential calculated:', {
           oldEnergyWh: oldEnergy,
@@ -228,7 +231,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           energyDiffKwh,
           remainingQuotaKwh,
           quotaDeduction,
-          chargeableEnergy,
+          chargeableEnergy: chargeableEnergyFloored,
           ratePerKwh: rate,
           cost,
         });
@@ -236,10 +239,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return {
           ...prev,
           newBattery: battery,
-          // Energy values rounded to 2 decimal places for consistency with pricing
+          // Energy values floored to 2 decimal places for consistency with pricing
           energyDiff: Math.floor(energyDiffKwh * 100) / 100,
           quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
-          chargeableEnergy: Math.floor(chargeableEnergy * 100) / 100,
+          chargeableEnergy: chargeableEnergyFloored,
           cost: cost > 0 ? cost : 0,
         };
       });
@@ -1959,21 +1962,18 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const newBatteryId = swapData.newBattery?.id || null;
     const oldBatteryId = swapData.oldBattery?.id || null;
 
-    // Battery energy is stored in Wh, convert to kWh for backend (divide by 1000)
-    const checkoutEnergyWh = swapData.newBattery?.energy || 0;
-    const checkinEnergyWh = swapData.oldBattery?.energy || 0;
-    const checkoutEnergyKwh = checkoutEnergyWh / 1000;
-    const checkinEnergyKwh = checkinEnergyWh / 1000;
-    let energyTransferred = customerType === 'returning' 
-      ? checkoutEnergyKwh - checkinEnergyKwh 
-      : checkoutEnergyKwh;
+    // Use the pre-calculated energyDiff which is already floored to 2 decimal places
+    // This ensures consistency between what's displayed and what's reported to backend
+    let energyTransferred = swapData.energyDiff;
     if (energyTransferred < 0) energyTransferred = 0;
+    // Floor to 2 decimal places to ensure consistent reporting
+    energyTransferred = Math.floor(energyTransferred * 100) / 100;
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
-    // IMPORTANT: Report the ORIGINAL calculated amount (not rounded) for accurate quota calculations
-    // Even though customer pays the rounded amount (e.g., 20), we report the full precision (e.g., 20.54)
-    // This ensures quota tracking is accurate since the customer received 20.54 worth of energy
-    const paymentAmount = swapData.cost; // Always use original calculated cost for backend reporting
+    // IMPORTANT: Use the calculated cost which is already floored to 2 decimal places
+    // This ensures payment amount matches what was displayed to the attendant/customer
+    // and is consistent with the floored energy values
+    const paymentAmount = Math.floor(swapData.cost * 100) / 100; // Ensure 2 decimal places (floored)
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     // Determine if we should include payment_data:
