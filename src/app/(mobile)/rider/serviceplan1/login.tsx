@@ -36,6 +36,19 @@ interface FormErrors {
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
+// Demo credentials for testing
+const DEMO_CREDENTIALS = {
+  phone: "+254700000000",
+  password: "demo123",
+  customer: {
+    id: 1,
+    name: "Demo Rider",
+    email: "demo@rider.com",
+    phone: "+254700000000",
+    partner_id: 1001,
+  }
+};
+
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
@@ -207,6 +220,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
 
     setIsSigningIn(true);
+
+    // Check for demo credentials first
+    if (phone.trim() === DEMO_CREDENTIALS.phone && password === DEMO_CREDENTIALS.password) {
+      console.log("Demo login successful");
+      localStorage.setItem("userPhone", phone);
+      localStorage.setItem("authToken_rider", "demo_token_" + Date.now());
+      toast.success(t("Welcome! Signed in successfully"));
+      onLoginSuccess(DEMO_CREDENTIALS.customer);
+      setIsSigningIn(false);
+      return;
+    }
 
     try {
       console.log("Attempting login with phone:", phone);
@@ -418,6 +442,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
+  };
+
+  // Fill demo credentials
+  const fillDemoCredentials = () => {
+    setPhone(DEMO_CREDENTIALS.phone);
+    setPassword(DEMO_CREDENTIALS.password);
+    toast.success(t('rider.demoCredentialsFilled') || 'Demo credentials filled');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -836,6 +867,20 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <span>{t('Sign In')}</span>
             </>
           )}
+        </button>
+
+        {/* Use Demo Account Button */}
+        <button
+          className="btn btn-secondary"
+          onClick={fillDemoCredentials}
+          disabled={isSigningIn}
+          style={{ width: '100%', marginTop: 10 }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span>{t('rider.useDemoAccount') || 'Use Demo Account'}</span>
         </button>
 
         {/* Create Account Button */}

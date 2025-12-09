@@ -1188,6 +1188,8 @@
   "rider.loginFailed": "登录失败",
   "rider.pleaseEnterEmailPassword": "请输入电子邮件和密码",
   "rider.pleaseEnterPhonePassword": "请输入手机号码和密码",
+  "rider.useDemoAccount": "使用演示账户",
+  "rider.demoCredentialsFilled": "已填充演示凭证",
   
   "rider.profile": "个人资料",
   "rider.energyService": "能源服务",

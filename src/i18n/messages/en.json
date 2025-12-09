@@ -1286,6 +1286,8 @@
   "rider.loginFailed": "Login failed",
   "rider.pleaseEnterEmailPassword": "Please enter email and password",
   "rider.pleaseEnterPhonePassword": "Please enter phone number and password",
+  "rider.useDemoAccount": "Use Demo Account",
+  "rider.demoCredentialsFilled": "Demo credentials filled",
   
   "rider.profile": "Profile",
   "rider.energyService": "Energy Service",

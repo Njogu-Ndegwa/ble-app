@@ -1277,6 +1277,8 @@
   "rider.loginFailed": "Échec de la connexion",
   "rider.pleaseEnterEmailPassword": "Veuillez entrer l'e-mail et le mot de passe",
   "rider.pleaseEnterPhonePassword": "Veuillez entrer le numéro de téléphone et le mot de passe",
+  "rider.useDemoAccount": "Utiliser le compte démo",
+  "rider.demoCredentialsFilled": "Identifiants de démonstration remplis",
   
   "rider.profile": "Profil",
   "rider.energyService": "Service d'énergie",
