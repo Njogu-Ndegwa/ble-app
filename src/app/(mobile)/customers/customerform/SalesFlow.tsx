@@ -47,6 +47,7 @@ import {
   DEFAULT_COMPANY_ID,
   type SubscriptionProduct,
   type ProductOrderItem,
+  type RegisterCustomerPayload,
 } from '@/lib/odoo-api';
 
 // Import employee auth to get salesperson token and logout
@@ -849,16 +850,26 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     if (!formData.lastName.trim()) {
       errors.lastName = 'Last name is required';
     }
-    if (!formData.email.trim()) {
-      errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Please enter a valid email address';
+    
+    // Email or Phone validation - at least one is required
+    const hasEmail = formData.email.trim().length > 0;
+    const hasPhone = formData.phone.trim().length > 0;
+    
+    if (!hasEmail && !hasPhone) {
+      // Show error on both fields so it displays in the combined field
+      errors.email = 'Email or phone number is required';
+      errors.phone = 'Email or phone number is required';
+    } else {
+      // Validate email format if provided
+      if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+        errors.email = 'Please enter a valid email address';
+      }
+      // Validate phone format if provided
+      if (hasPhone && !/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone.trim())) {
+        errors.phone = 'Please enter a valid phone number';
+      }
     }
-    if (!formData.phone.trim()) {
-      errors.phone = 'Phone number is required';
-    } else if (!/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone)) {
-      errors.phone = 'Invalid phone number';
-    }
+    
     // Address validation
     if (!formData.street.trim()) {
       errors.street = 'Street address is required';
@@ -887,23 +898,34 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         console.warn('No employee token found - customer may not be associated with correct company');
       }
       
-      // Format phone number - ensure it starts with country code
-      let phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
-      if (phoneNumber.startsWith('0')) {
-        phoneNumber = '254' + phoneNumber.slice(1);
-      } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
-        phoneNumber = '254' + phoneNumber;
+      // Format phone number - ensure it starts with country code (only if provided)
+      let phoneNumber = '';
+      if (formData.phone.trim()) {
+        phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+        if (phoneNumber.startsWith('0')) {
+          phoneNumber = '254' + phoneNumber.slice(1);
+        } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
+          phoneNumber = '254' + phoneNumber;
+        }
+        phoneNumber = phoneNumber.replace('+', '');
       }
-      phoneNumber = phoneNumber.replace('+', '');
 
-      const registrationPayload = {
+      const registrationPayload: RegisterCustomerPayload = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
-        email: formData.email,
-        phone: phoneNumber,
         street: formData.street,
         city: formData.city,
         zip: formData.zip,
       };
+
+      // Only include email if provided
+      if (formData.email.trim()) {
+        registrationPayload.email = formData.email.trim();
+      }
+
+      // Only include phone if provided
+      if (phoneNumber) {
+        registrationPayload.phone = phoneNumber;
+      }
 
       console.log('Registering customer in Odoo:', registrationPayload);
 

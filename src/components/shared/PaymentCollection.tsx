@@ -162,7 +162,7 @@ function ScanModeContent({
   return (
     <div className="payment-input-mode">
       <p className="payment-subtitle">
-        {t('attendant.enterMpesaCode') || 'Scan M-Pesa payment code'}
+        {t('attendant.scanPaymentQrCode') || 'Scan payment QR code'}
       </p>
       
       <ScannerArea 
@@ -198,7 +198,7 @@ function ManualModeContent({
       <div className="manual-entry-form">
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">
-            {t('attendant.mpesaCode') || 'M-Pesa Code'}
+            {t('attendant.transactionCode') || 'Transaction Code'}
           </label>
           <input 
             type="text" 

@@ -36,10 +36,11 @@ export interface OdooApiError {
 // Auth/Registration Types
 // Fields accepted by the Odoo /api/auth/register endpoint
 // Note: company_id is derived from the salesperson's token, not sent in the payload
+// At least one of email or phone must be provided
 export interface RegisterCustomerPayload {
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   street: string;
   city: string;
   zip: string;

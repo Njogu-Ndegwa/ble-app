@@ -634,7 +634,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
               <circle cx="12" cy="7" r="4"/>
             </svg>
           </div>
-          <h1 className="login-title">{t('Staff Login')}</h1>
+          <h1 className="login-title">{t('common.login') || 'Login'}</h1>
           <p className="login-subtitle">{t('Sign in to access your workspace')}</p>
         </div>
 
