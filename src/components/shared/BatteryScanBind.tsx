@@ -441,18 +441,18 @@ const PHASE_MESSAGES = {
     subtitle: 'Loading device information...',
   },
   readingDta: {
-    title: 'Reading Energy Data',
-    subtitle: 'Getting battery charge level...',
+    title: 'Reading DTA Service',
+    subtitle: 'Getting energy data from battery...',
   },
   readingAtt: {
-    title: 'Verifying Battery ID',
-    subtitle: 'Confirming battery identity...',
+    title: 'Reading ATT Service',
+    subtitle: 'Getting battery ID (opid/ppid)...',
   },
 };
 
 /**
  * Shows BLE connection progress with improved UX for long wait times
- * Now supports the DTA → STS reading flow with distinct phases
+ * Now supports the DTA → ATT reading flow with distinct phases
  */
 function BleConnectionProgress({ 
   bleScanState, 
