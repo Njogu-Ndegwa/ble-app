@@ -120,6 +120,8 @@ export interface BatteryData {
   chargeLevel: number;
   energy: number;
   macAddress?: string;
+  /** Actual battery ID from ATT service (OPID/PPID) - used for service completion reporting */
+  actualBatteryId?: string;
 }
 
 // BLE Device interface for scan-to-bind functionality

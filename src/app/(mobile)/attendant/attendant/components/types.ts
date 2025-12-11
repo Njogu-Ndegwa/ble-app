@@ -53,6 +53,8 @@ export interface BatteryData {
   chargeLevel: number; // Charge percentage (0-100) from rsoc or calculated from rcap/fccp
   energy: number; // Remaining energy in Wh = (rcap_mAh × pckv_mV) / 1,000,000
   macAddress?: string; // BLE MAC address used for connection
+  /** Actual battery ID from ATT service (OPID/PPID) - used for service completion reporting */
+  actualBatteryId?: string;
 }
 
 // BLE Device interface for scan-to-bind functionality
