@@ -7,7 +7,8 @@ import { useBleDeviceScanner } from './useBleDeviceScanner';
 import { useBleDeviceConnection } from './useBleDeviceConnection';
 import { useBleServiceReader } from './useBleServiceReader';
 import { 
-  extractEnergyFromDta, 
+  extractEnergyFromDta,
+  extractActualBatteryIdFromSts,
   createBatteryData, 
   parseBatteryIdFromQr,
 } from './energyUtils';
@@ -28,6 +29,7 @@ const INITIAL_STATE: BleFullState = {
   connectedDevice: null,
   connectionProgress: 0,
   isReadingService: false,
+  readingPhase: 'idle',
   error: null,
   connectionFailed: false,
   requiresBluetoothReset: false,
@@ -125,6 +127,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     isReady: serviceReaderIsReady,
     lastServiceData,
     readDtaService,
+    readStsService,
     cancelRead: serviceReaderCancelRead,
     resetState: serviceReaderResetState,
   } = useBleServiceReader({ debug });
@@ -136,6 +139,11 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   const [state, setState] = useState<BleFullState>(INITIAL_STATE);
   const [pendingBatteryId, setPendingBatteryId] = useState<string | null>(null);
   const [pendingScanType, setPendingScanType] = useState<string | null>(null);
+  
+  // Track reading phase: 'idle' | 'dta' | 'sts'
+  const [readingPhase, setReadingPhase] = useState<'idle' | 'dta' | 'sts'>('idle');
+  // Store DTA data while waiting for STS
+  const [dtaData, setDtaData] = useState<unknown>(null);
 
   // ============================================
   // REFS
@@ -205,6 +213,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       connectionFailed: connectionState.connectionFailed,
       requiresBluetoothReset: connectionState.requiresBluetoothReset,
       isReadingService: serviceState.isReading,
+      readingPhase,
       error: scannerScanState.error || 
              connectionState.error || 
              serviceState.error || 
@@ -214,22 +223,25 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     scannerScanState,
     connectionState,
     serviceState,
+    readingPhase,
   ]);
 
   // ============================================
-  // CONNECTION → SERVICE READING
+  // CONNECTION → SERVICE READING (DTA → STS)
   // ============================================
 
-  // When connected, automatically read DTA service
+  // When connected, automatically start reading DTA service first
   useEffect(() => {
     if (
       isConnected &&
       connectedDevice &&
       pendingBatteryId &&
-      !isReadingEnergyRef.current
+      !isReadingEnergyRef.current &&
+      readingPhase === 'idle'
     ) {
-      log('Connected! Starting DTA service read');
+      log('Connected! Starting DTA service read (Step 1/2)');
       isReadingEnergyRef.current = true;
+      setReadingPhase('dta');
       readDtaService(connectedDevice);
     }
   }, [
@@ -237,49 +249,97 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     connectedDevice,
     pendingBatteryId,
     readDtaService,
+    readingPhase,
     log,
   ]);
 
-  // Handle service data received
+  // Handle service data received - manages DTA → STS flow
   useEffect(() => {
     if (
       lastServiceData &&
       pendingBatteryId &&
       pendingScanType &&
-      isReadingEnergyRef.current
+      isReadingEnergyRef.current &&
+      connectedDevice
     ) {
-      log('Service data received, extracting energy');
-      
-      const energyData = extractEnergyFromDta(lastServiceData);
-      
-      if (energyData) {
-        const battery = createBatteryData(
-          pendingBatteryId,
-          energyData,
-          connectedDevice || undefined
-        );
+      // Check which phase we're in
+      if (readingPhase === 'dta') {
+        log('DTA service data received, storing and starting STS read (Step 2/2)');
         
-        log('Battery data extracted:', battery);
+        // Validate DTA data has energy info
+        const energyData = extractEnergyFromDta(lastServiceData);
+        if (!energyData) {
+          log('Failed to extract energy data from DTA');
+          toast.error('Could not read battery data. Please try again.');
+          onErrorRef.current?.('Failed to extract energy data from DTA');
+          
+          // Clear pending state
+          setPendingBatteryId(null);
+          setPendingScanType(null);
+          setReadingPhase('idle');
+          setDtaData(null);
+          isReadingEnergyRef.current = false;
+          return;
+        }
         
-        // Notify callback
-        onBatteryReadRef.current?.(battery, pendingScanType);
+        // Store DTA data and move to STS phase
+        setDtaData(lastServiceData);
+        setReadingPhase('sts');
         
-        // Clear pending state
-        setPendingBatteryId(null);
-        setPendingScanType(null);
-        isReadingEnergyRef.current = false;
-      } else {
-        log('Failed to extract energy data');
-        toast.error('Could not read battery data. Please try again.');
-        onErrorRef.current?.('Failed to extract energy data');
+        // Now read STS service to get actual battery ID
+        readStsService(connectedDevice);
         
-        // Clear pending state
-        setPendingBatteryId(null);
-        setPendingScanType(null);
-        isReadingEnergyRef.current = false;
+      } else if (readingPhase === 'sts') {
+        log('STS service data received, extracting actual battery ID');
+        
+        // Extract actual battery ID from STS (opid or ppid)
+        const actualBatteryId = extractActualBatteryIdFromSts(lastServiceData);
+        
+        if (!actualBatteryId) {
+          log('Warning: Could not extract actual battery ID from STS, proceeding without it');
+          // This is a warning, not an error - we can still proceed with QR-scanned ID
+        } else {
+          log('Actual battery ID from STS:', actualBatteryId);
+        }
+        
+        // Extract energy data from stored DTA data
+        const energyData = extractEnergyFromDta(dtaData);
+        
+        if (energyData) {
+          // Create battery data with actual battery ID from STS
+          const battery = createBatteryData(
+            pendingBatteryId,
+            energyData,
+            connectedDevice || undefined,
+            actualBatteryId || undefined
+          );
+          
+          log('Battery data extracted with actual ID:', battery);
+          
+          // Notify callback
+          onBatteryReadRef.current?.(battery, pendingScanType);
+          
+          // Clear pending state
+          setPendingBatteryId(null);
+          setPendingScanType(null);
+          setReadingPhase('idle');
+          setDtaData(null);
+          isReadingEnergyRef.current = false;
+        } else {
+          log('Failed to extract energy data from stored DTA');
+          toast.error('Could not read battery data. Please try again.');
+          onErrorRef.current?.('Failed to extract energy data');
+          
+          // Clear pending state
+          setPendingBatteryId(null);
+          setPendingScanType(null);
+          setReadingPhase('idle');
+          setDtaData(null);
+          isReadingEnergyRef.current = false;
+        }
       }
     }
-  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, log]);
+  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, readingPhase, dtaData, readStsService, log]);
 
   // ============================================
   // MAIN FUNCTION: SCAN AND BIND
@@ -415,6 +475,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     
     setPendingBatteryId(null);
     setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
     isReadingEnergyRef.current = false;
   }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, log]);
 
@@ -434,6 +496,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     
     setPendingBatteryId(null);
     setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
     isReadingEnergyRef.current = false;
     
     setState(INITIAL_STATE);
@@ -457,6 +521,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     
     setPendingBatteryId(null);
     setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
     isReadingEnergyRef.current = false;
     
     setState(INITIAL_STATE);
@@ -483,6 +549,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     state,
     /** Pending battery ID */
     pendingBatteryId,
+    /** Current reading phase: 'idle' | 'dta' | 'sts' */
+    readingPhase,
     /** Whether the hook is ready */
     isReady: scannerIsReady && connectionIsReady && serviceReaderIsReady,
     /** Start scan-to-bind process */
