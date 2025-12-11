@@ -38,6 +38,9 @@ import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 // Import customer identification hook
 import { useCustomerIdentification, type CustomerIdentificationResult } from '@/lib/hooks/useCustomerIdentification';
 
+// Import payment and service completion hook
+import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
+
 // Import Odoo API functions for payment
 import {
   initiatePayment,
@@ -169,9 +172,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Expected amount the customer needs to pay for this swap (swapData.cost at time of request creation)
   const [expectedPaymentAmount, setExpectedPaymentAmount] = useState<number>(0);
   
-  // Phase states
-  const [paymentAndServiceStatus, setPaymentAndServiceStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
-  
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
   
@@ -216,6 +216,30 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setIsProcessing(false);
       identificationScanTypeRef.current = null;
       scanTypeRef.current = null;
+    },
+  });
+  
+  // ============================================
+  // PAYMENT AND SERVICE COMPLETION HOOK
+  // ============================================
+  
+  const {
+    publishPaymentAndService,
+    status: paymentAndServiceStatus,
+    reset: resetPaymentAndServiceStatus,
+  } = usePaymentAndService({
+    onSuccess: (isIdempotent) => {
+      console.info('payment_and_service completed successfully!', isIdempotent ? '(idempotent)' : '');
+      advanceToStep(6);
+      toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
+      setIsScanning(false);
+      setIsProcessing(false);
+    },
+    onError: (errorMsg) => {
+      console.error('payment_and_service failed:', errorMsg);
+      toast.error(errorMsg);
+      setIsScanning(false);
+      setIsProcessing(false);
     },
   });
   
@@ -927,7 +951,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           setTransactionId(receipt);
           toast.success('Payment confirmed successfully');
           // Report payment - uses original calculated cost for accurate quota tracking
-          publishPaymentAndService(receipt, false);
+          // Use ref to call the wrapper function (avoids stale closure issues)
+          publishPaymentAndServiceRef.current(receipt, false);
         } else {
           throw new Error('Payment confirmation failed');
         }
@@ -967,7 +992,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
 
-  // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
+  // Ref for calling publishPaymentAndService to avoid circular dependency with handleProceedToPayment
   // isQuotaBased: true when customer has sufficient quota credit (no payment_data sent)
   // isZeroCostRounding: true when cost rounds to 0 but NOT quota-based (payment_data sent with original amount)
   const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, isZeroCostRounding?: boolean) => void>(() => {});
@@ -1495,7 +1520,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           toast.success('Payment confirmed successfully');
           
           // Report payment - uses original calculated cost for accurate quota tracking
-          publishPaymentAndService(receipt, false);
+          // Use ref to call the wrapper function (avoids stale closure issues)
+          publishPaymentAndServiceRef.current(receipt, false);
         } else {
           throw new Error('Payment confirmation failed');
         }
@@ -1510,404 +1536,63 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dynamicPlanId, swapData.cost, customerData, paymentRequestCreated, paymentRequestOrderId, expectedPaymentAmount, initiateOdooPayment]);
 
-  // Publish payment_and_service via MQTT
-  // isQuotaBased: When true, customer is using their existing quota credit (no payment_data sent)
-  // isZeroCostRounding: When true, cost rounded to 0 but NOT quota-based - include payment_data
-  //                     with original amount so backend knows the service value for tracking
+  // Wrapper to call publishPaymentAndService with component state
+  // This is needed because handleProceedToPayment and processPaymentQRData call this function
   // NOTE: We always report the ORIGINAL calculated amount (swapData.cost) for quota calculations,
   // even though customer pays the rounded-down amount. This ensures accurate quota tracking.
-  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, isZeroCostRounding: boolean = false) => {
-    if (!bridge) {
-      console.error("Bridge not available for payment_and_service");
-      toast.error('Bridge not available. Please restart the app.');
-      setIsScanning(false);
-      setIsProcessing(false);
-      return;
-    }
-
-    setPaymentAndServiceStatus('pending');
+  const callPublishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, isZeroCostRounding: boolean = false) => {
+    const serviceId = electricityService?.service_id || 'service-electricity-default';
     
-    // Set a timeout to prevent infinite loading (30 seconds)
-    const timeoutId = setTimeout(() => {
-      console.error("payment_and_service timed out after 30 seconds");
-      toast.error("Request timed out. Please try again.");
-      setPaymentAndServiceStatus('error');
-      setIsScanning(false);
-      setIsProcessing(false);
-    }, 30000);
-
-    // Use actualBatteryId (OPID/PPID from ATT service) as primary, fallback to id (QR code)
-    // Backend expects actual battery IDs like "B0723025100049" from the ATT service, not device names
-    const newBatteryId = swapData.newBattery?.actualBatteryId || swapData.newBattery?.id || null;
-    const oldBatteryId = swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.id || null;
-
-    // === USING STORED VALUES FROM swapData (Single Source of Truth) ===
-    // energyTransferred = swapData.energyDiff (power differential, floored to 2dp - Step 1)
-    const energyTransferred = Math.max(0, swapData.energyDiff);
-
-    const serviceId = electricityService?.service_id || "service-electricity-default";
-    
-    // paymentAmount = swapData.cost (calculated in Step 4, rounded UP if >2dp)
-    // NO recalculation here - using the exact value from swapData
-    const paymentAmount = swapData.cost;
-    const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-    // Determine if we should include payment_data:
-    // - isQuotaBased && !isZeroCostRounding: No payment_data (true quota credit)
-    // - isZeroCostRounding: Include payment_data with original amount (customer received service worth X but paid 0)
-    // - Normal payment: Include payment_data
-    const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
-
-    console.info('Publishing payment_and_service (using swapData - NO recalculation):', {
+    const params: PublishPaymentAndServiceParams = {
+      paymentReference,
+      planId: dynamicPlanId,
+      swapData: {
+        oldBattery: swapData.oldBattery ? {
+          id: swapData.oldBattery.id,
+          actualBatteryId: swapData.oldBattery.actualBatteryId,
+          energy: swapData.oldBattery.energy,
+        } : null,
+        newBattery: swapData.newBattery ? {
+          id: swapData.newBattery.id,
+          actualBatteryId: swapData.newBattery.actualBatteryId,
+          energy: swapData.newBattery.energy,
+        } : null,
+        energyDiff: swapData.energyDiff,
+        cost: swapData.cost,
+        rate: swapData.rate,
+        currencySymbol: swapData.currencySymbol,
+      },
+      customerType,
+      serviceId,
+      actor: {
+        type: 'attendant',
+        id: attendantInfo.id,
+        station: attendantInfo.station,
+      },
       isQuotaBased,
       isZeroCostRounding,
-      shouldIncludePaymentData,
-      // All values from swapData (single source of truth)
-      energyTransferred,                      // = swapData.energyDiff (Step 1: floored to 2dp)
-      chargeableEnergy: swapData.chargeableEnergy,  // Step 3: NOT rounded
-      rate: swapData.rate,
-      paymentAmount,                          // = swapData.cost (Step 4: round UP if >2dp)
-      ...(shouldIncludePaymentData ? { paymentReference } : {}),
-      // Battery IDs - using actualBatteryId (from ATT service) with fallback to id (from QR)
-      oldBatteryId,
-      newBatteryId,
-      // Debug: show source of IDs
-      oldBattery_actualId: swapData.oldBattery?.actualBatteryId,
-      oldBattery_qrId: swapData.oldBattery?.id,
-      newBattery_actualId: swapData.newBattery?.actualBatteryId,
-      newBattery_qrId: swapData.newBattery?.id,
-    });
-
-    let paymentAndServicePayload: any = null;
-
-    if (customerType === 'returning' && oldBatteryId) {
-      // Returning customer payload
-      if (isQuotaBased && !isZeroCostRounding) {
-        // True quota-based: No payment_data needed - customer is using existing quota credit
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            service_data: {
-              old_battery_id: oldBatteryId,
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      } else {
-        // Regular payment flow OR zero-cost rounding: Include payment_data
-        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
-        // even though customer paid 0 - this allows backend to track actual service value
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            payment_data: {
-              service_id: serviceId,
-              payment_amount: paymentAmount,
-              payment_reference: paymentReference,
-              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
-              payment_type: "TOP_UP",
-            },
-            service_data: {
-              old_battery_id: oldBatteryId,
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      }
-    } else if (customerType === 'first-time' && newBatteryId) {
-      // First-time customer payload
-      if (isQuotaBased && !isZeroCostRounding) {
-        // True quota-based: No payment_data needed - customer is using existing quota credit
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            service_data: {
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      } else {
-        // Regular payment flow OR zero-cost rounding: Include payment_data
-        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
-        // even though customer paid 0 - this allows backend to track actual service value
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            payment_data: {
-              service_id: serviceId,
-              payment_amount: paymentAmount,
-              payment_reference: paymentReference,
-              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
-              payment_type: "DEPOSIT",
-            },
-            service_data: {
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      }
-    }
-
-    if (!paymentAndServicePayload) {
-      console.error("Unable to build payment_and_service payload - missing battery data");
-      toast.error("Unable to complete swap - missing battery data");
-      setPaymentAndServiceStatus('error');
-      clearTimeout(timeoutId);
-      setIsScanning(false);
-      setIsProcessing(false);
-      return;
-    }
-
-    const requestTopic = `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`;
-    // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
-    const responseTopic = `echo/abs/attendant/plan/${dynamicPlanId}/payment_and_service`;
-    
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: paymentAndServicePayload,
     };
 
-    console.info("=== Publishing payment_and_service ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", paymentCorrelationId);
-    console.info("Payload:", JSON.stringify(paymentAndServicePayload, null, 2));
+    console.info('Calling publishPaymentAndService with params:', {
+      paymentReference,
+      isQuotaBased,
+      isZeroCostRounding,
+      planId: dynamicPlanId,
+      customerType,
+      serviceId,
+      oldBatteryId: swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.id,
+      newBatteryId: swapData.newBattery?.actualBatteryId || swapData.newBattery?.id,
+      energyDiff: swapData.energyDiff,
+      cost: swapData.cost,
+    });
 
-    // Store correlation ID for response matching
-    (window as any).__paymentAndServiceCorrelationId = paymentCorrelationId;
-
-    // Register response handler to handle idempotent responses gracefully
-    bridge.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          console.info("=== MQTT Message Arrived (Payment & Service Flow) ===");
-          console.info("Received topic:", topic);
-          console.info("Expected topic:", responseTopic);
-          console.info("Topic match:", topic === responseTopic);
-
-          // Check if this is our response topic
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing payment_and_service response");
-            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
-
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            // Check correlation ID
-            const storedCorrelationId = (window as any).__paymentAndServiceCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              clearTimeout(timeoutId);
-              
-              const success = responseData?.data?.success ?? false;
-              const signals = responseData?.data?.signals || [];
-              const metadata = responseData?.data?.metadata || {};
-
-              console.info("payment_and_service response - success:", success, "signals:", signals, "metadata:", metadata);
-
-              // Check for error signals - these indicate failure even if success is true
-              // Backend may return success:true with error signals for validation failures
-              const errorSignals = [
-                "BATTERY_MISMATCH", 
-                "ASSET_VALIDATION_FAILED", 
-                "SECURITY_ALERT", 
-                "VALIDATION_FAILED", 
-                "PAYMENT_FAILED",
-                "SERVICE_COMPLETION_FAILED",
-                "RATE_LIMIT_EXCEEDED",
-                "SERVICE_REJECTED"
-              ];
-              const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
-
-              // Handle both fresh success and idempotent (cached) responses
-              // Fresh success signals: ASSET_RETURNED, ASSET_ALLOCATED, SERVICE_COMPLETED
-              // Idempotent signal: IDEMPOTENT_OPERATION_DETECTED
-              const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-              const hasServiceCompletedSignal = signals.includes("SERVICE_COMPLETED");
-              const hasAssetSignals = signals.includes("ASSET_RETURNED") || signals.includes("ASSET_ALLOCATED");
-              
-              const hasSuccessSignal = success === true && 
-                !hasErrorSignal &&
-                Array.isArray(signals) && 
-                (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
-
-              if (hasErrorSignal) {
-                // Error signals present - treat as failure regardless of success flag
-                console.error("payment_and_service failed with error signals:", signals);
-                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
-                const actionRequired = metadata?.action_required;
-                toast.error(actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg);
-                setPaymentAndServiceStatus('error');
-              } else if (hasSuccessSignal) {
-                console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
-                
-                // Clear the correlation ID
-                (window as any).__paymentAndServiceCorrelationId = null;
-                
-                setPaymentAndServiceStatus('success');
-                advanceToStep(6);
-                toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
-              } else if (success && signals.length === 0) {
-                // Success without any signals - treat as generic success
-                console.info("payment_and_service completed (generic success, no signals)");
-                
-                // Clear the correlation ID
-                (window as any).__paymentAndServiceCorrelationId = null;
-                
-                setPaymentAndServiceStatus('success');
-                advanceToStep(6);
-                toast.success('Swap completed!');
-              } else {
-                // Response received but not successful or has unknown signals
-                console.error("payment_and_service failed - success:", success, "signals:", signals);
-                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
-                toast.error(errorMsg);
-                setPaymentAndServiceStatus('error');
-              }
-              
-              setIsScanning(false);
-              setIsProcessing(false);
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing payment_and_service MQTT response:", err);
-        }
-      }
-    );
-
-    // Subscribe to response topic first, then publish
-    console.info("=== Subscribing to response topic for payment_and_service ===");
-    
-    bridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 1 },
-      (subscribeResponse: string) => {
-        try {
-          const subResp = typeof subscribeResponse === 'string' 
-            ? JSON.parse(subscribeResponse) 
-            : subscribeResponse;
-          
-          if (subResp?.respCode === "200") {
-            console.info("✅ Successfully subscribed to payment_and_service response topic:", responseTopic);
-            
-            // Wait a moment after subscribe before publishing
-            setTimeout(() => {
-              try {
-                console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
-                bridge.callHandler(
-                  "mqttPublishMsg",
-                  JSON.stringify(dataToPublish),
-                  (publishResponse: any) => {
-                    console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
-                    try {
-                      const pubResp = typeof publishResponse === 'string' 
-                        ? JSON.parse(publishResponse) 
-                        : publishResponse;
-                      
-                      if (pubResp?.error || pubResp?.respCode !== "200") {
-                        console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
-                        toast.error("Failed to complete swap");
-                        setPaymentAndServiceStatus('error');
-                        clearTimeout(timeoutId);
-                        setIsScanning(false);
-                        setIsProcessing(false);
-                      } else {
-                        console.info("payment_and_service published successfully, waiting for backend response...");
-                        // Wait for the actual backend response via MQTT handler
-                        // The 30-second timeout will handle cases where no response is received
-                        // Do NOT assume success - we must wait for confirmation that quota was updated
-                      }
-                    } catch (err) {
-                      console.error("Error parsing payment_and_service publish response:", err);
-                      toast.error("Error completing swap");
-                      setPaymentAndServiceStatus('error');
-                      clearTimeout(timeoutId);
-                      setIsScanning(false);
-                      setIsProcessing(false);
-                    }
-                  }
-                );
-                console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
-              } catch (err) {
-                console.error("Exception calling bridge.callHandler for payment_and_service:", err);
-                toast.error("Error sending request. Please try again.");
-                setPaymentAndServiceStatus('error');
-                clearTimeout(timeoutId);
-                setIsScanning(false);
-                setIsProcessing(false);
-              }
-            }, 300);
-          } else {
-            console.error("Failed to subscribe to payment_and_service response topic:", subResp?.respDesc || subResp?.error);
-            toast.error("Failed to connect. Please try again.");
-            setPaymentAndServiceStatus('error');
-            clearTimeout(timeoutId);
-            setIsScanning(false);
-            setIsProcessing(false);
-          }
-        } catch (err) {
-          console.error("Error parsing payment_and_service subscribe response:", err);
-          toast.error("Error connecting. Please try again.");
-          setPaymentAndServiceStatus('error');
-          clearTimeout(timeoutId);
-          setIsScanning(false);
-          setIsProcessing(false);
-        }
-      }
-    );
-  }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
+    publishPaymentAndService(params);
+  }, [publishPaymentAndService, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
 
   // Keep publishPaymentAndService ref up to date to avoid circular dependency with handleProceedToPayment
   useEffect(() => {
-    publishPaymentAndServiceRef.current = publishPaymentAndService;
-  }, [publishPaymentAndService]);
+    publishPaymentAndServiceRef.current = callPublishPaymentAndService;
+  }, [callPublishPaymentAndService]);
 
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
@@ -1940,7 +1625,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setPaymentRequestData(null);
     setPaymentRequestOrderId(null);
     setExpectedPaymentAmount(0);  // Reset expected payment amount
-    setPaymentAndServiceStatus('idle');
+    resetPaymentAndServiceStatus();  // Reset payment/service status via hook
     setPaymentAmountRemaining(0);  // Reset partial payment tracking
     setActualAmountPaid(0);  // Reset actual amount paid tracking
     setPaymentInputMode('scan');  // Reset payment input mode
@@ -1950,7 +1635,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
     hookResetState();
-  }, [cancelOngoingScan, hookResetState]);
+  }, [cancelOngoingScan, hookResetState, resetPaymentAndServiceStatus]);
 
   // Go back one step
   const handleBack = useCallback(() => {
