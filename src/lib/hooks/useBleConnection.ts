@@ -577,6 +577,33 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       // Do NOT call init() again here as it causes the app to hang
 
       // ============================================
+      // CRITICAL: Clear stale BLE state on app startup
+      // This fixes the bug where the app can't reconnect after a failure
+      // because the native layer or sessionStorage has stale connection data
+      // ============================================
+      const staleConnectedMac = sessionStorage.getItem('connectedDeviceMac');
+      const stalePendingMac = sessionStorage.getItem('pendingBleMac');
+      
+      if (staleConnectedMac || stalePendingMac) {
+        log('Found stale BLE state on startup, cleaning up...');
+        
+        // Disconnect from any stale connections at the native layer
+        if (staleConnectedMac) {
+          log('Disconnecting stale connected device:', staleConnectedMac);
+          window.WebViewJavascriptBridge.callHandler('disconnectBle', staleConnectedMac, () => {});
+        }
+        if (stalePendingMac && stalePendingMac !== staleConnectedMac) {
+          log('Disconnecting stale pending device:', stalePendingMac);
+          window.WebViewJavascriptBridge.callHandler('disconnectBle', stalePendingMac, () => {});
+        }
+        
+        // Clear sessionStorage
+        sessionStorage.removeItem('connectedDeviceMac');
+        sessionStorage.removeItem('pendingBleMac');
+        log('Stale BLE state cleared');
+      }
+
+      // ============================================
       // DEVICE DISCOVERY HANDLER
       // ============================================
       window.WebViewJavascriptBridge.registerHandler(

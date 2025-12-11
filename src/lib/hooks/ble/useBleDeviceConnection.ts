@@ -293,6 +293,40 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       // NOTE: bridge.init() is already called in bridgeContext.tsx
       // Do NOT call init() again here as it causes the app to hang
 
+      // ============================================
+      // CRITICAL: Clear stale BLE state on app startup
+      // This fixes the bug where the app can't reconnect after a failure
+      // because the native layer or sessionStorage has stale connection data
+      // ============================================
+      const staleConnectedMac = sessionStorage.getItem('connectedDeviceMac');
+      const stalePendingMac = sessionStorage.getItem('pendingBleMac');
+      
+      if (staleConnectedMac || stalePendingMac) {
+        log('Found stale BLE state on startup, cleaning up...');
+        log('Stale connectedMac:', staleConnectedMac);
+        log('Stale pendingMac:', stalePendingMac);
+        
+        // Disconnect from any stale connections at the native layer
+        // This ensures the native Bluetooth stack doesn't have stuck connections
+        if (staleConnectedMac) {
+          log('Disconnecting stale connected device:', staleConnectedMac);
+          window.WebViewJavascriptBridge.callHandler('disconnectBle', staleConnectedMac, (resp: unknown) => {
+            log('Stale disconnect response:', resp);
+          });
+        }
+        if (stalePendingMac && stalePendingMac !== staleConnectedMac) {
+          log('Disconnecting stale pending device:', stalePendingMac);
+          window.WebViewJavascriptBridge.callHandler('disconnectBle', stalePendingMac, (resp: unknown) => {
+            log('Stale pending disconnect response:', resp);
+          });
+        }
+        
+        // Clear sessionStorage
+        sessionStorage.removeItem('connectedDeviceMac');
+        sessionStorage.removeItem('pendingBleMac');
+        log('Stale BLE state cleared');
+      }
+
       // Connection success handler
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectSuccessCallBack',
