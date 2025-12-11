@@ -26,10 +26,11 @@ import { useBleDeviceConnection } from './useBleDeviceConnection';
 import { useBleServiceReader } from './useBleServiceReader';
 import { 
   extractEnergyFromDta, 
+  extractActualBatteryIdFromAtt,
   createBatteryData, 
   parseBatteryIdFromQr,
 } from './energyUtils';
-import type { BatteryData, BleDevice } from './types';
+import type { BatteryData, BleDevice, BleReadingPhase } from './types';
 
 // ============================================
 // CONSTANTS
@@ -47,6 +48,10 @@ export interface FlowBleScanState {
   isScanning: boolean;
   isConnecting: boolean;
   isReadingEnergy: boolean;
+  /** Alias for isReadingEnergy - compatibility with BleFullState */
+  isReadingService: boolean;
+  /** Current reading phase: 'idle' | 'dta' | 'att' */
+  readingPhase: BleReadingPhase;
   connectedDevice: string | null;
   detectedDevices: BleDevice[];
   connectionProgress: number;
@@ -59,6 +64,8 @@ const INITIAL_STATE: FlowBleScanState = {
   isScanning: false,
   isConnecting: false,
   isReadingEnergy: false,
+  isReadingService: false,
+  readingPhase: 'idle',
   connectedDevice: null,
   detectedDevices: [],
   connectionProgress: 0,
@@ -126,6 +133,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     isReady: serviceReaderIsReady,
     lastServiceData,
     readDtaService,
+    readAttService,
     cancelRead: serviceReaderCancelRead,
     resetState: serviceReaderResetState,
   } = useBleServiceReader({ debug });
@@ -137,6 +145,11 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const [state, setState] = useState<FlowBleScanState>(INITIAL_STATE);
   const [pendingBatteryId, setPendingBatteryId] = useState<string | null>(null);
   const [pendingScanType, setPendingScanType] = useState<'old_battery' | 'new_battery' | null>(null);
+  
+  // Track reading phase: 'idle' | 'dta' | 'att'
+  const [readingPhase, setReadingPhase] = useState<BleReadingPhase>('idle');
+  // Store DTA data while waiting for ATT
+  const [dtaData, setDtaData] = useState<unknown>(null);
 
   // ============================================
   // REFS
@@ -204,6 +217,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         connectionFailed: connectionState.connectionFailed,
         requiresBluetoothReset: connectionState.requiresBluetoothReset,
         isReadingEnergy: serviceState.isReading,
+        isReadingService: serviceState.isReading,
+        readingPhase,
         error: scannerScanState.error || 
                connectionState.error || 
                serviceState.error || 
@@ -214,22 +229,25 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     scannerScanState,
     connectionState,
     serviceState,
+    readingPhase,
   ]);
 
   // ============================================
-  // CONNECTION → SERVICE READING
+  // CONNECTION → SERVICE READING (DTA → ATT flow)
   // ============================================
 
-  // When connected, automatically read DTA service
+  // When connected, automatically start reading DTA service first
   useEffect(() => {
     if (
       isConnected &&
       connectedDevice &&
       pendingBatteryId &&
-      !isProcessingRef.current
+      !isProcessingRef.current &&
+      readingPhase === 'idle'
     ) {
-      log('Connected! Starting DTA service read');
+      log('Connected! Starting DTA service read (Step 1/2)');
       isProcessingRef.current = true;
+      setReadingPhase('dta');
       readDtaService(connectedDevice);
     }
   }, [
@@ -237,69 +255,126 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     connectedDevice,
     pendingBatteryId,
     readDtaService,
+    readingPhase,
     log,
   ]);
 
-  // Handle service data received
+  // Handle service data received - manages DTA → ATT flow
   useEffect(() => {
     if (
       lastServiceData &&
       pendingBatteryId &&
       pendingScanType &&
-      isProcessingRef.current
+      isProcessingRef.current &&
+      connectedDevice
     ) {
-      log('Service data received, extracting energy');
-      
-      const energyData = extractEnergyFromDta(lastServiceData);
-      
-      if (energyData) {
-        const battery = createBatteryData(
-          pendingBatteryId,
-          energyData,
-          connectedDevice || undefined
-        );
+      // Check which phase we're in
+      if (readingPhase === 'dta') {
+        log('DTA service data received, storing and starting ATT read (Step 2/2)');
         
-        log('Battery data extracted:', battery);
-        
-        // Disconnect from device
-        if (connectedDevice) {
-          connectionDisconnect(connectedDevice);
+        // Validate DTA data has energy info
+        const energyData = extractEnergyFromDta(lastServiceData);
+        if (!energyData) {
+          log('Failed to extract energy data from DTA');
+          toast.error('Could not read battery data. Please try again.');
+          onErrorRef.current?.('Failed to extract energy data from DTA');
+          
+          // Disconnect and clear pending state
+          if (connectedDevice) {
+            connectionDisconnect(connectedDevice);
+          }
+          setPendingBatteryId(null);
+          setPendingScanType(null);
+          setReadingPhase('idle');
+          setDtaData(null);
+          isProcessingRef.current = false;
+          
+          setState(prev => ({
+            ...prev,
+            error: 'Failed to read battery data',
+            connectionFailed: true,
+          }));
+          return;
         }
         
-        // Notify appropriate callback based on scan type
-        // NOTE: Toast notifications are handled by the caller (AttendantFlow/SalesFlow)
-        // to avoid duplicate notifications
-        if (pendingScanType === 'old_battery') {
-          onOldBatteryReadRef.current?.(battery);
-        } else if (pendingScanType === 'new_battery') {
-          onNewBatteryReadRef.current?.(battery);
+        // Store DTA data and move to ATT phase
+        setDtaData(lastServiceData);
+        setReadingPhase('att');
+        
+        // Now read ATT service to get actual battery ID (opid/ppid)
+        readAttService(connectedDevice);
+        
+      } else if (readingPhase === 'att') {
+        log('ATT service data received, extracting actual battery ID');
+        
+        // Extract actual battery ID from ATT (opid or ppid)
+        const actualBatteryId = extractActualBatteryIdFromAtt(lastServiceData);
+        
+        if (!actualBatteryId) {
+          log('Warning: Could not extract actual battery ID from ATT, proceeding without it');
+          // This is a warning, not an error - we can still proceed with QR-scanned ID
+        } else {
+          log('Actual battery ID from ATT:', actualBatteryId);
         }
         
-        // Clear pending state
-        setPendingBatteryId(null);
-        setPendingScanType(null);
-        isProcessingRef.current = false;
-      } else {
-        log('Failed to extract energy data');
+        // Extract energy data from stored DTA data
+        const energyData = extractEnergyFromDta(dtaData);
         
-        // Disconnect on failure
-        if (connectedDevice) {
-          connectionDisconnect(connectedDevice);
+        if (energyData) {
+          // Create battery data with actual battery ID from ATT
+          const battery = createBatteryData(
+            pendingBatteryId,
+            energyData,
+            connectedDevice || undefined,
+            actualBatteryId || undefined
+          );
+          
+          log('Battery data extracted with actual ID:', battery);
+          
+          // Disconnect from device
+          if (connectedDevice) {
+            connectionDisconnect(connectedDevice);
+          }
+          
+          // Notify appropriate callback based on scan type
+          // NOTE: Toast notifications are handled by the caller (AttendantFlow/SalesFlow)
+          // to avoid duplicate notifications
+          if (pendingScanType === 'old_battery') {
+            onOldBatteryReadRef.current?.(battery);
+          } else if (pendingScanType === 'new_battery') {
+            onNewBatteryReadRef.current?.(battery);
+          }
+          
+          // Clear pending state
+          setPendingBatteryId(null);
+          setPendingScanType(null);
+          setReadingPhase('idle');
+          setDtaData(null);
+          isProcessingRef.current = false;
+        } else {
+          log('Failed to extract energy data from stored DTA');
+          
+          // Disconnect on failure
+          if (connectedDevice) {
+            connectionDisconnect(connectedDevice);
+          }
+          
+          toast.error('Could not read battery data. Please try again.');
+          onErrorRef.current?.('Failed to extract energy data');
+          
+          // Clear pending state
+          setPendingBatteryId(null);
+          setPendingScanType(null);
+          setReadingPhase('idle');
+          setDtaData(null);
+          isProcessingRef.current = false;
+          
+          setState(prev => ({
+            ...prev,
+            error: 'Failed to read battery data',
+            connectionFailed: true,
+          }));
         }
-        
-        toast.error('Could not read battery data. Please try again.');
-        onErrorRef.current?.('Failed to extract energy data');
-        
-        // Clear pending state
-        setPendingBatteryId(null);
-        setPendingScanType(null);
-        isProcessingRef.current = false;
-        
-        setState(prev => ({
-          ...prev,
-          error: 'Failed to read battery data',
-          connectionFailed: true,
-        }));
       }
     }
   }, [
@@ -307,6 +382,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     pendingBatteryId, 
     pendingScanType, 
     connectedDevice,
+    readingPhase,
+    dtaData,
+    readAttService,
     connectionDisconnect,
     log,
   ]);
@@ -335,6 +413,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       // Clear pending state
       setPendingBatteryId(null);
       setPendingScanType(null);
+      setReadingPhase('idle');
+      setDtaData(null);
       isProcessingRef.current = false;
     }
   }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, clearMatchTimers, connectionForceBleReset, log]);
@@ -494,6 +574,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     setPendingBatteryId(null);
     setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
@@ -516,6 +598,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     setPendingBatteryId(null);
     setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
@@ -548,6 +632,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     setPendingBatteryId(null);
     setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
@@ -584,6 +670,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     pendingBatteryId,
     /** Current scan type */
     pendingScanType,
+    /** Current reading phase: 'idle' | 'dta' | 'att' */
+    readingPhase,
     /** Whether the hook is ready */
     isReady: scannerIsReady && connectionIsReady && serviceReaderIsReady,
     /** Start BLE scanning */

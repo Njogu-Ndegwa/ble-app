@@ -97,8 +97,15 @@ export function BleProgressModal({
     if (bleScanState.error) {
       return bleScanState.error;
     }
-    if (bleScanState.isReadingEnergy) {
-      return 'Reading energy level from battery...';
+    // Show specific messages for DTA → ATT reading phases
+    if (bleScanState.isReadingEnergy || bleScanState.isReadingService) {
+      if (bleScanState.readingPhase === 'att') {
+        return 'Reading ATT service for battery ID...';
+      }
+      if (bleScanState.readingPhase === 'dta') {
+        return 'Reading DTA service for energy data...';
+      }
+      return 'Reading battery data...';
     }
     if (bleScanState.connectionProgress >= 75) {
       return 'Finalizing connection...';
@@ -144,8 +151,12 @@ export function BleProgressModal({
             <div className="ble-progress-title">
                 {bleScanState.requiresBluetoothReset
                     ? 'Bluetooth Reset Required'
-                    : bleScanState.isReadingEnergy 
-                    ? 'Reading Battery Data' 
+                    : (bleScanState.isReadingEnergy || bleScanState.isReadingService)
+                    ? (bleScanState.readingPhase === 'att' 
+                        ? 'Reading ATT Service' 
+                        : bleScanState.readingPhase === 'dta'
+                        ? 'Reading DTA Service'
+                        : 'Reading Battery Data')
                     : 'Connecting to Battery'}
             </div>
           </div>
@@ -227,19 +238,24 @@ export function BleProgressModal({
           </div>
 
           {/* Step Indicators - Hide when Bluetooth reset is required */}
+          {/* Shows 4 steps: Scan → Connect → DTA (Energy) → ATT (Battery ID) */}
           {!bleScanState.requiresBluetoothReset && (
             <div className="ble-progress-steps">
               <div className="ble-step active completed">
                 <div className="ble-step-dot" />
                 <span>Scan</span>
               </div>
-              <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy ? 'active' : ''} ${bleScanState.isReadingEnergy ? 'completed' : ''}`}>
+              <div className={`ble-step ${bleScanState.isConnecting || bleScanState.isReadingEnergy || bleScanState.isReadingService ? 'active' : ''} ${bleScanState.isReadingEnergy || bleScanState.isReadingService ? 'completed' : ''}`}>
                 <div className="ble-step-dot" />
                 <span>Connect</span>
               </div>
-              <div className={`ble-step ${bleScanState.isReadingEnergy ? 'active' : ''}`}>
+              <div className={`ble-step ${(bleScanState.isReadingEnergy || bleScanState.isReadingService) && bleScanState.readingPhase !== 'idle' ? 'active' : ''} ${bleScanState.readingPhase === 'att' ? 'completed' : ''}`}>
                 <div className="ble-step-dot" />
-                <span>Read</span>
+                <span>DTA</span>
+              </div>
+              <div className={`ble-step ${bleScanState.readingPhase === 'att' ? 'active' : ''}`}>
+                <div className="ble-step-dot" />
+                <span>ATT</span>
               </div>
             </div>
           )}
