@@ -32,9 +32,11 @@ export default function Step6Success({
   const receiptRows = buildSwapReceiptRows({
     transactionId,
     customerName: customerData?.name || 'Customer',
-    oldBatteryId: swapData.oldBattery?.shortId || '---',
+    // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
+    oldBatteryId: swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.shortId || '---',
     oldBatteryLevel: swapData.oldBattery?.chargeLevel ?? 0,
-    newBatteryId: swapData.newBattery?.shortId || '---',
+    // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
+    newBatteryId: swapData.newBattery?.actualBatteryId || swapData.newBattery?.shortId || '---',
     newBatteryLevel: swapData.newBattery?.chargeLevel ?? 0,
     energyDiff: swapData.energyDiff,
     amountDue,
@@ -46,7 +48,7 @@ export default function Step6Success({
     <div className="screen active">
       <SuccessReceipt
         title={t('attendant.swapComplete')}
-        message={t('attendant.handOverBattery') || `Hand over ${swapData.newBattery?.shortId || 'battery'} to customer`}
+        message={t('attendant.handOverBattery') || `Hand over ${swapData.newBattery?.actualBatteryId || swapData.newBattery?.shortId || 'battery'} to customer`}
         receiptId={transactionId}
         receiptTitle={t('attendant.transactionReceipt') || 'Transaction Receipt'}
         rows={receiptRows}
