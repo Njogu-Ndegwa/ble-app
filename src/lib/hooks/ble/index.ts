@@ -70,10 +70,13 @@ export type {
   BleScanState,
   BleServiceState,
   BleFullState,
+  BleReadingPhase,
   BatteryData,
   EnergyData,
   DtaServiceData,
   DtaCharacteristic,
+  AttServiceData,
+  AttCharacteristic,
 } from './types';
 
 // ============================================
@@ -107,6 +110,8 @@ export {
   // Energy extraction
   extractEnergyFromDta,
   createBatteryData,
+  // ATT battery ID extraction
+  extractActualBatteryIdFromAtt,
   // QR parsing
   parseBatteryIdFromQr,
   parseMacAddressFromQr,

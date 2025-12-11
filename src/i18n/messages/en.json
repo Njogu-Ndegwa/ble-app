@@ -1238,6 +1238,17 @@
   "ble.forceReset": "Reset Bluetooth",
   "ble.resetInstructions": "Toggle Bluetooth OFF then ON in your phone settings to clear the stuck connection.",
   
+  "ble.phase.scanning.title": "Searching for Device",
+  "ble.phase.scanning.subtitle": "Looking for the battery nearby...",
+  "ble.phase.connecting.title": "Connecting",
+  "ble.phase.connecting.subtitle": "Establishing Bluetooth connection...",
+  "ble.phase.reading.title": "Reading Battery Data",
+  "ble.phase.reading.subtitle": "Loading device information...",
+  "ble.phase.readingDta.title": "Reading Energy Data",
+  "ble.phase.readingDta.subtitle": "Getting battery charge level...",
+  "ble.phase.readingAtt.title": "Verifying Battery ID",
+  "ble.phase.readingAtt.subtitle": "Confirming battery identity...",
+  
   "rider.phoneNumber": "Phone Number",
   "rider.enterPhone": "Enter your phone number",
   "rider.enterPhoneAndPassword": "Please enter phone number and password",
