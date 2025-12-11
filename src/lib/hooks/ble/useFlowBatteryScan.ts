@@ -205,6 +205,14 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
           )
         : scannerScanState.detectedDevices;
       
+      // CRITICAL FIX: Keep isReadingEnergy=true during ATT→DTA transition
+      // The service reader sets isReading=false when ATT completes, but we need to keep
+      // the modal visible while we transition to DTA reading.
+      // Use readingPhase !== 'idle' to ensure we stay in "reading" state during the full ATT→DTA flow.
+      // This prevents the BleProgressModal from closing prematurely between phases.
+      const isInReadingFlow = readingPhase !== 'idle';
+      const shouldBeReading = serviceState.isReading || isInReadingFlow;
+      
       return {
         ...prev,
         isScanning: scannerScanState.isScanning,
@@ -216,8 +224,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
           : connectionState.connectionProgress,
         connectionFailed: connectionState.connectionFailed,
         requiresBluetoothReset: connectionState.requiresBluetoothReset,
-        isReadingEnergy: serviceState.isReading,
-        isReadingService: serviceState.isReading,
+        isReadingEnergy: shouldBeReading,
+        isReadingService: shouldBeReading,
         readingPhase,
         error: scannerScanState.error || 
                connectionState.error || 

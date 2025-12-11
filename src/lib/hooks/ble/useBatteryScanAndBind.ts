@@ -202,6 +202,14 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         )
       : scannerScanState.detectedDevices;
 
+    // CRITICAL FIX: Keep isReadingService=true during DTA→ATT transition
+    // The service reader sets isReading=false when DTA completes, but we need to keep
+    // the reading state active while we transition to ATT reading.
+    // Use readingPhase !== 'idle' to ensure we stay in "reading" state during the full DTA→ATT flow.
+    // This prevents any progress UI from closing prematurely between phases.
+    const isInReadingFlow = readingPhase !== 'idle';
+    const shouldBeReading = serviceState.isReading || isInReadingFlow;
+
     setState(prev => ({
       ...prev,
       isScanning: scannerScanState.isScanning,
@@ -212,7 +220,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       connectionProgress: currentProgress,
       connectionFailed: connectionState.connectionFailed,
       requiresBluetoothReset: connectionState.requiresBluetoothReset,
-      isReadingService: serviceState.isReading,
+      isReadingService: shouldBeReading,
       readingPhase,
       error: scannerScanState.error || 
              connectionState.error || 
