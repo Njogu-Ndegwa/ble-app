@@ -79,12 +79,16 @@ export interface BleScanState {
 export interface SwapData {
   oldBattery: BatteryData | null;
   newBattery: BatteryData | null;
-  energyDiff: number;
-  quotaDeduction: number;  // Amount of remaining quota to apply (in kWh)
-  chargeableEnergy: number;  // Energy to charge for after quota deduction (in kWh)
-  cost: number;
+  // Energy values (all in kWh, floored to 2dp)
+  energyDiff: number;           // Total energy transferred (newBattery - oldBattery)
+  quotaDeduction: number;       // Amount of remaining quota to apply
+  chargeableEnergy: number;     // Energy to charge for after quota deduction
+  // Monetary values (calculated once, used everywhere - single source of truth)
+  grossEnergyCost: number;      // energyDiff × rate, rounded UP to 2dp
+  quotaCreditValue: number;     // quotaDeduction × rate, rounded DOWN to 2dp
+  cost: number;                 // Final cost = ceil(chargeableEnergy × rate) to 2dp
   rate: number;
-  currencySymbol: string;  // Currency from customer subscription or station config
+  currencySymbol: string;       // Currency from customer subscription or station config
 }
 
 export type AttendantStep = 1 | 2 | 3 | 4 | 5 | 6;

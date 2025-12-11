@@ -122,11 +122,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [swapData, setSwapData] = useState<SwapData>({
     oldBattery: null,
     newBattery: null,
+    // Energy values (all in kWh, floored to 2dp)
     energyDiff: 0,
-    quotaDeduction: 0,  // Amount of remaining quota to apply (in kWh)
-    chargeableEnergy: 0,  // Energy to charge for after quota deduction (in kWh)
-    cost: 0,
-    rate: 120, // Will be updated from service response
+    quotaDeduction: 0,
+    chargeableEnergy: 0,
+    // Monetary values (single source of truth - calculated once, used everywhere)
+    grossEnergyCost: 0,     // energyDiff × rate, rounded UP
+    quotaCreditValue: 0,    // quotaDeduction × rate, rounded DOWN
+    cost: 0,                // Final cost after quota
+    rate: 120,              // Will be updated from service response
     currencySymbol: PAYMENT.defaultCurrency, // Will be updated from service/subscription response
   });
   
@@ -223,33 +227,49 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
         const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
         
-        // Cost = floored energy × rate, then ROUND UP to 2 decimal places
+        // === MONETARY VALUES (Single Source of Truth) ===
+        // These are calculated ONCE here and used everywhere - no recalculation!
+        
+        // Gross energy cost: energyDiff × rate, rounded UP to 2dp
+        const grossEnergyCostRaw = energyDiffKwh * rate;
+        const grossEnergyCost = Math.ceil(grossEnergyCostRaw * 100) / 100;
+        
+        // Quota credit value: quotaDeduction × rate, rounded DOWN to 2dp (conservative)
+        const quotaCreditValueRaw = quotaDeduction * rate;
+        const quotaCreditValue = Math.floor(quotaCreditValueRaw * 100) / 100;
+        
+        // Final cost = ceil(chargeableEnergy × rate) to 2dp
         // This ensures we never report less payment than the energy actually costs
         // Example: 19.6432 → 19.65 (not 19.64)
         // Customer pays Math.floor(cost) - whole number rounded down for actual payment
         const costRaw = chargeableEnergyFloored * rate;
-        const cost = Math.ceil(costRaw * 100) / 100;  // Round UP to 2dp
+        const cost = Math.ceil(costRaw * 100) / 100;
         
-        console.info('Energy differential calculated:', {
+        console.info('Energy & cost calculated (SINGLE SOURCE OF TRUTH):', {
+          // Energy values (all floored to 2dp)
           oldEnergyWh: oldEnergy,
           newEnergyWh: battery.energy,
           energyDiffKwh,
           remainingQuotaKwh,
-          quotaDeductionRaw,
           quotaDeduction,
           chargeableEnergy: chargeableEnergyFloored,
+          // Monetary values (grossEnergyCost & cost rounded UP, quotaCreditValue rounded DOWN)
           ratePerKwh: rate,
-          costRaw,
+          grossEnergyCost,
+          quotaCreditValue,
           cost,
         });
         
         return {
           ...prev,
           newBattery: battery,
-          // All values already floored to 2 decimal places above
+          // Energy values (all floored to 2dp)
           energyDiff: energyDiffKwh,
-          quotaDeduction: quotaDeduction,  // Already floored above
+          quotaDeduction: quotaDeduction,
           chargeableEnergy: chargeableEnergyFloored,
+          // Monetary values (single source of truth - no recalculation elsewhere!)
+          grossEnergyCost,
+          quotaCreditValue,
           cost: cost > 0 ? cost : 0,
         };
       });
@@ -2342,6 +2362,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       energyDiff: 0,
       quotaDeduction: 0,
       chargeableEnergy: 0,
+      grossEnergyCost: 0,
+      quotaCreditValue: 0,
       cost: 0,
       rate: 120,
       currencySymbol: PAYMENT.defaultCurrency,
