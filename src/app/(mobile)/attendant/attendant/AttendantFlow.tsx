@@ -38,17 +38,8 @@ import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 // Import customer identification hook
 import { useCustomerIdentification, type CustomerIdentificationResult } from '@/lib/hooks/useCustomerIdentification';
 
-// Import payment and service completion hook
-import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-
-// Import Odoo API functions for payment
-import {
-  initiatePayment,
-  confirmPaymentManual,
-  createPaymentRequest,
-  type CreatePaymentRequestResponse,
-  type PaymentRequestData,
-} from '@/lib/odoo-api';
+// Import payment collection hook (encapsulates Odoo payment + service completion)
+import { usePaymentCollection } from '@/lib/hooks/usePaymentCollection';
 import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -159,18 +150,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [isScanning, setIsScanning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Payment states
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [paymentReceipt, setPaymentReceipt] = useState<string | null>(null);
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [paymentInitiationData, setPaymentInitiationData] = useState<PaymentInitiation | null>(null);
-  
-  // Payment request states (ticket created before collecting payment)
-  const [paymentRequestCreated, setPaymentRequestCreated] = useState(false);
-  const [paymentRequestData, setPaymentRequestData] = useState<PaymentRequestData | null>(null);
-  const [paymentRequestOrderId, setPaymentRequestOrderId] = useState<number | null>(null);
-  // Expected amount the customer needs to pay for this swap (swapData.cost at time of request creation)
-  const [expectedPaymentAmount, setExpectedPaymentAmount] = useState<number>(0);
   
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
@@ -220,28 +199,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   });
   
   // ============================================
-  // PAYMENT AND SERVICE COMPLETION HOOK
+  // PAYMENT COLLECTION HOOK
   // ============================================
   
-  const {
-    publishPaymentAndService,
-    status: paymentAndServiceStatus,
-    reset: resetPaymentAndServiceStatus,
-  } = usePaymentAndService({
-    onSuccess: (isIdempotent) => {
-      console.info('payment_and_service completed successfully!', isIdempotent ? '(idempotent)' : '');
-      advanceToStep(6);
-      toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
-      setIsScanning(false);
-      setIsProcessing(false);
-    },
-    onError: (errorMsg) => {
-      console.error('payment_and_service failed:', errorMsg);
-      toast.error(errorMsg);
-      setIsScanning(false);
-      setIsProcessing(false);
-    },
-  });
   
   // ============================================
   // BLE SCAN-TO-BIND HOOK (Modular BLE handling)
@@ -385,18 +345,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
-
-  // Transaction ID
-  const [transactionId, setTransactionId] = useState<string>('');
-  
-  // Payment step input mode (scan QR or manual entry)
-  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
-  // Manual payment ID input
-  const [manualPaymentId, setManualPaymentId] = useState<string>('');
-  // Payment amount tracking - amount_remaining from Odoo response (0 means fully paid)
-  const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
-  // Actual amount paid by customer (from Odoo response)
-  const [actualAmountPaid, setActualAmountPaid] = useState<number>(0);
   
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
@@ -565,6 +513,50 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     return canSkipPayment;
   }, [electricityService, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
+
+  // ============================================
+  // PAYMENT COLLECTION HOOK
+  // ============================================
+  
+  const {
+    paymentState,
+    setPaymentInputMode,
+    setManualPaymentId,
+    initiatePayment: initiateOdooPayment,
+    confirmPayment,
+    skipPayment,
+    resetPayment,
+    isProcessing: isPaymentProcessing,
+    publishStatus: paymentAndServiceStatus,
+  } = usePaymentCollection({
+    customerData,
+    swapData,
+    dynamicPlanId,
+    customerType,
+    attendantInfo,
+    electricityServiceId: electricityService?.service_id,
+    onSuccess: (isIdempotent) => {
+      advanceToStep(6);
+      toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
+      setIsScanning(false);
+      setIsProcessing(false);
+    },
+    onError: (errorMsg) => {
+      toast.error(errorMsg);
+      setIsScanning(false);
+      setIsProcessing(false);
+    },
+  });
+  
+  // Destructure payment state for convenience
+  const {
+    paymentInputMode,
+    manualPaymentId,
+    transactionId,
+    paymentAmountRemaining,
+    actualAmountPaid,
+    paymentRequestCreated,
+  } = paymentState;
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
@@ -772,119 +764,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     hookHandleQrScanned(qrCodeData, 'new_battery');
   }, [clearScanTimeout, swapData.oldBattery?.id, stopBleScan, hookHandleQrScanned]);
 
-  // Create payment request/ticket with Odoo FIRST, then optionally send STK push
-  // This MUST be done before collecting payment from the customer.
-  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
-  const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
-    // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-    const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
-    
-    if (!subscriptionCode) {
-      console.log('No subscription ID, skipping payment request creation');
-      setPaymentInitiated(true);
-      setPaymentRequestCreated(true);
-      return true;
-    }
 
-    // Get customer phone - try from customerData first
-    const phoneNumber = customerData?.phone || '';
-    
-    try {
-      // Step 1: Create payment request/ticket FIRST
-      // We send the ROUNDED DOWN amount to Odoo - this is what we ask the customer to pay
-      // (customers can't pay decimals, e.g., 20.54 becomes 20)
-      // BUT we store the original amount for backend quota reporting later
-      const amountCalculated = swapData.cost; // Original calculated amount (e.g., 20.54)
-      const amountRequired = Math.floor(swapData.cost); // Rounded down for payment (e.g., 20)
-      
-      // Store the ROUNDED amount as expected - this is what customer will actually pay
-      setExpectedPaymentAmount(amountRequired);
-      
-      console.log('Creating payment request with Odoo:', {
-        subscription_code: subscriptionCode,
-        amount_calculated: amountCalculated,
-        amount_required: amountRequired, // Rounded down
-        description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
-      });
-
-      const paymentRequestResponse = await createPaymentRequest({
-        subscription_code: subscriptionCode,
-        amount_required: amountRequired, // Send rounded amount to Odoo
-        description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
-      });
-
-      if (paymentRequestResponse.success && paymentRequestResponse.payment_request) {
-        // Payment request created successfully
-        console.log('Payment request created:', paymentRequestResponse.payment_request);
-        setPaymentRequestCreated(true);
-        setPaymentRequestData(paymentRequestResponse.payment_request);
-        setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
-        toast.success('Payment ticket created. Collect payment from customer.');
-      } else {
-        // Payment request creation failed - show error to user
-        // This includes the case when there's an existing active payment request
-        console.error('Payment request creation failed:', paymentRequestResponse.error);
-        
-        // Build a detailed error message
-        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
-        
-        // If there's an existing request, include details about it
-        if (paymentRequestResponse.existing_request) {
-          const existingReq = paymentRequestResponse.existing_request;
-          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: ${swapData.currencySymbol} ${existingReq.amount_remaining} remaining (${existingReq.status})`;
-          
-          // Log the available actions for debugging
-          console.log('Existing request actions:', existingReq.actions);
-        }
-        
-        // Show instructions if available
-        if (paymentRequestResponse.instructions && paymentRequestResponse.instructions.length > 0) {
-          console.log('Instructions:', paymentRequestResponse.instructions);
-        }
-        
-        toast.error(errorMessage);
-        return false;
-      }
-
-      // Step 2: Optionally try to send STK push (don't block if it fails)
-      if (phoneNumber) {
-        try {
-          console.log('Sending STK push to customer phone:', phoneNumber);
-          const stkResponse = await initiatePayment({
-            subscription_code: subscriptionCode,
-            phone_number: phoneNumber,
-            amount: amountRequired,
-          });
-
-          if (stkResponse.success && stkResponse.data) {
-            console.log('STK push sent:', stkResponse.data);
-            setPaymentInitiated(true);
-            setPaymentInitiationData({
-              transactionId: stkResponse.data.transaction_id,
-              checkoutRequestId: stkResponse.data.checkout_request_id,
-              merchantRequestId: stkResponse.data.merchant_request_id,
-              instructions: stkResponse.data.instructions,
-            });
-            toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
-          }
-        } catch (stkError) {
-          console.warn('STK push failed (non-blocking):', stkError);
-          // Don't show error toast - customer can still pay manually
-        }
-      }
-      
-      setPaymentInitiated(true);
-      return true;
-    } catch (error: any) {
-      console.error('Failed to create payment request:', error);
-      toast.error(error.message || 'Failed to create payment request. Please try again.');
-      return false;
-    }
-  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff]);
-
-  // Process payment QR code data - verify with Odoo
-  // Uses order_id (preferred) or subscription_code to confirm payment
-  // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
+  // Process payment QR code data - extract receipt and delegate to hook
   const processPaymentQRData = useCallback((qrCodeData: string) => {
     let qrData: any;
     try {
@@ -894,79 +775,13 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     }
     const receipt = qrData.transaction_id || qrData.receipt || qrData.txn_id || qrData.id || qrCodeData;
     
-    // Confirm payment with Odoo
-    const confirmPayment = async () => {
-      // order_id is REQUIRED - must be obtained from createPaymentRequest response
-      const orderId = paymentRequestOrderId;
-      
-      try {
-        // order_id is REQUIRED - payment request must be created first
-        if (!orderId) {
-          toast.error('Payment request not created. Please go back and try again.');
-          setIsScanning(false);
-          scanTypeRef.current = null;
-          return;
-        }
-
-        // Use Odoo manual confirmation endpoint with order_id ONLY
-        console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
-        const response = await confirmPaymentManual({ order_id: orderId, receipt });
-        
-        if (response.success) {
-          // Extract payment amounts from response
-          // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
-          const responseData = response.data || (response as any);
-          // Use total_paid (new format) or amount_paid (legacy format)
-          const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
-          const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
-          
-          console.log('Payment validation response:', {
-            total_paid: totalPaid,
-            remaining_to_pay: remainingToPay,
-            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
-            order_id: responseData.order_id,
-            expectedPaymentAmount,
-          });
-          
-          // Update state with payment amounts
-          setActualAmountPaid(totalPaid);
-          setPaymentAmountRemaining(remainingToPay);
-          
-          // CRITICAL: Check if total_paid >= expected amount for THIS swap
-          // This is the amount we calculated (energy * unit price) and displayed to the attendant
-          const requiredAmount = expectedPaymentAmount || swapData.cost;
-          if (totalPaid < requiredAmount) {
-            // Payment insufficient for this swap
-            const shortfall = requiredAmount - totalPaid;
-            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
-            setIsScanning(false);
-            scanTypeRef.current = null;
-            // Don't proceed - customer needs to pay more
-            return;
-          }
-          
-          // Payment sufficient - proceed with service completion
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed successfully');
-          // Report payment - uses original calculated cost for accurate quota tracking
-          // Use ref to call the wrapper function (avoids stale closure issues)
-          publishPaymentAndServiceRef.current(receipt, false);
-        } else {
-          throw new Error('Payment confirmation failed');
-        }
-      } catch (err: any) {
-        console.error('Payment confirmation error:', err);
-        toast.error(err.message || 'Payment confirmation failed. Check network connection.');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-      }
-    };
+    // Reset scanning state before calling confirm (hook will manage its own processing state)
+    setIsScanning(false);
+    scanTypeRef.current = null;
     
-    confirmPayment();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost, customerData, paymentRequestOrderId, expectedPaymentAmount]);
+    // Delegate to payment hook
+    confirmPayment(receipt);
+  }, [confirmPayment]);
 
   // Keep processing function refs up to date to avoid stale closures in bridge handlers
   // This ensures the bridge callback always calls the latest version of each processing function
@@ -991,11 +806,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
-
-  // Ref for calling publishPaymentAndService to avoid circular dependency with handleProceedToPayment
-  // isQuotaBased: true when customer has sufficient quota credit (no payment_data sent)
-  // isZeroCostRounding: true when cost rounds to 0 but NOT quota-based (payment_data sent with original amount)
-  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, isZeroCostRounding?: boolean) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -1373,51 +1183,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setIsProcessing(true);
     try {
       // Calculate rounded cost - customers can't pay decimals so we round down
-      // Example: 20.54 becomes 20, 0.54 becomes 0
       const roundedCost = Math.floor(swapData.cost);
       
-      // Check if we should skip payment collection:
-      // 1. Customer has sufficient quota (both electricity and swap count)
-      // 2. OR rounded cost is 0 or negative (nothing to collect since we round down)
+      // Check if we should skip payment collection
       const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
       
       if (shouldSkipPayment) {
         const isZeroCostRounding = !hasSufficientQuota && roundedCost <= 0;
-        const reason = hasSufficientQuota 
-          ? 'sufficient quota' 
-          : 'zero cost (rounded)';
-        console.info(`Skipping payment step - ${reason}`, { 
-          hasSufficientQuota, 
-          isZeroCostRounding,
-          cost: swapData.cost,
-          roundedCost
-        });
-        toast.success(hasSufficientQuota 
-          ? 'Using quota credit - no payment required' 
-          : 'No payment required - zero cost');
-        
-        // Skip payment step and directly record the service
-        // Use a quota-based or zero-cost payment reference
-        const skipReference = isZeroCostRounding 
-          ? `ZERO_COST_${Date.now()}` 
-          : `QUOTA_${Date.now()}`;
-        setPaymentConfirmed(true);
-        setPaymentReceipt(skipReference);
-        setTransactionId(skipReference);
-        
-        // Call publishPaymentAndService via ref to avoid circular dependency
-        // Pass isQuotaBased=true for quota-based, isZeroCostRounding=true for rounded-down-to-zero
-        // When isZeroCostRounding=true, we still include payment_data with original amount so backend
-        // knows the actual service value even though customer didn't pay
-        publishPaymentAndServiceRef.current(skipReference, hasSufficientQuota, isZeroCostRounding);
+        // Delegate to hook's skipPayment function
+        skipPayment(hasSufficientQuota, isZeroCostRounding);
         return;
       }
       
-      // Normal flow: Create payment request with Odoo FIRST before collecting payment
-      // This is REQUIRED - we must have a ticket/order before collecting payment
+      // Normal flow: Create payment request with Odoo FIRST
       const success = await initiateOdooPayment();
       if (!success) {
-        // Payment request creation failed - don't proceed
         console.error('Payment request creation failed, staying on review step');
         return;
       }
@@ -1425,7 +1205,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, skipPayment]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -1448,151 +1228,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     startQrCodeScan();
   }, [startQrCodeScan, paymentRequestCreated, initiateOdooPayment]);
 
-  // Step 5: Manual payment confirmation with Odoo
-  // Uses order_id ONLY to confirm payment (from createPaymentRequest response)
-  // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
+  // Step 5: Manual payment confirmation - delegate to hook
   const handleManualPayment = useCallback((receipt: string) => {
-    setIsProcessing(true);
-    
-    // Confirm payment with Odoo using manual confirmation endpoint
-    const confirmManualPayment = async () => {
-      // order_id is REQUIRED - must be obtained from createPaymentRequest response
-      const orderId = paymentRequestOrderId;
-      
-      try {
-        // Ensure payment request was created first
-        if (!paymentRequestCreated) {
-          const success = await initiateOdooPayment();
-          if (!success) {
-            setIsProcessing(false);
-            return;
-          }
-        }
-
-        // order_id is REQUIRED - payment request must be created first
-        if (!orderId) {
-          toast.error('Payment request not created. Please go back and try again.');
-          setIsProcessing(false);
-          return;
-        }
-
-        // Use Odoo manual confirmation endpoint with order_id ONLY
-        console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
-        const response = await confirmPaymentManual({ order_id: orderId, receipt });
-        
-        if (response.success) {
-          // Extract payment amounts from response
-          // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
-          const responseData = response.data || (response as any);
-          // Use total_paid (new format) or amount_paid (legacy format)
-          const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
-          const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
-          
-          console.log('Manual payment validation response:', {
-            total_paid: totalPaid,
-            remaining_to_pay: remainingToPay,
-            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
-            order_id: responseData.order_id,
-            expectedPaymentAmount,
-          });
-          
-          // Update state with payment amounts
-          setActualAmountPaid(totalPaid);
-          setPaymentAmountRemaining(remainingToPay);
-          
-          // CRITICAL: Check if total_paid >= expected amount for THIS swap
-          // We use the ROUNDED amount (what we asked customer to pay, not the calculated amount)
-          // Example: if cost is 20.54, we ask for 20, so customer needs to pay at least 20
-          const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
-          if (totalPaid < requiredAmount) {
-            // Payment insufficient for this swap
-            const shortfall = requiredAmount - totalPaid;
-            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
-            setIsProcessing(false);
-            // Don't proceed - customer needs to pay more
-            return;
-          }
-          
-          // Payment sufficient - proceed with service completion
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed successfully');
-          
-          // Report payment - uses original calculated cost for accurate quota tracking
-          // Use ref to call the wrapper function (avoids stale closure issues)
-          publishPaymentAndServiceRef.current(receipt, false);
-        } else {
-          throw new Error('Payment confirmation failed');
-        }
-      } catch (err: any) {
-        console.error('Manual payment error:', err);
-        toast.error(err.message || 'Payment confirmation failed. Check network connection.');
-        setIsProcessing(false);
-      }
-    };
-    
-    confirmManualPayment();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost, customerData, paymentRequestCreated, paymentRequestOrderId, expectedPaymentAmount, initiateOdooPayment]);
-
-  // Wrapper to call publishPaymentAndService with component state
-  // This is needed because handleProceedToPayment and processPaymentQRData call this function
-  // NOTE: We always report the ORIGINAL calculated amount (swapData.cost) for quota calculations,
-  // even though customer pays the rounded-down amount. This ensures accurate quota tracking.
-  const callPublishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, isZeroCostRounding: boolean = false) => {
-    const serviceId = electricityService?.service_id || 'service-electricity-default';
-    
-    const params: PublishPaymentAndServiceParams = {
-      paymentReference,
-      planId: dynamicPlanId,
-      swapData: {
-        oldBattery: swapData.oldBattery ? {
-          id: swapData.oldBattery.id,
-          actualBatteryId: swapData.oldBattery.actualBatteryId,
-          energy: swapData.oldBattery.energy,
-        } : null,
-        newBattery: swapData.newBattery ? {
-          id: swapData.newBattery.id,
-          actualBatteryId: swapData.newBattery.actualBatteryId,
-          energy: swapData.newBattery.energy,
-        } : null,
-        energyDiff: swapData.energyDiff,
-        cost: swapData.cost,
-        rate: swapData.rate,
-        currencySymbol: swapData.currencySymbol,
-      },
-      customerType,
-      serviceId,
-      actor: {
-        type: 'attendant',
-        id: attendantInfo.id,
-        station: attendantInfo.station,
-      },
-      isQuotaBased,
-      isZeroCostRounding,
-    };
-
-    console.info('Calling publishPaymentAndService with params:', {
-      paymentReference,
-      isQuotaBased,
-      isZeroCostRounding,
-      planId: dynamicPlanId,
-      customerType,
-      serviceId,
-      oldBatteryId: swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.id,
-      newBatteryId: swapData.newBattery?.actualBatteryId || swapData.newBattery?.id,
-      energyDiff: swapData.energyDiff,
-      cost: swapData.cost,
-    });
-
-    publishPaymentAndService(params);
-  }, [publishPaymentAndService, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
-
-  // Keep publishPaymentAndService ref up to date to avoid circular dependency with handleProceedToPayment
-  useEffect(() => {
-    publishPaymentAndServiceRef.current = callPublishPaymentAndService;
-  }, [callPublishPaymentAndService]);
+    confirmPayment(receipt);
+  }, [confirmPayment]);
 
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
@@ -1612,30 +1251,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       currencySymbol: PAYMENT.defaultCurrency,
     });
     setManualSubscriptionId('');
-    setTransactionId('');
     setInputMode('scan');
     setDynamicPlanId('');
     setServiceStates([]);
     setCustomerType(null);
-    setPaymentConfirmed(false);
-    setPaymentReceipt(null);
-    setPaymentInitiated(false);  // Reset STK push state
-    setPaymentInitiationData(null);
-    setPaymentRequestCreated(false);  // Reset payment request state
-    setPaymentRequestData(null);
-    setPaymentRequestOrderId(null);
-    setExpectedPaymentAmount(0);  // Reset expected payment amount
-    resetPaymentAndServiceStatus();  // Reset payment/service status via hook
-    setPaymentAmountRemaining(0);  // Reset partial payment tracking
-    setActualAmountPaid(0);  // Reset actual amount paid tracking
-    setPaymentInputMode('scan');  // Reset payment input mode
-    setManualPaymentId('');  // Clear manual payment ID
-    setFlowError(null); // Clear any flow errors
-    cancelOngoingScan(); // Clear any pending timeouts
+    setFlowError(null);
+    cancelOngoingScan();
+    
+    // Reset all payment state via hook
+    resetPayment();
     
     // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
     hookResetState();
-  }, [cancelOngoingScan, hookResetState, resetPaymentAndServiceStatus]);
+  }, [cancelOngoingScan, hookResetState, resetPayment]);
 
   // Go back one step
   const handleBack = useCallback(() => {
