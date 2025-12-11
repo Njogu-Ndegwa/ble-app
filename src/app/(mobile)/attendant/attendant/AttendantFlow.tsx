@@ -1991,14 +1991,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const newBatteryId = swapData.newBattery?.id || null;
     const oldBatteryId = swapData.oldBattery?.id || null;
 
-    // energyTransferred is already floored to 2 decimal places in swapData.energyDiff
+    // === USING STORED VALUES FROM swapData (Single Source of Truth) ===
+    // energyTransferred = swapData.energyDiff (power differential, floored to 2dp - Step 1)
     const energyTransferred = Math.max(0, swapData.energyDiff);
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
     
-    // paymentAmount = swapData.cost (rounded UP to 2 decimals)
-    // swapData.cost = ceil(chargeableEnergy × rate), where chargeableEnergy is floored to 2dp
-    // This ensures we never report less payment than the energy actually costs
+    // paymentAmount = swapData.cost (calculated in Step 4, rounded UP if >2dp)
+    // NO recalculation here - using the exact value from swapData
     const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -2008,15 +2008,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // - Normal payment: Include payment_data
     const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
 
-    console.info('Publishing payment_and_service:', {
+    console.info('Publishing payment_and_service (using swapData - NO recalculation):', {
       isQuotaBased,
       isZeroCostRounding,
       shouldIncludePaymentData,
-      // Energy values floored to 2dp, payment amount rounded UP to 2dp
-      energyTransferred,                      // Total energy transferred (kWh) - floored
-      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh) - floored
-      rate: swapData.rate,                    // Rate per kWh
-      paymentAmount,                          // = ceil(chargeableEnergy × rate) - rounded UP
+      // All values from swapData (single source of truth)
+      energyTransferred,                      // = swapData.energyDiff (Step 1: floored to 2dp)
+      chargeableEnergy: swapData.chargeableEnergy,  // Step 3: NOT rounded
+      rate: swapData.rate,
+      paymentAmount,                          // = swapData.cost (Step 4: round UP if >2dp)
       ...(shouldIncludePaymentData ? { paymentReference } : {}),
       oldBatteryId,
       newBatteryId,
