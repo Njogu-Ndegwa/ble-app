@@ -13,6 +13,8 @@ export interface BatteryData {
   chargeLevel: number; // Charge percentage (0-100)
   energy: number; // Remaining energy in Wh
   macAddress?: string; // BLE MAC address used for connection
+  /** Actual battery ID from ATT service (OPID/PPID) - used for display and validation */
+  actualBatteryId?: string;
 }
 
 // BLE Device interface for scan-to-bind functionality

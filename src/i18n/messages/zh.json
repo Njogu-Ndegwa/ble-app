@@ -1146,10 +1146,10 @@
   "ble.phase.connecting.subtitle": "正在建立蓝牙连接...",
   "ble.phase.reading.title": "读取电池数据",
   "ble.phase.reading.subtitle": "正在加载设备信息...",
-  "ble.phase.readingDta.title": "读取DTA服务",
+  "ble.phase.readingDta.title": "读取能量数据",
   "ble.phase.readingDta.subtitle": "正在获取电池能量数据...",
-  "ble.phase.readingAtt.title": "读取ATT服务",
-  "ble.phase.readingAtt.subtitle": "正在获取电池ID (opid/ppid)...",
+  "ble.phase.readingAtt.title": "读取电池ID",
+  "ble.phase.readingAtt.subtitle": "正在获取电池标识...",
   
   "rider.phoneNumber": "电话号码",
   "rider.enterPhone": "输入您的电话号码",

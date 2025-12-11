@@ -1244,10 +1244,10 @@
   "ble.phase.connecting.subtitle": "Establishing Bluetooth connection...",
   "ble.phase.reading.title": "Reading Battery Data",
   "ble.phase.reading.subtitle": "Loading device information...",
-  "ble.phase.readingDta.title": "Reading DTA Service",
+  "ble.phase.readingDta.title": "Reading Energy Data",
   "ble.phase.readingDta.subtitle": "Getting energy data from battery...",
-  "ble.phase.readingAtt.title": "Reading ATT Service",
-  "ble.phase.readingAtt.subtitle": "Getting battery ID (opid/ppid)...",
+  "ble.phase.readingAtt.title": "Reading Battery ID",
+  "ble.phase.readingAtt.subtitle": "Getting battery identifier...",
   
   "rider.phoneNumber": "Phone Number",
   "rider.enterPhone": "Enter your phone number",
