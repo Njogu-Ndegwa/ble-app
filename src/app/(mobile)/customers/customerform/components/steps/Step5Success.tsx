@@ -51,7 +51,8 @@ export default function Step5Success({
     packageName: selectedPackage?.name,
     subscriptionName: selectedPlan?.name,
     subscriptionCode,
-    batteryId: battery?.shortId,
+    // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
+    batteryId: battery?.actualBatteryId || battery?.shortId,
     batteryLevel: battery?.chargeLevel,
     paymentReference,
     amountPaid: totalPurchaseAmount,
