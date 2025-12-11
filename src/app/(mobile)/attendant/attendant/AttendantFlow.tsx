@@ -2048,9 +2048,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setIsProcessing(false);
     }, 30000);
 
-    // Use raw battery IDs without prefix - backend expects IDs like "B0723025100049"
-    const newBatteryId = swapData.newBattery?.id || null;
-    const oldBatteryId = swapData.oldBattery?.id || null;
+    // Use actualBatteryId (OPID/PPID from ATT service) as primary, fallback to id (QR code)
+    // Backend expects actual battery IDs like "B0723025100049" from the ATT service, not device names
+    const newBatteryId = swapData.newBattery?.actualBatteryId || swapData.newBattery?.id || null;
+    const oldBatteryId = swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.id || null;
 
     // === USING STORED VALUES FROM swapData (Single Source of Truth) ===
     // energyTransferred = swapData.energyDiff (power differential, floored to 2dp - Step 1)
@@ -2079,8 +2080,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       rate: swapData.rate,
       paymentAmount,                          // = swapData.cost (Step 4: round UP if >2dp)
       ...(shouldIncludePaymentData ? { paymentReference } : {}),
+      // Battery IDs - using actualBatteryId (from ATT service) with fallback to id (from QR)
       oldBatteryId,
       newBatteryId,
+      // Debug: show source of IDs
+      oldBattery_actualId: swapData.oldBattery?.actualBatteryId,
+      oldBattery_qrId: swapData.oldBattery?.id,
+      newBattery_actualId: swapData.newBattery?.actualBatteryId,
+      newBattery_qrId: swapData.newBattery?.id,
     });
 
     let paymentAndServicePayload: any = null;
