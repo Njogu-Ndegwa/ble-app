@@ -28,19 +28,16 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   const oldLevel = swapData.oldBattery?.chargeLevel ?? 0;
   const newLevel = swapData.newBattery?.chargeLevel ?? 0;
   
-  // Calculate monetary values for battery capacities
+  // Calculate monetary values for battery capacities (display only)
   const oldBatteryValue = Math.round(oldBatteryKwh * swapData.rate);
   const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
   
-  // Gross cost of the power differential (before quota deduction)
-  // This is: energyDiff × rate - the raw value of the energy being transferred
-  const grossEnergyDiffValue = swapData.energyDiff * swapData.rate;
-  
-  // Quota credit value (the monetary value of quota being applied)
-  const quotaCreditValue = swapData.quotaDeduction * swapData.rate;
-  
-  // Balance after quota (the raw balance before rounding)
-  const balanceAfterQuota = grossEnergyDiffValue - quotaCreditValue;
+  // === USE STORED VALUES - NO RECALCULATION ===
+  // These values are calculated ONCE in AttendantFlow.tsx (single source of truth)
+  // Using them directly ensures display matches what's reported to backend
+  const grossEnergyCost = swapData.grossEnergyCost;     // energyDiff × rate (round UP if >2dp)
+  const quotaCreditValue = swapData.quotaCreditValue;   // quotaDeduction × rate (as-is, inputs already 2dp)
+  const balanceAfterQuota = swapData.cost;              // chargeableEnergy × rate (round UP if >2dp)
 
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
@@ -136,7 +133,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           {/* swapData.energyDiff is already floored to 2 decimals */}
           <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
           <span className="energy-money">
-            {currency} {grossEnergyDiffValue.toFixed(2)}
+            {currency} {grossEnergyCost.toFixed(2)}
           </span>
         </div>
       </div>
@@ -153,8 +150,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         <div className="summary-row calculation">
           <span className="calc-label">{t('attendant.powerBeingSold') || 'Energy purchased'}</span>
           <span className="calc-formula">
-            {/* swapData.energyDiff is already floored to 2 decimals */}
-            {swapData.energyDiff.toFixed(2)} × {swapData.rate} = <strong>{currency} {grossEnergyDiffValue.toFixed(2)}</strong>
+            {/* All values from swapData - single source of truth */}
+            {swapData.energyDiff.toFixed(2)} × {swapData.rate} = <strong>{currency} {grossEnergyCost.toFixed(2)}</strong>
           </span>
         </div>
 

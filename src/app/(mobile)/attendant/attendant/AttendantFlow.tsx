@@ -122,11 +122,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [swapData, setSwapData] = useState<SwapData>({
     oldBattery: null,
     newBattery: null,
+    // Energy values (all in kWh, floored to 2dp)
     energyDiff: 0,
-    quotaDeduction: 0,  // Amount of remaining quota to apply (in kWh)
-    chargeableEnergy: 0,  // Energy to charge for after quota deduction (in kWh)
-    cost: 0,
-    rate: 120, // Will be updated from service response
+    quotaDeduction: 0,
+    chargeableEnergy: 0,
+    // Monetary values (single source of truth - calculated once, used everywhere)
+    grossEnergyCost: 0,     // energyDiff × rate, rounded UP
+    quotaCreditValue: 0,    // quotaDeduction × rate, rounded DOWN
+    cost: 0,                // Final cost after quota
+    rate: 120,              // Will be updated from service response
     currencySymbol: PAYMENT.defaultCurrency, // Will be updated from service/subscription response
   });
   
@@ -199,51 +203,76 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setSwapData(prev => {
         const oldEnergy = prev.oldBattery?.energy || 0;
         const energyDiffWh = battery.energy - oldEnergy;
-        // IMPORTANT: Round energy to 2 decimal places BEFORE using for calculations
-        // This ensures consistent pricing (e.g., 2.54530003 kWh becomes 2.54 kWh)
-        const energyDiffKwh = Math.floor((energyDiffWh / 1000) * 100) / 100;
+        
+        // === STEP 1: Power Differential (ONLY rounding point for energy) ===
+        // Round DOWN to 2dp - this is the single source of truth for energy
+        const powerDifferential = Math.floor((energyDiffWh / 1000) * 100) / 100;
         
         // Get rate from electricity service
         const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
         
-        // Get remaining electricity quota
+        // === STEP 2: Available Quota (use as-is from backend - already 2dp) ===
         const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
         const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
-        const remainingQuotaKwh = Math.max(0, elecQuota - elecUsed);
+        const availableQuota = Math.max(0, elecQuota - elecUsed);
         
-        // Calculate quota deduction
-        const quotaDeduction = energyDiffKwh > 0 
-          ? Math.min(remainingQuotaKwh, energyDiffKwh) 
+        // Quota to apply: min of available quota and power differential
+        // Use as-is, no rounding (backend values are already 2dp)
+        const quotaToApply = powerDifferential > 0 
+          ? Math.min(availableQuota, powerDifferential) 
           : 0;
         
-        // Chargeable energy after quota - floor to 2 decimal places for consistency
-        const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
-        const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
+        // === STEP 3: Actual Energy to Pay For (DON'T round) ===
+        const actualEnergyToPay = Math.max(0, powerDifferential - quotaToApply);
         
-        // Cost = floored energy × rate (exact multiplication, no flooring)
-        // This is the true value of the energy for accurate quota tracking
-        // Customer pays Math.floor(cost) - whole number rounded down
-        const cost = chargeableEnergyFloored * rate;
+        // === STEP 4: Cost to Report ===
+        // If more than 2dp, round UP to nearest 2dp, otherwise use as-is
+        const costRaw = actualEnergyToPay * rate;
+        // Check if costRaw has more than 2 decimal places
+        const costRounded = Math.round(costRaw * 100) / 100;
+        const hasMoreThan2dp = Math.abs(costRaw - costRounded) > 0.0000001;
+        const costToReport = hasMoreThan2dp ? Math.ceil(costRaw * 100) / 100 : costRounded;
         
-        console.info('Energy differential calculated:', {
+        // === MONETARY VALUES FOR DISPLAY (Single Source of Truth) ===
+        // Gross energy cost: powerDifferential × rate (round UP if >2dp)
+        const grossCostRaw = powerDifferential * rate;
+        const grossCostRounded = Math.round(grossCostRaw * 100) / 100;
+        const grossHasMoreThan2dp = Math.abs(grossCostRaw - grossCostRounded) > 0.0000001;
+        const grossEnergyCost = grossHasMoreThan2dp ? Math.ceil(grossCostRaw * 100) / 100 : grossCostRounded;
+        
+        // Quota credit value: quotaToApply × rate (use as-is, both inputs are 2dp max)
+        const quotaCreditValue = Math.round(quotaToApply * rate * 100) / 100;
+        
+        console.info('Energy & cost calculated (SINGLE SOURCE OF TRUTH):', {
+          // Step 1: Power differential (ONLY rounding - floor to 2dp)
           oldEnergyWh: oldEnergy,
           newEnergyWh: battery.energy,
-          energyDiffKwh,
-          remainingQuotaKwh,
-          quotaDeduction,
-          chargeableEnergy: chargeableEnergyFloored,
+          powerDifferential,
+          // Step 2: Available quota (as-is from backend)
+          availableQuota,
+          quotaToApply,
+          // Step 3: Actual energy to pay (no rounding)
+          actualEnergyToPay,
+          // Step 4: Cost (round UP if >2dp)
           ratePerKwh: rate,
-          cost,
+          costRaw,
+          costToReport,
+          // Display values
+          grossEnergyCost,
+          quotaCreditValue,
         });
         
         return {
           ...prev,
           newBattery: battery,
-          // All values already floored to 2 decimal places above
-          energyDiff: energyDiffKwh,
-          quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
-          chargeableEnergy: chargeableEnergyFloored,
-          cost: cost > 0 ? cost : 0,
+          // Energy values
+          energyDiff: powerDifferential,        // Step 1: floored to 2dp
+          quotaDeduction: quotaToApply,         // Step 2: as-is (already 2dp)
+          chargeableEnergy: actualEnergyToPay,  // Step 3: no rounding
+          // Monetary values (single source of truth)
+          grossEnergyCost,                      // For display
+          quotaCreditValue,                     // For display
+          cost: costToReport > 0 ? costToReport : 0,  // Step 4: round UP if >2dp
         };
       });
       advanceToStep(4);
@@ -1962,13 +1991,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     const newBatteryId = swapData.newBattery?.id || null;
     const oldBatteryId = swapData.oldBattery?.id || null;
 
-    // energyTransferred is already floored to 2 decimal places in swapData.energyDiff
+    // === USING STORED VALUES FROM swapData (Single Source of Truth) ===
+    // energyTransferred = swapData.energyDiff (power differential, floored to 2dp - Step 1)
     const energyTransferred = Math.max(0, swapData.energyDiff);
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
     
-    // paymentAmount = swapData.cost (already floored to 2 decimals)
-    // swapData.cost = chargeableEnergy × rate, where chargeableEnergy is already floored
+    // paymentAmount = swapData.cost (calculated in Step 4, rounded UP if >2dp)
+    // NO recalculation here - using the exact value from swapData
     const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -1978,15 +2008,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // - Normal payment: Include payment_data
     const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
 
-    console.info('Publishing payment_and_service:', {
+    console.info('Publishing payment_and_service (using swapData - NO recalculation):', {
       isQuotaBased,
       isZeroCostRounding,
       shouldIncludePaymentData,
-      // Energy and payment values (all floored to 2 decimals)
-      energyTransferred,                      // Total energy transferred (kWh)
-      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh)
-      rate: swapData.rate,                    // Rate per kWh
-      paymentAmount,                          // = chargeableEnergy × rate
+      // All values from swapData (single source of truth)
+      energyTransferred,                      // = swapData.energyDiff (Step 1: floored to 2dp)
+      chargeableEnergy: swapData.chargeableEnergy,  // Step 3: NOT rounded
+      rate: swapData.rate,
+      paymentAmount,                          // = swapData.cost (Step 4: round UP if >2dp)
       ...(shouldIncludePaymentData ? { paymentReference } : {}),
       oldBatteryId,
       newBatteryId,
@@ -2334,6 +2364,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       energyDiff: 0,
       quotaDeduction: 0,
       chargeableEnergy: 0,
+      grossEnergyCost: 0,
+      quotaCreditValue: 0,
       cost: 0,
       rate: 120,
       currencySymbol: PAYMENT.defaultCurrency,
