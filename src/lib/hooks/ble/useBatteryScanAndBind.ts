@@ -280,7 +280,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       // Check which phase we're in
       if (readingPhase === 'att') {
         // Verify this is actually ATT data (not stale DTA data)
-        if (serviceName && serviceName !== 'ATT') {
+        // serviceNameEnum from native layer is 'ATT_SERVICE', not just 'ATT'
+        if (serviceName && !serviceName.includes('ATT')) {
           log('Received non-ATT data while in ATT phase, ignoring:', serviceName);
           return;
         }
@@ -307,7 +308,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         
       } else if (readingPhase === 'dta') {
         // Verify this is actually DTA data (not stale ATT data)
-        if (serviceName && serviceName !== 'DTA') {
+        // serviceNameEnum from native layer is 'DTA_SERVICE', not just 'DTA'
+        if (serviceName && !serviceName.includes('DTA')) {
           log('Received non-DTA data while in DTA phase, ignoring:', serviceName);
           return;
         }
