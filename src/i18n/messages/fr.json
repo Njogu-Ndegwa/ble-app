@@ -1237,8 +1237,8 @@
   "ble.phase.reading.subtitle": "Chargement des informations de l'appareil...",
   "ble.phase.readingDta.title": "Lecture de l'énergie",
   "ble.phase.readingDta.subtitle": "Obtention du niveau de charge de la batterie...",
-  "ble.phase.readingSts.title": "Vérification de l'ID",
-  "ble.phase.readingSts.subtitle": "Confirmation de l'identité de la batterie...",
+  "ble.phase.readingAtt.title": "Vérification de l'ID",
+  "ble.phase.readingAtt.subtitle": "Confirmation de l'identité de la batterie...",
   
   "rider.phoneNumber": "Numéro de téléphone",
   "rider.enterPhone": "Entrez votre numéro de téléphone",

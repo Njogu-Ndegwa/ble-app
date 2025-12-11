@@ -76,17 +76,17 @@ export interface BatteryData {
 }
 
 // ============================================
-// STS SERVICE DATA
+// ATT SERVICE DATA (for battery ID - opid/ppid)
 // ============================================
 
-export interface StsCharacteristic {
+export interface AttCharacteristic {
   name: string;
   realVal: string | number;
 }
 
-export interface StsServiceData {
+export interface AttServiceData {
   serviceNameEnum: string;
-  characteristicList: StsCharacteristic[];
+  characteristicList: AttCharacteristic[];
   respCode?: string | number;
   respDesc?: string;
 }
@@ -101,8 +101,8 @@ export interface EnergyData {
 // COMBINED STATE (for high-level hook)
 // ============================================
 
-/** Reading phase for DTA → STS flow */
-export type BleReadingPhase = 'idle' | 'dta' | 'sts';
+/** Reading phase for DTA → ATT flow */
+export type BleReadingPhase = 'idle' | 'dta' | 'att';
 
 export interface BleFullState {
   // Scanning

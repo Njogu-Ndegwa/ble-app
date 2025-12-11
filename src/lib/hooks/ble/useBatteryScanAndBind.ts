@@ -8,7 +8,7 @@ import { useBleDeviceConnection } from './useBleDeviceConnection';
 import { useBleServiceReader } from './useBleServiceReader';
 import { 
   extractEnergyFromDta,
-  extractActualBatteryIdFromSts,
+  extractActualBatteryIdFromAtt,
   createBatteryData, 
   parseBatteryIdFromQr,
 } from './energyUtils';
@@ -127,7 +127,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     isReady: serviceReaderIsReady,
     lastServiceData,
     readDtaService,
-    readStsService,
+    readAttService,
     cancelRead: serviceReaderCancelRead,
     resetState: serviceReaderResetState,
   } = useBleServiceReader({ debug });
@@ -140,8 +140,8 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   const [pendingBatteryId, setPendingBatteryId] = useState<string | null>(null);
   const [pendingScanType, setPendingScanType] = useState<string | null>(null);
   
-  // Track reading phase: 'idle' | 'dta' | 'sts'
-  const [readingPhase, setReadingPhase] = useState<'idle' | 'dta' | 'sts'>('idle');
+  // Track reading phase: 'idle' | 'dta' | 'att'
+  const [readingPhase, setReadingPhase] = useState<'idle' | 'dta' | 'att'>('idle');
   // Store DTA data while waiting for STS
   const [dtaData, setDtaData] = useState<unknown>(null);
 
@@ -253,7 +253,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     log,
   ]);
 
-  // Handle service data received - manages DTA → STS flow
+  // Handle service data received - manages DTA → ATT flow
   useEffect(() => {
     if (
       lastServiceData &&
@@ -264,7 +264,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     ) {
       // Check which phase we're in
       if (readingPhase === 'dta') {
-        log('DTA service data received, storing and starting STS read (Step 2/2)');
+        log('DTA service data received, storing and starting ATT read (Step 2/2)');
         
         // Validate DTA data has energy info
         const energyData = extractEnergyFromDta(lastServiceData);
@@ -282,31 +282,31 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
           return;
         }
         
-        // Store DTA data and move to STS phase
+        // Store DTA data and move to ATT phase
         setDtaData(lastServiceData);
-        setReadingPhase('sts');
+        setReadingPhase('att');
         
-        // Now read STS service to get actual battery ID
-        readStsService(connectedDevice);
+        // Now read ATT service to get actual battery ID (opid/ppid)
+        readAttService(connectedDevice);
         
-      } else if (readingPhase === 'sts') {
-        log('STS service data received, extracting actual battery ID');
+      } else if (readingPhase === 'att') {
+        log('ATT service data received, extracting actual battery ID');
         
-        // Extract actual battery ID from STS (opid or ppid)
-        const actualBatteryId = extractActualBatteryIdFromSts(lastServiceData);
+        // Extract actual battery ID from ATT (opid or ppid)
+        const actualBatteryId = extractActualBatteryIdFromAtt(lastServiceData);
         
         if (!actualBatteryId) {
-          log('Warning: Could not extract actual battery ID from STS, proceeding without it');
+          log('Warning: Could not extract actual battery ID from ATT, proceeding without it');
           // This is a warning, not an error - we can still proceed with QR-scanned ID
         } else {
-          log('Actual battery ID from STS:', actualBatteryId);
+          log('Actual battery ID from ATT:', actualBatteryId);
         }
         
         // Extract energy data from stored DTA data
         const energyData = extractEnergyFromDta(dtaData);
         
         if (energyData) {
-          // Create battery data with actual battery ID from STS
+          // Create battery data with actual battery ID from ATT
           const battery = createBatteryData(
             pendingBatteryId,
             energyData,
@@ -339,7 +339,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         }
       }
     }
-  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, readingPhase, dtaData, readStsService, log]);
+  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, readingPhase, dtaData, readAttService, log]);
 
   // ============================================
   // MAIN FUNCTION: SCAN AND BIND
