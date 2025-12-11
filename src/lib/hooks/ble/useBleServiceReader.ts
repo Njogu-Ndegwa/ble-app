@@ -148,10 +148,17 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   }, [clearReadTimeout, log]);
 
   /**
-   * Shortcut to read DTA service (common for batteries)
+   * Shortcut to read DTA service (common for batteries - energy data)
    */
   const readDtaService = useCallback((macAddress: string) => {
     return readService('DTA', macAddress);
+  }, [readService]);
+
+  /**
+   * Shortcut to read ATT service (for actual battery ID - opid/ppid)
+   */
+  const readAttService = useCallback((macAddress: string) => {
+    return readService('ATT', macAddress);
   }, [readService]);
 
   /**
@@ -453,8 +460,10 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
     lastServiceData,
     /** Read any service */
     readService,
-    /** Read DTA service (shortcut) */
+    /** Read DTA service (shortcut) - for energy data */
     readDtaService,
+    /** Read ATT service (shortcut) - for actual battery ID (opid/ppid) */
+    readAttService,
     /** Cancel ongoing read */
     cancelRead,
     /** Reset state */

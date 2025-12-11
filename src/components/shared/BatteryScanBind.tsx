@@ -7,6 +7,7 @@ import {
   useBatteryScanAndBind, 
   type BatteryData, 
   type BleFullState,
+  type BleReadingPhase,
 } from '@/lib/hooks/ble';
 
 // Legacy type alias for backwards compatibility
@@ -439,10 +440,19 @@ const PHASE_MESSAGES = {
     title: 'Reading Battery Data',
     subtitle: 'Loading device information...',
   },
+  readingDta: {
+    title: 'Reading Energy Data',
+    subtitle: 'Getting battery charge level...',
+  },
+  readingAtt: {
+    title: 'Verifying Battery ID',
+    subtitle: 'Confirming battery identity...',
+  },
 };
 
 /**
  * Shows BLE connection progress with improved UX for long wait times
+ * Now supports the DTA → STS reading flow with distinct phases
  */
 function BleConnectionProgress({ 
   bleScanState, 
@@ -500,12 +510,25 @@ function BleConnectionProgress({
     return () => clearInterval(tipTimer);
   }, []);
   
-  // Determine current phase
-  const phase = bleScanState.isReadingService 
-    ? 'reading' 
-    : bleScanState.isConnecting 
-      ? 'connecting' 
-      : 'scanning';
+  // Determine current phase - now includes DTA/ATT reading phases
+  // Phase priority: readingAtt > readingDta > reading > connecting > scanning
+  let phase: 'scanning' | 'connecting' | 'reading' | 'readingDta' | 'readingAtt';
+  
+  if (bleScanState.isReadingService) {
+    // Check the specific reading phase from state
+    const readingPhase = bleScanState.readingPhase;
+    if (readingPhase === 'att') {
+      phase = 'readingAtt';
+    } else if (readingPhase === 'dta') {
+      phase = 'readingDta';
+    } else {
+      phase = 'reading'; // fallback for legacy behavior
+    }
+  } else if (bleScanState.isConnecting) {
+    phase = 'connecting';
+  } else {
+    phase = 'scanning';
+  }
   
   const phaseInfo = PHASE_MESSAGES[phase];
   
@@ -532,6 +555,8 @@ function BleConnectionProgress({
             {phase === 'scanning' && <SearchIcon />}
             {phase === 'connecting' && <BluetoothIcon />}
             {phase === 'reading' && <BatteryIcon />}
+            {phase === 'readingDta' && <BatteryIcon />}
+            {phase === 'readingAtt' && <ShieldCheckIcon />}
           </div>
         </div>
       </div>
@@ -539,10 +564,10 @@ function BleConnectionProgress({
       {/* Phase title and subtitle */}
       <div className="connection-phase-info">
         <h3 className="connection-phase-title">
-          {t(`ble.${phase}Title`) || phaseInfo.title}
+          {t(`ble.phase.${phase}.title`) || phaseInfo.title}
         </h3>
         <p className="connection-phase-subtitle">
-          {t(`ble.${phase}Subtitle`) || phaseInfo.subtitle}
+          {t(`ble.phase.${phase}.subtitle`) || phaseInfo.subtitle}
         </p>
       </div>
       
@@ -818,6 +843,24 @@ function LightbulbIcon() {
       height="16"
     >
       <path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+    </svg>
+  );
+}
+
+function ShieldCheckIcon() {
+  return (
+    <svg 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      width="24"
+      height="24"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      <path d="M9 12l2 2 4-4"/>
     </svg>
   );
 }

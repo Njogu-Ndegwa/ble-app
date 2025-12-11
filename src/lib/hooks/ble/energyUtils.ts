@@ -5,7 +5,7 @@
  * These are pure functions that can be used anywhere energy calculation is needed.
  */
 
-import type { EnergyData, DtaServiceData, BatteryData } from './types';
+import type { EnergyData, DtaServiceData, AttServiceData, BatteryData } from './types';
 
 // ============================================
 // DTA ENERGY EXTRACTION
@@ -95,6 +95,60 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
 }
 
 // ============================================
+// ATT BATTERY ID EXTRACTION
+// ============================================
+
+/**
+ * Extract actual battery ID from ATT service response
+ * 
+ * ATT (Attribute Service) contains the actual battery identifier:
+ * - opid: Operator ID (preferred - unique identifier)
+ * - ppid: Product/Part ID (fallback)
+ * 
+ * This is the authoritative battery ID used for:
+ * - record_service_and_payment endpoint
+ * - Verifying battery ownership
+ * - Display where battery ID is shown
+ * 
+ * @param serviceData - The ATT service data from BLE
+ * @returns The actual battery ID (opid or ppid) or null if not found
+ * 
+ * @example
+ * const actualBatteryId = extractActualBatteryIdFromAtt(attServiceData);
+ * if (actualBatteryId) {
+ *   console.log(`Actual Battery ID: ${actualBatteryId}`);
+ * }
+ */
+export function extractActualBatteryIdFromAtt(serviceData: AttServiceData | unknown): string | null {
+  const data = serviceData as AttServiceData;
+  
+  if (!data || !Array.isArray(data.characteristicList)) {
+    return null;
+  }
+
+  // Helper to get characteristic value by name
+  const getCharValue = (name: string): string | number | null => {
+    const char = data.characteristicList.find(
+      (c) => c.name?.toLowerCase() === name.toLowerCase()
+    );
+    return char?.realVal ?? null;
+  };
+
+  // Try opid first (preferred), then ppid as fallback
+  const opid = getCharValue('opid');
+  if (opid !== null && opid !== undefined && String(opid).trim() !== '') {
+    return String(opid);
+  }
+
+  const ppid = getCharValue('ppid');
+  if (ppid !== null && ppid !== undefined && String(ppid).trim() !== '') {
+    return String(ppid);
+  }
+
+  return null;
+}
+
+// ============================================
 // BATTERY DATA CREATION
 // ============================================
 
@@ -104,15 +158,17 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
  * @param batteryId - The battery identifier from QR code
  * @param energyData - The extracted energy data
  * @param macAddress - Optional MAC address of connected device
+ * @param actualBatteryId - Optional actual battery ID from STS service (opid/ppid)
  * @returns Complete battery data object
  * 
  * @example
- * const battery = createBatteryData('BAT-12345', energyData, macAddress);
+ * const battery = createBatteryData('BAT-12345', energyData, macAddress, 'OPID-12345');
  */
 export function createBatteryData(
   batteryId: string,
   energyData: EnergyData,
-  macAddress?: string
+  macAddress?: string,
+  actualBatteryId?: string
 ): BatteryData {
   return {
     id: batteryId,
@@ -120,6 +176,7 @@ export function createBatteryData(
     chargeLevel: energyData.chargePercent,
     energy: energyData.energy,
     macAddress,
+    actualBatteryId,
   };
 }
 

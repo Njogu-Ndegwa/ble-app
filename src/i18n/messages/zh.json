@@ -1140,6 +1140,17 @@
   "ble.forceReset": "重置蓝牙",
   "ble.resetInstructions": "在手机设置中关闭然后打开蓝牙以清除卡住的连接。",
   
+  "ble.phase.scanning.title": "搜索设备",
+  "ble.phase.scanning.subtitle": "正在查找附近的电池...",
+  "ble.phase.connecting.title": "连接中",
+  "ble.phase.connecting.subtitle": "正在建立蓝牙连接...",
+  "ble.phase.reading.title": "读取电池数据",
+  "ble.phase.reading.subtitle": "正在加载设备信息...",
+  "ble.phase.readingDta.title": "读取能量数据",
+  "ble.phase.readingDta.subtitle": "正在获取电池电量...",
+  "ble.phase.readingAtt.title": "验证电池ID",
+  "ble.phase.readingAtt.subtitle": "正在确认电池身份...",
+  
   "rider.phoneNumber": "电话号码",
   "rider.enterPhone": "输入您的电话号码",
   "rider.enterPhoneAndPassword": "请输入电话号码和密码",
