@@ -75,8 +75,8 @@ export type {
   EnergyData,
   DtaServiceData,
   DtaCharacteristic,
-  StsServiceData,
-  StsCharacteristic,
+  AttServiceData,
+  AttCharacteristic,
 } from './types';
 
 // ============================================
@@ -110,8 +110,8 @@ export {
   // Energy extraction
   extractEnergyFromDta,
   createBatteryData,
-  // STS battery ID extraction
-  extractActualBatteryIdFromSts,
+  // ATT battery ID extraction
+  extractActualBatteryIdFromAtt,
   // QR parsing
   parseBatteryIdFromQr,
   parseMacAddressFromQr,

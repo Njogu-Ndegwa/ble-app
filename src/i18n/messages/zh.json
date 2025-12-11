@@ -1148,8 +1148,8 @@
   "ble.phase.reading.subtitle": "正在加载设备信息...",
   "ble.phase.readingDta.title": "读取能量数据",
   "ble.phase.readingDta.subtitle": "正在获取电池电量...",
-  "ble.phase.readingSts.title": "验证电池ID",
-  "ble.phase.readingSts.subtitle": "正在确认电池身份...",
+  "ble.phase.readingAtt.title": "验证电池ID",
+  "ble.phase.readingAtt.subtitle": "正在确认电池身份...",
   
   "rider.phoneNumber": "电话号码",
   "rider.enterPhone": "输入您的电话号码",

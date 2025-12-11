@@ -5,7 +5,7 @@
  * These are pure functions that can be used anywhere energy calculation is needed.
  */
 
-import type { EnergyData, DtaServiceData, StsServiceData, BatteryData } from './types';
+import type { EnergyData, DtaServiceData, AttServiceData, BatteryData } from './types';
 
 // ============================================
 // DTA ENERGY EXTRACTION
@@ -95,13 +95,13 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
 }
 
 // ============================================
-// STS BATTERY ID EXTRACTION
+// ATT BATTERY ID EXTRACTION
 // ============================================
 
 /**
- * Extract actual battery ID from STS service response
+ * Extract actual battery ID from ATT service response
  * 
- * STS (Status Service) contains the actual battery identifier:
+ * ATT (Attribute Service) contains the actual battery identifier:
  * - opid: Operator ID (preferred - unique identifier)
  * - ppid: Product/Part ID (fallback)
  * 
@@ -110,17 +110,17 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
  * - Verifying battery ownership
  * - Display where battery ID is shown
  * 
- * @param serviceData - The STS service data from BLE
+ * @param serviceData - The ATT service data from BLE
  * @returns The actual battery ID (opid or ppid) or null if not found
  * 
  * @example
- * const actualBatteryId = extractActualBatteryIdFromSts(stsServiceData);
+ * const actualBatteryId = extractActualBatteryIdFromAtt(attServiceData);
  * if (actualBatteryId) {
  *   console.log(`Actual Battery ID: ${actualBatteryId}`);
  * }
  */
-export function extractActualBatteryIdFromSts(serviceData: StsServiceData | unknown): string | null {
-  const data = serviceData as StsServiceData;
+export function extractActualBatteryIdFromAtt(serviceData: AttServiceData | unknown): string | null {
+  const data = serviceData as AttServiceData;
   
   if (!data || !Array.isArray(data.characteristicList)) {
     return null;

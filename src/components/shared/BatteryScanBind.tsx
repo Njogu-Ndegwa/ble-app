@@ -444,7 +444,7 @@ const PHASE_MESSAGES = {
     title: 'Reading Energy Data',
     subtitle: 'Getting battery charge level...',
   },
-  readingSts: {
+  readingAtt: {
     title: 'Verifying Battery ID',
     subtitle: 'Confirming battery identity...',
   },
@@ -510,15 +510,15 @@ function BleConnectionProgress({
     return () => clearInterval(tipTimer);
   }, []);
   
-  // Determine current phase - now includes DTA/STS reading phases
-  // Phase priority: readingSts > readingDta > reading > connecting > scanning
-  let phase: 'scanning' | 'connecting' | 'reading' | 'readingDta' | 'readingSts';
+  // Determine current phase - now includes DTA/ATT reading phases
+  // Phase priority: readingAtt > readingDta > reading > connecting > scanning
+  let phase: 'scanning' | 'connecting' | 'reading' | 'readingDta' | 'readingAtt';
   
   if (bleScanState.isReadingService) {
     // Check the specific reading phase from state
     const readingPhase = bleScanState.readingPhase;
-    if (readingPhase === 'sts') {
-      phase = 'readingSts';
+    if (readingPhase === 'att') {
+      phase = 'readingAtt';
     } else if (readingPhase === 'dta') {
       phase = 'readingDta';
     } else {
@@ -556,7 +556,7 @@ function BleConnectionProgress({
             {phase === 'connecting' && <BluetoothIcon />}
             {phase === 'reading' && <BatteryIcon />}
             {phase === 'readingDta' && <BatteryIcon />}
-            {phase === 'readingSts' && <ShieldCheckIcon />}
+            {phase === 'readingAtt' && <ShieldCheckIcon />}
           </div>
         </div>
       </div>

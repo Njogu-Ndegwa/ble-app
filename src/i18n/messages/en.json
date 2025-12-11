@@ -1246,8 +1246,8 @@
   "ble.phase.reading.subtitle": "Loading device information...",
   "ble.phase.readingDta.title": "Reading Energy Data",
   "ble.phase.readingDta.subtitle": "Getting battery charge level...",
-  "ble.phase.readingSts.title": "Verifying Battery ID",
-  "ble.phase.readingSts.subtitle": "Confirming battery identity...",
+  "ble.phase.readingAtt.title": "Verifying Battery ID",
+  "ble.phase.readingAtt.subtitle": "Confirming battery identity...",
   
   "rider.phoneNumber": "Phone Number",
   "rider.enterPhone": "Enter your phone number",
