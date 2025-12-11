@@ -35,6 +35,9 @@ import { BleProgressModal } from '@/components/shared';
 // Import modular BLE hook for battery scanning (available for future migration)
 import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 
+// Import customer identification hook
+import { useCustomerIdentification, type CustomerIdentificationResult } from '@/lib/hooks/useCustomerIdentification';
+
 // Import Odoo API functions for payment
 import {
   initiatePayment,
@@ -171,6 +174,50 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
+  
+  // ============================================
+  // CUSTOMER IDENTIFICATION HOOK
+  // ============================================
+  
+  // Ref to track the scan type for identification (to clear it on complete)
+  const identificationScanTypeRef = useRef<'customer' | null>(null);
+  
+  const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
+    bridge: bridge as any,
+    isBridgeReady,
+    isMqttConnected,
+    attendantInfo,
+    defaultRate: swapData.rate,
+    onSuccess: (result: CustomerIdentificationResult) => {
+      console.info('Customer identification successful:', result);
+      
+      // Update all state from the result
+      setCustomerData(result.customer as CustomerData);
+      setServiceStates(result.serviceStates);
+      setCustomerType(result.customerType);
+      setSwapData(prev => ({
+        ...prev,
+        rate: result.rate,
+        currencySymbol: result.currencySymbol,
+      }));
+      
+      // Advance to next step
+      advanceToStep(2);
+    },
+    onError: (error: string) => {
+      console.error('Customer identification failed:', error);
+    },
+    onStart: () => {
+      // Loading state is managed by the caller (scan vs manual)
+    },
+    onComplete: () => {
+      // Clear loading states
+      setIsScanning(false);
+      setIsProcessing(false);
+      identificationScanTypeRef.current = null;
+      scanTypeRef.current = null;
+    },
+  });
   
   // ============================================
   // BLE SCAN-TO-BIND HOOK (Modular BLE handling)
@@ -541,8 +588,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [hookStopScanning]);
 
 
-  // Process customer QR code data and send MQTT identify_customer
+  // Process customer QR code data - parses QR and delegates to identification hook
   const processCustomerQRData = useCallback((qrCodeData: string) => {
+    // Parse QR code data
     let parsedData: any;
     try {
       parsedData = JSON.parse(qrCodeData);
@@ -550,23 +598,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       parsedData = qrCodeData;
     }
 
-    // If the QR code is a plain string (not JSON object), treat it as the subscription code directly
-    // This allows scanning a QR code that IS the subscription code (e.g., "SUB-8847-KE")
-    const normalizedData: any = {
-      customer_id: typeof parsedData === 'object'
-        ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
-        : qrCodeData,
-      subscription_code: typeof parsedData === 'object'
-        ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
-        : qrCodeData, // Plain string QR code IS the subscription code
-      name: typeof parsedData === 'object'
-        ? parsedData.name || parsedData.customer_name
-        : undefined,
-      raw: qrCodeData,
-    };
+    // Normalize data - handle both JSON objects and plain strings
+    const subscriptionCode = typeof parsedData === 'object'
+      ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
+      : qrCodeData;
 
-    // Extract subscription_code as plan_id
-    const subscriptionCode = normalizedData.subscription_code;
     if (!subscriptionCode) {
       console.error("No subscription_code found in QR code");
       toast.error("QR code missing subscription_code");
@@ -575,257 +611,29 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return;
     }
 
+    // Store the plan ID for later use
     setDynamicPlanId(subscriptionCode);
-    console.info("Using subscription_code as plan_id:", subscriptionCode);
 
-    const currentPlanId = subscriptionCode;
-    const customerId = normalizedData.customer_id;
-    const formattedQrCodeData = `QR_CUSTOMER_TEST_${customerId}`;
+    // Extract optional fields from QR
+    const name = typeof parsedData === 'object'
+      ? parsedData.name || parsedData.customer_name
+      : undefined;
+    const phone = typeof parsedData === 'object'
+      ? parsedData.phone || parsedData.customer_phone
+      : undefined;
+    const customerId = typeof parsedData === 'object'
+      ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id
+      : qrCodeData;
 
-    // Generate correlation ID
-    const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    correlationIdRef.current = correlationId;
-    (window as any).__customerIdentificationCorrelationId = correlationId;
-
-    // Build MQTT payload
-    const requestTopic = `emit/uxi/attendant/plan/${currentPlanId}/identify_customer`;
-    const responseTopic = `echo/abs/attendant/plan/${currentPlanId}/identify_customer`;
-
-    const payload = {
-      timestamp: new Date().toISOString(),
-      plan_id: currentPlanId,
-      correlation_id: correlationId,
-      actor: { type: "attendant", id: attendantInfo.id },
-      data: {
-        action: "IDENTIFY_CUSTOMER",
-        qr_code_data: formattedQrCodeData,
-        attendant_station: attendantInfo.station,
-      },
-    };
-
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: payload,
-    };
-
-    console.info("=== Customer Identification MQTT (QR Scan) ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", correlationId);
-    console.info("Payload:", JSON.stringify(payload, null, 2));
-
-    // Set timeout for the operation
-    if (scanTimeoutRef.current) {
-      clearTimeout(scanTimeoutRef.current);
-    }
-    scanTimeoutRef.current = setTimeout(() => {
-      console.error("Customer identification timed out after 30 seconds");
-      toast.error("Request timed out. Please try again.");
-      setIsScanning(false);
-      scanTypeRef.current = null;
-    }, 30000);
-
-    // Register response handler
-    bridge?.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing identify_customer response");
-
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              if (scanTimeoutRef.current) {
-                clearTimeout(scanTimeoutRef.current);
-              }
-              
-              const success = responseData?.data?.success ?? false;
-              const signals = responseData?.data?.signals || [];
-
-              const hasSuccessSignal = success === true && 
-                Array.isArray(signals) && 
-                (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
-
-              if (hasSuccessSignal) {
-                const metadata = responseData?.data?.metadata;
-                const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-                const sourceData = isIdempotent ? metadata?.cached_result : metadata;
-                const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
-                const serviceBundle = sourceData?.service_bundle;
-                const commonTerms = sourceData?.common_terms;
-                const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
-                
-                if (servicePlanData) {
-                  const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-                    (service: any) => typeof service?.service_id === 'string'
-                  );
-                  
-                  const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
-                    const matchingService = serviceBundle?.services?.find(
-                      (svc: any) => svc.serviceId === serviceState.service_id
-                    );
-                    return {
-                      ...serviceState,
-                      name: matchingService?.name,
-                      usageUnitPrice: matchingService?.usageUnitPrice,
-                    };
-                  });
-                  
-                  setServiceStates(enrichedServiceStates);
-                  
-                  const batteryFleet = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-battery-fleet')
-                  );
-                  setCustomerType(batteryFleet?.current_asset ? 'returning' : 'first-time');
-                  
-                  const elecService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-electricity')
-                  );
-                  const swapCountService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-swap-count')
-                  );
-                  
-                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
-                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
-                  
-                  // Update swap data with rate and currency from customer's service plan
-                  setSwapData(prev => ({ 
-                    ...prev, 
-                    rate: elecService?.usageUnitPrice || prev.rate,
-                    currencySymbol: billingCurrency 
-                  }));
-                  
-                  // Check for infinite quota services (quota > 100,000 indicates management services)
-                  const INFINITE_QUOTA_THRESHOLD = 100000;
-                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  
-                  // Calculate remaining quota values
-                  // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
-                  const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
-                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
-                  const energyValue = energyRemaining * energyUnitPrice;
-                  
-                  setCustomerData({
-                    id: identifiedCustomerId || servicePlanData.customerId || customerId,
-                    name: normalizedData.name || identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
-                    subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
-                    phone: normalizedData.phone || '', // For M-Pesa payment
-                    swapCount: swapCountService?.used || 0,
-                    lastSwap: 'N/A',
-                    energyRemaining: energyRemaining,
-                    energyTotal: elecService?.quota || 0,
-                    energyValue: energyValue,
-                    energyUnitPrice: energyUnitPrice,
-                    swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
-                    swapsTotal: swapCountService?.quota || 21,
-                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
-                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
-                    paymentState: servicePlanData.paymentState || 'INITIAL',
-                    serviceState: servicePlanData.serviceState || 'INITIAL',
-                    currentBatteryId: batteryFleet?.current_asset || undefined,
-                  });
-                  
-                  advanceToStep(2);
-                  toast.success(isIdempotent ? 'Customer identified (cached)' : 'Customer identified');
-                } else {
-                  toast.error("Invalid customer data received");
-                }
-              } else {
-                // Provide specific error messages based on failure signals
-                let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
-                if (!errorMsg) {
-                  // Check for specific failure signals to provide better error messages
-                  if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
-                    errorMsg = "Customer not found. Please check the subscription ID.";
-                  } else if (signals.includes("INVALID_QR_CODE")) {
-                    errorMsg = "Invalid QR code. Please scan a valid customer QR code.";
-                  } else {
-                    errorMsg = "Customer not found";
-                  }
-                }
-                toast.error(errorMsg);
-              }
-              setIsScanning(false);
-              scanTypeRef.current = null;
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing MQTT response:", err);
-        }
-      }
-    );
-
-    // Subscribe to response topic first, then publish
-    bridge?.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse: string) => {
-        try {
-          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
-          
-          if (subResp?.respCode === "200") {
-            setTimeout(() => {
-              bridge?.callHandler(
-                "mqttPublishMsg",
-                JSON.stringify(dataToPublish),
-                (publishResponse: string) => {
-                  try {
-                    const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                    if (pubResp?.error || pubResp?.respCode !== "200") {
-                      toast.error("Failed to identify customer");
-                      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-                      setIsScanning(false);
-                      scanTypeRef.current = null;
-                    }
-                  } catch (err) {
-                    toast.error("Error identifying customer");
-                    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-                    setIsScanning(false);
-                    scanTypeRef.current = null;
-                  }
-                }
-              );
-            }, 300);
-          } else {
-            toast.error("Failed to connect. Please try again.");
-            if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-            setIsScanning(false);
-            scanTypeRef.current = null;
-          }
-        } catch (err) {
-          toast.error("Error connecting. Please try again.");
-          if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-          setIsScanning(false);
-          scanTypeRef.current = null;
-        }
-      }
-    );
-  }, [bridge, attendantInfo]);
+    // Delegate to identification hook
+    identifyCustomer({
+      subscriptionCode,
+      source: 'qr',
+      name,
+      phone,
+      customerId,
+    });
+  }, [identifyCustomer]);
 
   // Process old battery QR code data - validates against customer's current battery and initiates BLE connection
   const processOldBatteryQRData = useCallback((qrCodeData: string) => {
@@ -1347,310 +1155,27 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     startQrCodeScan();
   }, [isMqttConnected, startQrCodeScan]);
 
-  // Step 1: Manual lookup - also uses MQTT
+  // Step 1: Manual lookup - delegates to identification hook
   const handleManualLookup = useCallback(async () => {
-    if (!manualSubscriptionId.trim()) {
+    const subscriptionCode = manualSubscriptionId.trim();
+    
+    if (!subscriptionCode) {
       toast.error('Please enter a Subscription ID');
       return;
     }
 
-    if (!bridge || !isBridgeReady) {
-      toast.error('Bridge not available. Please wait for initialization...');
-      console.error('Attempted manual lookup but bridge is not ready. bridge:', !!bridge, 'isBridgeReady:', isBridgeReady);
-      return;
-    }
-
-    if (!isMqttConnected) {
-      toast.error('MQTT not connected. Please wait a moment and try again.');
-      console.error('Attempted manual lookup but MQTT is not connected');
-      return;
-    }
-    
-    setIsProcessing(true);
-    
-    // Set a timeout to prevent infinite loading (30 seconds)
-    const timeoutId = setTimeout(() => {
-      console.error("Manual lookup timed out after 30 seconds");
-      toast.error("Request timed out. Please try again.");
-      setIsProcessing(false);
-    }, 30000);
-    
-    // Use the subscription ID as the plan_id
-    const subscriptionCode = manualSubscriptionId.trim();
+    // Store the plan ID for later use
     setDynamicPlanId(subscriptionCode);
     
-    // Generate correlation ID
-    const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    correlationIdRef.current = correlationId;
-    (window as any).__customerIdentificationCorrelationId = correlationId;
+    // Set processing state (hook's onComplete will clear it)
+    setIsProcessing(true);
 
-    // Build MQTT payload for manual lookup
-    const requestTopic = `emit/uxi/attendant/plan/${subscriptionCode}/identify_customer`;
-    // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
-    const responseTopic = `echo/abs/attendant/plan/${subscriptionCode}/identify_customer`;
-
-    const payload = {
-      timestamp: new Date().toISOString(),
-      plan_id: subscriptionCode,
-      correlation_id: correlationId,
-      actor: { type: "attendant", id: attendantInfo.id },
-      data: {
-        action: "IDENTIFY_CUSTOMER",
-        qr_code_data: `MANUAL_${subscriptionCode}`,
-        attendant_station: attendantInfo.station,
-      },
-    };
-
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: payload,
-    };
-
-    console.info("=== Manual Customer Identification MQTT ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", correlationId);
-    console.info("Payload:", JSON.stringify(payload, null, 2));
-
-    // Register response handler (same as QR scan)
-    bridge.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          console.info("=== MQTT Message Arrived (Manual Lookup Flow) ===");
-          console.info("Received topic:", topic);
-          console.info("Expected topic:", responseTopic);
-          console.info("Topic match:", topic === responseTopic);
-
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing identify_customer response (manual)");
-            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
-            
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              // Clear the timeout since we got a response
-              clearTimeout(timeoutId);
-              
-              const success = responseData?.data?.success ?? false;
-              const signals = responseData?.data?.signals || [];
-
-              console.info("Response success:", success, "signals:", signals);
-
-              // Check for both CUSTOMER_IDENTIFIED_SUCCESS and IDEMPOTENT_OPERATION_DETECTED
-              const hasSuccessSignal = success === true && 
-                Array.isArray(signals) && 
-                (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
-
-              if (hasSuccessSignal) {
-                console.info("Customer identification successful (manual)!");
-                
-                // Handle both fresh and idempotent (cached) responses
-                const metadata = responseData?.data?.metadata;
-                const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-                
-                // For idempotent responses, data is in cached_result
-                const sourceData = isIdempotent ? metadata?.cached_result : metadata;
-                const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
-                const serviceBundle = sourceData?.service_bundle;
-                const commonTerms = sourceData?.common_terms;
-                const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
-                
-                if (servicePlanData) {
-                  const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-                    (service: any) => typeof service?.service_id === 'string'
-                  );
-                  
-                  const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
-                    const matchingService = serviceBundle?.services?.find(
-                      (svc: any) => svc.serviceId === serviceState.service_id
-                    );
-                    return {
-                      ...serviceState,
-                      name: matchingService?.name,
-                      usageUnitPrice: matchingService?.usageUnitPrice,
-                    };
-                  });
-                  
-                  setServiceStates(enrichedServiceStates);
-                  
-                  const batteryFleet = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-battery-fleet')
-                  );
-                  setCustomerType(batteryFleet?.current_asset ? 'returning' : 'first-time');
-                  
-                  const elecService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-electricity')
-                  );
-                  const swapCountService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-swap-count')
-                  );
-                  
-                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
-                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
-                  
-                  // Update swap data with rate and currency from customer's service plan
-                  setSwapData(prev => ({ 
-                    ...prev, 
-                    rate: elecService?.usageUnitPrice || prev.rate,
-                    currencySymbol: billingCurrency 
-                  }));
-                  
-                  // Check for infinite quota services (quota > 100,000 indicates management services)
-                  const INFINITE_QUOTA_THRESHOLD = 100000;
-                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  
-                  // Calculate remaining quota values
-                  // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
-                  const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
-                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
-                  const energyValue = energyRemaining * energyUnitPrice;
-                  
-                  setCustomerData({
-                    id: identifiedCustomerId || servicePlanData.customerId,
-                    name: identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
-                    subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
-                    phone: '', // Will be entered separately if needed
-                    swapCount: swapCountService?.used || 0,
-                    lastSwap: 'N/A',
-                    energyRemaining: energyRemaining,
-                    energyTotal: elecService?.quota || 0,
-                    energyValue: energyValue,
-                    energyUnitPrice: energyUnitPrice,
-                    swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
-                    swapsTotal: swapCountService?.quota || 21,
-                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
-                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
-                    // FSM states from response
-                    paymentState: servicePlanData.paymentState || 'INITIAL',
-                    serviceState: servicePlanData.serviceState || 'INITIAL',
-                    currentBatteryId: batteryFleet?.current_asset || undefined,
-                  });
-                  
-                  advanceToStep(2);
-                  toast.success(isIdempotent ? 'Customer found (cached)' : 'Customer found');
-                  setIsProcessing(false);
-                } else {
-                  console.error("No service_plan_data in response:", responseData);
-                  toast.error("Invalid customer data received");
-                  setIsProcessing(false);
-                }
-              } else {
-                console.error("Customer identification failed - success:", success, "signals:", signals);
-                // Provide specific error messages based on failure signals
-                let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
-                if (!errorMsg) {
-                  // Check for specific failure signals to provide better error messages
-                  if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
-                    errorMsg = "Customer not found. Please check the subscription ID.";
-                  } else if (signals.includes("INVALID_SUBSCRIPTION_ID")) {
-                    errorMsg = "Invalid subscription ID format.";
-                  } else {
-                    errorMsg = "Customer not found";
-                  }
-                }
-                toast.error(errorMsg);
-                setIsProcessing(false);
-              }
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing MQTT response:", err);
-          clearTimeout(timeoutId);
-          setIsProcessing(false);
-        }
-      }
-    );
-
-    // Subscribe to response topic first, then publish
-    console.info("=== Subscribing to response topic (manual lookup) ===");
-    console.info("Subscribing to topic:", responseTopic);
-    
-    bridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse: string) => {
-        console.info("mqttSubTopic callback received:", subscribeResponse);
-        try {
-          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
-          
-          if (subResp?.respCode === "200") {
-            console.info("✅ Successfully subscribed to:", responseTopic);
-            console.info("Now publishing identify_customer request (manual)...");
-            
-            // Wait a moment after subscribe before publishing
-            setTimeout(() => {
-              try {
-                bridge.callHandler(
-                  "mqttPublishMsg",
-                  JSON.stringify(dataToPublish),
-                  (publishResponse: string) => {
-                    console.info("mqttPublishMsg callback received:", publishResponse);
-                    try {
-                      const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                      if (pubResp?.error || pubResp?.respCode !== "200") {
-                        console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
-                        toast.error("Failed to lookup customer");
-                        clearTimeout(timeoutId);
-                        setIsProcessing(false);
-                      } else {
-                        console.info("identify_customer published successfully (manual), waiting for response...");
-                      }
-                    } catch (err) {
-                      console.error("Error parsing publish response:", err);
-                      toast.error("Error looking up customer");
-                      clearTimeout(timeoutId);
-                      setIsProcessing(false);
-                    }
-                  }
-                );
-                console.info("bridge.callHandler('mqttPublishMsg') called successfully");
-              } catch (err) {
-                console.error("Exception calling bridge.callHandler for publish:", err);
-                toast.error("Error sending request. Please try again.");
-                clearTimeout(timeoutId);
-                setIsProcessing(false);
-              }
-            }, 300);
-          } else {
-            console.error("Failed to subscribe to response topic:", subResp?.respDesc || subResp?.error);
-            toast.error("Failed to connect. Please try again.");
-            clearTimeout(timeoutId);
-            setIsProcessing(false);
-          }
-        } catch (err) {
-          console.error("Error parsing subscribe response:", err);
-          toast.error("Error connecting. Please try again.");
-          clearTimeout(timeoutId);
-          setIsProcessing(false);
-        }
-      }
-    );
-  }, [bridge, manualSubscriptionId, attendantInfo, isMqttConnected, isBridgeReady]);
+    // Delegate to identification hook
+    identifyCustomer({
+      subscriptionCode,
+      source: 'manual',
+    });
+  }, [manualSubscriptionId, identifyCustomer]);
 
   // Step 2: Scan Old Battery with Scan-to-Bind
   const handleScanOldBattery = useCallback(async () => {
