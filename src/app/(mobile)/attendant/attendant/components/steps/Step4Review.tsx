@@ -35,9 +35,9 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // === USE STORED VALUES - NO RECALCULATION ===
   // These values are calculated ONCE in AttendantFlow.tsx (single source of truth)
   // Using them directly ensures display matches what's reported to backend
-  const grossEnergyCost = swapData.grossEnergyCost;     // energyDiff × rate, rounded UP
-  const quotaCreditValue = swapData.quotaCreditValue;   // quotaDeduction × rate, rounded DOWN
-  const balanceAfterQuota = swapData.cost;              // Final cost (chargeableEnergy × rate, rounded UP)
+  const grossEnergyCost = swapData.grossEnergyCost;     // energyDiff × rate (round UP if >2dp)
+  const quotaCreditValue = swapData.quotaCreditValue;   // quotaDeduction × rate (as-is, inputs already 2dp)
+  const balanceAfterQuota = swapData.cost;              // chargeableEnergy × rate (round UP if >2dp)
 
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
