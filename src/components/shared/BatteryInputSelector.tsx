@@ -190,6 +190,7 @@ export default function BatteryInputSelector({
       </div>
 
       {/* Previous Battery Card (issue mode) - Compact */}
+      {/* Uses actualBatteryId (OPID/PPID from ATT service) as the primary display ID */}
       {mode === 'issue' && previousBattery && (
         <div className="battery-return-card">
           <div className="battery-return-header">
@@ -197,7 +198,9 @@ export default function BatteryInputSelector({
             <span className="battery-return-status">✓ {t('common.connected') || 'Connected'}</span>
           </div>
           <div className="battery-return-content">
-            <div className="battery-return-id">{previousBattery.shortId || previousBattery.id}</div>
+            <div className="battery-return-id">
+              {previousBattery.actualBatteryId || previousBattery.shortId || previousBattery.id}
+            </div>
             <div className="battery-return-energy">
               {(previousBattery.energy / 1000).toFixed(3)} kWh {t('attendant.remaining') || 'remaining'}
             </div>

@@ -1235,10 +1235,10 @@
   "ble.phase.connecting.subtitle": "Établissement de la connexion Bluetooth...",
   "ble.phase.reading.title": "Lecture des données",
   "ble.phase.reading.subtitle": "Chargement des informations de l'appareil...",
-  "ble.phase.readingDta.title": "Lecture Service DTA",
+  "ble.phase.readingDta.title": "Lecture Données Énergie",
   "ble.phase.readingDta.subtitle": "Obtention des données d'énergie de la batterie...",
-  "ble.phase.readingAtt.title": "Lecture Service ATT",
-  "ble.phase.readingAtt.subtitle": "Obtention de l'ID batterie (opid/ppid)...",
+  "ble.phase.readingAtt.title": "Lecture ID Batterie",
+  "ble.phase.readingAtt.subtitle": "Obtention de l'identifiant de la batterie...",
   
   "rider.phoneNumber": "Numéro de téléphone",
   "rider.enterPhone": "Entrez votre numéro de téléphone",
