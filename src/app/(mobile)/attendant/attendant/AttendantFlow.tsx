@@ -44,6 +44,7 @@ import {
   type PaymentRequestData,
 } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
+import { round } from '@/lib/utils';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -419,7 +420,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     } else if (electricityService) {
       const elecQuota = Number(electricityService.quota ?? 0);
       const elecUsed = Number(electricityService.used ?? 0);
-      const remainingElecQuota = elecQuota - elecUsed;
+      // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
+      const remainingElecQuota = round(elecQuota - elecUsed, 2);
       const energyNeeded = swapData.energyDiff;
       
       hasEnoughElectricity = Number.isFinite(remainingElecQuota) && 
@@ -700,7 +702,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                   const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
                   
                   // Calculate remaining quota values
-                  const energyRemaining = elecService ? (elecService.quota - elecService.used) : 0;
+                  // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
+                  const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
                   const energyUnitPrice = elecService?.usageUnitPrice || 0;
                   // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
                   const energyValue = energyRemaining * energyUnitPrice;
@@ -1499,7 +1502,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                   const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
                   
                   // Calculate remaining quota values
-                  const energyRemaining = elecService ? (elecService.quota - elecService.used) : 0;
+                  // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
+                  const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
                   const energyUnitPrice = elecService?.usageUnitPrice || 0;
                   // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
                   const energyValue = energyRemaining * energyUnitPrice;
