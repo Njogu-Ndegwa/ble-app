@@ -6,3 +6,16 @@
 
 export { useMqtt, useSubscription } from './useMqtt';
 export type { UseMqttReturn, UseSubscriptionReturn } from './useMqtt';
+
+// Payment & Service Completion
+export { usePaymentAndService } from './usePaymentAndService';
+export type {
+  UsePaymentAndServiceOptions,
+  UsePaymentAndServiceReturn,
+  PublishPaymentAndServiceParams,
+  PaymentAndServiceStatus,
+  PaymentAndServiceResponse,
+  ServiceBatteryData,
+  ServiceSwapData,
+  ServiceActor,
+} from './usePaymentAndService';
