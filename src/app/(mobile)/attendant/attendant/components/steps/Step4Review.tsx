@@ -93,7 +93,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <div className="battery-details">
             <span className="battery-energy">{oldBatteryKwh.toFixed(2)} kWh</span>
             <span className="battery-value">{currency} {oldBatteryValue}</span>
-            <span className="battery-id">{swapData.oldBattery?.shortId || '---'}</span>
+            <span className="battery-id">{swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.shortId || '---'}</span>
           </div>
         </div>
         
@@ -119,7 +119,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <div className="battery-details">
             <span className="battery-energy">{newBatteryKwh.toFixed(2)} kWh</span>
             <span className="battery-value">{currency} {newBatteryValue}</span>
-            <span className="battery-id">{swapData.newBattery?.shortId || '---'}</span>
+            <span className="battery-id">{swapData.newBattery?.actualBatteryId || swapData.newBattery?.shortId || '---'}</span>
           </div>
         </div>
       </div>

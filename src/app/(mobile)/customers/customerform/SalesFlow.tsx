@@ -216,7 +216,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // User must click "Complete Service" to finalize the assignment
       console.info('Battery read via hook (for assignment):', battery);
       setScannedBatteryPending(battery);
-      toast.success(`Battery ${battery.shortId || battery.id} scanned! Click "Complete Service" to finalize.`);
+      // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId or id
+      toast.success(`Battery ${battery.actualBatteryId || battery.shortId || battery.id} scanned! Click "Complete Service" to finalize.`);
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },

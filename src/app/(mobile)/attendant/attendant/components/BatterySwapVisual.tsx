@@ -29,7 +29,7 @@ export default function BatterySwapVisual({ oldBattery, newBattery }: BatterySwa
           <span className="battery-percent">{oldEnergyKwh.toFixed(2)} kWh</span>
         </div>
         <div className="battery-swap-label">RETURNING</div>
-        <div className="battery-swap-id">{oldBattery?.shortId || '---'}</div>
+        <div className="battery-swap-id">{oldBattery?.actualBatteryId || oldBattery?.shortId || '---'}</div>
       </div>
       
       {/* Arrow */}
@@ -49,7 +49,7 @@ export default function BatterySwapVisual({ oldBattery, newBattery }: BatterySwa
           <span className="battery-percent">{newEnergyKwh.toFixed(2)} kWh</span>
         </div>
         <div className="battery-swap-label">RECEIVING</div>
-        <div className="battery-swap-id">{newBattery?.shortId || '---'}</div>
+        <div className="battery-swap-id">{newBattery?.actualBatteryId || newBattery?.shortId || '---'}</div>
       </div>
     </div>
   );
