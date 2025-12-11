@@ -16,6 +16,7 @@ import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import { initServiceBleData } from "@/app/utils";
 import { MqttReconnectBanner } from "@/components/shared";
+import { round } from "@/lib/utils";
 
 // ABS topics use hardcoded payloads as per docs; publish via bridge like BLE page..
 // PLAN_ID is now dynamically set from subscription_code in scanned QR code
@@ -3062,7 +3063,8 @@ const deriveCustomerTypeFromPayload = (payload?: any) => {
                             .filter((service) => service.quota <= 100000) // Filter out infinite quota management services
                             .map((service, index) => {
                               // Calculate remaining quota and its value
-                              const remaining = service.quota - service.used;
+                              // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
+                              const remaining = round(service.quota - service.used, 2);
                               const quotaValue = service.usageUnitPrice !== undefined 
                                 ? remaining * service.usageUnitPrice 
                                 : undefined;
