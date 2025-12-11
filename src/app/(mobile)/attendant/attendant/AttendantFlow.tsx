@@ -219,13 +219,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         const quotaDeduction = Math.floor(quotaDeductionRaw * 100) / 100;
         
         // Chargeable energy after quota - floor to 2 decimal places for consistency
+        // Energy is always rounded DOWN so we don't charge for more than transferred
         const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
         const chargeableEnergyFloored = Math.floor(chargeableEnergyRaw * 100) / 100;
         
-        // Cost = floored energy × rate (exact multiplication, no flooring)
-        // This is the true value of the energy for accurate quota tracking
-        // Customer pays Math.floor(cost) - whole number rounded down
-        const cost = chargeableEnergyFloored * rate;
+        // Cost = floored energy × rate, then ROUND UP to 2 decimal places
+        // This ensures we never report less payment than the energy actually costs
+        // Example: 19.6432 → 19.65 (not 19.64)
+        // Customer pays Math.floor(cost) - whole number rounded down for actual payment
+        const costRaw = chargeableEnergyFloored * rate;
+        const cost = Math.ceil(costRaw * 100) / 100;  // Round UP to 2dp
         
         console.info('Energy differential calculated:', {
           oldEnergyWh: oldEnergy,
@@ -236,6 +239,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           quotaDeduction,
           chargeableEnergy: chargeableEnergyFloored,
           ratePerKwh: rate,
+          costRaw,
           cost,
         });
         
@@ -1970,8 +1974,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
     const serviceId = electricityService?.service_id || "service-electricity-default";
     
-    // paymentAmount = swapData.cost (already floored to 2 decimals)
-    // swapData.cost = chargeableEnergy × rate, where chargeableEnergy is already floored
+    // paymentAmount = swapData.cost (rounded UP to 2 decimals)
+    // swapData.cost = ceil(chargeableEnergy × rate), where chargeableEnergy is floored to 2dp
+    // This ensures we never report less payment than the energy actually costs
     const paymentAmount = swapData.cost;
     const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -1985,11 +1990,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       isQuotaBased,
       isZeroCostRounding,
       shouldIncludePaymentData,
-      // Energy and payment values (all floored to 2 decimals)
-      energyTransferred,                      // Total energy transferred (kWh)
-      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh)
+      // Energy values floored to 2dp, payment amount rounded UP to 2dp
+      energyTransferred,                      // Total energy transferred (kWh) - floored
+      chargeableEnergy: swapData.chargeableEnergy,  // After quota deduction (kWh) - floored
       rate: swapData.rate,                    // Rate per kWh
-      paymentAmount,                          // = chargeableEnergy × rate
+      paymentAmount,                          // = ceil(chargeableEnergy × rate) - rounded UP
       ...(shouldIncludePaymentData ? { paymentReference } : {}),
       oldBatteryId,
       newBatteryId,

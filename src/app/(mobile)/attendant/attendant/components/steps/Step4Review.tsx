@@ -33,14 +33,19 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   const newBatteryValue = Math.round(newBatteryKwh * swapData.rate);
   
   // Gross cost of the power differential (before quota deduction)
-  // This is: energyDiff × rate - the raw value of the energy being transferred
-  const grossEnergyDiffValue = swapData.energyDiff * swapData.rate;
+  // This is: energyDiff × rate, rounded UP to 2dp to ensure we show true cost
+  const grossEnergyDiffValueRaw = swapData.energyDiff * swapData.rate;
+  const grossEnergyDiffValue = Math.ceil(grossEnergyDiffValueRaw * 100) / 100;
   
   // Quota credit value (the monetary value of quota being applied)
-  const quotaCreditValue = swapData.quotaDeduction * swapData.rate;
+  // Rounded DOWN to 2dp since this is a deduction (be conservative with credits)
+  const quotaCreditValueRaw = swapData.quotaDeduction * swapData.rate;
+  const quotaCreditValue = Math.floor(quotaCreditValueRaw * 100) / 100;
   
-  // Balance after quota (the raw balance before rounding)
-  const balanceAfterQuota = grossEnergyDiffValue - quotaCreditValue;
+  // Balance after quota - use swapData.cost directly since it's the correctly
+  // calculated value (energy floored, cost rounded UP to 2dp)
+  // This ensures display matches what's reported to backend
+  const balanceAfterQuota = swapData.cost;
 
   // Currency symbol from backend
   const currency = swapData.currencySymbol;
