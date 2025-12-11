@@ -211,10 +211,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
         const remainingQuotaKwh = Math.max(0, elecQuota - elecUsed);
         
-        // Calculate quota deduction
-        const quotaDeduction = energyDiffKwh > 0 
+        // Calculate quota deduction - floor to 2 decimal places BEFORE using in calculations
+        // This ensures consistency between the stored value and its use in cost calculation
+        const quotaDeductionRaw = energyDiffKwh > 0 
           ? Math.min(remainingQuotaKwh, energyDiffKwh) 
           : 0;
+        const quotaDeduction = Math.floor(quotaDeductionRaw * 100) / 100;
         
         // Chargeable energy after quota - floor to 2 decimal places for consistency
         const chargeableEnergyRaw = Math.max(0, energyDiffKwh - quotaDeduction);
@@ -230,6 +232,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           newEnergyWh: battery.energy,
           energyDiffKwh,
           remainingQuotaKwh,
+          quotaDeductionRaw,
           quotaDeduction,
           chargeableEnergy: chargeableEnergyFloored,
           ratePerKwh: rate,
@@ -241,7 +244,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           newBattery: battery,
           // All values already floored to 2 decimal places above
           energyDiff: energyDiffKwh,
-          quotaDeduction: Math.floor(quotaDeduction * 100) / 100,
+          quotaDeduction: quotaDeduction,  // Already floored above
           chargeableEnergy: chargeableEnergyFloored,
           cost: cost > 0 ? cost : 0,
         };
