@@ -383,12 +383,17 @@ function getBatteryClass(level: number): 'full' | 'medium' | 'low' {
 
 /**
  * Shows the returned battery card (used in issue mode)
+ * Uses actualBatteryId (OPID/PPID from ATT service) as the primary display ID
  */
 function BatteryReturnCard({ battery }: { battery: BatteryData }) {
   const { t } = useI18n();
   const chargeLevel = battery.chargeLevel ?? 0;
   const energyKwh = battery.energy / 1000;
   const batteryClass = getBatteryClass(chargeLevel);
+
+  // Use actualBatteryId (OPID/PPID from ATT service) as primary display
+  // Falls back to shortId or id if actualBatteryId is not available
+  const displayId = battery.actualBatteryId || battery.shortId || battery.id || '---';
 
   return (
     <div className="battery-return-card">
@@ -397,7 +402,7 @@ function BatteryReturnCard({ battery }: { battery: BatteryData }) {
         <span className="battery-return-status">✓ {t('common.connected') || 'Connected'}</span>
       </div>
       <div className="battery-return-content">
-        <div className="battery-return-id">{battery.shortId || battery.id || '---'}</div>
+        <div className="battery-return-id">{displayId}</div>
         <div className="battery-return-charge">
           <div className={`battery-return-icon ${batteryClass}`}>
             <div 
@@ -427,6 +432,7 @@ const WAITING_TIPS = [
 const COUNTDOWN_START_SECONDS = 60;
 
 // Phase-specific messages for better feedback
+// User-friendly labels: "ID" for ATT service, "Energy" for DTA service
 const PHASE_MESSAGES = {
   scanning: {
     title: 'Searching for Device',
@@ -441,12 +447,12 @@ const PHASE_MESSAGES = {
     subtitle: 'Loading device information...',
   },
   readingDta: {
-    title: 'Reading DTA Service',
+    title: 'Reading Energy Data',
     subtitle: 'Getting energy data from battery...',
   },
   readingAtt: {
-    title: 'Reading ATT Service',
-    subtitle: 'Getting battery ID (opid/ppid)...',
+    title: 'Reading Battery ID',
+    subtitle: 'Getting battery identifier...',
   },
 };
 
