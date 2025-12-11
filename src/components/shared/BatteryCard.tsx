@@ -71,6 +71,9 @@ export default function BatteryCard({
   }
 
   // Compact variant
+  // Use actualBatteryId (OPID/PPID from ATT service) as primary display
+  const displayId = battery.actualBatteryId || battery.shortId || '---';
+  
   return (
     <div className={`battery-return-card ${className}`}>
       <div className="battery-return-header">
@@ -82,7 +85,7 @@ export default function BatteryCard({
         )}
       </div>
       <div className="battery-return-content">
-        <div className="battery-return-id">{battery.shortId || '---'}</div>
+        <div className="battery-return-id">{displayId}</div>
         <div className="battery-return-charge">
           <div className={`battery-return-icon ${batteryClass}`}>
             <div 
@@ -121,6 +124,9 @@ function BatteryDetailedCard({
   const chargeLevel = battery.chargeLevel ?? 0;
   const energyKwh = battery.energy / 1000;
   const batteryClass = getBatteryClass(chargeLevel);
+  
+  // Use actualBatteryId (OPID/PPID from ATT service) as primary display
+  const displayId = battery.actualBatteryId || battery.shortId;
 
   return (
     <div className={`battery-scanned-card ${className}`} style={{ marginBottom: '20px' }}>
@@ -131,7 +137,7 @@ function BatteryDetailedCard({
             {title || t('sales.newBattery')}
           </div>
           <div className="font-mono-oves" style={{ fontSize: '16px', fontWeight: 600 }}>
-            {battery.shortId}
+            {displayId}
           </div>
         </div>
         {isConnected && (
@@ -229,6 +235,7 @@ interface BatterySwapVisualProps {
 
 /**
  * BatterySwapVisual - Shows side-by-side comparison of old and new batteries
+ * Uses actualBatteryId (OPID/PPID from ATT service) as the primary display ID
  */
 export function BatterySwapVisual({
   oldBattery,
@@ -239,6 +246,10 @@ export function BatterySwapVisual({
   const newLevel = newBattery?.chargeLevel ?? 0;
   const oldEnergyKwh = (oldBattery?.energy ?? 0) / 1000;
   const newEnergyKwh = (newBattery?.energy ?? 0) / 1000;
+  
+  // Use actualBatteryId (OPID/PPID from ATT service) as primary display
+  const oldDisplayId = oldBattery?.actualBatteryId || oldBattery?.shortId || '---';
+  const newDisplayId = newBattery?.actualBatteryId || newBattery?.shortId || '---';
 
   return (
     <div className={`battery-swap-visual ${className}`}>
@@ -252,7 +263,7 @@ export function BatterySwapVisual({
           <span className="battery-percent">{oldEnergyKwh.toFixed(2)} kWh</span>
         </div>
         <div className="battery-swap-label">RETURNING</div>
-        <div className="battery-swap-id">{oldBattery?.shortId || '---'}</div>
+        <div className="battery-swap-id">{oldDisplayId}</div>
       </div>
       
       {/* Arrow */}
@@ -272,7 +283,7 @@ export function BatterySwapVisual({
           <span className="battery-percent">{newEnergyKwh.toFixed(2)} kWh</span>
         </div>
         <div className="battery-swap-label">RECEIVING</div>
-        <div className="battery-swap-id">{newBattery?.shortId || '---'}</div>
+        <div className="battery-swap-id">{newDisplayId}</div>
       </div>
     </div>
   );

@@ -178,6 +178,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Ref for electricity service to use in callbacks without recreation
   const electricityServiceRef = useRef<typeof electricityService>(undefined);
   
+  // Refs for customerType and customerData to use in BLE callbacks without recreation
+  // These refs are kept in sync with state via useEffect below
+  const customerTypeRef = useRef<'first-time' | 'returning' | null>(null);
+  const customerDataRef = useRef<CustomerData | null>(null);
+
   // BLE scan-to-bind hook - handles all BLE operations for battery scanning
   const {
     bleScanState,
@@ -192,6 +197,48 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   } = useFlowBatteryScan({
     onOldBatteryRead: (battery) => {
       console.info('Old battery read via hook:', battery);
+      
+      // === LAST LINE OF DEFENSE: Validate actualBatteryId (OPID/PPID from ATT) matches customer's battery ===
+      // This validation happens AFTER reading the battery via BLE, ensuring the actual device ID matches
+      // what the backend has assigned to the customer. The earlier validation only checks QR/device name.
+      if (customerTypeRef.current === 'returning' && customerDataRef.current?.currentBatteryId && battery.actualBatteryId) {
+        const expectedBatteryId = customerDataRef.current.currentBatteryId;
+        const actualBatteryId = battery.actualBatteryId;
+        
+        // Normalize IDs for comparison (remove prefixes, compare last 6 chars, case insensitive)
+        const normalizeId = (id: string) => {
+          const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_)/i, '');
+          return cleaned.toLowerCase();
+        };
+        
+        const actualNormalized = normalizeId(String(actualBatteryId));
+        const expectedNormalized = normalizeId(String(expectedBatteryId));
+        
+        // Check if IDs match (exact match, one contains the other, or last 6 chars match)
+        const isMatch = actualNormalized === expectedNormalized ||
+          actualNormalized.includes(expectedNormalized) ||
+          expectedNormalized.includes(actualNormalized) ||
+          actualNormalized.slice(-6) === expectedNormalized.slice(-6);
+        
+        if (!isMatch) {
+          // Battery doesn't match - show error and stop process
+          console.error(`OPID/PPID mismatch (last line of defense): actual ${actualBatteryId}, expected ${expectedBatteryId}`);
+          
+          setFlowError({
+            step: 2,
+            message: 'Battery does not belong to this customer',
+            details: `Device ID: ...${String(actualBatteryId).slice(-6)} | Expected: ...${String(expectedBatteryId).slice(-6)}`,
+          });
+          
+          toast.error('Wrong battery! Device ID does not match customer\'s assigned battery.');
+          setIsScanning(false);
+          scanTypeRef.current = null;
+          return; // Don't proceed to next step
+        }
+        
+        console.info('OPID/PPID validation passed:', { actual: actualBatteryId, expected: expectedBatteryId });
+      }
+      
       setSwapData(prev => ({ ...prev, oldBattery: battery }));
       advanceToStep(3);
       toast.success(`Old battery: ${(battery.energy / 1000).toFixed(3)} kWh (${battery.chargeLevel}%)`);
@@ -376,6 +423,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
+  
+  // Keep customerTypeRef and customerDataRef in sync for use in BLE hook callbacks
+  // These refs allow the battery read callback to access current values without recreation
+  useEffect(() => {
+    customerTypeRef.current = customerType;
+  }, [customerType]);
+  
+  useEffect(() => {
+    customerDataRef.current = customerData;
+  }, [customerData]);
 
   // Get swap-count service from service states
   const swapCountService = serviceStates.find(
