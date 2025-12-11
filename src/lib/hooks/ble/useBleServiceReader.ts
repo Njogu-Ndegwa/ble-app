@@ -275,11 +275,23 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
                     log('Force disconnecting from pendingMac:', pendingMac);
                     window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMac, () => {});
                   }
+                  // Also disconnect from pendingMacRef if different from stored values
+                  if (pendingMacRef.current && 
+                      pendingMacRef.current !== connectedMac && 
+                      pendingMacRef.current !== pendingMac) {
+                    log('Force disconnecting from pendingMacRef:', pendingMacRef.current);
+                    window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
+                  }
                 }
                 
                 // Clear sessionStorage
                 sessionStorage.removeItem('connectedDeviceMac');
                 sessionStorage.removeItem('pendingBleMac');
+                
+                // CRITICAL: Reset pending refs to allow fresh retry
+                refreshRetryRef.current = 0;
+                pendingServiceRef.current = null;
+                pendingMacRef.current = null;
                 
                 const errorMessage = isMacMismatch 
                   ? 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.'
@@ -326,6 +338,11 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
             log('Error parsing service data:', err);
             clearReadTimeout();
             toast.dismiss('service-refresh');
+            
+            // CRITICAL: Reset pending refs to allow fresh retry
+            refreshRetryRef.current = 0;
+            pendingServiceRef.current = null;
+            pendingMacRef.current = null;
             
             setServiceState(prev => ({
               ...prev,
