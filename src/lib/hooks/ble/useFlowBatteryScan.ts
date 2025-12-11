@@ -269,6 +269,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
 
   // Handle service data received - manages ATT → DTA flow
   // Order: ATT first (battery ID), then DTA (energy data)
+  // IMPORTANT: We check serviceNameEnum to ensure we process the correct service data,
+  // preventing race conditions where the effect re-runs before new data arrives.
   useEffect(() => {
     if (
       lastServiceData &&
@@ -277,8 +279,18 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       isProcessingRef.current &&
       connectedDevice
     ) {
+      // Get the service name from the response to verify we're processing the right data
+      const serviceData = lastServiceData as { serviceNameEnum?: string };
+      const serviceName = serviceData?.serviceNameEnum?.toUpperCase() || '';
+      
       // Check which phase we're in
       if (readingPhase === 'att') {
+        // Verify this is actually ATT data (not stale DTA data from a previous read)
+        if (serviceName && serviceName !== 'ATT') {
+          log('Received non-ATT data while in ATT phase, ignoring:', serviceName);
+          return;
+        }
+        
         log('ATT service data received (Step 1/2) - Extracting battery ID');
         
         // Extract actual battery ID from ATT (opid or ppid)
@@ -300,6 +312,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
         readDtaService(connectedDevice);
         
       } else if (readingPhase === 'dta') {
+        // Verify this is actually DTA data (not stale ATT data)
+        if (serviceName && serviceName !== 'DTA') {
+          log('Received non-DTA data while in DTA phase, ignoring:', serviceName);
+          return;
+        }
+        
         log('DTA service data received (Step 2/2) - Extracting energy data');
         
         // Extract energy data from DTA
