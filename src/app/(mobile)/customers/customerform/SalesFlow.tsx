@@ -1369,12 +1369,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // This ensures consistent values (e.g., 2.54530003 kWh becomes 2.54 kWh)
     const energyTransferred = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100;
 
-    // Use the FULL battery ID from QR scan - not truncated
-    const fullBatteryId = scannedBatteryPending.id;
+    // Use actualBatteryId (OPID/PPID from ATT service) as primary, fallback to id (QR code)
+    // Backend expects actual battery IDs like "B0723025100049" from the ATT service, not device names
+    const fullBatteryId = scannedBatteryPending.actualBatteryId || scannedBatteryPending.id;
 
     console.info('[SALES SERVICE] Building payment_and_service payload:');
     console.info('[SALES SERVICE] - Subscription ID:', subscriptionId);
-    console.info('[SALES SERVICE] - Full Battery ID:', fullBatteryId);
+    console.info('[SALES SERVICE] - Battery ID (actualBatteryId or fallback):', fullBatteryId);
+    console.info('[SALES SERVICE] - actualBatteryId from ATT:', scannedBatteryPending.actualBatteryId);
+    console.info('[SALES SERVICE] - id from QR:', scannedBatteryPending.id);
     console.info('[SALES SERVICE] - Energy (kWh):', energyTransferred);
 
     // Build the REPORT_PAYMENT_AND_SERVICE_COMPLETION payload
@@ -1393,7 +1396,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
         attendant_station: SALESPERSON_STATION,
         service_data: {
-          new_battery_id: fullBatteryId,  // Full battery ID from QR scan
+          new_battery_id: fullBatteryId,  // Actual battery ID from ATT service (or fallback to QR code)
           energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
           service_duration: 240,
         },
