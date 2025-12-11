@@ -122,6 +122,28 @@ interface QuotaBarProps {
 }
 
 /**
+ * Round to specified decimal places to avoid floating-point precision issues
+ * (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
+ */
+function roundValue(value: number, decimals: number = 2): number {
+  return Math.round(value * Math.pow(10, decimals)) / Math.pow(10, decimals);
+}
+
+/**
+ * Format remaining value for display, handling floating-point precision
+ */
+function formatRemaining(value: number): string {
+  // Round to 2 decimal places to avoid floating-point precision display issues
+  const rounded = roundValue(value, 2);
+  // If the rounded value is an integer, display without decimals
+  if (Number.isInteger(rounded)) {
+    return rounded.toString();
+  }
+  // Otherwise display with up to 2 decimal places, trimming trailing zeros
+  return rounded.toFixed(2).replace(/\.?0+$/, '');
+}
+
+/**
  * QuotaBar - Display remaining quota with visual bar
  */
 export function QuotaBar({
@@ -134,7 +156,9 @@ export function QuotaBar({
   currency = 'XOF',
   className = '',
 }: QuotaBarProps) {
-  const percent = total > 0 ? (remaining / total) * 100 : 0;
+  // Round values to avoid floating-point precision issues
+  const roundedRemaining = roundValue(remaining, 2);
+  const percent = total > 0 ? (roundedRemaining / total) * 100 : 0;
   const variant = getProgressColor(percent);
 
   // Default icons based on type
@@ -185,7 +209,7 @@ export function QuotaBar({
             fontWeight: 'var(--weight-semibold)',
             fontFamily: 'var(--font-mono)',
           }}>
-            {remaining}
+            {formatRemaining(remaining)}
           </span>
           <span style={{ 
             fontSize: 'var(--font-xs)', 
@@ -204,7 +228,7 @@ export function QuotaBar({
           )}
         </div>
         <ProgressBar 
-          value={remaining} 
+          value={roundedRemaining} 
           max={total} 
           variant={variant}
           height={6}
