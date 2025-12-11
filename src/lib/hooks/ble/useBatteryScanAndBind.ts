@@ -202,6 +202,14 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         )
       : scannerScanState.detectedDevices;
 
+    // CRITICAL FIX: Keep isReadingService=true during DTA→ATT transition
+    // The service reader sets isReading=false when DTA completes, but we need to keep
+    // the reading state active while we transition to ATT reading.
+    // Use readingPhase !== 'idle' to ensure we stay in "reading" state during the full DTA→ATT flow.
+    // This prevents any progress UI from closing prematurely between phases.
+    const isInReadingFlow = readingPhase !== 'idle';
+    const shouldBeReading = serviceState.isReading || isInReadingFlow;
+
     setState(prev => ({
       ...prev,
       isScanning: scannerScanState.isScanning,
@@ -212,7 +220,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       connectionProgress: currentProgress,
       connectionFailed: connectionState.connectionFailed,
       requiresBluetoothReset: connectionState.requiresBluetoothReset,
-      isReadingService: serviceState.isReading,
+      isReadingService: shouldBeReading,
       readingPhase,
       error: scannerScanState.error || 
              connectionState.error || 
@@ -227,10 +235,11 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
   ]);
 
   // ============================================
-  // CONNECTION → SERVICE READING (DTA → STS)
+  // CONNECTION → SERVICE READING (ATT → DTA)
+  // Order: ATT first (battery ID), then DTA (energy data)
   // ============================================
 
-  // When connected, automatically start reading DTA service first
+  // When connected, automatically start reading ATT service first (battery ID)
   useEffect(() => {
     if (
       isConnected &&
@@ -239,21 +248,23 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       !isReadingEnergyRef.current &&
       readingPhase === 'idle'
     ) {
-      log('Connected! Starting DTA service read (Step 1/2)');
+      log('Connected! Starting ATT service read (Step 1/2) - Reading Battery ID');
       isReadingEnergyRef.current = true;
-      setReadingPhase('dta');
-      readDtaService(connectedDevice);
+      setReadingPhase('att');
+      readAttService(connectedDevice);
     }
   }, [
     isConnected,
     connectedDevice,
     pendingBatteryId,
-    readDtaService,
+    readAttService,
     readingPhase,
     log,
   ]);
 
-  // Handle service data received - manages DTA → ATT flow
+  // Handle service data received - manages ATT → DTA flow
+  // IMPORTANT: We check serviceNameEnum to ensure we process the correct service data,
+  // preventing race conditions where the effect re-runs before new data arrives.
   useEffect(() => {
     if (
       lastServiceData &&
@@ -262,35 +273,19 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       isReadingEnergyRef.current &&
       connectedDevice
     ) {
+      // Get the service name from the response to verify we're processing the right data
+      const serviceData = lastServiceData as { serviceNameEnum?: string };
+      const serviceName = serviceData?.serviceNameEnum?.toUpperCase() || '';
+      
       // Check which phase we're in
-      if (readingPhase === 'dta') {
-        log('DTA service data received, storing and starting ATT read (Step 2/2)');
-        
-        // Validate DTA data has energy info
-        const energyData = extractEnergyFromDta(lastServiceData);
-        if (!energyData) {
-          log('Failed to extract energy data from DTA');
-          toast.error('Could not read battery data. Please try again.');
-          onErrorRef.current?.('Failed to extract energy data from DTA');
-          
-          // Clear pending state
-          setPendingBatteryId(null);
-          setPendingScanType(null);
-          setReadingPhase('idle');
-          setDtaData(null);
-          isReadingEnergyRef.current = false;
+      if (readingPhase === 'att') {
+        // Verify this is actually ATT data (not stale DTA data)
+        if (serviceName && serviceName !== 'ATT') {
+          log('Received non-ATT data while in ATT phase, ignoring:', serviceName);
           return;
         }
         
-        // Store DTA data and move to ATT phase
-        setDtaData(lastServiceData);
-        setReadingPhase('att');
-        
-        // Now read ATT service to get actual battery ID (opid/ppid)
-        readAttService(connectedDevice);
-        
-      } else if (readingPhase === 'att') {
-        log('ATT service data received, extracting actual battery ID');
+        log('ATT service data received (Step 1/2) - Extracting battery ID');
         
         // Extract actual battery ID from ATT (opid or ppid)
         const actualBatteryId = extractActualBatteryIdFromAtt(lastServiceData);
@@ -302,8 +297,28 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
           log('Actual battery ID from ATT:', actualBatteryId);
         }
         
-        // Extract energy data from stored DTA data
-        const energyData = extractEnergyFromDta(dtaData);
+        // Store ATT result (actualBatteryId) and move to DTA phase
+        setDtaData({ actualBatteryId });
+        setReadingPhase('dta');
+        
+        // Now read DTA service to get energy data
+        log('Starting DTA service read (Step 2/2) - Reading Energy Data');
+        readDtaService(connectedDevice);
+        
+      } else if (readingPhase === 'dta') {
+        // Verify this is actually DTA data (not stale ATT data)
+        if (serviceName && serviceName !== 'DTA') {
+          log('Received non-DTA data while in DTA phase, ignoring:', serviceName);
+          return;
+        }
+        
+        log('DTA service data received (Step 2/2) - Extracting energy data');
+        
+        // Extract energy data from DTA
+        const energyData = extractEnergyFromDta(lastServiceData);
+        
+        // Get the stored actualBatteryId from the ATT phase
+        const actualBatteryId = (dtaData as { actualBatteryId?: string })?.actualBatteryId;
         
         if (energyData) {
           // Create battery data with actual battery ID from ATT
@@ -326,9 +341,9 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
           setDtaData(null);
           isReadingEnergyRef.current = false;
         } else {
-          log('Failed to extract energy data from stored DTA');
+          log('Failed to extract energy data from DTA');
           toast.error('Could not read battery data. Please try again.');
-          onErrorRef.current?.('Failed to extract energy data');
+          onErrorRef.current?.('Failed to extract energy data from DTA');
           
           // Clear pending state
           setPendingBatteryId(null);
@@ -339,7 +354,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
         }
       }
     }
-  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, readingPhase, dtaData, readAttService, log]);
+  }, [lastServiceData, pendingBatteryId, pendingScanType, connectedDevice, readingPhase, dtaData, readDtaService, log]);
 
   // ============================================
   // MAIN FUNCTION: SCAN AND BIND
