@@ -15,6 +15,20 @@ export * from './ble';
 export * as ble from './ble';
 
 // ============================================
+// ATTENDANT WORKFLOW HOOKS
+// ============================================
+
+// Customer identification via MQTT
+export {
+  useCustomerIdentification,
+  type ServiceState,
+  type IdentifiedCustomerData,
+  type CustomerIdentificationResult,
+  type IdentifyCustomerInput,
+  type UseCustomerIdentificationConfig,
+} from './useCustomerIdentification';
+
+// ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================
 
