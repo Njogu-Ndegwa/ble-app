@@ -28,6 +28,14 @@ export {
   type UseCustomerIdentificationConfig,
 } from './useCustomerIdentification';
 
+// Payment collection and service completion
+export {
+  usePaymentCollection,
+  type PaymentCollectionState,
+  type UsePaymentCollectionOptions,
+  type UsePaymentCollectionReturn,
+} from './usePaymentCollection';
+
 // ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================
