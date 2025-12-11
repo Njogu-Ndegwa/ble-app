@@ -1229,6 +1229,17 @@
   "ble.forceReset": "Réinitialiser le Bluetooth",
   "ble.resetInstructions": "Désactivez puis réactivez le Bluetooth dans les paramètres de votre téléphone pour effacer la connexion bloquée.",
   
+  "ble.phase.scanning.title": "Recherche de l'appareil",
+  "ble.phase.scanning.subtitle": "Recherche de la batterie à proximité...",
+  "ble.phase.connecting.title": "Connexion",
+  "ble.phase.connecting.subtitle": "Établissement de la connexion Bluetooth...",
+  "ble.phase.reading.title": "Lecture des données",
+  "ble.phase.reading.subtitle": "Chargement des informations de l'appareil...",
+  "ble.phase.readingDta.title": "Lecture de l'énergie",
+  "ble.phase.readingDta.subtitle": "Obtention du niveau de charge de la batterie...",
+  "ble.phase.readingSts.title": "Vérification de l'ID",
+  "ble.phase.readingSts.subtitle": "Confirmation de l'identité de la batterie...",
+  
   "rider.phoneNumber": "Numéro de téléphone",
   "rider.enterPhone": "Entrez votre numéro de téléphone",
   "rider.enterPhoneAndPassword": "Veuillez entrer le numéro de téléphone et le mot de passe",

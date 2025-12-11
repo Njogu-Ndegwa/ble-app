@@ -71,6 +71,24 @@ export interface BatteryData {
   chargeLevel: number;
   energy: number; // in Wh
   macAddress?: string;
+  /** Actual battery ID from STS service (opid/ppid) - used for record_service_and_payment */
+  actualBatteryId?: string;
+}
+
+// ============================================
+// STS SERVICE DATA
+// ============================================
+
+export interface StsCharacteristic {
+  name: string;
+  realVal: string | number;
+}
+
+export interface StsServiceData {
+  serviceNameEnum: string;
+  characteristicList: StsCharacteristic[];
+  respCode?: string | number;
+  respDesc?: string;
 }
 
 export interface EnergyData {
@@ -83,6 +101,9 @@ export interface EnergyData {
 // COMBINED STATE (for high-level hook)
 // ============================================
 
+/** Reading phase for DTA → STS flow */
+export type BleReadingPhase = 'idle' | 'dta' | 'sts';
+
 export interface BleFullState {
   // Scanning
   isScanning: boolean;
@@ -94,6 +115,8 @@ export interface BleFullState {
   connectionProgress: number;
   // Service reading
   isReadingService: boolean;
+  /** Current reading phase: 'idle' | 'dta' | 'sts' */
+  readingPhase: BleReadingPhase;
   // Error states
   error: string | null;
   connectionFailed: boolean;
