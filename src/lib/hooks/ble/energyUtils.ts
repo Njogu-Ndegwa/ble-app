@@ -99,6 +99,32 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
 // ============================================
 
 /**
+ * Clean battery ID by removing arrow characters (">", "<")
+ * 
+ * Sometimes when reading ppid (and occasionally opid), the value contains
+ * trailing or leading arrow characters that need to be stripped.
+ * For example: "BO723025100050<<<<<<" should become "BO723025100050"
+ * 
+ * Battery IDs typically end with numbers, so arrows appearing after
+ * the alphanumeric portion should be removed.
+ * 
+ * @param batteryId - Raw battery ID that may contain arrows
+ * @returns Cleaned battery ID with arrows removed
+ * 
+ * @example
+ * cleanBatteryId("BO723025100050<<<<<<") // Returns: "BO723025100050"
+ * cleanBatteryId(">>>>BO723025100050") // Returns: "BO723025100050"
+ * cleanBatteryId("BO723025100050") // Returns: "BO723025100050" (unchanged)
+ */
+export function cleanBatteryId(batteryId: string): string {
+  if (!batteryId) return batteryId;
+  
+  // Remove all ">" and "<" characters from the string
+  // These arrows can appear at the start, end, or even middle of ppid values
+  return batteryId.replace(/[<>]+/g, '').trim();
+}
+
+/**
  * Extract actual battery ID from ATT service response
  * 
  * ATT (Attribute Service) contains the actual battery identifier:
@@ -109,6 +135,9 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
  * - record_service_and_payment endpoint
  * - Verifying battery ownership
  * - Display where battery ID is shown
+ * 
+ * Note: The ppid value may contain arrow characters (">", "<") that are
+ * automatically cleaned by this function.
  * 
  * @param serviceData - The ATT service data from BLE
  * @returns The actual battery ID (opid or ppid) or null if not found
@@ -135,14 +164,15 @@ export function extractActualBatteryIdFromAtt(serviceData: AttServiceData | unkn
   };
 
   // Try opid first (preferred), then ppid as fallback
+  // Clean both values to remove any arrow characters (">", "<")
   const opid = getCharValue('opid');
   if (opid !== null && opid !== undefined && String(opid).trim() !== '') {
-    return String(opid);
+    return cleanBatteryId(String(opid));
   }
 
   const ppid = getCharValue('ppid');
   if (ppid !== null && ppid !== undefined && String(ppid).trim() !== '') {
-    return String(ppid);
+    return cleanBatteryId(String(ppid));
   }
 
   return null;
