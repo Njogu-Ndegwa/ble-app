@@ -36,6 +36,29 @@ export {
   type UsePaymentCollectionReturn,
 } from './usePaymentCollection';
 
+// Service completion (MQTT-based battery assignment/swap)
+export {
+  useServiceCompletion,
+  type ServiceBatteryData,
+  type UseServiceCompletionConfig,
+  type CompleteServiceInput,
+  type ServiceCompletionResult,
+  type UseServiceCompletionReturn,
+} from './useServiceCompletion';
+
+// Product catalog (products, packages, plans from Odoo)
+export {
+  useProductCatalog,
+  type ProductData,
+  type PackageData,
+  type PackageComponent,
+  type PlanData,
+  type CatalogLoadingState,
+  type CatalogErrorState,
+  type UseProductCatalogConfig,
+  type UseProductCatalogReturn,
+} from './useProductCatalog';
+
 // ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================

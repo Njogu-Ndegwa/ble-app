@@ -34,18 +34,18 @@ import {
 
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
+import { useServiceCompletion } from '@/lib/hooks/useServiceCompletion';
+import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 
 // Import Odoo API functions
 import {
   registerCustomer,
-  getSubscriptionProducts,
   purchaseMultiProducts,
   initiatePayment,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
-  type SubscriptionProduct,
   type ProductOrderItem,
   type RegisterCustomerPayload,
 } from '@/lib/odoo-api';
@@ -123,29 +123,32 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
-  // Physical products from Odoo API (main_service category - bikes, tuks, etc.) - kept for reference
-  const [availableProducts, setAvailableProducts] = useState<ProductData[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [productsLoadError, setProductsLoadError] = useState<string | null>(null);
-  
-  // Product selection (physical product like bikes) - kept for backward compatibility
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
-  
-  // Packages from Odoo API (product + privilege bundled) - NEW main selection
-  const [availablePackages, setAvailablePackages] = useState<PackageData[]>([]);
-  const [isLoadingPackages, setIsLoadingPackages] = useState(true);
-  const [packagesLoadError, setPackagesLoadError] = useState<string | null>(null);
-  
-  // Package selection (product + privilege bundled)
-  const [selectedPackageId, setSelectedPackageId] = useState<string>('');
-  
-  // Subscription plans from Odoo API - no fallback, Odoo is source of truth
-  const [availablePlans, setAvailablePlans] = useState<PlanData[]>([]);
-  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
-  const [plansLoadError, setPlansLoadError] = useState<string | null>(null);
-  
-  // Plan selection
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  // Product catalog hook - fetches products, packages, and plans from Odoo
+  const {
+    products: availableProducts,
+    packages: availablePackages,
+    plans: availablePlans,
+    isLoading: catalogLoading,
+    errors: catalogErrors,
+    selectedProductId,
+    selectedPackageId,
+    selectedPlanId,
+    selectedPackage,
+    selectedPlan,
+    setSelectedProductId,
+    setSelectedPackageId,
+    setSelectedPlanId,
+    refetch: fetchProductsAndPlans,
+    restoreSelections: restoreCatalogSelections,
+  } = useProductCatalog({ autoFetch: true });
+
+  // Alias loading/error states for backward compatibility
+  const isLoadingProducts = catalogLoading.products;
+  const isLoadingPackages = catalogLoading.packages;
+  const isLoadingPlans = catalogLoading.plans;
+  const productsLoadError = catalogErrors.products;
+  const packagesLoadError = catalogErrors.packages;
+  const plansLoadError = catalogErrors.plans;
 
   // Created customer data from Odoo registration
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
@@ -180,10 +183,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // NEW: Scanned battery pending service completion (battery scanned but service not yet reported)
   const [scannedBatteryPending, setScannedBatteryPending] = useState<BatteryData | null>(null);
   
-  // Service completion states
-  const [isCompletingService, setIsCompletingService] = useState(false);
-  // NOTE: isMqttConnected now comes from useBridge() - global connection with auto-reconnect
-  const [serviceCompletionError, setServiceCompletionError] = useState<string | null>(null);
+  // Service completion hook - handles MQTT request/response for battery assignment
+  // NOTE: isMqttConnected comes from useBridge() - global connection with auto-reconnect
   
   // Registration ID
   const [registrationId, setRegistrationId] = useState<string>('');
@@ -241,6 +242,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setBleHandlersReady(true);
     }
   }, [bleIsReady, bleHandlersReady]);
+
+  // Service completion hook - handles MQTT request/response for battery assignment
+  const {
+    completeService: completeServiceViaHook,
+    isCompleting: isCompletingService,
+    error: serviceCompletionError,
+    reset: resetServiceCompletion,
+  } = useServiceCompletion({
+    stationId: SALESPERSON_STATION,
+    actorType: 'attendant', // Backend expects 'attendant' type for service completion
+    debug: true,
+  });
 
   // Scan type tracking (payment still needs manual tracking)
   const scanTypeRef = useRef<'battery' | 'payment' | null>(null);
@@ -645,201 +658,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     };
   }, [currentStep, bleIsReady, startBleScan, stopBleScan]);
 
-  // Fetch products and subscription plans from Odoo API - no fallback, Odoo is source of truth
-  // Uses the salesperson's employee token to filter by their company
-  const fetchProductsAndPlans = useCallback(async () => {
-    setIsLoadingProducts(true);
-    setIsLoadingPlans(true);
-    setIsLoadingPackages(true);
-    setProductsLoadError(null);
-    setPlansLoadError(null);
-    setPackagesLoadError(null);
-    
-    try {
-      // Get the salesperson's employee token to filter by company
-      const employeeToken = getEmployeeToken();
-      
-      if (!employeeToken) {
-        console.warn('No employee token found - products/plans may not be filtered by company');
-      }
-      
-      // Pass the token to filter products by company
-      const response = await getSubscriptionProducts(1, 50, employeeToken || undefined);
-      
-      if (response.success && response.data) {
-        // Extract physical products (main_service category - bikes, tuks, etc.)
-        if (response.data.mainServiceProducts && response.data.mainServiceProducts.length > 0) {
-          const products: ProductData[] = response.data.mainServiceProducts.map((product: SubscriptionProduct) => ({
-            id: product.id.toString(),
-            odooProductId: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.list_price,
-            currency: product.currency_name,
-            currencySymbol: product.currencySymbol,
-            imageUrl: product.image_url || null,  // Cloudinary URL
-            categoryName: product.category_name || '',
-            defaultCode: product.default_code || '',
-          }));
-          
-          setAvailableProducts(products);
-          setProductsLoadError(null);
-          
-          // Set default selected product to first product only if not already set
-          if (products.length > 0) {
-            setSelectedProductId(prev => prev || products[0].id);
-          }
-          
-          console.log('Fetched physical products from Odoo:', products);
-        } else {
-          setProductsLoadError('No physical products available');
-          setAvailableProducts([]);
-        }
-        
-        // Extract packages (product + privilege bundled)
-        if (response.data.packageProducts && response.data.packageProducts.length > 0) {
-          const packages: PackageData[] = response.data.packageProducts
-            .filter((pkg: any) => pkg.is_package && pkg.components && pkg.components.length > 0)
-            .map((pkg: any) => {
-              // Find main product and battery swap privilege from components
-              const mainProduct = pkg.components?.find((c: any) => c.is_main_service);
-              const batterySwapPrivilege = pkg.components?.find((c: any) => c.is_battery_swap);
-              
-              return {
-                id: pkg.id.toString(),
-                odooPackageId: pkg.id,
-                name: pkg.name,
-                description: pkg.description || '',
-                price: pkg.list_price,
-                currency: pkg.currency_name,
-                currencySymbol: pkg.currencySymbol,
-                imageUrl: pkg.image_url || mainProduct?.image_url || null,
-                defaultCode: pkg.default_code || '',
-                isPackage: true,
-                componentCount: pkg.component_count || pkg.components?.length || 0,
-                components: (pkg.components || []).map((c: any): PackageComponent => ({
-                  id: c.id,
-                  name: c.name,
-                  default_code: c.default_code || '',
-                  description: c.description || '',
-                  list_price: c.list_price,
-                  price_unit: c.price_unit,
-                  quantity: c.quantity,
-                  currency_id: c.currency_id,
-                  currency_name: c.currency_name,
-                  currencySymbol: c.currencySymbol,
-                  category_id: c.category_id,
-                  category_name: c.category_name,
-                  image_url: c.image_url,
-                  is_main_service: c.is_main_service || false,
-                  is_battery_swap: c.is_battery_swap || false,
-                })),
-                mainProduct: mainProduct ? {
-                  id: mainProduct.id,
-                  name: mainProduct.name,
-                  default_code: mainProduct.default_code || '',
-                  description: mainProduct.description || '',
-                  list_price: mainProduct.list_price,
-                  price_unit: mainProduct.price_unit,
-                  quantity: mainProduct.quantity,
-                  currency_id: mainProduct.currency_id,
-                  currency_name: mainProduct.currency_name,
-                  currencySymbol: mainProduct.currencySymbol,
-                  category_id: mainProduct.category_id,
-                  category_name: mainProduct.category_name,
-                  image_url: mainProduct.image_url,
-                  is_main_service: true,
-                  is_battery_swap: false,
-                } : undefined,
-                batterySwapPrivilege: batterySwapPrivilege ? {
-                  id: batterySwapPrivilege.id,
-                  name: batterySwapPrivilege.name,
-                  default_code: batterySwapPrivilege.default_code || '',
-                  description: batterySwapPrivilege.description || '',
-                  list_price: batterySwapPrivilege.list_price,
-                  price_unit: batterySwapPrivilege.price_unit,
-                  quantity: batterySwapPrivilege.quantity,
-                  currency_id: batterySwapPrivilege.currency_id,
-                  currency_name: batterySwapPrivilege.currency_name,
-                  currencySymbol: batterySwapPrivilege.currencySymbol,
-                  category_id: batterySwapPrivilege.category_id,
-                  category_name: batterySwapPrivilege.category_name,
-                  image_url: batterySwapPrivilege.image_url,
-                  is_main_service: false,
-                  is_battery_swap: true,
-                } : undefined,
-              };
-            });
-          
-          setAvailablePackages(packages);
-          setPackagesLoadError(null);
-          
-          // Set default selected package to first package only if not already set (e.g., from session restore)
-          if (packages.length > 0) {
-            setSelectedPackageId(prev => prev || packages[0].id);
-          }
-          
-          console.log('Fetched packages from Odoo:', packages);
-        } else {
-          setPackagesLoadError('No packages available');
-          setAvailablePackages([]);
-        }
-        
-        // Extract subscription plans
-        if (response.data.products && response.data.products.length > 0) {
-          const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
-            id: product.id.toString(),
-            odooProductId: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.list_price,
-            period: '', // Will be determined from name
-            currency: product.currency_name,
-            currencySymbol: product.currencySymbol,
-          }));
-          
-          setAvailablePlans(plans);
-          setPlansLoadError(null);
-          
-          // Set default selected plan to first plan only if not already set (e.g., from session restore)
-          if (plans.length > 0) {
-            setSelectedPlanId(prev => prev || plans[0].id);
-          }
-          
-          console.log('Fetched subscription plans from Odoo:', plans);
-        } else {
-          setPlansLoadError('No subscription plans available');
-          setAvailablePlans([]);
-        }
-      } else {
-        setProductsLoadError('Failed to load products');
-        setPlansLoadError('Failed to load subscription plans');
-        setPackagesLoadError('Failed to load packages');
-        setAvailableProducts([]);
-        setAvailablePlans([]);
-        setAvailablePackages([]);
-      }
-    } catch (error: any) {
-      console.error('Failed to fetch products/plans:', error);
-      const errorMessage = error.message || 'Failed to load data from server';
-      setProductsLoadError(errorMessage);
-      setPlansLoadError(errorMessage);
-      setPackagesLoadError(errorMessage);
-      setAvailableProducts([]);
-      setAvailablePlans([]);
-      setAvailablePackages([]);
-      toast.error('Could not load products from server');
-    } finally {
-      setIsLoadingProducts(false);
-      setIsLoadingPlans(false);
-      setIsLoadingPackages(false);
-    }
-  }, []);
-
-  // Fetch products and plans on mount
-  useEffect(() => {
-    fetchProductsAndPlans();
-  }, [fetchProductsAndPlans]);
+  // NOTE: Product/package/plan fetching is now handled by useProductCatalog hook
+  // The hook auto-fetches on mount and provides refetch via fetchProductsAndPlans
 
   // Validate form data - fields required by Odoo /api/auth/register
   const validateForm = useCallback((): boolean => {
@@ -1331,9 +1151,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     toast('Ready to scan a new battery');
   }, [hookResetState, bleIsReady, startBleScan]);
 
-  // Handle service completion - reports first battery assignment to backend via MQTT
+  // Handle service completion - uses the useServiceCompletion hook
   // This is for first-time customer with quota (promotional first battery)
-  // Following the Attendant workflow pattern for customers with available quota
   const handleCompleteService = useCallback(async () => {
     // Guard: Check MQTT connection before proceeding
     if (!isMqttConnected) {
@@ -1347,92 +1166,26 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
-    // Get the subscription ID (subscription_code) - this is used as plan_id in the topic and payload
-    // This matches the Attendant workflow where dynamicPlanId is the subscription_code from QR scan
+    // Get the subscription ID (subscription_code)
     const subscriptionId = confirmedSubscriptionCode || subscriptionData?.subscriptionCode;
     if (!subscriptionId) {
       toast.error('No subscription found. Please complete payment first.');
       return;
     }
 
-    // Get salesperson info (similar to attendant info)
-    const employeeUser = getEmployeeUser();
-    const salespersonId = employeeUser?.id?.toString() || 'salesperson-001';
-    
-    setIsCompletingService(true);
-    setServiceCompletionError(null); // Clear any previous error
-
-    // Generate correlation ID for tracking
-    const correlationId = `sales-svc-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-    // Calculate energy transferred in kWh (energy is stored in Wh)
-    // IMPORTANT: Round energy to 2 decimal places BEFORE using for calculations
-    // This ensures consistent values (e.g., 2.54530003 kWh becomes 2.54 kWh)
-    const energyTransferred = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100;
-
-    // Use actualBatteryId (OPID/PPID from ATT service) as primary, fallback to id (QR code)
-    // Backend expects actual battery IDs like "B0723025100049" from the ATT service, not device names
-    const fullBatteryId = scannedBatteryPending.actualBatteryId || scannedBatteryPending.id;
-
-    console.info('[SALES SERVICE] Building payment_and_service payload:');
-    console.info('[SALES SERVICE] - Subscription ID:', subscriptionId);
-    console.info('[SALES SERVICE] - Battery ID (actualBatteryId or fallback):', fullBatteryId);
-    console.info('[SALES SERVICE] - actualBatteryId from ATT:', scannedBatteryPending.actualBatteryId);
-    console.info('[SALES SERVICE] - id from QR:', scannedBatteryPending.id);
-    console.info('[SALES SERVICE] - Energy (kWh):', energyTransferred);
-
-    // Build the REPORT_PAYMENT_AND_SERVICE_COMPLETION payload
-    // This follows the Attendant workflow quota-based pattern:
-    // - No payment_data needed (customer has available quota from purchase)
-    // - Only service_data with the new battery assignment
-    const paymentAndServicePayload = {
-      timestamp: new Date().toISOString(),
-      plan_id: subscriptionId,  // Using subscription ID as plan_id (matches Attendant flow)
-      correlation_id: correlationId,
-      actor: { 
-        type: "attendant",  // Using attendant type as backend expects this
-        id: salespersonId 
+    // Call the service completion hook
+    const result = await completeServiceViaHook({
+      subscriptionId,
+      battery: {
+        id: scannedBatteryPending.id,
+        actualBatteryId: scannedBatteryPending.actualBatteryId,
+        energy: scannedBatteryPending.energy,
+        chargeLevel: scannedBatteryPending.chargeLevel,
       },
-      data: {
-        action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-        attendant_station: SALESPERSON_STATION,
-        service_data: {
-          new_battery_id: fullBatteryId,  // Actual battery ID from ATT service (or fallback to QR code)
-          energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-          service_duration: 240,
-        },
-      },
-    };
+    });
 
-    // Topic uses subscription ID (same pattern as Attendant workflow)
-    const requestTopic = `emit/uxi/attendant/plan/${subscriptionId}/payment_and_service`;
-    const responseTopic = `echo/abs/attendant/plan/${subscriptionId}/payment_and_service`;
-    
-    console.info('[SALES SERVICE] Request topic:', requestTopic);
-    console.info('[SALES SERVICE] Response topic:', responseTopic);
-    console.info('[SALES SERVICE] Correlation ID:', correlationId);
-    console.info('[SALES SERVICE] Payload:', JSON.stringify(paymentAndServicePayload, null, 2));
-
-    // Store correlation ID for response matching
-    (window as any).__serviceCompletionCorrelationId = correlationId;
-
-    // Track if we've already processed the response
-    let responseProcessed = false;
-
-    // Set a timeout for service completion (30 seconds)
-    const timeoutId = setTimeout(() => {
-      if (responseProcessed) return;
-      responseProcessed = true;
-      console.error('[SALES SERVICE] Service completion timed out after 30 seconds');
-      toast.error('Request timed out. Please try again.');
-      setServiceCompletionError('Service completion timed out');
-      setIsCompletingService(false);
-    }, 30000);
-
-    // Function to finalize the service after successful confirmation
-    const finalizeServiceCompletion = () => {
-      clearTimeout(timeoutId);
-      
+    // Handle successful completion
+    if (result?.success) {
       // Move battery from pending to assigned
       setAssignedBattery(scannedBatteryPending);
       setScannedBatteryPending(null);
@@ -1441,232 +1194,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // Clear session since registration is complete
       clearSalesSession();
       
-      toast.success('Service completed! Battery assigned successfully.');
-      setIsCompletingService(false);
       advanceToStep(7);
-    };
-
-    // Function to handle service completion failure
-    const handleServiceError = (errorMsg: string, actionRequired?: string) => {
-      clearTimeout(timeoutId);
-      const fullErrorMsg = actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg;
-      console.error('[SALES SERVICE] Service completion failed:', fullErrorMsg);
-      toast.error(fullErrorMsg);
-      setServiceCompletionError(fullErrorMsg);
-      setIsCompletingService(false);
-      // Don't advance to step 7 - stay on battery assignment step
-    };
-
-    // Subscribe to response topic and register handler
-    if (window.WebViewJavascriptBridge) {
-      // Register handler for MQTT response BEFORE subscribing
-      window.WebViewJavascriptBridge.registerHandler(
-        'mqttMsgArrivedCallBack',
-        (data: string, responseCallback: (response: any) => void) => {
-          try {
-            const parsedMqttData = JSON.parse(data);
-            const topic = parsedMqttData.topic;
-            const rawMessageContent = parsedMqttData.message;
-
-            console.info('[SALES SERVICE] MQTT Message Arrived');
-            console.info('[SALES SERVICE] Received topic:', topic);
-            console.info('[SALES SERVICE] Expected topic:', responseTopic);
-
-            // Check if this is our response topic
-            if (topic === responseTopic) {
-              console.info('[SALES SERVICE] ✅ Topic MATCHED! Processing service completion response');
-              console.info('[SALES SERVICE] Response data:', JSON.stringify(parsedMqttData, null, 2));
-
-              let responseData: any;
-              try {
-                responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-              } catch {
-                responseData = rawMessageContent;
-              }
-
-              // Check correlation ID
-              const storedCorrelationId = (window as any).__serviceCompletionCorrelationId;
-              const responseCorrelationId = responseData?.correlation_id;
-
-              const correlationMatches =
-                Boolean(storedCorrelationId) &&
-                Boolean(responseCorrelationId) &&
-                (responseCorrelationId === storedCorrelationId ||
-                  responseCorrelationId.startsWith(storedCorrelationId) ||
-                  storedCorrelationId.startsWith(responseCorrelationId));
-
-              if (correlationMatches && !responseProcessed) {
-                responseProcessed = true;
-                
-                const success = responseData?.data?.success ?? false;
-                const signals = responseData?.data?.signals || [];
-                const metadata = responseData?.data?.metadata || {};
-
-                console.info('[SALES SERVICE] Response - success:', success, 'signals:', signals);
-
-                // Check for error signals - these indicate failure even if success is true
-                // Backend may return success:true with error signals for validation failures
-                const errorSignals = [
-                  'SERVICE_COMPLETION_FAILED',
-                  'QUOTA_EXHAUSTED',
-                  'SERVICE_REJECTED',
-                  'TOPUP_REQUIRED',
-                  'BATTERY_MISMATCH',
-                  'ASSET_VALIDATION_FAILED',
-                  'SECURITY_ALERT',
-                  'VALIDATION_FAILED',
-                  'PAYMENT_FAILED',
-                  'RATE_LIMIT_EXCEEDED'
-                ];
-                const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
-
-                // Check for success signals
-                const isIdempotent = signals.includes('IDEMPOTENT_OPERATION_DETECTED');
-                const hasServiceCompletedSignal = signals.includes('SERVICE_COMPLETED');
-                const hasAssetSignals = signals.includes('ASSET_RETURNED') || signals.includes('ASSET_ALLOCATED');
-
-                const hasSuccessSignal = success === true &&
-                  !hasErrorSignal &&
-                  Array.isArray(signals) &&
-                  (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
-
-                if (hasErrorSignal) {
-                  // Error signals present - treat as failure regardless of success flag
-                  console.error('[SALES SERVICE] Failed with error signals:', signals);
-                  const errorMsg = metadata?.reason || metadata?.message || metadata?.service_result?.reason || responseData?.data?.error || 'Service completion failed';
-                  const actionRequired = metadata?.action_required || metadata?.service_result?.action_required;
-                  
-                  // Provide specific error messages for common error types
-                  let userFriendlyError = errorMsg;
-                  if (signals.includes('QUOTA_EXHAUSTED') || signals.includes('TOPUP_REQUIRED')) {
-                    userFriendlyError = 'Customer quota exhausted. Payment required before service can proceed.';
-                  } else if (signals.includes('SERVICE_REJECTED')) {
-                    userFriendlyError = metadata?.service_result?.reason || 'Service was rejected. Please check customer quota.';
-                  }
-                  
-                  handleServiceError(userFriendlyError, actionRequired);
-                  
-                  // Clear the correlation ID
-                  (window as any).__serviceCompletionCorrelationId = null;
-                } else if (hasSuccessSignal) {
-                  console.info('[SALES SERVICE] Completed successfully!', isIdempotent ? '(idempotent)' : '');
-                  
-                  // Clear the correlation ID
-                  (window as any).__serviceCompletionCorrelationId = null;
-                  
-                  finalizeServiceCompletion();
-                } else if (success && signals.length === 0) {
-                  // Success without any signals - treat as generic success
-                  console.info('[SALES SERVICE] Completed (generic success, no signals)');
-                  
-                  // Clear the correlation ID
-                  (window as any).__serviceCompletionCorrelationId = null;
-                  
-                  finalizeServiceCompletion();
-                } else {
-                  // Response received but not successful or has unknown signals
-                  console.error('[SALES SERVICE] Failed - success:', success, 'signals:', signals);
-                  const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || 'Failed to complete service';
-                  handleServiceError(errorMsg);
-                  
-                  // Clear the correlation ID
-                  (window as any).__serviceCompletionCorrelationId = null;
-                }
-              }
-            }
-            responseCallback({});
-          } catch (err) {
-            console.error('[SALES SERVICE] Error processing MQTT response:', err);
-          }
-        }
-      );
-
-      // Subscribe to response topic
-      window.WebViewJavascriptBridge.callHandler(
-        'mqttSubTopic',
-        { topic: responseTopic, qos: 1 },
-        (subscribeResponse: string) => {
-          try {
-            const subResp = typeof subscribeResponse === 'string'
-              ? JSON.parse(subscribeResponse)
-              : subscribeResponse;
-
-            if (subResp?.respCode === '200') {
-              console.info('[SALES SERVICE] ✅ Successfully subscribed to response topic:', responseTopic);
-
-              // Wait a moment after subscribe before publishing
-              setTimeout(() => {
-                try {
-                  console.info('[SALES SERVICE] Publishing service completion request...');
-                  window.WebViewJavascriptBridge?.callHandler(
-                    'mqttPublishMsg',
-                    JSON.stringify({
-                      topic: requestTopic,
-                      qos: 0,
-                      content: paymentAndServicePayload,
-                    }),
-                    (publishResponse: any) => {
-                      console.info('[SALES SERVICE] Publish callback received:', publishResponse);
-                      try {
-                        const pubResp = typeof publishResponse === 'string'
-                          ? JSON.parse(publishResponse)
-                          : publishResponse;
-
-                        if (pubResp?.error || pubResp?.respCode !== '200') {
-                          console.error('[SALES SERVICE] Failed to publish:', pubResp?.respDesc || pubResp?.error);
-                          if (!responseProcessed) {
-                            responseProcessed = true;
-                            handleServiceError('Failed to send request. Please try again.');
-                          }
-                        } else {
-                          console.info('[SALES SERVICE] Request published, waiting for backend response...');
-                          // Do NOT assume success - we must wait for the actual response
-                        }
-                      } catch (err) {
-                        console.error('[SALES SERVICE] Error parsing publish response:', err);
-                        if (!responseProcessed) {
-                          responseProcessed = true;
-                          handleServiceError('Error sending request. Please try again.');
-                        }
-                      }
-                    }
-                  );
-                } catch (err) {
-                  console.error('[SALES SERVICE] Exception calling publish:', err);
-                  if (!responseProcessed) {
-                    responseProcessed = true;
-                    handleServiceError('Error sending request. Please try again.');
-                  }
-                }
-              }, 300);
-            } else {
-              console.error('[SALES SERVICE] Failed to subscribe:', subResp?.respDesc || subResp?.error);
-              if (!responseProcessed) {
-                responseProcessed = true;
-                handleServiceError('Failed to connect. Please try again.');
-              }
-            }
-          } catch (err) {
-            console.error('[SALES SERVICE] Error parsing subscribe response:', err);
-            if (!responseProcessed) {
-              responseProcessed = true;
-              handleServiceError('Error connecting. Please try again.');
-            }
-          }
-        }
-      );
-    } else {
-      // No bridge available - show error (can't complete service without MQTT)
-      console.error('[SALES SERVICE] No bridge available - cannot complete service');
-      handleServiceError('Connection not available. Please restart the app.');
     }
+    // Error handling is done by the hook (shows toast and sets error state)
   }, [
     scannedBatteryPending, 
     confirmedSubscriptionCode, 
     subscriptionData, 
     advanceToStep,
     isMqttConnected,
-    t
+    t,
+    completeServiceViaHook,
   ]);
 
   // Handle back navigation
@@ -1808,8 +1346,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setConfirmedSubscriptionCode(null);
         setAssignedBattery(null);
         setScannedBatteryPending(null);
-        setIsCompletingService(false);
-        setServiceCompletionError(null);
+        resetServiceCompletion();
         setRegistrationId('');
         // Reset session restored flag to allow new session tracking
         setSessionRestored(true);
@@ -1867,10 +1404,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [onLogout, router, t]);
 
   // Render step content
-  // Get selected package object for preview
-  const selectedPackage = availablePackages.find(p => p.id === selectedPackageId) || null;
-  // Get selected plan object for preview
-  const selectedPlan = availablePlans.find(p => p.id === selectedPlanId) || null;
+  // NOTE: selectedPackage and selectedPlan are provided by useProductCatalog hook
 
   const renderStepContent = () => {
     switch (currentStep) {
