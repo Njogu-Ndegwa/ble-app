@@ -19,3 +19,10 @@ export type {
   ServiceSwapData,
   ServiceActor,
 } from './usePaymentAndService';
+
+// Session Management
+export { useSessionManagement } from './useSessionManagement';
+export type {
+  UseSessionManagementOptions,
+  UseSessionManagementResult,
+} from './useSessionManagement';
