@@ -865,6 +865,340 @@ export function getCycleUnitFromPeriod(period: string): { interval: number; unit
 }
 
 // ============================================================================
+// Session Management Types & API
+// ============================================================================
+
+/**
+ * Session type for workflow tracking
+ */
+export type SessionType = 'SALES_REGISTRATION' | 'ATTENDANT_SWAP';
+
+/**
+ * Session status
+ */
+export type SessionStatus = 'in_progress' | 'completed' | 'cancelled' | 'expired';
+
+/**
+ * Recovery summary for session resumption display
+ */
+export interface SessionRecoverySummary {
+  customer_name: string;
+  customer_phone?: string;
+  current_step: number;
+  current_step_name: string;
+  max_step_reached: number;
+  last_action: string;
+  last_action_at: string;
+  time_elapsed: string;
+  package_name?: string;
+  plan_name?: string;
+  total_amount?: number;
+  amount_paid?: number;
+  currency_symbol: string;
+  subscription_code?: string;
+  can_resume: boolean;
+  resume_warnings?: string[];
+}
+
+/**
+ * Actor info for session tracking
+ */
+export interface SessionActor {
+  type: 'attendant' | 'salesperson';
+  id: string;
+  name: string;
+  station?: string;
+  company_id: number;
+}
+
+/**
+ * Device info for session tracking
+ */
+export interface SessionDeviceInfo {
+  device_id?: string;
+  app_version?: string;
+  platform?: string;
+  locale?: string;
+}
+
+/**
+ * Flow state for tracking progress
+ */
+export interface SessionFlowState {
+  current_step: number;
+  max_step_reached: number;
+  total_steps: number;
+}
+
+/**
+ * Timeline step status
+ */
+export interface SessionTimelineStep {
+  name: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  started_at?: string;
+  completed_at?: string | null;
+}
+
+/**
+ * Complete session data structure for persistence
+ */
+export interface SessionData {
+  // Session metadata
+  session_id: string;
+  session_type: SessionType;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  expires_at?: string;
+  
+  // For UI display when selecting sessions
+  recovery_summary: SessionRecoverySummary;
+  
+  // Device & actor info
+  device_info?: SessionDeviceInfo;
+  actor: SessionActor;
+  
+  // Flow progress
+  flow_state: SessionFlowState;
+  
+  // Timeline of steps
+  timeline: Record<string, SessionTimelineStep>;
+  
+  // Step-specific data (step_1_data, step_2_data, etc.)
+  [key: `step_${number}_data`]: Record<string, unknown>;
+}
+
+/**
+ * Session list item for display in session picker
+ */
+export interface SessionListItem {
+  id: number;
+  order_id: number;
+  order_name: string;
+  session_type: SessionType;
+  status: SessionStatus;
+  created_at: string;
+  updated_at: string;
+  recovery_summary: SessionRecoverySummary;
+  subscription_code?: string;
+  customer_name: string;
+  current_step: number;
+  can_resume: boolean;
+}
+
+/**
+ * Response from get session by order ID
+ */
+export interface GetSessionResponse {
+  success: boolean;
+  message?: string;
+  session?: {
+    id: number;
+    order_id: number;
+    order_name: string;
+    session_data: SessionData;
+    created_at: string;
+    updated_at: string;
+    status: SessionStatus;
+  };
+}
+
+/**
+ * Response from update session
+ */
+export interface UpdateSessionResponse {
+  success: boolean;
+  message?: string;
+  session?: {
+    id: number;
+    order_id: number;
+    updated_at: string;
+  };
+}
+
+/**
+ * Response from list sessions
+ */
+export interface ListSessionsResponse {
+  success: boolean;
+  message?: string;
+  sessions: SessionListItem[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+/**
+ * Parameters for listing sessions
+ */
+export interface ListSessionsParams {
+  subscription_code?: string;
+  session_type?: SessionType;
+  status?: SessionStatus | 'all';
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Get session data by order ID
+ * 
+ * @param orderId - The order ID linked to the session
+ * @param authToken - Employee JWT token for authorization
+ */
+export async function getSessionByOrderId(
+  orderId: number,
+  authToken?: string
+): Promise<GetSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== GET SESSION BY ORDER ID ===');
+  console.info('URL:', url);
+  
+  try {
+    const response = await fetch(url, { method: 'GET', headers });
+    const data: GetSessionResponse = await response.json();
+    
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Get session failed:', data);
+      throw new Error(data.message || `HTTP ${response.status}`);
+    }
+    
+    return data;
+  } catch (error: any) {
+    console.error('Get session error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update session data by order ID
+ * Note: This replaces the entire session_data JSON, so include all fields to preserve
+ * 
+ * @param orderId - The order ID linked to the session
+ * @param sessionData - Complete session data to save
+ * @param authToken - Employee JWT token for authorization
+ */
+export async function updateSessionByOrderId(
+  orderId: number,
+  sessionData: SessionData,
+  authToken?: string
+): Promise<UpdateSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  const payload = { session_data: sessionData };
+  
+  console.info('=== UPDATE SESSION BY ORDER ID ===');
+  console.info('URL:', url);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const data: UpdateSessionResponse = await response.json();
+    
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Update session failed:', data);
+      throw new Error(data.message || `HTTP ${response.status}`);
+    }
+    
+    return data;
+  } catch (error: any) {
+    console.error('Update session error:', error);
+    throw error;
+  }
+}
+
+/**
+ * List sessions with optional filters
+ * Allows searching by subscription code, filtering by type and status
+ * 
+ * @param params - Filter parameters
+ * @param authToken - Employee JWT token for authorization
+ */
+export async function listSessions(
+  params: ListSessionsParams = {},
+  authToken?: string
+): Promise<ListSessionsResponse> {
+  const queryParams = new URLSearchParams();
+  
+  if (params.subscription_code) {
+    queryParams.append('subscription_code', params.subscription_code);
+  }
+  if (params.session_type) {
+    queryParams.append('session_type', params.session_type);
+  }
+  if (params.status && params.status !== 'all') {
+    queryParams.append('status', params.status);
+  }
+  if (params.page) {
+    queryParams.append('page', String(params.page));
+  }
+  if (params.limit) {
+    queryParams.append('limit', String(params.limit));
+  }
+  
+  const url = `${ODOO_BASE_URL}/api/sessions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== LIST SESSIONS ===');
+  console.info('URL:', url);
+  
+  try {
+    const response = await fetch(url, { method: 'GET', headers });
+    const data: ListSessionsResponse = await response.json();
+    
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('List sessions failed:', data);
+      throw new Error(data.message || `HTTP ${response.status}`);
+    }
+    
+    return data;
+  } catch (error: any) {
+    console.error('List sessions error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

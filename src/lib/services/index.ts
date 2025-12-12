@@ -47,5 +47,27 @@ export type {
   PaymentAndServiceStatus,
 } from './payment-service';
 
+// Session Management Service
+export {
+  generateSessionId,
+  getCurrentActor,
+  createSessionData,
+  updateSessionProgress,
+  updateRecoverySummary,
+  markSessionCompleted,
+  saveSessionToBackend,
+  loadSessionFromBackend,
+  getAvailableSessions,
+  canResumeSession,
+  isSessionCompleted,
+  getTimeElapsed,
+  getStepName,
+  getSessionMode,
+} from './session-service';
+export type {
+  SessionMode,
+  SessionModeInfo,
+} from './session-service';
+
 // Re-export hooks
 export * from './hooks';

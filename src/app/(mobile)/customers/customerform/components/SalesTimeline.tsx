@@ -8,6 +8,8 @@ interface SalesTimelineProps {
   currentStep: SalesStep;
   maxStepReached?: SalesStep;
   onStepClick?: (step: SalesStep) => void;
+  /** Review mode - displays session in read-only mode with different styling */
+  reviewMode?: boolean;
 }
 
 // Map step icons to translation keys
@@ -70,7 +72,7 @@ const StepIcons: Record<string, React.ReactNode> = {
   ),
 };
 
-export default function SalesTimeline({ currentStep, maxStepReached = currentStep, onStepClick }: SalesTimelineProps) {
+export default function SalesTimeline({ currentStep, maxStepReached = currentStep, onStepClick, reviewMode = false }: SalesTimelineProps) {
   const { t } = useI18n();
   
   const getStepClass = (step: number): string => {
@@ -83,6 +85,8 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
   };
 
   const handleStepClick = (step: number) => {
+    // Disable navigation in review mode
+    if (reviewMode) return;
     if (step <= maxStepReached && step !== currentStep && onStepClick) {
       onStepClick(step as SalesStep);
     }
@@ -93,7 +97,7 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
   };
 
   return (
-    <div className="flow-timeline" id="sales-timeline">
+    <div className={`flow-timeline ${reviewMode ? 'review-mode' : ''}`} id="sales-timeline">
       <div className="timeline-track">
         {STEP_CONFIGS.map((config, index) => {
           const stepClass = getStepClass(config.step);
