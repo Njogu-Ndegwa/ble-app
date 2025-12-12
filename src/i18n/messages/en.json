@@ -1248,6 +1248,7 @@
   "ble.phase.readingDta.subtitle": "Getting energy data from battery...",
   "ble.phase.readingAtt.title": "Reading Battery ID",
   "ble.phase.readingAtt.subtitle": "Getting battery identifier...",
+  "ble.cancelConnection": "Cancel",
   
   "rider.phoneNumber": "Phone Number",
   "rider.enterPhone": "Enter your phone number",
