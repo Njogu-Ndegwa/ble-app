@@ -40,11 +40,32 @@ export function BleProgressModal({
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   
+  // Track the battery ID to detect when a NEW connection starts
+  // This is used to reset timer state when scanning a new battery
+  const lastBatteryIdRef = useRef<string | null>(null);
+  
   // Determine if modal should be visible
   // ONLY show when actively connecting/reading - nothing else
   // When connection ends (success, failure, timeout), modal just closes. No second modal ever.
   const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
   const isModalVisible = isActive;
+  
+  // CRITICAL FIX: Reset timer state when pendingBatteryId changes to a NEW value
+  // This handles the case where user scans a new battery immediately after timeout
+  // Without this, React's state batching could prevent the reset effect from running
+  useEffect(() => {
+    // Detect when a new battery is being scanned
+    if (pendingBatteryId && pendingBatteryId !== lastBatteryIdRef.current) {
+      // New battery detected - reset all timer state for fresh countdown
+      startTimeRef.current = null;
+      setCountdown(COUNTDOWN_START_SECONDS);
+      setHasTimedOut(false);
+      lastBatteryIdRef.current = pendingBatteryId;
+    } else if (!pendingBatteryId && lastBatteryIdRef.current !== null) {
+      // Battery cleared (connection completed/cancelled) - reset tracking
+      lastBatteryIdRef.current = null;
+    }
+  }, [pendingBatteryId]);
   
   // Reset all state when modal closes
   useEffect(() => {
