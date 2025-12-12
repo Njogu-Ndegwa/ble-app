@@ -437,6 +437,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       setReadingPhase('idle');
       setDtaData(null);
       isProcessingRef.current = false;
+      isDeviceMatchingRef.current = false;
     }
   }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, clearMatchTimers, connectionForceBleReset, log]);
 
@@ -479,6 +480,62 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       log('State reset after service read failure - modal should close (forceClosedRef set)');
     }
   }, [serviceState.error, readingPhase, connectedDevice, connectionDisconnect, log]);
+
+  // ============================================
+  // HANDLE SERVICE READING ERRORS
+  // CRITICAL: This effect ensures state is cleaned up when service reading fails
+  // Without this, readingPhase stays stuck at 'dta'/'att' and the next scan attempt fails
+  // ============================================
+  useEffect(() => {
+    // Only trigger when there's a service error AND we're in a reading phase
+    if (serviceState.error && readingPhase !== 'idle') {
+      log('Service reading error detected:', serviceState.error);
+      log('Current readingPhase:', readingPhase, '- cleaning up state');
+      
+      // Check if this error requires a Bluetooth reset
+      const errorLower = serviceState.error.toLowerCase();
+      const requiresReset = errorLower.includes('not connected') ||
+                           errorLower.includes('connection lost') ||
+                           errorLower.includes('connection stuck') ||
+                           errorLower.includes('macaddress') ||
+                           errorLower.includes('mac address');
+      
+      if (requiresReset) {
+        log('Service error requires BLE reset');
+        // Force disconnect any connected device to clear native layer state
+        if (connectedDevice) {
+          connectionDisconnect(connectedDevice);
+        }
+        // Also force reset the connection state to clear any stuck MACs in sessionStorage
+        connectionForceBleReset();
+      }
+      
+      // Notify error callback
+      onErrorRef.current?.(serviceState.error, requiresReset);
+      
+      // CRITICAL: Reset ALL pending state so the next scan attempt can work
+      setPendingBatteryId(null);
+      setPendingScanType(null);
+      setReadingPhase('idle');
+      setDtaData(null);
+      isProcessingRef.current = false;
+      isDeviceMatchingRef.current = false;
+      
+      // Update state to reflect failure
+      setState(prev => ({
+        ...prev,
+        isConnecting: false,
+        isReadingEnergy: false,
+        isReadingService: false,
+        readingPhase: 'idle',
+        connectionFailed: true,
+        requiresBluetoothReset: requiresReset,
+        error: serviceState.error,
+      }));
+      
+      log('State cleanup complete after service error');
+    }
+  }, [serviceState.error, readingPhase, connectedDevice, connectionDisconnect, connectionForceBleReset, log]);
 
   // ============================================
   // PUBLIC API
