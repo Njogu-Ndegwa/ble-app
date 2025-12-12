@@ -538,37 +538,33 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   /**
    * Start BLE scanning (call when entering battery scan steps or rescanning)
    * 
-   * ALWAYS clears detected devices before starting to ensure a fresh scan.
-   * This prevents stale device data from causing issues.
+   * ALWAYS performs full cleanup before starting to ensure a completely fresh scan.
+   * This clears detected devices AND sessionStorage to prevent any stale data issues.
    */
   const startScanning = useCallback(() => {
-    log('Starting BLE scanning - clearing devices first for fresh scan');
+    log('Starting BLE scanning - full cleanup first for fresh scan');
     
-    // CRITICAL: Clear force closed flag when starting a new scan
-    // This allows the sync effect to properly manage state again
-    // Without this, after a force close, subsequent scans won't update state properly
-    forceClosedRef.current = false;
-    
-    // Clear detected devices BEFORE starting scan to ensure fresh results
-    // This prevents stale device data from causing "macAddress is not match" errors
-    scannerClearDevices();
+    // Use consolidated cleanup with forceClosedFlag=false to allow scanning to work
+    // This clears: devices, sessionStorage, disconnects stuck connections
+    cleanupAllBleState(false);
     
     // Start fresh scan
     scannerStartScan();
-  }, [scannerStartScan, scannerClearDevices, log]);
+  }, [cleanupAllBleState, scannerStartScan, log]);
 
   /**
    * Stop BLE scanning
    * 
-   * Stops scanning and clears detected devices to prevent stale data.
-   * User can tap rescan to start fresh.
+   * Performs full cleanup including clearing sessionStorage.
+   * Ensures completely fresh state for next operation.
    */
   const stopScanning = useCallback(() => {
-    log('Stopping BLE scanning - clearing devices');
-    scannerStopScan();
-    // Clear devices when stopping to prevent stale data on next operation
-    scannerClearDevices();
-  }, [scannerStopScan, scannerClearDevices, log]);
+    log('Stopping BLE scanning - full cleanup');
+    
+    // Use consolidated cleanup - clears devices, sessionStorage, and all BLE state
+    // forceClosedFlag=true since we're stopping (modal should close if open)
+    cleanupAllBleState(true);
+  }, [cleanupAllBleState, log]);
 
   /**
    * Handle QR code scanned - starts the scan-to-bind process
