@@ -644,32 +644,19 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     // Set timeout for device matching
     matchTimeoutRef.current = setTimeout(() => {
-      clearMatchTimers();
-      scannerStopScan();
-      
-      // Exit device matching phase
-      isDeviceMatchingRef.current = false;
-      
-      log('Device matching timed out');
-      
-      setState(prev => ({
-        ...prev,
-        isScanning: false,
-        isConnecting: false,
-        error: 'Device may already be connected',
-        connectionFailed: true,
-      }));
+      log('Device matching timed out - using consolidated cleanup');
       
       toast.error('Device may already be connected. Try turning Bluetooth off and on, then try again.');
       onErrorRef.current?.('Device may already be connected');
       
-      // Clear pending state
-      setPendingBatteryId(null);
-      setPendingScanType(null);
+      // Use consolidated cleanup - this handles everything
+      cleanupAllBleState(true);
+      
+      log('Device matching timeout handled via cleanupAllBleState');
     }, DEVICE_MATCH_TIMEOUT);
     
     return true;
-  }, [scannerScanState.isScanning, scannerStartScan, scannerStopScan, scannerGetDevices, scannerFindDeviceByNameSuffix, connectionConnect, clearMatchTimers, log]);
+  }, [scannerScanState.isScanning, scannerStartScan, scannerStopScan, scannerGetDevices, scannerFindDeviceByNameSuffix, connectionConnect, clearMatchTimers, cleanupAllBleState, log]);
 
   /**
    * Cancel ongoing operation
