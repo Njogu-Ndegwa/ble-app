@@ -1239,6 +1239,7 @@
   "ble.phase.readingDta.subtitle": "Obtention des données d'énergie de la batterie...",
   "ble.phase.readingAtt.title": "Lecture ID Batterie",
   "ble.phase.readingAtt.subtitle": "Obtention de l'identifiant de la batterie...",
+  "ble.cancelConnection": "Annuler",
   
   "rider.phoneNumber": "Numéro de téléphone",
   "rider.enterPhone": "Entrez votre numéro de téléphone",

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { FlowBleScanState } from '@/lib/hooks/ble';
+import { useI18n } from '@/i18n';
 
 // Connection process typically takes 25-40 seconds, countdown from 60s
 const COUNTDOWN_START_SECONDS = 60;
@@ -38,6 +39,8 @@ export function BleProgressModal({
   pendingBatteryId,
   onCancel,
 }: BleProgressModalProps) {
+  const { t } = useI18n();
+  
   // Countdown timer state
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   // Track if we already triggered timeout cancel to prevent multiple calls
@@ -292,6 +295,15 @@ export function BleProgressModal({
           <p className="ble-progress-help">
             {getHelpText()}
           </p>
+
+          {/* Cancel Button - Always visible as escape hatch for stuck connections */}
+          <button
+            type="button"
+            className="ble-progress-cancel-button"
+            onClick={() => onCancel(true)}
+          >
+            {t('ble.cancelConnection') || 'Cancel'}
+          </button>
         </div>
       </div>
     </div>
