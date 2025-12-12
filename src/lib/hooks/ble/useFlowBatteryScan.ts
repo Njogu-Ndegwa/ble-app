@@ -515,9 +515,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       log('Service read failed/timed out during', readingPhase, '- Error:', serviceState.error);
       
       // Notify error callback before cleanup
+      // Check for errors that require Bluetooth reset (toggle off/on)
       const requiresReset = serviceState.error.toLowerCase().includes('toggle bluetooth') ||
                            serviceState.error.toLowerCase().includes('bluetooth off') ||
-                           serviceState.error.toLowerCase().includes('connection stuck');
+                           serviceState.error.toLowerCase().includes('connection stuck') ||
+                           serviceState.error.toLowerCase().includes('device not connected') ||
+                           serviceState.error.toLowerCase().includes('not connected');
       onErrorRef.current?.(serviceState.error, requiresReset);
       
       // Use consolidated cleanup - this handles everything

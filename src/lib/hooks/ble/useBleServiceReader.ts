@@ -139,9 +139,85 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
     }, SERVICE_READ_TIMEOUT);
 
     // Request service data
+    // IMPORTANT: Handle synchronous error responses from native layer
+    // The native layer may return errors like {"respCode":"8","respDesc":"Bluetooth device not connected"}
+    // directly in the callback, rather than through the async bridge handlers
     initServiceBleData(
       { serviceName, macAddress },
-      () => log('Service request sent')
+      (responseData: string) => {
+        log('Service request response:', responseData);
+        
+        // Check for synchronous error response from native layer
+        if (responseData) {
+          try {
+            const parsed = typeof responseData === 'string' ? JSON.parse(responseData) : responseData;
+            const respCode = parsed?.respCode || parsed?.responseData?.respCode;
+            const respDesc = parsed?.respDesc || parsed?.responseData?.respDesc || '';
+            
+            // respCode 8 = "Bluetooth device not connected"
+            // respCode 7 = MAC address mismatch
+            // Any non-200 respCode with respData=false indicates immediate error
+            if (respCode && respCode !== '200' && respCode !== 200 && parsed?.respData === false) {
+              log('Synchronous error from native layer:', { respCode, respDesc });
+              
+              clearReadTimeout();
+              
+              const isDisconnected = typeof respDesc === 'string' && (
+                respDesc.toLowerCase().includes('bluetooth device not connected') ||
+                respDesc.toLowerCase().includes('device not connected') ||
+                respDesc.toLowerCase().includes('not connected')
+              );
+              
+              const isMacMismatch = respCode === '7' || respCode === 7 || (
+                typeof respDesc === 'string' && (
+                  respDesc.toLowerCase().includes('macaddress is not match') ||
+                  respDesc.toLowerCase().includes('mac address is not match')
+                )
+              );
+              
+              if (isDisconnected || isMacMismatch) {
+                // Force disconnect from known MACs to clear native state
+                const connectedMac = sessionStorage.getItem('connectedDeviceMac');
+                const pendingStoredMac = sessionStorage.getItem('pendingBleMac');
+                
+                if (window.WebViewJavascriptBridge) {
+                  if (connectedMac) {
+                    log('Force disconnecting from connectedMac:', connectedMac);
+                    window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
+                  }
+                  if (pendingStoredMac && pendingStoredMac !== connectedMac) {
+                    log('Force disconnecting from pendingMac:', pendingStoredMac);
+                    window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingStoredMac, () => {});
+                  }
+                }
+                
+                // Clear sessionStorage
+                sessionStorage.removeItem('connectedDeviceMac');
+                sessionStorage.removeItem('pendingBleMac');
+                
+                const errorMessage = isMacMismatch
+                  ? 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.'
+                  : 'Bluetooth device not connected';
+                
+                setServiceState(prev => ({
+                  ...prev,
+                  isReading: false,
+                  error: errorMessage,
+                }));
+                
+                pendingServiceRef.current = null;
+                pendingMacRef.current = null;
+                
+                toast.error('Please turn Bluetooth OFF then ON and try again.');
+                onErrorRef.current?.(errorMessage);
+              }
+            }
+          } catch {
+            // Not JSON or parse error - this is normal for success cases
+            log('Service request acknowledged (non-JSON response)');
+          }
+        }
+      }
     );
 
     return true;
