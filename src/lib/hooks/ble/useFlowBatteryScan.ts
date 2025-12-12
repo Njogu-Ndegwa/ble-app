@@ -200,7 +200,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
    * Cleans up:
    * - Match timers (device discovery polling)
    * - BLE scanning (stops native scan)
-   * - Detected devices list (prevents stale device data) - ONLY if clearDevices=true
+   * - Detected devices list (prevents stale device data)
    * - Service reader state (cancels pending reads)
    * - BLE connection state AND sessionStorage:
    *   - connectedDeviceMac
@@ -212,14 +212,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
    * @param setForceClosedFlag - If true, sets forceClosedRef to prevent sync effect 
    *                             from overriding state. Use true for cancel/close operations,
    *                             false for reset/retry operations where we want scanning to resume.
-   * @param clearDevices - If true, clears the detected devices list. Default true.
-   *                       Set to false when resetting for retry to preserve discovered devices.
    */
-  const cleanupAllBleState = useCallback((setForceClosedFlag: boolean = true, clearDevices: boolean = true) => {
-    log('=== CLEANUP: Resetting BLE state ===');
+  const cleanupAllBleState = useCallback((setForceClosedFlag: boolean = true) => {
+    log('=== CLEANUP: Resetting ALL BLE state ===');
     log('  - Clearing match timers');
     log('  - Stopping BLE scan');
-    log('  - Clearing detected devices:', clearDevices);
+    log('  - Clearing detected devices');
     log('  - Resetting service reader');
     log('  - Force resetting BLE connection (clears sessionStorage)');
     log('  - setForceClosedFlag:', setForceClosedFlag);
@@ -230,14 +228,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     // Clear all timers
     clearMatchTimers();
     
-    // Stop scanning
+    // Stop scanning and clear detected devices
     scannerStopScan();
-    
-    // Only clear detected devices if requested
-    // When resetting for retry, we want to keep the devices for matching
-    if (clearDevices) {
-      scannerClearDevices();
-    }
+    scannerClearDevices();
     
     // Cancel any pending service reads
     serviceReaderCancelRead();
