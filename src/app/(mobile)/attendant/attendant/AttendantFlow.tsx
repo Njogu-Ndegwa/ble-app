@@ -382,10 +382,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [clearScanTimeout]);
 
   // Cancel/Close ongoing BLE operation - delegates to hook
-  const cancelBleOperation = useCallback(() => {
-    console.info('=== Cancelling BLE operation via hook ===');
+  // @param force - If true, forces cancellation even during active reading (used by timeout)
+  const cancelBleOperation = useCallback((force?: boolean) => {
+    console.info('=== Cancelling BLE operation via hook ===', force ? '(forced)' : '');
     clearScanTimeout();
-    hookCancelOperation();
+    hookCancelOperation(force);
     setIsScanning(false);
     scanTypeRef.current = null;
   }, [clearScanTimeout, hookCancelOperation]);

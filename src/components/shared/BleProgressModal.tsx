@@ -11,8 +11,12 @@ export interface BleProgressModalProps {
   bleScanState: FlowBleScanState;
   /** ID of the battery being connected (for display) */
   pendingBatteryId: string | null;
-  /** Callback when user clicks cancel/close */
-  onCancel: () => void;
+  /** 
+   * Callback when user clicks cancel/close or when timeout expires.
+   * @param force - If true, this is a forced cancellation (timeout or stuck state).
+   *                Default is false (user-initiated cancel).
+   */
+  onCancel: (force?: boolean) => void;
 }
 
 /**
@@ -93,9 +97,11 @@ export function BleProgressModal({
         setCountdown(remaining);
         
         // When countdown reaches 0, automatically cancel and close the modal
+        // Pass force=true to ensure cancellation happens even if reading is in progress
+        // This prevents the modal from hanging when DTA reading gets stuck
         if (remaining <= 0 && !hasTimedOut) {
           setHasTimedOut(true);
-          onCancel(); // This triggers cleanup: stops scanning, cancels connection, resets state
+          onCancel(true); // Force cancel - triggers cleanup even during stuck reads
         }
       }, 1000);
       

@@ -160,6 +160,10 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const isProcessingRef = useRef(false);
   // Track when we're in device matching phase (after QR scan, before actual connection)
   const isDeviceMatchingRef = useRef(false);
+  // CRITICAL: Force closed flag - when true, sync effect will not override with active states
+  // This prevents the modal from staying open when cancelOperation is called
+  // The flag is set when cancelOperation runs and cleared when a new QR scan starts
+  const forceClosedRef = useRef(false);
 
   // Callback refs (updated on every render to avoid stale closures)
   const onOldBatteryReadRef = useRef(onOldBatteryRead);
@@ -193,6 +197,14 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
 
   useEffect(() => {
     setState(prev => {
+      // CRITICAL: If force closed, don't override with active states
+      // This ensures the modal closes when cancelOperation is called
+      // even if the underlying hooks haven't fully reset yet
+      if (forceClosedRef.current) {
+        log('Sync effect: force closed flag is set, using INITIAL_STATE');
+        return INITIAL_STATE;
+      }
+      
       // Preserve isConnecting=true when in device matching phase (after QR scan, before actual connection)
       // This ensures the progress modal stays visible during device discovery
       const shouldBeConnecting = connectionState.isConnecting || isDeviceMatchingRef.current;
@@ -238,6 +250,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     connectionState,
     serviceState,
     readingPhase,
+    log,
   ]);
 
   // ============================================
@@ -427,6 +440,46 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     }
   }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, clearMatchTimers, connectionForceBleReset, log]);
 
+  // Handle service reader failure/timeout
+  // CRITICAL: When DTA/ATT read times out or fails, we MUST reset state to allow modal to close
+  // Without this, the modal hangs indefinitely at 75% because:
+  // - readingPhase stays 'dta' (not reset to 'idle')
+  // - isProcessingRef stays true (blocking cancel)
+  // - isReadingEnergy stays true (keeping modal visible)
+  useEffect(() => {
+    if (serviceState.error && (readingPhase === 'att' || readingPhase === 'dta')) {
+      log('Service read failed/timed out during', readingPhase, '- Error:', serviceState.error);
+      
+      // CRITICAL: Set force closed flag to prevent sync effect from keeping modal open
+      forceClosedRef.current = true;
+      
+      // Disconnect from device if still connected
+      if (connectedDevice) {
+        log('Disconnecting from device after service read failure');
+        connectionDisconnect(connectedDevice);
+      }
+      
+      // Notify error callback
+      const requiresReset = serviceState.error.toLowerCase().includes('toggle bluetooth') ||
+                           serviceState.error.toLowerCase().includes('bluetooth off') ||
+                           serviceState.error.toLowerCase().includes('connection stuck');
+      onErrorRef.current?.(serviceState.error, requiresReset);
+      
+      // Clear pending state to allow modal to close and user to retry
+      setPendingBatteryId(null);
+      setPendingScanType(null);
+      setReadingPhase('idle');
+      setDtaData(null);
+      isProcessingRef.current = false;
+      isDeviceMatchingRef.current = false;
+      
+      // Set to INITIAL_STATE to ensure modal closes
+      setState(INITIAL_STATE);
+      
+      log('State reset after service read failure - modal should close (forceClosedRef set)');
+    }
+  }, [serviceState.error, readingPhase, connectedDevice, connectionDisconnect, log]);
+
   // ============================================
   // PUBLIC API
   // ============================================
@@ -466,6 +519,10 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     }
     
     log('Battery ID:', batteryId);
+    
+    // CRITICAL: Clear force closed flag when starting a new scan
+    // This allows the sync effect to properly manage state again
+    forceClosedRef.current = false;
     
     // Store pending info
     setPendingBatteryId(batteryId);
@@ -561,21 +618,38 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
 
   /**
    * Cancel ongoing operation
+   * 
+   * @param force - If true, forces cancellation even during active reading.
+   *                This is used by timeout handlers when the operation has hung.
+   *                Default: false (will warn user if reading is in progress)
    */
-  const cancelOperation = useCallback(() => {
-    // Don't cancel if we're actively reading data
-    if (isProcessingRef.current && isConnected) {
-      log('Cannot cancel - reading battery data');
-      toast('Please wait while reading battery data...', { icon: '⏳' });
-      return false;
+  const cancelOperation = useCallback((force: boolean = false) => {
+    // Warn user if actively reading data, unless force is true
+    // This allows the user to understand why cancellation might interrupt data reading,
+    // but doesn't block them from cancelling if the operation is hung.
+    if (isProcessingRef.current && isConnected && !force) {
+      log('Cancel requested during active reading - proceeding with force cancel');
+      // Still allow cancellation, but log it
+      // Previously this blocked cancellation entirely, causing modal hang issues
+      // when DTA reading got stuck at 75%
     }
     
-    log('Cancelling operation');
+    log('Cancelling operation', force ? '(forced)' : '');
+    
+    // CRITICAL: Set force closed flag FIRST to prevent sync effect from overriding
+    // This ensures the modal closes immediately even if underlying hooks are slow to reset
+    forceClosedRef.current = true;
     
     clearMatchTimers();
     scannerStopScan();
-    cancelConnection();
+    cancelConnection(force);
     serviceReaderCancelRead();
+    
+    // Disconnect from device if connected
+    if (connectedDevice) {
+      log('Disconnecting from device during cancel');
+      connectionDisconnect(connectedDevice);
+    }
     
     // Exit device matching phase
     isDeviceMatchingRef.current = false;
@@ -587,14 +661,18 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
+    log('Cancel complete - forceClosedRef set, state reset to INITIAL_STATE');
     return true;
-  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, isConnected, log]);
+  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, connectedDevice, connectionDisconnect, isConnected, log]);
 
   /**
    * Reset all state (for retry)
    */
   const resetState = useCallback(() => {
     log('Resetting state');
+    
+    // Set force closed flag to ensure sync effect doesn't override
+    forceClosedRef.current = true;
     
     clearMatchTimers();
     scannerClearDevices();
@@ -619,6 +697,8 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const retryConnection = useCallback(() => {
     log('Retrying connection');
     resetState();
+    // Clear force closed flag to allow sync effect to manage state
+    forceClosedRef.current = false;
     scannerStartScan();
   }, [resetState, scannerStartScan, log]);
 
@@ -628,6 +708,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
    */
   const forceBleReset = useCallback(() => {
     log('Force resetting BLE state');
+    
+    // Set force closed flag to ensure sync effect doesn't override
+    forceClosedRef.current = true;
     
     clearMatchTimers();
     scannerStopScan();
