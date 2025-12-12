@@ -205,15 +205,18 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
 
   /**
    * Cancel ongoing connection attempt
+   * 
+   * @param force - If true, forces cancellation even if already connected.
+   *                This is used when the operation needs to be forcefully terminated.
    */
-  const cancelConnection = useCallback(() => {
-    if (isConnectedRef.current) {
-      log('Cannot cancel - already connected');
+  const cancelConnection = useCallback((force?: boolean) => {
+    if (isConnectedRef.current && !force) {
+      log('Cannot cancel - already connected (use force=true to override)');
       toast('Please wait while operation completes...', { icon: '⏳' });
       return false;
     }
 
-    log('Cancelling connection, invalidating session:', connectionSessionRef.current);
+    log('Cancelling connection', force ? '(forced)' : '', ', invalidating session:', connectionSessionRef.current);
     clearAllTimeouts();
     
     if (window.WebViewJavascriptBridge && pendingMacRef.current) {

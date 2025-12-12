@@ -488,8 +488,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [hookStopScanning]);
 
   // Cancel BLE operation - delegates to hook
-  const cancelBleOperation = useCallback(() => {
-    hookCancelOperation();
+  // @param force - If true, forces cancellation even during active reading (used by timeout)
+  const cancelBleOperation = useCallback((force?: boolean) => {
+    hookCancelOperation(force);
     setIsScannerOpening(false);
     scanTypeRef.current = null;
   }, [hookCancelOperation]);
