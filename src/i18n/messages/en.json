@@ -1224,6 +1224,7 @@
   "ble.searchDevices": "Search by name or ID (e.g., 0006)...",
   "ble.noDevicesFound": "No devices found nearby",
   "ble.noDevicesHint": "Make sure the battery is powered on and Bluetooth is enabled",
+  "ble.tapRefreshToRestart": "Tap the ↻ icon above to restart scanning",
   "ble.noMatchingDevices": "No devices match your search",
   "ble.rescan": "Rescan",
   "ble.stopScanning": "Stop scanning",
