@@ -536,24 +536,39 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   // ============================================
 
   /**
-   * Start BLE scanning (call when entering battery scan steps)
+   * Start BLE scanning (call when entering battery scan steps or rescanning)
+   * 
+   * ALWAYS clears detected devices before starting to ensure a fresh scan.
+   * This prevents stale device data from causing issues.
    */
   const startScanning = useCallback(() => {
-    log('Starting BLE scanning');
+    log('Starting BLE scanning - clearing devices first for fresh scan');
+    
     // CRITICAL: Clear force closed flag when starting a new scan
     // This allows the sync effect to properly manage state again
     // Without this, after a force close, subsequent scans won't update state properly
     forceClosedRef.current = false;
+    
+    // Clear detected devices BEFORE starting scan to ensure fresh results
+    // This prevents stale device data from causing "macAddress is not match" errors
+    scannerClearDevices();
+    
+    // Start fresh scan
     scannerStartScan();
-  }, [scannerStartScan, log]);
+  }, [scannerStartScan, scannerClearDevices, log]);
 
   /**
    * Stop BLE scanning
+   * 
+   * Stops scanning and clears detected devices to prevent stale data.
+   * User can tap rescan to start fresh.
    */
   const stopScanning = useCallback(() => {
-    log('Stopping BLE scanning');
+    log('Stopping BLE scanning - clearing devices');
     scannerStopScan();
-  }, [scannerStopScan, log]);
+    // Clear devices when stopping to prevent stale data on next operation
+    scannerClearDevices();
+  }, [scannerStopScan, scannerClearDevices, log]);
 
   /**
    * Handle QR code scanned - starts the scan-to-bind process
