@@ -427,6 +427,49 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     }
   }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, clearMatchTimers, connectionForceBleReset, log]);
 
+  // Handle service reader failure/timeout
+  // CRITICAL: When DTA/ATT read times out or fails, we MUST reset state to allow modal to close
+  // Without this, the modal hangs indefinitely at 75% because:
+  // - readingPhase stays 'dta' (not reset to 'idle')
+  // - isProcessingRef stays true (blocking cancel)
+  // - isReadingEnergy stays true (keeping modal visible)
+  useEffect(() => {
+    if (serviceState.error && (readingPhase === 'att' || readingPhase === 'dta')) {
+      log('Service read failed/timed out during', readingPhase, '- Error:', serviceState.error);
+      
+      // Disconnect from device if still connected
+      if (connectedDevice) {
+        log('Disconnecting from device after service read failure');
+        connectionDisconnect(connectedDevice);
+      }
+      
+      // Notify error callback
+      const requiresReset = serviceState.error.toLowerCase().includes('toggle bluetooth') ||
+                           serviceState.error.toLowerCase().includes('bluetooth off') ||
+                           serviceState.error.toLowerCase().includes('connection stuck');
+      onErrorRef.current?.(serviceState.error, requiresReset);
+      
+      // Clear pending state to allow modal to close and user to retry
+      setPendingBatteryId(null);
+      setPendingScanType(null);
+      setReadingPhase('idle');
+      setDtaData(null);
+      isProcessingRef.current = false;
+      
+      // Update state to reflect failure
+      setState(prev => ({
+        ...prev,
+        isReadingEnergy: false,
+        isReadingService: false,
+        error: serviceState.error,
+        connectionFailed: true,
+        requiresBluetoothReset: requiresReset,
+      }));
+      
+      log('State reset after service read failure - modal should close');
+    }
+  }, [serviceState.error, readingPhase, connectedDevice, connectionDisconnect, log]);
+
   // ============================================
   // PUBLIC API
   // ============================================
@@ -561,21 +604,34 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
 
   /**
    * Cancel ongoing operation
+   * 
+   * @param force - If true, forces cancellation even during active reading.
+   *                This is used by timeout handlers when the operation has hung.
+   *                Default: false (will warn user if reading is in progress)
    */
-  const cancelOperation = useCallback(() => {
-    // Don't cancel if we're actively reading data
-    if (isProcessingRef.current && isConnected) {
-      log('Cannot cancel - reading battery data');
-      toast('Please wait while reading battery data...', { icon: '⏳' });
-      return false;
+  const cancelOperation = useCallback((force: boolean = false) => {
+    // Warn user if actively reading data, unless force is true
+    // This allows the user to understand why cancellation might interrupt data reading,
+    // but doesn't block them from cancelling if the operation is hung.
+    if (isProcessingRef.current && isConnected && !force) {
+      log('Cancel requested during active reading - proceeding with force cancel');
+      // Still allow cancellation, but log it
+      // Previously this blocked cancellation entirely, causing modal hang issues
+      // when DTA reading got stuck at 75%
     }
     
-    log('Cancelling operation');
+    log('Cancelling operation', force ? '(forced)' : '');
     
     clearMatchTimers();
     scannerStopScan();
-    cancelConnection();
+    cancelConnection(force);
     serviceReaderCancelRead();
+    
+    // Disconnect from device if connected
+    if (connectedDevice) {
+      log('Disconnecting from device during cancel');
+      connectionDisconnect(connectedDevice);
+    }
     
     // Exit device matching phase
     isDeviceMatchingRef.current = false;
@@ -588,7 +644,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     setState(INITIAL_STATE);
     return true;
-  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, isConnected, log]);
+  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, connectedDevice, connectionDisconnect, isConnected, log]);
 
   /**
    * Reset all state (for retry)
