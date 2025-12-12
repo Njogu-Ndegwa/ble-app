@@ -305,10 +305,56 @@ This file appears to be **unused/legacy code** based on:
 
 ---
 
-## 🎯 Recommended Refactoring Order
+## ✅ Completed Refactoring
 
-### Phase 1: Highest Impact (Reduces SalesFlow by ~500 lines)
-1. **`useServiceCompletion`** - Extract MQTT service completion logic
+### Phase 1: Highest Impact
+
+#### 1. `useServiceCompletion` Hook - ✅ COMPLETED
+**Status:** Extracted to `/src/lib/hooks/useServiceCompletion.ts`
+
+| Metric | Before | After |
+|--------|--------|-------|
+| SalesFlow.tsx | 2,129 lines | 1,857 lines |
+| Reduction | - | **272 lines (13%)** |
+| New Hook | - | 532 lines |
+
+**Features of the new hook:**
+- MQTT request/response pattern encapsulation
+- Correlation ID tracking for request matching
+- Signal-based success/error detection
+- Timeout management (30s default)
+- User-friendly error messages for common failure types
+- Reusable for both Sales (battery assignment) and Attendant (battery swap) flows
+
+**Usage:**
+```typescript
+import { useServiceCompletion } from '@/lib/hooks/useServiceCompletion';
+
+const {
+  completeService,
+  isCompleting,
+  error,
+  clearError,
+  isComplete,
+  reset,
+} = useServiceCompletion({
+  stationId: 'STATION_001',
+  actorType: 'attendant',
+  debug: true,
+});
+
+// Complete service
+const result = await completeService({
+  subscriptionId: 'SUB-123',
+  battery: { id: 'BAT-001', energy: 2500, actualBatteryId: 'B0723025100049' },
+});
+```
+
+---
+
+## 🎯 Remaining Refactoring (Recommended Order)
+
+### Phase 1 (continued): Highest Impact
 2. **`useProductCatalog`** - Extract product/package/plan fetching
 
 ### Phase 2: Payment & Business Logic (Reduces SalesFlow by ~360 lines)
