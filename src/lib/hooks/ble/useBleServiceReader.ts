@@ -3,15 +3,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { initServiceBleData } from '@/app/utils';
-import type { BleServiceState, DtaServiceData } from './types';
+import type { BleServiceState } from './types';
+import { parseBleResponse, forceDisconnectAll, getDebugMessage } from './bleErrors';
 
 // ============================================
 // CONSTANTS
 // ============================================
 
 const SERVICE_READ_TIMEOUT = 20000; // 20 seconds
-const MAX_REFRESH_RETRIES = 2;
-const REFRESH_DELAY = 1500;
 
 const INITIAL_SERVICE_STATE: BleServiceState = {
   isReading: false,
@@ -41,6 +40,9 @@ export interface UseBleServiceReaderOptions {
  * 
  * Handles requesting and receiving BLE service data (like DTA for batteries).
  * Can be used after a device is connected to read specific services.
+ * 
+ * Uses centralized error handling from bleErrors.ts to systematically
+ * handle all error responses from the native BLE layer.
  * 
  * @example
  * const {
@@ -74,7 +76,6 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   // ============================================
 
   const readTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const refreshRetryRef = useRef(0);
   const pendingServiceRef = useRef<string | null>(null);
   const pendingMacRef = useRef<string | null>(null);
 
@@ -99,6 +100,61 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   }, []);
 
   // ============================================
+  // ERROR HANDLING
+  // ============================================
+
+  /**
+   * Handle BLE error response using centralized error handling
+   * This is called from multiple places (sync callback, async handlers)
+   */
+  const handleBleError = useCallback((responseData: unknown, source: string) => {
+    const result = parseBleResponse(responseData);
+    
+    if (result.success) {
+      return false; // Not an error
+    }
+    
+    const error = result.error!;
+    log(`BLE error from ${source}:`, getDebugMessage(error));
+    
+    // Clear timeout and pending state
+    clearReadTimeout();
+    toast.dismiss('service-refresh');
+    
+    // Force disconnect if needed
+    if (error.requiresBluetoothReset) {
+      forceDisconnectAll(log);
+    }
+    
+    // Also disconnect from current pending MAC
+    if (pendingMacRef.current && window.WebViewJavascriptBridge) {
+      log('Disconnecting from pending MAC:', pendingMacRef.current);
+      window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
+    }
+    
+    // Update state
+    setServiceState(prev => ({
+      ...prev,
+      isReading: false,
+      error: error.message,
+    }));
+    
+    pendingServiceRef.current = null;
+    pendingMacRef.current = null;
+    
+    // Show toast and notify callback
+    if (error.requiresBluetoothReset) {
+      toast.error('Please turn Bluetooth OFF then ON and try again.');
+    } else {
+      toast.error(error.message);
+    }
+    
+    onErrorRef.current?.(error.message);
+    
+    return true; // Error was handled
+  }, [clearReadTimeout, log]);
+
+  // ============================================
   // CORE OPERATIONS
   // ============================================
 
@@ -114,7 +170,6 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
     log('Reading service:', serviceName, 'from:', macAddress);
     
     clearReadTimeout();
-    refreshRetryRef.current = 0;
     pendingServiceRef.current = serviceName;
     pendingMacRef.current = macAddress;
     
@@ -134,18 +189,31 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
         error: 'Service read timed out',
       }));
       
+      pendingServiceRef.current = null;
+      pendingMacRef.current = null;
+      
       toast.error('Could not read device data. Please try again.');
       onErrorRef.current?.('Service read timeout');
     }, SERVICE_READ_TIMEOUT);
 
     // Request service data
+    // IMPORTANT: Handle synchronous error responses from native layer
+    // The native layer may return errors directly in this callback,
+    // rather than through the async bridge handlers
     initServiceBleData(
       { serviceName, macAddress },
-      () => log('Service request sent')
+      (responseData: string) => {
+        log('Service request response:', responseData);
+        
+        // Use centralized error handling for synchronous responses
+        if (responseData) {
+          handleBleError(responseData, 'sync-callback');
+        }
+      }
     );
 
     return true;
-  }, [clearReadTimeout, log]);
+  }, [clearReadTimeout, handleBleError, log]);
 
   /**
    * Shortcut to read DTA service (common for batteries - energy data)
@@ -167,7 +235,6 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   const cancelRead = useCallback(() => {
     log('Cancelling service read');
     clearReadTimeout();
-    refreshRetryRef.current = 0;
     pendingServiceRef.current = null;
     pendingMacRef.current = null;
     toast.dismiss('service-refresh');
@@ -179,7 +246,6 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
    */
   const resetState = useCallback(() => {
     clearReadTimeout();
-    refreshRetryRef.current = 0;
     pendingServiceRef.current = null;
     pendingMacRef.current = null;
     toast.dismiss('service-refresh');
@@ -233,73 +299,47 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnCompleteCallBack',
         (data: string, resp: (r: unknown) => void) => {
-          try {
-            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+          // Use centralized error handling
+          const result = parseBleResponse(data);
+          
+          if (!result.success) {
+            // Handle error using centralized handler
+            const error = result.error!;
+            log('Service returned error (complete callback):', getDebugMessage(error));
             
-            // Check for error response
-            const respCode = parsedData?.respCode || parsedData?.responseData?.respCode;
-            const respDesc = parsedData?.respDesc || parsedData?.responseData?.respDesc || '';
+            clearReadTimeout();
+            toast.dismiss('service-refresh');
             
-            if (respCode && respCode !== '200' && respCode !== 200) {
-              log('Service returned error:', { respCode, respDesc });
-              
-              const isDisconnected = typeof respDesc === 'string' && (
-                respDesc.toLowerCase().includes('bluetooth device not connected') ||
-                respDesc.toLowerCase().includes('device not connected') ||
-                respDesc.toLowerCase().includes('not connected')
-              );
-              
-              // Check for MAC address mismatch error (respCode 7)
-              const isMacMismatch = respCode === '7' || respCode === 7 || (
-                typeof respDesc === 'string' && (
-                  respDesc.toLowerCase().includes('macaddress is not match') ||
-                  respDesc.toLowerCase().includes('mac address is not match') ||
-                  respDesc.toLowerCase().includes('macaddress not match')
-                )
-              );
-              
-              if (isDisconnected || isMacMismatch) {
-                clearReadTimeout();
-                toast.dismiss('service-refresh');
-                
-                // Force disconnect from ALL known MACs to clear native layer state
-                const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-                const pendingMac = sessionStorage.getItem('pendingBleMac');
-                
-                if (window.WebViewJavascriptBridge) {
-                  if (connectedMac) {
-                    log('Force disconnecting from connectedMac:', connectedMac);
-                    window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
-                  }
-                  if (pendingMac && pendingMac !== connectedMac) {
-                    log('Force disconnecting from pendingMac:', pendingMac);
-                    window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMac, () => {});
-                  }
-                }
-                
-                // Clear sessionStorage
-                sessionStorage.removeItem('connectedDeviceMac');
-                sessionStorage.removeItem('pendingBleMac');
-                
-                const errorMessage = isMacMismatch 
-                  ? 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.'
-                  : 'Bluetooth connection lost';
-                
-                setServiceState(prev => ({
-                  ...prev,
-                  isReading: false,
-                  error: errorMessage,
-                }));
-                
-                toast.error('Please turn Bluetooth OFF then ON and try again.');
-                onErrorRef.current?.(errorMessage);
-                resp({ success: false, error: respDesc });
-                return;
-              }
+            if (error.requiresBluetoothReset) {
+              forceDisconnectAll(log);
             }
             
+            setServiceState(prev => ({
+              ...prev,
+              isReading: false,
+              error: error.message,
+            }));
+            
+            pendingServiceRef.current = null;
+            pendingMacRef.current = null;
+            
+            if (error.requiresBluetoothReset) {
+              toast.error('Please turn Bluetooth OFF then ON and try again.');
+            } else {
+              toast.error(error.message);
+            }
+            
+            onErrorRef.current?.(error.message);
+            resp({ success: false, error: error.respDesc });
+            return;
+          }
+          
+          // Success case
+          try {
+            const parsedData = result.data as Record<string, unknown>;
+            
             // Get service name from response
-            const serviceName = parsedData?.serviceNameEnum || pendingServiceRef.current || 'unknown';
+            const serviceName = (parsedData?.serviceNameEnum as string) || pendingServiceRef.current || 'unknown';
             
             log('Service data received:', serviceName);
             clearReadTimeout();
@@ -317,21 +357,23 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
             onServiceDataRef.current?.(serviceName, parsedData);
             
             // Reset pending refs
-            refreshRetryRef.current = 0;
             pendingServiceRef.current = null;
             pendingMacRef.current = null;
             
             resp(parsedData);
           } catch (err) {
-            log('Error parsing service data:', err);
+            log('Error processing service data:', err);
             clearReadTimeout();
             toast.dismiss('service-refresh');
             
             setServiceState(prev => ({
               ...prev,
               isReading: false,
-              error: 'Failed to parse service data',
+              error: 'Failed to process service data',
             }));
+            
+            pendingServiceRef.current = null;
+            pendingMacRef.current = null;
             
             toast.error('Failed to read device data.');
             onErrorRef.current?.('Parse error');
@@ -344,70 +386,26 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataFailureCallBack',
         (data: string, resp: (r: unknown) => void) => {
-          log('Service read failed:', data);
+          log('Service read failed (failure callback):', data);
+          
+          // Use centralized error handling
+          const result = parseBleResponse(data);
+          const error = result.error;
           
           clearReadTimeout();
           toast.dismiss('service-refresh');
           
-          let errorMessage = 'Failed to read service data';
-          let requiresReset = false;
+          // Always force disconnect on failure callback
+          forceDisconnectAll(log);
           
-          const checkForDisconnect = (str: string) => {
-            return str.toLowerCase().includes('bluetooth device not connected') ||
-                   str.toLowerCase().includes('device not connected') ||
-                   str.toLowerCase().includes('not connected');
-          };
-          
-          const checkForMacMismatch = (str: string) => {
-            return str.toLowerCase().includes('macaddress is not match') ||
-                   str.toLowerCase().includes('mac address is not match') ||
-                   str.toLowerCase().includes('macaddress not match');
-          };
-          
-          try {
-            const parsed = JSON.parse(data);
-            const respDesc = parsed?.responseData?.respDesc || parsed?.respDesc || '';
-            const respCode = parsed?.responseData?.respCode || parsed?.respCode || '';
-            
-            if (checkForDisconnect(String(respDesc))) {
-              errorMessage = 'Bluetooth connection lost';
-              requiresReset = true;
-            } else if (checkForMacMismatch(String(respDesc)) || respCode === '7') {
-              errorMessage = 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
-              requiresReset = true;
-            }
-          } catch {
-            if (checkForDisconnect(data)) {
-              errorMessage = 'Bluetooth connection lost';
-              requiresReset = true;
-            } else if (checkForMacMismatch(data)) {
-              errorMessage = 'Bluetooth connection stuck. Please turn Bluetooth OFF then ON.';
-              requiresReset = true;
-            }
+          // Also disconnect from pending MAC
+          if (pendingMacRef.current && window.WebViewJavascriptBridge) {
+            log('Disconnecting from pending MAC:', pendingMacRef.current);
+            window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
           }
           
-          // Force disconnect from ALL known MACs to clear native layer state
-          const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-          const pendingStoredMac = sessionStorage.getItem('pendingBleMac');
-          
-          if (window.WebViewJavascriptBridge) {
-            if (connectedMac) {
-              log('Force disconnecting from connectedMac:', connectedMac);
-              window.WebViewJavascriptBridge.callHandler('disconnectBle', connectedMac, () => {});
-            }
-            if (pendingStoredMac && pendingStoredMac !== connectedMac) {
-              log('Force disconnecting from pendingMac:', pendingStoredMac);
-              window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingStoredMac, () => {});
-            }
-            if (pendingMacRef.current && pendingMacRef.current !== connectedMac && pendingMacRef.current !== pendingStoredMac) {
-              log('Force disconnecting from pendingMacRef:', pendingMacRef.current);
-              window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
-            }
-          }
-          
-          // Clear sessionStorage
-          sessionStorage.removeItem('connectedDeviceMac');
-          sessionStorage.removeItem('pendingBleMac');
+          const errorMessage = error?.message || 'Failed to read service data';
+          const requiresReset = error?.requiresBluetoothReset ?? true; // Default to true for failure callback
           
           setServiceState(prev => ({
             ...prev,
@@ -415,7 +413,6 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
             error: errorMessage,
           }));
           
-          refreshRetryRef.current = 0;
           pendingServiceRef.current = null;
           pendingMacRef.current = null;
           

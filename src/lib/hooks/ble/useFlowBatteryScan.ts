@@ -30,6 +30,7 @@ import {
   createBatteryData, 
   parseBatteryIdFromQr,
 } from './energyUtils';
+import { requiresBluetoothReset } from './bleErrors';
 import type { BatteryData, BleDevice, BleReadingPhase } from './types';
 
 // ============================================
@@ -451,7 +452,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
           setDtaData(null);
           isProcessingRef.current = false;
         } else {
-          log('Failed to extract energy data from DTA');
+          log('Failed to extract energy data from DTA - using consolidated cleanup');
           
           // Disconnect on failure
           if (connectedDevice) {
@@ -459,20 +460,15 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
           }
           
           toast.error('Could not read battery data. Please try again.');
+          
+          // Notify error callback before cleanup
           onErrorRef.current?.('Failed to extract energy data from DTA');
           
-          // Clear pending state
-          setPendingBatteryId(null);
-          setPendingScanType(null);
-          setReadingPhase('idle');
-          setDtaData(null);
-          isProcessingRef.current = false;
+          // Use consolidated cleanup - this ensures modal closes properly
+          // by setting forceClosedRef and resetting all state
+          cleanupAllBleState(true);
           
-          setState(prev => ({
-            ...prev,
-            error: 'Failed to read battery data',
-            connectionFailed: true,
-          }));
+          log('DTA extraction failure handled via cleanupAllBleState');
         }
       }
     }
@@ -485,6 +481,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     dtaData,
     readDtaService,
     connectionDisconnect,
+    cleanupAllBleState,
     log,
   ]);
 
@@ -494,15 +491,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     if (connectionState.connectionFailed && pendingBatteryId) {
       log('Connection failed - using consolidated cleanup');
       
-      const requiresReset = connectionState.requiresBluetoothReset;
-      
-      // Check if error indicates MAC address mismatch
-      const isMacMismatch = connectionState.error?.toLowerCase().includes('macaddress') ||
-                           connectionState.error?.toLowerCase().includes('mac address') ||
-                           connectionState.error?.toLowerCase().includes('connection stuck');
+      // Use centralized error detection - checks both flag and error message
+      const needsReset = connectionState.requiresBluetoothReset || 
+                        (connectionState.error ? requiresBluetoothReset(connectionState.error) : false);
       
       // Notify error callback before cleanup
-      onErrorRef.current?.('Connection failed', requiresReset || isMacMismatch);
+      onErrorRef.current?.('Connection failed', needsReset);
       
       // Use consolidated cleanup - this handles everything including MAC mismatch scenarios
       cleanupAllBleState(true);
@@ -519,10 +513,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       log('Service read failed/timed out during', readingPhase, '- Error:', serviceState.error);
       
       // Notify error callback before cleanup
-      const requiresReset = serviceState.error.toLowerCase().includes('toggle bluetooth') ||
-                           serviceState.error.toLowerCase().includes('bluetooth off') ||
-                           serviceState.error.toLowerCase().includes('connection stuck');
-      onErrorRef.current?.(serviceState.error, requiresReset);
+      // Use centralized error detection from bleErrors.ts
+      const needsReset = requiresBluetoothReset(serviceState.error);
+      onErrorRef.current?.(serviceState.error, needsReset);
       
       // Use consolidated cleanup - this handles everything
       cleanupAllBleState(true);
