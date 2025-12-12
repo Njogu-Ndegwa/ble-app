@@ -30,6 +30,7 @@ import {
   createBatteryData, 
   parseBatteryIdFromQr,
 } from './energyUtils';
+import { requiresBluetoothReset } from './bleErrors';
 import type { BatteryData, BleDevice, BleReadingPhase } from './types';
 
 // ============================================
@@ -490,15 +491,12 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     if (connectionState.connectionFailed && pendingBatteryId) {
       log('Connection failed - using consolidated cleanup');
       
-      const requiresReset = connectionState.requiresBluetoothReset;
-      
-      // Check if error indicates MAC address mismatch
-      const isMacMismatch = connectionState.error?.toLowerCase().includes('macaddress') ||
-                           connectionState.error?.toLowerCase().includes('mac address') ||
-                           connectionState.error?.toLowerCase().includes('connection stuck');
+      // Use centralized error detection - checks both flag and error message
+      const needsReset = connectionState.requiresBluetoothReset || 
+                        (connectionState.error ? requiresBluetoothReset(connectionState.error) : false);
       
       // Notify error callback before cleanup
-      onErrorRef.current?.('Connection failed', requiresReset || isMacMismatch);
+      onErrorRef.current?.('Connection failed', needsReset);
       
       // Use consolidated cleanup - this handles everything including MAC mismatch scenarios
       cleanupAllBleState(true);
@@ -515,13 +513,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       log('Service read failed/timed out during', readingPhase, '- Error:', serviceState.error);
       
       // Notify error callback before cleanup
-      // Check for errors that require Bluetooth reset (toggle off/on)
-      const requiresReset = serviceState.error.toLowerCase().includes('toggle bluetooth') ||
-                           serviceState.error.toLowerCase().includes('bluetooth off') ||
-                           serviceState.error.toLowerCase().includes('connection stuck') ||
-                           serviceState.error.toLowerCase().includes('device not connected') ||
-                           serviceState.error.toLowerCase().includes('not connected');
-      onErrorRef.current?.(serviceState.error, requiresReset);
+      // Use centralized error detection from bleErrors.ts
+      const needsReset = requiresBluetoothReset(serviceState.error);
+      onErrorRef.current?.(serviceState.error, needsReset);
       
       // Use consolidated cleanup - this handles everything
       cleanupAllBleState(true);
