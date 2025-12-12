@@ -36,6 +36,16 @@ export {
   type UsePaymentCollectionReturn,
 } from './usePaymentCollection';
 
+// Service completion (MQTT-based battery assignment/swap)
+export {
+  useServiceCompletion,
+  type ServiceBatteryData,
+  type UseServiceCompletionConfig,
+  type CompleteServiceInput,
+  type ServiceCompletionResult,
+  type UseServiceCompletionReturn,
+} from './useServiceCompletion';
+
 // ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================
