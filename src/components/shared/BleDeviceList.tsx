@@ -318,6 +318,12 @@ export default function BleDeviceList({
             <span className="ble-device-empty-hint">
               {t('ble.noDevicesHint') || 'Make sure the battery is powered on and Bluetooth is enabled'}
             </span>
+            {/* Hint to restart BLE scanning - shown when scanner was stopped (e.g., after timeout/cancel) */}
+            {onRescan && (
+              <span className="ble-device-restart-hint">
+                {t('ble.tapRefreshToRestart') || 'Tap the ↻ icon above to restart scanning'}
+              </span>
+            )}
           </div>
         )}
 
@@ -750,6 +756,17 @@ export default function BleDeviceList({
           display: block;
           margin-top: ${spacing[2]};
           font-size: ${fontSize.xs};
+        }
+
+        .ble-device-restart-hint {
+          display: block;
+          margin-top: ${spacing[3]};
+          padding: ${spacing[2]} ${spacing[3]};
+          font-size: ${fontSize.xs};
+          color: ${colors.brand.primary};
+          background: ${colors.brand.primary}15;
+          border-radius: ${radius.md};
+          font-weight: ${fontWeight.medium};
         }
 
         .ble-device-skeleton {
