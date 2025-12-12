@@ -1127,6 +1127,7 @@
   "ble.noDevicesFound": "附近未找到设备",
   "ble.noDevicesHint": "请确保电池已开启且蓝牙已启用",
   "ble.tapRefreshToRestart": "点击上方 ↻ 图标重新开始扫描",
+  "ble.toggleBluetoothHint": "仍然找不到设备？尝试关闭再打开蓝牙",
   "ble.noMatchingDevices": "没有匹配您搜索的设备",
   "ble.rescan": "重新扫描",
   "ble.stopScanning": "停止扫描",
