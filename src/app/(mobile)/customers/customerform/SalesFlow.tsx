@@ -489,7 +489,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Cancel BLE operation - delegates to hook
   const cancelBleOperation = useCallback(() => {
-    hookCancelOperation();
+    // IMPORTANT: BleProgressModal calls onCancel when its 60s countdown expires.
+    // That is a TIMEOUT cancel and must be forced, otherwise we can get stuck UI
+    // and "reconnect without user prompt" due to lingering BLE retries.
+    hookCancelOperation({ reason: 'timeout', force: true });
     setIsScannerOpening(false);
     scanTypeRef.current = null;
   }, [hookCancelOperation]);

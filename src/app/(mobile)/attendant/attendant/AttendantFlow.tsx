@@ -385,7 +385,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const cancelBleOperation = useCallback(() => {
     console.info('=== Cancelling BLE operation via hook ===');
     clearScanTimeout();
-    hookCancelOperation();
+    // IMPORTANT: BleProgressModal calls onCancel when its 60s countdown expires.
+    // That is a TIMEOUT cancel and must be forced, even if the hook is mid-read,
+    // otherwise we can end up with a stuck progress UI and unexpected reconnection attempts.
+    hookCancelOperation({ reason: 'timeout', force: true });
     setIsScanning(false);
     scanTypeRef.current = null;
   }, [clearScanTimeout, hookCancelOperation]);

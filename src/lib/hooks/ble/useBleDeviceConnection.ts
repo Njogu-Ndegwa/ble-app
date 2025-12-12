@@ -76,6 +76,9 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
 
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const globalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Tracks scheduled retries triggered by bleConnectFailCallBack
+  // so we can cancel them when the user cancels/closes the modal.
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const isConnectedRef = useRef(false);
   const pendingMacRef = useRef<string | null>(null);
@@ -107,10 +110,18 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     }
   }, []);
 
+  const clearRetryTimeout = useCallback(() => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearAllTimeouts = useCallback(() => {
     clearConnectionTimeout();
     clearGlobalTimeout();
-  }, [clearConnectionTimeout, clearGlobalTimeout]);
+    clearRetryTimeout();
+  }, [clearConnectionTimeout, clearGlobalTimeout, clearRetryTimeout]);
 
   // ============================================
   // CORE OPERATIONS
@@ -181,6 +192,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     if (!mac || !window.WebViewJavascriptBridge) return;
 
     log('Disconnecting from:', mac);
+    clearAllTimeouts();
     window.WebViewJavascriptBridge.callHandler('disconnectBle', mac, () => {});
     sessionStorage.removeItem('connectedDeviceMac');
     
@@ -354,7 +366,12 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
             }));
             
             // Exponential backoff
-            setTimeout(() => {
+            if (retryTimeoutRef.current) {
+              clearTimeout(retryTimeoutRef.current);
+              retryTimeoutRef.current = null;
+            }
+
+            retryTimeoutRef.current = setTimeout(() => {
               if (isConnectedRef.current) return;
               connBleByMacAddress(pendingMac, () => {});
             }, 1000 * retryCountRef.current);
