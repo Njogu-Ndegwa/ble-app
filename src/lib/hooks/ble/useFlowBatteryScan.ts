@@ -489,6 +489,10 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
    */
   const startScanning = useCallback(() => {
     log('Starting BLE scanning');
+    // CRITICAL: Clear force closed flag when starting a new scan
+    // This allows the sync effect to properly manage state again
+    // Without this, after a force close, subsequent scans won't update state properly
+    forceClosedRef.current = false;
     scannerStartScan();
   }, [scannerStartScan, log]);
 
@@ -671,8 +675,10 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const resetState = useCallback(() => {
     log('Resetting state');
     
-    // Set force closed flag to ensure sync effect doesn't override
-    forceClosedRef.current = true;
+    // CRITICAL: Clear force closed flag to allow sync effect to manage state properly
+    // Previously this was set to true, which prevented subsequent scans from working
+    // after a force close (the sync effect would keep returning INITIAL_STATE)
+    forceClosedRef.current = false;
     
     clearMatchTimers();
     scannerClearDevices();
