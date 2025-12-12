@@ -396,6 +396,10 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     // Clear any previous match timers
     clearMatchTimers();
     
+    // Clear previously detected devices to ensure we find the fresh device
+    // and don't match with stale data from a previous scan
+    scannerClearDevices();
+    
     // Enter device matching phase - this keeps isConnecting=true until we find a device
     isDeviceMatchingRef.current = true;
     
@@ -406,6 +410,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
       connectionProgress: 0, // Start at 0%
       error: null,
       connectionFailed: false,
+      scanStartTime: Date.now(), // Track start time for UI timer reset
     }));
     
     // Set up device matching
@@ -484,6 +489,7 @@ export function useBatteryScanAndBind(options: UseBatteryScanAndBindOptions = {}
     
     clearMatchTimers();
     scannerStopScan();
+    scannerClearDevices(); // Clear devices on cancel to ensure fresh state for next time
     cancelConnection();
     serviceReaderCancelRead();
     
