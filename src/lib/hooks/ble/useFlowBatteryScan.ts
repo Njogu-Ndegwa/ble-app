@@ -623,6 +623,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   /**
    * Cancel ongoing operation
    * 
+   * CRITICAL: This function ALWAYS clears detected devices and resets ALL BLE state.
+   * This prevents stale device data from causing issues like "macAddress is not match" errors.
+   * 
    * @param force - If true, forces cancellation even during active reading.
    *                This is used by timeout handlers when the operation has hung.
    *                Default: false (will warn user if reading is in progress)
@@ -638,7 +641,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
       // when DTA reading got stuck at 75%
     }
     
-    log('Cancelling operation', force ? '(forced)' : '');
+    log('Cancelling operation', force ? '(forced)' : '', '- ALWAYS clearing detected devices to prevent stale data issues');
     
     // CRITICAL: Set force closed flag FIRST to prevent sync effect from overriding
     // This ensures the modal closes immediately even if underlying hooks are slow to reset
@@ -648,13 +651,17 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     scannerStopScan();
     serviceReaderCancelRead();
     
+    // ALWAYS clear detected devices on ANY cancel (not just force=true)
+    // This prevents stale device data from causing "macAddress is not match" errors
+    // when the user retries after a timeout or error
+    scannerClearDevices();
+    
     // When force=true (user clicking cancel button or timeout), do a complete BLE reset
     // This clears ALL sessionStorage (connectedDeviceMac, pendingBleMac, bleConnectionSession)
     // and disconnects from any stuck connections in the native layer
     if (force) {
       log('Force cancel - performing complete BLE reset including sessionStorage');
       connectionForceBleReset();
-      scannerClearDevices();
     } else {
       // Normal cancel - just cancel the connection attempt
       cancelConnection(force);
@@ -676,7 +683,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
-    log('Cancel complete - forceClosedRef set, state reset to INITIAL_STATE');
+    log('Cancel complete - forceClosedRef set, state and detected devices reset to INITIAL_STATE');
     return true;
   }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, connectedDevice, connectionDisconnect, isConnected, connectionForceBleReset, scannerClearDevices, log]);
 
