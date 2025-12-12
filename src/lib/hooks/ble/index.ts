@@ -110,8 +110,9 @@ export {
   // Energy extraction
   extractEnergyFromDta,
   createBatteryData,
-  // ATT battery ID extraction
+  // ATT battery ID extraction & cleanup
   extractActualBatteryIdFromAtt,
+  cleanBatteryId,
   // QR parsing
   parseBatteryIdFromQr,
   parseMacAddressFromQr,
