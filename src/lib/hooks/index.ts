@@ -46,6 +46,19 @@ export {
   type UseServiceCompletionReturn,
 } from './useServiceCompletion';
 
+// Product catalog (products, packages, plans from Odoo)
+export {
+  useProductCatalog,
+  type ProductData,
+  type PackageData,
+  type PackageComponent,
+  type PlanData,
+  type CatalogLoadingState,
+  type CatalogErrorState,
+  type UseProductCatalogConfig,
+  type UseProductCatalogReturn,
+} from './useProductCatalog';
+
 // ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================
