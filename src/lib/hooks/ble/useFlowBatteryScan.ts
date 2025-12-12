@@ -538,14 +538,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   /**
    * Start BLE scanning (call when entering battery scan steps or rescanning)
    * 
-   * ALWAYS performs full cleanup before starting to ensure a completely fresh scan.
-   * This clears detected devices AND sessionStorage to prevent any stale data issues.
+   * Performs full cleanup (including clearing devices) before starting fresh scan.
+   * This ensures we get fresh device data without stale entries.
    */
   const startScanning = useCallback(() => {
     log('Starting BLE scanning - full cleanup first for fresh scan');
     
-    // Use consolidated cleanup with forceClosedFlag=false to allow scanning to work
-    // This clears: devices, sessionStorage, disconnects stuck connections
+    // Full cleanup including clearing devices for fresh scan
     cleanupAllBleState(false);
     
     // Start fresh scan
@@ -555,16 +554,23 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   /**
    * Stop BLE scanning
    * 
-   * Performs full cleanup including clearing sessionStorage.
-   * Ensures completely fresh state for next operation.
+   * Stops the native BLE scan but PRESERVES detected devices.
+   * This is important because:
+   * 1. The step useEffect calls stop-then-start, and we don't want to lose devices
+   * 2. User might resume scanning and want to use previously detected devices
+   * 
+   * For full cleanup (clearing devices), use cancelOperation instead.
    */
   const stopScanning = useCallback(() => {
-    log('Stopping BLE scanning - full cleanup');
+    log('Stopping BLE scanning (preserving detected devices)');
     
-    // Use consolidated cleanup - clears devices, sessionStorage, and all BLE state
-    // forceClosedFlag=true since we're stopping (modal should close if open)
-    cleanupAllBleState(true);
-  }, [cleanupAllBleState, log]);
+    // Just stop the native scan - don't clear devices or reset connection state
+    // This allows the detected devices to persist for potential matching
+    scannerStopScan();
+    
+    // Clear match timers if any (in case stop is called during matching)
+    clearMatchTimers();
+  }, [scannerStopScan, clearMatchTimers, log]);
 
   /**
    * Handle QR code scanned - starts the scan-to-bind process
@@ -686,17 +692,48 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   }, [cleanupAllBleState, log]);
 
   /**
-   * Reset all state (for retry)
+   * Reset connection/reading state for retry - PRESERVES detected devices
    * 
-   * Uses the consolidated cleanupAllBleState function with forceClosedFlag=false
-   * to allow the sync effect to manage state properly for subsequent scans.
+   * This is a lightweight reset that clears connection state but keeps
+   * the detected devices list intact. Use this when:
+   * - User selects a device to connect (devices needed for matching)
+   * - Retrying after a soft failure
+   * 
+   * For full cleanup (including clearing devices), use cleanupAllBleState.
    */
   const resetState = useCallback(() => {
-    log('Resetting state for retry');
+    log('Resetting state for retry (PRESERVING detected devices)');
     
-    // Use consolidated cleanup with forceClosedFlag=false to allow new scans to work
-    cleanupAllBleState(false);
-  }, [cleanupAllBleState, log]);
+    // Clear force closed flag to allow sync effect to manage state
+    forceClosedRef.current = false;
+    
+    // Clear match timers
+    clearMatchTimers();
+    
+    // Cancel any pending service reads
+    serviceReaderCancelRead();
+    
+    // Reset connection state (but NOT forceBleReset which clears sessionStorage)
+    connectionResetState();
+    
+    // Reset service reader state
+    serviceReaderResetState();
+    
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
+    
+    // Clear pending operation state
+    setPendingBatteryId(null);
+    setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
+    isProcessingRef.current = false;
+    
+    // Reset to initial state (but detected devices come from scanner hook, not this state)
+    setState(INITIAL_STATE);
+    
+    log('State reset complete - detected devices preserved');
+  }, [clearMatchTimers, serviceReaderCancelRead, connectionResetState, serviceReaderResetState, log]);
 
   /**
    * Retry after failure - resets and restarts scanning
