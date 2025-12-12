@@ -163,6 +163,19 @@ export function BleProgressModal({
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
       <div className="w-full max-w-md px-4">
         <div className="ble-progress-container">
+          {/* Close/Cancel Icon - Top Right */}
+          <button
+            type="button"
+            className="ble-progress-close-icon"
+            onClick={() => onCancel(true)}
+            aria-label={t('ble.cancelConnection') || 'Cancel'}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+
           {/* Header */}
           <div className="ble-progress-header">
             <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
@@ -295,15 +308,6 @@ export function BleProgressModal({
           <p className="ble-progress-help">
             {getHelpText()}
           </p>
-
-          {/* Cancel Button - Always visible as escape hatch for stuck connections */}
-          <button
-            type="button"
-            className="ble-progress-cancel-button"
-            onClick={() => onCancel(true)}
-          >
-            {t('ble.cancelConnection') || 'Cancel'}
-          </button>
         </div>
       </div>
     </div>
