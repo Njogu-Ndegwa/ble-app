@@ -324,6 +324,10 @@ export default function BleDeviceList({
                 {t('ble.tapRefreshToRestart') || 'Tap the ↻ icon above to restart scanning'}
               </span>
             )}
+            {/* Additional hint about toggling Bluetooth if rescanning doesn't work */}
+            <span className="ble-device-toggle-hint">
+              {t('ble.toggleBluetoothHint') || 'Still no devices? Try turning Bluetooth off and on again'}
+            </span>
           </div>
         )}
 
@@ -767,6 +771,14 @@ export default function BleDeviceList({
           background: ${colors.brand.primary}15;
           border-radius: ${radius.md};
           font-weight: ${fontWeight.medium};
+        }
+
+        .ble-device-toggle-hint {
+          display: block;
+          margin-top: ${spacing[2]};
+          font-size: ${fontSize.xs};
+          color: ${colors.text.muted};
+          font-style: italic;
         }
 
         .ble-device-skeleton {
