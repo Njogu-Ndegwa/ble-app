@@ -623,8 +623,14 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   /**
    * Cancel ongoing operation
    * 
-   * CRITICAL: This function ALWAYS clears detected devices and resets ALL BLE state.
+   * CRITICAL: This function ALWAYS clears detected devices, sessionStorage, and resets ALL BLE state.
    * This prevents stale device data from causing issues like "macAddress is not match" errors.
+   * 
+   * The reset includes:
+   * - Clearing all detected BLE devices
+   * - Clearing sessionStorage: connectedDeviceMac, pendingBleMac, bleConnectionSession
+   * - Disconnecting from any connected/pending devices
+   * - Resetting all internal state
    * 
    * @param force - If true, forces cancellation even during active reading.
    *                This is used by timeout handlers when the operation has hung.
@@ -635,13 +641,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     // This allows the user to understand why cancellation might interrupt data reading,
     // but doesn't block them from cancelling if the operation is hung.
     if (isProcessingRef.current && isConnected && !force) {
-      log('Cancel requested during active reading - proceeding with force cancel');
+      log('Cancel requested during active reading - proceeding with cancel');
       // Still allow cancellation, but log it
       // Previously this blocked cancellation entirely, causing modal hang issues
       // when DTA reading got stuck at 75%
     }
     
-    log('Cancelling operation', force ? '(forced)' : '', '- ALWAYS clearing detected devices to prevent stale data issues');
+    log('Cancelling operation', force ? '(forced)' : '', '- ALWAYS clearing detected devices AND sessionStorage');
     
     // CRITICAL: Set force closed flag FIRST to prevent sync effect from overriding
     // This ensures the modal closes immediately even if underlying hooks are slow to reset
@@ -656,22 +662,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     // when the user retries after a timeout or error
     scannerClearDevices();
     
-    // When force=true (user clicking cancel button or timeout), do a complete BLE reset
+    // ALWAYS perform complete BLE reset on ANY cancel
     // This clears ALL sessionStorage (connectedDeviceMac, pendingBleMac, bleConnectionSession)
     // and disconnects from any stuck connections in the native layer
-    if (force) {
-      log('Force cancel - performing complete BLE reset including sessionStorage');
-      connectionForceBleReset();
-    } else {
-      // Normal cancel - just cancel the connection attempt
-      cancelConnection(force);
-      
-      // Disconnect from device if connected
-      if (connectedDevice) {
-        log('Disconnecting from device during cancel');
-        connectionDisconnect(connectedDevice);
-      }
-    }
+    // Previously this only ran on force=true, but stale sessionStorage can cause
+    // "macAddress is not match" errors even on normal cancels
+    log('Performing complete BLE reset including sessionStorage');
+    connectionForceBleReset();
     
     // Exit device matching phase
     isDeviceMatchingRef.current = false;
@@ -683,15 +680,18 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
-    log('Cancel complete - forceClosedRef set, state and detected devices reset to INITIAL_STATE');
+    log('Cancel complete - forceClosedRef set, state, detected devices, and sessionStorage reset');
     return true;
-  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, connectedDevice, connectionDisconnect, isConnected, connectionForceBleReset, scannerClearDevices, log]);
+  }, [clearMatchTimers, scannerStopScan, serviceReaderCancelRead, connectionForceBleReset, scannerClearDevices, log]);
 
   /**
    * Reset all state (for retry)
+   * 
+   * CRITICAL: This function clears ALL BLE state including sessionStorage to prevent
+   * stale data from causing "macAddress is not match" errors on retry.
    */
   const resetState = useCallback(() => {
-    log('Resetting state');
+    log('Resetting state - clearing detected devices, sessionStorage, and all BLE state');
     
     // CRITICAL: Clear force closed flag to allow sync effect to manage state properly
     // Previously this was set to true, which prevented subsequent scans from working
@@ -700,7 +700,9 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     clearMatchTimers();
     scannerClearDevices();
-    connectionResetState();
+    // Use forceBleReset instead of resetState to clear ALL sessionStorage items
+    // (connectedDeviceMac, pendingBleMac, bleConnectionSession) and disconnect stuck connections
+    connectionForceBleReset();
     serviceReaderResetState();
     
     // Exit device matching phase
@@ -713,7 +715,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     isProcessingRef.current = false;
     
     setState(INITIAL_STATE);
-  }, [clearMatchTimers, scannerClearDevices, connectionResetState, serviceReaderResetState, log]);
+  }, [clearMatchTimers, scannerClearDevices, connectionForceBleReset, serviceReaderResetState, log]);
 
   /**
    * Retry after failure - resets and restarts scanning
