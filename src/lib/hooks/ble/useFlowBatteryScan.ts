@@ -562,9 +562,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   /**
    * Cancel ongoing operation
    */
-  const cancelOperation = useCallback(() => {
-    // Don't cancel if we're actively reading data
-    if (isProcessingRef.current && isConnected) {
+  const cancelOperation = useCallback((opts?: { force?: boolean; reason?: 'timeout' | 'user' }) => {
+    const force = opts?.force || opts?.reason === 'timeout';
+
+    // In normal user-cancel flows, avoid cancelling mid-read to prevent partial state.
+    // However, for TIMEOUT cancellation we MUST force disconnect/reset to avoid stuck
+    // reconnection loops and "progress bar with no timer" states.
+    if (!force && isProcessingRef.current && isConnected) {
       log('Cannot cancel - reading battery data');
       toast('Please wait while reading battery data...', { icon: '⏳' });
       return false;
@@ -574,7 +578,13 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     clearMatchTimers();
     scannerStopScan();
-    cancelConnection();
+    // If we are already connected, cancelConnection() refuses to cancel.
+    // For forced cancels (timeouts), disconnect explicitly.
+    if (force && connectedDevice) {
+      connectionDisconnect(connectedDevice);
+    } else {
+      cancelConnection();
+    }
     serviceReaderCancelRead();
     
     // Exit device matching phase
@@ -588,7 +598,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     setState(INITIAL_STATE);
     return true;
-  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, isConnected, log]);
+  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, isConnected, connectedDevice, connectionDisconnect, log]);
 
   /**
    * Reset all state (for retry)
