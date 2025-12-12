@@ -35,18 +35,17 @@ import {
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
 import { useServiceCompletion } from '@/lib/hooks/useServiceCompletion';
+import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 
 // Import Odoo API functions
 import {
   registerCustomer,
-  getSubscriptionProducts,
   purchaseMultiProducts,
   initiatePayment,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
-  type SubscriptionProduct,
   type ProductOrderItem,
   type RegisterCustomerPayload,
 } from '@/lib/odoo-api';
@@ -124,29 +123,32 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
-  // Physical products from Odoo API (main_service category - bikes, tuks, etc.) - kept for reference
-  const [availableProducts, setAvailableProducts] = useState<ProductData[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [productsLoadError, setProductsLoadError] = useState<string | null>(null);
-  
-  // Product selection (physical product like bikes) - kept for backward compatibility
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
-  
-  // Packages from Odoo API (product + privilege bundled) - NEW main selection
-  const [availablePackages, setAvailablePackages] = useState<PackageData[]>([]);
-  const [isLoadingPackages, setIsLoadingPackages] = useState(true);
-  const [packagesLoadError, setPackagesLoadError] = useState<string | null>(null);
-  
-  // Package selection (product + privilege bundled)
-  const [selectedPackageId, setSelectedPackageId] = useState<string>('');
-  
-  // Subscription plans from Odoo API - no fallback, Odoo is source of truth
-  const [availablePlans, setAvailablePlans] = useState<PlanData[]>([]);
-  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
-  const [plansLoadError, setPlansLoadError] = useState<string | null>(null);
-  
-  // Plan selection
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  // Product catalog hook - fetches products, packages, and plans from Odoo
+  const {
+    products: availableProducts,
+    packages: availablePackages,
+    plans: availablePlans,
+    isLoading: catalogLoading,
+    errors: catalogErrors,
+    selectedProductId,
+    selectedPackageId,
+    selectedPlanId,
+    selectedPackage,
+    selectedPlan,
+    setSelectedProductId,
+    setSelectedPackageId,
+    setSelectedPlanId,
+    refetch: fetchProductsAndPlans,
+    restoreSelections: restoreCatalogSelections,
+  } = useProductCatalog({ autoFetch: true });
+
+  // Alias loading/error states for backward compatibility
+  const isLoadingProducts = catalogLoading.products;
+  const isLoadingPackages = catalogLoading.packages;
+  const isLoadingPlans = catalogLoading.plans;
+  const productsLoadError = catalogErrors.products;
+  const packagesLoadError = catalogErrors.packages;
+  const plansLoadError = catalogErrors.plans;
 
   // Created customer data from Odoo registration
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
@@ -656,201 +658,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     };
   }, [currentStep, bleIsReady, startBleScan, stopBleScan]);
 
-  // Fetch products and subscription plans from Odoo API - no fallback, Odoo is source of truth
-  // Uses the salesperson's employee token to filter by their company
-  const fetchProductsAndPlans = useCallback(async () => {
-    setIsLoadingProducts(true);
-    setIsLoadingPlans(true);
-    setIsLoadingPackages(true);
-    setProductsLoadError(null);
-    setPlansLoadError(null);
-    setPackagesLoadError(null);
-    
-    try {
-      // Get the salesperson's employee token to filter by company
-      const employeeToken = getEmployeeToken();
-      
-      if (!employeeToken) {
-        console.warn('No employee token found - products/plans may not be filtered by company');
-      }
-      
-      // Pass the token to filter products by company
-      const response = await getSubscriptionProducts(1, 50, employeeToken || undefined);
-      
-      if (response.success && response.data) {
-        // Extract physical products (main_service category - bikes, tuks, etc.)
-        if (response.data.mainServiceProducts && response.data.mainServiceProducts.length > 0) {
-          const products: ProductData[] = response.data.mainServiceProducts.map((product: SubscriptionProduct) => ({
-            id: product.id.toString(),
-            odooProductId: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.list_price,
-            currency: product.currency_name,
-            currencySymbol: product.currencySymbol,
-            imageUrl: product.image_url || null,  // Cloudinary URL
-            categoryName: product.category_name || '',
-            defaultCode: product.default_code || '',
-          }));
-          
-          setAvailableProducts(products);
-          setProductsLoadError(null);
-          
-          // Set default selected product to first product only if not already set
-          if (products.length > 0) {
-            setSelectedProductId(prev => prev || products[0].id);
-          }
-          
-          console.log('Fetched physical products from Odoo:', products);
-        } else {
-          setProductsLoadError('No physical products available');
-          setAvailableProducts([]);
-        }
-        
-        // Extract packages (product + privilege bundled)
-        if (response.data.packageProducts && response.data.packageProducts.length > 0) {
-          const packages: PackageData[] = response.data.packageProducts
-            .filter((pkg: any) => pkg.is_package && pkg.components && pkg.components.length > 0)
-            .map((pkg: any) => {
-              // Find main product and battery swap privilege from components
-              const mainProduct = pkg.components?.find((c: any) => c.is_main_service);
-              const batterySwapPrivilege = pkg.components?.find((c: any) => c.is_battery_swap);
-              
-              return {
-                id: pkg.id.toString(),
-                odooPackageId: pkg.id,
-                name: pkg.name,
-                description: pkg.description || '',
-                price: pkg.list_price,
-                currency: pkg.currency_name,
-                currencySymbol: pkg.currencySymbol,
-                imageUrl: pkg.image_url || mainProduct?.image_url || null,
-                defaultCode: pkg.default_code || '',
-                isPackage: true,
-                componentCount: pkg.component_count || pkg.components?.length || 0,
-                components: (pkg.components || []).map((c: any): PackageComponent => ({
-                  id: c.id,
-                  name: c.name,
-                  default_code: c.default_code || '',
-                  description: c.description || '',
-                  list_price: c.list_price,
-                  price_unit: c.price_unit,
-                  quantity: c.quantity,
-                  currency_id: c.currency_id,
-                  currency_name: c.currency_name,
-                  currencySymbol: c.currencySymbol,
-                  category_id: c.category_id,
-                  category_name: c.category_name,
-                  image_url: c.image_url,
-                  is_main_service: c.is_main_service || false,
-                  is_battery_swap: c.is_battery_swap || false,
-                })),
-                mainProduct: mainProduct ? {
-                  id: mainProduct.id,
-                  name: mainProduct.name,
-                  default_code: mainProduct.default_code || '',
-                  description: mainProduct.description || '',
-                  list_price: mainProduct.list_price,
-                  price_unit: mainProduct.price_unit,
-                  quantity: mainProduct.quantity,
-                  currency_id: mainProduct.currency_id,
-                  currency_name: mainProduct.currency_name,
-                  currencySymbol: mainProduct.currencySymbol,
-                  category_id: mainProduct.category_id,
-                  category_name: mainProduct.category_name,
-                  image_url: mainProduct.image_url,
-                  is_main_service: true,
-                  is_battery_swap: false,
-                } : undefined,
-                batterySwapPrivilege: batterySwapPrivilege ? {
-                  id: batterySwapPrivilege.id,
-                  name: batterySwapPrivilege.name,
-                  default_code: batterySwapPrivilege.default_code || '',
-                  description: batterySwapPrivilege.description || '',
-                  list_price: batterySwapPrivilege.list_price,
-                  price_unit: batterySwapPrivilege.price_unit,
-                  quantity: batterySwapPrivilege.quantity,
-                  currency_id: batterySwapPrivilege.currency_id,
-                  currency_name: batterySwapPrivilege.currency_name,
-                  currencySymbol: batterySwapPrivilege.currencySymbol,
-                  category_id: batterySwapPrivilege.category_id,
-                  category_name: batterySwapPrivilege.category_name,
-                  image_url: batterySwapPrivilege.image_url,
-                  is_main_service: false,
-                  is_battery_swap: true,
-                } : undefined,
-              };
-            });
-          
-          setAvailablePackages(packages);
-          setPackagesLoadError(null);
-          
-          // Set default selected package to first package only if not already set (e.g., from session restore)
-          if (packages.length > 0) {
-            setSelectedPackageId(prev => prev || packages[0].id);
-          }
-          
-          console.log('Fetched packages from Odoo:', packages);
-        } else {
-          setPackagesLoadError('No packages available');
-          setAvailablePackages([]);
-        }
-        
-        // Extract subscription plans
-        if (response.data.products && response.data.products.length > 0) {
-          const plans: PlanData[] = response.data.products.map((product: SubscriptionProduct) => ({
-            id: product.id.toString(),
-            odooProductId: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.list_price,
-            period: '', // Will be determined from name
-            currency: product.currency_name,
-            currencySymbol: product.currencySymbol,
-          }));
-          
-          setAvailablePlans(plans);
-          setPlansLoadError(null);
-          
-          // Set default selected plan to first plan only if not already set (e.g., from session restore)
-          if (plans.length > 0) {
-            setSelectedPlanId(prev => prev || plans[0].id);
-          }
-          
-          console.log('Fetched subscription plans from Odoo:', plans);
-        } else {
-          setPlansLoadError('No subscription plans available');
-          setAvailablePlans([]);
-        }
-      } else {
-        setProductsLoadError('Failed to load products');
-        setPlansLoadError('Failed to load subscription plans');
-        setPackagesLoadError('Failed to load packages');
-        setAvailableProducts([]);
-        setAvailablePlans([]);
-        setAvailablePackages([]);
-      }
-    } catch (error: any) {
-      console.error('Failed to fetch products/plans:', error);
-      const errorMessage = error.message || 'Failed to load data from server';
-      setProductsLoadError(errorMessage);
-      setPlansLoadError(errorMessage);
-      setPackagesLoadError(errorMessage);
-      setAvailableProducts([]);
-      setAvailablePlans([]);
-      setAvailablePackages([]);
-      toast.error('Could not load products from server');
-    } finally {
-      setIsLoadingProducts(false);
-      setIsLoadingPlans(false);
-      setIsLoadingPackages(false);
-    }
-  }, []);
-
-  // Fetch products and plans on mount
-  useEffect(() => {
-    fetchProductsAndPlans();
-  }, [fetchProductsAndPlans]);
+  // NOTE: Product/package/plan fetching is now handled by useProductCatalog hook
+  // The hook auto-fetches on mount and provides refetch via fetchProductsAndPlans
 
   // Validate form data - fields required by Odoo /api/auth/register
   const validateForm = useCallback((): boolean => {
@@ -1595,10 +1404,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [onLogout, router, t]);
 
   // Render step content
-  // Get selected package object for preview
-  const selectedPackage = availablePackages.find(p => p.id === selectedPackageId) || null;
-  // Get selected plan object for preview
-  const selectedPlan = availablePlans.find(p => p.id === selectedPlanId) || null;
+  // NOTE: selectedPackage and selectedPlan are provided by useProductCatalog hook
 
   const renderStepContent = () => {
     switch (currentStep) {
