@@ -646,13 +646,24 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     clearMatchTimers();
     scannerStopScan();
-    cancelConnection(force);
     serviceReaderCancelRead();
     
-    // Disconnect from device if connected
-    if (connectedDevice) {
-      log('Disconnecting from device during cancel');
-      connectionDisconnect(connectedDevice);
+    // When force=true (user clicking cancel button or timeout), do a complete BLE reset
+    // This clears ALL sessionStorage (connectedDeviceMac, pendingBleMac, bleConnectionSession)
+    // and disconnects from any stuck connections in the native layer
+    if (force) {
+      log('Force cancel - performing complete BLE reset including sessionStorage');
+      connectionForceBleReset();
+      scannerClearDevices();
+    } else {
+      // Normal cancel - just cancel the connection attempt
+      cancelConnection(force);
+      
+      // Disconnect from device if connected
+      if (connectedDevice) {
+        log('Disconnecting from device during cancel');
+        connectionDisconnect(connectedDevice);
+      }
     }
     
     // Exit device matching phase
@@ -667,7 +678,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     setState(INITIAL_STATE);
     log('Cancel complete - forceClosedRef set, state reset to INITIAL_STATE');
     return true;
-  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, connectedDevice, connectionDisconnect, isConnected, log]);
+  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, connectedDevice, connectionDisconnect, isConnected, connectionForceBleReset, scannerClearDevices, log]);
 
   /**
    * Reset all state (for retry)
