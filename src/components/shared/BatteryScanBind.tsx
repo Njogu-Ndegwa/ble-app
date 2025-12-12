@@ -148,6 +148,7 @@ export default function BatteryScanBind({
       {/* BLE Connection Progress Overlay */}
       {isConnecting && (
         <BleConnectionProgress
+          key={bleScanState?.scanStartTime || 'progress'}
           bleScanState={bleScanState!}
           onCancel={onCancelBleOperation}
         />
@@ -331,6 +332,7 @@ export function BatteryScanBindWithHook({
 
       {isConnecting && (
         <BleConnectionProgress
+          key={legacyState.scanStartTime || 'progress'}
           bleScanState={legacyState}
           onCancel={cancel}
         />
