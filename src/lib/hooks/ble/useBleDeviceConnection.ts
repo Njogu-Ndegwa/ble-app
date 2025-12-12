@@ -79,6 +79,10 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
   const retryCountRef = useRef(0);
   const isConnectedRef = useRef(false);
   const pendingMacRef = useRef<string | null>(null);
+  
+  // Session tracking to ignore stale callbacks from previous/cancelled connection attempts
+  // Incremented each time a new connection is started, cleared when cancelled/completed
+  const connectionSessionRef = useRef<number>(0);
 
   // Callback refs
   const onConnectedRef = useRef(onConnected);
@@ -132,8 +136,14 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
     retryCountRef.current = 0;
     pendingMacRef.current = macAddress;
     
-    // Store for later retrieval
+    // Increment session to invalidate any stale callbacks from previous attempts
+    connectionSessionRef.current += 1;
+    const currentSession = connectionSessionRef.current;
+    log('Starting connection session:', currentSession);
+    
+    // Store session and MAC for later retrieval
     sessionStorage.setItem('pendingBleMac', macAddress);
+    sessionStorage.setItem('bleConnectionSession', String(currentSession));
     
     setConnectionState({
       isConnecting: true,
@@ -147,8 +157,13 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
 
     // Set global timeout (last resort)
     globalTimeoutRef.current = setTimeout(() => {
-      log('Global timeout reached');
+      log('Global timeout reached for session:', currentSession);
       clearConnectionTimeout();
+      
+      // Increment session to invalidate any pending callbacks
+      connectionSessionRef.current += 1;
+      sessionStorage.removeItem('bleConnectionSession');
+      sessionStorage.removeItem('pendingBleMac');
       
       setConnectionState(prev => ({
         ...prev,
@@ -198,12 +213,16 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       return false;
     }
 
-    log('Cancelling connection');
+    log('Cancelling connection, invalidating session:', connectionSessionRef.current);
     clearAllTimeouts();
     
     if (window.WebViewJavascriptBridge && pendingMacRef.current) {
       window.WebViewJavascriptBridge.callHandler('disconnectBle', pendingMacRef.current, () => {});
     }
+    
+    // Increment session to invalidate any pending callbacks from this cancelled attempt
+    connectionSessionRef.current += 1;
+    sessionStorage.removeItem('bleConnectionSession');
     
     retryCountRef.current = 0;
     isConnectedRef.current = false;
@@ -218,6 +237,9 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
    */
   const resetState = useCallback(() => {
     clearAllTimeouts();
+    // Increment session to invalidate any pending callbacks
+    connectionSessionRef.current += 1;
+    sessionStorage.removeItem('bleConnectionSession');
     retryCountRef.current = 0;
     isConnectedRef.current = false;
     pendingMacRef.current = null;
@@ -232,6 +254,10 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
   const forceBleReset = useCallback(() => {
     log('Force resetting BLE connection state');
     clearAllTimeouts();
+    
+    // Increment session to invalidate any pending callbacks
+    connectionSessionRef.current += 1;
+    log('Invalidated connection session, new session:', connectionSessionRef.current);
     
     if (window.WebViewJavascriptBridge) {
       // Get ALL known MAC addresses that might be stuck
@@ -259,6 +285,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       // Clear all sessionStorage entries
       sessionStorage.removeItem('connectedDeviceMac');
       sessionStorage.removeItem('pendingBleMac');
+      sessionStorage.removeItem('bleConnectionSession');
     }
     
     // Reset all state
@@ -297,7 +324,36 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectSuccessCallBack',
         (macAddress: string, resp: (r: unknown) => void) => {
-          log('Connection successful:', macAddress);
+          log('Connection successful callback received:', macAddress);
+          
+          // Check if this callback is from the current session
+          // If not, it's a stale callback from a cancelled/timed-out connection attempt
+          const storedSession = sessionStorage.getItem('bleConnectionSession');
+          const currentSession = connectionSessionRef.current;
+          
+          if (!storedSession || parseInt(storedSession, 10) !== currentSession) {
+            log('Ignoring stale success callback from old session. Stored:', storedSession, 'Current:', currentSession);
+            // Disconnect from this stale connection to clean up native layer
+            if (window.WebViewJavascriptBridge) {
+              window.WebViewJavascriptBridge.callHandler('disconnectBle', macAddress, () => {});
+            }
+            resp(macAddress);
+            return;
+          }
+          
+          // Also verify the MAC address matches what we're expecting
+          const expectedMac = pendingMacRef.current;
+          if (expectedMac && macAddress.toUpperCase() !== expectedMac.toUpperCase()) {
+            log('Ignoring success callback for unexpected MAC:', macAddress, 'Expected:', expectedMac);
+            // Disconnect from this unexpected connection
+            if (window.WebViewJavascriptBridge) {
+              window.WebViewJavascriptBridge.callHandler('disconnectBle', macAddress, () => {});
+            }
+            resp(macAddress);
+            return;
+          }
+          
+          log('Processing valid connection success for session:', currentSession);
           
           // Mark as connected immediately
           isConnectedRef.current = true;
@@ -308,6 +364,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
           // Store connected device and clear pending state
           sessionStorage.setItem('connectedDeviceMac', macAddress);
           sessionStorage.removeItem('pendingBleMac'); // Clear pending since we're now connected
+          sessionStorage.removeItem('bleConnectionSession'); // Clear session since connection completed
           pendingMacRef.current = null;
           
           setConnectionState({
@@ -329,7 +386,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectFailCallBack',
         (data: string, resp: (r: unknown) => void) => {
-          log('Connection failed:', data);
+          log('Connection failed callback received:', data);
           
           clearConnectionTimeout();
           
@@ -340,12 +397,23 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
             return;
           }
           
+          // Check if this callback is from the current session
+          // If not, it's a stale callback from a cancelled/timed-out connection attempt
+          const storedSession = sessionStorage.getItem('bleConnectionSession');
+          const currentSession = connectionSessionRef.current;
+          
+          if (!storedSession || parseInt(storedSession, 10) !== currentSession) {
+            log('Ignoring stale failure callback from old session. Stored:', storedSession, 'Current:', currentSession);
+            resp(data);
+            return;
+          }
+          
           const pendingMac = pendingMacRef.current;
           
           // Retry if possible
           if (retryCountRef.current < MAX_RETRIES && pendingMac) {
             retryCountRef.current += 1;
-            log(`Retrying (${retryCountRef.current}/${MAX_RETRIES})`);
+            log(`Retrying (${retryCountRef.current}/${MAX_RETRIES}) for session:`, currentSession);
             
             setConnectionState(prev => ({
               ...prev,
@@ -355,7 +423,12 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
             
             // Exponential backoff
             setTimeout(() => {
-              if (isConnectedRef.current) return;
+              // Re-check session before retrying - user might have cancelled
+              const sessionCheck = sessionStorage.getItem('bleConnectionSession');
+              if (isConnectedRef.current || !sessionCheck || parseInt(sessionCheck, 10) !== currentSession) {
+                log('Skipping retry - session invalidated or already connected');
+                return;
+              }
               connBleByMacAddress(pendingMac, () => {});
             }, 1000 * retryCountRef.current);
             
@@ -364,7 +437,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
           }
           
           // All retries exhausted
-          log('Connection failed after all retries');
+          log('Connection failed after all retries for session:', currentSession);
           
           // Force disconnect from the pending MAC to clear native layer state
           const failedMac = pendingMacRef.current;
@@ -375,6 +448,7 @@ export function useBleDeviceConnection(options: UseBleDeviceConnectionOptions = 
           
           // Also clear any other pending MACs in sessionStorage
           sessionStorage.removeItem('pendingBleMac');
+          sessionStorage.removeItem('bleConnectionSession');
           
           clearGlobalTimeout();
           retryCountRef.current = 0;
