@@ -1092,6 +1092,8 @@
   "attendant.connectionFailed": "连接失败",
   "attendant.wrongBattery": "错误的电池！此电池不属于该客户。",
   "attendant.batteryMismatch": "电池不属于此客户",
+  "attendant.batteryIdMismatch": "电池ID与客户记录不匹配",
+  "attendant.wrongBatteryOpid": "错误的电池！从设备读取的电池ID与客户分配的电池不匹配。",
   "attendant.coveredByQuota": "配额已覆盖",
   "attendant.toPay": "需支付",
   "attendant.returning": "归还",
