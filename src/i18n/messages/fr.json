@@ -1264,10 +1264,10 @@
   "rider.demoHint": "Pour un accès démo, utilisez :",
   "rider.demoCredentials": "Téléphone : demo | Mot de passe : demo",
   
-  "sales.identificationFailed": "Échec de la récupération des informations de tarification",
-  "sales.retryIdentification": "Réessayer l'identification du client",
-  "sales.retryingIdentification": "Nouvelle tentative...",
-  "sales.identifyingCustomer": "Récupération des informations de tarification...",
-  "sales.identificationRequired": "Requis pour calculer le coût énergétique",
-  "sales.gettingPricing": "Récupération des tarifs..."
+  "sales.serviceInfoFailed": "Échec de récupération des infos service",
+  "sales.serviceInfoRequired": "Les infos service sont requises pour calculer le prix",
+  "sales.fetchServiceInfo": "Récupérer les infos service",
+  "sales.fetchingServiceInfo": "Récupération des infos service...",
+  "sales.retryingServiceInfo": "Nouvelle tentative...",
+  "sales.serviceInfoNeeded": "Requis pour calculer le prix"
 }

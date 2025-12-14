@@ -255,8 +255,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [bleIsReady, bleHandlersReady]);
 
-  // Customer identification hook - gets unit price (rate) from backend
+  // Customer identification hook - gets service unit price (rate) from backend
+  // This is a background operation in Sales flow (user doesn't know it's happening)
   // Enable auto-retry for network failures (up to 3 attempts with exponential backoff)
+  // Enable silent mode to suppress toast notifications (UI shows status instead)
   const { 
     identifyCustomer, 
     retryIdentification,
@@ -275,26 +277,29 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       station: SALESPERSON_STATION,
     },
     defaultRate: DEFAULT_RATE,
-    // Enable auto-retry for Sales flow - customer identification is required
+    // Enable auto-retry for Sales flow - service info is required for pricing
     enableAutoRetry: true,
     maxAutoRetries: 3,
+    // Silent mode - no toast notifications for background operations
+    // UI components show status via identificationStatus/identificationError
+    silent: true,
     onSuccess: (result: CustomerIdentificationResult) => {
-      console.info('[SALES] Customer identification successful:', result);
+      console.info('[SALES] Service info fetched successfully:', result);
       setCustomerServiceStates(result.serviceStates);
       setCustomerRate(result.rate);
       setCustomerCurrencySymbol(result.currencySymbol);
       setCustomerIdentified(true);
     },
     onError: (error: string) => {
-      console.error('[SALES] Customer identification failed after all retries:', error);
+      console.error('[SALES] Failed to fetch service info after all retries:', error);
       // Don't auto-set customerIdentified to true - let user decide to retry or not
       // This prevents proceeding with wrong pricing
     },
     onRetry: (attempt: number, delay: number) => {
-      console.info(`[SALES] Customer identification retry scheduled: attempt ${attempt}, delay ${delay}ms`);
+      console.info(`[SALES] Service info fetch retry scheduled: attempt ${attempt}, delay ${delay}ms`);
     },
     onComplete: () => {
-      // Identification complete (success or error)
+      // Fetch complete (success or error)
     },
   });
   

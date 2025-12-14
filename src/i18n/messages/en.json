@@ -1273,10 +1273,10 @@
   "rider.demoHint": "For demo access, use:",
   "rider.demoCredentials": "Phone: demo | Password: demo",
   
-  "sales.identificationFailed": "Failed to get pricing info",
-  "sales.retryIdentification": "Retry Customer Identification",
-  "sales.retryingIdentification": "Retrying...",
-  "sales.identifyingCustomer": "Getting pricing info...",
-  "sales.identificationRequired": "Required to calculate energy cost",
-  "sales.gettingPricing": "Getting pricing..."
+  "sales.serviceInfoFailed": "Failed to get service info",
+  "sales.serviceInfoRequired": "Service info is required to calculate pricing",
+  "sales.fetchServiceInfo": "Fetch Service Info",
+  "sales.fetchingServiceInfo": "Getting service info...",
+  "sales.retryingServiceInfo": "Retrying...",
+  "sales.serviceInfoNeeded": "Required to calculate pricing"
 }

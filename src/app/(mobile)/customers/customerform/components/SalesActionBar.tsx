@@ -105,18 +105,18 @@ export default function SalesActionBar({
   const isButtonDisabled = isLoading || isDisabled || 
     (currentStep === 6 && hasBatteryScanned && !customerIdentified);
   
-  // Determine button text for step 6 when customer is not identified
+  // Determine button text for step 6 when service info is not available
   const getButtonText = () => {
     if (isLoading) {
       return t('sales.processing') || 'Processing...';
     }
     
-    // Special case for step 6 with battery scanned but customer not identified
+    // Special case for step 6 with battery scanned but service info not fetched
     if (currentStep === 6 && hasBatteryScanned && !customerIdentified) {
       if (isIdentifying) {
-        return t('sales.gettingPricing') || 'Getting pricing...';
+        return t('sales.fetchingServiceInfo') || 'Getting service info...';
       }
-      return t('sales.identificationRequired') || 'Identification Required';
+      return t('sales.serviceInfoRequired') || 'Service Info Required';
     }
     
     return t(config.mainTextKey);

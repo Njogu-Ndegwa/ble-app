@@ -389,17 +389,15 @@ function FirstTimeDiscountCard({
               fontSize: '12px',
               color: 'var(--color-error, #ef4444)',
             }}>
-              {t('sales.identificationFailed') || 'Failed to get pricing info'}
+              {t('sales.serviceInfoFailed') || 'Failed to get service info'}
             </div>
-            {errorMessage && (
-              <div style={{ 
-                fontSize: '11px', 
-                color: 'var(--color-text-secondary)',
-                marginTop: '2px',
-              }}>
-                {errorMessage}
-              </div>
-            )}
+            <div style={{ 
+              fontSize: '11px', 
+              color: 'var(--color-text-secondary)',
+              marginTop: '2px',
+            }}>
+              {t('sales.serviceInfoRequired') || 'Service info is required to calculate pricing'}
+            </div>
           </div>
         </div>
         {onRetry && (
@@ -423,7 +421,7 @@ function FirstTimeDiscountCard({
             }}
           >
             <RefreshCw size={14} />
-            <span>{t('sales.retryIdentification') || 'Retry Customer Identification'}</span>
+            <span>{t('sales.fetchServiceInfo') || 'Fetch Service Info'}</span>
           </button>
         )}
       </div>
@@ -459,8 +457,8 @@ function FirstTimeDiscountCard({
               color: 'var(--color-text-primary)',
             }}>
               {isRetrying 
-                ? (t('sales.retryingIdentification') || `Retrying... (attempt ${retryCount})`)
-                : (t('sales.identifyingCustomer') || 'Getting pricing info...')
+                ? (t('sales.retryingServiceInfo') || `Retrying... (attempt ${retryCount})`)
+                : (t('sales.fetchingServiceInfo') || 'Getting service info...')
               }
             </div>
             <div style={{ 
@@ -468,7 +466,7 @@ function FirstTimeDiscountCard({
               color: 'var(--color-text-secondary)',
               marginTop: '2px',
             }}>
-              {t('sales.identificationRequired') || 'Required to calculate energy cost'}
+              {t('sales.serviceInfoNeeded') || 'Required to calculate pricing'}
             </div>
           </div>
         </div>

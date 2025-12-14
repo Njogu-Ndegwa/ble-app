@@ -121,6 +121,12 @@ export interface UseCustomerIdentificationConfig {
   enableAutoRetry?: boolean;
   /** Maximum number of auto-retry attempts (default: 3) */
   maxAutoRetries?: number;
+  /** 
+   * Silent mode - suppresses all toast notifications (default: false)
+   * Use this for background operations where user shouldn't be interrupted
+   * UI components can still react via status/error state
+   */
+  silent?: boolean;
 }
 
 // ============================================
@@ -160,6 +166,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onRetry,
     enableAutoRetry = false,
     maxAutoRetries = MAX_AUTO_RETRIES,
+    silent = false,
   } = config;
 
   // State for status tracking
@@ -359,14 +366,17 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
         identifyInternalRef.current?.(input);
       }, delay);
     } else {
-      // Final failure - show error
+      // Final failure - update state
       setStatus('error');
-      toast.error(errorMsg);
+      // Only show toast if not in silent mode
+      if (!silent) {
+        toast.error(errorMsg);
+      }
       onError?.(errorMsg);
       onComplete?.();
       isRetryingRef.current = false;
     }
-  }, [enableAutoRetry, maxAutoRetries, retryCount, getRetryDelay, clearRetryTimeout, onRetry, onError, onComplete]);
+  }, [enableAutoRetry, maxAutoRetries, retryCount, getRetryDelay, clearRetryTimeout, onRetry, onError, onComplete, silent]);
 
   /**
    * Internal function to perform the identification (used by both initial call and retry)
@@ -384,7 +394,10 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
         : 'No subscription code found in QR code';
       setStatus('error');
       setLastError(errorMsg);
-      toast.error(errorMsg);
+      // Only show toast if not in silent mode
+      if (!silent) {
+        toast.error(errorMsg);
+      }
       onError?.(errorMsg);
       return;
     }
@@ -495,10 +508,13 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
                   setRetryCount(0);
                   isRetryingRef.current = false;
                   
-                  const successMsg = result.isIdempotent 
-                    ? 'Customer identified (cached)' 
-                    : 'Customer identified';
-                  toast.success(successMsg);
+                  // Only show toast if not in silent mode
+                  if (!silent) {
+                    const successMsg = result.isIdempotent 
+                      ? 'Customer identified (cached)' 
+                      : 'Customer identified';
+                    toast.success(successMsg);
+                  }
                   onSuccess(result);
                   onComplete?.();
                 }
@@ -578,6 +594,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onError, 
     onStart, 
     onComplete,
+    silent,
   ]);
 
   // Keep the ref in sync with the internal function (for use in handleError retry)
