@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CreditCard, CheckCircle, RefreshCw } from 'lucide-react';
+import { CreditCard, CheckCircle, RefreshCw, Gift, Zap } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   BatteryInputSelector,
@@ -41,6 +41,12 @@ interface Step4Props {
   onInputModeChange?: (mode: BatteryInputMode) => void;
   /** Callback to re-scan a different battery (clears current scanned battery) */
   onRescanBattery?: () => void;
+  /** Rate per kWh (from customer identification) */
+  rate?: number;
+  /** Currency symbol (from customer identification) */
+  currencySymbol?: string;
+  /** Whether customer has been identified (rate is available) */
+  customerIdentified?: boolean;
 }
 
 /**
@@ -76,11 +82,23 @@ export default function Step4AssignBattery({
   inputMode,
   onInputModeChange,
   onRescanBattery,
+  rate = 0,
+  currencySymbol = '',
+  customerIdentified = false,
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
+  
+  // Calculate energy cost when battery is scanned
+  // Energy is in Wh, convert to kWh for cost calculation
+  const energyKwh = scannedBattery 
+    ? Math.floor((scannedBattery.energy / 1000) * 100) / 100 
+    : 0;
+  const calculatedCost = scannedBattery && rate > 0
+    ? Math.ceil(energyKwh * rate * 100) / 100 
+    : 0;
 
   // Handle device selection
   const handleDeviceSelect = (device: BleDevice) => {
@@ -98,6 +116,15 @@ export default function Step4AssignBattery({
           battery={scannedBattery}
           variant="success"
           title={t('sales.newBattery')}
+        />
+
+        {/* First-Time Customer Discount Card */}
+        <FirstTimeDiscountCard
+          energyKwh={energyKwh}
+          rate={rate}
+          cost={calculatedCost}
+          currencySymbol={currencySymbol || selectedPlan?.currencySymbol || 'KES'}
+          isLoading={!customerIdentified && rate === 0}
         />
 
         {/* Customer Summary - Compact */}
@@ -276,5 +303,179 @@ function InfoIcon() {
       <circle cx="12" cy="12" r="10"/>
       <path d="M12 16v-4M12 8h.01"/>
     </svg>
+  );
+}
+
+/**
+ * FirstTimeDiscountCard - Shows energy cost as first-time customer discount
+ * Displays the calculated energy value that is being given as a promotional benefit
+ */
+function FirstTimeDiscountCard({
+  energyKwh,
+  rate,
+  cost,
+  currencySymbol,
+  isLoading = false,
+}: {
+  energyKwh: number;
+  rate: number;
+  cost: number;
+  currencySymbol: string;
+  isLoading?: boolean;
+}) {
+  const { t } = useI18n();
+  
+  if (isLoading) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.08) 0%, rgba(0, 180, 180, 0.04) 100%)',
+        border: '1px solid rgba(0, 229, 229, 0.2)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '16px',
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px',
+          color: 'var(--color-text-secondary)',
+          fontSize: '14px',
+        }}>
+          <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
+          <span>{t('sales.loadingPricing') || 'Loading pricing...'}</span>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.1) 0%, rgba(0, 180, 180, 0.05) 100%)',
+      border: '1px solid rgba(0, 229, 229, 0.3)',
+      borderRadius: '12px',
+      padding: '16px',
+      marginBottom: '16px',
+    }}>
+      {/* Header with gift icon */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px',
+        marginBottom: '12px',
+      }}>
+        <div style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '8px',
+          background: 'rgba(0, 229, 229, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <Gift size={18} style={{ color: 'var(--color-primary)' }} />
+        </div>
+        <div>
+          <div style={{ 
+            fontWeight: 600, 
+            fontSize: '14px',
+            color: 'var(--color-primary)',
+          }}>
+            {t('sales.firstTimeDiscount') || 'First-Time Customer Discount'}
+          </div>
+          <div style={{ 
+            fontSize: '12px', 
+            color: 'var(--color-text-secondary)',
+          }}>
+            {t('sales.energyIncluded') || 'Energy included with your subscription'}
+          </div>
+        </div>
+      </div>
+
+      {/* Cost breakdown */}
+      <div style={{
+        background: 'var(--color-bg-secondary)',
+        borderRadius: '8px',
+        padding: '12px',
+      }}>
+        {/* Energy row */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: '8px',
+          fontSize: '13px',
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px',
+            color: 'var(--color-text-secondary)',
+          }}>
+            <Zap size={14} />
+            <span>{t('sales.batteryEnergy') || 'Battery Energy'}</span>
+          </div>
+          <span className="font-mono-oves" style={{ fontWeight: 500 }}>
+            {energyKwh.toFixed(2)} kWh
+          </span>
+        </div>
+
+        {/* Rate row */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: '8px',
+          fontSize: '13px',
+        }}>
+          <span style={{ color: 'var(--color-text-secondary)' }}>
+            {t('sales.ratePerKwh') || 'Rate per kWh'}
+          </span>
+          <span className="font-mono-oves" style={{ fontWeight: 500 }}>
+            {currencySymbol} {rate.toFixed(2)}
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div style={{ 
+          borderTop: '1px dashed var(--color-border)', 
+          margin: '8px 0',
+        }} />
+
+        {/* Total value row */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          fontSize: '14px',
+        }}>
+          <span style={{ fontWeight: 600 }}>
+            {t('sales.energyValue') || 'Energy Value'}
+          </span>
+          <div style={{ textAlign: 'right' }}>
+            <span 
+              className="font-mono-oves" 
+              style={{ 
+                fontWeight: 700, 
+                fontSize: '16px',
+                color: 'var(--color-primary)',
+                textDecoration: 'line-through',
+                textDecorationColor: 'var(--color-success)',
+                textDecorationThickness: '2px',
+              }}
+            >
+              {currencySymbol} {cost.toFixed(2)}
+            </span>
+            <div style={{ 
+              fontSize: '11px', 
+              color: 'var(--color-success)',
+              fontWeight: 600,
+              marginTop: '2px',
+            }}>
+              {t('sales.freeWithSubscription') || 'FREE with subscription'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

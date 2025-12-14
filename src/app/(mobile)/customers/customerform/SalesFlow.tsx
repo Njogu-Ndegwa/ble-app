@@ -1109,6 +1109,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setPaymentConfirmed(true);
           setPaymentIncomplete(false);
           toast.success('Payment confirmed! Proceed to battery assignment.');
+          
+          // OPTIMIZATION: Identify customer in background immediately after payment
+          // This gets the unit price (rate) so by the time we scan battery, we have pricing info
+          const subCode = paymentData.subscription_code || subscriptionData?.subscriptionCode;
+          if (subCode && !customerIdentified) {
+            console.info('[SALES] Starting background customer identification after payment...');
+            identifyCustomer({
+              subscriptionCode: subCode,
+              source: 'manual',
+            });
+          }
+          
           advanceToStep(6);
         } else {
           // Payment incomplete - show amounts and stay on payment step
@@ -1135,7 +1147,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     initiateOdooPayment,
     availablePlans,
     selectedPlanId,
-    paymentRequestOrderId
+    paymentRequestOrderId,
+    customerIdentified,
+    identifyCustomer,
   ]);
 
   // Update payment QR ref when handler changes
@@ -1208,12 +1222,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [hookResetState, bleIsReady, startBleScan]);
 
   // Handle service completion - uses customer identification + payment and service hooks
-  // This is for first-time customer with quota (promotional first battery)
+  // This is for first-time customer purchase (new subscription)
   // 
   // Flow:
-  // 1. Identify customer via MQTT to get unit price (rate)
-  // 2. Compute cost = energy × rate (given as discount for first sale)
-  // 3. Report both payment and service via MQTT (payment_and_service action)
+  // 1. Customer identification already happened after payment confirmation (in background)
+  // 2. Compute cost = energy × rate 
+  // 3. Report both payment AND service via MQTT (payment_and_service action)
+  //
+  // IMPORTANT: For Sales flow, isQuotaBased MUST be false so payment_data is sent.
+  // Unlike the Attendant swap flow where existing customers may have quota credit,
+  // Sales flow customers have already paid via Odoo (M-Pesa/manual) for their subscription,
+  // so we need to report this payment to BSS for accurate tracking.
   const handleCompleteService = useCallback(async () => {
     // Guard: Check MQTT connection before proceeding
     if (!isMqttConnected) {
@@ -1234,23 +1253,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
-    // Step 1: Identify customer to get unit price if not already done
+    // Customer identification should have already happened after payment confirmation
+    // If not identified yet (edge case), try one more time but don't block
     if (!customerIdentified) {
-      console.info('[SALES SERVICE] Identifying customer to get unit price...');
-      toast.loading('Getting pricing information...');
-      
-      // Trigger customer identification - the onSuccess callback will update state
+      console.warn('[SALES SERVICE] Customer not yet identified - using default rate. Triggering identification...');
       identifyCustomer({
         subscriptionCode: subscriptionId,
         source: 'manual',
       });
-      
-      // Wait briefly for identification to complete
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      toast.dismiss();
+      // Don't wait - continue with default rate, identification will complete for future reference
     }
 
-    // Step 2: Calculate cost based on energy × rate
+    // Calculate cost based on energy × rate
     // Energy is in Wh, convert to kWh for cost calculation
     const energyKwh = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100; // Floor to 2dp
     const rate = customerRate || DEFAULT_RATE;
@@ -1266,13 +1280,16 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     setComputedEnergyCost(calculatedCost);
 
-    // Step 3: Build and publish payment_and_service
-    // For first-time sales, we report the full cost as the payment amount
-    // but mark it as a promotional/discount situation
-    const paymentReference = `FIRST_SALE_${subscriptionId}_${Date.now()}`;
+    // Build and publish payment_and_service
+    // For Sales flow:
+    // - Customer has already paid via Odoo (M-Pesa/manual) for their subscription package
+    // - We MUST report this payment to BSS (isQuotaBased: false)
+    // - The payment is the first-time electricity cost included in the subscription
+    // - paymentReference links to the Odoo payment receipt/confirmation
+    const paymentRef = paymentReference || `FIRST_SALE_${subscriptionId}_${Date.now()}`;
     
     const params: PublishPaymentAndServiceParams = {
-      paymentReference,
+      paymentReference: paymentRef,
       planId: subscriptionId,
       swapData: {
         // First-time customer - no old battery
@@ -1294,13 +1311,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         id: `salesperson-${getEmployeeUser()?.id || '001'}`,
         station: SALESPERSON_STATION,
       },
-      // First sale is treated as quota-based (promotional discount)
-      // This means the cost is recorded but not charged
-      isQuotaBased: true,
+      // CRITICAL: For Sales flow, we MUST report the payment to BSS
+      // isQuotaBased: false ensures payment_data is included in the MQTT message
+      // This differs from Attendant swap flow where quota credit may skip payment
+      isQuotaBased: false,
       isZeroCostRounding: false,
     };
 
     console.info('[SALES SERVICE] Publishing payment_and_service:', params);
+    console.info('[SALES SERVICE] isQuotaBased: false - payment WILL be reported to BSS');
     
     // Publish via the hook - callbacks handle success/error
     await publishPaymentAndService(params);
@@ -1315,6 +1334,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     customerCurrencySymbol,
     identifyCustomer,
     publishPaymentAndService,
+    paymentReference,
   ]);
 
   // Handle back navigation
@@ -1607,6 +1627,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             onCompleteService={handleCompleteService}
             isCompletingService={isCompletingService}
             onRescanBattery={handleRescanBattery}
+            rate={customerRate}
+            currencySymbol={customerCurrencySymbol}
+            customerIdentified={customerIdentified}
           />
         );
       case 7:

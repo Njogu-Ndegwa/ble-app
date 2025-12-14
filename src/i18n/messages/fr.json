@@ -1206,6 +1206,13 @@
   "sales.selectBatteryManually": "Sélectionner la batterie",
   "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",
   "sales.scanBatteryHint": "Scannez le code QR sur la batterie à attribuer",
+  "sales.firstTimeDiscount": "Réduction pour nouveau client",
+  "sales.energyIncluded": "Énergie incluse avec votre abonnement",
+  "sales.loadingPricing": "Chargement des tarifs...",
+  "sales.batteryEnergy": "Énergie de la batterie",
+  "sales.ratePerKwh": "Tarif par kWh",
+  "sales.energyValue": "Valeur énergétique",
+  "sales.freeWithSubscription": "GRATUIT avec l'abonnement",
   
   "battery.scanQr": "Scanner QR",
   "battery.selectManually": "Sélection manuelle",
