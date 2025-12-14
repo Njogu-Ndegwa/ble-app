@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CreditCard, CheckCircle, RefreshCw, Gift, Zap } from 'lucide-react';
+import { CreditCard, CheckCircle, RefreshCw, Gift, Zap, AlertCircle, RotateCcw } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   BatteryInputSelector,
@@ -48,6 +48,12 @@ interface Step4Props {
   currencySymbol?: string;
   /** Whether customer has been identified (rate is available) */
   customerIdentified?: boolean;
+  /** Whether customer identification is in progress (including retries) */
+  isIdentifying?: boolean;
+  /** Whether customer identification has failed after all retries */
+  identificationFailed?: boolean;
+  /** Callback for manual identification retry */
+  onManualIdentify?: () => void;
 }
 
 /**
@@ -86,6 +92,9 @@ export default function Step4AssignBattery({
   rate = 0,
   currencySymbol = '',
   customerIdentified = false,
+  isIdentifying = false,
+  identificationFailed = false,
+  onManualIdentify,
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
@@ -127,14 +136,18 @@ export default function Step4AssignBattery({
           compact
         />
 
-        {/* First-Time Customer Discount Card */}
-        <FirstTimeDiscountCard
-          energyKwh={energyKwh}
-          rate={rate}
-          cost={calculatedCost}
-          currencySymbol={currencySymbol || selectedPlan?.currencySymbol || 'KES'}
-          isLoading={!customerIdentified && rate === 0}
-        />
+        {/* Identification Status / First-Time Customer Discount Card */}
+        {identificationFailed ? (
+          <IdentificationFailedCard onRetry={onManualIdentify} />
+        ) : (
+          <FirstTimeDiscountCard
+            energyKwh={energyKwh}
+            rate={rate}
+            cost={calculatedCost}
+            currencySymbol={currencySymbol || selectedPlan?.currencySymbol || 'KES'}
+            isLoading={isIdentifying || (!customerIdentified && rate === 0)}
+          />
+        )}
 
         {/* Customer Summary - Ultra Compact inline row */}
         <div style={{ 
@@ -403,6 +416,93 @@ function FirstTimeDiscountCard({
           FREE
         </span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * PricingUnavailableCard - Shows when pricing info couldn't be fetched after retries
+ * Provides a manual retry button to fetch pricing again
+ */
+function IdentificationFailedCard({
+  onRetry,
+}: {
+  onRetry?: () => void;
+}) {
+  const { t } = useI18n();
+  
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(255, 100, 100, 0.1) 0%, rgba(200, 50, 50, 0.05) 100%)',
+      border: '1px solid rgba(255, 100, 100, 0.3)',
+      borderRadius: '8px',
+      padding: '10px 12px',
+      marginBottom: '10px',
+    }}>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px',
+        marginBottom: '8px',
+      }}>
+        {/* Alert icon */}
+        <div style={{
+          width: '24px',
+          height: '24px',
+          borderRadius: '6px',
+          background: 'rgba(255, 100, 100, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <AlertCircle size={14} style={{ color: 'var(--color-error, #ff6464)' }} />
+        </div>
+        
+        {/* Message */}
+        <div style={{ flex: 1 }}>
+          <div style={{ 
+            fontWeight: 600, 
+            fontSize: '13px',
+            color: 'var(--color-error, #ff6464)',
+          }}>
+            {t('sales.pricingUnavailable') || 'Pricing unavailable'}
+          </div>
+          <div style={{ 
+            fontSize: '11px',
+            color: 'var(--color-text-secondary)',
+            marginTop: '2px',
+          }}>
+            {t('sales.pricingUnavailableHint') || 'Could not fetch energy rate. Tap to retry.'}
+          </div>
+        </div>
+      </div>
+      
+      {/* Retry Button */}
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            width: '100%',
+            padding: '8px 12px',
+            background: 'rgba(0, 229, 229, 0.1)',
+            border: '1px solid var(--color-primary)',
+            borderRadius: '6px',
+            color: 'var(--color-primary)',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <RotateCcw size={14} />
+          <span>{t('sales.fetchPricing') || 'Fetch Pricing'}</span>
+        </button>
+      )}
     </div>
   );
 }

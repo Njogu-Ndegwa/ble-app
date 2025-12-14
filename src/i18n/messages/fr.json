@@ -1217,6 +1217,12 @@
   "sales.energyValue": "Valeur énergétique",
   "sales.freeWithSubscription": "GRATUIT avec l'abonnement",
   "sales.free": "GRATUIT",
+  "sales.waitingForPricing": "Veuillez patienter, récupération des tarifs...",
+  "sales.pricingRequired": "Tarification requise. Veuillez réessayer.",
+  "sales.pricingUnavailable": "Tarification indisponible",
+  "sales.pricingUnavailableHint": "Impossible de récupérer le tarif. Appuyez pour réessayer.",
+  "sales.fetchPricing": "Récupérer les tarifs",
+  "sales.fetchingPricing": "Récupération des tarifs...",
   
   "battery.scanQr": "Scanner QR",
   "battery.selectManually": "Sélection manuelle",
