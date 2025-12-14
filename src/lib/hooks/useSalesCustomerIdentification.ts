@@ -1,23 +1,24 @@
 /**
  * useSalesCustomerIdentification Hook
  * 
- * Extends the base useCustomerIdentification hook with:
+ * A thin wrapper around useCustomerIdentification that adds:
  * - Silent automatic retry with exponential backoff
  * - Manual retry trigger with visible feedback (like Attendant flow)
  * - Retry state tracking for UI feedback
  * 
- * This is specifically designed for the Sales workflow where:
- * - Customer identification happens in the background after payment
- * - We need the service data (unit price/rate) to calculate energy cost
- * - The Complete Service button should be disabled until identification succeeds
- * - Retries should be silent (no toasts) but manual retry shows feedback
+ * This reuses the core identification logic from useCustomerIdentification
+ * and only adds retry behavior specific to the Sales workflow.
  */
 
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { PAYMENT } from '@/lib/constants';
-import { round } from '@/lib/utils';
-import type { ServiceState, CustomerIdentificationResult, IdentifyCustomerInput } from './useCustomerIdentification';
+import { 
+  useCustomerIdentification, 
+  type CustomerIdentificationResult, 
+  type IdentifyCustomerInput,
+  type ServiceState,
+} from './useCustomerIdentification';
 
 // Re-export types for convenience
 export type { ServiceState, CustomerIdentificationResult, IdentifyCustomerInput };
@@ -67,12 +68,6 @@ export interface UseSalesCustomerIdentificationConfig {
 // CONSTANTS
 // ============================================
 
-/** Threshold for "infinite quota" services */
-const INFINITE_QUOTA_THRESHOLD = 100000;
-
-/** Timeout for identification request (ms) */
-const IDENTIFICATION_TIMEOUT = 30000;
-
 /** Default retry configuration */
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_DELAY = 2000;  // 2 seconds
@@ -94,29 +89,18 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     maxRetryDelay = DEFAULT_MAX_RETRY_DELAY,
   } = config;
 
-  // State
+  // Retry state
   const [status, setStatus] = useState<IdentificationStatus>('idle');
   const [retryCount, setRetryCount] = useState(0);
   const [result, setResult] = useState<CustomerIdentificationResult | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
   // Refs for managing async operations
-  const correlationIdRef = useRef<string>('');
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<IdentifyCustomerInput | null>(null);
-  const isManuaRetryRef = useRef(false);
+  const isManualRetryRef = useRef(false);
   const isActiveRef = useRef(false);
-
-  /**
-   * Clear the identification timeout
-   */
-  const clearIdentificationTimeout = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, []);
+  const currentRetryRef = useRef(0);
 
   /**
    * Clear the retry timeout
@@ -139,319 +123,94 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
   }, [baseRetryDelay, maxRetryDelay]);
 
   /**
-   * Parse and process the MQTT response data
+   * Handle successful identification
    */
-  const processResponseData = useCallback((
-    responseData: any,
-    input: IdentifyCustomerInput
-  ): CustomerIdentificationResult | null => {
-    const success = responseData?.data?.success ?? false;
-    const signals = responseData?.data?.signals || [];
-
-    // Check for success signals
-    const hasSuccessSignal = success === true && 
-      Array.isArray(signals) && 
-      (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
-
-    if (!hasSuccessSignal) {
-      // Provide specific error messages based on failure signals
-      let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
-      if (!errorMsg) {
-        if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
-          errorMsg = "Customer not found. Please check the subscription ID.";
-        } else if (signals.includes("INVALID_QR_CODE")) {
-          errorMsg = "Invalid QR code. Please scan a valid customer QR code.";
-        } else if (signals.includes("INVALID_SUBSCRIPTION_ID")) {
-          errorMsg = "Invalid subscription ID format.";
-        } else {
-          errorMsg = "Customer identification failed";
-        }
-      }
-      throw new Error(errorMsg);
+  const handleSuccess = useCallback((identificationResult: CustomerIdentificationResult) => {
+    if (!isActiveRef.current) return;
+    
+    console.info('[SALES ID] Customer identified successfully');
+    setResult(identificationResult);
+    setStatus('success');
+    setLastError(null);
+    currentRetryRef.current = 0;
+    
+    // Show toast only for manual retry
+    if (isManualRetryRef.current) {
+      toast.success('Customer identified successfully');
     }
-
-    // Handle both fresh and idempotent (cached) responses
-    const metadata = responseData?.data?.metadata;
-    const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-    
-    // For idempotent responses, data is in cached_result
-    const sourceData = isIdempotent ? metadata?.cached_result : metadata;
-    const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
-    const serviceBundle = sourceData?.service_bundle;
-    const commonTerms = sourceData?.common_terms;
-    const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
-
-    if (!servicePlanData) {
-      throw new Error("Invalid customer data received");
-    }
-
-    // Extract and enrich service states
-    const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-      (service: any) => typeof service?.service_id === 'string'
-    );
-    
-    const enrichedServiceStates: ServiceState[] = extractedServiceStates.map((serviceState: any) => {
-      const matchingService = serviceBundle?.services?.find(
-        (svc: any) => svc.serviceId === serviceState.service_id
-      );
-      return {
-        ...serviceState,
-        name: matchingService?.name,
-        usageUnitPrice: matchingService?.usageUnitPrice,
-      };
-    });
-
-    // Find specific services
-    const batteryFleet = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-battery-fleet')
-    );
-    const elecService = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-electricity')
-    );
-    const swapCountService = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-swap-count')
-    );
-
-    // Determine customer type
-    const customerType: 'first-time' | 'returning' = batteryFleet?.current_asset ? 'returning' : 'first-time';
-
-    // Extract billing currency from common_terms (source of truth)
-    const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
-    
-    // Get rate from electricity service
-    const rate = elecService?.usageUnitPrice || defaultRate;
-
-    // Check for infinite quota services
-    const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-    const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-
-    // Calculate remaining quota values
-    const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-    const energyUnitPrice = elecService?.usageUnitPrice || 0;
-    const energyValue = energyRemaining * energyUnitPrice;
-
-    // Build customer data
-    const customer = {
-      id: identifiedCustomerId || servicePlanData.customerId || input.customerId || input.subscriptionCode,
-      name: input.name || identifiedCustomerId || 'Customer',
-      subscriptionId: servicePlanData.servicePlanId || input.subscriptionCode,
-      subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
-      phone: input.phone || '',
-      swapCount: swapCountService?.used || 0,
-      lastSwap: 'N/A',
-      energyRemaining,
-      energyTotal: elecService?.quota || 0,
-      energyValue,
-      energyUnitPrice,
-      swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
-      swapsTotal: swapCountService?.quota || 21,
-      hasInfiniteEnergyQuota,
-      hasInfiniteSwapQuota,
-      paymentState: servicePlanData.paymentState || 'INITIAL',
-      serviceState: servicePlanData.serviceState || 'INITIAL',
-      currentBatteryId: batteryFleet?.current_asset || undefined,
-    };
-
-    return {
-      customer,
-      serviceStates: enrichedServiceStates,
-      customerType,
-      rate,
-      currencySymbol: billingCurrency,
-      isIdempotent,
-    };
-  }, [defaultRate]);
+  }, []);
 
   /**
-   * Internal function to perform a single identification attempt
+   * Handle identification error - may trigger retry
    */
-  const performIdentification = useCallback((
-    input: IdentifyCustomerInput,
-    isRetry: boolean,
-    isManual: boolean,
-    currentRetryCount: number
-  ): Promise<CustomerIdentificationResult> => {
-    return new Promise((resolve, reject) => {
-      const { subscriptionCode, source } = input;
+  const handleError = useCallback((error: string) => {
+    if (!isActiveRef.current) return;
 
-      // Validate inputs
-      if (!subscriptionCode.trim()) {
-        const errorMsg = source === 'manual' 
-          ? 'Please enter a Subscription ID' 
-          : 'No subscription code found';
-        reject(new Error(errorMsg));
-        return;
-      }
+    console.warn(`[SALES ID] Attempt ${currentRetryRef.current + 1} failed:`, error);
+    setLastError(error);
 
-      if (!bridge || !isBridgeReady) {
-        reject(new Error('Bridge not available'));
-        return;
-      }
+    // For manual retry, show error and don't auto-retry
+    if (isManualRetryRef.current) {
+      toast.error(error);
+      setStatus('failed');
+      return;
+    }
 
-      if (!isMqttConnected) {
-        reject(new Error('MQTT not connected'));
-        return;
-      }
+    // Check if we should retry (silent automatic retry)
+    if (currentRetryRef.current < maxRetries) {
+      const delay = calculateRetryDelay(currentRetryRef.current);
+      console.info(`[SALES ID] Scheduling retry ${currentRetryRef.current + 1}/${maxRetries} in ${Math.round(delay / 1000)}s...`);
+      
+      setStatus('retrying');
+      setRetryCount(currentRetryRef.current + 1);
+      currentRetryRef.current += 1;
 
-      // Generate correlation ID
-      const correlationId = `sales-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      correlationIdRef.current = correlationId;
-      (window as any).__salesCustomerIdentificationCorrelationId = correlationId;
-
-      // Build MQTT topics
-      const requestTopic = `emit/uxi/attendant/plan/${subscriptionCode}/identify_customer`;
-      const responseTopic = `echo/abs/attendant/plan/${subscriptionCode}/identify_customer`;
-
-      // Build payload
-      const payload = {
-        timestamp: new Date().toISOString(),
-        plan_id: subscriptionCode,
-        correlation_id: correlationId,
-        actor: { type: "attendant", id: attendantInfo.id },
-        data: {
-          action: "IDENTIFY_CUSTOMER",
-          qr_code_data: source === 'manual' 
-            ? `MANUAL_${subscriptionCode}` 
-            : `QR_CUSTOMER_${subscriptionCode}`,
-          attendant_station: attendantInfo.station,
-        },
-      };
-
-      const dataToPublish = {
-        topic: requestTopic,
-        qos: 0,
-        content: payload,
-      };
-
-      // Only log on first attempt or manual retry (not silent retries)
-      if (!isRetry || isManual) {
-        console.info(`=== Sales Customer Identification MQTT (${source}) ===`);
-        console.info("Request Topic:", requestTopic);
-        console.info("Correlation ID:", correlationId);
-      } else {
-        console.info(`[SALES ID] Retry ${currentRetryCount}/${maxRetries} for ${subscriptionCode}`);
-      }
-
-      // Set timeout
-      clearIdentificationTimeout();
-      timeoutRef.current = setTimeout(() => {
-        console.warn(`[SALES ID] Identification timeout (attempt ${currentRetryCount})`);
-        reject(new Error('Request timed out'));
-      }, IDENTIFICATION_TIMEOUT);
-
-      // Register response handler
-      bridge.registerHandler(
-        "mqttMsgArrivedCallBack",
-        (data: string, responseCallback: (response: any) => void) => {
-          try {
-            const parsedMqttData = JSON.parse(data);
-            const topic = parsedMqttData.topic;
-            const rawMessageContent = parsedMqttData.message;
-
-            if (topic === responseTopic) {
-              let responseData: any;
-              try {
-                responseData = typeof rawMessageContent === 'string' 
-                  ? JSON.parse(rawMessageContent) 
-                  : rawMessageContent;
-              } catch {
-                responseData = rawMessageContent;
-              }
-
-              // Check correlation ID
-              const storedCorrelationId = (window as any).__salesCustomerIdentificationCorrelationId;
-              const responseCorrelationId = responseData?.correlation_id;
-
-              const correlationMatches =
-                Boolean(storedCorrelationId) &&
-                Boolean(responseCorrelationId) &&
-                (responseCorrelationId === storedCorrelationId ||
-                  responseCorrelationId.startsWith(storedCorrelationId) ||
-                  storedCorrelationId.startsWith(responseCorrelationId));
-
-              if (correlationMatches) {
-                clearIdentificationTimeout();
-
-                try {
-                  const result = processResponseData(responseData, input);
-                  if (result) {
-                    resolve(result);
-                  } else {
-                    reject(new Error('Invalid response data'));
-                  }
-                } catch (err: any) {
-                  reject(err);
-                }
-              }
-            }
-            responseCallback({});
-          } catch (err) {
-            // Ignore parsing errors for unrelated messages
-          }
+      // Schedule retry - no toast notification (silent retry)
+      retryTimeoutRef.current = setTimeout(() => {
+        if (isActiveRef.current && inputRef.current) {
+          // Trigger identification again via the base hook
+          baseIdentifyCustomer(inputRef.current);
         }
-      );
-
-      // Subscribe to response topic, then publish
-      bridge.callHandler(
-        "mqttSubTopic",
-        { topic: responseTopic, qos: 0 },
-        (subscribeResponse: string) => {
-          try {
-            const subResp = typeof subscribeResponse === 'string' 
-              ? JSON.parse(subscribeResponse) 
-              : subscribeResponse;
-
-            if (subResp?.respCode === "200") {
-              // Wait a moment after subscribe before publishing
-              setTimeout(() => {
-                bridge.callHandler(
-                  "mqttPublishMsg",
-                  JSON.stringify(dataToPublish),
-                  (publishResponse: string) => {
-                    try {
-                      const pubResp = typeof publishResponse === 'string' 
-                        ? JSON.parse(publishResponse) 
-                        : publishResponse;
-                      if (pubResp?.error || pubResp?.respCode !== "200") {
-                        clearIdentificationTimeout();
-                        reject(new Error('Failed to publish identification request'));
-                      }
-                    } catch (err) {
-                      clearIdentificationTimeout();
-                      reject(new Error('Error publishing request'));
-                    }
-                  }
-                );
-              }, 300);
-            } else {
-              clearIdentificationTimeout();
-              reject(new Error('Failed to subscribe to response topic'));
-            }
-          } catch (err) {
-            clearIdentificationTimeout();
-            reject(new Error('Error subscribing to response topic'));
-          }
-        }
-      );
-    });
-  }, [
-    bridge, 
-    isBridgeReady, 
-    isMqttConnected, 
-    attendantInfo, 
-    maxRetries,
-    clearIdentificationTimeout, 
-    processResponseData,
-  ]);
+      }, delay);
+    } else {
+      // All retries exhausted
+      console.error('[SALES ID] All retries exhausted');
+      setStatus('failed');
+      // No toast - user will see the manual retry option in UI
+    }
+  }, [maxRetries, calculateRetryDelay]);
 
   /**
-   * Start identification with automatic retry
+   * Handle identification complete (called after success or error)
+   */
+  const handleComplete = useCallback(() => {
+    // Nothing special needed here - success/error handlers manage state
+  }, []);
+
+  // Use the base customer identification hook
+  const { identifyCustomer: baseIdentifyCustomer, cancelIdentification: baseCancelIdentification } = useCustomerIdentification({
+    bridge: bridge as any,
+    isBridgeReady,
+    isMqttConnected,
+    attendantInfo,
+    defaultRate,
+    onSuccess: handleSuccess,
+    onError: handleError,
+    onComplete: handleComplete,
+  });
+
+  /**
+   * Start identification with automatic retry on failure
    */
   const identifyCustomer = useCallback((input: IdentifyCustomerInput) => {
     // Store input for potential retries
     inputRef.current = input;
-    isManuaRetryRef.current = false;
+    isManualRetryRef.current = false;
     isActiveRef.current = true;
+    currentRetryRef.current = 0;
+
+    // Clear any pending retries
+    clearRetryTimeout();
 
     // Reset state
     setStatus('pending');
@@ -459,60 +218,9 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     setResult(null);
     setLastError(null);
 
-    const attemptIdentification = async (attempt: number) => {
-      if (!isActiveRef.current) {
-        console.info('[SALES ID] Identification cancelled');
-        return;
-      }
-
-      try {
-        const identificationResult = await performIdentification(
-          input, 
-          attempt > 0, 
-          false, 
-          attempt
-        );
-        
-        if (!isActiveRef.current) return;
-
-        // Success!
-        console.info('[SALES ID] Customer identified successfully');
-        setResult(identificationResult);
-        setStatus('success');
-        setLastError(null);
-        
-        // No toast for background identification - silent success
-      } catch (error: any) {
-        if (!isActiveRef.current) return;
-
-        const errorMsg = error.message || 'Identification failed';
-        console.warn(`[SALES ID] Attempt ${attempt + 1} failed:`, errorMsg);
-        setLastError(errorMsg);
-
-        // Check if we should retry
-        if (attempt < maxRetries) {
-          const delay = calculateRetryDelay(attempt);
-          console.info(`[SALES ID] Scheduling retry in ${Math.round(delay / 1000)}s...`);
-          
-          setStatus('retrying');
-          setRetryCount(attempt + 1);
-
-          // Schedule retry - no toast notification (silent retry)
-          retryTimeoutRef.current = setTimeout(() => {
-            attemptIdentification(attempt + 1);
-          }, delay);
-        } else {
-          // All retries exhausted
-          console.error('[SALES ID] All retries exhausted');
-          setStatus('failed');
-          // No toast - user will see the manual retry option
-        }
-      }
-    };
-
-    // Start first attempt
-    attemptIdentification(0);
-  }, [performIdentification, maxRetries, calculateRetryDelay]);
+    // Trigger the base hook
+    baseIdentifyCustomer(input);
+  }, [baseIdentifyCustomer, clearRetryTimeout]);
 
   /**
    * Manual retry - shows feedback like Attendant flow
@@ -525,53 +233,38 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
 
     // Clear any pending retries
     clearRetryTimeout();
-    clearIdentificationTimeout();
     
-    isManuaRetryRef.current = true;
+    isManualRetryRef.current = true;
     isActiveRef.current = true;
+    currentRetryRef.current = 0;
 
     // Reset state
     setStatus('pending');
     setRetryCount(0);
     setLastError(null);
 
-    const input = inputRef.current;
+    // Show loading toast for manual retry
+    toast.loading('Identifying customer...', { id: 'manual-identify' });
+    
+    // Trigger the base hook
+    baseIdentifyCustomer(inputRef.current);
+  }, [baseIdentifyCustomer, clearRetryTimeout]);
 
-    const attemptManualIdentification = async () => {
-      try {
-        toast.loading('Identifying customer...', { id: 'manual-identify' });
-        
-        const identificationResult = await performIdentification(input, false, true, 0);
-        
-        if (!isActiveRef.current) return;
-
-        // Success!
-        toast.success('Customer identified successfully', { id: 'manual-identify' });
-        setResult(identificationResult);
-        setStatus('success');
-        setLastError(null);
-      } catch (error: any) {
-        if (!isActiveRef.current) return;
-
-        const errorMsg = error.message || 'Identification failed';
-        toast.error(errorMsg, { id: 'manual-identify' });
-        setLastError(errorMsg);
-        setStatus('failed');
-      }
-    };
-
-    attemptManualIdentification();
-  }, [performIdentification, clearRetryTimeout, clearIdentificationTimeout]);
+  // Override success handler to dismiss loading toast for manual retry
+  useEffect(() => {
+    if (status === 'success' && isManualRetryRef.current) {
+      toast.dismiss('manual-identify');
+    }
+  }, [status]);
 
   /**
    * Cancel any pending identification
    */
   const cancelIdentification = useCallback(() => {
     isActiveRef.current = false;
-    clearIdentificationTimeout();
     clearRetryTimeout();
-    (window as any).__salesCustomerIdentificationCorrelationId = null;
-  }, [clearIdentificationTimeout, clearRetryTimeout]);
+    baseCancelIdentification();
+  }, [baseCancelIdentification, clearRetryTimeout]);
 
   /**
    * Reset all state
@@ -583,14 +276,16 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     setResult(null);
     setLastError(null);
     inputRef.current = null;
+    currentRetryRef.current = 0;
   }, [cancelIdentification]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      cancelIdentification();
+      isActiveRef.current = false;
+      clearRetryTimeout();
     };
-  }, [cancelIdentification]);
+  }, [clearRetryTimeout]);
 
   // Derived state
   const isIdentifying = status === 'pending' || status === 'retrying';
