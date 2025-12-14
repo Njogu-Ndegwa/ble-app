@@ -34,9 +34,11 @@ import {
 
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
-import { useServiceCompletion } from '@/lib/hooks/useServiceCompletion';
 import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
+import { useCustomerIdentification, type CustomerIdentificationResult, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
+import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
+import { PAYMENT } from '@/lib/constants';
 
 // Import Odoo API functions
 import {
@@ -183,8 +185,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // NEW: Scanned battery pending service completion (battery scanned but service not yet reported)
   const [scannedBatteryPending, setScannedBatteryPending] = useState<BatteryData | null>(null);
   
-  // Service completion hook - handles MQTT request/response for battery assignment
-  // NOTE: isMqttConnected comes from useBridge() - global connection with auto-reconnect
+  // Default rate fallback (used when backend doesn't provide one)
+  const DEFAULT_RATE = 120;
+  
+  // Customer identification data from MQTT (for getting unit price / rate)
+  const [customerServiceStates, setCustomerServiceStates] = useState<ServiceState[]>([]);
+  const [customerIdentified, setCustomerIdentified] = useState(false);
+  const [customerRate, setCustomerRate] = useState<number>(DEFAULT_RATE);
+  const [customerCurrencySymbol, setCustomerCurrencySymbol] = useState<string>(PAYMENT.defaultCurrency);
+  
+  // Computed cost for first-time customer (energy × rate, offered as discount)
+  const [computedEnergyCost, setComputedEnergyCost] = useState<number>(0);
   
   // Registration ID
   const [registrationId, setRegistrationId] = useState<string>('');
@@ -243,17 +254,61 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [bleIsReady, bleHandlersReady]);
 
-  // Service completion hook - handles MQTT request/response for battery assignment
-  const {
-    completeService: completeServiceViaHook,
-    isCompleting: isCompletingService,
-    error: serviceCompletionError,
-    reset: resetServiceCompletion,
-  } = useServiceCompletion({
-    stationId: SALESPERSON_STATION,
-    actorType: 'attendant', // Backend expects 'attendant' type for service completion
-    debug: true,
+  // Customer identification hook - gets unit price (rate) from backend
+  const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
+    bridge: bridge as any,
+    isBridgeReady,
+    isMqttConnected,
+    attendantInfo: {
+      id: `salesperson-${getEmployeeUser()?.id || '001'}`,
+      station: SALESPERSON_STATION,
+    },
+    defaultRate: DEFAULT_RATE,
+    onSuccess: (result: CustomerIdentificationResult) => {
+      console.info('[SALES] Customer identification successful:', result);
+      setCustomerServiceStates(result.serviceStates);
+      setCustomerRate(result.rate);
+      setCustomerCurrencySymbol(result.currencySymbol);
+      setCustomerIdentified(true);
+    },
+    onError: (error: string) => {
+      console.error('[SALES] Customer identification failed:', error);
+      // Don't block the flow - use default rate as fallback
+      setCustomerIdentified(true);
+    },
+    onComplete: () => {
+      // Identification complete (success or error)
+    },
   });
+  
+  // Payment and service completion hook - reports both payment and service via MQTT
+  const {
+    publishPaymentAndService,
+    status: paymentAndServiceStatus,
+    reset: resetPaymentAndService,
+    isReady: isPaymentServiceReady,
+  } = usePaymentAndService({
+    onSuccess: (isIdempotent) => {
+      console.info('[SALES] Payment and service completed successfully!', isIdempotent ? '(idempotent)' : '');
+      // Move battery from pending to assigned
+      setAssignedBattery(scannedBatteryPending);
+      setScannedBatteryPending(null);
+      setRegistrationId(generateRegistrationId());
+      
+      // Clear session since registration is complete
+      clearSalesSession();
+      
+      advanceToStep(7);
+      toast.success(isIdempotent ? 'Service completed! (already recorded)' : 'Service completed! Battery assigned successfully.');
+    },
+    onError: (errorMsg) => {
+      console.error('[SALES] Payment and service failed:', errorMsg);
+      toast.error(errorMsg);
+    },
+  });
+  
+  // Track if service completion is in progress
+  const isCompletingService = paymentAndServiceStatus === 'pending';
 
   // Scan type tracking (payment still needs manual tracking)
   const scanTypeRef = useRef<'battery' | 'payment' | null>(null);
@@ -1152,8 +1207,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     toast('Ready to scan a new battery');
   }, [hookResetState, bleIsReady, startBleScan]);
 
-  // Handle service completion - uses the useServiceCompletion hook
+  // Handle service completion - uses customer identification + payment and service hooks
   // This is for first-time customer with quota (promotional first battery)
+  // 
+  // Flow:
+  // 1. Identify customer via MQTT to get unit price (rate)
+  // 2. Compute cost = energy × rate (given as discount for first sale)
+  // 3. Report both payment and service via MQTT (payment_and_service action)
   const handleCompleteService = useCallback(async () => {
     // Guard: Check MQTT connection before proceeding
     if (!isMqttConnected) {
@@ -1174,38 +1234,87 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
-    // Call the service completion hook
-    const result = await completeServiceViaHook({
-      subscriptionId,
-      battery: {
-        id: scannedBatteryPending.id,
-        actualBatteryId: scannedBatteryPending.actualBatteryId,
-        energy: scannedBatteryPending.energy,
-        chargeLevel: scannedBatteryPending.chargeLevel,
-      },
-    });
-
-    // Handle successful completion
-    if (result?.success) {
-      // Move battery from pending to assigned
-      setAssignedBattery(scannedBatteryPending);
-      setScannedBatteryPending(null);
-      setRegistrationId(generateRegistrationId());
+    // Step 1: Identify customer to get unit price if not already done
+    if (!customerIdentified) {
+      console.info('[SALES SERVICE] Identifying customer to get unit price...');
+      toast.loading('Getting pricing information...');
       
-      // Clear session since registration is complete
-      clearSalesSession();
+      // Trigger customer identification - the onSuccess callback will update state
+      identifyCustomer({
+        subscriptionCode: subscriptionId,
+        source: 'manual',
+      });
       
-      advanceToStep(7);
+      // Wait briefly for identification to complete
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      toast.dismiss();
     }
-    // Error handling is done by the hook (shows toast and sets error state)
+
+    // Step 2: Calculate cost based on energy × rate
+    // Energy is in Wh, convert to kWh for cost calculation
+    const energyKwh = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100; // Floor to 2dp
+    const rate = customerRate || DEFAULT_RATE;
+    const calculatedCost = Math.ceil(energyKwh * rate * 100) / 100; // Round up to 2dp
+    
+    console.info('[SALES SERVICE] Cost calculation:', {
+      energyWh: scannedBatteryPending.energy,
+      energyKwh,
+      rate,
+      calculatedCost,
+      currencySymbol: customerCurrencySymbol,
+    });
+    
+    setComputedEnergyCost(calculatedCost);
+
+    // Step 3: Build and publish payment_and_service
+    // For first-time sales, we report the full cost as the payment amount
+    // but mark it as a promotional/discount situation
+    const paymentReference = `FIRST_SALE_${subscriptionId}_${Date.now()}`;
+    
+    const params: PublishPaymentAndServiceParams = {
+      paymentReference,
+      planId: subscriptionId,
+      swapData: {
+        // First-time customer - no old battery
+        oldBattery: null,
+        newBattery: {
+          id: scannedBatteryPending.id,
+          actualBatteryId: scannedBatteryPending.actualBatteryId || null,
+          energy: scannedBatteryPending.energy,
+        },
+        energyDiff: energyKwh, // Energy transferred in kWh
+        cost: calculatedCost, // Computed cost (energy × rate)
+        rate: rate,
+        currencySymbol: customerCurrencySymbol,
+      },
+      customerType: 'first-time', // First-time customer - only new battery
+      serviceId: 'service-electricity-default', // Electricity service
+      actor: {
+        type: 'attendant', // Backend expects 'attendant' type
+        id: `salesperson-${getEmployeeUser()?.id || '001'}`,
+        station: SALESPERSON_STATION,
+      },
+      // First sale is treated as quota-based (promotional discount)
+      // This means the cost is recorded but not charged
+      isQuotaBased: true,
+      isZeroCostRounding: false,
+    };
+
+    console.info('[SALES SERVICE] Publishing payment_and_service:', params);
+    
+    // Publish via the hook - callbacks handle success/error
+    await publishPaymentAndService(params);
   }, [
     scannedBatteryPending, 
     confirmedSubscriptionCode, 
     subscriptionData, 
-    advanceToStep,
     isMqttConnected,
     t,
-    completeServiceViaHook,
+    customerIdentified,
+    customerRate,
+    customerCurrencySymbol,
+    identifyCustomer,
+    publishPaymentAndService,
   ]);
 
   // Handle back navigation
@@ -1347,7 +1456,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setConfirmedSubscriptionCode(null);
         setAssignedBattery(null);
         setScannedBatteryPending(null);
-        resetServiceCompletion();
+        // Reset customer identification state
+        setCustomerServiceStates([]);
+        setCustomerIdentified(false);
+        setCustomerRate(DEFAULT_RATE);
+        setCustomerCurrencySymbol(PAYMENT.defaultCurrency);
+        setComputedEnergyCost(0);
+        // Reset payment and service hook
+        resetPaymentAndService();
         setRegistrationId('');
         // Reset session restored flag to allow new session tracking
         setSessionRestored(true);
