@@ -1213,6 +1213,7 @@
   "sales.ratePerKwh": "Tarif par kWh",
   "sales.energyValue": "Valeur énergétique",
   "sales.freeWithSubscription": "GRATUIT avec l'abonnement",
+  "sales.free": "GRATUIT",
   
   "battery.scanQr": "Scanner QR",
   "battery.selectManually": "Sélection manuelle",

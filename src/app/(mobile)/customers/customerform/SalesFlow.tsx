@@ -39,6 +39,7 @@ import { useCustomerIdentification, type CustomerIdentificationResult, type Serv
 import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 import { PAYMENT } from '@/lib/constants';
+import { calculateSwapPayment } from '@/lib/swap-payment';
 
 // Import Odoo API functions
 import {
@@ -1264,13 +1265,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // Don't wait - continue with default rate, identification will complete for future reference
     }
 
-    // Calculate cost based on energy × rate
-    // Energy is in Wh, convert to kWh for cost calculation
-    const energyKwh = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100; // Floor to 2dp
+    // Calculate cost using centralized calculateSwapPayment function
+    // This ensures consistent rounding behavior with the Attendant flow
     const rate = customerRate || DEFAULT_RATE;
-    const calculatedCost = Math.ceil(energyKwh * rate * 100) / 100; // Round up to 2dp
+    const paymentCalc = calculateSwapPayment({
+      newBatteryEnergyWh: scannedBatteryPending.energy,
+      oldBatteryEnergyWh: 0, // First-time customer - no old battery
+      ratePerKwh: rate,
+      quotaTotal: 0, // First-time customer - no quota
+      quotaUsed: 0,
+    });
     
-    console.info('[SALES SERVICE] Cost calculation:', {
+    const energyKwh = paymentCalc.energyDiff;
+    const calculatedCost = paymentCalc.cost;
+    
+    console.info('[SALES SERVICE] Cost calculation (via calculateSwapPayment):', {
       energyWh: scannedBatteryPending.energy,
       energyKwh,
       rate,
@@ -1305,7 +1314,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currencySymbol: customerCurrencySymbol,
       },
       customerType: 'first-time', // First-time customer - only new battery
-      serviceId: 'service-electricity-default', // Electricity service
+      // Dynamically extract electricity service ID from customerServiceStates (same pattern as AttendantFlow)
+      serviceId: (() => {
+        const electricityService = customerServiceStates.find(
+          (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
+        );
+        return electricityService?.service_id || 'service-electricity-default';
+      })(), // Electricity service
       actor: {
         type: 'attendant', // Backend expects 'attendant' type
         id: `salesperson-${getEmployeeUser()?.id || '001'}`,
@@ -1332,6 +1347,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     customerIdentified,
     customerRate,
     customerCurrencySymbol,
+    customerServiceStates,
     identifyCustomer,
     publishPaymentAndService,
     paymentReference,
@@ -1729,6 +1745,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         isLoading={isProcessing || isCreatingCustomer}
         paymentInputMode={paymentInputMode}
         isDisabled={false}
+        hasBatteryScanned={!!scannedBatteryPending}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}
