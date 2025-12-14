@@ -1117,6 +1117,13 @@
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",
   "sales.scanBatteryHint": "扫描电池上的二维码进行分配",
+  "sales.firstTimeDiscount": "新客户优惠",
+  "sales.energyIncluded": "订阅包含的电量",
+  "sales.loadingPricing": "正在加载价格...",
+  "sales.batteryEnergy": "电池电量",
+  "sales.ratePerKwh": "每度电价格",
+  "sales.energyValue": "电量价值",
+  "sales.freeWithSubscription": "订阅免费赠送",
   
   "battery.scanQr": "扫描二维码",
   "battery.selectManually": "手动选择",
