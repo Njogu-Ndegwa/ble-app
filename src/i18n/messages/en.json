@@ -1190,6 +1190,8 @@
   "attendant.connectionFailed": "Connection failed",
   "attendant.wrongBattery": "Wrong battery! This battery does not belong to the customer.",
   "attendant.batteryMismatch": "Battery does not belong to this customer",
+  "attendant.batteryIdMismatch": "Battery ID does not match customer record",
+  "attendant.wrongBatteryOpid": "Wrong battery! The battery ID read from the device does not match the customer's assigned battery.",
   "attendant.coveredByQuota": "Covered by quota",
   "attendant.toPay": "To pay",
   "attendant.returning": "Returning",
