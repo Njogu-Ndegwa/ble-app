@@ -20,6 +20,7 @@
 # production
 /build
 
+
 # misc
 .DS_Store
 *.pem
@@ -49,3 +50,5 @@ yarn.lock
 bun.lock
 
 env.collect.ts
+
+core
