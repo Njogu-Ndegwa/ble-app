@@ -1627,6 +1627,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             onCompleteService={handleCompleteService}
             isCompletingService={isCompletingService}
             onRescanBattery={handleRescanBattery}
+            rate={customerRate}
+            currencySymbol={customerCurrencySymbol}
+            customerIdentified={customerIdentified}
           />
         );
       case 7:
