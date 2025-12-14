@@ -15,6 +15,51 @@ export * from './ble';
 export * as ble from './ble';
 
 // ============================================
+// ATTENDANT WORKFLOW HOOKS
+// ============================================
+
+// Customer identification via MQTT
+export {
+  useCustomerIdentification,
+  type ServiceState,
+  type IdentifiedCustomerData,
+  type CustomerIdentificationResult,
+  type IdentifyCustomerInput,
+  type UseCustomerIdentificationConfig,
+} from './useCustomerIdentification';
+
+// Payment collection and service completion
+export {
+  usePaymentCollection,
+  type PaymentCollectionState,
+  type UsePaymentCollectionOptions,
+  type UsePaymentCollectionReturn,
+} from './usePaymentCollection';
+
+// Service completion (MQTT-based battery assignment/swap)
+export {
+  useServiceCompletion,
+  type ServiceBatteryData,
+  type UseServiceCompletionConfig,
+  type CompleteServiceInput,
+  type ServiceCompletionResult,
+  type UseServiceCompletionReturn,
+} from './useServiceCompletion';
+
+// Product catalog (products, packages, plans from Odoo)
+export {
+  useProductCatalog,
+  type ProductData,
+  type PackageData,
+  type PackageComponent,
+  type PlanData,
+  type CatalogLoadingState,
+  type CatalogErrorState,
+  type UseProductCatalogConfig,
+  type UseProductCatalogReturn,
+} from './useProductCatalog';
+
+// ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================
 

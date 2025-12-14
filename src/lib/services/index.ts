@@ -5,6 +5,7 @@
  * - MQTT messaging
  * - API clients
  * - BLE operations
+ * - Payment & Service completion
  * 
  * Usage:
  * ```typescript
@@ -12,7 +13,7 @@
  * import { MqttService } from '@/lib/services';
  * 
  * // React hooks
- * import { useMqtt, useSubscription } from '@/lib/services/hooks';
+ * import { useMqtt, useSubscription, usePaymentAndService } from '@/lib/services/hooks';
  * ```
  */
 
@@ -27,6 +28,24 @@ export type {
   MqttPublishResponse,
   MqttSubscribeResponse,
 } from './mqtt-service';
+
+// Payment & Service Completion Service
+export {
+  publishPaymentAndService,
+  buildPaymentAndServicePayload,
+  getPaymentAndServiceTopics,
+  parsePaymentAndServiceResponse,
+  ERROR_SIGNALS,
+  SUCCESS_SIGNALS,
+} from './payment-service';
+export type {
+  ServiceBatteryData,
+  ServiceSwapData,
+  ServiceActor,
+  PublishPaymentAndServiceParams,
+  PaymentAndServiceResponse,
+  PaymentAndServiceStatus,
+} from './payment-service';
 
 // Re-export hooks
 export * from './hooks';

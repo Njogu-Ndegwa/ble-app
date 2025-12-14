@@ -30,6 +30,7 @@ import {
   createBatteryData, 
   parseBatteryIdFromQr,
 } from './energyUtils';
+import { requiresBluetoothReset } from './bleErrors';
 import type { BatteryData, BleDevice, BleReadingPhase } from './types';
 
 // ============================================
@@ -160,6 +161,10 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const isProcessingRef = useRef(false);
   // Track when we're in device matching phase (after QR scan, before actual connection)
   const isDeviceMatchingRef = useRef(false);
+  // CRITICAL: Force closed flag - when true, sync effect will not override with active states
+  // This prevents the modal from staying open when cancelOperation is called
+  // The flag is set when cancelOperation runs and cleared when a new QR scan starts
+  const forceClosedRef = useRef(false);
 
   // Callback refs (updated on every render to avoid stale closures)
   const onOldBatteryReadRef = useRef(onOldBatteryRead);
@@ -187,12 +192,98 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     }
   }, []);
 
+  /**
+   * CONSOLIDATED CLEANUP FUNCTION
+   * 
+   * This is the single source of truth for ALL BLE cleanup operations.
+   * Call this whenever the modal closes, times out, errors, or user cancels.
+   * 
+   * Cleans up:
+   * - Match timers (device discovery polling)
+   * - BLE scanning (stops native scan)
+   * - Detected devices list (prevents stale device data)
+   * - Service reader state (cancels pending reads)
+   * - BLE connection state AND sessionStorage:
+   *   - connectedDeviceMac
+   *   - pendingBleMac  
+   *   - bleConnectionSession
+   * - Disconnects from any stuck BLE connections in native layer
+   * - All internal refs and state
+   * 
+   * @param setForceClosedFlag - If true, sets forceClosedRef to prevent sync effect 
+   *                             from overriding state. Use true for cancel/close operations,
+   *                             false for reset/retry operations where we want scanning to resume.
+   */
+  const cleanupAllBleState = useCallback((setForceClosedFlag: boolean = true) => {
+    log('=== CLEANUP: Resetting ALL BLE state ===');
+    log('  - Clearing match timers');
+    log('  - Stopping BLE scan');
+    log('  - Clearing detected devices');
+    log('  - Resetting service reader');
+    log('  - Force resetting BLE connection (clears sessionStorage)');
+    log('  - setForceClosedFlag:', setForceClosedFlag);
+    
+    // Set or clear force closed flag based on operation type
+    forceClosedRef.current = setForceClosedFlag;
+    
+    // Clear all timers
+    clearMatchTimers();
+    
+    // Stop scanning and clear detected devices
+    scannerStopScan();
+    scannerClearDevices();
+    
+    // Cancel any pending service reads
+    serviceReaderCancelRead();
+    
+    // Force reset BLE connection - this clears ALL sessionStorage:
+    // - connectedDeviceMac
+    // - pendingBleMac
+    // - bleConnectionSession
+    // AND disconnects from any stuck connections in the native layer
+    connectionForceBleReset();
+    
+    // Reset service reader state
+    serviceReaderResetState();
+    
+    // Exit device matching phase
+    isDeviceMatchingRef.current = false;
+    
+    // Clear all pending operation state
+    setPendingBatteryId(null);
+    setPendingScanType(null);
+    setReadingPhase('idle');
+    setDtaData(null);
+    isProcessingRef.current = false;
+    
+    // Reset to initial state
+    setState(INITIAL_STATE);
+    
+    log('=== CLEANUP COMPLETE ===');
+  }, [
+    clearMatchTimers,
+    scannerStopScan,
+    scannerClearDevices,
+    serviceReaderCancelRead,
+    connectionForceBleReset,
+    serviceReaderResetState,
+    log,
+  ]);
+
   // ============================================
   // SYNC STATE FROM COMPOSED HOOKS
   // ============================================
 
   useEffect(() => {
     setState(prev => {
+      // CRITICAL: If force closed, don't override with active states
+      // This ensures the modal closes when cancelOperation is called
+      // even if the underlying hooks haven't fully reset yet
+      if (forceClosedRef.current) {
+        log('Sync effect: force closed flag is set, using INITIAL_STATE');
+        return INITIAL_STATE;
+      }
+      
       // Preserve isConnecting=true when in device matching phase (after QR scan, before actual connection)
       // This ensures the progress modal stays visible during device discovery
       const shouldBeConnecting = connectionState.isConnecting || isDeviceMatchingRef.current;
@@ -238,6 +329,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     connectionState,
     serviceState,
     readingPhase,
+    log,
   ]);
 
   // ============================================
@@ -360,7 +452,7 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
           setDtaData(null);
           isProcessingRef.current = false;
         } else {
-          log('Failed to extract energy data from DTA');
+          log('Failed to extract energy data from DTA - using consolidated cleanup');
           
           // Disconnect on failure
           if (connectedDevice) {
@@ -368,20 +460,15 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
           }
           
           toast.error('Could not read battery data. Please try again.');
+          
+          // Notify error callback before cleanup
           onErrorRef.current?.('Failed to extract energy data from DTA');
           
-          // Clear pending state
-          setPendingBatteryId(null);
-          setPendingScanType(null);
-          setReadingPhase('idle');
-          setDtaData(null);
-          isProcessingRef.current = false;
+          // Use consolidated cleanup - this ensures modal closes properly
+          // by setting forceClosedRef and resetting all state
+          cleanupAllBleState(true);
           
-          setState(prev => ({
-            ...prev,
-            error: 'Failed to read battery data',
-            connectionFailed: true,
-          }));
+          log('DTA extraction failure handled via cleanupAllBleState');
         }
       }
     }
@@ -394,58 +481,89 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     dtaData,
     readDtaService,
     connectionDisconnect,
+    cleanupAllBleState,
     log,
   ]);
 
   // Handle connection failure
+  // Uses the consolidated cleanupAllBleState function for complete cleanup.
   useEffect(() => {
     if (connectionState.connectionFailed && pendingBatteryId) {
-      log('Connection failed');
-      clearMatchTimers();
+      log('Connection failed - using consolidated cleanup');
       
-      const requiresReset = connectionState.requiresBluetoothReset;
+      // Use centralized error detection - checks both flag and error message
+      const needsReset = connectionState.requiresBluetoothReset || 
+                        (connectionState.error ? requiresBluetoothReset(connectionState.error) : false);
       
-      // Check if error indicates MAC address mismatch
-      const isMacMismatch = connectionState.error?.toLowerCase().includes('macaddress') ||
-                           connectionState.error?.toLowerCase().includes('mac address') ||
-                           connectionState.error?.toLowerCase().includes('connection stuck');
+      // Notify error callback before cleanup
+      onErrorRef.current?.('Connection failed', needsReset);
       
-      if (isMacMismatch || requiresReset) {
-        // Force reset BLE state when MAC mismatch or reset required
-        log('MAC mismatch or reset required - forcing BLE reset');
-        connectionForceBleReset();
-      }
+      // Use consolidated cleanup - this handles everything including MAC mismatch scenarios
+      cleanupAllBleState(true);
       
-      onErrorRef.current?.('Connection failed', requiresReset || isMacMismatch);
-      
-      // Clear pending state
-      setPendingBatteryId(null);
-      setPendingScanType(null);
-      setReadingPhase('idle');
-      setDtaData(null);
-      isProcessingRef.current = false;
+      log('Connection failure handled via cleanupAllBleState');
     }
-  }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, clearMatchTimers, connectionForceBleReset, log]);
+  }, [connectionState.connectionFailed, connectionState.requiresBluetoothReset, connectionState.error, pendingBatteryId, cleanupAllBleState, log]);
+
+  // Handle service reader failure/timeout
+  // CRITICAL: When DTA/ATT read times out or fails, we MUST reset state to allow modal to close
+  // Uses the consolidated cleanupAllBleState function for complete cleanup.
+  useEffect(() => {
+    if (serviceState.error && (readingPhase === 'att' || readingPhase === 'dta')) {
+      log('Service read failed/timed out during', readingPhase, '- Error:', serviceState.error);
+      
+      // Notify error callback before cleanup
+      // Use centralized error detection from bleErrors.ts
+      const needsReset = requiresBluetoothReset(serviceState.error);
+      onErrorRef.current?.(serviceState.error, needsReset);
+      
+      // Use consolidated cleanup - this handles everything
+      cleanupAllBleState(true);
+      
+      log('Service read failure handled via cleanupAllBleState');
+    }
+  }, [serviceState.error, readingPhase, cleanupAllBleState, log]);
 
   // ============================================
   // PUBLIC API
   // ============================================
 
   /**
-   * Start BLE scanning (call when entering battery scan steps)
+   * Start BLE scanning (call when entering battery scan steps or rescanning)
+   * 
+   * Performs full cleanup (including clearing devices) before starting fresh scan.
+   * This ensures we get fresh device data without stale entries.
    */
   const startScanning = useCallback(() => {
-    log('Starting BLE scanning');
+    log('Starting BLE scanning - full cleanup first for fresh scan');
+    
+    // Full cleanup including clearing devices for fresh scan
+    cleanupAllBleState(false);
+    
+    // Start fresh scan
     scannerStartScan();
-  }, [scannerStartScan, log]);
+  }, [cleanupAllBleState, scannerStartScan, log]);
 
   /**
    * Stop BLE scanning
+   * 
+   * Stops the native BLE scan but PRESERVES detected devices.
+   * This is important because:
+   * 1. The step useEffect calls stop-then-start, and we don't want to lose devices
+   * 2. User might resume scanning and want to use previously detected devices
+   * 
+   * For full cleanup (clearing devices), use cancelOperation instead.
    */
   const stopScanning = useCallback(() => {
-    log('Stopping BLE scanning');
+    log('Stopping BLE scanning (preserving detected devices)');
+    
+    // Just stop the native scan - don't clear devices or reset connection state
+    // This allows the detected devices to persist for potential matching
     scannerStopScan();
-  }, [scannerStopScan, log]);
+    
+    // Clear match timers if any (in case stop is called during matching)
+    clearMatchTimers();
+  }, [scannerStopScan, clearMatchTimers, log]);
 
   /**
    * Handle QR code scanned - starts the scan-to-bind process
@@ -466,6 +584,10 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     }
     
     log('Battery ID:', batteryId);
+    
+    // CRITICAL: Clear force closed flag when starting a new scan
+    // This allows the sync effect to properly manage state again
+    forceClosedRef.current = false;
     
     // Store pending info
     setPendingBatteryId(batteryId);
@@ -532,86 +654,79 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     
     // Set timeout for device matching
     matchTimeoutRef.current = setTimeout(() => {
-      clearMatchTimers();
-      scannerStopScan();
-      
-      // Exit device matching phase
-      isDeviceMatchingRef.current = false;
-      
-      log('Device matching timed out');
-      
-      setState(prev => ({
-        ...prev,
-        isScanning: false,
-        isConnecting: false,
-        error: 'Device may already be connected',
-        connectionFailed: true,
-      }));
+      log('Device matching timed out - using consolidated cleanup');
       
       toast.error('Device may already be connected. Try turning Bluetooth off and on, then try again.');
       onErrorRef.current?.('Device may already be connected');
       
-      // Clear pending state
-      setPendingBatteryId(null);
-      setPendingScanType(null);
+      // Use consolidated cleanup - this handles everything
+      cleanupAllBleState(true);
+      
+      log('Device matching timeout handled via cleanupAllBleState');
     }, DEVICE_MATCH_TIMEOUT);
     
     return true;
-  }, [scannerScanState.isScanning, scannerStartScan, scannerStopScan, scannerGetDevices, scannerFindDeviceByNameSuffix, connectionConnect, clearMatchTimers, log]);
+  }, [scannerScanState.isScanning, scannerStartScan, scannerStopScan, scannerGetDevices, scannerFindDeviceByNameSuffix, connectionConnect, clearMatchTimers, cleanupAllBleState, log]);
 
   /**
    * Cancel ongoing operation
+   * 
+   * Uses the consolidated cleanupAllBleState function to reset everything.
+   * 
+   * @param force - Parameter kept for API compatibility, but cleanup is always complete.
    */
-  const cancelOperation = useCallback(() => {
-    // Don't cancel if we're actively reading data
-    if (isProcessingRef.current && isConnected) {
-      log('Cannot cancel - reading battery data');
-      toast('Please wait while reading battery data...', { icon: '⏳' });
-      return false;
-    }
+  const cancelOperation = useCallback((force: boolean = false) => {
+    log('Cancelling operation', force ? '(forced)' : '');
     
-    log('Cancelling operation');
+    // Use consolidated cleanup with forceClosedFlag=true to close modal immediately
+    cleanupAllBleState(true);
     
-    clearMatchTimers();
-    scannerStopScan();
-    cancelConnection();
-    serviceReaderCancelRead();
-    
-    // Exit device matching phase
-    isDeviceMatchingRef.current = false;
-    
-    setPendingBatteryId(null);
-    setPendingScanType(null);
-    setReadingPhase('idle');
-    setDtaData(null);
-    isProcessingRef.current = false;
-    
-    setState(INITIAL_STATE);
     return true;
-  }, [clearMatchTimers, scannerStopScan, cancelConnection, serviceReaderCancelRead, isConnected, log]);
+  }, [cleanupAllBleState, log]);
 
   /**
-   * Reset all state (for retry)
+   * Reset connection/reading state for retry - PRESERVES detected devices
+   * 
+   * This is a lightweight reset that clears connection state but keeps
+   * the detected devices list intact. Use this when:
+   * - User selects a device to connect (devices needed for matching)
+   * - Retrying after a soft failure
+   * 
+   * For full cleanup (including clearing devices), use cleanupAllBleState.
    */
   const resetState = useCallback(() => {
-    log('Resetting state');
+    log('Resetting state for retry (PRESERVING detected devices)');
     
+    // Clear force closed flag to allow sync effect to manage state
+    forceClosedRef.current = false;
+    
+    // Clear match timers
     clearMatchTimers();
-    scannerClearDevices();
+    
+    // Cancel any pending service reads
+    serviceReaderCancelRead();
+    
+    // Reset connection state (but NOT forceBleReset which clears sessionStorage)
     connectionResetState();
+    
+    // Reset service reader state
     serviceReaderResetState();
     
     // Exit device matching phase
     isDeviceMatchingRef.current = false;
     
+    // Clear pending operation state
     setPendingBatteryId(null);
     setPendingScanType(null);
     setReadingPhase('idle');
     setDtaData(null);
     isProcessingRef.current = false;
     
+    // Reset to initial state (but detected devices come from scanner hook, not this state)
     setState(INITIAL_STATE);
-  }, [clearMatchTimers, scannerClearDevices, connectionResetState, serviceReaderResetState, log]);
+    
+    log('State reset complete - detected devices preserved');
+  }, [clearMatchTimers, serviceReaderCancelRead, connectionResetState, serviceReaderResetState, log]);
 
   /**
    * Retry after failure - resets and restarts scanning
@@ -619,35 +734,23 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   const retryConnection = useCallback(() => {
     log('Retrying connection');
     resetState();
+    // Clear force closed flag to allow sync effect to manage state
+    forceClosedRef.current = false;
     scannerStartScan();
   }, [resetState, scannerStartScan, log]);
 
   /**
    * Force reset BLE state in both app and native layer
    * Use this when the BLE native layer gets into a stuck state (e.g., "macAddress is not match" error)
+   * 
+   * Uses the consolidated cleanupAllBleState function.
    */
   const forceBleReset = useCallback(() => {
     log('Force resetting BLE state');
     
-    clearMatchTimers();
-    scannerStopScan();
-    scannerClearDevices();
-    connectionForceBleReset();
-    serviceReaderResetState();
-    
-    // Exit device matching phase
-    isDeviceMatchingRef.current = false;
-    
-    setPendingBatteryId(null);
-    setPendingScanType(null);
-    setReadingPhase('idle');
-    setDtaData(null);
-    isProcessingRef.current = false;
-    
-    setState(INITIAL_STATE);
-    
-    log('BLE state fully reset');
-  }, [clearMatchTimers, scannerStopScan, scannerClearDevices, connectionForceBleReset, serviceReaderResetState, log]);
+    // Use consolidated cleanup with forceClosedFlag=true to close modal immediately
+    cleanupAllBleState(true);
+  }, [cleanupAllBleState, log]);
 
   /**
    * Get detected devices (for debugging/display)
@@ -657,15 +760,16 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
   }, [scannerGetDevices]);
 
   // ============================================
-  // CLEANUP
+  // CLEANUP ON UNMOUNT
   // ============================================
 
   useEffect(() => {
     return () => {
-      clearMatchTimers();
-      scannerStopScan();
+      // Use consolidated cleanup on unmount to ensure complete cleanup
+      // Pass false for forceClosedFlag since component is unmounting anyway
+      cleanupAllBleState(false);
     };
-  }, [clearMatchTimers, scannerStopScan]);
+  }, [cleanupAllBleState]);
 
   // ============================================
   // RETURN
@@ -688,14 +792,23 @@ export function useFlowBatteryScan(options: UseFlowBatteryScanOptions = {}) {
     stopScanning,
     /** Handle QR code scanned */
     handleQrScanned,
-    /** Cancel ongoing operation */
+    /** Cancel ongoing operation - uses cleanupAllBleState internally */
     cancelOperation,
-    /** Reset all state */
+    /** Reset all state - uses cleanupAllBleState internally */
     resetState,
     /** Retry after failure */
     retryConnection,
-    /** Force reset BLE state in both app and native layer - use when stuck */
+    /** Force reset BLE state in both app and native layer - uses cleanupAllBleState internally */
     forceBleReset,
+    /** 
+     * Consolidated cleanup function - clears ALL BLE state including:
+     * - Detected devices
+     * - sessionStorage (connectedDeviceMac, pendingBleMac, bleConnectionSession)
+     * - BLE connection state
+     * - Service reader state
+     * @param setForceClosedFlag - true to close modal, false for retry operations
+     */
+    cleanupAllBleState,
     /** Get detected devices */
     getDetectedDevices,
   };

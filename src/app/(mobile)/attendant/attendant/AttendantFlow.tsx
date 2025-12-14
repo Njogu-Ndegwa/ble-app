@@ -35,16 +35,14 @@ import { BleProgressModal } from '@/components/shared';
 // Import modular BLE hook for battery scanning (available for future migration)
 import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 
-// Import Odoo API functions for payment
-import {
-  initiatePayment,
-  confirmPaymentManual,
-  createPaymentRequest,
-  type CreatePaymentRequestResponse,
-  type PaymentRequestData,
-} from '@/lib/odoo-api';
+// Import customer identification hook
+import { useCustomerIdentification, type CustomerIdentificationResult } from '@/lib/hooks/useCustomerIdentification';
+
+// Import payment collection hook (encapsulates Odoo payment + service completion)
+import { usePaymentCollection } from '@/lib/hooks/usePaymentCollection';
 import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
+import { calculateSwapPayment } from '@/lib/swap-payment';
 
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
@@ -152,24 +150,58 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [isScanning, setIsScanning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Payment states
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [paymentReceipt, setPaymentReceipt] = useState<string | null>(null);
-  const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [paymentInitiationData, setPaymentInitiationData] = useState<PaymentInitiation | null>(null);
-  
-  // Payment request states (ticket created before collecting payment)
-  const [paymentRequestCreated, setPaymentRequestCreated] = useState(false);
-  const [paymentRequestData, setPaymentRequestData] = useState<PaymentRequestData | null>(null);
-  const [paymentRequestOrderId, setPaymentRequestOrderId] = useState<number | null>(null);
-  // Expected amount the customer needs to pay for this swap (swapData.cost at time of request creation)
-  const [expectedPaymentAmount, setExpectedPaymentAmount] = useState<number>(0);
-  
-  // Phase states
-  const [paymentAndServiceStatus, setPaymentAndServiceStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
+  
+  // ============================================
+  // CUSTOMER IDENTIFICATION HOOK
+  // ============================================
+  
+  // Ref to track the scan type for identification (to clear it on complete)
+  const identificationScanTypeRef = useRef<'customer' | null>(null);
+  
+  const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
+    bridge: bridge as any,
+    isBridgeReady,
+    isMqttConnected,
+    attendantInfo,
+    defaultRate: swapData.rate,
+    onSuccess: (result: CustomerIdentificationResult) => {
+      console.info('Customer identification successful:', result);
+      
+      // Update all state from the result
+      setCustomerData(result.customer as CustomerData);
+      setServiceStates(result.serviceStates);
+      setCustomerType(result.customerType);
+      setSwapData(prev => ({
+        ...prev,
+        rate: result.rate,
+        currencySymbol: result.currencySymbol,
+      }));
+      
+      // Advance to next step
+      advanceToStep(2);
+    },
+    onError: (error: string) => {
+      console.error('Customer identification failed:', error);
+    },
+    onStart: () => {
+      // Loading state is managed by the caller (scan vs manual)
+    },
+    onComplete: () => {
+      // Clear loading states
+      setIsScanning(false);
+      setIsProcessing(false);
+      identificationScanTypeRef.current = null;
+      scanTypeRef.current = null;
+    },
+  });
+  
+  // ============================================
+  // PAYMENT COLLECTION HOOK
+  // ============================================
+  
   
   // ============================================
   // BLE SCAN-TO-BIND HOOK (Modular BLE handling)
@@ -201,36 +233,32 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       // === LAST LINE OF DEFENSE: Validate actualBatteryId (OPID/PPID from ATT) matches customer's battery ===
       // This validation happens AFTER reading the battery via BLE, ensuring the actual device ID matches
       // what the backend has assigned to the customer. The earlier validation only checks QR/device name.
+      //
+      // IMPORTANT: This is a STRICT equality check. The actual battery ID (OPID/PPID) read from the
+      // device must EXACTLY match the current_asset stored in the backend. No fuzzy matching here.
+      // If current_asset = "OVES Batt 070000" and OPID = "BO724525070000", they don't match → reject.
       if (customerTypeRef.current === 'returning' && customerDataRef.current?.currentBatteryId && battery.actualBatteryId) {
         const expectedBatteryId = customerDataRef.current.currentBatteryId;
         const actualBatteryId = battery.actualBatteryId;
         
-        // Normalize IDs for comparison (remove prefixes, compare last 6 chars, case insensitive)
-        const normalizeId = (id: string) => {
-          const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_)/i, '');
-          return cleaned.toLowerCase();
-        };
+        // Simple case-insensitive comparison with trimming
+        const actualNormalized = String(actualBatteryId).trim().toLowerCase();
+        const expectedNormalized = String(expectedBatteryId).trim().toLowerCase();
         
-        const actualNormalized = normalizeId(String(actualBatteryId));
-        const expectedNormalized = normalizeId(String(expectedBatteryId));
-        
-        // Check if IDs match (exact match, one contains the other, or last 6 chars match)
-        const isMatch = actualNormalized === expectedNormalized ||
-          actualNormalized.includes(expectedNormalized) ||
-          expectedNormalized.includes(actualNormalized) ||
-          actualNormalized.slice(-6) === expectedNormalized.slice(-6);
+        // Strict equality check - they must be exactly the same
+        const isMatch = actualNormalized === expectedNormalized;
         
         if (!isMatch) {
           // Battery doesn't match - show error and stop process
-          console.error(`OPID/PPID mismatch (last line of defense): actual ${actualBatteryId}, expected ${expectedBatteryId}`);
+          console.error(`OPID/PPID mismatch (last line of defense): actual "${actualBatteryId}" !== expected "${expectedBatteryId}"`);
           
           setFlowError({
             step: 2,
-            message: 'Battery does not belong to this customer',
-            details: `Device ID: ...${String(actualBatteryId).slice(-6)} | Expected: ...${String(expectedBatteryId).slice(-6)}`,
+            message: t('attendant.batteryIdMismatch') || 'Battery ID does not match customer record',
+            details: `Device ID: ${actualBatteryId} | Expected: ${expectedBatteryId}`,
           });
           
-          toast.error('Wrong battery! Device ID does not match customer\'s assigned battery.');
+          toast.error(t('attendant.wrongBatteryOpid') || 'Wrong battery! The battery ID read from the device does not match the customer\'s assigned battery.');
           setIsScanning(false);
           scanTypeRef.current = null;
           return; // Don't proceed to next step
@@ -247,80 +275,42 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     },
     onNewBatteryRead: (battery) => {
       console.info('New battery read via hook:', battery);
-      // Calculate energy difference and cost
+      // Calculate energy difference and cost using the swap payment utility
       setSwapData(prev => {
         const oldEnergy = prev.oldBattery?.energy || 0;
-        const energyDiffWh = battery.energy - oldEnergy;
-        
-        // === STEP 1: Power Differential (ONLY rounding point for energy) ===
-        // Round DOWN to 2dp - this is the single source of truth for energy
-        const powerDifferential = Math.floor((energyDiffWh / 1000) * 100) / 100;
-        
-        // Get rate from electricity service
         const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
-        
-        // === STEP 2: Available Quota (use as-is from backend - already 2dp) ===
         const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
         const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
-        const availableQuota = Math.max(0, elecQuota - elecUsed);
         
-        // Quota to apply: min of available quota and power differential
-        // Use as-is, no rounding (backend values are already 2dp)
-        const quotaToApply = powerDifferential > 0 
-          ? Math.min(availableQuota, powerDifferential) 
-          : 0;
+        // Use the centralized swap payment calculation
+        const paymentCalc = calculateSwapPayment({
+          newBatteryEnergyWh: battery.energy,
+          oldBatteryEnergyWh: oldEnergy,
+          ratePerKwh: rate,
+          quotaTotal: elecQuota,
+          quotaUsed: elecUsed,
+        });
         
-        // === STEP 3: Actual Energy to Pay For (DON'T round) ===
-        const actualEnergyToPay = Math.max(0, powerDifferential - quotaToApply);
-        
-        // === STEP 4: Cost to Report ===
-        // If more than 2dp, round UP to nearest 2dp, otherwise use as-is
-        const costRaw = actualEnergyToPay * rate;
-        // Check if costRaw has more than 2 decimal places
-        const costRounded = Math.round(costRaw * 100) / 100;
-        const hasMoreThan2dp = Math.abs(costRaw - costRounded) > 0.0000001;
-        const costToReport = hasMoreThan2dp ? Math.ceil(costRaw * 100) / 100 : costRounded;
-        
-        // === MONETARY VALUES FOR DISPLAY (Single Source of Truth) ===
-        // Gross energy cost: powerDifferential × rate (round UP if >2dp)
-        const grossCostRaw = powerDifferential * rate;
-        const grossCostRounded = Math.round(grossCostRaw * 100) / 100;
-        const grossHasMoreThan2dp = Math.abs(grossCostRaw - grossCostRounded) > 0.0000001;
-        const grossEnergyCost = grossHasMoreThan2dp ? Math.ceil(grossCostRaw * 100) / 100 : grossCostRounded;
-        
-        // Quota credit value: quotaToApply × rate (use as-is, both inputs are 2dp max)
-        const quotaCreditValue = Math.round(quotaToApply * rate * 100) / 100;
-        
-        console.info('Energy & cost calculated (SINGLE SOURCE OF TRUTH):', {
-          // Step 1: Power differential (ONLY rounding - floor to 2dp)
+        console.info('Energy & cost calculated (via calculateSwapPayment):', {
           oldEnergyWh: oldEnergy,
           newEnergyWh: battery.energy,
-          powerDifferential,
-          // Step 2: Available quota (as-is from backend)
-          availableQuota,
-          quotaToApply,
-          // Step 3: Actual energy to pay (no rounding)
-          actualEnergyToPay,
-          // Step 4: Cost (round UP if >2dp)
           ratePerKwh: rate,
-          costRaw,
-          costToReport,
-          // Display values
-          grossEnergyCost,
-          quotaCreditValue,
+          quotaTotal: elecQuota,
+          quotaUsed: elecUsed,
+          ...paymentCalc,
         });
         
         return {
           ...prev,
           newBattery: battery,
-          // Energy values
-          energyDiff: powerDifferential,        // Step 1: floored to 2dp
-          quotaDeduction: quotaToApply,         // Step 2: as-is (already 2dp)
-          chargeableEnergy: actualEnergyToPay,  // Step 3: no rounding
-          // Monetary values (single source of truth)
-          grossEnergyCost,                      // For display
-          quotaCreditValue,                     // For display
-          cost: costToReport > 0 ? costToReport : 0,  // Step 4: round UP if >2dp
+          // Energy values from calculation
+          energyDiff: paymentCalc.energyDiff,
+          quotaDeduction: paymentCalc.quotaDeduction,
+          chargeableEnergy: paymentCalc.chargeableEnergy,
+          // Monetary values from calculation
+          grossEnergyCost: paymentCalc.grossEnergyCost,
+          quotaCreditValue: paymentCalc.quotaCreditValue,
+          cost: paymentCalc.cost,
         };
       });
       advanceToStep(4);
@@ -351,18 +341,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   
   // Stats (fetched from API in a real implementation)
   const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
-
-  // Transaction ID
-  const [transactionId, setTransactionId] = useState<string>('');
-  
-  // Payment step input mode (scan QR or manual entry)
-  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
-  // Manual payment ID input
-  const [manualPaymentId, setManualPaymentId] = useState<string>('');
-  // Payment amount tracking - amount_remaining from Odoo response (0 means fully paid)
-  const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
-  // Actual amount paid by customer (from Odoo response)
-  const [actualAmountPaid, setActualAmountPaid] = useState<number>(0);
   
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
@@ -400,10 +378,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [clearScanTimeout]);
 
   // Cancel/Close ongoing BLE operation - delegates to hook
-  const cancelBleOperation = useCallback(() => {
-    console.info('=== Cancelling BLE operation via hook ===');
+  // @param force - If true, forces cancellation even during active reading (used by timeout)
+  const cancelBleOperation = useCallback((force?: boolean) => {
+    console.info('=== Cancelling BLE operation via hook ===', force ? '(forced)' : '');
     clearScanTimeout();
-    hookCancelOperation();
+    hookCancelOperation(force);
     setIsScanning(false);
     scanTypeRef.current = null;
   }, [clearScanTimeout, hookCancelOperation]);
@@ -532,6 +511,50 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     return canSkipPayment;
   }, [electricityService, swapCountService, swapData.energyDiff, swapData.cost, swapData.newBattery]);
 
+  // ============================================
+  // PAYMENT COLLECTION HOOK
+  // ============================================
+  
+  const {
+    paymentState,
+    setPaymentInputMode,
+    setManualPaymentId,
+    initiatePayment: initiateOdooPayment,
+    confirmPayment,
+    skipPayment,
+    resetPayment,
+    isProcessing: isPaymentProcessing,
+    publishStatus: paymentAndServiceStatus,
+  } = usePaymentCollection({
+    customerData,
+    swapData,
+    dynamicPlanId,
+    customerType,
+    attendantInfo,
+    electricityServiceId: electricityService?.service_id,
+    onSuccess: (isIdempotent) => {
+      advanceToStep(6);
+      toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
+      setIsScanning(false);
+      setIsProcessing(false);
+    },
+    onError: (errorMsg) => {
+      toast.error(errorMsg);
+      setIsScanning(false);
+      setIsProcessing(false);
+    },
+  });
+  
+  // Destructure payment state for convenience
+  const {
+    paymentInputMode,
+    manualPaymentId,
+    transactionId,
+    paymentAmountRemaining,
+    actualAmountPaid,
+    paymentRequestCreated,
+  } = paymentState;
+
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
     // Prevent multiple scanner opens - if already scanning, ignore duplicate requests
@@ -578,8 +601,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [hookStopScanning]);
 
 
-  // Process customer QR code data and send MQTT identify_customer
+  // Process customer QR code data - parses QR and delegates to identification hook
   const processCustomerQRData = useCallback((qrCodeData: string) => {
+    // Parse QR code data
     let parsedData: any;
     try {
       parsedData = JSON.parse(qrCodeData);
@@ -587,23 +611,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       parsedData = qrCodeData;
     }
 
-    // If the QR code is a plain string (not JSON object), treat it as the subscription code directly
-    // This allows scanning a QR code that IS the subscription code (e.g., "SUB-8847-KE")
-    const normalizedData: any = {
-      customer_id: typeof parsedData === 'object'
-        ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id || qrCodeData
-        : qrCodeData,
-      subscription_code: typeof parsedData === 'object'
-        ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
-        : qrCodeData, // Plain string QR code IS the subscription code
-      name: typeof parsedData === 'object'
-        ? parsedData.name || parsedData.customer_name
-        : undefined,
-      raw: qrCodeData,
-    };
+    // Normalize data - handle both JSON objects and plain strings
+    const subscriptionCode = typeof parsedData === 'object'
+      ? parsedData.subscription_code || parsedData.subscriptionCode || parsedData.subscription?.code
+      : qrCodeData;
 
-    // Extract subscription_code as plan_id
-    const subscriptionCode = normalizedData.subscription_code;
     if (!subscriptionCode) {
       console.error("No subscription_code found in QR code");
       toast.error("QR code missing subscription_code");
@@ -612,257 +624,29 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return;
     }
 
+    // Store the plan ID for later use
     setDynamicPlanId(subscriptionCode);
-    console.info("Using subscription_code as plan_id:", subscriptionCode);
 
-    const currentPlanId = subscriptionCode;
-    const customerId = normalizedData.customer_id;
-    const formattedQrCodeData = `QR_CUSTOMER_TEST_${customerId}`;
+    // Extract optional fields from QR
+    const name = typeof parsedData === 'object'
+      ? parsedData.name || parsedData.customer_name
+      : undefined;
+    const phone = typeof parsedData === 'object'
+      ? parsedData.phone || parsedData.customer_phone
+      : undefined;
+    const customerId = typeof parsedData === 'object'
+      ? parsedData.customer_id || parsedData.customerId || parsedData.customer?.id
+      : qrCodeData;
 
-    // Generate correlation ID
-    const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    correlationIdRef.current = correlationId;
-    (window as any).__customerIdentificationCorrelationId = correlationId;
-
-    // Build MQTT payload
-    const requestTopic = `emit/uxi/attendant/plan/${currentPlanId}/identify_customer`;
-    const responseTopic = `echo/abs/attendant/plan/${currentPlanId}/identify_customer`;
-
-    const payload = {
-      timestamp: new Date().toISOString(),
-      plan_id: currentPlanId,
-      correlation_id: correlationId,
-      actor: { type: "attendant", id: attendantInfo.id },
-      data: {
-        action: "IDENTIFY_CUSTOMER",
-        qr_code_data: formattedQrCodeData,
-        attendant_station: attendantInfo.station,
-      },
-    };
-
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: payload,
-    };
-
-    console.info("=== Customer Identification MQTT (QR Scan) ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", correlationId);
-    console.info("Payload:", JSON.stringify(payload, null, 2));
-
-    // Set timeout for the operation
-    if (scanTimeoutRef.current) {
-      clearTimeout(scanTimeoutRef.current);
-    }
-    scanTimeoutRef.current = setTimeout(() => {
-      console.error("Customer identification timed out after 30 seconds");
-      toast.error("Request timed out. Please try again.");
-      setIsScanning(false);
-      scanTypeRef.current = null;
-    }, 30000);
-
-    // Register response handler
-    bridge?.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing identify_customer response");
-
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              if (scanTimeoutRef.current) {
-                clearTimeout(scanTimeoutRef.current);
-              }
-              
-              const success = responseData?.data?.success ?? false;
-              const signals = responseData?.data?.signals || [];
-
-              const hasSuccessSignal = success === true && 
-                Array.isArray(signals) && 
-                (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
-
-              if (hasSuccessSignal) {
-                const metadata = responseData?.data?.metadata;
-                const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-                const sourceData = isIdempotent ? metadata?.cached_result : metadata;
-                const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
-                const serviceBundle = sourceData?.service_bundle;
-                const commonTerms = sourceData?.common_terms;
-                const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
-                
-                if (servicePlanData) {
-                  const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-                    (service: any) => typeof service?.service_id === 'string'
-                  );
-                  
-                  const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
-                    const matchingService = serviceBundle?.services?.find(
-                      (svc: any) => svc.serviceId === serviceState.service_id
-                    );
-                    return {
-                      ...serviceState,
-                      name: matchingService?.name,
-                      usageUnitPrice: matchingService?.usageUnitPrice,
-                    };
-                  });
-                  
-                  setServiceStates(enrichedServiceStates);
-                  
-                  const batteryFleet = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-battery-fleet')
-                  );
-                  setCustomerType(batteryFleet?.current_asset ? 'returning' : 'first-time');
-                  
-                  const elecService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-electricity')
-                  );
-                  const swapCountService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-swap-count')
-                  );
-                  
-                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
-                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
-                  
-                  // Update swap data with rate and currency from customer's service plan
-                  setSwapData(prev => ({ 
-                    ...prev, 
-                    rate: elecService?.usageUnitPrice || prev.rate,
-                    currencySymbol: billingCurrency 
-                  }));
-                  
-                  // Check for infinite quota services (quota > 100,000 indicates management services)
-                  const INFINITE_QUOTA_THRESHOLD = 100000;
-                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  
-                  // Calculate remaining quota values
-                  // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
-                  const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
-                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
-                  const energyValue = energyRemaining * energyUnitPrice;
-                  
-                  setCustomerData({
-                    id: identifiedCustomerId || servicePlanData.customerId || customerId,
-                    name: normalizedData.name || identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
-                    subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
-                    phone: normalizedData.phone || '', // For M-Pesa payment
-                    swapCount: swapCountService?.used || 0,
-                    lastSwap: 'N/A',
-                    energyRemaining: energyRemaining,
-                    energyTotal: elecService?.quota || 0,
-                    energyValue: energyValue,
-                    energyUnitPrice: energyUnitPrice,
-                    swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
-                    swapsTotal: swapCountService?.quota || 21,
-                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
-                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
-                    paymentState: servicePlanData.paymentState || 'INITIAL',
-                    serviceState: servicePlanData.serviceState || 'INITIAL',
-                    currentBatteryId: batteryFleet?.current_asset || undefined,
-                  });
-                  
-                  advanceToStep(2);
-                  toast.success(isIdempotent ? 'Customer identified (cached)' : 'Customer identified');
-                } else {
-                  toast.error("Invalid customer data received");
-                }
-              } else {
-                // Provide specific error messages based on failure signals
-                let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
-                if (!errorMsg) {
-                  // Check for specific failure signals to provide better error messages
-                  if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
-                    errorMsg = "Customer not found. Please check the subscription ID.";
-                  } else if (signals.includes("INVALID_QR_CODE")) {
-                    errorMsg = "Invalid QR code. Please scan a valid customer QR code.";
-                  } else {
-                    errorMsg = "Customer not found";
-                  }
-                }
-                toast.error(errorMsg);
-              }
-              setIsScanning(false);
-              scanTypeRef.current = null;
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing MQTT response:", err);
-        }
-      }
-    );
-
-    // Subscribe to response topic first, then publish
-    bridge?.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse: string) => {
-        try {
-          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
-          
-          if (subResp?.respCode === "200") {
-            setTimeout(() => {
-              bridge?.callHandler(
-                "mqttPublishMsg",
-                JSON.stringify(dataToPublish),
-                (publishResponse: string) => {
-                  try {
-                    const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                    if (pubResp?.error || pubResp?.respCode !== "200") {
-                      toast.error("Failed to identify customer");
-                      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-                      setIsScanning(false);
-                      scanTypeRef.current = null;
-                    }
-                  } catch (err) {
-                    toast.error("Error identifying customer");
-                    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-                    setIsScanning(false);
-                    scanTypeRef.current = null;
-                  }
-                }
-              );
-            }, 300);
-          } else {
-            toast.error("Failed to connect. Please try again.");
-            if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-            setIsScanning(false);
-            scanTypeRef.current = null;
-          }
-        } catch (err) {
-          toast.error("Error connecting. Please try again.");
-          if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-          setIsScanning(false);
-          scanTypeRef.current = null;
-        }
-      }
-    );
-  }, [bridge, attendantInfo]);
+    // Delegate to identification hook
+    identifyCustomer({
+      subscriptionCode,
+      source: 'qr',
+      name,
+      phone,
+      customerId,
+    });
+  }, [identifyCustomer]);
 
   // Process old battery QR code data - validates against customer's current battery and initiates BLE connection
   const processOldBatteryQRData = useCallback((qrCodeData: string) => {
@@ -977,119 +761,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     hookHandleQrScanned(qrCodeData, 'new_battery');
   }, [clearScanTimeout, swapData.oldBattery?.id, stopBleScan, hookHandleQrScanned]);
 
-  // Create payment request/ticket with Odoo FIRST, then optionally send STK push
-  // This MUST be done before collecting payment from the customer.
-  // Uses subscriptionId which is the same as servicePlanId - shared between ABS and Odoo
-  const initiateOdooPayment = useCallback(async (): Promise<boolean> => {
-    // subscriptionId is the servicePlanId - same ID used by both ABS and Odoo
-    const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
-    
-    if (!subscriptionCode) {
-      console.log('No subscription ID, skipping payment request creation');
-      setPaymentInitiated(true);
-      setPaymentRequestCreated(true);
-      return true;
-    }
 
-    // Get customer phone - try from customerData first
-    const phoneNumber = customerData?.phone || '';
-    
-    try {
-      // Step 1: Create payment request/ticket FIRST
-      // We send the ROUNDED DOWN amount to Odoo - this is what we ask the customer to pay
-      // (customers can't pay decimals, e.g., 20.54 becomes 20)
-      // BUT we store the original amount for backend quota reporting later
-      const amountCalculated = swapData.cost; // Original calculated amount (e.g., 20.54)
-      const amountRequired = Math.floor(swapData.cost); // Rounded down for payment (e.g., 20)
-      
-      // Store the ROUNDED amount as expected - this is what customer will actually pay
-      setExpectedPaymentAmount(amountRequired);
-      
-      console.log('Creating payment request with Odoo:', {
-        subscription_code: subscriptionCode,
-        amount_calculated: amountCalculated,
-        amount_required: amountRequired, // Rounded down
-        description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
-      });
-
-      const paymentRequestResponse = await createPaymentRequest({
-        subscription_code: subscriptionCode,
-        amount_required: amountRequired, // Send rounded amount to Odoo
-        description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
-      });
-
-      if (paymentRequestResponse.success && paymentRequestResponse.payment_request) {
-        // Payment request created successfully
-        console.log('Payment request created:', paymentRequestResponse.payment_request);
-        setPaymentRequestCreated(true);
-        setPaymentRequestData(paymentRequestResponse.payment_request);
-        setPaymentRequestOrderId(paymentRequestResponse.payment_request.sale_order.id);
-        toast.success('Payment ticket created. Collect payment from customer.');
-      } else {
-        // Payment request creation failed - show error to user
-        // This includes the case when there's an existing active payment request
-        console.error('Payment request creation failed:', paymentRequestResponse.error);
-        
-        // Build a detailed error message
-        let errorMessage = paymentRequestResponse.error || 'Failed to create payment request';
-        
-        // If there's an existing request, include details about it
-        if (paymentRequestResponse.existing_request) {
-          const existingReq = paymentRequestResponse.existing_request;
-          errorMessage = `${paymentRequestResponse.message || errorMessage}\n\nExisting request: ${swapData.currencySymbol} ${existingReq.amount_remaining} remaining (${existingReq.status})`;
-          
-          // Log the available actions for debugging
-          console.log('Existing request actions:', existingReq.actions);
-        }
-        
-        // Show instructions if available
-        if (paymentRequestResponse.instructions && paymentRequestResponse.instructions.length > 0) {
-          console.log('Instructions:', paymentRequestResponse.instructions);
-        }
-        
-        toast.error(errorMessage);
-        return false;
-      }
-
-      // Step 2: Optionally try to send STK push (don't block if it fails)
-      if (phoneNumber) {
-        try {
-          console.log('Sending STK push to customer phone:', phoneNumber);
-          const stkResponse = await initiatePayment({
-            subscription_code: subscriptionCode,
-            phone_number: phoneNumber,
-            amount: amountRequired,
-          });
-
-          if (stkResponse.success && stkResponse.data) {
-            console.log('STK push sent:', stkResponse.data);
-            setPaymentInitiated(true);
-            setPaymentInitiationData({
-              transactionId: stkResponse.data.transaction_id,
-              checkoutRequestId: stkResponse.data.checkout_request_id,
-              merchantRequestId: stkResponse.data.merchant_request_id,
-              instructions: stkResponse.data.instructions,
-            });
-            toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
-          }
-        } catch (stkError) {
-          console.warn('STK push failed (non-blocking):', stkError);
-          // Don't show error toast - customer can still pay manually
-        }
-      }
-      
-      setPaymentInitiated(true);
-      return true;
-    } catch (error: any) {
-      console.error('Failed to create payment request:', error);
-      toast.error(error.message || 'Failed to create payment request. Please try again.');
-      return false;
-    }
-  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff]);
-
-  // Process payment QR code data - verify with Odoo
-  // Uses order_id (preferred) or subscription_code to confirm payment
-  // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
+  // Process payment QR code data - extract receipt and delegate to hook
   const processPaymentQRData = useCallback((qrCodeData: string) => {
     let qrData: any;
     try {
@@ -1099,78 +772,13 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     }
     const receipt = qrData.transaction_id || qrData.receipt || qrData.txn_id || qrData.id || qrCodeData;
     
-    // Confirm payment with Odoo
-    const confirmPayment = async () => {
-      // order_id is REQUIRED - must be obtained from createPaymentRequest response
-      const orderId = paymentRequestOrderId;
-      
-      try {
-        // order_id is REQUIRED - payment request must be created first
-        if (!orderId) {
-          toast.error('Payment request not created. Please go back and try again.');
-          setIsScanning(false);
-          scanTypeRef.current = null;
-          return;
-        }
-
-        // Use Odoo manual confirmation endpoint with order_id ONLY
-        console.log('Confirming payment with order_id:', { order_id: orderId, receipt });
-        const response = await confirmPaymentManual({ order_id: orderId, receipt });
-        
-        if (response.success) {
-          // Extract payment amounts from response
-          // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
-          const responseData = response.data || (response as any);
-          // Use total_paid (new format) or amount_paid (legacy format)
-          const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
-          const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
-          
-          console.log('Payment validation response:', {
-            total_paid: totalPaid,
-            remaining_to_pay: remainingToPay,
-            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
-            order_id: responseData.order_id,
-            expectedPaymentAmount,
-          });
-          
-          // Update state with payment amounts
-          setActualAmountPaid(totalPaid);
-          setPaymentAmountRemaining(remainingToPay);
-          
-          // CRITICAL: Check if total_paid >= expected amount for THIS swap
-          // This is the amount we calculated (energy * unit price) and displayed to the attendant
-          const requiredAmount = expectedPaymentAmount || swapData.cost;
-          if (totalPaid < requiredAmount) {
-            // Payment insufficient for this swap
-            const shortfall = requiredAmount - totalPaid;
-            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
-            setIsScanning(false);
-            scanTypeRef.current = null;
-            // Don't proceed - customer needs to pay more
-            return;
-          }
-          
-          // Payment sufficient - proceed with service completion
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed successfully');
-          // Report payment - uses original calculated cost for accurate quota tracking
-          publishPaymentAndService(receipt, false);
-        } else {
-          throw new Error('Payment confirmation failed');
-        }
-      } catch (err: any) {
-        console.error('Payment confirmation error:', err);
-        toast.error(err.message || 'Payment confirmation failed. Check network connection.');
-        setIsScanning(false);
-        scanTypeRef.current = null;
-      }
-    };
+    // Reset scanning state before calling confirm (hook will manage its own processing state)
+    setIsScanning(false);
+    scanTypeRef.current = null;
     
-    confirmPayment();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost, customerData, paymentRequestOrderId, expectedPaymentAmount]);
+    // Delegate to payment hook
+    confirmPayment(receipt);
+  }, [confirmPayment]);
 
   // Keep processing function refs up to date to avoid stale closures in bridge handlers
   // This ensures the bridge callback always calls the latest version of each processing function
@@ -1195,11 +803,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
-
-  // Ref for publishPaymentAndService to avoid circular dependency with handleProceedToPayment
-  // isQuotaBased: true when customer has sufficient quota credit (no payment_data sent)
-  // isZeroCostRounding: true when cost rounds to 0 but NOT quota-based (payment_data sent with original amount)
-  const publishPaymentAndServiceRef = useRef<(paymentReference: string, isQuotaBased?: boolean, isZeroCostRounding?: boolean) => void>(() => {});
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
@@ -1384,310 +987,27 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     startQrCodeScan();
   }, [isMqttConnected, startQrCodeScan]);
 
-  // Step 1: Manual lookup - also uses MQTT
+  // Step 1: Manual lookup - delegates to identification hook
   const handleManualLookup = useCallback(async () => {
-    if (!manualSubscriptionId.trim()) {
+    const subscriptionCode = manualSubscriptionId.trim();
+    
+    if (!subscriptionCode) {
       toast.error('Please enter a Subscription ID');
       return;
     }
 
-    if (!bridge || !isBridgeReady) {
-      toast.error('Bridge not available. Please wait for initialization...');
-      console.error('Attempted manual lookup but bridge is not ready. bridge:', !!bridge, 'isBridgeReady:', isBridgeReady);
-      return;
-    }
-
-    if (!isMqttConnected) {
-      toast.error('MQTT not connected. Please wait a moment and try again.');
-      console.error('Attempted manual lookup but MQTT is not connected');
-      return;
-    }
-    
-    setIsProcessing(true);
-    
-    // Set a timeout to prevent infinite loading (30 seconds)
-    const timeoutId = setTimeout(() => {
-      console.error("Manual lookup timed out after 30 seconds");
-      toast.error("Request timed out. Please try again.");
-      setIsProcessing(false);
-    }, 30000);
-    
-    // Use the subscription ID as the plan_id
-    const subscriptionCode = manualSubscriptionId.trim();
+    // Store the plan ID for later use
     setDynamicPlanId(subscriptionCode);
     
-    // Generate correlation ID
-    const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    correlationIdRef.current = correlationId;
-    (window as any).__customerIdentificationCorrelationId = correlationId;
+    // Set processing state (hook's onComplete will clear it)
+    setIsProcessing(true);
 
-    // Build MQTT payload for manual lookup
-    const requestTopic = `emit/uxi/attendant/plan/${subscriptionCode}/identify_customer`;
-    // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
-    const responseTopic = `echo/abs/attendant/plan/${subscriptionCode}/identify_customer`;
-
-    const payload = {
-      timestamp: new Date().toISOString(),
-      plan_id: subscriptionCode,
-      correlation_id: correlationId,
-      actor: { type: "attendant", id: attendantInfo.id },
-      data: {
-        action: "IDENTIFY_CUSTOMER",
-        qr_code_data: `MANUAL_${subscriptionCode}`,
-        attendant_station: attendantInfo.station,
-      },
-    };
-
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: payload,
-    };
-
-    console.info("=== Manual Customer Identification MQTT ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", correlationId);
-    console.info("Payload:", JSON.stringify(payload, null, 2));
-
-    // Register response handler (same as QR scan)
-    bridge.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          console.info("=== MQTT Message Arrived (Manual Lookup Flow) ===");
-          console.info("Received topic:", topic);
-          console.info("Expected topic:", responseTopic);
-          console.info("Topic match:", topic === responseTopic);
-
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing identify_customer response (manual)");
-            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
-            
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              // Clear the timeout since we got a response
-              clearTimeout(timeoutId);
-              
-              const success = responseData?.data?.success ?? false;
-              const signals = responseData?.data?.signals || [];
-
-              console.info("Response success:", success, "signals:", signals);
-
-              // Check for both CUSTOMER_IDENTIFIED_SUCCESS and IDEMPOTENT_OPERATION_DETECTED
-              const hasSuccessSignal = success === true && 
-                Array.isArray(signals) && 
-                (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
-
-              if (hasSuccessSignal) {
-                console.info("Customer identification successful (manual)!");
-                
-                // Handle both fresh and idempotent (cached) responses
-                const metadata = responseData?.data?.metadata;
-                const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-                
-                // For idempotent responses, data is in cached_result
-                const sourceData = isIdempotent ? metadata?.cached_result : metadata;
-                const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
-                const serviceBundle = sourceData?.service_bundle;
-                const commonTerms = sourceData?.common_terms;
-                const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
-                
-                if (servicePlanData) {
-                  const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-                    (service: any) => typeof service?.service_id === 'string'
-                  );
-                  
-                  const enrichedServiceStates = extractedServiceStates.map((serviceState: any) => {
-                    const matchingService = serviceBundle?.services?.find(
-                      (svc: any) => svc.serviceId === serviceState.service_id
-                    );
-                    return {
-                      ...serviceState,
-                      name: matchingService?.name,
-                      usageUnitPrice: matchingService?.usageUnitPrice,
-                    };
-                  });
-                  
-                  setServiceStates(enrichedServiceStates);
-                  
-                  const batteryFleet = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-battery-fleet')
-                  );
-                  setCustomerType(batteryFleet?.current_asset ? 'returning' : 'first-time');
-                  
-                  const elecService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-electricity')
-                  );
-                  const swapCountService = enrichedServiceStates.find(
-                    (s: any) => s.service_id?.includes('service-swap-count')
-                  );
-                  
-                  // Extract billing currency from common_terms (source of truth), fallback to service plan currency
-                  const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
-                  
-                  // Update swap data with rate and currency from customer's service plan
-                  setSwapData(prev => ({ 
-                    ...prev, 
-                    rate: elecService?.usageUnitPrice || prev.rate,
-                    currencySymbol: billingCurrency 
-                  }));
-                  
-                  // Check for infinite quota services (quota > 100,000 indicates management services)
-                  const INFINITE_QUOTA_THRESHOLD = 100000;
-                  const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
-                  
-                  // Calculate remaining quota values
-                  // Round to 2 decimal places to avoid floating-point precision issues (e.g., 3.47 - 3.46 = 0.01, not 0.010000000000000231)
-                  const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-                  const energyUnitPrice = elecService?.usageUnitPrice || 0;
-                  // Calculate monetary value of remaining energy quota (remaining kWh × unit price)
-                  const energyValue = energyRemaining * energyUnitPrice;
-                  
-                  setCustomerData({
-                    id: identifiedCustomerId || servicePlanData.customerId,
-                    name: identifiedCustomerId || 'Customer',
-                    subscriptionId: servicePlanData.servicePlanId || subscriptionCode, // Same ID used by ABS and Odoo
-                    subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
-                    phone: '', // Will be entered separately if needed
-                    swapCount: swapCountService?.used || 0,
-                    lastSwap: 'N/A',
-                    energyRemaining: energyRemaining,
-                    energyTotal: elecService?.quota || 0,
-                    energyValue: energyValue,
-                    energyUnitPrice: energyUnitPrice,
-                    swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
-                    swapsTotal: swapCountService?.quota || 21,
-                    hasInfiniteEnergyQuota: hasInfiniteEnergyQuota,
-                    hasInfiniteSwapQuota: hasInfiniteSwapQuota,
-                    // FSM states from response
-                    paymentState: servicePlanData.paymentState || 'INITIAL',
-                    serviceState: servicePlanData.serviceState || 'INITIAL',
-                    currentBatteryId: batteryFleet?.current_asset || undefined,
-                  });
-                  
-                  advanceToStep(2);
-                  toast.success(isIdempotent ? 'Customer found (cached)' : 'Customer found');
-                  setIsProcessing(false);
-                } else {
-                  console.error("No service_plan_data in response:", responseData);
-                  toast.error("Invalid customer data received");
-                  setIsProcessing(false);
-                }
-              } else {
-                console.error("Customer identification failed - success:", success, "signals:", signals);
-                // Provide specific error messages based on failure signals
-                let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
-                if (!errorMsg) {
-                  // Check for specific failure signals to provide better error messages
-                  if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
-                    errorMsg = "Customer not found. Please check the subscription ID.";
-                  } else if (signals.includes("INVALID_SUBSCRIPTION_ID")) {
-                    errorMsg = "Invalid subscription ID format.";
-                  } else {
-                    errorMsg = "Customer not found";
-                  }
-                }
-                toast.error(errorMsg);
-                setIsProcessing(false);
-              }
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing MQTT response:", err);
-          clearTimeout(timeoutId);
-          setIsProcessing(false);
-        }
-      }
-    );
-
-    // Subscribe to response topic first, then publish
-    console.info("=== Subscribing to response topic (manual lookup) ===");
-    console.info("Subscribing to topic:", responseTopic);
-    
-    bridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse: string) => {
-        console.info("mqttSubTopic callback received:", subscribeResponse);
-        try {
-          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
-          
-          if (subResp?.respCode === "200") {
-            console.info("✅ Successfully subscribed to:", responseTopic);
-            console.info("Now publishing identify_customer request (manual)...");
-            
-            // Wait a moment after subscribe before publishing
-            setTimeout(() => {
-              try {
-                bridge.callHandler(
-                  "mqttPublishMsg",
-                  JSON.stringify(dataToPublish),
-                  (publishResponse: string) => {
-                    console.info("mqttPublishMsg callback received:", publishResponse);
-                    try {
-                      const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                      if (pubResp?.error || pubResp?.respCode !== "200") {
-                        console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
-                        toast.error("Failed to lookup customer");
-                        clearTimeout(timeoutId);
-                        setIsProcessing(false);
-                      } else {
-                        console.info("identify_customer published successfully (manual), waiting for response...");
-                      }
-                    } catch (err) {
-                      console.error("Error parsing publish response:", err);
-                      toast.error("Error looking up customer");
-                      clearTimeout(timeoutId);
-                      setIsProcessing(false);
-                    }
-                  }
-                );
-                console.info("bridge.callHandler('mqttPublishMsg') called successfully");
-              } catch (err) {
-                console.error("Exception calling bridge.callHandler for publish:", err);
-                toast.error("Error sending request. Please try again.");
-                clearTimeout(timeoutId);
-                setIsProcessing(false);
-              }
-            }, 300);
-          } else {
-            console.error("Failed to subscribe to response topic:", subResp?.respDesc || subResp?.error);
-            toast.error("Failed to connect. Please try again.");
-            clearTimeout(timeoutId);
-            setIsProcessing(false);
-          }
-        } catch (err) {
-          console.error("Error parsing subscribe response:", err);
-          toast.error("Error connecting. Please try again.");
-          clearTimeout(timeoutId);
-          setIsProcessing(false);
-        }
-      }
-    );
-  }, [bridge, manualSubscriptionId, attendantInfo, isMqttConnected, isBridgeReady]);
+    // Delegate to identification hook
+    identifyCustomer({
+      subscriptionCode,
+      source: 'manual',
+    });
+  }, [manualSubscriptionId, identifyCustomer]);
 
   // Step 2: Scan Old Battery with Scan-to-Bind
   const handleScanOldBattery = useCallback(async () => {
@@ -1860,51 +1180,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setIsProcessing(true);
     try {
       // Calculate rounded cost - customers can't pay decimals so we round down
-      // Example: 20.54 becomes 20, 0.54 becomes 0
       const roundedCost = Math.floor(swapData.cost);
       
-      // Check if we should skip payment collection:
-      // 1. Customer has sufficient quota (both electricity and swap count)
-      // 2. OR rounded cost is 0 or negative (nothing to collect since we round down)
+      // Check if we should skip payment collection
       const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
       
       if (shouldSkipPayment) {
         const isZeroCostRounding = !hasSufficientQuota && roundedCost <= 0;
-        const reason = hasSufficientQuota 
-          ? 'sufficient quota' 
-          : 'zero cost (rounded)';
-        console.info(`Skipping payment step - ${reason}`, { 
-          hasSufficientQuota, 
-          isZeroCostRounding,
-          cost: swapData.cost,
-          roundedCost
-        });
-        toast.success(hasSufficientQuota 
-          ? 'Using quota credit - no payment required' 
-          : 'No payment required - zero cost');
-        
-        // Skip payment step and directly record the service
-        // Use a quota-based or zero-cost payment reference
-        const skipReference = isZeroCostRounding 
-          ? `ZERO_COST_${Date.now()}` 
-          : `QUOTA_${Date.now()}`;
-        setPaymentConfirmed(true);
-        setPaymentReceipt(skipReference);
-        setTransactionId(skipReference);
-        
-        // Call publishPaymentAndService via ref to avoid circular dependency
-        // Pass isQuotaBased=true for quota-based, isZeroCostRounding=true for rounded-down-to-zero
-        // When isZeroCostRounding=true, we still include payment_data with original amount so backend
-        // knows the actual service value even though customer didn't pay
-        publishPaymentAndServiceRef.current(skipReference, hasSufficientQuota, isZeroCostRounding);
+        // Delegate to hook's skipPayment function
+        skipPayment(hasSufficientQuota, isZeroCostRounding);
         return;
       }
       
-      // Normal flow: Create payment request with Odoo FIRST before collecting payment
-      // This is REQUIRED - we must have a ticket/order before collecting payment
+      // Normal flow: Create payment request with Odoo FIRST
       const success = await initiateOdooPayment();
       if (!success) {
-        // Payment request creation failed - don't proceed
         console.error('Payment request creation failed, staying on review step');
         return;
       }
@@ -1912,7 +1202,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, skipPayment]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -1935,491 +1225,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     startQrCodeScan();
   }, [startQrCodeScan, paymentRequestCreated, initiateOdooPayment]);
 
-  // Step 5: Manual payment confirmation with Odoo
-  // Uses order_id ONLY to confirm payment (from createPaymentRequest response)
-  // IMPORTANT: Only proceeds if total_paid >= expectedPaymentAmount (the swap cost)
+  // Step 5: Manual payment confirmation - delegate to hook
   const handleManualPayment = useCallback((receipt: string) => {
-    setIsProcessing(true);
-    
-    // Confirm payment with Odoo using manual confirmation endpoint
-    const confirmManualPayment = async () => {
-      // order_id is REQUIRED - must be obtained from createPaymentRequest response
-      const orderId = paymentRequestOrderId;
-      
-      try {
-        // Ensure payment request was created first
-        if (!paymentRequestCreated) {
-          const success = await initiateOdooPayment();
-          if (!success) {
-            setIsProcessing(false);
-            return;
-          }
-        }
-
-        // order_id is REQUIRED - payment request must be created first
-        if (!orderId) {
-          toast.error('Payment request not created. Please go back and try again.');
-          setIsProcessing(false);
-          return;
-        }
-
-        // Use Odoo manual confirmation endpoint with order_id ONLY
-        console.log('Confirming manual payment with order_id:', { order_id: orderId, receipt });
-        const response = await confirmPaymentManual({ order_id: orderId, receipt });
-        
-        if (response.success) {
-          // Extract payment amounts from response
-          // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
-          const responseData = response.data || (response as any);
-          // Use total_paid (new format) or amount_paid (legacy format)
-          const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
-          const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
-          
-          console.log('Manual payment validation response:', {
-            total_paid: totalPaid,
-            remaining_to_pay: remainingToPay,
-            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
-            order_id: responseData.order_id,
-            expectedPaymentAmount,
-          });
-          
-          // Update state with payment amounts
-          setActualAmountPaid(totalPaid);
-          setPaymentAmountRemaining(remainingToPay);
-          
-          // CRITICAL: Check if total_paid >= expected amount for THIS swap
-          // We use the ROUNDED amount (what we asked customer to pay, not the calculated amount)
-          // Example: if cost is 20.54, we ask for 20, so customer needs to pay at least 20
-          const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
-          if (totalPaid < requiredAmount) {
-            // Payment insufficient for this swap
-            const shortfall = requiredAmount - totalPaid;
-            toast.error(`Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`);
-            setIsProcessing(false);
-            // Don't proceed - customer needs to pay more
-            return;
-          }
-          
-          // Payment sufficient - proceed with service completion
-          setPaymentConfirmed(true);
-          setPaymentReceipt(receipt);
-          setTransactionId(receipt);
-          toast.success('Payment confirmed successfully');
-          
-          // Report payment - uses original calculated cost for accurate quota tracking
-          publishPaymentAndService(receipt, false);
-        } else {
-          throw new Error('Payment confirmation failed');
-        }
-      } catch (err: any) {
-        console.error('Manual payment error:', err);
-        toast.error(err.message || 'Payment confirmation failed. Check network connection.');
-        setIsProcessing(false);
-      }
-    };
-    
-    confirmManualPayment();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dynamicPlanId, swapData.cost, customerData, paymentRequestCreated, paymentRequestOrderId, expectedPaymentAmount, initiateOdooPayment]);
-
-  // Publish payment_and_service via MQTT
-  // isQuotaBased: When true, customer is using their existing quota credit (no payment_data sent)
-  // isZeroCostRounding: When true, cost rounded to 0 but NOT quota-based - include payment_data
-  //                     with original amount so backend knows the service value for tracking
-  // NOTE: We always report the ORIGINAL calculated amount (swapData.cost) for quota calculations,
-  // even though customer pays the rounded-down amount. This ensures accurate quota tracking.
-  const publishPaymentAndService = useCallback((paymentReference: string, isQuotaBased: boolean = false, isZeroCostRounding: boolean = false) => {
-    if (!bridge) {
-      console.error("Bridge not available for payment_and_service");
-      toast.error('Bridge not available. Please restart the app.');
-      setIsScanning(false);
-      setIsProcessing(false);
-      return;
-    }
-
-    setPaymentAndServiceStatus('pending');
-    
-    // Set a timeout to prevent infinite loading (30 seconds)
-    const timeoutId = setTimeout(() => {
-      console.error("payment_and_service timed out after 30 seconds");
-      toast.error("Request timed out. Please try again.");
-      setPaymentAndServiceStatus('error');
-      setIsScanning(false);
-      setIsProcessing(false);
-    }, 30000);
-
-    // Use actualBatteryId (OPID/PPID from ATT service) as primary, fallback to id (QR code)
-    // Backend expects actual battery IDs like "B0723025100049" from the ATT service, not device names
-    const newBatteryId = swapData.newBattery?.actualBatteryId || swapData.newBattery?.id || null;
-    const oldBatteryId = swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.id || null;
-
-    // === USING STORED VALUES FROM swapData (Single Source of Truth) ===
-    // energyTransferred = swapData.energyDiff (power differential, floored to 2dp - Step 1)
-    const energyTransferred = Math.max(0, swapData.energyDiff);
-
-    const serviceId = electricityService?.service_id || "service-electricity-default";
-    
-    // paymentAmount = swapData.cost (calculated in Step 4, rounded UP if >2dp)
-    // NO recalculation here - using the exact value from swapData
-    const paymentAmount = swapData.cost;
-    const paymentCorrelationId = `att-checkout-payment-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-    // Determine if we should include payment_data:
-    // - isQuotaBased && !isZeroCostRounding: No payment_data (true quota credit)
-    // - isZeroCostRounding: Include payment_data with original amount (customer received service worth X but paid 0)
-    // - Normal payment: Include payment_data
-    const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
-
-    console.info('Publishing payment_and_service (using swapData - NO recalculation):', {
-      isQuotaBased,
-      isZeroCostRounding,
-      shouldIncludePaymentData,
-      // All values from swapData (single source of truth)
-      energyTransferred,                      // = swapData.energyDiff (Step 1: floored to 2dp)
-      chargeableEnergy: swapData.chargeableEnergy,  // Step 3: NOT rounded
-      rate: swapData.rate,
-      paymentAmount,                          // = swapData.cost (Step 4: round UP if >2dp)
-      ...(shouldIncludePaymentData ? { paymentReference } : {}),
-      // Battery IDs - using actualBatteryId (from ATT service) with fallback to id (from QR)
-      oldBatteryId,
-      newBatteryId,
-      // Debug: show source of IDs
-      oldBattery_actualId: swapData.oldBattery?.actualBatteryId,
-      oldBattery_qrId: swapData.oldBattery?.id,
-      newBattery_actualId: swapData.newBattery?.actualBatteryId,
-      newBattery_qrId: swapData.newBattery?.id,
-    });
-
-    let paymentAndServicePayload: any = null;
-
-    if (customerType === 'returning' && oldBatteryId) {
-      // Returning customer payload
-      if (isQuotaBased && !isZeroCostRounding) {
-        // True quota-based: No payment_data needed - customer is using existing quota credit
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            service_data: {
-              old_battery_id: oldBatteryId,
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      } else {
-        // Regular payment flow OR zero-cost rounding: Include payment_data
-        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
-        // even though customer paid 0 - this allows backend to track actual service value
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            payment_data: {
-              service_id: serviceId,
-              payment_amount: paymentAmount,
-              payment_reference: paymentReference,
-              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
-              payment_type: "TOP_UP",
-            },
-            service_data: {
-              old_battery_id: oldBatteryId,
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      }
-    } else if (customerType === 'first-time' && newBatteryId) {
-      // First-time customer payload
-      if (isQuotaBased && !isZeroCostRounding) {
-        // True quota-based: No payment_data needed - customer is using existing quota credit
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            service_data: {
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      } else {
-        // Regular payment flow OR zero-cost rounding: Include payment_data
-        // For zero-cost rounding, payment_amount is the original calculated amount (service value)
-        // even though customer paid 0 - this allows backend to track actual service value
-        paymentAndServicePayload = {
-          timestamp: new Date().toISOString(),
-          plan_id: dynamicPlanId,
-          correlation_id: paymentCorrelationId,
-          actor: { type: "attendant", id: attendantInfo.id },
-          data: {
-            action: "REPORT_PAYMENT_AND_SERVICE_COMPLETION",
-            attendant_station: attendantInfo.station,
-            payment_data: {
-              service_id: serviceId,
-              payment_amount: paymentAmount,
-              payment_reference: paymentReference,
-              payment_method: isZeroCostRounding ? "ZERO_COST_ROUNDING" : "MPESA",
-              payment_type: "DEPOSIT",
-            },
-            service_data: {
-              new_battery_id: newBatteryId,
-              energy_transferred: isNaN(energyTransferred) ? 0 : energyTransferred,
-              service_duration: 240,
-            },
-          },
-        };
-      }
-    }
-
-    if (!paymentAndServicePayload) {
-      console.error("Unable to build payment_and_service payload - missing battery data");
-      toast.error("Unable to complete swap - missing battery data");
-      setPaymentAndServiceStatus('error');
-      clearTimeout(timeoutId);
-      setIsScanning(false);
-      setIsProcessing(false);
-      return;
-    }
-
-    const requestTopic = `emit/uxi/attendant/plan/${dynamicPlanId}/payment_and_service`;
-    // IMPORTANT: Response topic must match what the backend publishes to (attendant, not service)
-    const responseTopic = `echo/abs/attendant/plan/${dynamicPlanId}/payment_and_service`;
-    
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: paymentAndServicePayload,
-    };
-
-    console.info("=== Publishing payment_and_service ===");
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", paymentCorrelationId);
-    console.info("Payload:", JSON.stringify(paymentAndServicePayload, null, 2));
-
-    // Store correlation ID for response matching
-    (window as any).__paymentAndServiceCorrelationId = paymentCorrelationId;
-
-    // Register response handler to handle idempotent responses gracefully
-    bridge.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          console.info("=== MQTT Message Arrived (Payment & Service Flow) ===");
-          console.info("Received topic:", topic);
-          console.info("Expected topic:", responseTopic);
-          console.info("Topic match:", topic === responseTopic);
-
-          // Check if this is our response topic
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing payment_and_service response");
-            console.info("Response data:", JSON.stringify(parsedMqttData, null, 2));
-
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            // Check correlation ID
-            const storedCorrelationId = (window as any).__paymentAndServiceCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              clearTimeout(timeoutId);
-              
-              const success = responseData?.data?.success ?? false;
-              const signals = responseData?.data?.signals || [];
-              const metadata = responseData?.data?.metadata || {};
-
-              console.info("payment_and_service response - success:", success, "signals:", signals, "metadata:", metadata);
-
-              // Check for error signals - these indicate failure even if success is true
-              // Backend may return success:true with error signals for validation failures
-              const errorSignals = [
-                "BATTERY_MISMATCH", 
-                "ASSET_VALIDATION_FAILED", 
-                "SECURITY_ALERT", 
-                "VALIDATION_FAILED", 
-                "PAYMENT_FAILED",
-                "SERVICE_COMPLETION_FAILED",
-                "RATE_LIMIT_EXCEEDED",
-                "SERVICE_REJECTED"
-              ];
-              const hasErrorSignal = signals.some((signal: string) => errorSignals.includes(signal));
-
-              // Handle both fresh success and idempotent (cached) responses
-              // Fresh success signals: ASSET_RETURNED, ASSET_ALLOCATED, SERVICE_COMPLETED
-              // Idempotent signal: IDEMPOTENT_OPERATION_DETECTED
-              const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-              const hasServiceCompletedSignal = signals.includes("SERVICE_COMPLETED");
-              const hasAssetSignals = signals.includes("ASSET_RETURNED") || signals.includes("ASSET_ALLOCATED");
-              
-              const hasSuccessSignal = success === true && 
-                !hasErrorSignal &&
-                Array.isArray(signals) && 
-                (isIdempotent || hasServiceCompletedSignal || hasAssetSignals);
-
-              if (hasErrorSignal) {
-                // Error signals present - treat as failure regardless of success flag
-                console.error("payment_and_service failed with error signals:", signals);
-                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
-                const actionRequired = metadata?.action_required;
-                toast.error(actionRequired ? `${errorMsg}. ${actionRequired}` : errorMsg);
-                setPaymentAndServiceStatus('error');
-              } else if (hasSuccessSignal) {
-                console.info("payment_and_service completed successfully!", isIdempotent ? "(idempotent)" : "");
-                
-                // Clear the correlation ID
-                (window as any).__paymentAndServiceCorrelationId = null;
-                
-                setPaymentAndServiceStatus('success');
-                advanceToStep(6);
-                toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
-              } else if (success && signals.length === 0) {
-                // Success without any signals - treat as generic success
-                console.info("payment_and_service completed (generic success, no signals)");
-                
-                // Clear the correlation ID
-                (window as any).__paymentAndServiceCorrelationId = null;
-                
-                setPaymentAndServiceStatus('success');
-                advanceToStep(6);
-                toast.success('Swap completed!');
-              } else {
-                // Response received but not successful or has unknown signals
-                console.error("payment_and_service failed - success:", success, "signals:", signals);
-                const errorMsg = metadata?.reason || metadata?.message || responseData?.data?.error || "Failed to record swap";
-                toast.error(errorMsg);
-                setPaymentAndServiceStatus('error');
-              }
-              
-              setIsScanning(false);
-              setIsProcessing(false);
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing payment_and_service MQTT response:", err);
-        }
-      }
-    );
-
-    // Subscribe to response topic first, then publish
-    console.info("=== Subscribing to response topic for payment_and_service ===");
-    
-    bridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 1 },
-      (subscribeResponse: string) => {
-        try {
-          const subResp = typeof subscribeResponse === 'string' 
-            ? JSON.parse(subscribeResponse) 
-            : subscribeResponse;
-          
-          if (subResp?.respCode === "200") {
-            console.info("✅ Successfully subscribed to payment_and_service response topic:", responseTopic);
-            
-            // Wait a moment after subscribe before publishing
-            setTimeout(() => {
-              try {
-                console.info("=== Calling bridge.callHandler('mqttPublishMsg') for payment_and_service ===");
-                bridge.callHandler(
-                  "mqttPublishMsg",
-                  JSON.stringify(dataToPublish),
-                  (publishResponse: any) => {
-                    console.info("payment_and_service mqttPublishMsg callback received:", publishResponse);
-                    try {
-                      const pubResp = typeof publishResponse === 'string' 
-                        ? JSON.parse(publishResponse) 
-                        : publishResponse;
-                      
-                      if (pubResp?.error || pubResp?.respCode !== "200") {
-                        console.error("Failed to publish payment_and_service:", pubResp?.respDesc || pubResp?.error);
-                        toast.error("Failed to complete swap");
-                        setPaymentAndServiceStatus('error');
-                        clearTimeout(timeoutId);
-                        setIsScanning(false);
-                        setIsProcessing(false);
-                      } else {
-                        console.info("payment_and_service published successfully, waiting for backend response...");
-                        // Wait for the actual backend response via MQTT handler
-                        // The 30-second timeout will handle cases where no response is received
-                        // Do NOT assume success - we must wait for confirmation that quota was updated
-                      }
-                    } catch (err) {
-                      console.error("Error parsing payment_and_service publish response:", err);
-                      toast.error("Error completing swap");
-                      setPaymentAndServiceStatus('error');
-                      clearTimeout(timeoutId);
-                      setIsScanning(false);
-                      setIsProcessing(false);
-                    }
-                  }
-                );
-                console.info("bridge.callHandler('mqttPublishMsg') called successfully for payment_and_service");
-              } catch (err) {
-                console.error("Exception calling bridge.callHandler for payment_and_service:", err);
-                toast.error("Error sending request. Please try again.");
-                setPaymentAndServiceStatus('error');
-                clearTimeout(timeoutId);
-                setIsScanning(false);
-                setIsProcessing(false);
-              }
-            }, 300);
-          } else {
-            console.error("Failed to subscribe to payment_and_service response topic:", subResp?.respDesc || subResp?.error);
-            toast.error("Failed to connect. Please try again.");
-            setPaymentAndServiceStatus('error');
-            clearTimeout(timeoutId);
-            setIsScanning(false);
-            setIsProcessing(false);
-          }
-        } catch (err) {
-          console.error("Error parsing payment_and_service subscribe response:", err);
-          toast.error("Error connecting. Please try again.");
-          setPaymentAndServiceStatus('error');
-          clearTimeout(timeoutId);
-          setIsScanning(false);
-          setIsProcessing(false);
-        }
-      }
-    );
-  }, [bridge, dynamicPlanId, swapData, customerType, electricityService?.service_id, attendantInfo]);
-
-  // Keep publishPaymentAndService ref up to date to avoid circular dependency with handleProceedToPayment
-  useEffect(() => {
-    publishPaymentAndServiceRef.current = publishPaymentAndService;
-  }, [publishPaymentAndService]);
+    confirmPayment(receipt);
+  }, [confirmPayment]);
 
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
@@ -2439,30 +1248,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       currencySymbol: PAYMENT.defaultCurrency,
     });
     setManualSubscriptionId('');
-    setTransactionId('');
     setInputMode('scan');
     setDynamicPlanId('');
     setServiceStates([]);
     setCustomerType(null);
-    setPaymentConfirmed(false);
-    setPaymentReceipt(null);
-    setPaymentInitiated(false);  // Reset STK push state
-    setPaymentInitiationData(null);
-    setPaymentRequestCreated(false);  // Reset payment request state
-    setPaymentRequestData(null);
-    setPaymentRequestOrderId(null);
-    setExpectedPaymentAmount(0);  // Reset expected payment amount
-    setPaymentAndServiceStatus('idle');
-    setPaymentAmountRemaining(0);  // Reset partial payment tracking
-    setActualAmountPaid(0);  // Reset actual amount paid tracking
-    setPaymentInputMode('scan');  // Reset payment input mode
-    setManualPaymentId('');  // Clear manual payment ID
-    setFlowError(null); // Clear any flow errors
-    cancelOngoingScan(); // Clear any pending timeouts
+    setFlowError(null);
+    cancelOngoingScan();
+    
+    // Reset all payment state via hook
+    resetPayment();
     
     // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
     hookResetState();
-  }, [cancelOngoingScan, hookResetState]);
+  }, [cancelOngoingScan, hookResetState, resetPayment]);
 
   // Go back one step
   const handleBack = useCallback(() => {

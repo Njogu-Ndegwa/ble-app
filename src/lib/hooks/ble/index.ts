@@ -24,15 +24,19 @@
  * │ • Filter     │   │ • Retry          │   │ • Read any svc   │
  * │ • Match      │   │ • Timeout        │   │ • Handle errs    │
  * └──────────────┘   └──────────────────┘   └──────────────────┘
- *                            │                   │
- *                            │                   ▼
- *                            │          ┌──────────────────┐
- *                            │          │  energyUtils     │
- *                            │          │                  │
- *                            │          │ • Extract energy │
- *                            │          │ • Calculate cost │
- *                            │          │ • Parse QR       │
- *                            │          └──────────────────┘
+ *        │                   │                   │
+ *        │                   │                   │
+ *        └───────────────────┴───────────────────┘
+ *                            │
+ *              ┌─────────────┴─────────────┐
+ *              ▼                           ▼
+ *     ┌──────────────────┐       ┌──────────────────┐
+ *     │  energyUtils     │       │   bleErrors      │
+ *     │                  │       │                  │
+ *     │ • Extract energy │       │ • Parse response │
+ *     │ • Calculate cost │       │ • Categorize err │
+ *     │ • Parse QR       │       │ • Cleanup helper │
+ *     └──────────────────┘       └──────────────────┘
  *                            │
  *                            ▼
  *                   ┌──────────────────┐
@@ -110,8 +114,9 @@ export {
   // Energy extraction
   extractEnergyFromDta,
   createBatteryData,
-  // ATT battery ID extraction
+  // ATT battery ID extraction & cleanup
   extractActualBatteryIdFromAtt,
+  cleanBatteryId,
   // QR parsing
   parseBatteryIdFromQr,
   parseMacAddressFromQr,
@@ -123,6 +128,28 @@ export {
   formatEnergyWh,
   formatChargePercent,
 } from './energyUtils';
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+export {
+  // Response parsing
+  parseBleResponse,
+  // Error detection
+  requiresBluetoothReset,
+  // Error messages
+  getDisplayMessage,
+  getDebugMessage,
+  // Cleanup helpers
+  forceDisconnectAll,
+  // Constants
+  BLE_RESP_CODES,
+  // Types
+  type BleError,
+  type BleErrorCategory,
+  type BleResponseResult,
+} from './bleErrors';
 
 // ============================================
 // HIGH-LEVEL COMPOSED HOOKS

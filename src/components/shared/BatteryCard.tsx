@@ -18,6 +18,8 @@ interface BatteryCardProps {
   isConnected?: boolean;
   /** Optional className */
   className?: string;
+  /** Compact mode - reduces padding and sizes for tight layouts */
+  compact?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export default function BatteryCard({
   title,
   isConnected = false,
   className = '',
+  compact = false,
 }: BatteryCardProps) {
   const { t } = useI18n();
   
@@ -55,6 +58,7 @@ export default function BatteryCard({
         battery={battery}
         title={title}
         className={className}
+        compact={compact}
       />
     );
   }
@@ -114,11 +118,13 @@ function BatteryDetailedCard({
   title,
   isConnected,
   className = '',
+  compact = false,
 }: {
   battery: BatteryData;
   title?: string;
   isConnected?: boolean;
   className?: string;
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const chargeLevel = battery.chargeLevel ?? 0;
@@ -129,19 +135,19 @@ function BatteryDetailedCard({
   const displayId = battery.actualBatteryId || battery.shortId;
 
   return (
-    <div className={`battery-scanned-card ${className}`} style={{ marginBottom: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-        <Battery size={28} className={`battery-icon ${batteryClass}`} />
+    <div className={`battery-scanned-card ${className}`} style={{ marginBottom: compact ? '10px' : '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: compact ? '8px' : '12px', marginBottom: compact ? '10px' : '16px' }}>
+        <Battery size={compact ? 22 : 28} className={`battery-icon ${batteryClass}`} />
         <div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
+          <div style={{ fontSize: compact ? '11px' : '12px', color: 'var(--color-text-secondary)', marginBottom: '1px' }}>
             {title || t('sales.newBattery')}
           </div>
-          <div className="font-mono-oves" style={{ fontSize: '16px', fontWeight: 600 }}>
+          <div className="font-mono-oves" style={{ fontSize: compact ? '14px' : '16px', fontWeight: 600 }}>
             {displayId}
           </div>
         </div>
         {isConnected && (
-          <CheckCircle size={20} color="var(--success)" style={{ marginLeft: 'auto' }} />
+          <CheckCircle size={compact ? 16 : 20} color="var(--success)" style={{ marginLeft: 'auto' }} />
         )}
       </div>
       
@@ -149,23 +155,23 @@ function BatteryDetailedCard({
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
-        padding: '12px', 
+        padding: compact ? '8px 10px' : '12px', 
         background: 'var(--color-bg-secondary)', 
-        borderRadius: '8px' 
+        borderRadius: compact ? '6px' : '8px' 
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div className="font-mono-oves" style={{ fontSize: '18px', fontWeight: 600 }}>
+          <div className="font-mono-oves" style={{ fontSize: compact ? '15px' : '18px', fontWeight: 600 }}>
             {chargeLevel}%
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+          <div style={{ fontSize: compact ? '10px' : '11px', color: 'var(--color-text-secondary)' }}>
             {t('sales.chargeLevel') || 'Charge'}
           </div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div className="font-mono-oves" style={{ fontSize: '18px', fontWeight: 600 }}>
+          <div className="font-mono-oves" style={{ fontSize: compact ? '15px' : '18px', fontWeight: 600 }}>
             {energyKwh.toFixed(2)} kWh
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+          <div style={{ fontSize: compact ? '10px' : '11px', color: 'var(--color-text-secondary)' }}>
             {t('sales.energyAvailable') || 'Energy'}
           </div>
         </div>
@@ -178,14 +184,57 @@ function BatterySuccessCard({
   battery,
   title,
   className = '',
+  compact = false,
 }: {
   battery: BatteryData;
   title?: string;
   className?: string;
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const chargeLevel = battery.chargeLevel ?? 0;
   const energyKwh = battery.energy / 1000;
+
+  // Compact mode: inline success indicator instead of large header
+  if (compact) {
+    return (
+      <div className={className}>
+        {/* Compact Success Header - inline */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          marginBottom: '10px',
+          padding: '6px 10px',
+          background: 'rgba(16, 185, 129, 0.1)',
+          borderRadius: '6px',
+        }}>
+          <div style={{ 
+            width: '24px', 
+            height: '24px', 
+            borderRadius: '50%', 
+            background: 'linear-gradient(135deg, #10b981, #059669)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <CheckCircle size={14} color="white" />
+          </div>
+          <span style={{ fontSize: '13px', fontWeight: 500, color: '#10b981' }}>
+            {t('sales.batteryScanned') || 'Battery Scanned'}
+          </span>
+        </div>
+
+        <BatteryDetailedCard
+          battery={battery}
+          title={title}
+          isConnected
+          compact
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={className}>

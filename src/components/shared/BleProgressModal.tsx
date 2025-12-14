@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { FlowBleScanState } from '@/lib/hooks/ble';
+import { useI18n } from '@/i18n';
 
 // Connection process typically takes 25-40 seconds, countdown from 60s
 const COUNTDOWN_START_SECONDS = 60;
@@ -11,8 +12,12 @@ export interface BleProgressModalProps {
   bleScanState: FlowBleScanState;
   /** ID of the battery being connected (for display) */
   pendingBatteryId: string | null;
-  /** Callback when user clicks cancel/close */
-  onCancel: () => void;
+  /** 
+   * Callback when user clicks cancel/close or when timeout expires.
+   * @param force - If true, this is a forced cancellation (timeout or stuck state).
+   *                Default is false (user-initiated cancel).
+   */
+  onCancel: (force?: boolean) => void;
 }
 
 /**
@@ -34,17 +39,40 @@ export function BleProgressModal({
   pendingBatteryId,
   onCancel,
 }: BleProgressModalProps) {
+  const { t } = useI18n();
+  
   // Countdown timer state
   const [countdown, setCountdown] = useState(COUNTDOWN_START_SECONDS);
   // Track if we already triggered timeout cancel to prevent multiple calls
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   
+  // Track the battery ID to detect when a NEW connection starts
+  // This is used to reset timer state when scanning a new battery
+  const lastBatteryIdRef = useRef<string | null>(null);
+  
   // Determine if modal should be visible
   // ONLY show when actively connecting/reading - nothing else
   // When connection ends (success, failure, timeout), modal just closes. No second modal ever.
   const isActive = bleScanState.isConnecting || bleScanState.isReadingEnergy;
   const isModalVisible = isActive;
+  
+  // CRITICAL FIX: Reset timer state when pendingBatteryId changes to a NEW value
+  // This handles the case where user scans a new battery immediately after timeout
+  // Without this, React's state batching could prevent the reset effect from running
+  useEffect(() => {
+    // Detect when a new battery is being scanned
+    if (pendingBatteryId && pendingBatteryId !== lastBatteryIdRef.current) {
+      // New battery detected - reset all timer state for fresh countdown
+      startTimeRef.current = null;
+      setCountdown(COUNTDOWN_START_SECONDS);
+      setHasTimedOut(false);
+      lastBatteryIdRef.current = pendingBatteryId;
+    } else if (!pendingBatteryId && lastBatteryIdRef.current !== null) {
+      // Battery cleared (connection completed/cancelled) - reset tracking
+      lastBatteryIdRef.current = null;
+    }
+  }, [pendingBatteryId]);
   
   // Reset all state when modal closes
   useEffect(() => {
@@ -72,9 +100,11 @@ export function BleProgressModal({
         setCountdown(remaining);
         
         // When countdown reaches 0, automatically cancel and close the modal
+        // Pass force=true to ensure cancellation happens even if reading is in progress
+        // This prevents the modal from hanging when DTA reading gets stuck
         if (remaining <= 0 && !hasTimedOut) {
           setHasTimedOut(true);
-          onCancel(); // This triggers cleanup: stops scanning, cancels connection, resets state
+          onCancel(true); // Force cancel - triggers cleanup even during stuck reads
         }
       }, 1000);
       
@@ -133,6 +163,19 @@ export function BleProgressModal({
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
       <div className="w-full max-w-md px-4">
         <div className="ble-progress-container">
+          {/* Close/Cancel Icon - Top Right */}
+          <button
+            type="button"
+            className="ble-progress-close-icon"
+            onClick={() => onCancel(true)}
+            aria-label={t('ble.cancelConnection') || 'Cancel'}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+
           {/* Header */}
           <div className="ble-progress-header">
             <div className={`ble-progress-icon ${bleScanState.requiresBluetoothReset ? 'ble-progress-icon-warning' : ''}`}>
