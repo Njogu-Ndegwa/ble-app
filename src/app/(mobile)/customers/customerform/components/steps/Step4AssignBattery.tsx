@@ -10,6 +10,7 @@ import {
 } from '@/components/shared';
 import type { BatteryData, BleDevice, BatteryInputMode } from '@/components/shared';
 import { CustomerFormData, PlanData } from '../types';
+import { calculateSwapPayment } from '@/lib/swap-payment';
 
 interface Step4Props {
   formData: CustomerFormData;
@@ -91,14 +92,20 @@ export default function Step4AssignBattery({
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
   
-  // Calculate energy cost when battery is scanned
-  // Energy is in Wh, convert to kWh for cost calculation
-  const energyKwh = scannedBattery 
-    ? Math.floor((scannedBattery.energy / 1000) * 100) / 100 
-    : 0;
-  const calculatedCost = scannedBattery && rate > 0
-    ? Math.ceil(energyKwh * rate * 100) / 100 
-    : 0;
+  // Calculate energy cost using centralized calculateSwapPayment function
+  // This ensures consistent rounding behavior with the Attendant flow
+  const paymentCalc = scannedBattery && rate > 0
+    ? calculateSwapPayment({
+        newBatteryEnergyWh: scannedBattery.energy,
+        oldBatteryEnergyWh: 0, // First-time customer - no old battery
+        ratePerKwh: rate,
+        quotaTotal: 0, // First-time customer - no quota
+        quotaUsed: 0,
+      })
+    : null;
+  
+  const energyKwh = paymentCalc?.energyDiff ?? 0;
+  const calculatedCost = paymentCalc?.cost ?? 0;
 
   // Handle device selection
   const handleDeviceSelect = (device: BleDevice) => {
@@ -127,22 +134,22 @@ export default function Step4AssignBattery({
           isLoading={!customerIdentified && rate === 0}
         />
 
-        {/* Customer Summary - Compact */}
+        {/* Customer Summary - More Compact */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '12px',
-          padding: '12px',
+          gap: '10px',
+          padding: '8px 10px',
           background: 'var(--color-bg-secondary)',
-          borderRadius: '8px',
-          marginBottom: '20px'
+          borderRadius: '6px',
+          marginBottom: '14px'
         }}>
-          <div className="preview-avatar" style={{ width: '40px', height: '40px', fontSize: '14px' }}>
+          <div className="preview-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
             {initials}
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>{customerName}</div>
-            <div className="font-mono-oves" style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 500, fontSize: '13px' }}>{customerName}</div>
+            <div className="font-mono-oves" style={{ fontSize: '11px', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {subscriptionCode || formData.phone}
             </div>
           </div>
@@ -330,18 +337,18 @@ function FirstTimeDiscountCard({
       <div style={{
         background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.08) 0%, rgba(0, 180, 180, 0.04) 100%)',
         border: '1px solid rgba(0, 229, 229, 0.2)',
-        borderRadius: '12px',
-        padding: '16px',
-        marginBottom: '16px',
+        borderRadius: '10px',
+        padding: '10px 12px',
+        marginBottom: '12px',
       }}>
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
           gap: '8px',
           color: 'var(--color-text-secondary)',
-          fontSize: '14px',
+          fontSize: '13px',
         }}>
-          <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
+          <div className="btn-spinner" style={{ width: '14px', height: '14px' }}></div>
           <span>{t('sales.loadingPricing') || 'Loading pricing...'}</span>
         </div>
       </div>
@@ -352,128 +359,84 @@ function FirstTimeDiscountCard({
     <div style={{
       background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.1) 0%, rgba(0, 180, 180, 0.05) 100%)',
       border: '1px solid rgba(0, 229, 229, 0.3)',
-      borderRadius: '12px',
-      padding: '16px',
-      marginBottom: '16px',
+      borderRadius: '10px',
+      padding: '10px 12px',
+      marginBottom: '12px',
     }}>
-      {/* Header with gift icon */}
+      {/* Compact header with gift icon inline */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
         gap: '8px',
-        marginBottom: '12px',
+        marginBottom: '8px',
       }}>
         <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
+          width: '24px',
+          height: '24px',
+          borderRadius: '6px',
           background: 'rgba(0, 229, 229, 0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          flexShrink: 0,
         }}>
-          <Gift size={18} style={{ color: 'var(--color-primary)' }} />
+          <Gift size={14} style={{ color: 'var(--color-primary)' }} />
         </div>
-        <div>
-          <div style={{ 
-            fontWeight: 600, 
-            fontSize: '14px',
-            color: 'var(--color-primary)',
-          }}>
-            {t('sales.firstTimeDiscount') || 'First-Time Customer Discount'}
-          </div>
-          <div style={{ 
-            fontSize: '12px', 
-            color: 'var(--color-text-secondary)',
-          }}>
-            {t('sales.energyIncluded') || 'Energy included with your subscription'}
-          </div>
+        <div style={{ 
+          fontWeight: 600, 
+          fontSize: '13px',
+          color: 'var(--color-primary)',
+        }}>
+          {t('sales.firstTimeDiscount') || 'First-Time Customer Discount'}
         </div>
       </div>
 
-      {/* Cost breakdown */}
+      {/* Compact horizontal cost breakdown */}
       <div style={{
         background: 'var(--color-bg-secondary)',
-        borderRadius: '8px',
-        padding: '12px',
+        borderRadius: '6px',
+        padding: '8px 10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+        fontSize: '12px',
       }}>
-        {/* Energy row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '8px',
-          fontSize: '13px',
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px',
-            color: 'var(--color-text-secondary)',
-          }}>
-            <Zap size={14} />
-            <span>{t('sales.batteryEnergy') || 'Battery Energy'}</span>
-          </div>
+        {/* Energy */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <Zap size={12} style={{ color: 'var(--color-text-secondary)' }} />
           <span className="font-mono-oves" style={{ fontWeight: 500 }}>
             {energyKwh.toFixed(2)} kWh
           </span>
         </div>
 
-        {/* Rate row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '8px',
-          fontSize: '13px',
-        }}>
-          <span style={{ color: 'var(--color-text-secondary)' }}>
-            {t('sales.ratePerKwh') || 'Rate per kWh'}
-          </span>
-          <span className="font-mono-oves" style={{ fontWeight: 500 }}>
-            {currencySymbol} {rate.toFixed(2)}
-          </span>
+        {/* Rate */}
+        <div style={{ color: 'var(--color-text-secondary)' }}>
+          × {currencySymbol} {rate.toFixed(2)}
         </div>
 
-        {/* Divider */}
-        <div style={{ 
-          borderTop: '1px dashed var(--color-border)', 
-          margin: '8px 0',
-        }} />
-
-        {/* Total value row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          fontSize: '14px',
-        }}>
-          <span style={{ fontWeight: 600 }}>
-            {t('sales.energyValue') || 'Energy Value'}
+        {/* Total value with strikethrough */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span 
+            className="font-mono-oves" 
+            style={{ 
+              fontWeight: 600, 
+              fontSize: '13px',
+              color: 'var(--color-primary)',
+              textDecoration: 'line-through',
+              textDecorationColor: 'var(--color-success)',
+              textDecorationThickness: '2px',
+            }}
+          >
+            {currencySymbol} {cost.toFixed(2)}
           </span>
-          <div style={{ textAlign: 'right' }}>
-            <span 
-              className="font-mono-oves" 
-              style={{ 
-                fontWeight: 700, 
-                fontSize: '16px',
-                color: 'var(--color-primary)',
-                textDecoration: 'line-through',
-                textDecorationColor: 'var(--color-success)',
-                textDecorationThickness: '2px',
-              }}
-            >
-              {currencySymbol} {cost.toFixed(2)}
-            </span>
-            <div style={{ 
-              fontSize: '11px', 
-              color: 'var(--color-success)',
-              fontWeight: 600,
-              marginTop: '2px',
-            }}>
-              {t('sales.freeWithSubscription') || 'FREE with subscription'}
-            </div>
-          </div>
+          <span style={{ 
+            fontSize: '11px', 
+            color: 'var(--color-success)',
+            fontWeight: 600,
+          }}>
+            {t('sales.free') || 'FREE'}
+          </span>
         </div>
       </div>
     </div>

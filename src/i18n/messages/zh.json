@@ -1124,6 +1124,7 @@
   "sales.ratePerKwh": "每度电价格",
   "sales.energyValue": "电量价值",
   "sales.freeWithSubscription": "订阅免费赠送",
+  "sales.free": "免费",
   
   "battery.scanQr": "扫描二维码",
   "battery.selectManually": "手动选择",
