@@ -77,6 +77,12 @@ export {
 export type { ActionConfig, ActionIcon } from './FlowActionBar';
 
 // ============================================
+// SESSION MANAGEMENT COMPONENTS
+// ============================================
+export { default as SessionManager } from './SessionManager';
+export type { SessionManagerProps } from './SessionManager';
+
+// ============================================
 // MQTT CONNECTION STATUS COMPONENTS
 // ============================================
 export { default as MqttReconnectBanner } from './MqttReconnectBanner';

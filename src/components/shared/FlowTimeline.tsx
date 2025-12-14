@@ -32,6 +32,8 @@ interface FlowTimelineProps {
   className?: string;
   /** Custom ID for targeting styles */
   id?: string;
+  /** Review mode - displays session in read-only mode with different styling */
+  reviewMode?: boolean;
 }
 
 // Common step icons
@@ -134,6 +136,7 @@ export default function FlowTimeline({
   flowError,
   className = '',
   id,
+  reviewMode = false,
 }: FlowTimelineProps) {
   const { t } = useI18n();
   
@@ -174,8 +177,14 @@ export default function FlowTimeline({
     return stepNum < maxStepReached ? 'completed' : '';
   };
 
+  // In review mode, disable step clicks
+  const handleStepClickInternal = (step: number) => {
+    if (reviewMode) return; // No navigation in review mode
+    handleStepClick(step);
+  };
+
   return (
-    <div className={`flow-timeline ${className}`} id={id}>
+    <div className={`flow-timeline ${reviewMode ? 'review-mode' : ''} ${className}`} id={id}>
       <div className="timeline-track">
         {steps.map((config, index) => {
           const status = getStepStatus(config.step);
@@ -189,11 +198,11 @@ export default function FlowTimeline({
             <React.Fragment key={config.step}>
               <div 
                 className={`timeline-step ${stepClass}`}
-                onClick={() => handleStepClick(config.step)}
+                onClick={() => handleStepClickInternal(config.step)}
                 role="button"
-                tabIndex={config.step <= maxStepReached ? 0 : -1}
+                tabIndex={!reviewMode && config.step <= maxStepReached ? 0 : -1}
                 aria-current={status === 'active' ? 'step' : undefined}
-                aria-disabled={status === 'pending'}
+                aria-disabled={reviewMode || status === 'pending'}
               >
                 <div className="timeline-dot">
                   {isFailed 
