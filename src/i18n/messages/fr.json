@@ -1262,5 +1262,12 @@
   "rider.invalidPhoneRequest": "Demande invalide. Veuillez vérifier votre numéro de téléphone.",
   "rider.demoLoginSuccess": "Connexion démo réussie",
   "rider.demoHint": "Pour un accès démo, utilisez :",
-  "rider.demoCredentials": "Téléphone : demo | Mot de passe : demo"
+  "rider.demoCredentials": "Téléphone : demo | Mot de passe : demo",
+  
+  "sales.serviceInfoFailed": "Échec de récupération des infos service",
+  "sales.serviceInfoRequired": "Les infos service sont requises pour calculer le prix",
+  "sales.fetchServiceInfo": "Récupérer les infos service",
+  "sales.fetchingServiceInfo": "Récupération des infos service...",
+  "sales.retryingServiceInfo": "Nouvelle tentative...",
+  "sales.serviceInfoNeeded": "Requis pour calculer le prix"
 }
