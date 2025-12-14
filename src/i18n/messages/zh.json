@@ -1173,5 +1173,12 @@
   "rider.invalidPhoneRequest": "请求无效。请确保您的电话号码正确。",
   "rider.demoLoginSuccess": "演示登录成功",
   "rider.demoHint": "演示账号：",
-  "rider.demoCredentials": "电话：demo | 密码：demo"
+  "rider.demoCredentials": "电话：demo | 密码：demo",
+  
+  "sales.identificationFailed": "获取定价信息失败",
+  "sales.retryIdentification": "重试客户识别",
+  "sales.retryingIdentification": "正在重试...",
+  "sales.identifyingCustomer": "正在获取定价信息...",
+  "sales.identificationRequired": "需要计算能源成本",
+  "sales.gettingPricing": "正在获取定价..."
 }

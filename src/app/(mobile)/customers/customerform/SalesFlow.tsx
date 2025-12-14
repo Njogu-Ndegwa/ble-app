@@ -35,7 +35,7 @@ import {
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
 import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
-import { useCustomerIdentification, type CustomerIdentificationResult, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
+import { useCustomerIdentification, type CustomerIdentificationResult, type ServiceState, type CustomerIdentificationStatus } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 import { PAYMENT } from '@/lib/constants';
@@ -256,7 +256,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, [bleIsReady, bleHandlersReady]);
 
   // Customer identification hook - gets unit price (rate) from backend
-  const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
+  // Enable auto-retry for network failures (up to 3 attempts with exponential backoff)
+  const { 
+    identifyCustomer, 
+    retryIdentification,
+    cancelIdentification,
+    resetIdentificationState,
+    status: identificationStatus,
+    retryCount: identificationRetryCount,
+    lastError: identificationError,
+    isLoading: isIdentifying,
+  } = useCustomerIdentification({
     bridge: bridge as any,
     isBridgeReady,
     isMqttConnected,
@@ -265,6 +275,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       station: SALESPERSON_STATION,
     },
     defaultRate: DEFAULT_RATE,
+    // Enable auto-retry for Sales flow - customer identification is required
+    enableAutoRetry: true,
+    maxAutoRetries: 3,
     onSuccess: (result: CustomerIdentificationResult) => {
       console.info('[SALES] Customer identification successful:', result);
       setCustomerServiceStates(result.serviceStates);
@@ -273,9 +286,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setCustomerIdentified(true);
     },
     onError: (error: string) => {
-      console.error('[SALES] Customer identification failed:', error);
-      // Don't block the flow - use default rate as fallback
-      setCustomerIdentified(true);
+      console.error('[SALES] Customer identification failed after all retries:', error);
+      // Don't auto-set customerIdentified to true - let user decide to retry or not
+      // This prevents proceeding with wrong pricing
+    },
+    onRetry: (attempt: number, delay: number) => {
+      console.info(`[SALES] Customer identification retry scheduled: attempt ${attempt}, delay ${delay}ms`);
     },
     onComplete: () => {
       // Identification complete (success or error)
@@ -1498,6 +1514,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCustomerRate(DEFAULT_RATE);
         setCustomerCurrencySymbol(PAYMENT.defaultCurrency);
         setComputedEnergyCost(0);
+        // Reset identification hook state
+        resetIdentificationState();
         // Reset payment and service hook
         resetPaymentAndService();
         setRegistrationId('');
@@ -1646,6 +1664,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             rate={customerRate}
             currencySymbol={customerCurrencySymbol}
             customerIdentified={customerIdentified}
+            identificationStatus={identificationStatus}
+            identificationRetryCount={identificationRetryCount}
+            identificationError={identificationError}
+            onRetryIdentification={retryIdentification}
           />
         );
       case 7:
@@ -1738,14 +1760,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       </main>
 
       {/* Action Bar - disabled in manual payment mode since user should use the CTA in content area */}
+      {/* Complete Service button is disabled on step 6 if customer is not identified (required for pricing) */}
       <SalesActionBar
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
         isLoading={isProcessing || isCreatingCustomer || isCompletingService}
         paymentInputMode={paymentInputMode}
-        isDisabled={false}
+        isDisabled={currentStep === 6 && !!scannedBatteryPending && !customerIdentified}
         hasBatteryScanned={!!scannedBatteryPending}
+        customerIdentified={customerIdentified}
+        isIdentifying={isIdentifying}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}

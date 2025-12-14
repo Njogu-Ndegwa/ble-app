@@ -12,6 +12,8 @@ interface SalesActionBarProps {
   isDisabled?: boolean;
   paymentInputMode?: 'scan' | 'manual'; // For step 5 to show correct button text
   hasBatteryScanned?: boolean; // For step 6 to show "Complete Service" vs "Scan Battery"
+  customerIdentified?: boolean; // For step 6 - disable Complete Service until customer is identified
+  isIdentifying?: boolean; // For step 6 - show identifying state in button
 }
 
 // Icon components for action bar
@@ -84,9 +86,41 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', ha
   }
 };
 
-export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled, paymentInputMode, hasBatteryScanned }: SalesActionBarProps) {
+export default function SalesActionBar({ 
+  currentStep, 
+  onBack, 
+  onMainAction, 
+  isLoading, 
+  isDisabled, 
+  paymentInputMode, 
+  hasBatteryScanned,
+  customerIdentified,
+  isIdentifying,
+}: SalesActionBarProps) {
   const { t } = useI18n();
   const config = getStepConfig(currentStep, paymentInputMode, hasBatteryScanned);
+  
+  // On step 6 with battery scanned, button should be disabled if customer is not identified
+  // This prevents completing service without proper pricing
+  const isButtonDisabled = isLoading || isDisabled || 
+    (currentStep === 6 && hasBatteryScanned && !customerIdentified);
+  
+  // Determine button text for step 6 when customer is not identified
+  const getButtonText = () => {
+    if (isLoading) {
+      return t('sales.processing') || 'Processing...';
+    }
+    
+    // Special case for step 6 with battery scanned but customer not identified
+    if (currentStep === 6 && hasBatteryScanned && !customerIdentified) {
+      if (isIdentifying) {
+        return t('sales.gettingPricing') || 'Getting pricing...';
+      }
+      return t('sales.identificationRequired') || 'Identification Required';
+    }
+    
+    return t(config.mainTextKey);
+  };
 
   return (
     <div className="action-bar">
@@ -100,17 +134,18 @@ export default function SalesActionBar({ currentStep, onBack, onMainAction, isLo
         <button 
           className={`btn ${config.mainClass || 'btn-primary'}`}
           onClick={onMainAction}
-          disabled={isLoading || isDisabled}
+          disabled={isButtonDisabled}
+          style={isButtonDisabled && currentStep === 6 && hasBatteryScanned ? { opacity: 0.6 } : undefined}
         >
-          {isLoading ? (
+          {isLoading || (currentStep === 6 && hasBatteryScanned && !customerIdentified && isIdentifying) ? (
             <>
               <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
-              <span>{t('sales.processing')}</span>
+              <span>{getButtonText()}</span>
             </>
           ) : (
             <>
               {ActionIcons[config.mainIcon]}
-              <span>{t(config.mainTextKey)}</span>
+              <span>{getButtonText()}</span>
             </>
           )}
         </button>

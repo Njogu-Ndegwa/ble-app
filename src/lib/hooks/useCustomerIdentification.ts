@@ -9,9 +9,11 @@
  * - Handles response parsing and validation
  * - Extracts customer data, service states, and pricing info
  * - Determines customer type (first-time vs returning)
+ * - Supports automatic retry with exponential backoff
+ * - Provides manual retry capability
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
@@ -19,6 +21,14 @@ import { round } from '@/lib/utils';
 // ============================================
 // TYPES
 // ============================================
+
+/** Status of the customer identification process */
+export type CustomerIdentificationStatus = 
+  | 'idle' 
+  | 'loading' 
+  | 'success' 
+  | 'error' 
+  | 'retrying';
 
 /** Service state from MQTT response */
 export interface ServiceState {
@@ -105,6 +115,12 @@ export interface UseCustomerIdentificationConfig {
   onStart?: () => void;
   /** Callback when identification completes (success or error) */
   onComplete?: () => void;
+  /** Callback when a retry is scheduled (with retry count and delay) */
+  onRetry?: (retryCount: number, delay: number) => void;
+  /** Whether to enable automatic retry on failure (default: false) */
+  enableAutoRetry?: boolean;
+  /** Maximum number of auto-retry attempts (default: 3) */
+  maxAutoRetries?: number;
 }
 
 // ============================================
@@ -116,6 +132,15 @@ const INFINITE_QUOTA_THRESHOLD = 100000;
 
 /** Timeout for identification request (ms) */
 const IDENTIFICATION_TIMEOUT = 30000;
+
+/** Maximum number of automatic retry attempts */
+const MAX_AUTO_RETRIES = 3;
+
+/** Base delay for exponential backoff (ms) */
+const BASE_RETRY_DELAY = 2000;
+
+/** Maximum delay between retries (ms) */
+const MAX_RETRY_DELAY = 10000;
 
 // ============================================
 // HOOK
@@ -132,11 +157,24 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onError,
     onStart,
     onComplete,
+    onRetry,
+    enableAutoRetry = false,
+    maxAutoRetries = MAX_AUTO_RETRIES,
   } = config;
 
-  // Refs for correlation ID and timeout
+  // State for status tracking
+  const [status, setStatus] = useState<CustomerIdentificationStatus>('idle');
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  // Refs for correlation ID, timeout, and retry
   const correlationIdRef = useRef<string>('');
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastInputRef = useRef<IdentifyCustomerInput | null>(null);
+  const isRetryingRef = useRef<boolean>(false);
+  // Ref to store the internal function for use in handleError (avoids circular dependency)
+  const identifyInternalRef = useRef<((input: IdentifyCustomerInput) => void) | null>(null);
 
   /**
    * Clear the identification timeout
@@ -146,6 +184,27 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  }, []);
+
+  /**
+   * Clear the retry timeout
+   */
+  const clearRetryTimeout = useCallback(() => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Calculate retry delay with exponential backoff
+   */
+  const getRetryDelay = useCallback((attempt: number): number => {
+    // Exponential backoff: 2s, 4s, 8s, etc., capped at MAX_RETRY_DELAY
+    const delay = Math.min(BASE_RETRY_DELAY * Math.pow(2, attempt), MAX_RETRY_DELAY);
+    // Add some jitter (±20%) to avoid thundering herd
+    const jitter = delay * 0.2 * (Math.random() - 0.5);
+    return Math.floor(delay + jitter);
   }, []);
 
   /**
@@ -273,16 +332,58 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
   }, [defaultRate]);
 
   /**
-   * Identify a customer via MQTT
+   * Handle error with optional auto-retry
    */
-  const identifyCustomer = useCallback((input: IdentifyCustomerInput) => {
+  const handleError = useCallback((errorMsg: string, input: IdentifyCustomerInput, isRetryable: boolean = true) => {
+    console.error("Customer identification failed:", errorMsg);
+    setLastError(errorMsg);
+    
+    // Check if we should auto-retry
+    const currentRetryCount = isRetryingRef.current ? retryCount : 0;
+    const canRetry = enableAutoRetry && isRetryable && currentRetryCount < maxAutoRetries;
+    
+    if (canRetry) {
+      const nextRetryCount = currentRetryCount + 1;
+      const delay = getRetryDelay(nextRetryCount);
+      
+      console.info(`[IDENTIFICATION] Scheduling auto-retry ${nextRetryCount}/${maxAutoRetries} in ${delay}ms`);
+      setStatus('retrying');
+      setRetryCount(nextRetryCount);
+      onRetry?.(nextRetryCount, delay);
+      
+      // Don't show error toast for auto-retries (only show for final failure)
+      clearRetryTimeout();
+      retryTimeoutRef.current = setTimeout(() => {
+        isRetryingRef.current = true;
+        // Use ref to call internal function (avoids circular dependency)
+        identifyInternalRef.current?.(input);
+      }, delay);
+    } else {
+      // Final failure - show error
+      setStatus('error');
+      toast.error(errorMsg);
+      onError?.(errorMsg);
+      onComplete?.();
+      isRetryingRef.current = false;
+    }
+  }, [enableAutoRetry, maxAutoRetries, retryCount, getRetryDelay, clearRetryTimeout, onRetry, onError, onComplete]);
+
+  /**
+   * Internal function to perform the identification (used by both initial call and retry)
+   */
+  const identifyCustomerInternal = useCallback((input: IdentifyCustomerInput) => {
     const { subscriptionCode, source } = input;
 
-    // Validate inputs
+    // Store input for potential manual retry
+    lastInputRef.current = input;
+
+    // Validate inputs (non-retryable errors)
     if (!subscriptionCode.trim()) {
       const errorMsg = source === 'manual' 
         ? 'Please enter a Subscription ID' 
         : 'No subscription code found in QR code';
+      setStatus('error');
+      setLastError(errorMsg);
       toast.error(errorMsg);
       onError?.(errorMsg);
       return;
@@ -290,20 +391,21 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
 
     if (!bridge || !isBridgeReady) {
       const errorMsg = 'Bridge not available. Please wait for initialization...';
-      toast.error(errorMsg);
-      onError?.(errorMsg);
+      handleError(errorMsg, input, true); // Retryable
       return;
     }
 
     if (!isMqttConnected) {
       const errorMsg = 'MQTT not connected. Please wait a moment and try again.';
-      toast.error(errorMsg);
-      onError?.(errorMsg);
+      handleError(errorMsg, input, true); // Retryable
       return;
     }
 
-    // Notify start
-    onStart?.();
+    // Set loading status
+    if (!isRetryingRef.current) {
+      setStatus('loading');
+      onStart?.();
+    }
 
     // Generate correlation ID
     const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -335,7 +437,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       content: payload,
     };
 
-    console.info(`=== Customer Identification MQTT (${source}) ===`);
+    console.info(`=== Customer Identification MQTT (${source}) [Attempt ${retryCount + 1}] ===`);
     console.info("Request Topic:", requestTopic);
     console.info("Response Topic:", responseTopic);
     console.info("Correlation ID:", correlationId);
@@ -346,9 +448,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     timeoutRef.current = setTimeout(() => {
       console.error("Customer identification timed out after 30 seconds");
       const errorMsg = "Request timed out. Please try again.";
-      toast.error(errorMsg);
-      onError?.(errorMsg);
-      onComplete?.();
+      handleError(errorMsg, input, true); // Retryable
     }, IDENTIFICATION_TIMEOUT);
 
     // Register response handler
@@ -389,19 +489,23 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
               try {
                 const result = processResponseData(responseData, input);
                 if (result) {
+                  // Success!
+                  setStatus('success');
+                  setLastError(null);
+                  setRetryCount(0);
+                  isRetryingRef.current = false;
+                  
                   const successMsg = result.isIdempotent 
                     ? 'Customer identified (cached)' 
                     : 'Customer identified';
                   toast.success(successMsg);
                   onSuccess(result);
+                  onComplete?.();
                 }
               } catch (err: any) {
-                console.error("Customer identification failed:", err);
-                toast.error(err.message || "Customer identification failed");
-                onError?.(err.message || "Customer identification failed");
+                // Error in processing response - not retryable (data issue)
+                handleError(err.message || "Customer identification failed", input, false);
               }
-
-              onComplete?.();
             }
           }
           responseCallback({});
@@ -437,20 +541,14 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
                     if (pubResp?.error || pubResp?.respCode !== "200") {
                       console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
                       clearIdentificationTimeout();
-                      const errorMsg = "Failed to identify customer";
-                      toast.error(errorMsg);
-                      onError?.(errorMsg);
-                      onComplete?.();
+                      handleError("Failed to identify customer", input, true); // Retryable
                     } else {
                       console.info("identify_customer published successfully, waiting for response...");
                     }
                   } catch (err) {
                     console.error("Error parsing publish response:", err);
                     clearIdentificationTimeout();
-                    const errorMsg = "Error identifying customer";
-                    toast.error(errorMsg);
-                    onError?.(errorMsg);
-                    onComplete?.();
+                    handleError("Error identifying customer", input, true); // Retryable
                   }
                 }
               );
@@ -458,18 +556,12 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
           } else {
             console.error("Failed to subscribe to response topic:", subResp?.respDesc || subResp?.error);
             clearIdentificationTimeout();
-            const errorMsg = "Failed to connect. Please try again.";
-            toast.error(errorMsg);
-            onError?.(errorMsg);
-            onComplete?.();
+            handleError("Failed to connect. Please try again.", input, true); // Retryable
           }
         } catch (err) {
           console.error("Error parsing subscribe response:", err);
           clearIdentificationTimeout();
-          const errorMsg = "Error connecting. Please try again.";
-          toast.error(errorMsg);
-          onError?.(errorMsg);
-          onComplete?.();
+          handleError("Error connecting. Please try again.", input, true); // Retryable
         }
       }
     );
@@ -478,25 +570,87 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     isBridgeReady, 
     isMqttConnected, 
     attendantInfo, 
+    retryCount,
     clearIdentificationTimeout, 
     processResponseData,
+    handleError,
     onSuccess, 
     onError, 
     onStart, 
     onComplete,
   ]);
 
+  // Keep the ref in sync with the internal function (for use in handleError retry)
+  identifyInternalRef.current = identifyCustomerInternal;
+
+  /**
+   * Identify a customer via MQTT (public API)
+   */
+  const identifyCustomer = useCallback((input: IdentifyCustomerInput) => {
+    // Reset state for new identification
+    setRetryCount(0);
+    setLastError(null);
+    isRetryingRef.current = false;
+    clearRetryTimeout();
+    
+    identifyCustomerInternal(input);
+  }, [identifyCustomerInternal, clearRetryTimeout]);
+
+  /**
+   * Manually retry the last identification request
+   */
+  const retryIdentification = useCallback(() => {
+    if (!lastInputRef.current) {
+      console.warn("[IDENTIFICATION] No previous identification to retry");
+      return;
+    }
+    
+    console.info("[IDENTIFICATION] Manual retry triggered");
+    
+    // Reset retry count for manual retry (fresh start)
+    setRetryCount(0);
+    setLastError(null);
+    isRetryingRef.current = false;
+    clearRetryTimeout();
+    
+    identifyCustomerInternal(lastInputRef.current);
+  }, [identifyCustomerInternal, clearRetryTimeout]);
+
   /**
    * Cancel any pending identification request
    */
   const cancelIdentification = useCallback(() => {
     clearIdentificationTimeout();
+    clearRetryTimeout();
     (window as any).__customerIdentificationCorrelationId = null;
-  }, [clearIdentificationTimeout]);
+    setStatus('idle');
+    setLastError(null);
+    setRetryCount(0);
+    isRetryingRef.current = false;
+  }, [clearIdentificationTimeout, clearRetryTimeout]);
+
+  /**
+   * Reset the identification state (e.g., when starting a new flow)
+   */
+  const resetIdentificationState = useCallback(() => {
+    cancelIdentification();
+    lastInputRef.current = null;
+  }, [cancelIdentification]);
 
   return {
+    // Actions
     identifyCustomer,
+    retryIdentification,
     cancelIdentification,
+    resetIdentificationState,
+    // State
+    status,
+    retryCount,
+    lastError,
+    isLoading: status === 'loading' || status === 'retrying',
+    isSuccess: status === 'success',
+    isError: status === 'error',
+    isRetrying: status === 'retrying',
   };
 }
 

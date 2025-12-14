@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CreditCard, CheckCircle, RefreshCw, Gift, Zap } from 'lucide-react';
+import { CreditCard, CheckCircle, RefreshCw, Gift, Zap, AlertTriangle, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { 
   BatteryInputSelector,
@@ -11,6 +11,7 @@ import {
 import type { BatteryData, BleDevice, BatteryInputMode } from '@/components/shared';
 import { CustomerFormData, PlanData } from '../types';
 import { calculateSwapPayment } from '@/lib/swap-payment';
+import type { CustomerIdentificationStatus } from '@/lib/hooks/useCustomerIdentification';
 
 interface Step4Props {
   formData: CustomerFormData;
@@ -48,6 +49,14 @@ interface Step4Props {
   currencySymbol?: string;
   /** Whether customer has been identified (rate is available) */
   customerIdentified?: boolean;
+  /** Customer identification status */
+  identificationStatus?: CustomerIdentificationStatus;
+  /** Number of retry attempts */
+  identificationRetryCount?: number;
+  /** Callback to manually retry customer identification */
+  onRetryIdentification?: () => void;
+  /** Last identification error message */
+  identificationError?: string | null;
 }
 
 /**
@@ -86,11 +95,19 @@ export default function Step4AssignBattery({
   rate = 0,
   currencySymbol = '',
   customerIdentified = false,
+  identificationStatus = 'idle',
+  identificationRetryCount = 0,
+  onRetryIdentification,
+  identificationError = null,
 }: Step4Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
+  
+  // Determine if identification is in progress (loading or retrying)
+  const isIdentifying = identificationStatus === 'loading' || identificationStatus === 'retrying';
+  const identificationFailed = identificationStatus === 'error';
   
   // Calculate energy cost using centralized calculateSwapPayment function
   // This ensures consistent rounding behavior with the Attendant flow
@@ -127,13 +144,19 @@ export default function Step4AssignBattery({
           compact
         />
 
-        {/* First-Time Customer Discount Card */}
+        {/* First-Time Customer Discount Card - with identification status */}
         <FirstTimeDiscountCard
           energyKwh={energyKwh}
           rate={rate}
           cost={calculatedCost}
           currencySymbol={currencySymbol || selectedPlan?.currencySymbol || 'KES'}
-          isLoading={!customerIdentified && rate === 0}
+          isLoading={isIdentifying}
+          isRetrying={identificationStatus === 'retrying'}
+          retryCount={identificationRetryCount}
+          hasError={identificationFailed}
+          errorMessage={identificationError}
+          onRetry={onRetryIdentification}
+          customerIdentified={customerIdentified}
         />
 
         {/* Customer Summary - Ultra Compact inline row */}
@@ -299,6 +322,11 @@ function InfoIcon() {
  * FirstTimeDiscountCard - Shows energy cost as first-time customer discount
  * Displays the calculated energy value that is being given as a promotional benefit
  * Compact design for tight layouts
+ * 
+ * Now includes identification status handling:
+ * - Loading state while identifying customer
+ * - Retry state with attempt counter
+ * - Error state with manual retry button
  */
 function FirstTimeDiscountCard({
   energyKwh,
@@ -306,38 +334,149 @@ function FirstTimeDiscountCard({
   cost,
   currencySymbol,
   isLoading = false,
+  isRetrying = false,
+  retryCount = 0,
+  hasError = false,
+  errorMessage = null,
+  onRetry,
+  customerIdentified = false,
 }: {
   energyKwh: number;
   rate: number;
   cost: number;
   currencySymbol: string;
   isLoading?: boolean;
+  isRetrying?: boolean;
+  retryCount?: number;
+  hasError?: boolean;
+  errorMessage?: string | null;
+  onRetry?: () => void;
+  customerIdentified?: boolean;
 }) {
   const { t } = useI18n();
   
-  if (isLoading) {
+  // Error state - show retry button
+  if (hasError && !customerIdentified) {
     return (
       <div style={{
-        background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.08) 0%, rgba(0, 180, 180, 0.04) 100%)',
-        border: '1px solid rgba(0, 229, 229, 0.2)',
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%)',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
         borderRadius: '8px',
-        padding: '8px 10px',
+        padding: '10px 12px',
         marginBottom: '10px',
       }}>
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '6px',
-          color: 'var(--color-text-secondary)',
-          fontSize: '12px',
+          gap: '8px',
+          marginBottom: '8px',
         }}>
-          <div className="btn-spinner" style={{ width: '12px', height: '12px' }}></div>
-          <span>{t('sales.loadingPricing') || 'Loading pricing...'}</span>
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '4px',
+            background: 'rgba(239, 68, 68, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <AlertTriangle size={14} style={{ color: 'var(--color-error, #ef4444)' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ 
+              fontWeight: 500, 
+              fontSize: '12px',
+              color: 'var(--color-error, #ef4444)',
+            }}>
+              {t('sales.identificationFailed') || 'Failed to get pricing info'}
+            </div>
+            {errorMessage && (
+              <div style={{ 
+                fontSize: '11px', 
+                color: 'var(--color-text-secondary)',
+                marginTop: '2px',
+              }}>
+                {errorMessage}
+              </div>
+            )}
+          </div>
+        </div>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              width: '100%',
+              padding: '8px 12px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '6px',
+              color: 'var(--color-error, #ef4444)',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <RefreshCw size={14} />
+            <span>{t('sales.retryIdentification') || 'Retry Customer Identification'}</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+  
+  // Loading or retrying state
+  if (isLoading || isRetrying || (!customerIdentified && rate === 0)) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.08) 0%, rgba(0, 180, 180, 0.04) 100%)',
+        border: '1px solid rgba(0, 229, 229, 0.2)',
+        borderRadius: '8px',
+        padding: '10px 12px',
+        marginBottom: '10px',
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px',
+        }}>
+          <Loader2 
+            size={16} 
+            style={{ 
+              color: 'var(--color-primary)',
+              animation: 'spin 1s linear infinite',
+            }} 
+          />
+          <div style={{ flex: 1 }}>
+            <div style={{ 
+              fontWeight: 500, 
+              fontSize: '12px',
+              color: 'var(--color-text-primary)',
+            }}>
+              {isRetrying 
+                ? (t('sales.retryingIdentification') || `Retrying... (attempt ${retryCount})`)
+                : (t('sales.identifyingCustomer') || 'Getting pricing info...')
+              }
+            </div>
+            <div style={{ 
+              fontSize: '11px', 
+              color: 'var(--color-text-secondary)',
+              marginTop: '2px',
+            }}>
+              {t('sales.identificationRequired') || 'Required to calculate energy cost'}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
   
+  // Success state - show discount card
   return (
     <div style={{
       background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.1) 0%, rgba(0, 180, 180, 0.05) 100%)',
