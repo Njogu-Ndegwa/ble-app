@@ -1215,6 +1215,13 @@
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",
   "sales.scanBatteryHint": "Scan the QR code on the battery to assign",
+  "sales.firstTimeDiscount": "First-Time Customer Discount",
+  "sales.energyIncluded": "Energy included with your subscription",
+  "sales.loadingPricing": "Loading pricing...",
+  "sales.batteryEnergy": "Battery Energy",
+  "sales.ratePerKwh": "Rate per kWh",
+  "sales.energyValue": "Energy Value",
+  "sales.freeWithSubscription": "FREE with subscription",
   
   "battery.scanQr": "Scan QR",
   "battery.selectManually": "Select Manually",
