@@ -1222,6 +1222,7 @@
   "sales.ratePerKwh": "Rate per kWh",
   "sales.energyValue": "Energy Value",
   "sales.freeWithSubscription": "FREE with subscription",
+  "sales.free": "FREE",
   
   "battery.scanQr": "Scan QR",
   "battery.selectManually": "Select Manually",

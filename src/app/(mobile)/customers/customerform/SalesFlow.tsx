@@ -64,6 +64,9 @@ import {
   type SalesSessionData,
 } from '@/lib/sales-session';
 
+// Import utility functions
+import { roundSmart } from '@/lib/utils';
+
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
   init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
@@ -1268,7 +1271,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // Energy is in Wh, convert to kWh for cost calculation
     const energyKwh = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100; // Floor to 2dp
     const rate = customerRate || DEFAULT_RATE;
-    const calculatedCost = Math.ceil(energyKwh * rate * 100) / 100; // Round up to 2dp
+    // Use smart rounding to handle floating-point epsilon errors
+    // e.g., 2.12 * 10 = 21.200000000001 should become 21.20, not 21.21
+    const calculatedCost = roundSmart(energyKwh * rate, 2, 'up'); // Round up to 2dp with epsilon handling
     
     console.info('[SALES SERVICE] Cost calculation:', {
       energyWh: scannedBatteryPending.energy,
@@ -1279,6 +1284,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     });
     
     setComputedEnergyCost(calculatedCost);
+
+    // Find the electricity service from customer service states
+    // The service ID must match what's available for this customer's subscription
+    const electricityService = customerServiceStates.find(
+      (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
+    );
+    const electricityServiceId = electricityService?.service_id || 'service-electricity-default';
+    
+    if (!electricityService) {
+      console.warn('[SALES SERVICE] No electricity service found in customer service states, using default');
+    } else {
+      console.info('[SALES SERVICE] Using electricity service ID:', electricityServiceId);
+    }
 
     // Build and publish payment_and_service
     // For Sales flow:
@@ -1305,7 +1323,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currencySymbol: customerCurrencySymbol,
       },
       customerType: 'first-time', // First-time customer - only new battery
-      serviceId: 'service-electricity-default', // Electricity service
+      serviceId: electricityServiceId, // Electricity service from customer's subscription
       actor: {
         type: 'attendant', // Backend expects 'attendant' type
         id: `salesperson-${getEmployeeUser()?.id || '001'}`,
@@ -1332,6 +1350,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     customerIdentified,
     customerRate,
     customerCurrencySymbol,
+    customerServiceStates,
     identifyCustomer,
     publishPaymentAndService,
     paymentReference,
@@ -1726,9 +1745,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
-        isLoading={isProcessing || isCreatingCustomer}
+        isLoading={isProcessing || isCreatingCustomer || isCompletingService}
         paymentInputMode={paymentInputMode}
         isDisabled={false}
+        hasBatteryScanned={!!scannedBatteryPending}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}

@@ -10,6 +10,7 @@ import {
 } from '@/components/shared';
 import type { BatteryData, BleDevice, BatteryInputMode } from '@/components/shared';
 import { CustomerFormData, PlanData } from '../types';
+import { roundSmart } from '@/lib/utils';
 
 interface Step4Props {
   formData: CustomerFormData;
@@ -96,8 +97,10 @@ export default function Step4AssignBattery({
   const energyKwh = scannedBattery 
     ? Math.floor((scannedBattery.energy / 1000) * 100) / 100 
     : 0;
+  // Use roundSmart to handle floating-point epsilon errors
+  // e.g., 2.12 * 10 = 21.200000001 should become 21.20, not 21.21
   const calculatedCost = scannedBattery && rate > 0
-    ? Math.ceil(energyKwh * rate * 100) / 100 
+    ? roundSmart(energyKwh * rate, 2, 'up')
     : 0;
 
   // Handle device selection
@@ -127,22 +130,22 @@ export default function Step4AssignBattery({
           isLoading={!customerIdentified && rate === 0}
         />
 
-        {/* Customer Summary - Compact */}
+        {/* Customer Summary - Ultra Compact */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '12px',
-          padding: '12px',
+          gap: '10px',
+          padding: '8px 10px',
           background: 'var(--color-bg-secondary)',
-          borderRadius: '8px',
-          marginBottom: '20px'
+          borderRadius: '6px',
+          marginBottom: '12px'
         }}>
-          <div className="preview-avatar" style={{ width: '40px', height: '40px', fontSize: '14px' }}>
+          <div className="preview-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
             {initials}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>{customerName}</div>
-            <div className="font-mono-oves" style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+            <div style={{ fontWeight: 500, fontSize: '13px' }}>{customerName}</div>
+            <div className="font-mono-oves" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
               {subscriptionCode || formData.phone}
             </div>
           </div>
@@ -176,26 +179,26 @@ export default function Step4AssignBattery({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px',
+              gap: '6px',
               width: '100%',
-              padding: '12px 16px',
-              marginTop: '12px',
+              padding: '10px 14px',
+              marginTop: '10px',
               background: 'transparent',
               border: '1px solid var(--color-border)',
-              borderRadius: '8px',
+              borderRadius: '6px',
               color: 'var(--color-text-secondary)',
-              fontSize: '14px',
+              fontSize: '13px',
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={14} />
             <span>{t('sales.scanDifferentBattery') || 'Scan Different Battery'}</span>
           </button>
         )}
 
-        <p className="scan-hint" style={{ marginTop: '16px', fontSize: '12px' }}>
+        <p className="scan-hint" style={{ marginTop: '10px', fontSize: '11px' }}>
           <InfoIcon />
           {t('sales.firstBatteryPromo')}
         </p>
@@ -309,6 +312,7 @@ function InfoIcon() {
 /**
  * FirstTimeDiscountCard - Shows energy cost as first-time customer discount
  * Displays the calculated energy value that is being given as a promotional benefit
+ * Compact design to show all info without scrolling
  */
 function FirstTimeDiscountCard({
   energyKwh,
@@ -330,18 +334,18 @@ function FirstTimeDiscountCard({
       <div style={{
         background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.08) 0%, rgba(0, 180, 180, 0.04) 100%)',
         border: '1px solid rgba(0, 229, 229, 0.2)',
-        borderRadius: '12px',
-        padding: '16px',
-        marginBottom: '16px',
+        borderRadius: '10px',
+        padding: '10px 12px',
+        marginBottom: '12px',
       }}>
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
           gap: '8px',
           color: 'var(--color-text-secondary)',
-          fontSize: '14px',
+          fontSize: '13px',
         }}>
-          <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
+          <div className="btn-spinner" style={{ width: '14px', height: '14px' }}></div>
           <span>{t('sales.loadingPricing') || 'Loading pricing...'}</span>
         </div>
       </div>
@@ -352,128 +356,72 @@ function FirstTimeDiscountCard({
     <div style={{
       background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.1) 0%, rgba(0, 180, 180, 0.05) 100%)',
       border: '1px solid rgba(0, 229, 229, 0.3)',
-      borderRadius: '12px',
-      padding: '16px',
-      marginBottom: '16px',
+      borderRadius: '10px',
+      padding: '10px 12px',
+      marginBottom: '12px',
     }}>
-      {/* Header with gift icon */}
+      {/* Compact header with gift icon and title inline */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
         gap: '8px',
-        marginBottom: '12px',
+        marginBottom: '8px',
       }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '8px',
-          background: 'rgba(0, 229, 229, 0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+        <Gift size={16} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+        <span style={{ 
+          fontWeight: 600, 
+          fontSize: '13px',
+          color: 'var(--color-primary)',
         }}>
-          <Gift size={18} style={{ color: 'var(--color-primary)' }} />
-        </div>
-        <div>
-          <div style={{ 
-            fontWeight: 600, 
-            fontSize: '14px',
-            color: 'var(--color-primary)',
-          }}>
-            {t('sales.firstTimeDiscount') || 'First-Time Customer Discount'}
-          </div>
-          <div style={{ 
-            fontSize: '12px', 
-            color: 'var(--color-text-secondary)',
-          }}>
-            {t('sales.energyIncluded') || 'Energy included with your subscription'}
-          </div>
-        </div>
+          {t('sales.firstTimeDiscount') || 'First-Time Customer Discount'}
+        </span>
       </div>
 
-      {/* Cost breakdown */}
+      {/* Compact cost breakdown - horizontal layout */}
       <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         background: 'var(--color-bg-secondary)',
-        borderRadius: '8px',
-        padding: '12px',
+        borderRadius: '6px',
+        padding: '8px 10px',
+        fontSize: '12px',
       }}>
-        {/* Energy row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '8px',
-          fontSize: '13px',
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px',
-            color: 'var(--color-text-secondary)',
-          }}>
-            <Zap size={14} />
-            <span>{t('sales.batteryEnergy') || 'Battery Energy'}</span>
-          </div>
+        {/* Energy info */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <Zap size={12} style={{ color: 'var(--color-text-secondary)' }} />
           <span className="font-mono-oves" style={{ fontWeight: 500 }}>
             {energyKwh.toFixed(2)} kWh
           </span>
-        </div>
-
-        {/* Rate row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '8px',
-          fontSize: '13px',
-        }}>
-          <span style={{ color: 'var(--color-text-secondary)' }}>
-            {t('sales.ratePerKwh') || 'Rate per kWh'}
-          </span>
-          <span className="font-mono-oves" style={{ fontWeight: 500 }}>
-            {currencySymbol} {rate.toFixed(2)}
+          <span style={{ color: 'var(--color-text-tertiary)' }}>×</span>
+          <span className="font-mono-oves" style={{ color: 'var(--color-text-secondary)' }}>
+            {currencySymbol}{rate.toFixed(0)}
           </span>
         </div>
-
-        {/* Divider */}
-        <div style={{ 
-          borderTop: '1px dashed var(--color-border)', 
-          margin: '8px 0',
-        }} />
-
-        {/* Total value row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          fontSize: '14px',
-        }}>
-          <span style={{ fontWeight: 600 }}>
-            {t('sales.energyValue') || 'Energy Value'}
+        
+        {/* Total value - struck through */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span 
+            className="font-mono-oves" 
+            style={{ 
+              fontWeight: 600, 
+              fontSize: '14px',
+              color: 'var(--color-primary)',
+              textDecoration: 'line-through',
+              textDecorationColor: 'var(--color-success)',
+              textDecorationThickness: '2px',
+            }}
+          >
+            {currencySymbol}{cost.toFixed(2)}
           </span>
-          <div style={{ textAlign: 'right' }}>
-            <span 
-              className="font-mono-oves" 
-              style={{ 
-                fontWeight: 700, 
-                fontSize: '16px',
-                color: 'var(--color-primary)',
-                textDecoration: 'line-through',
-                textDecorationColor: 'var(--color-success)',
-                textDecorationThickness: '2px',
-              }}
-            >
-              {currencySymbol} {cost.toFixed(2)}
-            </span>
-            <div style={{ 
-              fontSize: '11px', 
-              color: 'var(--color-success)',
-              fontWeight: 600,
-              marginTop: '2px',
-            }}>
-              {t('sales.freeWithSubscription') || 'FREE with subscription'}
-            </div>
-          </div>
+          <span style={{ 
+            fontSize: '10px', 
+            color: 'var(--color-success)',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+          }}>
+            {t('sales.free') || 'FREE'}
+          </span>
         </div>
       </div>
     </div>

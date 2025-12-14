@@ -134,6 +134,57 @@ export function round(value: number, decimals: number = 2): number {
   return Math.round(value * Math.pow(10, decimals)) / Math.pow(10, decimals);
 }
 
+/**
+ * Smart rounding that handles floating-point epsilon errors
+ * 
+ * Detects when trailing decimals are essentially noise from floating-point arithmetic
+ * (e.g., 21.200000000001 should become 21.20, not 21.21)
+ * 
+ * Uses an epsilon threshold to detect near-integer values after scaling.
+ * 
+ * @param value - The number to round
+ * @param decimals - Number of decimal places (default: 2)
+ * @param direction - 'up' for ceiling, 'down' for floor, 'nearest' for standard round
+ * @returns Properly rounded number
+ * 
+ * @example
+ * roundSmart(21.200000000001, 2, 'up')  // Returns 21.20 (epsilon detected)
+ * roundSmart(21.2034, 2, 'up')          // Returns 21.21 (genuine fraction)
+ * roundSmart(0.1 + 0.2, 2)              // Returns 0.30 (handles classic epsilon case)
+ */
+export function roundSmart(
+  value: number,
+  decimals: number = 2,
+  direction: 'up' | 'down' | 'nearest' = 'nearest'
+): number {
+  // Epsilon threshold for detecting floating-point noise
+  // Values within this threshold of an integer are considered epsilon errors
+  const EPSILON = 1e-9;
+  
+  const scale = Math.pow(10, decimals);
+  const scaled = value * scale;
+  
+  // Check if the scaled value is very close to an integer (epsilon error)
+  const rounded = Math.round(scaled);
+  const diff = Math.abs(scaled - rounded);
+  
+  if (diff < EPSILON) {
+    // Value is essentially an integer at this precision - epsilon error detected
+    return rounded / scale;
+  }
+  
+  // Value has genuine fractional component - apply requested rounding direction
+  switch (direction) {
+    case 'up':
+      return Math.ceil(scaled) / scale;
+    case 'down':
+      return Math.floor(scaled) / scale;
+    case 'nearest':
+    default:
+      return rounded / scale;
+  }
+}
+
 // ============================================
 // DATE UTILITIES
 // ============================================

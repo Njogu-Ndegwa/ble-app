@@ -10,7 +10,8 @@ interface SalesActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   isDisabled?: boolean;
-  paymentInputMode?: 'scan' | 'manual'; // For step 4 to show correct button text
+  paymentInputMode?: 'scan' | 'manual'; // For step 5 to show correct button text
+  hasBatteryScanned?: boolean; // For step 6 to show "Complete Service" vs "Scan Battery"
 }
 
 // Icon components for action bar
@@ -49,7 +50,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual'): StepActionConfig => {
+const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', hasBatteryScanned?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Customer Form step
@@ -70,7 +71,10 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual'): S
       }
       return { showBack: true, mainTextKey: 'sales.scanPaymentQr', mainIcon: 'scan' };
     case 6:
-      // Battery assignment step
+      // Battery assignment step - Show "Complete Service" if battery scanned, "Scan Battery" otherwise
+      if (hasBatteryScanned) {
+        return { showBack: true, mainTextKey: 'sales.completeService', mainIcon: 'check' };
+      }
       return { showBack: true, mainTextKey: 'sales.scanBattery', mainIcon: 'scan' };
     case 7:
       // Success step
@@ -80,9 +84,9 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual'): S
   }
 };
 
-export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled, paymentInputMode }: SalesActionBarProps) {
+export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled, paymentInputMode, hasBatteryScanned }: SalesActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, paymentInputMode);
+  const config = getStepConfig(currentStep, paymentInputMode, hasBatteryScanned);
 
   return (
     <div className="action-bar">
