@@ -1255,28 +1255,28 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
-    // CRITICAL: Customer identification MUST succeed before completing service
+    // CRITICAL: Pricing info MUST be fetched before completing service
     // We need the accurate rate from the backend - can't use default for Sales workflow
     if (!customerIdentified) {
       // Check if identification is in progress
       if (isIdentifying) {
-        toast.error(t('sales.waitingForIdentification') || 'Please wait, fetching service info...');
+        toast.error(t('sales.waitingForPricing') || 'Please wait, fetching pricing...');
         return;
       }
       
       // If identification failed, prompt for manual retry
       if (identificationFailed) {
-        toast.error(t('sales.identificationRequired') || 'Customer identification required. Please retry.');
+        toast.error(t('sales.pricingRequired') || 'Pricing info required. Please retry.');
         return;
       }
       
       // Edge case: not identified and not in progress/failed - trigger identification
-      console.warn('[SALES SERVICE] Customer not yet identified - triggering identification...');
+      console.warn('[SALES SERVICE] Pricing not yet fetched - triggering fetch...');
       identifyCustomer({
         subscriptionCode: subscriptionId,
         source: 'manual',
       });
-      toast.error(t('sales.waitingForIdentification') || 'Please wait, fetching service info...');
+      toast.error(t('sales.waitingForPricing') || 'Please wait, fetching pricing...');
       return;
     }
 

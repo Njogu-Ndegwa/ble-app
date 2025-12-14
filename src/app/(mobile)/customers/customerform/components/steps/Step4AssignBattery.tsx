@@ -421,8 +421,8 @@ function FirstTimeDiscountCard({
 }
 
 /**
- * IdentificationFailedCard - Shows when customer identification failed after retries
- * Provides a manual retry button to trigger identification again
+ * PricingUnavailableCard - Shows when pricing info couldn't be fetched after retries
+ * Provides a manual retry button to fetch pricing again
  */
 function IdentificationFailedCard({
   onRetry,
@@ -466,14 +466,14 @@ function IdentificationFailedCard({
             fontSize: '13px',
             color: 'var(--color-error, #ff6464)',
           }}>
-            {t('sales.identificationFailed') || 'Service data unavailable'}
+            {t('sales.pricingUnavailable') || 'Pricing unavailable'}
           </div>
           <div style={{ 
             fontSize: '11px',
             color: 'var(--color-text-secondary)',
             marginTop: '2px',
           }}>
-            {t('sales.identificationFailedHint') || 'Unable to fetch pricing information'}
+            {t('sales.pricingUnavailableHint') || 'Could not fetch energy rate. Tap to retry.'}
           </div>
         </div>
       </div>
@@ -500,7 +500,7 @@ function IdentificationFailedCard({
           }}
         >
           <RotateCcw size={14} />
-          <span>{t('sales.retryIdentification') || 'Retry Identification'}</span>
+          <span>{t('sales.fetchPricing') || 'Fetch Pricing'}</span>
         </button>
       )}
     </div>

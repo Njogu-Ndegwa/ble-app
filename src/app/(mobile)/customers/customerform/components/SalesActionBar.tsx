@@ -119,12 +119,12 @@ export default function SalesActionBar({
       );
     }
     
-    // Show "Fetching service info..." when waiting for identification
+    // Show "Fetching pricing..." when waiting for identification
     if (waitingForIdentification && isIdentifying) {
       return (
         <>
           <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
-          <span>{t('sales.fetchingServiceInfo') || 'Fetching service info...'}</span>
+          <span>{t('sales.fetchingPricing') || 'Fetching pricing...'}</span>
         </>
       );
     }
