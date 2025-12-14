@@ -234,48 +234,23 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       // This validation happens AFTER reading the battery via BLE, ensuring the actual device ID matches
       // what the backend has assigned to the customer. The earlier validation only checks QR/device name.
       //
-      // IMPORTANT: This check must be STRICTER than the first check (QR/device name matching).
-      // The first check uses last-6-chars matching for convenience, but this second check should verify
-      // that the actual battery ID (OPID/PPID read from the device) matches the expected ID.
-      // We do NOT rely on last-6-chars matching here because that's already done in the first check.
+      // IMPORTANT: This is a STRICT equality check. The actual battery ID (OPID/PPID) read from the
+      // device must EXACTLY match the current_asset stored in the backend. No fuzzy matching here.
+      // If current_asset = "OVES Batt 070000" and OPID = "BO724525070000", they don't match → reject.
       if (customerTypeRef.current === 'returning' && customerDataRef.current?.currentBatteryId && battery.actualBatteryId) {
         const expectedBatteryId = customerDataRef.current.currentBatteryId;
         const actualBatteryId = battery.actualBatteryId;
         
-        // Normalize IDs for comparison:
-        // - Remove common prefixes like "BAT_NEW_", "BAT_RETURN_ATT_", "BAT_", "OVES Batt ", "OVES BATT ", etc.
-        // - Remove spaces and convert to lowercase for case-insensitive comparison
-        const normalizeId = (id: string) => {
-          const cleaned = id
-            // Remove common prefixes (order matters - more specific first)
-            .replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_|OVES\s+Batt\s+|OVES\s+BATT\s+)/i, '')
-            // Remove any remaining spaces for consistent comparison
-            .replace(/\s+/g, '')
-            .toLowerCase();
-          return cleaned;
-        };
+        // Simple case-insensitive comparison with trimming
+        const actualNormalized = String(actualBatteryId).trim().toLowerCase();
+        const expectedNormalized = String(expectedBatteryId).trim().toLowerCase();
         
-        const actualNormalized = normalizeId(String(actualBatteryId));
-        const expectedNormalized = normalizeId(String(expectedBatteryId));
-        
-        // Stricter matching for the second line of defense:
-        // The actual battery ID from the device should match the expected ID.
-        // We check:
-        // 1. Exact match after normalization
-        // 2. One contains the other (for cases like "BO724525070000" containing "070000")
-        //
-        // NOTE: We intentionally DO NOT use last-6-chars matching here.
-        // If the first check passed (QR/device name), and the actual OPID is completely different
-        // (e.g., "BO724525070000" vs "070000"), then this is a DIFFERENT battery that just happens
-        // to have matching last 6 chars - this should FAIL.
-        const isMatch = actualNormalized === expectedNormalized ||
-          actualNormalized.includes(expectedNormalized) ||
-          expectedNormalized.includes(actualNormalized);
+        // Strict equality check - they must be exactly the same
+        const isMatch = actualNormalized === expectedNormalized;
         
         if (!isMatch) {
           // Battery doesn't match - show error and stop process
-          console.error(`OPID/PPID mismatch (last line of defense): actual ${actualBatteryId}, expected ${expectedBatteryId}`);
-          console.error(`Normalized comparison: actual="${actualNormalized}", expected="${expectedNormalized}"`);
+          console.error(`OPID/PPID mismatch (last line of defense): actual "${actualBatteryId}" !== expected "${expectedBatteryId}"`);
           
           setFlowError({
             step: 2,
