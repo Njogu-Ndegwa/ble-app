@@ -21,6 +21,12 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   
   // Should skip payment: either has sufficient quota OR rounded cost is zero
   const shouldSkipPayment = hasSufficientQuota || isZeroCost;
+  
+  // Determine why payment is being skipped (for display purposes)
+  // - isQuotaBased: Customer has available quota that will be deducted (NOT free - quota is used)
+  // - isZeroCostOnly: Actual cost is zero or negative (genuinely no charge)
+  const isQuotaBased = hasSufficientQuota;
+  const isZeroCostOnly = !hasSufficientQuota && isZeroCost;
 
   // Calculate values
   const oldBatteryKwh = (swapData.oldBattery?.energy || 0) / 1000;
@@ -55,15 +61,24 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <div className="review-customer-info">
             <span className="review-customer-name">{customerData?.name || 'Customer'}</span>
             <span className="review-label">
-              {shouldSkipPayment 
-                ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
-                : (t('attendant.customerPays') || 'Amount Due')}
+              {isQuotaBased 
+                ? (t('attendant.quotaAvailable') || 'Quota Available')
+                : isZeroCostOnly
+                  ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
+                  : (t('attendant.customerPays') || 'Amount Due')}
             </span>
           </div>
         </div>
         
         <div className={`review-amount ${shouldSkipPayment ? 'free' : ''}`}>
-          {shouldSkipPayment ? (
+          {isQuotaBased ? (
+            <>
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+              </svg>
+              <span>{t('attendant.usingQuota') || 'Using Quota'}</span>
+            </>
+          ) : isZeroCostOnly ? (
             <>
               <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
@@ -176,12 +191,21 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         {/* Step 3: Balance / Final amount */}
         <div className="summary-row total">
           <span className="calc-label">
-            {shouldSkipPayment 
-              ? (t('attendant.balance') || 'Balance')
-              : (t('attendant.amountToPay') || 'Amount to pay')}
+            {isQuotaBased
+              ? (t('attendant.coveredByQuotaLabel') || 'Covered by Quota')
+              : shouldSkipPayment 
+                ? (t('attendant.balance') || 'Balance')
+                : (t('attendant.amountToPay') || 'Amount to pay')}
           </span>
           <span className={`calc-total ${shouldSkipPayment ? 'free' : ''}`}>
-            {shouldSkipPayment ? (
+            {isQuotaBased ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                </svg>
+                {t('attendant.quotaApplied') || 'Quota Applied'}
+              </>
+            ) : isZeroCostOnly ? (
               <>
                 <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
