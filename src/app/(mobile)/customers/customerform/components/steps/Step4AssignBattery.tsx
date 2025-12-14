@@ -114,15 +114,17 @@ export default function Step4AssignBattery({
     }
   };
 
-  // If battery has been scanned, show simplified battery details and Complete Service button
+  // If battery has been scanned, show compact battery details + rescan option
+  // Complete Service is handled by the bottom action bar (SalesActionBar)
   if (scannedBattery) {
     return (
-      <div className="screen active">
-        {/* Battery Success Card using shared component */}
+      <div className="screen active" style={{ paddingTop: '8px' }}>
+        {/* Battery Success Card using shared component - compact variant */}
         <BatteryCard
           battery={scannedBattery}
           variant="success"
           title={t('sales.newBattery')}
+          compact
         />
 
         {/* First-Time Customer Discount Card */}
@@ -134,45 +136,26 @@ export default function Step4AssignBattery({
           isLoading={!customerIdentified && rate === 0}
         />
 
-        {/* Customer Summary - More Compact */}
+        {/* Customer Summary - Ultra Compact inline row */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '10px',
-          padding: '8px 10px',
+          gap: '8px',
+          padding: '6px 8px',
           background: 'var(--color-bg-secondary)',
           borderRadius: '6px',
-          marginBottom: '14px'
+          marginBottom: '10px'
         }}>
-          <div className="preview-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
+          <div className="preview-avatar" style={{ width: '28px', height: '28px', fontSize: '11px' }}>
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 500, fontSize: '13px' }}>{customerName}</div>
-            <div className="font-mono-oves" style={{ fontSize: '11px', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontWeight: 500, fontSize: '12px' }}>{customerName}</div>
+            <div className="font-mono-oves" style={{ fontSize: '10px', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {subscriptionCode || formData.phone}
             </div>
           </div>
         </div>
-
-        {/* Complete Service Button */}
-        <button
-          className="complete-service-btn"
-          onClick={onCompleteService}
-          disabled={isCompletingService}
-        >
-          {isCompletingService ? (
-            <>
-              <div className="btn-spinner"></div>
-              <span>{t('sales.completingService')}</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle size={20} />
-              <span>{t('sales.completeService')}</span>
-            </>
-          )}
-        </button>
 
         {/* Rescan Battery Button - allows scanning a different battery */}
         {onRescanBattery && !isCompletingService && (
@@ -183,26 +166,25 @@ export default function Step4AssignBattery({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px',
+              gap: '6px',
               width: '100%',
-              padding: '12px 16px',
-              marginTop: '12px',
+              padding: '10px 12px',
               background: 'transparent',
               border: '1px solid var(--color-border)',
-              borderRadius: '8px',
+              borderRadius: '6px',
               color: 'var(--color-text-secondary)',
-              fontSize: '14px',
+              fontSize: '13px',
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={14} />
             <span>{t('sales.scanDifferentBattery') || 'Scan Different Battery'}</span>
           </button>
         )}
 
-        <p className="scan-hint" style={{ marginTop: '16px', fontSize: '12px' }}>
+        <p className="scan-hint" style={{ marginTop: '10px', fontSize: '11px' }}>
           <InfoIcon />
           {t('sales.firstBatteryPromo')}
         </p>
@@ -316,6 +298,7 @@ function InfoIcon() {
 /**
  * FirstTimeDiscountCard - Shows energy cost as first-time customer discount
  * Displays the calculated energy value that is being given as a promotional benefit
+ * Compact design for tight layouts
  */
 function FirstTimeDiscountCard({
   energyKwh,
@@ -337,18 +320,18 @@ function FirstTimeDiscountCard({
       <div style={{
         background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.08) 0%, rgba(0, 180, 180, 0.04) 100%)',
         border: '1px solid rgba(0, 229, 229, 0.2)',
-        borderRadius: '10px',
-        padding: '10px 12px',
-        marginBottom: '12px',
+        borderRadius: '8px',
+        padding: '8px 10px',
+        marginBottom: '10px',
       }}>
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '8px',
+          gap: '6px',
           color: 'var(--color-text-secondary)',
-          fontSize: '13px',
+          fontSize: '12px',
         }}>
-          <div className="btn-spinner" style={{ width: '14px', height: '14px' }}></div>
+          <div className="btn-spinner" style={{ width: '12px', height: '12px' }}></div>
           <span>{t('sales.loadingPricing') || 'Loading pricing...'}</span>
         </div>
       </div>
@@ -359,85 +342,66 @@ function FirstTimeDiscountCard({
     <div style={{
       background: 'linear-gradient(135deg, rgba(0, 229, 229, 0.1) 0%, rgba(0, 180, 180, 0.05) 100%)',
       border: '1px solid rgba(0, 229, 229, 0.3)',
-      borderRadius: '10px',
-      padding: '10px 12px',
-      marginBottom: '12px',
+      borderRadius: '8px',
+      padding: '8px 10px',
+      marginBottom: '10px',
     }}>
-      {/* Compact header with gift icon inline */}
+      {/* Ultra compact single-row layout */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        gap: '8px',
-        marginBottom: '8px',
+        gap: '6px',
+        flexWrap: 'wrap',
       }}>
+        {/* Gift icon */}
         <div style={{
-          width: '24px',
-          height: '24px',
-          borderRadius: '6px',
+          width: '20px',
+          height: '20px',
+          borderRadius: '4px',
           background: 'rgba(0, 229, 229, 0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
         }}>
-          <Gift size={14} style={{ color: 'var(--color-primary)' }} />
+          <Gift size={12} style={{ color: 'var(--color-primary)' }} />
         </div>
-        <div style={{ 
-          fontWeight: 600, 
-          fontSize: '13px',
+        
+        {/* Label */}
+        <span style={{ 
+          fontWeight: 500, 
+          fontSize: '12px',
           color: 'var(--color-primary)',
         }}>
-          {t('sales.firstTimeDiscount') || 'First-Time Customer Discount'}
-        </div>
-      </div>
+          {t('sales.firstTimeDiscount') || 'First Battery Free'}:
+        </span>
 
-      {/* Compact horizontal cost breakdown */}
-      <div style={{
-        background: 'var(--color-bg-secondary)',
-        borderRadius: '6px',
-        padding: '8px 10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px',
-        fontSize: '12px',
-      }}>
-        {/* Energy */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Zap size={12} style={{ color: 'var(--color-text-secondary)' }} />
-          <span className="font-mono-oves" style={{ fontWeight: 500 }}>
-            {energyKwh.toFixed(2)} kWh
-          </span>
-        </div>
+        {/* Energy value */}
+        <span className="font-mono-oves" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+          {energyKwh.toFixed(2)} kWh × {currencySymbol} {rate.toFixed(2)} =
+        </span>
 
-        {/* Rate */}
-        <div style={{ color: 'var(--color-text-secondary)' }}>
-          × {currencySymbol} {rate.toFixed(2)}
-        </div>
-
-        {/* Total value with strikethrough */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span 
-            className="font-mono-oves" 
-            style={{ 
-              fontWeight: 600, 
-              fontSize: '13px',
-              color: 'var(--color-primary)',
-              textDecoration: 'line-through',
-              textDecorationColor: 'var(--color-success)',
-              textDecorationThickness: '2px',
-            }}
-          >
-            {currencySymbol} {cost.toFixed(2)}
-          </span>
-          <span style={{ 
-            fontSize: '11px', 
-            color: 'var(--color-success)',
-            fontWeight: 600,
-          }}>
-            {t('sales.free') || 'FREE'}
-          </span>
-        </div>
+        {/* Cost with strikethrough + FREE */}
+        <span 
+          className="font-mono-oves" 
+          style={{ 
+            fontWeight: 600, 
+            fontSize: '12px',
+            color: 'var(--color-primary)',
+            textDecoration: 'line-through',
+            textDecorationColor: 'var(--color-success)',
+            textDecorationThickness: '2px',
+          }}
+        >
+          {currencySymbol} {cost.toFixed(2)}
+        </span>
+        <span style={{ 
+          fontSize: '11px', 
+          color: 'var(--color-success)',
+          fontWeight: 600,
+        }}>
+          FREE
+        </span>
       </div>
     </div>
   );
