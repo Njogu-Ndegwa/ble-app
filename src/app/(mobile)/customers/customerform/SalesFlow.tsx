@@ -1742,7 +1742,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
-        isLoading={isProcessing || isCreatingCustomer}
+        isLoading={isProcessing || isCreatingCustomer || isCompletingService}
         paymentInputMode={paymentInputMode}
         isDisabled={false}
         hasBatteryScanned={!!scannedBatteryPending}

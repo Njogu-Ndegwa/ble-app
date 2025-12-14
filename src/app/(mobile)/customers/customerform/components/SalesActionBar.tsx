@@ -102,8 +102,17 @@ export default function SalesActionBar({ currentStep, onBack, onMainAction, isLo
           onClick={onMainAction}
           disabled={isLoading || isDisabled}
         >
-          {ActionIcons[config.mainIcon]}
-          <span>{isLoading ? t('sales.processing') : t(config.mainTextKey)}</span>
+          {isLoading ? (
+            <>
+              <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
+              <span>{t('sales.processing')}</span>
+            </>
+          ) : (
+            <>
+              {ActionIcons[config.mainIcon]}
+              <span>{t(config.mainTextKey)}</span>
+            </>
+          )}
         </button>
       </div>
     </div>
