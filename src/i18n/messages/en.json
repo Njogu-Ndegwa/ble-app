@@ -1150,6 +1150,9 @@
   "attendant.proceedToPayment": "Collect Payment",
   
   "attendant.quotaCreditAvailable": "Quota Credit Available",
+  "attendant.quotaAvailable": "Quota Available",
+  "attendant.usingQuota": "Using Quota",
+  "attendant.coveredByQuotaLabel": "Covered by Quota",
   "attendant.noPaymentRequired": "No payment required - using existing credit",
   "attendant.zeroCostSwap": "Zero Cost Swap",
   "attendant.noPaymentRequiredZeroCost": "No payment required - zero total cost",

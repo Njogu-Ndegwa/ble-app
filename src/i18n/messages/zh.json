@@ -1052,6 +1052,9 @@
   "attendant.proceedToPayment": "收款",
   
   "attendant.quotaCreditAvailable": "可用配额余额",
+  "attendant.quotaAvailable": "配额可用",
+  "attendant.usingQuota": "使用配额",
+  "attendant.coveredByQuotaLabel": "配额已覆盖",
   "attendant.noPaymentRequired": "无需支付 - 使用现有额度",
   "attendant.zeroCostSwap": "零费用更换",
   "attendant.noPaymentRequiredZeroCost": "无需支付 - 总费用为零",

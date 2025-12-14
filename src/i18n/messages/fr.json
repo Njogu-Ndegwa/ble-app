@@ -1141,6 +1141,9 @@
   "attendant.proceedToPayment": "Encaisser",
   
   "attendant.quotaCreditAvailable": "Crédit de quota disponible",
+  "attendant.quotaAvailable": "Quota Disponible",
+  "attendant.usingQuota": "Utilisation du Quota",
+  "attendant.coveredByQuotaLabel": "Couvert par le Quota",
   "attendant.noPaymentRequired": "Aucun paiement requis - utilisation du crédit existant",
   "attendant.zeroCostSwap": "Échange sans frais",
   "attendant.noPaymentRequiredZeroCost": "Aucun paiement requis - coût total zéro",
