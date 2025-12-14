@@ -10,7 +10,8 @@ import {
 } from '@/components/shared';
 import type { BatteryData, BleDevice, BatteryInputMode } from '@/components/shared';
 import { CustomerFormData, PlanData } from '../types';
-import { roundSmart } from '@/lib/utils';
+// Use centralized swap payment calculation (same as Attendant flow)
+import { calculateSwapPayment } from '@/lib/swap-payment';
 
 interface Step4Props {
   formData: CustomerFormData;
@@ -92,16 +93,20 @@ export default function Step4AssignBattery({
   const customerName = `${formData.firstName} ${formData.lastName}`;
   const initials = getInitials(formData.firstName, formData.lastName);
   
-  // Calculate energy cost when battery is scanned
-  // Energy is in Wh, convert to kWh for cost calculation
-  const energyKwh = scannedBattery 
-    ? Math.floor((scannedBattery.energy / 1000) * 100) / 100 
-    : 0;
-  // Use roundSmart to handle floating-point epsilon errors
-  // e.g., 2.12 * 10 = 21.200000001 should become 21.20, not 21.21
-  const calculatedCost = scannedBattery && rate > 0
-    ? roundSmart(energyKwh * rate, 2, 'up')
-    : 0;
+  // Use centralized calculateSwapPayment for consistent rounding with Attendant flow
+  // First-time customers have no old battery, no quota
+  const paymentCalc = scannedBattery && rate > 0
+    ? calculateSwapPayment({
+        newBatteryEnergyWh: scannedBattery.energy,
+        oldBatteryEnergyWh: 0, // First-time customer
+        ratePerKwh: rate,
+        quotaTotal: 0,
+        quotaUsed: 0,
+      })
+    : null;
+  
+  const energyKwh = paymentCalc?.energyDiff ?? 0;
+  const calculatedCost = paymentCalc?.cost ?? 0;
 
   // Handle device selection
   const handleDeviceSelect = (device: BleDevice) => {

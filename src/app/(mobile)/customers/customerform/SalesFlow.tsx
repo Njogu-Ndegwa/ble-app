@@ -64,8 +64,8 @@ import {
   type SalesSessionData,
 } from '@/lib/sales-session';
 
-// Import utility functions
-import { roundSmart } from '@/lib/utils';
+// Import centralized swap payment calculation (same as Attendant flow)
+import { calculateSwapPayment } from '@/lib/swap-payment';
 
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
@@ -1267,19 +1267,26 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // Don't wait - continue with default rate, identification will complete for future reference
     }
 
-    // Calculate cost based on energy × rate
-    // Energy is in Wh, convert to kWh for cost calculation
-    const energyKwh = Math.floor((scannedBatteryPending.energy / 1000) * 100) / 100; // Floor to 2dp
+    // Use centralized calculateSwapPayment for consistent rounding with Attendant flow
+    // First-time customers have no old battery (energy = 0), no quota
     const rate = customerRate || DEFAULT_RATE;
-    // Use smart rounding to handle floating-point epsilon errors
-    // e.g., 2.12 * 10 = 21.200000000001 should become 21.20, not 21.21
-    const calculatedCost = roundSmart(energyKwh * rate, 2, 'up'); // Round up to 2dp with epsilon handling
+    const paymentCalc = calculateSwapPayment({
+      newBatteryEnergyWh: scannedBatteryPending.energy,
+      oldBatteryEnergyWh: 0, // First-time customer - no old battery
+      ratePerKwh: rate,
+      quotaTotal: 0, // First-time customer - no quota
+      quotaUsed: 0,
+    });
     
-    console.info('[SALES SERVICE] Cost calculation:', {
+    const energyKwh = paymentCalc.energyDiff;
+    const calculatedCost = paymentCalc.cost;
+    
+    console.info('[SALES SERVICE] Cost calculation (via calculateSwapPayment):', {
       energyWh: scannedBatteryPending.energy,
       energyKwh,
       rate,
       calculatedCost,
+      grossEnergyCost: paymentCalc.grossEnergyCost,
       currencySymbol: customerCurrencySymbol,
     });
     
