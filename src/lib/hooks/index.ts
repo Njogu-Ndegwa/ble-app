@@ -28,6 +28,13 @@ export {
   type UseCustomerIdentificationConfig,
 } from './useCustomerIdentification';
 
+// Sales workflow customer identification with retry logic
+export {
+  useSalesCustomerIdentification,
+  type IdentificationStatus,
+  type UseSalesCustomerIdentificationConfig,
+} from './useSalesCustomerIdentification';
+
 // Payment collection and service completion
 export {
   usePaymentCollection,

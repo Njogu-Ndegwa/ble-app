@@ -1226,6 +1226,12 @@
   "sales.energyValue": "Energy Value",
   "sales.freeWithSubscription": "FREE with subscription",
   "sales.free": "FREE",
+  "sales.waitingForIdentification": "Please wait, fetching service info...",
+  "sales.identificationRequired": "Customer identification required. Please retry.",
+  "sales.identificationFailed": "Service data unavailable",
+  "sales.identificationFailedHint": "Unable to fetch pricing information",
+  "sales.retryIdentification": "Retry Identification",
+  "sales.fetchingServiceInfo": "Fetching service info...",
   
   "battery.scanQr": "Scan QR",
   "battery.selectManually": "Select Manually",

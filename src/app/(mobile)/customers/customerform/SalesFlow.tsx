@@ -35,7 +35,8 @@ import {
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
 import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
-import { useCustomerIdentification, type CustomerIdentificationResult, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
+import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
+import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 import { PAYMENT } from '@/lib/constants';
@@ -189,11 +190,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Default rate fallback (used when backend doesn't provide one)
   const DEFAULT_RATE = 120;
   
-  // Customer identification data from MQTT (for getting unit price / rate)
-  const [customerServiceStates, setCustomerServiceStates] = useState<ServiceState[]>([]);
-  const [customerIdentified, setCustomerIdentified] = useState(false);
-  const [customerRate, setCustomerRate] = useState<number>(DEFAULT_RATE);
-  const [customerCurrencySymbol, setCustomerCurrencySymbol] = useState<string>(PAYMENT.defaultCurrency);
+  // Customer identification state is now managed by useSalesCustomerIdentification hook
+  // (removed local state - see hook initialization below)
   
   // Computed cost for first-time customer (energy × rate, offered as discount)
   const [computedEnergyCost, setComputedEnergyCost] = useState<number>(0);
@@ -255,8 +253,25 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [bleIsReady, bleHandlersReady]);
 
-  // Customer identification hook - gets unit price (rate) from backend
-  const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
+  // Customer identification hook with automatic retry - gets unit price (rate) from backend
+  // Uses silent retries with exponential backoff; manual retry shows feedback like Attendant flow
+  const {
+    identifyCustomer,
+    cancelIdentification,
+    manualRetry: manualIdentifyCustomer,
+    reset: resetCustomerIdentification,
+    // State
+    status: identificationStatus,
+    isIdentifying,
+    isIdentified: customerIdentified,
+    hasFailed: identificationFailed,
+    retryCount: identificationRetryCount,
+    lastError: identificationError,
+    // Extracted values
+    rate: customerRate,
+    currencySymbol: customerCurrencySymbol,
+    serviceStates: customerServiceStates,
+  } = useSalesCustomerIdentification({
     bridge: bridge as any,
     isBridgeReady,
     isMqttConnected,
@@ -265,21 +280,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       station: SALESPERSON_STATION,
     },
     defaultRate: DEFAULT_RATE,
-    onSuccess: (result: CustomerIdentificationResult) => {
-      console.info('[SALES] Customer identification successful:', result);
-      setCustomerServiceStates(result.serviceStates);
-      setCustomerRate(result.rate);
-      setCustomerCurrencySymbol(result.currencySymbol);
-      setCustomerIdentified(true);
-    },
-    onError: (error: string) => {
-      console.error('[SALES] Customer identification failed:', error);
-      // Don't block the flow - use default rate as fallback
-      setCustomerIdentified(true);
-    },
-    onComplete: () => {
-      // Identification complete (success or error)
-    },
+    maxRetries: 3,  // Retry up to 3 times with exponential backoff
   });
   
   // Payment and service completion hook - reports both payment and service via MQTT
@@ -1254,15 +1255,29 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
-    // Customer identification should have already happened after payment confirmation
-    // If not identified yet (edge case), try one more time but don't block
+    // CRITICAL: Customer identification MUST succeed before completing service
+    // We need the accurate rate from the backend - can't use default for Sales workflow
     if (!customerIdentified) {
-      console.warn('[SALES SERVICE] Customer not yet identified - using default rate. Triggering identification...');
+      // Check if identification is in progress
+      if (isIdentifying) {
+        toast.error(t('sales.waitingForIdentification') || 'Please wait, fetching service info...');
+        return;
+      }
+      
+      // If identification failed, prompt for manual retry
+      if (identificationFailed) {
+        toast.error(t('sales.identificationRequired') || 'Customer identification required. Please retry.');
+        return;
+      }
+      
+      // Edge case: not identified and not in progress/failed - trigger identification
+      console.warn('[SALES SERVICE] Customer not yet identified - triggering identification...');
       identifyCustomer({
         subscriptionCode: subscriptionId,
         source: 'manual',
       });
-      // Don't wait - continue with default rate, identification will complete for future reference
+      toast.error(t('sales.waitingForIdentification') || 'Please wait, fetching service info...');
+      return;
     }
 
     // Calculate cost using centralized calculateSwapPayment function
@@ -1345,6 +1360,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     isMqttConnected,
     t,
     customerIdentified,
+    isIdentifying,
+    identificationFailed,
     customerRate,
     customerCurrencySymbol,
     customerServiceStates,
@@ -1492,11 +1509,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setConfirmedSubscriptionCode(null);
         setAssignedBattery(null);
         setScannedBatteryPending(null);
-        // Reset customer identification state
-        setCustomerServiceStates([]);
-        setCustomerIdentified(false);
-        setCustomerRate(DEFAULT_RATE);
-        setCustomerCurrencySymbol(PAYMENT.defaultCurrency);
+        // Reset customer identification state (via hook)
+        resetCustomerIdentification();
         setComputedEnergyCost(0);
         // Reset payment and service hook
         resetPaymentAndService();
@@ -1523,7 +1537,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     availableProducts,
     availablePlans,
     selectedPackageId,
-    selectedPlanId
+    selectedPlanId,
+    resetCustomerIdentification,
+    resetPaymentAndService,
   ]);
 
   // Handle step click in timeline
@@ -1646,6 +1662,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             rate={customerRate}
             currencySymbol={customerCurrencySymbol}
             customerIdentified={customerIdentified}
+            isIdentifying={isIdentifying}
+            identificationFailed={identificationFailed}
+            onManualIdentify={manualIdentifyCustomer}
           />
         );
       case 7:
@@ -1746,6 +1765,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         paymentInputMode={paymentInputMode}
         isDisabled={false}
         hasBatteryScanned={!!scannedBatteryPending}
+        customerIdentified={customerIdentified}
+        isIdentifying={isIdentifying}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}

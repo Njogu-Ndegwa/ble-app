@@ -1217,6 +1217,12 @@
   "sales.energyValue": "Valeur énergétique",
   "sales.freeWithSubscription": "GRATUIT avec l'abonnement",
   "sales.free": "GRATUIT",
+  "sales.waitingForIdentification": "Veuillez patienter, récupération des informations...",
+  "sales.identificationRequired": "Identification du client requise. Veuillez réessayer.",
+  "sales.identificationFailed": "Données de service indisponibles",
+  "sales.identificationFailedHint": "Impossible de récupérer les informations de tarification",
+  "sales.retryIdentification": "Réessayer l'identification",
+  "sales.fetchingServiceInfo": "Récupération des informations...",
   
   "battery.scanQr": "Scanner QR",
   "battery.selectManually": "Sélection manuelle",

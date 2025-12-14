@@ -12,6 +12,10 @@ interface SalesActionBarProps {
   isDisabled?: boolean;
   paymentInputMode?: 'scan' | 'manual'; // For step 5 to show correct button text
   hasBatteryScanned?: boolean; // For step 6 to show "Complete Service" vs "Scan Battery"
+  /** Whether customer identification is complete (required for step 6 Complete Service) */
+  customerIdentified?: boolean;
+  /** Whether customer identification is in progress */
+  isIdentifying?: boolean;
 }
 
 // Icon components for action bar
@@ -84,9 +88,54 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', ha
   }
 };
 
-export default function SalesActionBar({ currentStep, onBack, onMainAction, isLoading, isDisabled, paymentInputMode, hasBatteryScanned }: SalesActionBarProps) {
+export default function SalesActionBar({ 
+  currentStep, 
+  onBack, 
+  onMainAction, 
+  isLoading, 
+  isDisabled, 
+  paymentInputMode, 
+  hasBatteryScanned,
+  customerIdentified = true,
+  isIdentifying = false,
+}: SalesActionBarProps) {
   const { t } = useI18n();
   const config = getStepConfig(currentStep, paymentInputMode, hasBatteryScanned);
+
+  // Determine if the button should be disabled
+  // On step 6 with battery scanned, require customer identification to be complete
+  const isCompleteServiceStep = currentStep === 6 && hasBatteryScanned;
+  const waitingForIdentification = isCompleteServiceStep && !customerIdentified;
+  const buttonDisabled = isLoading || isDisabled || waitingForIdentification;
+
+  // Determine button text
+  const getButtonContent = () => {
+    if (isLoading) {
+      return (
+        <>
+          <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
+          <span>{t('sales.processing')}</span>
+        </>
+      );
+    }
+    
+    // Show "Fetching service info..." when waiting for identification
+    if (waitingForIdentification && isIdentifying) {
+      return (
+        <>
+          <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
+          <span>{t('sales.fetchingServiceInfo') || 'Fetching service info...'}</span>
+        </>
+      );
+    }
+    
+    return (
+      <>
+        {ActionIcons[config.mainIcon]}
+        <span>{t(config.mainTextKey)}</span>
+      </>
+    );
+  };
 
   return (
     <div className="action-bar">
@@ -100,19 +149,9 @@ export default function SalesActionBar({ currentStep, onBack, onMainAction, isLo
         <button 
           className={`btn ${config.mainClass || 'btn-primary'}`}
           onClick={onMainAction}
-          disabled={isLoading || isDisabled}
+          disabled={buttonDisabled}
         >
-          {isLoading ? (
-            <>
-              <div className="btn-spinner" style={{ width: '16px', height: '16px' }}></div>
-              <span>{t('sales.processing')}</span>
-            </>
-          ) : (
-            <>
-              {ActionIcons[config.mainIcon]}
-              <span>{t(config.mainTextKey)}</span>
-            </>
-          )}
+          {getButtonContent()}
         </button>
       </div>
     </div>
