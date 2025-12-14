@@ -1181,6 +1181,8 @@
   "attendant.connectionFailed": "Échec de la connexion",
   "attendant.wrongBattery": "Mauvaise batterie ! Cette batterie n'appartient pas au client.",
   "attendant.batteryMismatch": "La batterie n'appartient pas à ce client",
+  "attendant.batteryIdMismatch": "L'ID de la batterie ne correspond pas au dossier du client",
+  "attendant.wrongBatteryOpid": "Mauvaise batterie ! L'ID de batterie lu depuis l'appareil ne correspond pas à la batterie assignée au client.",
   "attendant.coveredByQuota": "Couvert par le quota",
   "attendant.toPay": "À payer",
   "attendant.returning": "Retour",

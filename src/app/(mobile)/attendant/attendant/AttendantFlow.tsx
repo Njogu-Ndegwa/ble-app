@@ -233,36 +233,57 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       // === LAST LINE OF DEFENSE: Validate actualBatteryId (OPID/PPID from ATT) matches customer's battery ===
       // This validation happens AFTER reading the battery via BLE, ensuring the actual device ID matches
       // what the backend has assigned to the customer. The earlier validation only checks QR/device name.
+      //
+      // IMPORTANT: This check must be STRICTER than the first check (QR/device name matching).
+      // The first check uses last-6-chars matching for convenience, but this second check should verify
+      // that the actual battery ID (OPID/PPID read from the device) matches the expected ID.
+      // We do NOT rely on last-6-chars matching here because that's already done in the first check.
       if (customerTypeRef.current === 'returning' && customerDataRef.current?.currentBatteryId && battery.actualBatteryId) {
         const expectedBatteryId = customerDataRef.current.currentBatteryId;
         const actualBatteryId = battery.actualBatteryId;
         
-        // Normalize IDs for comparison (remove prefixes, compare last 6 chars, case insensitive)
+        // Normalize IDs for comparison:
+        // - Remove common prefixes like "BAT_NEW_", "BAT_RETURN_ATT_", "BAT_", "OVES Batt ", "OVES BATT ", etc.
+        // - Remove spaces and convert to lowercase for case-insensitive comparison
         const normalizeId = (id: string) => {
-          const cleaned = id.replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_)/i, '');
-          return cleaned.toLowerCase();
+          const cleaned = id
+            // Remove common prefixes (order matters - more specific first)
+            .replace(/^(BAT_NEW_|BAT_RETURN_ATT_|BAT_|OVES\s+Batt\s+|OVES\s+BATT\s+)/i, '')
+            // Remove any remaining spaces for consistent comparison
+            .replace(/\s+/g, '')
+            .toLowerCase();
+          return cleaned;
         };
         
         const actualNormalized = normalizeId(String(actualBatteryId));
         const expectedNormalized = normalizeId(String(expectedBatteryId));
         
-        // Check if IDs match (exact match, one contains the other, or last 6 chars match)
+        // Stricter matching for the second line of defense:
+        // The actual battery ID from the device should match the expected ID.
+        // We check:
+        // 1. Exact match after normalization
+        // 2. One contains the other (for cases like "BO724525070000" containing "070000")
+        //
+        // NOTE: We intentionally DO NOT use last-6-chars matching here.
+        // If the first check passed (QR/device name), and the actual OPID is completely different
+        // (e.g., "BO724525070000" vs "070000"), then this is a DIFFERENT battery that just happens
+        // to have matching last 6 chars - this should FAIL.
         const isMatch = actualNormalized === expectedNormalized ||
           actualNormalized.includes(expectedNormalized) ||
-          expectedNormalized.includes(actualNormalized) ||
-          actualNormalized.slice(-6) === expectedNormalized.slice(-6);
+          expectedNormalized.includes(actualNormalized);
         
         if (!isMatch) {
           // Battery doesn't match - show error and stop process
           console.error(`OPID/PPID mismatch (last line of defense): actual ${actualBatteryId}, expected ${expectedBatteryId}`);
+          console.error(`Normalized comparison: actual="${actualNormalized}", expected="${expectedNormalized}"`);
           
           setFlowError({
             step: 2,
-            message: 'Battery does not belong to this customer',
-            details: `Device ID: ...${String(actualBatteryId).slice(-6)} | Expected: ...${String(expectedBatteryId).slice(-6)}`,
+            message: t('attendant.batteryIdMismatch') || 'Battery ID does not match customer record',
+            details: `Device ID: ${actualBatteryId} | Expected: ${expectedBatteryId}`,
           });
           
-          toast.error('Wrong battery! Device ID does not match customer\'s assigned battery.');
+          toast.error(t('attendant.wrongBatteryOpid') || 'Wrong battery! The battery ID read from the device does not match the customer\'s assigned battery.');
           setIsScanning(false);
           scanTypeRef.current = null;
           return; // Don't proceed to next step
