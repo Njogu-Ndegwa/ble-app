@@ -467,18 +467,20 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
 /**
  * Check if a session is "effectively complete" and should not be resumed
  * 
- * This handles edge cases where:
- * 1. User was at the Review step (step 4) and clicked "Proceed"
- * 2. The swap was quota-based (cost <= 0) so payment was skipped
- * 3. The MQTT publish was triggered but app closed before response
- * 4. Session remains at step 4 but the swap may have already been recorded
+ * IMPORTANT: For the Attendant workflow, a session is ONLY complete when it reaches
+ * Step 6 (Success). This is because service & usage reporting happens at Step 6.
  * 
- * In such cases, resuming could lead to duplicate swaps or confusing UX.
+ * Even if:
+ * - Payment is not required (quota covers cost)
+ * - Cost rounds down to zero
+ * - Both batteries are scanned
+ * 
+ * ...the session is NOT complete until Step 6, where the swap is recorded
+ * and usage is reported to the backend.
+ * 
  * We consider a session "effectively complete" if:
  * - Session status is 'completed'
- * - Attendant workflow at step 6 (success)
- * - Attendant workflow at step 4+ with both batteries scanned and cost <= 0
- * - Attendant workflow at step 5+ (payment phase or later)
+ * - Attendant workflow at step 6 (success) - usage has been reported
  * - SalesPerson workflow at the final registration step
  */
 function isSessionEffectivelyComplete(
@@ -498,41 +500,21 @@ function isSessionEffectivelyComplete(
   if (workflowType === 'attendant') {
     // For attendant workflow:
     // - Steps 1-3: Customer/Battery scanning - safe to resume
-    // - Step 4 (Review): 
-    //   - If cost <= 0 and both batteries present, likely completed without payment
-    //   - If cost > 0, might be waiting for payment - could resume
-    // - Step 5+ (Payment/Success): Already in final phase
-    // - Step 6: Success step - definitely complete
+    // - Step 4 (Review): Safe to resume - usage not yet reported
+    // - Step 5 (Payment): Safe to resume - usage not yet reported
+    // - Step 6 (Success): Complete - swap recorded and usage reported
+    //
+    // CRITICAL: Only Step 6 is considered complete because that's when
+    // the service completion and usage reporting happens. Even if payment
+    // is skipped (quota-based or zero cost), the session must reach Step 6
+    // to report the swap to the backend.
     
-    const swapData = sessionData.swapData;
-    const hasBothBatteries = !!(swapData?.oldBattery && swapData?.newBattery);
-    const cost = swapData?.cost ?? 0;
-    const chargeableEnergy = swapData?.chargeableEnergy ?? 0;
-    
-    // Step 6 is the success step - definitely complete
+    // Step 6 is the success step - usage has been reported, definitely complete
     if (currentStep >= 6 || maxStepReached >= 6) {
       return true;
     }
     
-    // Step 5 or higher - already past the point of no return (in payment phase)
-    if (currentStep >= 5 || maxStepReached >= 5) {
-      return true;
-    }
-    
-    // Step 4 with both batteries and no payment needed (quota-based or zero cost)
-    // This is the case where user clicked "Proceed" and skipPayment was called
-    if (currentStep === 4 && maxStepReached === 4 && hasBothBatteries) {
-      // Cost is 0 or negative means no payment was required
-      if (cost <= 0) {
-        return true;
-      }
-      
-      // Chargeable energy is 0 or negative means quota covered everything
-      if (chargeableEnergy <= 0) {
-        return true;
-      }
-    }
-    
+    // All other steps (1-5) are NOT complete - session can be resumed
     return false;
   }
   

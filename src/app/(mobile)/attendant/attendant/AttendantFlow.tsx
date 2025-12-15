@@ -764,9 +764,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       console.info('[AttendantFlow] Workflow completed (step 6) - saving final state and clearing local session');
       prevStepRef.current = currentStep;
       
-      // Save step 6 to backend so it knows the session is complete
-      // Note: saveSessionData uses buildAttendantSessionData which sets status: 'in_progress'
-      // Ideally the backend would mark it 'completed' based on step 6, or we'd have a separate API
+      // Save step 6 to backend with status: 'completed'
+      // buildAttendantSessionData sets status to 'completed' when currentStep >= 6
       saveSessionData(6, 6).then(() => {
         // Clear local state after saving - session data remains on backend
         clearSession();
