@@ -1,26 +1,40 @@
 /**
  * useCustomerIdentification Hook
  * 
- * Handles customer identification via MQTT for the attendant workflow.
+ * Handles customer identification via GraphQL for the attendant workflow.
  * Extracts the duplicated logic from processCustomerQRData and handleManualLookup.
  * 
  * This hook:
- * - Publishes identify_customer request to MQTT
+ * - Calls identifyCustomer GraphQL mutation
  * - Handles response parsing and validation
  * - Extracts customer data, service states, and pricing info
  * - Determines customer type (first-time vs returning)
+ * 
+ * NOTE: This hook was migrated from MQTT to GraphQL in December 2024.
+ * The interface remains the same to maintain backwards compatibility.
  */
 
 import { useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import apolloClient from '@/lib/apollo-client';
 import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
+import {
+  IDENTIFY_CUSTOMER,
+  type IdentifyCustomerInput,
+  type IdentifyCustomerResponse,
+  parseIdentifyCustomerMetadata,
+  isIdentificationSuccessful,
+  hasErrorSignals,
+  type GraphQLServiceState,
+  type GraphQLServiceDefinition,
+} from '@/lib/graphql/mutations';
 
 // ============================================
 // TYPES
 // ============================================
 
-/** Service state from MQTT response */
+/** Service state from GraphQL response */
 export interface ServiceState {
   service_id: string;
   used: number;
@@ -63,7 +77,7 @@ export interface CustomerIdentificationResult {
 }
 
 /** Input for identification request */
-export interface IdentifyCustomerInput {
+export interface IdentifyCustomerInputParams {
   /** Subscription code / plan ID */
   subscriptionCode: string;
   /** Source of the identification request */
@@ -76,20 +90,8 @@ export interface IdentifyCustomerInput {
   customerId?: string;
 }
 
-/** Bridge interface for MQTT operations */
-interface MqttBridge {
-  registerHandler: (name: string, handler: (data: string, responseCallback: (response: any) => void) => void) => void;
-  callHandler: (name: string, data: any, callback: (response: string) => void) => void;
-}
-
 /** Hook configuration */
 export interface UseCustomerIdentificationConfig {
-  /** The bridge instance for MQTT communication */
-  bridge: MqttBridge | null;
-  /** Whether the bridge is ready */
-  isBridgeReady: boolean;
-  /** Whether MQTT is connected */
-  isMqttConnected: boolean;
   /** Attendant information */
   attendantInfo: {
     id: string;
@@ -105,6 +107,21 @@ export interface UseCustomerIdentificationConfig {
   onStart?: () => void;
   /** Callback when identification completes (success or error) */
   onComplete?: () => void;
+  /** 
+   * @deprecated No longer needed - GraphQL doesn't require bridge
+   * Kept for backwards compatibility with existing code
+   */
+  bridge?: unknown;
+  /** 
+   * @deprecated No longer needed - GraphQL doesn't require bridge
+   * Kept for backwards compatibility with existing code
+   */
+  isBridgeReady?: boolean;
+  /** 
+   * @deprecated No longer needed - GraphQL doesn't require MQTT
+   * Kept for backwards compatibility with existing code
+   */
+  isMqttConnected?: boolean;
 }
 
 // ============================================
@@ -114,18 +131,12 @@ export interface UseCustomerIdentificationConfig {
 /** Threshold for "infinite quota" services */
 const INFINITE_QUOTA_THRESHOLD = 100000;
 
-/** Timeout for identification request (ms) */
-const IDENTIFICATION_TIMEOUT = 30000;
-
 // ============================================
 // HOOK
 // ============================================
 
 export function useCustomerIdentification(config: UseCustomerIdentificationConfig) {
   const {
-    bridge,
-    isBridgeReady,
-    isMqttConnected,
     attendantInfo,
     defaultRate = 120,
     onSuccess,
@@ -134,75 +145,60 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onComplete,
   } = config;
 
-  // Refs for correlation ID and timeout
+  // Refs for correlation ID and cancellation
   const correlationIdRef = useRef<string>('');
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isCancelledRef = useRef<boolean>(false);
 
   /**
-   * Clear the identification timeout
-   */
-  const clearIdentificationTimeout = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, []);
-
-  /**
-   * Parse and process the MQTT response data
+   * Parse and process the GraphQL response data
    */
   const processResponseData = useCallback((
-    responseData: any,
-    input: IdentifyCustomerInput
+    response: IdentifyCustomerResponse,
+    input: IdentifyCustomerInputParams
   ): CustomerIdentificationResult | null => {
-    const success = responseData?.data?.success ?? false;
-    const signals = responseData?.data?.signals || [];
-
-    // Check for success signals
-    const hasSuccessSignal = success === true && 
-      Array.isArray(signals) && 
-      (signals.includes("CUSTOMER_IDENTIFIED_SUCCESS") || signals.includes("IDEMPOTENT_OPERATION_DETECTED"));
-
-    if (!hasSuccessSignal) {
-      // Provide specific error messages based on failure signals
-      let errorMsg = responseData?.data?.error || responseData?.data?.metadata?.message;
-      if (!errorMsg) {
-        if (signals.includes("SERVICE_PLAN_NOT_FOUND") || signals.includes("CUSTOMER_NOT_FOUND")) {
-          errorMsg = "Customer not found. Please check the subscription ID.";
-        } else if (signals.includes("INVALID_QR_CODE")) {
-          errorMsg = "Invalid QR code. Please scan a valid customer QR code.";
-        } else if (signals.includes("INVALID_SUBSCRIPTION_ID")) {
-          errorMsg = "Invalid subscription ID format.";
-        } else {
-          errorMsg = "Customer not found";
+    // Check for success
+    if (!isIdentificationSuccessful(response)) {
+      // Check for specific error signals
+      const signals = response.signals || [];
+      let errorMsg = 'Customer not found';
+      
+      if (hasErrorSignals(signals)) {
+        if (signals.includes('SERVICE_PLAN_NOT_FOUND') || signals.includes('CUSTOMER_NOT_FOUND')) {
+          errorMsg = 'Customer not found. Please check the subscription ID.';
+        } else if (signals.includes('INVALID_QR_CODE')) {
+          errorMsg = 'Invalid QR code. Please scan a valid customer QR code.';
+        } else if (signals.includes('INVALID_SUBSCRIPTION_ID')) {
+          errorMsg = 'Invalid subscription ID format.';
         }
       }
       throw new Error(errorMsg);
     }
 
+    // Parse metadata
+    const metadata = parseIdentifyCustomerMetadata(response.metadata);
+    if (!metadata) {
+      throw new Error('Invalid customer data received');
+    }
+
     // Handle both fresh and idempotent (cached) responses
-    const metadata = responseData?.data?.metadata;
-    const isIdempotent = signals.includes("IDEMPOTENT_OPERATION_DETECTED");
-    
-    // For idempotent responses, data is in cached_result
-    const sourceData = isIdempotent ? metadata?.cached_result : metadata;
-    const servicePlanData = sourceData?.service_plan_data || sourceData?.servicePlanData;
-    const serviceBundle = sourceData?.service_bundle;
-    const commonTerms = sourceData?.common_terms;
-    const identifiedCustomerId = sourceData?.customer_id || metadata?.customer_id;
+    const isIdempotent = response.signals.includes('IDEMPOTENT_OPERATION_DETECTED');
+    const servicePlanData = metadata.service_plan_data;
+    const serviceBundle = metadata.service_bundle;
+    const commonTerms = metadata.common_terms;
+    const identifiedCustomerId = metadata.customer_id;
 
     if (!servicePlanData) {
-      throw new Error("Invalid customer data received");
+      throw new Error('Invalid customer data received');
     }
 
     // Extract and enrich service states
     const extractedServiceStates = (servicePlanData.serviceStates || []).filter(
-      (service: any) => typeof service?.service_id === 'string'
+      (service: GraphQLServiceState) => typeof service?.service_id === 'string'
     );
     
-    const enrichedServiceStates: ServiceState[] = extractedServiceStates.map((serviceState: any) => {
+    const enrichedServiceStates: ServiceState[] = extractedServiceStates.map((serviceState: GraphQLServiceState) => {
       const matchingService = serviceBundle?.services?.find(
-        (svc: any) => svc.serviceId === serviceState.service_id
+        (svc: GraphQLServiceDefinition) => svc.serviceId === serviceState.service_id
       );
       return {
         ...serviceState,
@@ -257,8 +253,8 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       swapsTotal: swapCountService?.quota || 21,
       hasInfiniteEnergyQuota,
       hasInfiniteSwapQuota,
-      paymentState: servicePlanData.paymentState || 'INITIAL',
-      serviceState: servicePlanData.serviceState || 'INITIAL',
+      paymentState: (servicePlanData.paymentState || 'INITIAL') as IdentifiedCustomerData['paymentState'],
+      serviceState: (servicePlanData.serviceState || 'INITIAL') as IdentifiedCustomerData['serviceState'],
       currentBatteryId: batteryFleet?.current_asset || undefined,
     };
 
@@ -273,9 +269,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
   }, [defaultRate]);
 
   /**
-   * Identify a customer via MQTT
+   * Identify a customer via GraphQL
    */
-  const identifyCustomer = useCallback((input: IdentifyCustomerInput) => {
+  const identifyCustomer = useCallback(async (input: IdentifyCustomerInputParams) => {
     const { subscriptionCode, source } = input;
 
     // Validate inputs
@@ -288,19 +284,8 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       return;
     }
 
-    if (!bridge || !isBridgeReady) {
-      const errorMsg = 'Bridge not available. Please wait for initialization...';
-      toast.error(errorMsg);
-      onError?.(errorMsg);
-      return;
-    }
-
-    if (!isMqttConnected) {
-      const errorMsg = 'MQTT not connected. Please wait a moment and try again.';
-      toast.error(errorMsg);
-      onError?.(errorMsg);
-      return;
-    }
+    // Reset cancellation flag
+    isCancelledRef.current = false;
 
     // Notify start
     onStart?.();
@@ -308,177 +293,87 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     // Generate correlation ID
     const correlationId = `att-customer-id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     correlationIdRef.current = correlationId;
-    (window as any).__customerIdentificationCorrelationId = correlationId;
 
-    // Build MQTT topics
-    const requestTopic = `emit/uxi/attendant/plan/${subscriptionCode}/identify_customer`;
-    const responseTopic = `echo/abs/attendant/plan/${subscriptionCode}/identify_customer`;
-
-    // Build payload
-    const payload = {
-      timestamp: new Date().toISOString(),
+    // Build GraphQL input
+    const graphqlInput: IdentifyCustomerInput = {
       plan_id: subscriptionCode,
       correlation_id: correlationId,
-      actor: { type: "attendant", id: attendantInfo.id },
-      data: {
-        action: "IDENTIFY_CUSTOMER",
-        qr_code_data: source === 'manual' 
-          ? `MANUAL_${subscriptionCode}` 
-          : `QR_CUSTOMER_${subscriptionCode}`,
-        attendant_station: attendantInfo.station,
-      },
+      qr_code_data: source === 'manual' 
+        ? `MANUAL_${subscriptionCode}` 
+        : `QR_CUSTOMER_${subscriptionCode}`,
+      attendant_station: attendantInfo.station,
     };
 
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content: payload,
-    };
+    console.info(`=== Customer Identification GraphQL (${source}) ===`);
+    console.info('Correlation ID:', correlationId);
+    console.info('Input:', JSON.stringify(graphqlInput, null, 2));
 
-    console.info(`=== Customer Identification MQTT (${source}) ===`);
-    console.info("Request Topic:", requestTopic);
-    console.info("Response Topic:", responseTopic);
-    console.info("Correlation ID:", correlationId);
-    console.info("Payload:", JSON.stringify(payload, null, 2));
+    try {
+      const result = await apolloClient.mutate<{ identifyCustomer: IdentifyCustomerResponse }>({
+        mutation: IDENTIFY_CUSTOMER,
+        variables: { input: graphqlInput },
+      });
 
-    // Set timeout
-    clearIdentificationTimeout();
-    timeoutRef.current = setTimeout(() => {
-      console.error("Customer identification timed out after 30 seconds");
-      const errorMsg = "Request timed out. Please try again.";
+      // Check if cancelled while waiting for response
+      if (isCancelledRef.current) {
+        console.info('Customer identification was cancelled');
+        return;
+      }
+
+      if (result.errors && result.errors.length > 0) {
+        const errorMsg = result.errors[0].message || 'Failed to identify customer';
+        console.error('GraphQL errors:', result.errors);
+        toast.error(errorMsg);
+        onError?.(errorMsg);
+        onComplete?.();
+        return;
+      }
+
+      if (!result.data?.identifyCustomer) {
+        const errorMsg = 'No response from server';
+        toast.error(errorMsg);
+        onError?.(errorMsg);
+        onComplete?.();
+        return;
+      }
+
+      const response = result.data.identifyCustomer;
+      console.info('GraphQL Response:', response);
+      console.info('Signals:', response.signals);
+
+      try {
+        const identificationResult = processResponseData(response, input);
+        if (identificationResult) {
+          const successMsg = identificationResult.isIdempotent 
+            ? 'Customer identified (cached)' 
+            : 'Customer identified';
+          toast.success(successMsg);
+          onSuccess(identificationResult);
+        }
+      } catch (err: unknown) {
+        const error = err as Error;
+        console.error('Customer identification failed:', error);
+        toast.error(error.message || 'Customer identification failed');
+        onError?.(error.message || 'Customer identification failed');
+      }
+
+      onComplete?.();
+    } catch (err: unknown) {
+      const error = err as Error;
+      // Check if cancelled
+      if (isCancelledRef.current) {
+        console.info('Customer identification was cancelled');
+        return;
+      }
+
+      console.error('GraphQL request failed:', error);
+      const errorMsg = error.message || 'Request failed. Please try again.';
       toast.error(errorMsg);
       onError?.(errorMsg);
       onComplete?.();
-    }, IDENTIFICATION_TIMEOUT);
-
-    // Register response handler
-    bridge.registerHandler(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedMqttData = JSON.parse(data);
-          const topic = parsedMqttData.topic;
-          const rawMessageContent = parsedMqttData.message;
-
-          if (topic === responseTopic) {
-            console.info("✅ Topic MATCHED! Processing identify_customer response");
-
-            let responseData: any;
-            try {
-              responseData = typeof rawMessageContent === 'string' 
-                ? JSON.parse(rawMessageContent) 
-                : rawMessageContent;
-            } catch {
-              responseData = rawMessageContent;
-            }
-
-            // Check correlation ID
-            const storedCorrelationId = (window as any).__customerIdentificationCorrelationId;
-            const responseCorrelationId = responseData?.correlation_id;
-
-            const correlationMatches =
-              Boolean(storedCorrelationId) &&
-              Boolean(responseCorrelationId) &&
-              (responseCorrelationId === storedCorrelationId ||
-                responseCorrelationId.startsWith(storedCorrelationId) ||
-                storedCorrelationId.startsWith(responseCorrelationId));
-
-            if (correlationMatches) {
-              clearIdentificationTimeout();
-
-              try {
-                const result = processResponseData(responseData, input);
-                if (result) {
-                  const successMsg = result.isIdempotent 
-                    ? 'Customer identified (cached)' 
-                    : 'Customer identified';
-                  toast.success(successMsg);
-                  onSuccess(result);
-                }
-              } catch (err: any) {
-                console.error("Customer identification failed:", err);
-                toast.error(err.message || "Customer identification failed");
-                onError?.(err.message || "Customer identification failed");
-              }
-
-              onComplete?.();
-            }
-          }
-          responseCallback({});
-        } catch (err) {
-          console.error("Error processing MQTT response:", err);
-        }
-      }
-    );
-
-    // Subscribe to response topic, then publish
-    bridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse: string) => {
-        try {
-          const subResp = typeof subscribeResponse === 'string' 
-            ? JSON.parse(subscribeResponse) 
-            : subscribeResponse;
-
-          if (subResp?.respCode === "200") {
-            console.info("✅ Successfully subscribed to:", responseTopic);
-            
-            // Wait a moment after subscribe before publishing
-            setTimeout(() => {
-              bridge.callHandler(
-                "mqttPublishMsg",
-                JSON.stringify(dataToPublish),
-                (publishResponse: string) => {
-                  try {
-                    const pubResp = typeof publishResponse === 'string' 
-                      ? JSON.parse(publishResponse) 
-                      : publishResponse;
-                    if (pubResp?.error || pubResp?.respCode !== "200") {
-                      console.error("Failed to publish identify_customer:", pubResp?.respDesc || pubResp?.error);
-                      clearIdentificationTimeout();
-                      const errorMsg = "Failed to identify customer";
-                      toast.error(errorMsg);
-                      onError?.(errorMsg);
-                      onComplete?.();
-                    } else {
-                      console.info("identify_customer published successfully, waiting for response...");
-                    }
-                  } catch (err) {
-                    console.error("Error parsing publish response:", err);
-                    clearIdentificationTimeout();
-                    const errorMsg = "Error identifying customer";
-                    toast.error(errorMsg);
-                    onError?.(errorMsg);
-                    onComplete?.();
-                  }
-                }
-              );
-            }, 300);
-          } else {
-            console.error("Failed to subscribe to response topic:", subResp?.respDesc || subResp?.error);
-            clearIdentificationTimeout();
-            const errorMsg = "Failed to connect. Please try again.";
-            toast.error(errorMsg);
-            onError?.(errorMsg);
-            onComplete?.();
-          }
-        } catch (err) {
-          console.error("Error parsing subscribe response:", err);
-          clearIdentificationTimeout();
-          const errorMsg = "Error connecting. Please try again.";
-          toast.error(errorMsg);
-          onError?.(errorMsg);
-          onComplete?.();
-        }
-      }
-    );
+    }
   }, [
-    bridge, 
-    isBridgeReady, 
-    isMqttConnected, 
     attendantInfo, 
-    clearIdentificationTimeout, 
     processResponseData,
     onSuccess, 
     onError, 
@@ -490,9 +385,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
    * Cancel any pending identification request
    */
   const cancelIdentification = useCallback(() => {
-    clearIdentificationTimeout();
-    (window as any).__customerIdentificationCorrelationId = null;
-  }, [clearIdentificationTimeout]);
+    isCancelledRef.current = true;
+    correlationIdRef.current = '';
+  }, []);
 
   return {
     identifyCustomer,

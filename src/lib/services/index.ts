@@ -2,18 +2,19 @@
  * Services Layer
  * 
  * This module provides service abstractions for external communications:
- * - MQTT messaging
+ * - GraphQL mutations (customer identification, payment & service)
+ * - MQTT messaging (legacy - being replaced by GraphQL)
  * - API clients
  * - BLE operations
  * - Payment & Service completion
  * 
  * Usage:
  * ```typescript
- * // Service classes
- * import { MqttService } from '@/lib/services';
+ * // GraphQL mutations
+ * import { IDENTIFY_CUSTOMER, REPORT_PAYMENT_AND_SERVICE } from '@/lib/graphql';
  * 
  * // React hooks
- * import { useMqtt, useSubscription, usePaymentAndService } from '@/lib/services/hooks';
+ * import { usePaymentAndService } from '@/lib/services/hooks';
  * ```
  */
 

@@ -5,9 +5,13 @@
  * - Silent automatic retry with exponential backoff
  * - Manual retry trigger with visible feedback (like Attendant flow)
  * - Retry state tracking for UI feedback
+ * - Non-blocking background operation for Sales workflow
  * 
  * This reuses the core identification logic from useCustomerIdentification
  * and only adds retry behavior specific to the Sales workflow.
+ * 
+ * NOTE: This hook now uses GraphQL instead of MQTT. The bridge and MQTT
+ * connection parameters are kept for backwards compatibility but are ignored.
  */
 
 import { useCallback, useRef, useState, useEffect } from 'react';
@@ -16,12 +20,12 @@ import { PAYMENT } from '@/lib/constants';
 import { 
   useCustomerIdentification, 
   type CustomerIdentificationResult, 
-  type IdentifyCustomerInput,
+  type IdentifyCustomerInputParams,
   type ServiceState,
 } from './useCustomerIdentification';
 
 // Re-export types for convenience
-export type { ServiceState, CustomerIdentificationResult, IdentifyCustomerInput };
+export type { ServiceState, CustomerIdentificationResult, IdentifyCustomerInputParams as IdentifyCustomerInput };
 
 // ============================================
 // TYPES
@@ -35,20 +39,8 @@ export type IdentificationStatus =
   | 'success'        // Successfully identified
   | 'failed';        // All retries exhausted
 
-/** Bridge interface for MQTT operations */
-interface MqttBridge {
-  registerHandler: (name: string, handler: (data: string, responseCallback: (response: any) => void) => void) => void;
-  callHandler: (name: string, data: any, callback: (response: string) => void) => void;
-}
-
 /** Hook configuration */
 export interface UseSalesCustomerIdentificationConfig {
-  /** The bridge instance for MQTT communication */
-  bridge: MqttBridge | null;
-  /** Whether the bridge is ready */
-  isBridgeReady: boolean;
-  /** Whether MQTT is connected */
-  isMqttConnected: boolean;
   /** Attendant/Salesperson information */
   attendantInfo: {
     id: string;
@@ -62,6 +54,21 @@ export interface UseSalesCustomerIdentificationConfig {
   baseRetryDelay?: number;
   /** Maximum delay in ms for exponential backoff (default: 15000) */
   maxRetryDelay?: number;
+  /** 
+   * @deprecated No longer needed - GraphQL doesn't require bridge
+   * Kept for backwards compatibility with existing code
+   */
+  bridge?: unknown;
+  /** 
+   * @deprecated No longer needed - GraphQL doesn't require bridge
+   * Kept for backwards compatibility with existing code
+   */
+  isBridgeReady?: boolean;
+  /** 
+   * @deprecated No longer needed - GraphQL doesn't require MQTT
+   * Kept for backwards compatibility with existing code
+   */
+  isMqttConnected?: boolean;
 }
 
 // ============================================
@@ -79,9 +86,6 @@ const DEFAULT_MAX_RETRY_DELAY = 15000;  // 15 seconds max
 
 export function useSalesCustomerIdentification(config: UseSalesCustomerIdentificationConfig) {
   const {
-    bridge,
-    isBridgeReady,
-    isMqttConnected,
     attendantInfo,
     defaultRate = 120,
     maxRetries = DEFAULT_MAX_RETRIES,
@@ -97,10 +101,13 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
 
   // Refs for managing async operations
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const inputRef = useRef<IdentifyCustomerInput | null>(null);
+  const inputRef = useRef<IdentifyCustomerInputParams | null>(null);
   const isManualRetryRef = useRef(false);
   const isActiveRef = useRef(false);
   const currentRetryRef = useRef(0);
+  
+  // Ref for the base identify function to avoid circular dependency in handleError
+  const baseIdentifyRef = useRef<((input: IdentifyCustomerInputParams) => void) | null>(null);
 
   /**
    * Clear the retry timeout
@@ -167,9 +174,9 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
 
       // Schedule retry - no toast notification (silent retry)
       retryTimeoutRef.current = setTimeout(() => {
-        if (isActiveRef.current && inputRef.current) {
-          // Trigger identification again via the base hook
-          baseIdentifyCustomer(inputRef.current);
+        if (isActiveRef.current && inputRef.current && baseIdentifyRef.current) {
+          // Trigger identification again via the base hook (using ref to avoid circular dep)
+          baseIdentifyRef.current(inputRef.current);
         }
       }, delay);
     } else {
@@ -187,11 +194,8 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     // Nothing special needed here - success/error handlers manage state
   }, []);
 
-  // Use the base customer identification hook
+  // Use the base customer identification hook (now uses GraphQL internally)
   const { identifyCustomer: baseIdentifyCustomer, cancelIdentification: baseCancelIdentification } = useCustomerIdentification({
-    bridge: bridge as any,
-    isBridgeReady,
-    isMqttConnected,
     attendantInfo,
     defaultRate,
     onSuccess: handleSuccess,
@@ -199,10 +203,14 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     onComplete: handleComplete,
   });
 
+  // Keep baseIdentifyRef in sync for use in retry callback
+  baseIdentifyRef.current = baseIdentifyCustomer;
+
   /**
    * Start identification with automatic retry on failure
+   * This runs in the background (non-blocking) for Sales workflow
    */
-  const identifyCustomer = useCallback((input: IdentifyCustomerInput) => {
+  const identifyCustomer = useCallback((input: IdentifyCustomerInputParams) => {
     // Store input for potential retries
     inputRef.current = input;
     isManualRetryRef.current = false;
@@ -218,7 +226,8 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     setResult(null);
     setLastError(null);
 
-    // Trigger the base hook
+    // Trigger the base hook (non-blocking - runs in background)
+    // No toast for initial request (silent background operation for Sales)
     baseIdentifyCustomer(input);
   }, [baseIdentifyCustomer, clearRetryTimeout]);
 
