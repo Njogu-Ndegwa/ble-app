@@ -30,7 +30,15 @@ import {
   PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
-import { BleProgressModal } from '@/components/shared';
+import { BleProgressModal, SessionResumePrompt } from '@/components/shared';
+
+// Import workflow session management
+import { 
+  useWorkflowSession, 
+  buildAttendantSessionData, 
+  extractAttendantStateFromSession,
+} from '@/lib/hooks/useWorkflowSession';
+import type { WorkflowSessionData } from '@/lib/odoo-api';
 
 // Import modular BLE hook for battery scanning (available for future migration)
 import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
@@ -154,6 +162,93 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
   
+  // Session restoration UI state
+  const [showSessionPrompt, setShowSessionPrompt] = useState(false);
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+  
+  // ============================================
+  // WORKFLOW SESSION MANAGEMENT HOOK (Backend Persistence)
+  // ============================================
+  
+  const {
+    status: sessionStatus,
+    orderId: sessionOrderId,
+    pendingSession,
+    createSession,
+    updateSession,
+    updateSessionWithPayment,
+    restoreSession,
+    discardPendingSession,
+    clearSession,
+    checkForPendingSession,
+    isLoading: isSessionLoading,
+  } = useWorkflowSession({
+    workflowType: 'attendant',
+    onSessionRestored: (sessionData, orderId) => {
+      console.info('[AttendantFlow] Session restored from backend:', { orderId, step: sessionData.currentStep });
+      
+      // Extract state from session data and restore
+      const restoredState = extractAttendantStateFromSession(sessionData);
+      
+      // Restore all state from the session
+      setCurrentStep(restoredState.currentStep as AttendantStep);
+      setMaxStepReached(restoredState.maxStepReached as AttendantStep);
+      setInputMode(restoredState.inputMode);
+      setManualSubscriptionId(restoredState.manualSubscriptionId);
+      setDynamicPlanId(restoredState.dynamicPlanId);
+      setCustomerData(restoredState.customerData);
+      setCustomerType(restoredState.customerType);
+      setServiceStates(restoredState.serviceStates);
+      setSwapData(restoredState.swapData);
+      setFlowError(restoredState.flowError);
+      
+      // Note: Payment state is managed by usePaymentCollection hook
+      // We'd need to expose a restore function there if needed
+      
+      toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+    },
+    onError: (error) => {
+      console.error('[AttendantFlow] Session error:', error);
+      // Don't show error toast for session errors - they're non-blocking
+    },
+  });
+  
+  // Check for pending session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      const hasPending = await checkForPendingSession();
+      if (hasPending) {
+        setShowSessionPrompt(true);
+      }
+      setSessionCheckComplete(true);
+    };
+    
+    // Only check if we have auth token
+    if (attendantInfo.id !== 'attendant-001') {
+      checkSession();
+    } else {
+      setSessionCheckComplete(true);
+    }
+  }, [attendantInfo.id, checkForPendingSession]);
+  
+  // Handle session resume
+  const handleResumeSession = useCallback(async () => {
+    const sessionData = await restoreSession();
+    if (sessionData) {
+      setShowSessionPrompt(false);
+    }
+  }, [restoreSession]);
+  
+  // Handle discard session
+  const handleDiscardSession = useCallback(() => {
+    discardPendingSession();
+    setShowSessionPrompt(false);
+    toast(t('session.startNew') || 'Starting a new swap');
+  }, [discardPendingSession, t]);
+  
+  // NOTE: saveSessionData helper is defined after usePaymentCollection hook 
+  // because it needs access to paymentInputMode, manualPaymentId, etc.
+  
   // ============================================
   // CUSTOMER IDENTIFICATION HOOK
   // ============================================
@@ -167,7 +262,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     isMqttConnected,
     attendantInfo,
     defaultRate: swapData.rate,
-    onSuccess: (result: CustomerIdentificationResult) => {
+    onSuccess: async (result: CustomerIdentificationResult) => {
       console.info('Customer identification successful:', result);
       
       // Update all state from the result
@@ -179,6 +274,38 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         rate: result.rate,
         currencySymbol: result.currencySymbol,
       }));
+      
+      // Create backend session after customer identification
+      const subscriptionCode = result.customer.subscriptionId || dynamicPlanId;
+      if (subscriptionCode) {
+        try {
+          const initialSessionData = buildAttendantSessionData({
+            currentStep: 2, // We're moving to step 2
+            maxStepReached: 2,
+            actor: attendantInfo,
+            inputMode,
+            manualSubscriptionId,
+            dynamicPlanId: subscriptionCode,
+            customerData: result.customer as CustomerData,
+            customerType: result.customerType,
+            serviceStates: result.serviceStates,
+            swapData: {
+              ...swapData,
+              rate: result.rate,
+              currencySymbol: result.currencySymbol,
+            },
+            flowError: null,
+          });
+          
+          const orderId = await createSession(subscriptionCode, initialSessionData);
+          if (orderId) {
+            console.info('[AttendantFlow] Session created with orderId:', orderId);
+          }
+        } catch (err) {
+          console.error('[AttendantFlow] Failed to create session (non-blocking):', err);
+          // Don't block the workflow if session creation fails
+        }
+      }
       
       // Advance to next step
       advanceToStep(2);
@@ -413,6 +540,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     customerDataRef.current = customerData;
   }, [customerData]);
 
+  // NOTE: Auto-save effect is defined after saveSessionData callback (below usePaymentCollection)
+
   // Get swap-count service from service states
   const swapCountService = serviceStates.find(
     (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-swap-count')
@@ -554,6 +683,96 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     actualAmountPaid,
     paymentRequestCreated,
   } = paymentState;
+
+  // Helper to build and save session data (defined here because it needs paymentState variables)
+  const saveSessionData = useCallback(async (
+    step: number,
+    maxStep: number,
+    options?: { 
+      withPayment?: boolean; 
+      paymentDescription?: string; 
+      paymentAmount?: number;
+    }
+  ) => {
+    if (!sessionOrderId) {
+      console.info('[AttendantFlow] No session orderId - skipping session save');
+      return;
+    }
+    
+    const sessionData = buildAttendantSessionData({
+      currentStep: step,
+      maxStepReached: maxStep,
+      actor: attendantInfo,
+      inputMode,
+      manualSubscriptionId,
+      dynamicPlanId,
+      customerData,
+      customerType,
+      serviceStates,
+      swapData,
+      paymentState: {
+        inputMode: paymentInputMode,
+        manualPaymentId,
+        requestCreated: paymentRequestCreated,
+        requestOrderId: null, // Not stored in this hook
+        expectedAmount: Math.floor(swapData.cost),
+        amountRemaining: paymentAmountRemaining,
+        amountPaid: actualAmountPaid,
+        transactionId,
+        skipped: false,
+        skipReason: null,
+      },
+      flowError,
+    });
+    
+    if (options?.withPayment && options.paymentDescription && options.paymentAmount !== undefined) {
+      await updateSessionWithPayment(sessionData, options.paymentDescription, options.paymentAmount);
+    } else {
+      await updateSession(sessionData);
+    }
+  }, [
+    sessionOrderId,
+    attendantInfo,
+    inputMode,
+    manualSubscriptionId,
+    dynamicPlanId,
+    customerData,
+    customerType,
+    serviceStates,
+    swapData,
+    paymentInputMode,
+    manualPaymentId,
+    paymentRequestCreated,
+    paymentAmountRemaining,
+    actualAmountPaid,
+    transactionId,
+    flowError,
+    updateSession,
+    updateSessionWithPayment,
+  ]);
+
+  // Auto-save session on step transitions (after state has updated)
+  // This ensures the backend has the latest data for session recovery
+  const prevStepRef = useRef<number>(currentStep);
+  useEffect(() => {
+    // Skip if no session, step hasn't changed, or still on step 1
+    if (!sessionOrderId || currentStep === prevStepRef.current || currentStep <= 1) {
+      prevStepRef.current = currentStep;
+      return;
+    }
+    
+    // Don't save on step 6 (success) - session is complete
+    if (currentStep === 6) {
+      prevStepRef.current = currentStep;
+      return;
+    }
+    
+    console.info(`[AttendantFlow] Step changed from ${prevStepRef.current} to ${currentStep} - saving session`);
+    prevStepRef.current = currentStep;
+    
+    // Save session with current state
+    saveSessionData(currentStep, maxStepReached);
+  }, [currentStep, maxStepReached, sessionOrderId, saveSessionData]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
@@ -1198,11 +1417,23 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         console.error('Payment request creation failed, staying on review step');
         return;
       }
+      
+      // Save session with payment info (Step 4 -> Step 5 transition)
+      // This reports the expected payment amount to the backend
+      if (sessionOrderId) {
+        const paymentDescription = `Battery swap - ${customerData?.name || 'Customer'} - ${swapData.energyDiff.toFixed(2)} kWh`;
+        await saveSessionData(5, 5, {
+          withPayment: true,
+          paymentDescription,
+          paymentAmount: roundedCost,
+        });
+      }
+      
       advanceToStep(5);
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, skipPayment]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -1260,7 +1491,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     // Clear BLE state via hook - devices will be rediscovered when reaching Step 2
     hookResetState();
-  }, [cancelOngoingScan, hookResetState, resetPayment]);
+    
+    // Clear backend session - workflow completed or starting fresh
+    clearSession();
+  }, [cancelOngoingScan, hookResetState, resetPayment, clearSession]);
 
   // Go back one step
   const handleBack = useCallback(() => {
@@ -1537,6 +1771,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         bleScanState={bleScanState}
         pendingBatteryId={pendingBatteryId}
         onCancel={cancelBleOperation}
+      />
+
+      {/* Session Resume Prompt - Shows when there's a pending session from backend */}
+      <SessionResumePrompt
+        isVisible={showSessionPrompt && !!pendingSession}
+        session={pendingSession}
+        onResume={handleResumeSession}
+        onDiscard={handleDiscardSession}
+        isLoading={isSessionLoading}
       />
     </div>
   );

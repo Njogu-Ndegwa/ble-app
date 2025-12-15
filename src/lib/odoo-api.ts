@@ -865,6 +865,452 @@ export function getCycleUnitFromPeriod(period: string): { interval: number; unit
 }
 
 // ============================================================================
+// Workflow Session Management API
+// ============================================================================
+
+/**
+ * Session data structure for workflow persistence
+ * This flexible JSON structure allows storing all workflow state
+ */
+export interface WorkflowSessionData {
+  status: 'in_progress' | 'completed' | 'cancelled';
+  workflowType: 'attendant' | 'salesperson';
+  currentStep: number;
+  maxStepReached: number;
+  
+  // Actor information
+  actor?: {
+    employeeId?: number;
+    name?: string;
+    station?: string;
+  };
+  
+  // Customer identification
+  inputMode?: 'scan' | 'manual';
+  manualSubscriptionId?: string;
+  dynamicPlanId?: string;
+  
+  // Customer data from backend
+  customerData?: {
+    id?: string;
+    name?: string;
+    subscriptionId?: string;
+    subscriptionType?: string;
+    phone?: string;
+    swapCount?: number;
+    lastSwap?: string;
+    energyRemaining?: number;
+    energyTotal?: number;
+    energyValue?: number;
+    energyUnitPrice?: number;
+    swapsRemaining?: number;
+    swapsTotal?: number;
+    hasInfiniteEnergyQuota?: boolean;
+    hasInfiniteSwapQuota?: boolean;
+    paymentState?: string;
+    serviceState?: string;
+    currentBatteryId?: string;
+  };
+  
+  customerType?: 'first-time' | 'returning';
+  
+  // Service states from MQTT
+  serviceStates?: Array<{
+    service_id: string;
+    name?: string;
+    used: number;
+    quota: number;
+    current_asset: string | null;
+    usageUnitPrice?: number;
+  }>;
+  
+  // Swap data (for attendant workflow)
+  swapData?: {
+    oldBattery?: {
+      id: string;
+      shortId?: string;
+      actualBatteryId?: string;
+      chargeLevel?: number;
+      energy?: number;
+      macAddress?: string;
+    } | null;
+    newBattery?: {
+      id: string;
+      shortId?: string;
+      actualBatteryId?: string;
+      chargeLevel?: number;
+      energy?: number;
+      macAddress?: string;
+    } | null;
+    energyDiff?: number;
+    quotaDeduction?: number;
+    chargeableEnergy?: number;
+    grossEnergyCost?: number;
+    quotaCreditValue?: number;
+    cost?: number;
+    rate?: number;
+    currencySymbol?: string;
+  };
+  
+  // Payment information
+  payment?: {
+    inputMode?: 'scan' | 'manual';
+    manualPaymentId?: string;
+    requestCreated?: boolean;
+    requestOrderId?: number | null;
+    expectedAmount?: number;
+    amountRemaining?: number;
+    amountPaid?: number;
+    transactionId?: string | null;
+    skipped?: boolean;
+    skipReason?: string | null;
+  };
+  
+  // Error tracking
+  flowError?: {
+    step: number;
+    message: string;
+    details?: string;
+  } | null;
+  
+  // Metadata
+  savedAt?: number;
+  version?: number;
+}
+
+/**
+ * Payload for creating a new session (Step 1 - after customer identification)
+ */
+export interface CreateSessionPayload {
+  subscription_code: string;
+  session_data: WorkflowSessionData;
+}
+
+/**
+ * Response from creating a session
+ */
+export interface CreateSessionResponse {
+  success: boolean;
+  message: string;
+  session: {
+    id: number;
+    name: string;
+    session_code: string | null;
+    state: string;
+    start_date: string;
+  };
+  order: {
+    id: number;
+    name: string;
+    state: string;
+    amount_total: number;
+    expected_amount: number;
+    paid_amount: number;
+    remaining_amount: number;
+    channel_partner_id: number | null;
+    channel_partner_name: string | null;
+    outlet_id: number | null;
+    outlet_name: string | null;
+    sales_rep_id: number;
+    sales_rep_name: string;
+  };
+  order_id: number;
+  invoice: {
+    id: number | null;
+    invoice_number: string | null;
+    message: string;
+  };
+  next_step?: {
+    action: string;
+    message: string;
+    payment_url: string;
+    payment_params: {
+      order_id: number;
+      session_id: number;
+      amount: number;
+      phone_number: string;
+    };
+  };
+}
+
+/**
+ * Payload for updating a session (normal steps)
+ */
+export interface UpdateSessionPayload {
+  session_data: WorkflowSessionData;
+}
+
+/**
+ * Payload for updating a session with payment info (Step 4)
+ */
+export interface UpdateSessionWithPaymentPayload {
+  session_data: WorkflowSessionData;
+  description: string;
+  amount_required: number;
+}
+
+/**
+ * Response from updating a session
+ */
+export interface UpdateSessionResponse {
+  success: boolean;
+  message: string;
+  session?: {
+    id: number;
+    name: string;
+    state: string;
+  };
+  order?: {
+    id: number;
+    name: string;
+    state: string;
+    amount_total: number;
+    expected_amount: number;
+    paid_amount: number;
+    remaining_amount: number;
+  };
+}
+
+/**
+ * Response from fetching the latest pending session
+ */
+export interface LatestPendingSessionResponse {
+  success: boolean;
+  message: string;
+  has_pending_session: boolean;
+  session?: {
+    id: number;
+    name: string;
+    session_code: string | null;
+    state: string;
+    start_date: string;
+    session_data: WorkflowSessionData | null;
+  };
+  order?: {
+    id: number;
+    name: string;
+    state: string;
+    amount_total: number;
+    expected_amount: number;
+    paid_amount: number;
+    remaining_amount: number;
+    subscription_code?: string;
+  };
+}
+
+/**
+ * Create a new workflow session
+ * Called after customer identification (Step 1)
+ * 
+ * @param payload - Contains subscription_code and session_data
+ * @param authToken - Employee/salesperson token for authorization
+ */
+export async function createWorkflowSession(
+  payload: CreateSessionPayload,
+  authToken?: string
+): Promise<CreateSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== CREATE WORKFLOW SESSION - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== CREATE WORKFLOW SESSION - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Create session error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    if (!data.success) {
+      console.error('Create session error (success=false):', data);
+      throw new Error(data?.message || data?.error || 'Session creation failed');
+    }
+    
+    return data as CreateSessionResponse;
+  } catch (error: any) {
+    console.error('=== CREATE WORKFLOW SESSION - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update an existing workflow session
+ * Called on normal step transitions (Step 2, 3, etc.)
+ * 
+ * @param orderId - The order ID from createWorkflowSession response
+ * @param payload - Contains updated session_data
+ * @param authToken - Employee/salesperson token for authorization
+ */
+export async function updateWorkflowSession(
+  orderId: number,
+  payload: UpdateSessionPayload,
+  authToken?: string
+): Promise<UpdateSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== UPDATE WORKFLOW SESSION - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Order ID:', orderId);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== UPDATE WORKFLOW SESSION - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Update session error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as UpdateSessionResponse;
+  } catch (error: any) {
+    console.error('=== UPDATE WORKFLOW SESSION - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update an existing workflow session with payment information
+ * Called on Step 4 (payment reporting step) to record expected payment
+ * 
+ * @param orderId - The order ID from createWorkflowSession response
+ * @param payload - Contains session_data, description, and amount_required
+ * @param authToken - Employee/salesperson token for authorization
+ */
+export async function updateWorkflowSessionWithPayment(
+  orderId: number,
+  payload: UpdateSessionWithPaymentPayload,
+  authToken?: string
+): Promise<UpdateSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== UPDATE SESSION WITH PAYMENT - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Order ID:', orderId);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== UPDATE SESSION WITH PAYMENT - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Update session with payment error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as UpdateSessionResponse;
+  } catch (error: any) {
+    console.error('=== UPDATE SESSION WITH PAYMENT - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch the latest pending session for the current sales rep
+ * Used to resume an interrupted workflow
+ * 
+ * @param authToken - Employee/salesperson token for authorization (required)
+ */
+export async function getLatestPendingSession(
+  authToken: string
+): Promise<LatestPendingSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/orders/by-sales-rep/latest-pending`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+    'Authorization': `Bearer ${authToken}`,
+  };
+  
+  console.info('=== GET LATEST PENDING SESSION ===');
+  console.info('URL:', url);
+  
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== GET LATEST PENDING SESSION - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Get pending session error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as LatestPendingSessionResponse;
+  } catch (error: any) {
+    console.error('=== GET LATEST PENDING SESSION - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

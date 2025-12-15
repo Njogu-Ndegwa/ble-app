@@ -66,6 +66,20 @@ export {
   type UseProductCatalogReturn,
 } from './useProductCatalog';
 
+// Workflow session management (backend persistence)
+export {
+  useWorkflowSession,
+  buildAttendantSessionData,
+  extractAttendantStateFromSession,
+  type SessionStatus,
+  type SessionSummary,
+  type UseWorkflowSessionConfig,
+  type UseWorkflowSessionReturn,
+} from './useWorkflowSession';
+
+// Re-export session data type from odoo-api
+export type { WorkflowSessionData } from '@/lib/odoo-api';
+
 // ============================================
 // LEGACY BLE HOOK (for backwards compatibility)
 // ============================================
