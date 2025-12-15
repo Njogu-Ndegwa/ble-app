@@ -83,6 +83,15 @@ export { default as MqttReconnectBanner } from './MqttReconnectBanner';
 export type { MqttReconnectBannerProps } from './MqttReconnectBanner';
 
 // ============================================
+// SESSION MANAGEMENT COMPONENTS
+// ============================================
+export { 
+  default as SessionResumePrompt,
+  SessionResumeCard,
+} from './SessionResumePrompt';
+export type { SessionResumePromptProps } from './SessionResumePrompt';
+
+// ============================================
 // HOOKS
 // ============================================
 export { default as useBleScanner, useBleScanner as useBleScannerHook } from './hooks/useBleScanner';
