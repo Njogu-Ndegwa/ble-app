@@ -166,6 +166,17 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   
+  // Pending payment state restoration (stored temporarily until restorePaymentState is available)
+  const [pendingPaymentRestore, setPendingPaymentRestore] = useState<{
+    inputMode: 'scan' | 'manual';
+    manualPaymentId: string;
+    requestCreated: boolean;
+    requestOrderId: number | null;
+    expectedAmount: number;
+    amountRemaining: number;
+    amountPaid: number;
+  } | null>(null);
+  
   // ============================================
   // WORKFLOW SESSION MANAGEMENT HOOK (Backend Persistence)
   // ============================================
@@ -202,8 +213,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setSwapData(restoredState.swapData);
       setFlowError(restoredState.flowError);
       
-      // Note: Payment state is managed by usePaymentCollection hook
-      // We'd need to expose a restore function there if needed
+      // Store payment state for restoration (will be applied in useEffect after hook is ready)
+      // This ensures partial payment info is correctly shown when resuming at Step 5
+      if (restoredState.paymentState && (restoredState.paymentState.amountPaid > 0 || restoredState.paymentState.amountRemaining > 0 || restoredState.paymentState.requestCreated)) {
+        setPendingPaymentRestore({
+          inputMode: restoredState.paymentState.inputMode,
+          manualPaymentId: restoredState.paymentState.manualPaymentId,
+          requestCreated: restoredState.paymentState.requestCreated,
+          requestOrderId: restoredState.paymentState.requestOrderId,
+          expectedAmount: restoredState.paymentState.expectedAmount,
+          amountRemaining: restoredState.paymentState.amountRemaining,
+          amountPaid: restoredState.paymentState.amountPaid,
+        });
+      }
       
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     },
@@ -649,6 +671,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     confirmPayment,
     skipPayment,
     resetPayment,
+    restorePaymentState,
     isProcessing: isPaymentProcessing,
     publishStatus: paymentAndServiceStatus,
   } = usePaymentCollection({
@@ -672,6 +695,51 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setIsScanning(false);
       setIsProcessing(false);
     },
+    onPartialPayment: async (amountPaid, amountRemaining, shortfall, paymentInputState) => {
+      // Save session with partial payment info so it can be recovered
+      console.info('[AttendantFlow] Partial payment received, saving session:', {
+        amountPaid,
+        amountRemaining,
+        shortfall,
+      });
+      
+      // Save session immediately to persist partial payment state
+      // This ensures if the app crashes, user returns to Step 5 with correct amounts
+      if (sessionOrderId) {
+        try {
+          const sessionData = buildAttendantSessionData({
+            currentStep: 5,
+            maxStepReached: Math.max(5, maxStepReached),
+            actor: attendantInfo,
+            inputMode,
+            manualSubscriptionId,
+            dynamicPlanId,
+            customerData,
+            customerType,
+            serviceStates,
+            swapData,
+            paymentState: {
+              inputMode: paymentInputState.inputMode,
+              manualPaymentId: paymentInputState.manualPaymentId,
+              requestCreated: true, // Payment was attempted
+              requestOrderId: sessionOrderId,
+              expectedAmount: Math.floor(swapData.cost),
+              amountRemaining,
+              amountPaid,
+              transactionId: null, // Not fully confirmed yet
+              skipped: false,
+              skipReason: null,
+            },
+            flowError: null,
+          });
+          
+          await updateSession(sessionData);
+          console.info('[AttendantFlow] Session saved with partial payment state');
+        } catch (err) {
+          console.error('[AttendantFlow] Failed to save partial payment state:', err);
+        }
+      }
+    },
   });
   
   // Destructure payment state for convenience
@@ -683,6 +751,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     actualAmountPaid,
     paymentRequestCreated,
   } = paymentState;
+
+  // Apply pending payment state restoration (from session resume)
+  // This runs after restorePaymentState is available from the hook
+  useEffect(() => {
+    if (pendingPaymentRestore && restorePaymentState) {
+      console.info('[AttendantFlow] Applying pending payment state restoration:', pendingPaymentRestore);
+      restorePaymentState(pendingPaymentRestore);
+      setPendingPaymentRestore(null);
+    }
+  }, [pendingPaymentRestore, restorePaymentState]);
 
   // Helper to build and save session data (defined here because it needs paymentState variables)
   const saveSessionData = useCallback(async (
@@ -1668,7 +1746,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           <Step5Payment 
             swapData={swapData}
             customerData={customerData}
-            isProcessing={isProcessing || paymentAndServiceStatus === 'pending'}
+            isProcessing={isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
             inputMode={paymentInputMode}
             setInputMode={setPaymentInputMode}
             paymentId={manualPaymentId}
@@ -1770,7 +1848,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
-        isLoading={isScanning || isProcessing || paymentAndServiceStatus === 'pending'}
+        isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
         inputMode={inputMode}
         paymentInputMode={paymentInputMode}
         hasSufficientQuota={hasSufficientQuota}
@@ -1778,7 +1856,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
-      {(isScanning || isProcessing || paymentAndServiceStatus === 'pending') && 
+      {(isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending') && 
        !bleScanState.isConnecting && 
        !bleScanState.isReadingEnergy && 
        !(bleScanState.isScanning && (scanTypeRef.current === 'old_battery' || scanTypeRef.current === 'new_battery')) && (
@@ -1787,6 +1865,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           <div className="loading-text">
             {paymentAndServiceStatus === 'pending' 
               ? 'Completing swap...' 
+              : isPaymentProcessing
+              ? 'Confirming payment...'
               : isScanning 
               ? 'Scanning...' 
               : 'Processing...'}
@@ -1809,6 +1889,18 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         onDiscard={handleDiscardSession}
         isLoading={isSessionLoading}
       />
+
+      {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
+      {!sessionCheckComplete && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="loading-spinner"></div>
+            <div className="text-white text-sm opacity-80">
+              {t('session.checkingForSession') || 'Checking for pending session...'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
