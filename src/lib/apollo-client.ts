@@ -84,23 +84,13 @@ const apolloClient = new ApolloClient({
   cache: new InMemoryCache(),
 });
 
-// ABS Platform Apollo Client - for Attendant & Sales workflows
+// ABS Platform Apollo Client - for Attendant & Sales workflows (no auth required)
 const absHttpLink = createHttpLink({
   uri: absApiUrl,
 });
 
-const absAuthLink = setContext((_, { headers }) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  return {
-    headers: {
-      ...headers,
-      authorization: token ? `Bearer ${token}` : "",
-    },
-  };
-});
-
 export const absApolloClient = new ApolloClient({
-  link: ApolloLink.from([absAuthLink, absHttpLink]),
+  link: absHttpLink,
   cache: new InMemoryCache(),
 });
 
