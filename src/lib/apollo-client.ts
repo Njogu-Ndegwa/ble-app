@@ -6,8 +6,8 @@ import { REFRESH_TOKEN } from "@/app/(auth)/mutations";
 // Determine the API URL based on the current location
 const isWvApp = typeof window !== "undefined" && window.location.origin === "https://wvapp.omnivoltaic.com";
 export const apiUrl = isWvApp
-  ? "https://federated-graphql-api.omnivoltaic.com/graphql"
-  : "https://dev-federated-graphql-api.omnivoltaic.com/graphql";
+  ? "https://abs-platform-dev.omnivoltaic.com/graphql"
+  : "https://abs-platform-dev.omnivoltaic.com/graphql";
 
 const httpLink = createHttpLink({
   uri: apiUrl,
