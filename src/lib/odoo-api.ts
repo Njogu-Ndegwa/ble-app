@@ -1073,28 +1073,61 @@ export interface UpdateSessionResponse {
 
 /**
  * Response from fetching the latest pending session
+ * Note: The session data is nested inside order.session, not at top level
  */
 export interface LatestPendingSessionResponse {
   success: boolean;
-  message: string;
-  has_pending_session: boolean;
-  session?: {
+  message?: string;
+  sales_rep?: {
     id: number;
     name: string;
-    session_code: string | null;
-    state: string;
-    start_date: string;
-    session_data: WorkflowSessionData | null;
+    email: string;
   };
   order?: {
     id: number;
     name: string;
     state: string;
+    date_order?: string;
     amount_total: number;
+    amount_untaxed?: number;
     expected_amount: number;
     paid_amount: number;
     remaining_amount: number;
+    currency?: string;
+    client_order_ref?: string;
+    invoice_status?: string;
+    partner_id?: number;
+    partner_name?: string;
+    channel_partner_id?: number | null;
+    channel_partner_name?: string | null;
+    outlet_id?: number | null;
+    outlet_name?: string | null;
+    sales_rep_id?: number;
+    sales_rep_name?: string;
+    line_count?: number;
     subscription_code?: string;
+    /** Session is nested inside order */
+    session?: {
+      id: number;
+      name: string;
+      session_code: string | null;
+      state: string;
+      partner_id?: number;
+      partner_name?: string;
+      sales_rep_id?: number;
+      sales_rep_name?: string;
+      channel_partner_id?: number | null;
+      channel_partner_name?: string | null;
+      outlet_id?: number | null;
+      outlet_name?: string | null;
+      start_date: string;
+      pause_date?: string | null;
+      resume_date?: string | null;
+      completed_date?: string | null;
+      cancelled_date?: string | null;
+      session_data: WorkflowSessionData | null;
+      payment_attempt_count?: number;
+    };
   };
 }
 
