@@ -214,6 +214,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   });
   
   // Check for pending session on mount
+  // Note: We always call checkSession() immediately - the hook handles auth verification
+  // internally via getEmployeeToken(). This avoids race conditions with attendantInfo state.
   useEffect(() => {
     const checkSession = async () => {
       const hasPending = await checkForPendingSession();
@@ -223,13 +225,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       setSessionCheckComplete(true);
     };
     
-    // Only check if we have auth token
-    if (attendantInfo.id !== 'attendant-001') {
-      checkSession();
-    } else {
-      setSessionCheckComplete(true);
-    }
-  }, [attendantInfo.id, checkForPendingSession]);
+    checkSession();
+  }, [checkForPendingSession]);
   
   // Handle session resume
   const handleResumeSession = useCallback(async () => {
