@@ -475,6 +475,8 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
  * 
  * In such cases, resuming could lead to duplicate swaps or confusing UX.
  * We consider a session "effectively complete" if:
+ * - Session status is 'completed'
+ * - Attendant workflow at step 6 (success)
  * - Attendant workflow at step 4+ with both batteries scanned and cost <= 0
  * - Attendant workflow at step 5+ (payment phase or later)
  * - SalesPerson workflow at the final registration step
@@ -484,6 +486,11 @@ function isSessionEffectivelyComplete(
   workflowType: 'attendant' | 'salesperson'
 ): boolean {
   if (!sessionData) return false;
+  
+  // If status is explicitly 'completed', don't resume
+  if (sessionData.status === 'completed') {
+    return true;
+  }
   
   const currentStep = sessionData.currentStep || 1;
   const maxStepReached = sessionData.maxStepReached || 1;
@@ -495,13 +502,19 @@ function isSessionEffectivelyComplete(
     //   - If cost <= 0 and both batteries present, likely completed without payment
     //   - If cost > 0, might be waiting for payment - could resume
     // - Step 5+ (Payment/Success): Already in final phase
+    // - Step 6: Success step - definitely complete
     
     const swapData = sessionData.swapData;
     const hasBothBatteries = !!(swapData?.oldBattery && swapData?.newBattery);
     const cost = swapData?.cost ?? 0;
     const chargeableEnergy = swapData?.chargeableEnergy ?? 0;
     
-    // Step 5 or higher - already past the point of no return
+    // Step 6 is the success step - definitely complete
+    if (currentStep >= 6 || maxStepReached >= 6) {
+      return true;
+    }
+    
+    // Step 5 or higher - already past the point of no return (in payment phase)
     if (currentStep >= 5 || maxStepReached >= 5) {
       return true;
     }
@@ -582,8 +595,11 @@ export function buildAttendantSessionData(state: {
   };
   flowError: any | null;
 }): WorkflowSessionData {
+  // Step 6 is the success/completion step for attendant workflow
+  const isCompleted = state.currentStep >= 6;
+  
   return {
-    status: 'in_progress',
+    status: isCompleted ? 'completed' : 'in_progress',
     workflowType: 'attendant',
     currentStep: state.currentStep,
     maxStepReached: state.maxStepReached,

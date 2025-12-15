@@ -758,12 +758,23 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return;
     }
     
-    // When reaching step 6 (success), the workflow is complete - clear the session
-    // This prevents the completed session from appearing as "pending" on next app open
+    // When reaching step 6 (success), save the completed state then clear local tracking
+    // This ensures the backend knows the session is complete (step 6)
     if (currentStep === 6) {
-      console.info('[AttendantFlow] Workflow completed (step 6) - clearing session');
+      console.info('[AttendantFlow] Workflow completed (step 6) - saving final state and clearing local session');
       prevStepRef.current = currentStep;
-      clearSession();
+      
+      // Save step 6 to backend so it knows the session is complete
+      // Note: saveSessionData uses buildAttendantSessionData which sets status: 'in_progress'
+      // Ideally the backend would mark it 'completed' based on step 6, or we'd have a separate API
+      saveSessionData(6, 6).then(() => {
+        // Clear local state after saving - session data remains on backend
+        clearSession();
+      }).catch((err) => {
+        console.error('[AttendantFlow] Failed to save final session state:', err);
+        // Still clear local state even if save fails
+        clearSession();
+      });
       return;
     }
     
