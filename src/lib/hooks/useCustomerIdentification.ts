@@ -16,7 +16,7 @@
 
 import { useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import apolloClient from '@/lib/apollo-client';
+import { absApolloClient } from '@/lib/apollo-client';
 import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
 import {
@@ -309,7 +309,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     console.info('Input:', JSON.stringify(graphqlInput, null, 2));
 
     try {
-      const result = await apolloClient.mutate<{ identifyCustomer: IdentifyCustomerResponse }>({
+      const result = await absApolloClient.mutate<{ identifyCustomer: IdentifyCustomerResponse }>({
         mutation: IDENTIFY_CUSTOMER,
         variables: { input: graphqlInput },
       });

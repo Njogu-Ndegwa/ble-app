@@ -28,7 +28,7 @@
  * ```
  */
 
-import apolloClient from '@/lib/apollo-client';
+import { absApolloClient } from '@/lib/apollo-client';
 import {
   REPORT_PAYMENT_AND_SERVICE,
   type ReportPaymentAndServiceInput,
@@ -269,7 +269,7 @@ export async function publishPaymentAndService(
   console.info('Input:', JSON.stringify(input, null, 2));
 
   try {
-    const graphqlResult = await apolloClient.mutate<{ reportPaymentAndServiceCompletion: ReportPaymentAndServiceResponse }>({
+    const graphqlResult = await absApolloClient.mutate<{ reportPaymentAndServiceCompletion: ReportPaymentAndServiceResponse }>({
       mutation: REPORT_PAYMENT_AND_SERVICE,
       variables: { input },
     });

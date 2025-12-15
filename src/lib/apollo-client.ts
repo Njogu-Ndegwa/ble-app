@@ -5,9 +5,14 @@ import { REFRESH_TOKEN } from "@/app/(auth)/mutations";
 
 // Determine the API URL based on the current location
 const isWvApp = typeof window !== "undefined" && window.location.origin === "https://wvapp.omnivoltaic.com";
+
+// Federated GraphQL API - for ERM/Thing microservices (BLE Device Manager, etc.)
 export const apiUrl = isWvApp
-  ? "https://abs-platform-dev.omnivoltaic.com/graphql"
-  : "https://abs-platform-dev.omnivoltaic.com/graphql";
+  ? "https://federated-graphql-api.omnivoltaic.com/graphql"
+  : "https://dev-federated-graphql-api.omnivoltaic.com/graphql";
+
+// ABS Platform GraphQL API - for Attendant & Sales workflows (customer identification, payment/service)
+export const absApiUrl = "https://abs-platform-dev.omnivoltaic.com/graphql";
 
 const httpLink = createHttpLink({
   uri: apiUrl,
@@ -76,6 +81,26 @@ const handleLogout = () => {
 
 const apolloClient = new ApolloClient({
   link: ApolloLink.from([errorLink, authLink, httpLink]),
+  cache: new InMemoryCache(),
+});
+
+// ABS Platform Apollo Client - for Attendant & Sales workflows
+const absHttpLink = createHttpLink({
+  uri: absApiUrl,
+});
+
+const absAuthLink = setContext((_, { headers }) => {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+});
+
+export const absApolloClient = new ApolloClient({
+  link: ApolloLink.from([absAuthLink, absHttpLink]),
   cache: new InMemoryCache(),
 });
 
