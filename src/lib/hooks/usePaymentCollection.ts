@@ -90,6 +90,13 @@ export interface UsePaymentCollectionOptions {
   attendantInfo: { id: string; station: string };
   /** Electricity service ID */
   electricityServiceId?: string;
+  /** 
+   * Session order ID from backend session management.
+   * When provided, payment confirmation will use this orderId instead of 
+   * creating a new payment request. The payment amount should be reported
+   * via the session update endpoint before calling confirmPayment.
+   */
+  sessionOrderId?: number | null;
   /** Callback when swap completes successfully */
   onSuccess?: (isIdempotent: boolean) => void;
   /** Callback when an error occurs */
@@ -131,6 +138,7 @@ export function usePaymentCollection(
     customerType,
     attendantInfo,
     electricityServiceId = 'service-electricity-default',
+    sessionOrderId,
     onSuccess,
     onError,
   } = options;
@@ -248,14 +256,23 @@ export function usePaymentCollection(
   }, [callPublishPaymentAndService]);
 
   // ============================================================================
-  // Initiate Payment (Create Payment Request with Odoo)
+  // Initiate Payment (Prepare for payment collection)
   // ============================================================================
+  // 
+  // When sessionOrderId is provided (new flow):
+  //   - Payment amount is reported via session update endpoint (updateSessionWithPayment)
+  //   - We just set local state and optionally send STK push
+  //   - confirmPayment will use sessionOrderId for validation
+  //
+  // When sessionOrderId is NOT provided (legacy flow):
+  //   - Create a new payment request via /api/payment-request/create
+  //   - confirmPayment will use the returned paymentRequestOrderId
 
   const initiatePayment = useCallback(async (): Promise<boolean> => {
     const subscriptionCode = customerData?.subscriptionId || dynamicPlanId;
 
     if (!subscriptionCode) {
-      console.log('No subscription ID, skipping payment request creation');
+      console.log('No subscription ID, skipping payment initiation');
       setPaymentInitiated(true);
       setPaymentRequestCreated(true);
       return true;
@@ -265,13 +282,53 @@ export function usePaymentCollection(
 
     try {
       // Calculate amounts - rounded down for payment (customers can't pay decimals)
-      const amountCalculated = swapData.cost;
       const amountRequired = Math.floor(swapData.cost);
       setExpectedPaymentAmount(amountRequired);
 
-      console.log('Creating payment request with Odoo:', {
+      // NEW FLOW: When sessionOrderId is provided, payment is reported via session update
+      // No need to create a separate payment request - just mark as ready for payment collection
+      if (sessionOrderId) {
+        console.log('Using session-based payment flow with orderId:', sessionOrderId);
+        console.log('Payment amount:', amountRequired, 'will be confirmed against session order');
+        
+        setPaymentRequestCreated(true);
+        // Use sessionOrderId for payment confirmation
+        setPaymentRequestOrderId(sessionOrderId);
+        toast.success('Payment ticket ready. Collect payment from customer.');
+
+        // Optionally try to send STK push (don't block if it fails)
+        if (phoneNumber) {
+          try {
+            console.log('Sending STK push to customer phone:', phoneNumber);
+            const stkResponse = await initiateOdooPayment({
+              subscription_code: subscriptionCode,
+              phone_number: phoneNumber,
+              amount: amountRequired,
+            });
+
+            if (stkResponse.success && stkResponse.data) {
+              console.log('STK push sent:', stkResponse.data);
+              setPaymentInitiationData({
+                transactionId: stkResponse.data.transaction_id,
+                checkoutRequestId: stkResponse.data.checkout_request_id,
+                merchantRequestId: stkResponse.data.merchant_request_id,
+                instructions: stkResponse.data.instructions,
+              });
+              toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
+            }
+          } catch (stkError) {
+            console.warn('STK push failed (non-blocking):', stkError);
+          }
+        }
+
+        setPaymentInitiated(true);
+        return true;
+      }
+
+      // LEGACY FLOW: Create a new payment request when no sessionOrderId
+      console.log('Creating payment request with Odoo (legacy flow):', {
         subscription_code: subscriptionCode,
-        amount_calculated: amountCalculated,
+        amount_calculated: swapData.cost,
         amount_required: amountRequired,
         description: `Battery swap service - Energy: ${swapData.energyDiff} Wh`,
       });
@@ -336,11 +393,11 @@ export function usePaymentCollection(
       setPaymentInitiated(true);
       return true;
     } catch (error: any) {
-      console.error('Failed to create payment request:', error);
-      toast.error(error.message || 'Failed to create payment request. Please try again.');
+      console.error('Failed to initiate payment:', error);
+      toast.error(error.message || 'Failed to initiate payment. Please try again.');
       return false;
     }
-  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff, swapData.currencySymbol]);
+  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff, swapData.currencySymbol, sessionOrderId]);
 
   // ============================================================================
   // Confirm Payment (QR or Manual)

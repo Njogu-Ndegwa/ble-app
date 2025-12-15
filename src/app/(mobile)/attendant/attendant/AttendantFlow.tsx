@@ -658,6 +658,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     customerType,
     attendantInfo,
     electricityServiceId: electricityService?.service_id,
+    // Pass session order ID - when provided, payment uses session update flow
+    // instead of creating a separate payment request
+    sessionOrderId,
     onSuccess: (isIdempotent) => {
       advanceToStep(6);
       toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
@@ -1403,7 +1406,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     hookHandleQrScanned(device.name, 'new_battery');
   }, [hookResetState, hookHandleQrScanned, clearScanTimeout]);
 
-  // Step 4: Proceed to payment - initiate payment with Odoo first
+  // Step 4: Proceed to payment - report payment via session update, then initiate local payment state
   // OR skip payment if customer has sufficient quota OR rounded cost is zero
   const handleProceedToPayment = useCallback(async () => {
     setIsProcessing(true);
@@ -1421,22 +1424,37 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         return;
       }
       
-      // Normal flow: Create payment request with Odoo FIRST
-      const success = await initiateOdooPayment();
-      if (!success) {
-        console.error('Payment request creation failed, staying on review step');
-        return;
-      }
-      
-      // Save session with payment info (Step 4 -> Step 5 transition)
-      // This reports the expected payment amount to the backend
+      // NEW FLOW: Report payment amount via session update FIRST
+      // This uses the /api/sessions/by-order/{orderId} endpoint with amount_required
+      // The backend will create/update the payment ticket based on the session
       if (sessionOrderId) {
         const paymentDescription = `Battery swap - ${customerData?.name || 'Customer'} - ${swapData.energyDiff.toFixed(2)} kWh`;
-        await saveSessionData(5, 5, {
-          withPayment: true,
-          paymentDescription,
-          paymentAmount: roundedCost,
+        console.log('Reporting payment via session update:', {
+          orderId: sessionOrderId,
+          description: paymentDescription,
+          amount_required: roundedCost,
         });
+        
+        try {
+          await saveSessionData(5, 5, {
+            withPayment: true,
+            paymentDescription,
+            paymentAmount: roundedCost,
+          });
+        } catch (err) {
+          console.error('Failed to report payment via session update:', err);
+          toast.error('Failed to create payment request. Please try again.');
+          return;
+        }
+      }
+      
+      // Initialize local payment state (and optionally send STK push)
+      // When sessionOrderId is provided, this will NOT create a new payment request
+      // It just sets local state for the payment collection UI
+      const success = await initiateOdooPayment();
+      if (!success) {
+        console.error('Payment initialization failed, staying on review step');
+        return;
       }
       
       advanceToStep(5);
