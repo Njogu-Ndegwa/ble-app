@@ -165,6 +165,20 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
           return false;
         }
         
+        // Check if the session is "effectively complete" and should not be resumed
+        // This handles edge cases where the session was saved just before completion
+        // (e.g., user was at Review step, clicked "Proceed", and app closed before MQTT response)
+        if (isSessionEffectivelyComplete(sessionDataFromServer, workflowType)) {
+          console.info('[useWorkflowSession] Found pending session but it appears effectively complete - ignoring:', {
+            currentStep: sessionDataFromServer?.currentStep,
+            maxStepReached: sessionDataFromServer?.maxStepReached,
+            hasSwapData: !!(sessionDataFromServer?.swapData?.oldBattery && sessionDataFromServer?.swapData?.newBattery),
+            cost: sessionDataFromServer?.swapData?.cost,
+          });
+          setStatus('idle');
+          return false;
+        }
+        
         // Build session summary for UI
         const summary: SessionSummary = {
           orderId: response.order.id,
@@ -451,6 +465,90 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
 // ============================================================================
 
 /**
+ * Check if a session is "effectively complete" and should not be resumed
+ * 
+ * This handles edge cases where:
+ * 1. User was at the Review step (step 4) and clicked "Proceed"
+ * 2. The swap was quota-based (cost <= 0) so payment was skipped
+ * 3. The MQTT publish was triggered but app closed before response
+ * 4. Session remains at step 4 but the swap may have already been recorded
+ * 
+ * In such cases, resuming could lead to duplicate swaps or confusing UX.
+ * We consider a session "effectively complete" if:
+ * - Session status is 'completed'
+ * - Attendant workflow at step 6 (success)
+ * - Attendant workflow at step 4+ with both batteries scanned and cost <= 0
+ * - Attendant workflow at step 5+ (payment phase or later)
+ * - SalesPerson workflow at the final registration step
+ */
+function isSessionEffectivelyComplete(
+  sessionData: WorkflowSessionData | null | undefined,
+  workflowType: 'attendant' | 'salesperson'
+): boolean {
+  if (!sessionData) return false;
+  
+  // If status is explicitly 'completed', don't resume
+  if (sessionData.status === 'completed') {
+    return true;
+  }
+  
+  const currentStep = sessionData.currentStep || 1;
+  const maxStepReached = sessionData.maxStepReached || 1;
+  
+  if (workflowType === 'attendant') {
+    // For attendant workflow:
+    // - Steps 1-3: Customer/Battery scanning - safe to resume
+    // - Step 4 (Review): 
+    //   - If cost <= 0 and both batteries present, likely completed without payment
+    //   - If cost > 0, might be waiting for payment - could resume
+    // - Step 5+ (Payment/Success): Already in final phase
+    // - Step 6: Success step - definitely complete
+    
+    const swapData = sessionData.swapData;
+    const hasBothBatteries = !!(swapData?.oldBattery && swapData?.newBattery);
+    const cost = swapData?.cost ?? 0;
+    const chargeableEnergy = swapData?.chargeableEnergy ?? 0;
+    
+    // Step 6 is the success step - definitely complete
+    if (currentStep >= 6 || maxStepReached >= 6) {
+      return true;
+    }
+    
+    // Step 5 or higher - already past the point of no return (in payment phase)
+    if (currentStep >= 5 || maxStepReached >= 5) {
+      return true;
+    }
+    
+    // Step 4 with both batteries and no payment needed (quota-based or zero cost)
+    // This is the case where user clicked "Proceed" and skipPayment was called
+    if (currentStep === 4 && maxStepReached === 4 && hasBothBatteries) {
+      // Cost is 0 or negative means no payment was required
+      if (cost <= 0) {
+        return true;
+      }
+      
+      // Chargeable energy is 0 or negative means quota covered everything
+      if (chargeableEnergy <= 0) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  // For salesperson workflow, similar logic could be added if needed
+  // For now, just check if at the final step
+  if (workflowType === 'salesperson') {
+    // Step 7 is the success step for salesperson
+    if (currentStep >= 7 || maxStepReached >= 7) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Format timestamp for display
  */
 function formatTimestamp(timestamp: number): string {
@@ -497,8 +595,11 @@ export function buildAttendantSessionData(state: {
   };
   flowError: any | null;
 }): WorkflowSessionData {
+  // Step 6 is the success/completion step for attendant workflow
+  const isCompleted = state.currentStep >= 6;
+  
   return {
-    status: 'in_progress',
+    status: isCompleted ? 'completed' : 'in_progress',
     workflowType: 'attendant',
     currentStep: state.currentStep,
     maxStepReached: state.maxStepReached,
