@@ -1843,17 +1843,19 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         {renderStepContent()}
       </main>
 
-      {/* Action Bar */}
-      <ActionBar
-        currentStep={currentStep}
-        onBack={handleBack}
-        onMainAction={handleMainAction}
-        isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
-        inputMode={inputMode}
-        paymentInputMode={paymentInputMode}
-        hasSufficientQuota={hasSufficientQuota}
-        swapCost={swapData.cost}
-      />
+      {/* Action Bar - Only show after session check is complete */}
+      {sessionCheckComplete && (
+        <ActionBar
+          currentStep={currentStep}
+          onBack={handleBack}
+          onMainAction={handleMainAction}
+          isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
+          inputMode={inputMode}
+          paymentInputMode={paymentInputMode}
+          hasSufficientQuota={hasSufficientQuota}
+          swapCost={swapData.cost}
+        />
+      )}
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
       {(isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending') && 
