@@ -149,9 +149,14 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     try {
       const response = await getLatestPendingSession(authToken);
       
-      if (response.success && response.has_pending_session && response.session && response.order) {
+      // Note: Session is nested inside order.session, not at top level
+      // Check if we have a valid pending session
+      const session = response.order?.session;
+      const isActiveSession = session?.state === 'active';
+      
+      if (response.success && response.order && session && isActiveSession) {
         // Check if the pending session is for the correct workflow type
-        const sessionDataFromServer = response.session.session_data;
+        const sessionDataFromServer = session.session_data;
         
         // If session has workflow type and it doesn't match, ignore it
         if (sessionDataFromServer?.workflowType && sessionDataFromServer.workflowType !== workflowType) {
@@ -166,11 +171,11 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
           orderName: response.order.name,
           currentStep: sessionDataFromServer?.currentStep || 1,
           maxStepReached: sessionDataFromServer?.maxStepReached || 1,
-          customerName: sessionDataFromServer?.customerData?.name,
+          customerName: sessionDataFromServer?.customerData?.name || session.partner_name,
           subscriptionCode: response.order.subscription_code || sessionDataFromServer?.dynamicPlanId,
           savedAt: sessionDataFromServer?.savedAt 
             ? formatTimestamp(sessionDataFromServer.savedAt) 
-            : response.session.start_date,
+            : session.start_date,
           workflowType: sessionDataFromServer?.workflowType || workflowType,
         };
         
@@ -337,8 +342,11 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     try {
       const response = await getLatestPendingSession(authToken);
       
-      if (response.success && response.has_pending_session && response.session?.session_data && response.order) {
-        const restoredData = response.session.session_data;
+      // Note: Session is nested inside order.session, not at top level
+      const session = response.order?.session;
+      
+      if (response.success && response.order && session?.session_data) {
+        const restoredData = session.session_data;
         
         setOrderId(response.order.id);
         setSessionData(restoredData);
