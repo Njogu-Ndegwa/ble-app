@@ -138,7 +138,7 @@ export interface IdentifyCustomerResponse {
  * GraphQL mutation for identifying a customer by QR code or subscription ID
  */
 export const IDENTIFY_CUSTOMER = gql`
-  mutation IdentifyCustomer($input: IdentifyCustomerInput!) {
+  mutation IdentifyCustomer($input: BssIdentifyCustomerInput!) {
     identifyCustomer(input: $input) {
       customer_identified
       identification_method
@@ -216,7 +216,7 @@ export interface ReportPaymentAndServiceResponse {
  * GraphQL mutation for reporting both payment and service completion
  */
 export const REPORT_PAYMENT_AND_SERVICE = gql`
-  mutation ReportPaymentAndService($input: ReportPaymentAndServiceInput!) {
+  mutation ReportPaymentAndService($input: BssReportPaymentAndServiceInput!) {
     reportPaymentAndServiceCompletion(input: $input) {
       payment_processed
       service_completed
