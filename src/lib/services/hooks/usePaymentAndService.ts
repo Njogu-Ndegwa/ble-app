@@ -1,13 +1,16 @@
 /**
  * usePaymentAndService - React hook for payment & service completion
  * 
- * Provides a clean interface for publishing payment_and_service MQTT messages
- * and handling responses within React components.
+ * Provides a clean interface for reporting payment and service completion
+ * via GraphQL to the ABS (Asset & Billing System) backend.
+ * 
+ * NOTE: This hook was migrated from MQTT to GraphQL in December 2024.
+ * The interface remains the same to maintain backwards compatibility.
  * 
  * Features:
- * - Automatic bridge/MQTT connection handling
  * - Status tracking (idle, pending, success, error)
  * - Callback support for success/error handling
+ * - No longer requires bridge/MQTT connection
  * 
  * Usage:
  * ```typescript
@@ -46,7 +49,6 @@
  */
 
 import { useCallback, useState, useRef } from 'react';
-import { useBridge } from '@/app/context/bridgeContext';
 import {
   publishPaymentAndService as publishPaymentAndServiceFn,
   type PublishPaymentAndServiceParams,
@@ -78,7 +80,8 @@ export interface UsePaymentAndServiceOptions {
   onStatusChange?: (status: PaymentAndServiceStatus) => void;
   
   /**
-   * Timeout for the operation in milliseconds (default: 30000)
+   * @deprecated No longer used - GraphQL handles timeouts internally
+   * Kept for backwards compatibility
    */
   timeoutMs?: number;
 }
@@ -105,12 +108,14 @@ export interface UsePaymentAndServiceReturn {
   reset: () => void;
   
   /**
-   * Whether the bridge is ready for operations
+   * Whether the service is ready for operations
+   * Always true for GraphQL (no bridge dependency)
    */
   isReady: boolean;
   
   /**
-   * Whether MQTT is connected
+   * Whether the service is connected
+   * Always true for GraphQL (no MQTT dependency)
    */
   isConnected: boolean;
 }
@@ -120,9 +125,8 @@ export interface UsePaymentAndServiceReturn {
 // ============================================================================
 
 export function usePaymentAndService(options: UsePaymentAndServiceOptions = {}): UsePaymentAndServiceReturn {
-  const { onSuccess, onError, onStatusChange, timeoutMs = 30000 } = options;
+  const { onSuccess, onError, onStatusChange } = options;
   
-  const { bridge, isBridgeReady, isMqttConnected } = useBridge();
   const [status, setStatus] = useState<PaymentAndServiceStatus>('idle');
   
   // Use refs for callbacks to avoid stale closures
@@ -143,31 +147,18 @@ export function usePaymentAndService(options: UsePaymentAndServiceOptions = {}):
   const publishPaymentAndService = useCallback(async (
     params: PublishPaymentAndServiceParams
   ): Promise<PaymentAndServiceResponse> => {
-    if (!bridge) {
-      const error = 'Bridge not available. Please restart the app.';
-      onErrorRef.current?.(error);
-      return { success: false, error };
-    }
-
-    if (!isMqttConnected) {
-      const error = 'MQTT not connected. Please check your connection.';
-      onErrorRef.current?.(error);
-      return { success: false, error };
-    }
-
+    // Call the GraphQL-based payment and service function
     const response = await publishPaymentAndServiceFn(
-      bridge as Parameters<typeof publishPaymentAndServiceFn>[0],
       params,
       {
         onStatusChange: handleStatusChange,
         onError: (msg, metadata) => onErrorRef.current?.(msg, metadata),
         onSuccess: (isIdempotent) => onSuccessRef.current?.(isIdempotent),
       },
-      timeoutMs
     );
 
     return response;
-  }, [bridge, isMqttConnected, handleStatusChange, timeoutMs]);
+  }, [handleStatusChange]);
 
   const reset = useCallback(() => {
     setStatus('idle');
@@ -178,8 +169,9 @@ export function usePaymentAndService(options: UsePaymentAndServiceOptions = {}):
     isLoading: status === 'pending',
     publishPaymentAndService,
     reset,
-    isReady: isBridgeReady && bridge !== null,
-    isConnected: isMqttConnected,
+    // Always ready for GraphQL (no bridge/MQTT dependency)
+    isReady: true,
+    isConnected: true,
   };
 }
 

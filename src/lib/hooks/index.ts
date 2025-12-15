@@ -18,13 +18,13 @@ export * as ble from './ble';
 // ATTENDANT WORKFLOW HOOKS
 // ============================================
 
-// Customer identification via MQTT
+// Customer identification via GraphQL
 export {
   useCustomerIdentification,
   type ServiceState,
   type IdentifiedCustomerData,
   type CustomerIdentificationResult,
-  type IdentifyCustomerInput,
+  type IdentifyCustomerInputParams,
   type UseCustomerIdentificationConfig,
 } from './useCustomerIdentification';
 
