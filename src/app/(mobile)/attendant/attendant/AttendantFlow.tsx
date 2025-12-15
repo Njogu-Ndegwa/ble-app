@@ -758,9 +758,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       return;
     }
     
-    // Don't save on step 6 (success) - session is complete
+    // When reaching step 6 (success), the workflow is complete - clear the session
+    // This prevents the completed session from appearing as "pending" on next app open
     if (currentStep === 6) {
+      console.info('[AttendantFlow] Workflow completed (step 6) - clearing session');
       prevStepRef.current = currentStep;
+      clearSession();
       return;
     }
     
@@ -769,7 +772,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     
     // Save session with current state
     saveSessionData(currentStep, maxStepReached);
-  }, [currentStep, maxStepReached, sessionOrderId, saveSessionData]);
+  }, [currentStep, maxStepReached, sessionOrderId, saveSessionData, clearSession]);
 
   // Start QR code scan using native bridge (follows existing pattern from swap.tsx)
   const startQrCodeScan = useCallback(() => {
