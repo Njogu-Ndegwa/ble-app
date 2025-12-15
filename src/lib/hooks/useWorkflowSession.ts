@@ -482,7 +482,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
  * - SalesPerson workflow at the final registration step
  */
 function isSessionEffectivelyComplete(
-  sessionData: WorkflowSessionData | undefined,
+  sessionData: WorkflowSessionData | null | undefined,
   workflowType: 'attendant' | 'salesperson'
 ): boolean {
   if (!sessionData) return false;
