@@ -101,6 +101,17 @@ export interface UsePaymentCollectionOptions {
   onSuccess?: (isIdempotent: boolean) => void;
   /** Callback when an error occurs */
   onError?: (message: string) => void;
+  /** 
+   * Callback when payment is insufficient (partial payment received).
+   * This allows the parent component to save session state for recovery.
+   * Receives: amountPaid, amountRemaining, shortfall, and current payment input state
+   */
+  onPartialPayment?: (
+    amountPaid: number, 
+    amountRemaining: number, 
+    shortfall: number, 
+    paymentInputState: { inputMode: 'scan' | 'manual'; manualPaymentId: string }
+  ) => void;
 }
 
 export interface UsePaymentCollectionReturn {
@@ -118,6 +129,16 @@ export interface UsePaymentCollectionReturn {
   skipPayment: (isQuotaBased: boolean, isZeroCostRounding: boolean) => void;
   /** Reset all payment state for new swap */
   resetPayment: () => void;
+  /** Restore payment state from session (for session resume scenarios) */
+  restorePaymentState: (state: {
+    inputMode: 'scan' | 'manual';
+    manualPaymentId: string;
+    requestCreated: boolean;
+    requestOrderId: number | null;
+    expectedAmount: number;
+    amountRemaining: number;
+    amountPaid: number;
+  }) => void;
   /** Whether payment/service operation is in progress */
   isProcessing: boolean;
   /** Payment and service publish status */
@@ -141,6 +162,7 @@ export function usePaymentCollection(
     sessionOrderId,
     onSuccess,
     onError,
+    onPartialPayment,
   } = options;
 
   // ============================================================================
@@ -165,10 +187,12 @@ export function usePaymentCollection(
   // Use refs for callbacks to avoid stale closures
   const onSuccessRef = useRef(onSuccess);
   const onErrorRef = useRef(onError);
+  const onPartialPaymentRef = useRef(onPartialPayment);
   useEffect(() => {
     onSuccessRef.current = onSuccess;
     onErrorRef.current = onError;
-  }, [onSuccess, onError]);
+    onPartialPaymentRef.current = onPartialPayment;
+  }, [onSuccess, onError, onPartialPayment]);
 
   // ============================================================================
   // Payment and Service Hook
@@ -407,7 +431,8 @@ export function usePaymentCollection(
     async (receipt: string) => {
       setIsProcessing(true);
 
-      const orderId = paymentRequestOrderId;
+      // Capture current orderId - may be from previous payment request or session
+      let orderId = paymentRequestOrderId;
 
       try {
         // Ensure payment request was created first
@@ -417,15 +442,21 @@ export function usePaymentCollection(
             setIsProcessing(false);
             return;
           }
+          // After initiatePayment, if sessionOrderId was provided, that's now our orderId
+          // We need to use sessionOrderId directly since React state hasn't updated yet
+          if (sessionOrderId) {
+            orderId = sessionOrderId;
+          }
         }
 
-        if (!orderId && !paymentRequestOrderId) {
+        // Use sessionOrderId as final fallback (handles session-based payment flow)
+        const finalOrderId = orderId || paymentRequestOrderId || sessionOrderId;
+        
+        if (!finalOrderId) {
           toast.error('Payment request not created. Please go back and try again.');
           setIsProcessing(false);
           return;
         }
-
-        const finalOrderId = orderId || paymentRequestOrderId;
         console.log('Confirming payment with order_id:', { order_id: finalOrderId, receipt });
         const response = await confirmPaymentManual({ order_id: finalOrderId!, receipt });
 
@@ -452,6 +483,12 @@ export function usePaymentCollection(
             toast.error(
               `Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`
             );
+            // Notify parent so it can save session state for recovery
+            // Pass current payment input state so it can be saved to session
+            onPartialPaymentRef.current?.(totalPaid, remainingToPay, shortfall, {
+              inputMode: paymentInputMode,
+              manualPaymentId,
+            });
             setIsProcessing(false);
             return;
           }
@@ -480,6 +517,7 @@ export function usePaymentCollection(
       expectedPaymentAmount,
       swapData.cost,
       swapData.currencySymbol,
+      sessionOrderId,
     ]
   );
 
@@ -532,6 +570,35 @@ export function usePaymentCollection(
   }, [resetPublishStatus]);
 
   // ============================================================================
+  // Restore Payment State (for session resume)
+  // ============================================================================
+
+  const restorePaymentState = useCallback((state: {
+    inputMode: 'scan' | 'manual';
+    manualPaymentId: string;
+    requestCreated: boolean;
+    requestOrderId: number | null;
+    expectedAmount: number;
+    amountRemaining: number;
+    amountPaid: number;
+  }) => {
+    console.info('Restoring payment state from session:', state);
+    setPaymentInputMode(state.inputMode);
+    setManualPaymentId(state.manualPaymentId);
+    setPaymentRequestCreated(state.requestCreated);
+    if (state.requestOrderId) {
+      setPaymentRequestOrderId(state.requestOrderId);
+    }
+    setExpectedPaymentAmount(state.expectedAmount);
+    setPaymentAmountRemaining(state.amountRemaining);
+    setActualAmountPaid(state.amountPaid);
+    // Mark payment as initiated if request was created
+    if (state.requestCreated) {
+      setPaymentInitiated(true);
+    }
+  }, []);
+
+  // ============================================================================
   // Return
   // ============================================================================
 
@@ -560,6 +627,7 @@ export function usePaymentCollection(
     confirmPayment,
     skipPayment,
     resetPayment,
+    restorePaymentState,
     isProcessing: isProcessing || publishStatus === 'pending',
     publishStatus,
   };
