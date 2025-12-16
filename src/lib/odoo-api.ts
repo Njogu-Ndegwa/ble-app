@@ -966,6 +966,7 @@ export function getCycleUnitFromPeriod(period: string): { interval: number; unit
 /**
  * Session data structure for workflow persistence
  * This flexible JSON structure allows storing all workflow state
+ * Used by both Attendant and Sales workflows
  */
 export interface WorkflowSessionData {
   status: 'in_progress' | 'completed' | 'cancelled';
@@ -980,7 +981,7 @@ export interface WorkflowSessionData {
     station?: string;
   };
   
-  // Customer identification
+  // Customer identification (Attendant workflow)
   inputMode?: 'scan' | 'manual';
   manualSubscriptionId?: string;
   dynamicPlanId?: string;
@@ -1059,6 +1060,8 @@ export interface WorkflowSessionData {
     transactionId?: string | null;
     skipped?: boolean;
     skipReason?: string | null;
+    // For Sales flow - indicates if payment is incomplete (shortfall)
+    incomplete?: boolean;
   };
   
   // Error tracking
@@ -1067,6 +1070,73 @@ export interface WorkflowSessionData {
     message: string;
     details?: string;
   } | null;
+  
+  // === SALES WORKFLOW SPECIFIC FIELDS ===
+  
+  // Form data for customer registration
+  formData?: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    email?: string;
+    street?: string;
+    city?: string;
+    zip?: string;
+  };
+  
+  // Package and plan selection
+  selectedPackageId?: string;
+  selectedPlanId?: string;
+  
+  // Created customer data (from Odoo registration)
+  createdCustomerId?: number | null;
+  createdPartnerId?: number | null;
+  customerSessionToken?: string | null;
+  
+  // Subscription data from purchase
+  subscriptionData?: {
+    id?: number;
+    subscriptionCode?: string;
+    status?: string;
+    productName?: string;
+    priceAtSignup?: number;
+    currency?: string;
+    currencySymbol?: string;
+  };
+  
+  // Confirmed subscription code (from payment confirmation)
+  confirmedSubscriptionCode?: string | null;
+  
+  // Battery assignment (Sales workflow - first-time customer)
+  scannedBatteryPending?: {
+    id: string;
+    shortId?: string;
+    actualBatteryId?: string;
+    chargeLevel?: number;
+    energy?: number;
+    macAddress?: string;
+  } | null;
+  assignedBattery?: {
+    id: string;
+    shortId?: string;
+    actualBatteryId?: string;
+    chargeLevel?: number;
+    energy?: number;
+    macAddress?: string;
+  } | null;
+  
+  // Customer identification state (for pricing info)
+  customerIdentification?: {
+    identified?: boolean;
+    rate?: number | null;
+    currencySymbol?: string | null;
+  };
+  
+  // Scanned vehicle ID
+  scannedVehicleId?: string | null;
+  
+  // Registration ID (generated on success)
+  registrationId?: string;
   
   // Metadata
   savedAt?: number;
@@ -1435,6 +1505,159 @@ export async function getLatestPendingSession(
     return data as LatestPendingSessionResponse;
   } catch (error: any) {
     console.error('=== GET LATEST SESSION - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Sales Workflow Session Management API
+// ============================================================================
+
+/**
+ * Payload for creating a new Sales workflow session
+ * Called after customer registration (Step 1)
+ * 
+ * Unlike Attendant workflow which uses subscription_code,
+ * Sales workflow uses customer_id and company_id since the
+ * customer is newly registered and doesn't have a subscription yet.
+ */
+export interface CreateSalesSessionPayload {
+  customer_id: number;
+  company_id: number;
+  session_data: WorkflowSessionData;
+}
+
+/**
+ * Payload for updating a session with products
+ * Called on Step 4 (Payment step) for Sales workflow
+ * 
+ * Includes the products array to add order lines for:
+ * - Subscription plan
+ * - Package components (main product, privilege)
+ */
+export interface UpdateSessionWithProductsPayload {
+  session_data: WorkflowSessionData;
+  products: Array<{
+    product_id: number;
+    quantity: number;
+    price_unit: number;
+  }>;
+}
+
+/**
+ * Create a new Sales workflow session
+ * Called after customer registration (Step 1)
+ * 
+ * Uses the /api/subscription/purchase endpoint with customer_id instead of subscription_code
+ * The backend will create the order and session for the new customer
+ * 
+ * @param payload - Contains customer_id, company_id, and session_data
+ * @param authToken - Employee/salesperson token for authorization
+ */
+export async function createSalesWorkflowSession(
+  payload: CreateSalesSessionPayload,
+  authToken?: string
+): Promise<CreateSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== CREATE SALES WORKFLOW SESSION - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== CREATE SALES WORKFLOW SESSION - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Create sales session error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    if (!data.success) {
+      console.error('Create sales session error (success=false):', data);
+      throw new Error(data?.message || data?.error || 'Sales session creation failed');
+    }
+    
+    return data as CreateSessionResponse;
+  } catch (error: any) {
+    console.error('=== CREATE SALES WORKFLOW SESSION - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update a Sales workflow session with products
+ * Called on Step 4 (Payment step) to add order lines
+ * 
+ * Uses the /api/sessions/by-order/{orderId} endpoint with products array
+ * The backend will add the products to the order and update session data
+ * 
+ * @param orderId - The order ID from createSalesWorkflowSession response
+ * @param payload - Contains session_data and products array
+ * @param authToken - Employee/salesperson token for authorization
+ */
+export async function updateWorkflowSessionWithProducts(
+  orderId: number,
+  payload: UpdateSessionWithProductsPayload,
+  authToken?: string
+): Promise<UpdateSessionResponse> {
+  const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== UPDATE SESSION WITH PRODUCTS - PAYLOAD ===');
+  console.info('URL:', url);
+  console.info('Order ID:', orderId);
+  console.info('Payload:', JSON.stringify(payload, null, 2));
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== UPDATE SESSION WITH PRODUCTS - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response:', JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      console.error('Update session with products error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as UpdateSessionResponse;
+  } catch (error: any) {
+    console.error('=== UPDATE SESSION WITH PRODUCTS - ERROR ===');
     console.error('Error:', error);
     throw error;
   }

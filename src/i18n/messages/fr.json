@@ -1298,6 +1298,8 @@
   "rider.demoCredentials": "Téléphone : demo | Mot de passe : demo",
   
   "session.resumeTitle": "Reprendre la session précédente ?",
+  "session.resumePreviousSession": "Reprendre la session précédente ?",
+  "session.incompleteRegistration": "Vous avez une inscription incomplète pour :",
   "session.resumeDescAttendant": "Vous avez un échange de batterie incomplet pour :",
   "session.resumeDescSales": "Vous avez une inscription incomplète pour :",
   "session.swapInProgress": "Échange en cours",

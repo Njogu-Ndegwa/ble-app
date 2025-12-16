@@ -1307,6 +1307,8 @@
   "rider.demoCredentials": "Phone: demo | Password: demo",
   
   "session.resumeTitle": "Resume Previous Session?",
+  "session.resumePreviousSession": "Resume Previous Session?",
+  "session.incompleteRegistration": "You have an incomplete registration for:",
   "session.resumeDescAttendant": "You have an incomplete battery swap for:",
   "session.resumeDescSales": "You have an incomplete registration for:",
   "session.swapInProgress": "Swap in Progress",

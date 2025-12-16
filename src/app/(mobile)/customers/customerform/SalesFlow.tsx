@@ -39,9 +39,18 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionResumePrompt } from '@/components/shared';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
+
+// Import workflow session management
+import {
+  useWorkflowSession,
+  buildSalesSessionData,
+  extractSalesStateFromSession,
+  type SalesWorkflowState,
+} from '@/lib/hooks/useWorkflowSession';
+import type { WorkflowSessionData } from '@/lib/odoo-api';
 
 // Import Odoo API functions
 import {
@@ -344,7 +353,71 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Bridge initialization ref
   const bridgeInitRef = useRef<boolean>(false);
 
-  // Session restoration state
+  // ============================================
+  // WORKFLOW SESSION MANAGEMENT HOOK (Backend Persistence)
+  // ============================================
+  
+  const {
+    status: sessionStatus,
+    orderId: sessionOrderId,
+    pendingSession,
+    createSalesSession,
+    updateSession,
+    updateSessionWithProducts,
+    restoreSession: restoreBackendSession,
+    discardPendingSession,
+    clearSession,
+    setOrderId: setSessionOrderId,
+    checkForPendingSession,
+    isLoading: isSessionLoading,
+  } = useWorkflowSession({
+    workflowType: 'salesperson',
+    onSessionRestored: (sessionData, orderId) => {
+      console.info('[SalesFlow] Session restored from backend:', { orderId, step: sessionData.currentStep });
+      
+      // Extract state from session data and restore
+      const restoredState = extractSalesStateFromSession(sessionData);
+      
+      // Restore all state from the session
+      setCurrentStep(restoredState.currentStep as SalesStep);
+      setMaxStepReached(restoredState.maxStepReached as SalesStep);
+      setFormData(restoredState.formData);
+      setSelectedPackageId(restoredState.selectedPackageId);
+      setSelectedPlanId(restoredState.selectedPlanId);
+      setCreatedCustomerId(restoredState.createdCustomerId);
+      setCreatedPartnerId(restoredState.createdPartnerId);
+      setCustomerSessionToken(restoredState.customerSessionToken);
+      setSubscriptionData(restoredState.subscriptionData);
+      setPaymentConfirmed(restoredState.paymentState.confirmed);
+      setPaymentReference(restoredState.paymentState.reference);
+      setPaymentInitiated(restoredState.paymentState.initiated);
+      setPaymentAmountPaid(restoredState.paymentState.amountPaid);
+      setPaymentAmountExpected(restoredState.paymentState.amountExpected);
+      setPaymentAmountRemaining(restoredState.paymentState.amountRemaining);
+      setPaymentIncomplete(restoredState.paymentState.incomplete);
+      setPaymentRequestOrderId(restoredState.paymentState.requestOrderId);
+      setConfirmedSubscriptionCode(restoredState.confirmedSubscriptionCode);
+      setScannedVehicleId(restoredState.scannedVehicleId);
+      setScannedBatteryPending(restoredState.scannedBatteryPending);
+      setAssignedBattery(restoredState.assignedBattery);
+      setRegistrationId(restoredState.registrationId);
+      
+      // Also clear localStorage session since we're now using backend
+      clearSalesSession();
+      
+      toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+    },
+    onError: (error) => {
+      console.error('[SalesFlow] Session error:', error);
+      // Don't show error toast for session errors - they're non-blocking
+    },
+  });
+
+  // Session restoration UI state
+  const [showSessionPrompt, setShowSessionPrompt] = useState(false);
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+  
+  // Legacy localStorage session state (for fallback/migration)
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [savedSessionSummary, setSavedSessionSummary] = useState<{
     customerName: string;
@@ -368,17 +441,46 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     setMaxStepReached(prev => Math.max(prev, step) as SalesStep);
   }, []);
 
-  // Check for saved session on component mount
+  // Check for pending session from backend on mount
   useEffect(() => {
-    const summary = getSessionSummary();
-    if (summary && !sessionRestored) {
-      setSavedSessionSummary(summary);
-      setShowResumePrompt(true);
-    }
-  }, [sessionRestored]);
+    const checkSession = async () => {
+      // First check backend for pending session
+      const hasPending = await checkForPendingSession();
+      if (hasPending) {
+        setShowSessionPrompt(true);
+      } else {
+        // Fallback: check localStorage for legacy session (migration path)
+        const summary = getSessionSummary();
+        if (summary && !sessionRestored) {
+          setSavedSessionSummary(summary);
+          setShowResumePrompt(true);
+        }
+      }
+      setSessionCheckComplete(true);
+    };
+    
+    checkSession();
+  }, [checkForPendingSession, sessionRestored]);
 
-  // Restore session from localStorage
-  const restoreSession = useCallback(() => {
+  // Handle session resume from backend
+  const handleResumeSession = useCallback(async () => {
+    const sessionData = await restoreBackendSession();
+    if (sessionData) {
+      setShowSessionPrompt(false);
+      setSessionRestored(true);
+    }
+  }, [restoreBackendSession]);
+  
+  // Handle discard session from backend
+  const handleDiscardSession = useCallback(() => {
+    discardPendingSession();
+    setShowSessionPrompt(false);
+    setSessionRestored(true);
+    toast(t('session.startNew') || 'Starting a new registration');
+  }, [discardPendingSession, t]);
+
+  // Restore session from localStorage (legacy fallback)
+  const restoreLocalSession = useCallback(() => {
     if (isRestoringSession.current) return;
     isRestoringSession.current = true;
 
@@ -415,60 +517,62 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setRegistrationId(savedSession.registrationId);
 
       setSessionRestored(true);
+      // Clear localStorage since we're migrating to backend sessions
+      clearSalesSession();
       toast.success(`Resuming from Step ${savedSession.currentStep}`);
     }
     
     setShowResumePrompt(false);
   }, []);
 
-  // Discard saved session and start fresh
-  const discardSession = useCallback(() => {
+  // Discard saved session and start fresh (legacy localStorage)
+  const discardLocalSession = useCallback(() => {
     clearSalesSession();
     setShowResumePrompt(false);
     setSessionRestored(true); // Prevent prompt from appearing again
     toast('Starting a new registration');
   }, []);
 
-  // Auto-save session whenever important state changes
-  // Skip saving on step 8 (success) since the flow is complete
-  useEffect(() => {
-    // Don't save during initial session restoration
-    if (!sessionRestored && showResumePrompt) return;
-    // Don't save if on step 8 (completed)
-    if (currentStep === 8) return;
-    // Don't save if no progress has been made
-    if (currentStep === 1 && !formData.firstName && !formData.lastName && !formData.email && !formData.phone) return;
-
-    // Save session after a short delay to batch rapid changes
-    const saveTimeout = setTimeout(() => {
-      saveSalesSession({
-        currentStep,
-        maxStepReached,
-        formData,
-        selectedPackageId,
-        selectedPlanId,
-        createdCustomerId,
-        createdPartnerId,
-        customerSessionToken,
-        subscriptionData,
-        paymentConfirmed,
-        paymentReference,
-        paymentInitiated,
-        paymentAmountPaid,
-        paymentAmountExpected,
-        paymentAmountRemaining,
-        paymentIncomplete,
-        confirmedSubscriptionCode,
-        scannedVehicleId,
-        assignedBattery,
-        registrationId,
-      });
-    }, 500);
-
-    return () => clearTimeout(saveTimeout);
+  // Helper to build current session state
+  const buildCurrentSessionState = useCallback((): SalesWorkflowState => {
+    return {
+      currentStep,
+      maxStepReached,
+      actor: {
+        id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
+        station: SALESPERSON_STATION,
+      },
+      formData,
+      selectedPackageId,
+      selectedPlanId,
+      createdCustomerId,
+      createdPartnerId,
+      customerSessionToken,
+      subscriptionData,
+      paymentState: {
+        initiated: paymentInitiated,
+        confirmed: paymentConfirmed,
+        reference: paymentReference,
+        amountPaid: paymentAmountPaid,
+        amountExpected: paymentAmountExpected,
+        amountRemaining: paymentAmountRemaining,
+        incomplete: paymentIncomplete,
+        inputMode: paymentInputMode,
+        manualPaymentId,
+        requestOrderId: paymentRequestOrderId,
+      },
+      confirmedSubscriptionCode,
+      scannedBatteryPending,
+      assignedBattery,
+      customerIdentification: {
+        identified: customerIdentified,
+        rate: customerRate,
+        currencySymbol: customerCurrencySymbol,
+      },
+      scannedVehicleId,
+      registrationId,
+    };
   }, [
-    sessionRestored,
-    showResumePrompt,
     currentStep,
     maxStepReached,
     formData,
@@ -478,18 +582,68 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     createdPartnerId,
     customerSessionToken,
     subscriptionData,
+    paymentInitiated,
     paymentConfirmed,
     paymentReference,
-    paymentInitiated,
     paymentAmountPaid,
     paymentAmountExpected,
     paymentAmountRemaining,
     paymentIncomplete,
+    paymentInputMode,
+    manualPaymentId,
+    paymentRequestOrderId,
     confirmedSubscriptionCode,
-    scannedVehicleId,
+    scannedBatteryPending,
     assignedBattery,
+    customerIdentified,
+    customerRate,
+    customerCurrencySymbol,
+    scannedVehicleId,
     registrationId,
   ]);
+
+  // Helper to save session to backend
+  const saveSessionToBackend = useCallback(async () => {
+    if (!sessionOrderId) {
+      console.info('[SalesFlow] No session orderId - skipping backend session save');
+      return;
+    }
+    
+    const sessionData = buildSalesSessionData(buildCurrentSessionState());
+    await updateSession(sessionData);
+  }, [sessionOrderId, buildCurrentSessionState, updateSession]);
+
+  // Auto-save session on step transitions (after state has updated)
+  // This ensures the backend has the latest data for session recovery
+  const prevStepRef = useRef<number>(currentStep);
+  useEffect(() => {
+    // Skip if no session, step hasn't changed, or still on step 1 without customer
+    if (!sessionOrderId || currentStep === prevStepRef.current || currentStep < 2) {
+      prevStepRef.current = currentStep;
+      return;
+    }
+    
+    // When reaching step 8 (success), save the completed state then clear local tracking
+    if (currentStep === 8) {
+      console.info('[SalesFlow] Workflow completed (step 8) - saving final state and clearing session');
+      prevStepRef.current = currentStep;
+      
+      // Save step 8 to backend with status: 'completed'
+      saveSessionToBackend().then(() => {
+        clearSession();
+      }).catch((err) => {
+        console.error('[SalesFlow] Failed to save final session state:', err);
+        clearSession();
+      });
+      return;
+    }
+    
+    console.info(`[SalesFlow] Step changed from ${prevStepRef.current} to ${currentStep} - saving session`);
+    prevStepRef.current = currentStep;
+    
+    // Save session with current state
+    saveSessionToBackend();
+  }, [currentStep, sessionOrderId, saveSessionToBackend, clearSession]);
 
   // NOTE: BLE timeout management is now handled by useFlowBatteryScan hook
 
@@ -907,6 +1061,61 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedPartnerId(session.user.partner_id);
         setCustomerSessionToken(session.token);
         
+        // Create backend session after customer registration
+        // This creates an order/session linked to the customer
+        try {
+          const initialSessionData = buildSalesSessionData({
+            currentStep: 2, // Moving to step 2
+            maxStepReached: 2,
+            actor: {
+              id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
+              station: SALESPERSON_STATION,
+            },
+            formData,
+            selectedPackageId,
+            selectedPlanId,
+            createdCustomerId: session.user.id,
+            createdPartnerId: session.user.partner_id,
+            customerSessionToken: session.token,
+            subscriptionData: null,
+            paymentState: {
+              initiated: false,
+              confirmed: false,
+              reference: '',
+              amountPaid: 0,
+              amountExpected: 0,
+              amountRemaining: 0,
+              incomplete: false,
+              inputMode: 'scan',
+              manualPaymentId: '',
+              requestOrderId: null,
+            },
+            confirmedSubscriptionCode: null,
+            scannedBatteryPending: null,
+            assignedBattery: null,
+            customerIdentification: {
+              identified: false,
+              rate: null,
+              currencySymbol: null,
+            },
+            scannedVehicleId: null,
+            registrationId: '',
+          });
+          
+          const orderId = await createSalesSession(
+            session.user.partner_id, // Use partner_id as customer_id for backend
+            DEFAULT_COMPANY_ID,
+            initialSessionData
+          );
+          
+          if (orderId) {
+            console.info('[SalesFlow] Backend session created with orderId:', orderId);
+          }
+        } catch (err) {
+          console.error('[SalesFlow] Failed to create backend session (non-blocking):', err);
+          // Don't block the workflow if session creation fails
+        }
+        
         toast.success('Customer registered successfully!');
         return true;
       } else {
@@ -920,11 +1129,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     } finally {
       setIsCreatingCustomer(false);
     }
-  }, [formData]);
+  }, [formData, selectedPackageId, selectedPlanId, createSalesSession]);
 
   // Purchase subscription after customer is registered
   // Returns object with subscription_code and order_id on success, null on failure
-  // The order is created automatically by /api/subscription/purchase endpoint
+  // 
+  // NEW: If we have a backend session (sessionOrderId), we use updateSessionWithProducts
+  // to add products to the existing order. Otherwise, we fall back to purchaseMultiProducts.
   const purchaseCustomerSubscription = useCallback(async (): Promise<{ subscriptionCode: string; orderId: number } | null> => {
     if (!createdPartnerId) {
       toast.error('Customer not registered yet');
@@ -973,6 +1184,94 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           });
         }
       }
+
+      // NEW: If we have a backend session, use updateSessionWithProducts
+      // This adds products to the existing order created in Step 1
+      if (sessionOrderId) {
+        console.log('Using session-based product update for orderId:', sessionOrderId);
+        
+        // Build session data for the update
+        const sessionData = buildSalesSessionData({
+          currentStep: 5, // Moving to payment step
+          maxStepReached: 5,
+          actor: {
+            id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
+            station: SALESPERSON_STATION,
+          },
+          formData,
+          selectedPackageId,
+          selectedPlanId,
+          createdCustomerId,
+          createdPartnerId,
+          customerSessionToken,
+          subscriptionData: {
+            id: 0, // Will be updated from response
+            subscriptionCode: '', // Will be updated from response
+            status: 'pending',
+            productName: currentSelectedPlan.name,
+            priceAtSignup: currentSelectedPlan.price + currentSelectedPackage.price,
+            currency: currentSelectedPlan.currency,
+            currencySymbol: currentSelectedPlan.currencySymbol,
+          },
+          paymentState: {
+            initiated: false,
+            confirmed: false,
+            reference: '',
+            amountPaid: 0,
+            amountExpected: currentSelectedPlan.price + currentSelectedPackage.price,
+            amountRemaining: currentSelectedPlan.price + currentSelectedPackage.price,
+            incomplete: false,
+            inputMode: paymentInputMode,
+            manualPaymentId: '',
+            requestOrderId: sessionOrderId,
+          },
+          confirmedSubscriptionCode: null,
+          scannedBatteryPending: null,
+          assignedBattery: null,
+          customerIdentification: {
+            identified: customerIdentified,
+            rate: customerRate,
+            currencySymbol: customerCurrencySymbol,
+          },
+          scannedVehicleId: null,
+          registrationId: '',
+        });
+        
+        // Update session with products
+        const success = await updateSessionWithProducts(sessionData, products);
+        
+        if (success) {
+          // Update local state
+          const totalPrice = currentSelectedPlan.price + currentSelectedPackage.price;
+          
+          setSubscriptionData({
+            id: 0, // Updated from backend later
+            subscriptionCode: '', // Updated from backend later
+            status: 'pending',
+            productName: currentSelectedPlan.name,
+            priceAtSignup: totalPrice,
+            currency: currentSelectedPlan.currency,
+            currencySymbol: currentSelectedPlan.currencySymbol,
+          });
+          
+          setPaymentRequestOrderId(sessionOrderId);
+          setPaymentAmountExpected(totalPrice);
+          setPaymentAmountRemaining(totalPrice);
+          
+          console.log('Products added to order via session update');
+          
+          return {
+            subscriptionCode: '', // Will be populated after payment
+            orderId: sessionOrderId,
+          };
+        } else {
+          throw new Error('Failed to add products to order');
+        }
+      }
+      
+      // FALLBACK: No session - use the old purchaseMultiProducts flow
+      // This creates both the subscription AND the order automatically
+      console.log('Using legacy purchaseMultiProducts flow (no session)');
       
       // Determine notes based on subscription type
       const periodLower = currentSelectedPlan.name.toLowerCase();
@@ -992,8 +1291,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
       console.log('Purchasing package + subscription:', purchasePayload);
 
-      // Use the multi-product purchase endpoint
-      // This endpoint creates both the subscription AND the order automatically
       const response = await purchaseMultiProducts(purchasePayload, employeeToken || undefined);
 
       if (response.success && response.data && response.data.subscription) {
@@ -1018,6 +1315,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         // Store the order_id from purchase response - this is used for payment confirmation
         setPaymentRequestOrderId(order.id);
         
+        // Also set the session orderId for future updates
+        setSessionOrderId(order.id);
+        
         console.log('Subscription purchased:', subscription);
         
         // Return both subscription code and order_id
@@ -1033,7 +1333,23 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       toast.error(error.message || 'Failed to create order');
       return null;
     }
-  }, [createdPartnerId, selectedPackageId, availablePackages, selectedPlanId, availablePlans]);
+  }, [
+    createdPartnerId, 
+    selectedPackageId, 
+    availablePackages, 
+    selectedPlanId, 
+    availablePlans,
+    sessionOrderId,
+    updateSessionWithProducts,
+    setSessionOrderId,
+    formData,
+    createdCustomerId,
+    customerSessionToken,
+    paymentInputMode,
+    customerIdentified,
+    customerRate,
+    customerCurrencySymbol,
+  ]);
 
   // Initiate payment with Odoo - send STK push to customer's phone
   // NOTE: For Sales flow, the order is already created by /api/subscription/purchase
@@ -1935,8 +2251,17 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         </div>
       )}
 
-      {/* Resume Session Prompt - Shows when there's a saved session from a previous attempt */}
-      {showResumePrompt && savedSessionSummary && (
+      {/* Backend Session Resume Prompt - Uses shared SessionResumePrompt component */}
+      <SessionResumePrompt
+        isVisible={showSessionPrompt && !!pendingSession}
+        session={pendingSession}
+        onResume={handleResumeSession}
+        onDiscard={handleDiscardSession}
+        isLoading={isSessionLoading}
+      />
+
+      {/* Legacy Resume Session Prompt - Shows when there's a saved localStorage session (migration) */}
+      {showResumePrompt && savedSessionSummary && !showSessionPrompt && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="resume-session-modal">
             <div className="resume-session-icon">
@@ -1945,38 +2270,50 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                 <circle cx="12" cy="12" r="10" />
               </svg>
             </div>
-            <h3 className="resume-session-title">Resume Previous Session?</h3>
+            <h3 className="resume-session-title">{t('session.resumePreviousSession') || 'Resume Previous Session?'}</h3>
             <p className="resume-session-description">
-              You have an incomplete registration for:
+              {t('session.incompleteRegistration') || 'You have an incomplete registration for:'}
             </p>
             <div className="resume-session-details">
               <div className="resume-session-customer">
                 {savedSessionSummary.customerName}
               </div>
               <div className="resume-session-meta">
-                Step {savedSessionSummary.step} of 5 • Saved {savedSessionSummary.savedAt}
+                {t('session.stepProgress', { current: savedSessionSummary.step, total: 8 }) || `Step ${savedSessionSummary.step} of 8`} • {t('session.saved') || 'Saved'} {savedSessionSummary.savedAt}
               </div>
             </div>
             <div className="resume-session-actions">
               <button 
                 className="resume-session-btn resume-session-btn-primary"
-                onClick={restoreSession}
+                onClick={restoreLocalSession}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
-                Resume
+                {t('session.resume') || 'Resume'}
               </button>
               <button 
                 className="resume-session-btn resume-session-btn-secondary"
-                onClick={discardSession}
+                onClick={discardLocalSession}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                Start New
+                {t('session.startNew') || 'Start New'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
+      {!sessionCheckComplete && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="loading-spinner"></div>
+            <div className="text-white text-sm opacity-80">
+              {t('session.checkingForSession') || 'Checking for pending session...'}
             </div>
           </div>
         </div>
