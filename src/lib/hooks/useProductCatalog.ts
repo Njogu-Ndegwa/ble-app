@@ -297,6 +297,7 @@ export function useProductCatalog(
 
   // Fetch all catalog data
   const refetch = useCallback(async () => {
+    console.info('[PRODUCT CATALOG] Starting fetch...', { workflowType });
     setIsLoading({ products: true, packages: true, plans: true });
     setErrors({ products: null, packages: null, plans: null });
 
@@ -309,7 +310,10 @@ export function useProductCatalog(
         // Sales workflow: use sales role token directly
         authToken = getSalesRoleToken();
         if (!authToken) {
-          console.warn('[PRODUCT CATALOG] No sales role token - products may not be filtered by company');
+          console.warn('[PRODUCT CATALOG] No sales role token - this may cause empty package list');
+          // Set a warning error but continue - backend might still return some products
+        } else {
+          console.info('[PRODUCT CATALOG] Using sales role token for fetch');
         }
       } else if (workflowType === 'attendant') {
         // Attendant workflow: use attendant role token directly
@@ -325,7 +329,16 @@ export function useProductCatalog(
         }
       }
 
+      console.info('[PRODUCT CATALOG] Calling getSubscriptionProducts API...');
       const response = await getSubscriptionProducts(1, 50, authToken || undefined);
+      console.info('[PRODUCT CATALOG] API Response:', {
+        success: response.success,
+        hasData: !!response.data,
+        productCount: response.data?.products?.length ?? 0,
+        mainServiceCount: response.data?.mainServiceProducts?.length ?? 0,
+        batterySwapCount: response.data?.batterySwapProducts?.length ?? 0,
+        packageCount: response.data?.packageProducts?.length ?? 0,
+      });
 
       if (response.success && response.data) {
         // Process products
@@ -343,21 +356,49 @@ export function useProductCatalog(
           setErrors(prev => ({ ...prev, products: 'No physical products available' }));
         }
 
-        // Process packages
+        // Process packages - with detailed logging for debugging
         if (response.data.packageProducts?.length > 0) {
+          console.info('[PRODUCT CATALOG] Raw packages from API:', response.data.packageProducts.length);
+          
+          // Log each package's eligibility for debugging
+          const packageDebug = response.data.packageProducts.map((pkg: any) => ({
+            id: pkg.id,
+            name: pkg.name,
+            is_package: pkg.is_package,
+            has_components: !!pkg.components?.length,
+            component_count: pkg.components?.length || 0,
+          }));
+          console.info('[PRODUCT CATALOG] Package eligibility check:', packageDebug);
+          
           const validPackages = response.data.packageProducts
             .filter((pkg: any) => pkg.is_package && pkg.components?.length > 0);
-          const transformedPackages = validPackages.map(transformPackage);
-          setPackages(transformedPackages);
-          setErrors(prev => ({ ...prev, packages: null }));
           
-          // Set default selection if not already set
-          if (transformedPackages.length > 0) {
-            setSelectedPackageId(prev => prev || transformedPackages[0].id);
+          console.info('[PRODUCT CATALOG] Valid packages after filtering:', validPackages.length);
+          
+          if (validPackages.length > 0) {
+            const transformedPackages = validPackages.map(transformPackage);
+            setPackages(transformedPackages);
+            setErrors(prev => ({ ...prev, packages: null }));
+            
+            // Set default selection if not already set
+            if (transformedPackages.length > 0) {
+              setSelectedPackageId(prev => prev || transformedPackages[0].id);
+            }
+          } else {
+            // Packages exist but none are valid - this is a data issue
+            console.warn('[PRODUCT CATALOG] No valid packages found after filtering. Raw packages:', 
+              response.data.packageProducts.map((p: any) => ({ id: p.id, name: p.name, is_package: p.is_package, components: p.components?.length || 0 }))
+            );
+            setPackages([]);
+            setErrors(prev => ({ 
+              ...prev, 
+              packages: `${response.data.packageProducts?.length || 0} packages found but none are configured correctly (missing components). Please contact support.` 
+            }));
           }
         } else {
+          console.warn('[PRODUCT CATALOG] No packages returned from API');
           setPackages([]);
-          setErrors(prev => ({ ...prev, packages: 'No packages available' }));
+          setErrors(prev => ({ ...prev, packages: 'No packages available from server. Please try again or contact support.' }));
         }
 
         // Process plans
@@ -376,7 +417,8 @@ export function useProductCatalog(
         }
       } else {
         // API returned failure
-        const errorMsg = 'Failed to load data from server';
+        console.error('[PRODUCT CATALOG] API returned failure:', response);
+        const errorMsg = 'Failed to load data from server. Please check your connection and try again.';
         setProducts([]);
         setPackages([]);
         setPlans([]);
@@ -385,9 +427,15 @@ export function useProductCatalog(
           packages: errorMsg,
           plans: errorMsg,
         });
+        toast.error('Could not load products from server');
       }
     } catch (error: any) {
       console.error('[PRODUCT CATALOG] Fetch failed:', error);
+      console.error('[PRODUCT CATALOG] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
       const errorMsg = error.message || 'Failed to load data from server';
       setProducts([]);
       setPackages([]);
@@ -397,8 +445,9 @@ export function useProductCatalog(
         packages: errorMsg,
         plans: errorMsg,
       });
-      toast.error('Could not load products from server');
+      toast.error(`Could not load products: ${error.message || 'Network error'}`);
     } finally {
+      console.info('[PRODUCT CATALOG] Fetch complete');
       setIsLoading({ products: false, packages: false, plans: false });
     }
   }, [workflowType]);
