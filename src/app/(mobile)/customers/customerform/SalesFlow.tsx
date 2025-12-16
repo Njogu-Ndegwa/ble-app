@@ -39,7 +39,7 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner } from '@/components/shared';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
 
@@ -784,6 +784,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       stopBleScan();
     };
   }, [currentStep, bleIsReady, startBleScan, stopBleScan]);
+
+  // Auto-navigate to step 7 (battery assignment) when vehicle is scanned on step 6
+  // This removes the need for user to click "Continue" after scanning vehicle QR
+  useEffect(() => {
+    if (currentStep === 6 && scannedVehicleId) {
+      console.info('[SALES VEHICLE] Vehicle scanned, auto-advancing to battery assignment step');
+      // Small delay to allow toast to show before navigation
+      const timer = setTimeout(() => {
+        advanceToStep(7);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, scannedVehicleId, advanceToStep]);
 
   // NOTE: Product/package/plan fetching is now handled by useProductCatalog hook
   // The hook auto-fetches on mount and provides refetch via fetchProductsAndPlans
@@ -1853,8 +1866,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         </div>
       </header>
 
-      {/* MQTT Reconnection Banner - shows when connection is lost */}
-      <div className="px-4 pt-2">
+      {/* Network Status Banners - show when connection is lost */}
+      <div className="px-4 pt-2 flex flex-col gap-2">
+        <NetworkStatusBanner />
         <MqttReconnectBanner />
       </div>
 
