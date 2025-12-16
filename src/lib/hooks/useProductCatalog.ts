@@ -17,7 +17,7 @@ import {
   getSubscriptionProducts,
   type SubscriptionProduct,
 } from '@/lib/odoo-api';
-import { getEmployeeToken } from '@/lib/attendant-auth';
+import { getEmployeeToken, getSalesRoleToken, getAttendantRoleToken } from '@/lib/attendant-auth';
 
 // ============================================
 // Types
@@ -124,6 +124,12 @@ export interface UseProductCatalogConfig {
   initialPackageId?: string;
   /** Initial selected plan ID (for session restore) */
   initialPlanId?: string;
+  /** 
+   * Workflow type - determines which auth token to use.
+   * 'sales' uses getSalesRoleToken(), 'attendant' uses getAttendantRoleToken(),
+   * undefined (default) uses getEmployeeToken() for backward compatibility.
+   */
+  workflowType?: 'sales' | 'attendant';
 }
 
 /**
@@ -254,6 +260,7 @@ export function useProductCatalog(
     initialProductId = '',
     initialPackageId = '',
     initialPlanId = '',
+    workflowType,
   } = config;
 
   // Data state
@@ -294,14 +301,31 @@ export function useProductCatalog(
     setErrors({ products: null, packages: null, plans: null });
 
     try {
-      // Get the employee token to filter by company
-      const employeeToken = getEmployeeToken();
-
-      if (!employeeToken) {
-        console.warn('[PRODUCT CATALOG] No employee token - products may not be filtered by company');
+      // Get the appropriate auth token based on workflow type
+      // This ensures we use the correct role-specific token after session management separation
+      let authToken: string | null = null;
+      
+      if (workflowType === 'sales') {
+        // Sales workflow: use sales role token directly
+        authToken = getSalesRoleToken();
+        if (!authToken) {
+          console.warn('[PRODUCT CATALOG] No sales role token - products may not be filtered by company');
+        }
+      } else if (workflowType === 'attendant') {
+        // Attendant workflow: use attendant role token directly
+        authToken = getAttendantRoleToken();
+        if (!authToken) {
+          console.warn('[PRODUCT CATALOG] No attendant role token - products may not be filtered by company');
+        }
+      } else {
+        // Fallback to legacy getEmployeeToken for backward compatibility
+        authToken = getEmployeeToken();
+        if (!authToken) {
+          console.warn('[PRODUCT CATALOG] No employee token - products may not be filtered by company');
+        }
       }
 
-      const response = await getSubscriptionProducts(1, 50, employeeToken || undefined);
+      const response = await getSubscriptionProducts(1, 50, authToken || undefined);
 
       if (response.success && response.data) {
         // Process products
@@ -377,7 +401,7 @@ export function useProductCatalog(
     } finally {
       setIsLoading({ products: false, packages: false, plans: false });
     }
-  }, []);
+  }, [workflowType]);
 
   // Restore selections (for session restore)
   const restoreSelections = useCallback((

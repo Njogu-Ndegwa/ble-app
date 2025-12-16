@@ -139,6 +139,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
 
   // Product catalog hook - fetches products, packages, and plans from Odoo
+  // Using workflowType: 'sales' to ensure we use the correct sales role token
   const {
     products: availableProducts,
     packages: availablePackages,
@@ -155,7 +156,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     setSelectedPlanId,
     refetch: fetchProductsAndPlans,
     restoreSelections: restoreCatalogSelections,
-  } = useProductCatalog({ autoFetch: true });
+  } = useProductCatalog({ autoFetch: true, workflowType: 'sales' });
 
   // Alias loading/error states for backward compatibility
   const isLoadingProducts = catalogLoading.products;
