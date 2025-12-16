@@ -201,9 +201,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // NEW: Scanned battery pending service completion (battery scanned but service not yet reported)
   const [scannedBatteryPending, setScannedBatteryPending] = useState<BatteryData | null>(null);
   
-  // Default rate fallback (used when backend doesn't provide one)
-  const DEFAULT_RATE = 120;
-  
   // Customer identification state is now managed by useSalesCustomerIdentification hook
   // (removed local state - see hook initialization below)
   
@@ -293,7 +290,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
       station: SALESPERSON_STATION,
     },
-    defaultRate: DEFAULT_RATE,
     maxRetries: 3,  // Retry up to 3 times with exponential backoff
   });
   

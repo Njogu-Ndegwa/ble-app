@@ -280,7 +280,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     isBridgeReady,
     isMqttConnected,
     attendantInfo,
-    defaultRate: swapData.rate,
     onSuccess: async (result: CustomerIdentificationResult) => {
       console.info('Customer identification successful:', result);
       
