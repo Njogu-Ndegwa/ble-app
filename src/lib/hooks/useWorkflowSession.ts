@@ -18,12 +18,15 @@ import {
   updateWorkflowSession,
   updateWorkflowSessionWithPayment,
   getLatestPendingSession,
+  createSalesWorkflowSession,
+  updateWorkflowSessionWithProducts,
   type WorkflowSessionData,
   type CreateSessionResponse,
   type UpdateSessionResponse,
   type LatestPendingSessionResponse,
 } from '@/lib/odoo-api';
-import { getEmployeeToken } from '@/lib/attendant-auth';
+import { getEmployeeToken, getSalesRoleToken } from '@/lib/attendant-auth';
+import { PAYMENT } from '@/lib/constants';
 
 // Session states for UI
 export type SessionStatus = 
@@ -61,6 +64,13 @@ export interface SessionSummary {
   workflowType: 'attendant' | 'salesperson';
 }
 
+// Product item for sales workflow
+export interface SessionProductItem {
+  product_id: number;
+  quantity: number;
+  price_unit: number;
+}
+
 // Return type for the hook
 export interface UseWorkflowSessionReturn {
   // State
@@ -70,11 +80,17 @@ export interface UseWorkflowSessionReturn {
   pendingSession: SessionSummary | null;
   error: string | null;
   
-  // Session lifecycle
+  // Session lifecycle - Attendant workflow
   checkForPendingSession: () => Promise<boolean>;
   createSession: (subscriptionCode: string, initialData: WorkflowSessionData) => Promise<number | null>;
   updateSession: (data: WorkflowSessionData) => Promise<boolean>;
   updateSessionWithPayment: (data: WorkflowSessionData, description: string, amountRequired: number) => Promise<boolean>;
+  
+  // Session lifecycle - Sales workflow
+  /** Create a session for Sales workflow using customer_id instead of subscription_code */
+  createSalesSession: (customerId: number, companyId: number, initialData: WorkflowSessionData) => Promise<number | null>;
+  /** Update session with products (Sales workflow Step 4 - payment step) */
+  updateSessionWithProducts: (data: WorkflowSessionData, products: SessionProductItem[]) => Promise<boolean>;
   
   // Session restoration
   restoreSession: () => Promise<WorkflowSessionData | null>;
@@ -82,6 +98,8 @@ export interface UseWorkflowSessionReturn {
   
   // Session management
   clearSession: () => void;
+  /** Set the orderId manually (for Sales workflow when resuming from localStorage) */
+  setOrderId: (orderId: number | null) => void;
   
   // Loading states
   isLoading: boolean;
@@ -113,10 +131,14 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedDataRef = useRef<string>('');
   
-  // Get auth token
+  // Get auth token based on workflow type
   const getAuthToken = useCallback((): string | undefined => {
+    // Use the appropriate token based on workflow type
+    if (workflowType === 'salesperson') {
+      return getSalesRoleToken() || undefined;
+    }
     return getEmployeeToken() || undefined;
-  }, []);
+  }, [workflowType]);
   
   // Clear auto-save timer
   const clearAutoSaveTimer = useCallback(() => {
@@ -407,6 +429,115 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     console.info('[useWorkflowSession] Session cleared');
   }, [clearAutoSaveTimer]);
   
+  /**
+   * Set orderId manually (for Sales workflow when order already exists from purchaseMultiProducts)
+   */
+  const manualSetOrderId = useCallback((newOrderId: number | null) => {
+    setOrderId(newOrderId);
+    if (newOrderId) {
+      setStatus('active');
+    }
+    console.info('[useWorkflowSession] Order ID set manually:', newOrderId);
+  }, []);
+  
+  // ============================================
+  // SALES WORKFLOW SPECIFIC FUNCTIONS
+  // ============================================
+  
+  /**
+   * Create a new session for Sales workflow
+   * Called after customer registration (Step 1)
+   * 
+   * Unlike Attendant workflow which uses subscription_code,
+   * Sales workflow uses customer_id and company_id.
+   */
+  const createSalesSession = useCallback(async (
+    customerId: number,
+    companyId: number,
+    initialData: WorkflowSessionData
+  ): Promise<number | null> => {
+    const authToken = getAuthToken();
+    
+    setStatus('creating');
+    setError(null);
+    
+    try {
+      // Ensure workflow type is set
+      const sessionPayload: WorkflowSessionData = {
+        ...initialData,
+        workflowType: 'salesperson',
+        savedAt: Date.now(),
+        version: 1,
+      };
+      
+      const response = await createSalesWorkflowSession({
+        customer_id: customerId,
+        company_id: companyId,
+        session_data: sessionPayload,
+      }, authToken);
+      
+      if (response.success && response.order_id) {
+        setOrderId(response.order_id);
+        setSessionData(sessionPayload);
+        setStatus('active');
+        lastSavedDataRef.current = JSON.stringify(sessionPayload);
+        
+        console.info('[useWorkflowSession] Sales session created with order_id:', response.order_id);
+        return response.order_id;
+      }
+      
+      throw new Error('Sales session creation failed - no order_id returned');
+    } catch (err: any) {
+      console.error('[useWorkflowSession] Error creating sales session:', err);
+      handleError(err.message || 'Failed to create sales session');
+      return null;
+    }
+  }, [getAuthToken, handleError]);
+  
+  /**
+   * Update session with products (Sales workflow Step 4 - payment step)
+   * Adds order lines for subscription plan and package components
+   */
+  const updateSessionWithProductsFunc = useCallback(async (
+    data: WorkflowSessionData,
+    products: Array<{ product_id: number; quantity: number; price_unit: number }>
+  ): Promise<boolean> => {
+    if (!orderId) {
+      console.warn('[useWorkflowSession] Cannot update session with products - no orderId');
+      return false;
+    }
+    
+    const authToken = getAuthToken();
+    
+    setStatus('updating');
+    setError(null);
+    
+    try {
+      // Ensure metadata is updated
+      const sessionPayload: WorkflowSessionData = {
+        ...data,
+        workflowType: 'salesperson',
+        savedAt: Date.now(),
+      };
+      
+      await updateWorkflowSessionWithProducts(orderId, {
+        session_data: sessionPayload,
+        products,
+      }, authToken);
+      
+      setSessionData(sessionPayload);
+      setStatus('active');
+      lastSavedDataRef.current = JSON.stringify(sessionPayload);
+      
+      console.info('[useWorkflowSession] Session updated with products for order_id:', orderId);
+      return true;
+    } catch (err: any) {
+      console.error('[useWorkflowSession] Error updating session with products:', err);
+      handleError(err.message || 'Failed to update session with products');
+      return false;
+    }
+  }, [orderId, getAuthToken, handleError]);
+  
   // Auto-save effect
   useEffect(() => {
     if (!autoSave || !orderId || !sessionData) return;
@@ -439,11 +570,15 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     pendingSession,
     error,
     
-    // Session lifecycle
+    // Session lifecycle - Attendant workflow
     checkForPendingSession,
     createSession,
     updateSession,
     updateSessionWithPayment,
+    
+    // Session lifecycle - Sales workflow
+    createSalesSession,
+    updateSessionWithProducts: updateSessionWithProductsFunc,
     
     // Session restoration
     restoreSession,
@@ -451,6 +586,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     
     // Session management
     clearSession,
+    setOrderId: manualSetOrderId,
     
     // Loading states
     isLoading: status === 'checking' || status === 'creating' || status === 'updating',
@@ -728,14 +864,22 @@ export function extractAttendantStateFromSession(sessionData: WorkflowSessionDat
     swapData: {
       oldBattery: sessionData.swapData?.oldBattery || null,
       newBattery: sessionData.swapData?.newBattery || null,
-      energyDiff: sessionData.swapData?.energyDiff || 0,
-      quotaDeduction: sessionData.swapData?.quotaDeduction || 0,
-      chargeableEnergy: sessionData.swapData?.chargeableEnergy || 0,
-      grossEnergyCost: sessionData.swapData?.grossEnergyCost || 0,
-      quotaCreditValue: sessionData.swapData?.quotaCreditValue || 0,
-      cost: sessionData.swapData?.cost || 0,
-      rate: sessionData.swapData?.rate || 120,
-      currencySymbol: sessionData.swapData?.currencySymbol || 'KES',
+      // Energy values default to 0 (not yet calculated) - these are computed from battery readings
+      energyDiff: sessionData.swapData?.energyDiff ?? 0,
+      quotaDeduction: sessionData.swapData?.quotaDeduction ?? 0,
+      chargeableEnergy: sessionData.swapData?.chargeableEnergy ?? 0,
+      // Calculated monetary values: use 0 as safe default for Math operations
+      // These are derived from rate × energy, so 0 = "not yet calculated"
+      grossEnergyCost: sessionData.swapData?.grossEnergyCost ?? 0,
+      quotaCreditValue: sessionData.swapData?.quotaCreditValue ?? 0,
+      cost: sessionData.swapData?.cost ?? 0,
+      // Rate: use 0 if not in session - this indicates "rate not loaded from backend"
+      // 0 is safe for calculations (won't crash) but clearly indicates missing data
+      // The UI should detect rate=0 and require customer re-identification
+      // IMPORTANT: Never use a hardcoded fake rate like 120 - rate MUST come from backend
+      rate: sessionData.swapData?.rate ?? 0,
+      // Currency: use PAYMENT.defaultCurrency as last-resort fallback (per project rules)
+      currencySymbol: sessionData.swapData?.currencySymbol || PAYMENT.defaultCurrency,
     },
     paymentState: {
       inputMode: sessionData.payment?.inputMode || 'scan',
@@ -750,6 +894,341 @@ export function extractAttendantStateFromSession(sessionData: WorkflowSessionDat
       skipReason: sessionData.payment?.skipReason || null,
     },
     flowError: sessionData.flowError || null,
+  };
+}
+
+// ============================================================================
+// Sales Workflow Helper Functions
+// ============================================================================
+
+/**
+ * Sales workflow state interface
+ * Used to build session data from SalesFlow component state
+ */
+export interface SalesWorkflowState {
+  currentStep: number;
+  maxStepReached: number;
+  actor?: { id: string; station: string };
+  
+  // Form data
+  formData: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    street: string;
+    city: string;
+    zip: string;
+  };
+  
+  // Package and plan selection
+  selectedPackageId: string;
+  selectedPlanId: string;
+  
+  // Customer registration results
+  createdCustomerId: number | null;
+  createdPartnerId: number | null;
+  customerSessionToken: string | null;
+  
+  // Subscription data
+  subscriptionData: {
+    id?: number;
+    subscriptionCode?: string;
+    status?: string;
+    productName?: string;
+    /** Price at signup - null indicates not loaded from backend. NEVER use hardcoded defaults. */
+    priceAtSignup?: number | null;
+    currency?: string;
+    currencySymbol?: string;
+  } | null;
+  
+  // Payment state
+  paymentState: {
+    initiated: boolean;
+    confirmed: boolean;
+    reference: string;
+    amountPaid: number;
+    amountExpected: number;
+    amountRemaining: number;
+    incomplete: boolean;
+    inputMode: 'scan' | 'manual';
+    manualPaymentId: string;
+    requestOrderId: number | null;
+  };
+  
+  // Confirmed subscription code
+  confirmedSubscriptionCode: string | null;
+  
+  // Battery data
+  scannedBatteryPending: {
+    id: string;
+    shortId?: string;
+    actualBatteryId?: string;
+    chargeLevel?: number;
+    energy?: number;
+    macAddress?: string;
+  } | null;
+  assignedBattery: {
+    id: string;
+    shortId?: string;
+    actualBatteryId?: string;
+    chargeLevel?: number;
+    energy?: number;
+    macAddress?: string;
+  } | null;
+  
+  // Customer identification (for pricing)
+  customerIdentification?: {
+    identified: boolean;
+    rate: number | null;
+    currencySymbol: string | null;
+  };
+  
+  // Vehicle scan
+  scannedVehicleId: string | null;
+  
+  // Registration ID
+  registrationId: string;
+}
+
+/**
+ * Build session data from Sales workflow state
+ * Helper function to construct WorkflowSessionData from SalesFlow component state
+ */
+export function buildSalesSessionData(state: SalesWorkflowState): WorkflowSessionData {
+  // Step 8 is the success/completion step for sales workflow
+  const isCompleted = state.currentStep >= 8;
+  
+  return {
+    status: isCompleted ? 'completed' : 'in_progress',
+    workflowType: 'salesperson',
+    currentStep: state.currentStep,
+    maxStepReached: state.maxStepReached,
+    actor: state.actor ? {
+      employeeId: parseInt(state.actor.id.replace(/\D/g, '')) || undefined,
+      station: state.actor.station,
+    } : undefined,
+    
+    // Form data
+    formData: {
+      firstName: state.formData.firstName,
+      lastName: state.formData.lastName,
+      phone: state.formData.phone,
+      email: state.formData.email,
+      street: state.formData.street,
+      city: state.formData.city,
+      zip: state.formData.zip,
+    },
+    
+    // Package and plan selection
+    selectedPackageId: state.selectedPackageId,
+    selectedPlanId: state.selectedPlanId,
+    
+    // Customer registration results
+    createdCustomerId: state.createdCustomerId,
+    createdPartnerId: state.createdPartnerId,
+    customerSessionToken: state.customerSessionToken,
+    
+    // Subscription data
+    subscriptionData: state.subscriptionData ? {
+      id: state.subscriptionData.id,
+      subscriptionCode: state.subscriptionData.subscriptionCode,
+      status: state.subscriptionData.status,
+      productName: state.subscriptionData.productName,
+      priceAtSignup: state.subscriptionData.priceAtSignup,
+      currency: state.subscriptionData.currency,
+      currencySymbol: state.subscriptionData.currencySymbol,
+    } : undefined,
+    
+    // Payment information
+    payment: {
+      requestOrderId: state.paymentState.requestOrderId,
+      requestCreated: state.paymentState.initiated,
+      expectedAmount: state.paymentState.amountExpected,
+      amountRemaining: state.paymentState.amountRemaining,
+      amountPaid: state.paymentState.amountPaid,
+      incomplete: state.paymentState.incomplete,
+      inputMode: state.paymentState.inputMode,
+      manualPaymentId: state.paymentState.manualPaymentId,
+      transactionId: state.paymentState.reference || null,
+    },
+    
+    // Confirmed subscription code
+    confirmedSubscriptionCode: state.confirmedSubscriptionCode,
+    
+    // Battery data
+    scannedBatteryPending: state.scannedBatteryPending ? {
+      id: state.scannedBatteryPending.id,
+      shortId: state.scannedBatteryPending.shortId,
+      actualBatteryId: state.scannedBatteryPending.actualBatteryId,
+      chargeLevel: state.scannedBatteryPending.chargeLevel,
+      energy: state.scannedBatteryPending.energy,
+      macAddress: state.scannedBatteryPending.macAddress,
+    } : null,
+    assignedBattery: state.assignedBattery ? {
+      id: state.assignedBattery.id,
+      shortId: state.assignedBattery.shortId,
+      actualBatteryId: state.assignedBattery.actualBatteryId,
+      chargeLevel: state.assignedBattery.chargeLevel,
+      energy: state.assignedBattery.energy,
+      macAddress: state.assignedBattery.macAddress,
+    } : null,
+    
+    // Customer identification
+    customerIdentification: state.customerIdentification ? {
+      identified: state.customerIdentification.identified,
+      rate: state.customerIdentification.rate,
+      currencySymbol: state.customerIdentification.currencySymbol,
+    } : undefined,
+    
+    // Vehicle scan
+    scannedVehicleId: state.scannedVehicleId,
+    
+    // Registration ID
+    registrationId: state.registrationId,
+    
+    // Metadata
+    savedAt: Date.now(),
+    version: 1,
+  };
+}
+
+/**
+ * Restore Sales workflow state from session data
+ * Helper function to extract SalesFlow component state from WorkflowSessionData
+ */
+// Type definitions for extracted sales state - compatible with SalesFlow component types
+export interface ExtractedSubscriptionData {
+  id: number;
+  subscriptionCode: string;
+  status: string;
+  productName: string;
+  /** Price at signup - null indicates data not yet loaded from backend. NEVER default to 0. */
+  priceAtSignup: number | null;
+  currency: string;
+  currencySymbol: string;
+}
+
+export interface ExtractedBatteryData {
+  id: string;
+  shortId: string;
+  chargeLevel: number;
+  energy: number;
+  macAddress?: string;
+  actualBatteryId?: string;
+}
+
+export interface ExtractedSalesState {
+  currentStep: number;
+  maxStepReached: number;
+  formData: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    street: string;
+    city: string;
+    zip: string;
+  };
+  selectedPackageId: string;
+  selectedPlanId: string;
+  createdCustomerId: number | null;
+  createdPartnerId: number | null;
+  customerSessionToken: string | null;
+  subscriptionData: ExtractedSubscriptionData | null;
+  paymentState: {
+    initiated: boolean;
+    confirmed: boolean;
+    reference: string;
+    amountPaid: number;
+    amountExpected: number;
+    amountRemaining: number;
+    incomplete: boolean;
+    inputMode: 'scan' | 'manual';
+    manualPaymentId: string;
+    requestOrderId: number | null;
+  };
+  confirmedSubscriptionCode: string | null;
+  scannedBatteryPending: ExtractedBatteryData | null;
+  assignedBattery: ExtractedBatteryData | null;
+  customerIdentification: {
+    identified: boolean;
+    rate: number | null;
+    currencySymbol: string | null;
+  };
+  scannedVehicleId: string | null;
+  registrationId: string;
+}
+
+export function extractSalesStateFromSession(sessionData: WorkflowSessionData): ExtractedSalesState {
+  // Helper to convert session battery data to ExtractedBatteryData with required fields
+  const toBatteryData = (battery: WorkflowSessionData['scannedBatteryPending']): ExtractedBatteryData | null => {
+    if (!battery || !battery.id) return null;
+    return {
+      id: battery.id,
+      shortId: battery.shortId || battery.id.substring(0, 8),
+      chargeLevel: battery.chargeLevel ?? 0,
+      energy: battery.energy ?? 0,
+      macAddress: battery.macAddress,
+      actualBatteryId: battery.actualBatteryId,
+    };
+  };
+
+  // Helper to convert session subscription data to ExtractedSubscriptionData with required fields
+  // Note: priceAtSignup uses ?? null because pricing MUST come from backend - never default to 0
+  const toSubscriptionData = (sub: WorkflowSessionData['subscriptionData']): ExtractedSubscriptionData | null => {
+    if (!sub || sub.id === undefined) return null;
+    return {
+      id: sub.id,
+      subscriptionCode: sub.subscriptionCode || '',
+      status: sub.status || '',
+      productName: sub.productName || '',
+      priceAtSignup: sub.priceAtSignup ?? null,
+      currency: sub.currency || '',
+      currencySymbol: sub.currencySymbol || '',
+    };
+  };
+
+  return {
+    currentStep: sessionData.currentStep || 1,
+    maxStepReached: sessionData.maxStepReached || 1,
+    formData: {
+      firstName: sessionData.formData?.firstName || '',
+      lastName: sessionData.formData?.lastName || '',
+      phone: sessionData.formData?.phone || '',
+      email: sessionData.formData?.email || '',
+      street: sessionData.formData?.street || '',
+      city: sessionData.formData?.city || '',
+      zip: sessionData.formData?.zip || '',
+    },
+    selectedPackageId: sessionData.selectedPackageId || '',
+    selectedPlanId: sessionData.selectedPlanId || '',
+    createdCustomerId: sessionData.createdCustomerId || null,
+    createdPartnerId: sessionData.createdPartnerId || null,
+    customerSessionToken: sessionData.customerSessionToken || null,
+    subscriptionData: toSubscriptionData(sessionData.subscriptionData),
+    paymentState: {
+      initiated: sessionData.payment?.requestCreated || false,
+      confirmed: !!sessionData.payment?.transactionId,
+      reference: sessionData.payment?.transactionId || '',
+      amountPaid: sessionData.payment?.amountPaid || 0,
+      amountExpected: sessionData.payment?.expectedAmount || 0,
+      amountRemaining: sessionData.payment?.amountRemaining || 0,
+      incomplete: sessionData.payment?.incomplete || false,
+      inputMode: sessionData.payment?.inputMode || 'scan',
+      manualPaymentId: sessionData.payment?.manualPaymentId || '',
+      requestOrderId: sessionData.payment?.requestOrderId || null,
+    },
+    confirmedSubscriptionCode: sessionData.confirmedSubscriptionCode || null,
+    scannedBatteryPending: toBatteryData(sessionData.scannedBatteryPending),
+    assignedBattery: toBatteryData(sessionData.assignedBattery),
+    customerIdentification: {
+      identified: sessionData.customerIdentification?.identified || false,
+      rate: sessionData.customerIdentification?.rate || null,
+      currencySymbol: sessionData.customerIdentification?.currencySymbol || null,
+    },
+    scannedVehicleId: sessionData.scannedVehicleId || null,
+    registrationId: sessionData.registrationId || '',
   };
 }
 

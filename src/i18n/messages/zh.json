@@ -1209,6 +1209,8 @@
   "rider.demoCredentials": "电话：demo | 密码：demo",
   
   "session.resumeTitle": "继续上次会话？",
+  "session.resumePreviousSession": "继续上次会话？",
+  "session.incompleteRegistration": "您有一个未完成的注册：",
   "session.resumeDescAttendant": "您有一个未完成的电池更换：",
   "session.resumeDescSales": "您有一个未完成的注册：",
   "session.swapInProgress": "更换进行中",

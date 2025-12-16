@@ -46,8 +46,6 @@ export interface UseSalesCustomerIdentificationConfig {
     id: string;
     station: string;
   };
-  /** Default rate if not provided by service */
-  defaultRate?: number;
   /** Maximum number of automatic retries (default: 3) */
   maxRetries?: number;
   /** Base delay in ms for exponential backoff (default: 2000) */
@@ -87,7 +85,6 @@ const DEFAULT_MAX_RETRY_DELAY = 15000;  // 15 seconds max
 export function useSalesCustomerIdentification(config: UseSalesCustomerIdentificationConfig) {
   const {
     attendantInfo,
-    defaultRate = 120,
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryDelay = DEFAULT_BASE_RETRY_DELAY,
     maxRetryDelay = DEFAULT_MAX_RETRY_DELAY,
@@ -206,7 +203,6 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
   // Use silent mode to suppress all toast notifications - we handle UI feedback ourselves
   const { identifyCustomer: baseIdentifyCustomer, cancelIdentification: baseCancelIdentification } = useCustomerIdentification({
     attendantInfo,
-    defaultRate,
     onSuccess: handleSuccess,
     onError: handleError,
     onComplete: handleComplete,

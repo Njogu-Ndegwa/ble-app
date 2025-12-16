@@ -27,7 +27,57 @@ Currency should flow from:
 
 Only use `PAYMENT.defaultCurrency` from `@/lib/constants` as a last-resort fallback.
 
-### 2. Internationalization - ALWAYS Add Translation Keys
+### 2. Backend Data - NEVER Provide Default Values for Business Data
+**NEVER provide hardcoded default/fallback values for data that MUST come from the backend.**
+
+This includes (but is not limited to):
+- **Rates/Unit Prices** - Energy rate, swap cost, service prices
+- **Energy Service Data** - Quota, usage, remaining balance
+- **Currency Values** - Exchange rates, amounts
+- **Customer Financial Data** - Balance, credits, payment amounts
+- **Pricing Information** - Package prices, plan costs
+
+```typescript
+// ❌ WRONG - Hardcoded default rate
+const DEFAULT_RATE = 120;
+const rate = backendRate || DEFAULT_RATE;
+
+// ❌ WRONG - Default parameter for business data
+function useCustomerIdentification({ defaultRate = 120 }) {
+  const rate = energyService?.usageUnitPrice || defaultRate;
+}
+
+// ❌ WRONG - Fallback to arbitrary value
+const energyCost = energyService?.cost || 50;
+
+// ✅ CORRECT - Use 0 or null to indicate missing data, handle in UI
+const rate = energyService?.usageUnitPrice || 0;
+if (rate === 0) {
+  // Show error or require retry - don't proceed with fake data
+  toast.error('Unable to get rate from service. Please retry.');
+}
+
+// ✅ CORRECT - Make it clear data is required
+const rate = energyService?.usageUnitPrice;
+if (!rate) {
+  throw new Error('Energy service rate is required');
+}
+```
+
+**Why this matters:**
+- Hardcoded defaults can lead to incorrect financial calculations
+- Users may be charged wrong amounts
+- Silent failures mask backend issues that should be fixed
+- Business logic depends on accurate backend data
+
+**What to do when backend data is missing:**
+1. Return `0` or `null` to indicate missing data
+2. Show appropriate error message to user
+3. Require user to retry the operation
+4. Log a warning for debugging
+5. NEVER silently substitute with a made-up value
+
+### 4. Internationalization - ALWAYS Add Translation Keys
 **When adding new user-facing text, you MUST add translation keys to ALL translation files.**
 
 Translation files are located in `/src/i18n/messages/`:
@@ -61,7 +111,7 @@ toast.error(t('attendant.connectionFailed') || 'Connection failed');
 - `ble.*` - Bluetooth-related messages
 - `auth.*` - Authentication messages
 
-### 3. Use the Design System
+### 5. Use the Design System
 All UI must use the established design system. Never create ad-hoc styles.
 
 ```typescript

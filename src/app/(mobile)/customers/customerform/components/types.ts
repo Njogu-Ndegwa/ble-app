@@ -101,7 +101,8 @@ export interface SubscriptionData {
   subscriptionCode: string;
   status: string;
   productName: string;
-  priceAtSignup: number;
+  /** Price at signup - null indicates data not yet loaded from backend. NEVER default to 0. */
+  priceAtSignup: number | null;
   currency: string;
   currencySymbol: string;
 }

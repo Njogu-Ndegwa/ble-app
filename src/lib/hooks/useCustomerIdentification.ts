@@ -97,8 +97,6 @@ export interface UseCustomerIdentificationConfig {
     id: string;
     station: string;
   };
-  /** Default rate if not provided by service */
-  defaultRate?: number;
   /** Callback on successful identification */
   onSuccess: (result: CustomerIdentificationResult) => void;
   /** Callback on identification error */
@@ -144,7 +142,6 @@ const INFINITE_QUOTA_THRESHOLD = 100000;
 export function useCustomerIdentification(config: UseCustomerIdentificationConfig) {
   const {
     attendantInfo,
-    defaultRate = 120,
     onSuccess,
     onError,
     onStart,
@@ -284,7 +281,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       currencySymbol: billingCurrency,
       isIdempotent,
     };
-  }, [defaultRate]);
+  }, []);
 
   /**
    * Identify a customer via GraphQL
