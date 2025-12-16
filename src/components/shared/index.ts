@@ -83,6 +83,16 @@ export { default as MqttReconnectBanner } from './MqttReconnectBanner';
 export type { MqttReconnectBannerProps } from './MqttReconnectBanner';
 
 // ============================================
+// NETWORK STATUS COMPONENTS
+// ============================================
+export { 
+  default as NetworkStatusBanner,
+  isNetworkError,
+  getNetworkErrorMessage,
+} from './NetworkStatusBanner';
+export type { NetworkStatusBannerProps } from './NetworkStatusBanner';
+
+// ============================================
 // SESSION MANAGEMENT COMPONENTS
 // ============================================
 export { 

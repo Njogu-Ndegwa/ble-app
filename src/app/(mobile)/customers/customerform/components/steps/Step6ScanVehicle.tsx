@@ -125,10 +125,10 @@ export default function Step6ScanVehicle({
           </div>
         </div>
 
-        {/* Proceed hint */}
+        {/* Auto-proceed hint */}
         <p className="scan-hint" style={{ marginTop: '8px', fontSize: '12px' }}>
           <InfoIcon />
-          {t('sales.vehicleScannedProceed') || 'Tap Continue below to assign battery'}
+          {t('sales.vehicleScannedAutoProceeding') || 'Proceeding to battery assignment...'}
         </p>
       </div>
     );
