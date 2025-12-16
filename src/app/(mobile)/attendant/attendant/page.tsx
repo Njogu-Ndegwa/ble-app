@@ -5,8 +5,9 @@ import { Toaster } from "react-hot-toast";
 import AttendantFlow from "./AttendantFlow";
 import Login from "./login";
 import { 
-  isEmployeeLoggedIn, 
-  getEmployeeUser, 
+  isAttendantRoleLoggedIn, 
+  getAttendantRoleUser,
+  clearAttendantRoleLogin,
   type EmployeeUser 
 } from "@/lib/attendant-auth";
 
@@ -14,12 +15,12 @@ export default function AttendantPage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
   const [customer, setCustomer] = useState<EmployeeUser | null>(null);
 
-  // Check login status on mount
+  // Check login status on mount - specifically for attendant role
   useEffect(() => {
-    const loggedIn = isEmployeeLoggedIn();
+    const loggedIn = isAttendantRoleLoggedIn();
     setIsLoggedIn(loggedIn);
     if (loggedIn) {
-      setCustomer(getEmployeeUser());
+      setCustomer(getAttendantRoleUser());
     }
   }, []);
 

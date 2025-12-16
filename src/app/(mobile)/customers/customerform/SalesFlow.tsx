@@ -56,7 +56,8 @@ import {
 } from '@/lib/odoo-api';
 
 // Import employee auth to get salesperson token and logout
-import { getEmployeeToken, clearEmployeeLogin, getEmployeeUser } from '@/lib/attendant-auth';
+// Note: Attendant and Sales are now separate roles with separate sessions
+import { getSalesRoleToken, clearSalesRoleLogin, getSalesRoleUser } from '@/lib/attendant-auth';
 
 // Import session persistence utilities
 import {
@@ -280,7 +281,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     isBridgeReady,
     isMqttConnected,
     attendantInfo: {
-      id: `salesperson-${getEmployeeUser()?.id || '001'}`,
+      id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
       station: SALESPERSON_STATION,
     },
     defaultRate: DEFAULT_RATE,
@@ -853,7 +854,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     try {
       // Get the salesperson's employee token for company association
-      const employeeToken = getEmployeeToken();
+      const employeeToken = getSalesRoleToken();
       
       if (!employeeToken) {
         console.warn('No employee token found - customer may not be associated with correct company');
@@ -946,7 +947,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
     try {
       // Get the salesperson's employee token for authorization
-      const employeeToken = getEmployeeToken();
+      const employeeToken = getSalesRoleToken();
       
       const { interval, unit } = getCycleUnitFromPeriod(currentSelectedPlan.name);
       
@@ -1059,7 +1060,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
 
     // Get the salesperson's employee token for authorization
-    const employeeToken = getEmployeeToken();
+    const employeeToken = getSalesRoleToken();
     
     // Calculate total amount: package + subscription
     const currentSelectedPackage = availablePackages.find(p => p.id === selectedPackageId);
@@ -1144,7 +1145,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       }
 
       // Get the salesperson's employee token for authorization
-      const employeeToken = getEmployeeToken();
+      const employeeToken = getSalesRoleToken();
 
       // Use Odoo manual confirmation endpoint with order_id ONLY
       console.log('Confirming payment with order_id:', {
@@ -1459,7 +1460,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       serviceId: energyService.service_id,
       actor: {
         type: 'attendant', // Backend expects 'attendant' type
-        id: `salesperson-${getEmployeeUser()?.id || '001'}`,
+        id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
         station: SALESPERSON_STATION,
       },
       // CRITICAL: For Sales flow, we MUST report the payment to BSS
@@ -1698,7 +1699,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // Clear the sales session first
     clearSalesSession();
     // Clear employee authentication
-    clearEmployeeLogin();
+    clearSalesRoleLogin();
     toast.success(t('Signed out successfully'));
     if (onLogout) {
       onLogout();
