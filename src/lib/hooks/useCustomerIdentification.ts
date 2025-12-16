@@ -395,7 +395,36 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       }
 
       console.error('GraphQL request failed:', error);
-      const errorMsg = error.message || 'Request failed. Please try again.';
+      
+      // Provide user-friendly messages for network errors
+      let errorMsg = error.message || 'Request failed. Please try again.';
+      const errorMessage = error.message || '';
+      
+      // Detect network-related errors and provide helpful messages
+      const networkErrorPatterns = [
+        /network/i,
+        /fetch/i,
+        /timeout/i,
+        /Failed to fetch/i,
+        /Load failed/i,
+        /NetworkError/i,
+        /ERR_INTERNET_DISCONNECTED/i,
+        /ERR_NETWORK_CHANGED/i,
+        /ERR_CONNECTION_TIMED_OUT/i,
+        /ERR_NAME_NOT_RESOLVED/i,
+      ];
+      
+      const isNetworkError = networkErrorPatterns.some(pattern => pattern.test(errorMessage));
+      
+      if (isNetworkError) {
+        if (/timeout/i.test(errorMessage)) {
+          errorMsg = 'Request timed out. Please check your connection and try again.';
+        } else {
+          errorMsg = 'Unable to connect. Please check your internet connection and try again.';
+        }
+        console.warn('[Customer Identification] Network error detected:', errorMessage);
+      }
+      
       if (!silent) {
         toast.error(errorMsg);
       }

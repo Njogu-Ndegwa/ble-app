@@ -89,9 +89,49 @@ const absHttpLink = createHttpLink({
   uri: absApiUrl,
 });
 
+// Error handling for ABS Apollo Client
+// Catches network errors and provides better error messages
+const absErrorLink = onError(({ graphQLErrors, networkError, operation }) => {
+  if (networkError) {
+    // Log network errors with context
+    console.error('[ABS GraphQL] Network error:', {
+      operation: operation.operationName,
+      message: networkError.message,
+      // Include additional details if available
+      ...(networkError.name && { name: networkError.name }),
+    });
+    
+    // The error will still propagate, but now it's logged with context
+    // The calling code (useCustomerIdentification, etc.) handles the actual user-facing message
+  }
+  
+  if (graphQLErrors) {
+    graphQLErrors.forEach((err) => {
+      console.error('[ABS GraphQL] GraphQL error:', {
+        operation: operation.operationName,
+        message: err.message,
+        path: err.path,
+        extensions: err.extensions,
+      });
+    });
+  }
+});
+
 export const absApolloClient = new ApolloClient({
-  link: absHttpLink,
+  link: ApolloLink.from([absErrorLink, absHttpLink]),
   cache: new InMemoryCache(),
+  defaultOptions: {
+    mutate: {
+      // Don't throw on errors - let the caller handle them gracefully
+      errorPolicy: 'all',
+    },
+    query: {
+      // Don't throw on errors - let the caller handle them gracefully  
+      errorPolicy: 'all',
+      // Fetch from network, don't use cache for stale data
+      fetchPolicy: 'network-only',
+    },
+  },
 });
 
 export default apolloClient;
