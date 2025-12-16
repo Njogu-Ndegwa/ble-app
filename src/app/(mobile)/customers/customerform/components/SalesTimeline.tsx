@@ -17,6 +17,7 @@ const STEP_LABEL_KEYS: Record<string, string> = {
   plan: 'sales.step.subscription',
   preview: 'sales.step.preview',
   payment: 'sales.step.payment',
+  vehicle: 'sales.step.vehicle',
   battery: 'sales.step.battery',
   done: 'sales.step.done',
 };
@@ -56,6 +57,14 @@ const StepIcons: Record<string, React.ReactNode> = {
       <line x1="1" y1="10" x2="23" y2="10"/>
     </svg>
   ),
+  vehicle: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 17h4V5H2v12h3"/>
+      <path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/>
+      <circle cx="7.5" cy="17.5" r="2.5"/>
+      <circle cx="17.5" cy="17.5" r="2.5"/>
+    </svg>
+  ),
   battery: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="7" width="16" height="10" rx="2"/>
@@ -75,7 +84,7 @@ export default function SalesTimeline({ currentStep, maxStepReached = currentSte
   
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
-      return step === 7 ? 'success' : 'active';
+      return step === 8 ? 'success' : 'active';
     }
     if (step < currentStep) return 'completed';
     if (step <= maxStepReached) return 'reachable';
