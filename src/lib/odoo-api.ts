@@ -1099,7 +1099,8 @@ export interface WorkflowSessionData {
     subscriptionCode?: string;
     status?: string;
     productName?: string;
-    priceAtSignup?: number;
+    /** Price at signup - null indicates not loaded from backend. NEVER use hardcoded defaults. */
+    priceAtSignup?: number | null;
     currency?: string;
     currencySymbol?: string;
   };

@@ -863,14 +863,17 @@ export function extractAttendantStateFromSession(sessionData: WorkflowSessionDat
     swapData: {
       oldBattery: sessionData.swapData?.oldBattery || null,
       newBattery: sessionData.swapData?.newBattery || null,
-      energyDiff: sessionData.swapData?.energyDiff || 0,
-      quotaDeduction: sessionData.swapData?.quotaDeduction || 0,
-      chargeableEnergy: sessionData.swapData?.chargeableEnergy || 0,
-      grossEnergyCost: sessionData.swapData?.grossEnergyCost || 0,
-      quotaCreditValue: sessionData.swapData?.quotaCreditValue || 0,
-      cost: sessionData.swapData?.cost || 0,
-      rate: sessionData.swapData?.rate || 120,
-      currencySymbol: sessionData.swapData?.currencySymbol || 'KES',
+      // Energy values default to 0 (not yet calculated) - these are computed from battery readings
+      energyDiff: sessionData.swapData?.energyDiff ?? 0,
+      quotaDeduction: sessionData.swapData?.quotaDeduction ?? 0,
+      chargeableEnergy: sessionData.swapData?.chargeableEnergy ?? 0,
+      // Financial values: use null to indicate "not yet determined from backend"
+      // NEVER use hardcoded defaults for pricing/financial data
+      grossEnergyCost: sessionData.swapData?.grossEnergyCost ?? null,
+      quotaCreditValue: sessionData.swapData?.quotaCreditValue ?? null,
+      cost: sessionData.swapData?.cost ?? null,
+      rate: sessionData.swapData?.rate ?? null,
+      currencySymbol: sessionData.swapData?.currencySymbol ?? null,
     },
     paymentState: {
       inputMode: sessionData.payment?.inputMode || 'scan',
@@ -927,7 +930,8 @@ export interface SalesWorkflowState {
     subscriptionCode?: string;
     status?: string;
     productName?: string;
-    priceAtSignup?: number;
+    /** Price at signup - null indicates not loaded from backend. NEVER use hardcoded defaults. */
+    priceAtSignup?: number | null;
     currency?: string;
     currencySymbol?: string;
   } | null;
@@ -1093,7 +1097,8 @@ export interface ExtractedSubscriptionData {
   subscriptionCode: string;
   status: string;
   productName: string;
-  priceAtSignup: number;
+  /** Price at signup - null indicates data not yet loaded from backend. NEVER default to 0. */
+  priceAtSignup: number | null;
   currency: string;
   currencySymbol: string;
 }
@@ -1164,6 +1169,7 @@ export function extractSalesStateFromSession(sessionData: WorkflowSessionData): 
   };
 
   // Helper to convert session subscription data to ExtractedSubscriptionData with required fields
+  // Note: priceAtSignup uses ?? null because pricing MUST come from backend - never default to 0
   const toSubscriptionData = (sub: WorkflowSessionData['subscriptionData']): ExtractedSubscriptionData | null => {
     if (!sub || sub.id === undefined) return null;
     return {
@@ -1171,7 +1177,7 @@ export function extractSalesStateFromSession(sessionData: WorkflowSessionData): 
       subscriptionCode: sub.subscriptionCode || '',
       status: sub.status || '',
       productName: sub.productName || '',
-      priceAtSignup: sub.priceAtSignup ?? 0,
+      priceAtSignup: sub.priceAtSignup ?? null,
       currency: sub.currency || '',
       currencySymbol: sub.currencySymbol || '',
     };
