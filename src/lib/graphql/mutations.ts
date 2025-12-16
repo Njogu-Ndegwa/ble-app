@@ -313,3 +313,87 @@ export const ERROR_SIGNALS = [
 export function hasErrorSignals(signals: string[]): boolean {
   return signals.some(signal => ERROR_SIGNALS.includes(signal as (typeof ERROR_SIGNALS)[number]));
 }
+
+// ============================================================================
+// Vehicle Assignment Mutation (Update Asset Assignment Current Asset)
+// ============================================================================
+
+/**
+ * Input type for updating asset assignment (vehicle assignment)
+ */
+export interface UpdateAssetAssignmentInput {
+  /** The subscription/plan ID */
+  plan_id: string;
+  /** The asset ID (vehicle ID) to assign */
+  current_asset: string;
+  /** Unique correlation ID for tracking the request */
+  correlation_id: string;
+}
+
+/**
+ * Response from updateAssetAssignmentCurrentAsset mutation
+ */
+export interface UpdateAssetAssignmentResponse {
+  /** Service IDs that were updated */
+  service_ids: string[];
+  /** Number of records updated */
+  updated_count: number;
+  /** Signals from the operation */
+  signals: string[];
+  /** Additional metadata (JSON string) */
+  metadata: string;
+}
+
+/**
+ * GraphQL mutation for updating asset assignment (assigning vehicle to customer)
+ * 
+ * This is used in the Sales workflow after scanning a vehicle QR code
+ * to assign the vehicle to the customer's subscription.
+ */
+export const UPDATE_ASSET_ASSIGNMENT_CURRENT_ASSET = gql`
+  mutation UpdateAssetAssignmentCurrentAsset(
+    $planId: String!
+    $currentAsset: String!
+    $correlationId: String!
+  ) {
+    updateAssetAssignmentCurrentAsset(
+      input: {
+        plan_id: $planId
+        current_asset: $currentAsset
+        correlation_id: $correlationId
+      }
+    ) {
+      service_ids
+      updated_count
+      signals
+      metadata
+    }
+  }
+`;
+
+/**
+ * Parse the metadata JSON string from vehicle assignment response
+ */
+export function parseVehicleAssignmentMetadata(metadataString: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(metadataString) as Record<string, unknown>;
+  } catch (error) {
+    console.error('Failed to parse vehicle assignment metadata:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if vehicle assignment was successful based on response
+ */
+export function isVehicleAssignmentSuccessful(response: UpdateAssetAssignmentResponse): boolean {
+  // Success if we have updated_count > 0 or specific success signals
+  const hasUpdates = response.updated_count > 0;
+  const hasSuccessSignal = Array.isArray(response.signals) && 
+    (response.signals.includes('ASSET_ASSIGNED') || 
+     response.signals.includes('ASSET_UPDATED') ||
+     response.signals.includes('SUCCESS') ||
+     response.signals.includes('IDEMPOTENT_OPERATION_DETECTED'));
+  
+  return hasUpdates || hasSuccessSignal;
+}

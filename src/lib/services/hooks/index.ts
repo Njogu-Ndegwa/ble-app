@@ -19,3 +19,13 @@ export type {
   ServiceSwapData,
   ServiceActor,
 } from './usePaymentAndService';
+
+// Vehicle Assignment
+export { useVehicleAssignment } from './useVehicleAssignment';
+export type {
+  UseVehicleAssignmentOptions,
+  UseVehicleAssignmentReturn,
+  AssignVehicleParams,
+  VehicleAssignmentStatus,
+  VehicleAssignmentResponse,
+} from './useVehicleAssignment';

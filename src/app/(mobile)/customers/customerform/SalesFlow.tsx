@@ -38,7 +38,7 @@ import { useFlowBatteryScan } from '@/lib/hooks/ble';
 import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
-import { usePaymentAndService, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
+import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, MqttReconnectBanner } from '@/components/shared';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -315,6 +315,27 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   
   // Track if service completion is in progress
   const isCompletingService = paymentAndServiceStatus === 'pending';
+  
+  // Vehicle assignment hook - assigns scanned vehicle to customer subscription
+  const {
+    assignVehicle,
+    status: vehicleAssignmentStatus,
+    reset: resetVehicleAssignment,
+    isLoading: isAssigningVehicle,
+  } = useVehicleAssignment({
+    onSuccess: (isIdempotent) => {
+      console.info('[SALES] Vehicle assigned successfully!', isIdempotent ? '(idempotent)' : '');
+      toast.success(isIdempotent 
+        ? (t('sales.vehicleAlreadyAssigned') || 'Vehicle already assigned!') 
+        : (t('sales.vehicleAssigned') || 'Vehicle assigned successfully!'));
+    },
+    onError: (errorMsg) => {
+      console.error('[SALES] Vehicle assignment failed:', errorMsg);
+      toast.error(errorMsg || t('sales.vehicleAssignFailed') || 'Failed to assign vehicle. Please try again.');
+      // Clear the scanned vehicle ID so user can try again
+      setScannedVehicleId(null);
+    },
+  });
 
   // Scan type tracking (payment and vehicle still need manual tracking)
   const scanTypeRef = useRef<'battery' | 'payment' | 'vehicle' | null>(null);
@@ -334,6 +355,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   
   // Process payment QR data ref
   const processPaymentQRDataRef = useRef<(paymentId: string) => void>(() => {});
+  
+  // Refs for vehicle assignment (to avoid stale closures in QR callback)
+  const assignVehicleRef = useRef<typeof assignVehicle | null>(null);
+  const confirmedSubscriptionCodeRef = useRef<string | null>(null);
+  const subscriptionDataRef = useRef<typeof subscriptionData>(null);
 
   // Advance to a new step
   const advanceToStep = useCallback((step: SalesStep) => {
@@ -657,11 +683,24 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                 // If not JSON, treat the entire string as vehicle ID
                 console.info('[SALES QR] Step 2a: Vehicle QR is plain text:', vehicleId);
               }
-              // Store the vehicle ID
+              // Store the vehicle ID and call backend to assign
               if (vehicleId) {
                 console.info('[SALES QR] Step 2b: Setting scanned vehicle ID:', vehicleId);
                 setScannedVehicleId(vehicleId);
                 toast.success(`Vehicle ${vehicleId} scanned!`);
+                
+                // Get the subscription code for vehicle assignment
+                const subCode = confirmedSubscriptionCodeRef.current || subscriptionDataRef.current?.subscriptionCode;
+                if (subCode) {
+                  console.info('[SALES QR] Step 2c: Assigning vehicle to subscription:', subCode);
+                  // Call the backend to assign vehicle - uses ref to avoid stale closure
+                  assignVehicleRef.current?.({
+                    planId: subCode,
+                    vehicleId,
+                  });
+                } else {
+                  console.warn('[SALES QR] Step 2c: No subscription code available for vehicle assignment');
+                }
               }
               scanTypeRef.current = null;
             } else {
@@ -1188,6 +1227,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   useEffect(() => {
     processPaymentQRDataRef.current = handleManualPayment;
   }, [handleManualPayment]);
+  
+  // Keep vehicle assignment refs in sync
+  useEffect(() => {
+    assignVehicleRef.current = assignVehicle;
+  }, [assignVehicle]);
+  
+  useEffect(() => {
+    confirmedSubscriptionCodeRef.current = confirmedSubscriptionCode;
+  }, [confirmedSubscriptionCode]);
+  
+  useEffect(() => {
+    subscriptionDataRef.current = subscriptionData;
+  }, [subscriptionData]);
 
   // Handle form field change
   const handleFormChange = useCallback((field: keyof CustomerFormData, value: string) => {
@@ -1560,6 +1612,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setComputedEnergyCost(0);
         // Reset payment and service hook
         resetPaymentAndService();
+        // Reset vehicle assignment hook
+        resetVehicleAssignment();
         setRegistrationId('');
         // Reset session restored flag to allow new session tracking
         setSessionRestored(true);
@@ -1588,6 +1642,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     selectedPlanId,
     resetCustomerIdentification,
     resetPaymentAndService,
+    resetVehicleAssignment,
   ]);
 
   // Handle step click in timeline
@@ -1820,7 +1875,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currentStep={currentStep}
         onBack={handleBack}
         onMainAction={handleMainAction}
-        isLoading={isProcessing || isCreatingCustomer || isCompletingService}
+        isLoading={isProcessing || isCreatingCustomer || isCompletingService || isAssigningVehicle}
         paymentInputMode={paymentInputMode}
         isDisabled={false}
         hasVehicleScanned={!!scannedVehicleId}
@@ -1829,16 +1884,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         isIdentifying={isIdentifying}
       />
 
-      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing) */}
-      {(isCreatingCustomer || isProcessing) && 
+      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment) */}
+      {(isCreatingCustomer || isProcessing || isAssigningVehicle) && 
        !bleScanState.isConnecting && 
        !bleScanState.isReadingEnergy && (
         <div className="loading-overlay active">
           <div className="loading-spinner"></div>
           <div className="loading-text">
             {isCreatingCustomer 
-              ? 'Registering customer...' 
-              : 'Processing...'}
+              ? t('sales.registeringCustomer') || 'Registering customer...'
+              : isAssigningVehicle
+              ? t('sales.assigningVehicle') || 'Assigning vehicle...'
+              : t('common.processing') || 'Processing...'}
           </div>
         </div>
       )}
