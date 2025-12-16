@@ -345,9 +345,12 @@ export function useProductCatalog(
       });
 
       if (response.success && response.data) {
+        // Extract data to avoid TypeScript narrowing issues in callbacks
+        const data = response.data;
+        
         // Process products
-        if (response.data.mainServiceProducts?.length > 0) {
-          const transformedProducts = response.data.mainServiceProducts.map(transformProduct);
+        if (data.mainServiceProducts?.length > 0) {
+          const transformedProducts = data.mainServiceProducts.map(transformProduct);
           setProducts(transformedProducts);
           setErrors(prev => ({ ...prev, products: null }));
           
@@ -361,11 +364,12 @@ export function useProductCatalog(
         }
 
         // Process packages - with detailed logging for debugging
-        if (response.data.packageProducts?.length > 0) {
-          console.log('[PRODUCT CATALOG] Raw packages from API:', response.data.packageProducts.length);
+        const rawPackages = data.packageProducts || [];
+        if (rawPackages.length > 0) {
+          console.log('[PRODUCT CATALOG] Raw packages from API:', rawPackages.length);
           
           // Log each package's eligibility for debugging
-          const packageDebug = response.data.packageProducts.map((pkg: any) => ({
+          const packageDebug = rawPackages.map((pkg: any) => ({
             id: pkg.id,
             name: pkg.name,
             is_package: pkg.is_package,
@@ -374,7 +378,7 @@ export function useProductCatalog(
           }));
           console.log('[PRODUCT CATALOG] Package eligibility check:', packageDebug);
           
-          const validPackages = response.data.packageProducts
+          const validPackages = rawPackages
             .filter((pkg: any) => pkg.is_package && pkg.components?.length > 0);
           
           console.log('[PRODUCT CATALOG] Valid packages after filtering:', validPackages.length);
@@ -391,12 +395,12 @@ export function useProductCatalog(
           } else {
             // Packages exist but none are valid - this is a data issue
             console.warn('[PRODUCT CATALOG] No valid packages found after filtering. Raw packages:', 
-              response.data.packageProducts.map((p: any) => ({ id: p.id, name: p.name, is_package: p.is_package, components: p.components?.length || 0 }))
+              rawPackages.map((p: any) => ({ id: p.id, name: p.name, is_package: p.is_package, components: p.components?.length || 0 }))
             );
             setPackages([]);
             setErrors(prev => ({ 
               ...prev, 
-              packages: `${response.data.packageProducts?.length || 0} packages found but none are configured correctly (missing components). Please contact support.` 
+              packages: `${rawPackages.length} packages found but none are configured correctly (missing components). Please contact support.` 
             }));
           }
         } else {
@@ -406,8 +410,8 @@ export function useProductCatalog(
         }
 
         // Process plans
-        if (response.data.products?.length > 0) {
-          const transformedPlans = response.data.products.map(transformPlan);
+        if (data.products?.length > 0) {
+          const transformedPlans = data.products.map(transformPlan);
           setPlans(transformedPlans);
           setErrors(prev => ({ ...prev, plans: null }));
           
