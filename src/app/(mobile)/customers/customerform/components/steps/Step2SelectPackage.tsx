@@ -34,6 +34,15 @@ export default function Step2SelectPackage({
 }: Step2Props) {
   const { t } = useI18n();
   
+  // DEBUG: Log what we received
+  console.log('[STEP 2] Rendering with:', {
+    packagesCount: packages.length,
+    isLoadingPackages,
+    loadError,
+    selectedPackage,
+    hasRetryCallback: !!onRetryLoad,
+  });
+  
   return (
     <Screen>
       <PageHeader 

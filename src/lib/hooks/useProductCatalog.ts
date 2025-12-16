@@ -11,7 +11,7 @@
  * Used by the Sales workflow for customer registration.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   getSubscriptionProducts,
@@ -263,6 +263,9 @@ export function useProductCatalog(
     workflowType,
   } = config;
 
+  // Log hook initialization
+  console.log('[PRODUCT CATALOG] Hook initialized with config:', { autoFetch, workflowType, initialPackageId, initialPlanId });
+
   // Data state
   const [products, setProducts] = useState<ProductData[]>([]);
   const [packages, setPackages] = useState<PackageData[]>([]);
@@ -297,6 +300,8 @@ export function useProductCatalog(
 
   // Fetch all catalog data
   const refetch = useCallback(async () => {
+    console.log('[PRODUCT CATALOG] ====== REFETCH STARTED ======');
+    console.log('[PRODUCT CATALOG] workflowType:', workflowType);
     setIsLoading({ products: true, packages: true, plans: true });
     setErrors({ products: null, packages: null, plans: null });
 
@@ -309,7 +314,10 @@ export function useProductCatalog(
         // Sales workflow: use sales role token directly
         authToken = getSalesRoleToken();
         if (!authToken) {
-          console.warn('[PRODUCT CATALOG] No sales role token - products may not be filtered by company');
+          console.log('[PRODUCT CATALOG] WARNING: No sales role token - this may cause empty package list');
+          // Set a warning error but continue - backend might still return some products
+        } else {
+          console.log('[PRODUCT CATALOG] Using sales role token for fetch');
         }
       } else if (workflowType === 'attendant') {
         // Attendant workflow: use attendant role token directly
@@ -325,12 +333,24 @@ export function useProductCatalog(
         }
       }
 
+      console.log('[PRODUCT CATALOG] Calling getSubscriptionProducts API...');
       const response = await getSubscriptionProducts(1, 50, authToken || undefined);
+      console.log('[PRODUCT CATALOG] API Response:', {
+        success: response.success,
+        hasData: !!response.data,
+        productCount: response.data?.products?.length ?? 0,
+        mainServiceCount: response.data?.mainServiceProducts?.length ?? 0,
+        batterySwapCount: response.data?.batterySwapProducts?.length ?? 0,
+        packageCount: response.data?.packageProducts?.length ?? 0,
+      });
 
       if (response.success && response.data) {
+        // Extract data to avoid TypeScript narrowing issues in callbacks
+        const data = response.data;
+        
         // Process products
-        if (response.data.mainServiceProducts?.length > 0) {
-          const transformedProducts = response.data.mainServiceProducts.map(transformProduct);
+        if (data.mainServiceProducts?.length > 0) {
+          const transformedProducts = data.mainServiceProducts.map(transformProduct);
           setProducts(transformedProducts);
           setErrors(prev => ({ ...prev, products: null }));
           
@@ -343,26 +363,55 @@ export function useProductCatalog(
           setErrors(prev => ({ ...prev, products: 'No physical products available' }));
         }
 
-        // Process packages
-        if (response.data.packageProducts?.length > 0) {
-          const validPackages = response.data.packageProducts
-            .filter((pkg: any) => pkg.is_package && pkg.components?.length > 0);
-          const transformedPackages = validPackages.map(transformPackage);
-          setPackages(transformedPackages);
-          setErrors(prev => ({ ...prev, packages: null }));
+        // Process packages - with detailed logging for debugging
+        const rawPackages = data.packageProducts || [];
+        if (rawPackages.length > 0) {
+          console.log('[PRODUCT CATALOG] Raw packages from API:', rawPackages.length);
           
-          // Set default selection if not already set
-          if (transformedPackages.length > 0) {
-            setSelectedPackageId(prev => prev || transformedPackages[0].id);
+          // Log each package's eligibility for debugging
+          const packageDebug = rawPackages.map((pkg: any) => ({
+            id: pkg.id,
+            name: pkg.name,
+            is_package: pkg.is_package,
+            has_components: !!pkg.components?.length,
+            component_count: pkg.components?.length || 0,
+          }));
+          console.log('[PRODUCT CATALOG] Package eligibility check:', packageDebug);
+          
+          const validPackages = rawPackages
+            .filter((pkg: any) => pkg.is_package && pkg.components?.length > 0);
+          
+          console.log('[PRODUCT CATALOG] Valid packages after filtering:', validPackages.length);
+          
+          if (validPackages.length > 0) {
+            const transformedPackages = validPackages.map(transformPackage);
+            setPackages(transformedPackages);
+            setErrors(prev => ({ ...prev, packages: null }));
+            
+            // Set default selection if not already set
+            if (transformedPackages.length > 0) {
+              setSelectedPackageId(prev => prev || transformedPackages[0].id);
+            }
+          } else {
+            // Packages exist but none are valid - this is a data issue
+            console.warn('[PRODUCT CATALOG] No valid packages found after filtering. Raw packages:', 
+              rawPackages.map((p: any) => ({ id: p.id, name: p.name, is_package: p.is_package, components: p.components?.length || 0 }))
+            );
+            setPackages([]);
+            setErrors(prev => ({ 
+              ...prev, 
+              packages: `${rawPackages.length} packages found but none are configured correctly (missing components). Please contact support.` 
+            }));
           }
         } else {
+          console.warn('[PRODUCT CATALOG] No packages returned from API');
           setPackages([]);
-          setErrors(prev => ({ ...prev, packages: 'No packages available' }));
+          setErrors(prev => ({ ...prev, packages: 'No packages available from server. Please try again or contact support.' }));
         }
 
         // Process plans
-        if (response.data.products?.length > 0) {
-          const transformedPlans = response.data.products.map(transformPlan);
+        if (data.products?.length > 0) {
+          const transformedPlans = data.products.map(transformPlan);
           setPlans(transformedPlans);
           setErrors(prev => ({ ...prev, plans: null }));
           
@@ -376,7 +425,8 @@ export function useProductCatalog(
         }
       } else {
         // API returned failure
-        const errorMsg = 'Failed to load data from server';
+        console.error('[PRODUCT CATALOG] API returned failure:', response);
+        const errorMsg = 'Failed to load data from server. Please check your connection and try again.';
         setProducts([]);
         setPackages([]);
         setPlans([]);
@@ -385,9 +435,15 @@ export function useProductCatalog(
           packages: errorMsg,
           plans: errorMsg,
         });
+        toast.error('Could not load products from server');
       }
     } catch (error: any) {
       console.error('[PRODUCT CATALOG] Fetch failed:', error);
+      console.error('[PRODUCT CATALOG] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
       const errorMsg = error.message || 'Failed to load data from server';
       setProducts([]);
       setPackages([]);
@@ -397,8 +453,9 @@ export function useProductCatalog(
         packages: errorMsg,
         plans: errorMsg,
       });
-      toast.error('Could not load products from server');
+      toast.error(`Could not load products: ${error.message || 'Network error'}`);
     } finally {
+      console.log('[PRODUCT CATALOG] ====== REFETCH COMPLETE ======');
       setIsLoading({ products: false, packages: false, plans: false });
     }
   }, [workflowType]);
@@ -416,10 +473,41 @@ export function useProductCatalog(
 
   // Auto-fetch on mount
   useEffect(() => {
-    if (autoFetch) {
-      refetch();
+    try {
+      console.log('[PRODUCT CATALOG] useEffect triggered - autoFetch:', autoFetch, 'workflowType:', workflowType);
+      if (autoFetch) {
+        console.log('[PRODUCT CATALOG] Calling refetch() from useEffect...');
+        refetch().catch((err) => {
+          console.error('[PRODUCT CATALOG] refetch() promise rejected:', err);
+        });
+      } else {
+        console.log('[PRODUCT CATALOG] autoFetch is false, skipping fetch');
+      }
+    } catch (err) {
+      console.error('[PRODUCT CATALOG] useEffect error:', err);
     }
-  }, [autoFetch, refetch]);
+  }, [autoFetch, refetch, workflowType]);
+
+  // DEBUG: Track loading state changes to show toast when fetch completes
+  const prevLoadingRef = useRef(isLoading.packages);
+  useEffect(() => {
+    const wasLoading = prevLoadingRef.current;
+    const isNowLoading = isLoading.packages;
+    
+    // Detect transition from loading -> not loading
+    if (wasLoading && !isNowLoading) {
+      console.log('[PRODUCT CATALOG] FETCH COMPLETED. Packages:', packages.length, 'Error:', errors.packages);
+      if (packages.length > 0) {
+        toast.success(`Loaded ${packages.length} packages`, { duration: 2000 });
+      } else if (errors.packages) {
+        toast.error(`Package load failed: ${errors.packages}`, { duration: 5000 });
+      } else {
+        toast(`No packages available`, { duration: 3000 });
+      }
+    }
+    
+    prevLoadingRef.current = isNowLoading;
+  }, [isLoading.packages, packages.length, errors.packages]);
 
   return {
     // Data

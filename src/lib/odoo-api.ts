@@ -457,6 +457,86 @@ async function fetchWithRetry(
   }
 }
 
+/**
+ * Parse and validate an Odoo API response
+ * Handles:
+ * - Non-OK HTTP status codes (4xx, 5xx)
+ * - Non-JSON responses (HTML error pages)
+ * - JSON parse errors
+ * - API-level errors (success: false)
+ * 
+ * @throws Error with user-friendly message on any failure
+ */
+async function parseOdooResponse<T>(response: Response, endpoint: string): Promise<T> {
+  // Check HTTP status first
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    let errorMessage = `Server error (HTTP ${response.status})`;
+    
+    if (contentType.includes('application/json')) {
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData?.data?.error || errorData?.error || errorData?.message || errorMessage;
+      } catch {
+        // JSON parsing failed, use default message
+      }
+    } else {
+      // Response is not JSON (likely HTML error page)
+      const textPreview = await response.text().catch(() => '');
+      console.error(`[Odoo API] ${endpoint} - Non-JSON error response:`, textPreview.substring(0, 200));
+      
+      // Provide specific messages for common HTTP errors
+      if (response.status === 500) {
+        errorMessage = 'Server error (500). Service temporarily unavailable. Please try again later.';
+      } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+        errorMessage = `Server unavailable (${response.status}). Please try again later.`;
+      } else if (response.status === 401) {
+        errorMessage = 'Session expired. Please log out and log back in.';
+      } else if (response.status === 403) {
+        errorMessage = 'Access denied. You may not have permission for this action.';
+      } else if (response.status === 404) {
+        errorMessage = 'Resource not found. Please contact support.';
+      } else if (response.status === 400) {
+        errorMessage = 'Invalid request. Please check your input and try again.';
+      }
+    }
+    
+    console.error(`[Odoo API] ${endpoint} - Error:`, { status: response.status, message: errorMessage });
+    throw new Error(errorMessage);
+  }
+  
+  // Check content-type before parsing JSON
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const textPreview = await response.text().catch(() => '');
+    console.error(`[Odoo API] ${endpoint} - Unexpected content-type:`, contentType, 'Body:', textPreview.substring(0, 200));
+    throw new Error('Server returned an unexpected response format. Please try again.');
+  }
+  
+  // Parse JSON
+  let data: T;
+  try {
+    data = await response.json();
+  } catch (parseError) {
+    console.error(`[Odoo API] ${endpoint} - JSON parse error:`, parseError);
+    throw new Error('Failed to parse server response. Please try again.');
+  }
+  
+  // Check for API-level errors (success: false)
+  const apiResponse = data as any;
+  if (apiResponse.success === false) {
+    const errorMessage = apiResponse.error || apiResponse.message || apiResponse.data?.error || 'Request failed';
+    console.error(`[Odoo API] ${endpoint} - API error:`, errorMessage);
+    throw new Error(errorMessage);
+  }
+  
+  return data;
+}
+
+/**
+ * Generic Odoo API request helper
+ * Uses parseOdooResponse for consistent error handling
+ */
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -475,16 +555,9 @@ async function apiRequest<T>(
       headers,
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Odoo API Error:', data);
-      throw new Error(data?.data?.error || data?.error || `HTTP ${response.status}`);
-    }
-
-    return data as OdooApiResponse<T>;
+    return await parseOdooResponse<OdooApiResponse<T>>(response, endpoint);
   } catch (error: unknown) {
-    console.error('Odoo API Request Failed:', error);
+    console.error(`[Odoo API] ${endpoint} - Request failed:`, error);
     throw error;
   }
 }
@@ -548,7 +621,12 @@ export async function getSubscriptionProducts(
   limit: number = 20,
   authToken?: string
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
-  const url = `${ODOO_BASE_URL}/api/products/subscription?page=${page}&limit=${limit}`;
+  const endpoint = `/api/products/subscription?page=${page}&limit=${limit}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+  
+  console.log('[ODOO API] getSubscriptionProducts called');
+  console.log('[ODOO API] URL:', url);
+  console.log('[ODOO API] Has auth token:', !!authToken);
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -561,13 +639,12 @@ export async function getSubscriptionProducts(
   }
 
   try {
+    console.log('[ODOO API] Making fetch request...');
     const response = await fetchWithRetry(url, { method: 'GET', headers });
-    const rawData: SubscriptionProductsRawResponse = await response.json();
-
-    if (!response.ok) {
-      console.error('Odoo API Error:', rawData);
-      throw new Error((rawData as any)?.error || `HTTP ${response.status}`);
-    }
+    console.log('[ODOO API] Fetch completed, status:', response.status);
+    
+    // Use shared response parser for consistent error handling
+    const rawData = await parseOdooResponse<SubscriptionProductsRawResponse>(response, endpoint);
 
     // Handle both old format (products array) and new format (categories object)
     let subscriptionProducts: SubscriptionProduct[] = [];
