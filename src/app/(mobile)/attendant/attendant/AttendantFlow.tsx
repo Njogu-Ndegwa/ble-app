@@ -539,9 +539,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     hookRetryConnection();
   }, [hookRetryConnection]);
 
-  // Get electricity service from service states
+  // Get energy service from service states
+  // Check for both "service-energy" and "service-electricity" patterns for compatibility
   const electricityService = serviceStates.find(
-    (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
+    (service) => typeof service?.service_id === 'string' && 
+      (service.service_id.includes('service-energy') || service.service_id.includes('service-electricity'))
   );
   
   // Keep electricityServiceRef in sync for use in BLE hook callbacks
