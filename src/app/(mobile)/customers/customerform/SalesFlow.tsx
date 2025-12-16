@@ -1358,7 +1358,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
 
     // CRITICAL: Pricing info MUST be fetched before completing service
-    // We need the accurate rate from the backend - can't use default for Sales workflow
+    // We need the accurate rate from the backend - NEVER use default for Sales workflow
+    // Using incorrect pricing leads to wrong billing and customer disputes
     if (!customerIdentified) {
       // Check if identification is in progress
       if (isIdentifying) {
@@ -1368,7 +1369,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       
       // If identification failed, prompt for manual retry
       if (identificationFailed) {
-        toast.error(t('sales.pricingRequired') || 'Pricing info required. Please retry.');
+        toast.error(t('sales.pricingRequired') || 'Pricing info required. Tap "Fetch Pricing" to retry.');
         return;
       }
       
@@ -1382,9 +1383,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
+    // CRITICAL: Validate that we have a valid rate from the backend
+    // We NEVER use default values for pricing in Sales workflow
+    if (!customerRate || customerRate <= 0) {
+      console.error('[SALES SERVICE] Invalid rate from customer identification:', customerRate);
+      toast.error(t('sales.invalidPricing') || 'Invalid pricing data. Please tap "Fetch Pricing" to retry.');
+      return;
+    }
+
     // Calculate cost using centralized calculateSwapPayment function
     // This ensures consistent rounding behavior with the Attendant flow
-    const rate = customerRate || DEFAULT_RATE;
+    // Note: We use customerRate directly - NO fallback to DEFAULT_RATE
+    const rate = customerRate;
     const paymentCalc = calculateSwapPayment({
       newBatteryEnergyWh: scannedBatteryPending.energy,
       oldBatteryEnergyWh: 0, // First-time customer - no old battery
@@ -1896,6 +1906,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         hasBatteryScanned={!!scannedBatteryPending}
         customerIdentified={customerIdentified}
         isIdentifying={isIdentifying}
+        identificationFailed={identificationFailed}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment) */}

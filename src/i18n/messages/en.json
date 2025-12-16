@@ -1253,6 +1253,8 @@
   "sales.pricingUnavailableHint": "Could not fetch energy rate. Tap to retry.",
   "sales.fetchPricing": "Fetch Pricing",
   "sales.fetchingPricing": "Fetching pricing...",
+  "sales.invalidPricing": "Invalid pricing data. Please tap \"Fetch Pricing\" to retry.",
+  "sales.pricingRequiredToComplete": "Pricing info required before completing service.",
   
   "battery.scanQr": "Scan QR",
   "battery.selectManually": "Select Manually",

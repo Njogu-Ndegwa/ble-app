@@ -1244,6 +1244,8 @@
   "sales.pricingUnavailableHint": "Impossible de récupérer le tarif. Appuyez pour réessayer.",
   "sales.fetchPricing": "Récupérer les tarifs",
   "sales.fetchingPricing": "Récupération des tarifs...",
+  "sales.invalidPricing": "Données de tarification invalides. Appuyez sur \"Récupérer les tarifs\" pour réessayer.",
+  "sales.pricingRequiredToComplete": "Tarification requise avant de finaliser le service.",
   
   "battery.scanQr": "Scanner QR",
   "battery.selectManually": "Sélection manuelle",
