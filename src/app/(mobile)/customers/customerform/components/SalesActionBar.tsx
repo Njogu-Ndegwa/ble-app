@@ -11,8 +11,9 @@ interface SalesActionBarProps {
   isLoading: boolean;
   isDisabled?: boolean;
   paymentInputMode?: 'scan' | 'manual'; // For step 5 to show correct button text
-  hasBatteryScanned?: boolean; // For step 6 to show "Complete Service" vs "Scan Battery"
-  /** Whether customer identification is complete (required for step 6 Complete Service) */
+  hasVehicleScanned?: boolean; // For step 6 to show "Continue" vs "Scan Vehicle"
+  hasBatteryScanned?: boolean; // For step 7 to show "Complete Service" vs "Scan Battery"
+  /** Whether customer identification is complete (required for step 7 Complete Service) */
   customerIdentified?: boolean;
   /** Whether customer identification is in progress */
   isIdentifying?: boolean;
@@ -54,7 +55,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', hasBatteryScanned?: boolean): StepActionConfig => {
+const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', hasVehicleScanned?: boolean, hasBatteryScanned?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Customer Form step
@@ -75,12 +76,18 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', ha
       }
       return { showBack: true, mainTextKey: 'sales.scanPaymentQr', mainIcon: 'scan' };
     case 6:
+      // Vehicle scan step - Show "Continue" if vehicle scanned, "Scan Vehicle" otherwise
+      if (hasVehicleScanned) {
+        return { showBack: true, mainTextKey: 'sales.continue', mainIcon: 'arrow' };
+      }
+      return { showBack: true, mainTextKey: 'sales.scanVehicleBtn', mainIcon: 'scan' };
+    case 7:
       // Battery assignment step - Show "Complete Service" if battery scanned, "Scan Battery" otherwise
       if (hasBatteryScanned) {
         return { showBack: true, mainTextKey: 'sales.completeService', mainIcon: 'check' };
       }
       return { showBack: true, mainTextKey: 'sales.scanBattery', mainIcon: 'scan' };
-    case 7:
+    case 8:
       // Success step
       return { showBack: false, mainTextKey: 'sales.newRegistration', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
@@ -94,17 +101,18 @@ export default function SalesActionBar({
   onMainAction, 
   isLoading, 
   isDisabled, 
-  paymentInputMode, 
+  paymentInputMode,
+  hasVehicleScanned,
   hasBatteryScanned,
   customerIdentified = true,
   isIdentifying = false,
 }: SalesActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, paymentInputMode, hasBatteryScanned);
+  const config = getStepConfig(currentStep, paymentInputMode, hasVehicleScanned, hasBatteryScanned);
 
   // Determine if the button should be disabled
-  // On step 6 with battery scanned, require customer identification to be complete
-  const isCompleteServiceStep = currentStep === 6 && hasBatteryScanned;
+  // On step 7 with battery scanned, require customer identification to be complete
+  const isCompleteServiceStep = currentStep === 7 && hasBatteryScanned;
   const waitingForIdentification = isCompleteServiceStep && !customerIdentified;
   const buttonDisabled = isLoading || isDisabled || waitingForIdentification;
 

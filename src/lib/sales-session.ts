@@ -55,7 +55,10 @@ export interface SalesSessionData {
   paymentIncomplete: boolean;
   confirmedSubscriptionCode: string | null;
   
-  // Battery assignment (optional - only if step 4 was partially completed)
+  // Vehicle scan (optional - only if step 6 was partially completed)
+  scannedVehicleId: string | null;
+  
+  // Battery assignment (optional - only if step 7 was partially completed)
   assignedBattery: BatteryData | null;
   registrationId: string;
   
@@ -66,7 +69,8 @@ export interface SalesSessionData {
 
 // Current schema version - increment when SalesSessionData structure changes
 // Version 2: Added selectedPackageId field
-const CURRENT_VERSION = 2;
+// Version 3: Added scannedVehicleId field, updated steps (vehicle scan before battery)
+const CURRENT_VERSION = 3;
 
 /**
  * Check if localStorage is available

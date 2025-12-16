@@ -145,13 +145,13 @@ export interface BleScanState {
   requiresBluetoothReset: boolean;
 }
 
-// Sales flow now has 7 steps: Customer -> Package -> Subscription -> Preview -> Payment -> Battery -> Done
-export type SalesStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+// Sales flow now has 8 steps: Customer -> Package -> Subscription -> Preview -> Payment -> Vehicle -> Battery -> Done
+export type SalesStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export interface StepConfig {
   step: number;
   label: string;
-  icon: 'customer' | 'package' | 'plan' | 'preview' | 'payment' | 'battery' | 'done';
+  icon: 'customer' | 'package' | 'plan' | 'preview' | 'payment' | 'vehicle' | 'battery' | 'done';
 }
 
 export const STEP_CONFIGS: StepConfig[] = [
@@ -160,8 +160,9 @@ export const STEP_CONFIGS: StepConfig[] = [
   { step: 3, label: 'Subscription', icon: 'plan' },
   { step: 4, label: 'Preview', icon: 'preview' },
   { step: 5, label: 'Payment', icon: 'payment' },
-  { step: 6, label: 'Battery', icon: 'battery' },
-  { step: 7, label: 'Done', icon: 'done' },
+  { step: 6, label: 'Vehicle', icon: 'vehicle' },
+  { step: 7, label: 'Battery', icon: 'battery' },
+  { step: 8, label: 'Done', icon: 'done' },
 ];
 
 // No fallback plans - Odoo is the only source of truth for subscription plans

@@ -17,8 +17,9 @@ import {
   Step3SelectSubscription,
   Step4Preview,
   Step5Payment,
-  Step6AssignBattery,
-  Step7Success,
+  Step6ScanVehicle,
+  Step7AssignBattery,
+  Step8Success,
   // Types
   CustomerFormData,
   BatteryData,
@@ -181,6 +182,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Confirmed subscription code from payment - used for battery allocation
   const [confirmedSubscriptionCode, setConfirmedSubscriptionCode] = useState<string | null>(null);
 
+  // Vehicle data - scanned vehicle ID from QR code
+  const [scannedVehicleId, setScannedVehicleId] = useState<string | null>(null);
+  
   // Battery data
   const [assignedBattery, setAssignedBattery] = useState<BatteryData | null>(null);
   
@@ -300,7 +304,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // Clear session since registration is complete
       clearSalesSession();
       
-      advanceToStep(7);
+      advanceToStep(8);
       toast.success(isIdempotent ? 'Service completed! (already recorded)' : 'Service completed! Battery assigned successfully.');
     },
     onError: (errorMsg) => {
@@ -312,8 +316,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Track if service completion is in progress
   const isCompletingService = paymentAndServiceStatus === 'pending';
 
-  // Scan type tracking (payment still needs manual tracking)
-  const scanTypeRef = useRef<'battery' | 'payment' | null>(null);
+  // Scan type tracking (payment and vehicle still need manual tracking)
+  const scanTypeRef = useRef<'battery' | 'payment' | 'vehicle' | null>(null);
 
   // Bridge initialization ref
   const bridgeInitRef = useRef<boolean>(false);
@@ -376,6 +380,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setPaymentAmountRemaining(savedSession.paymentAmountRemaining);
       setPaymentIncomplete(savedSession.paymentIncomplete);
       setConfirmedSubscriptionCode(savedSession.confirmedSubscriptionCode);
+      // Restore vehicle scan if present
+      if (savedSession.scannedVehicleId) {
+        setScannedVehicleId(savedSession.scannedVehicleId);
+      }
       setAssignedBattery(savedSession.assignedBattery);
       setRegistrationId(savedSession.registrationId);
 
@@ -395,12 +403,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   }, []);
 
   // Auto-save session whenever important state changes
-  // Skip saving on step 6 (success) since the flow is complete
+  // Skip saving on step 8 (success) since the flow is complete
   useEffect(() => {
     // Don't save during initial session restoration
     if (!sessionRestored && showResumePrompt) return;
-    // Don't save if on step 7 (completed)
-    if (currentStep === 7) return;
+    // Don't save if on step 8 (completed)
+    if (currentStep === 8) return;
     // Don't save if no progress has been made
     if (currentStep === 1 && !formData.firstName && !formData.lastName && !formData.email && !formData.phone) return;
 
@@ -424,6 +432,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         paymentAmountRemaining,
         paymentIncomplete,
         confirmedSubscriptionCode,
+        scannedVehicleId,
         assignedBattery,
         registrationId,
       });
@@ -450,6 +459,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     paymentAmountRemaining,
     paymentIncomplete,
     confirmedSubscriptionCode,
+    scannedVehicleId,
     assignedBattery,
     registrationId,
   ]);
@@ -634,6 +644,26 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                 console.info('[SALES QR] Step 2b: Calling processPaymentQRData with:', paymentId);
                 processPaymentQRDataRef.current(paymentId);
               }
+            } else if (scanTypeRef.current === 'vehicle') {
+              console.info('[SALES QR] Step 2: Detected as vehicle scan');
+              // Vehicle QR scanned - extract vehicle ID
+              let vehicleId = qrVal;
+              try {
+                // Try to parse as JSON first (structured vehicle data)
+                const vehicleData = JSON.parse(qrVal);
+                vehicleId = vehicleData.vehicle_id || vehicleData.id || vehicleData.vin || qrVal;
+                console.info('[SALES QR] Step 2a: Parsed vehicle QR as JSON, extracted ID:', vehicleId);
+              } catch {
+                // If not JSON, treat the entire string as vehicle ID
+                console.info('[SALES QR] Step 2a: Vehicle QR is plain text:', vehicleId);
+              }
+              // Store the vehicle ID
+              if (vehicleId) {
+                console.info('[SALES QR] Step 2b: Setting scanned vehicle ID:', vehicleId);
+                setScannedVehicleId(vehicleId);
+                toast.success(`Vehicle ${vehicleId} scanned!`);
+              }
+              scanTypeRef.current = null;
             } else {
               console.info('[SALES QR] Step 2: Unknown scan type:', scanTypeRef.current, '- ignoring QR value');
             }
@@ -703,11 +733,11 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [advanceToStep, clearScannerTimeout]);
 
-  // Start BLE scanning when on step 6 (battery assignment)
+  // Start BLE scanning when on step 7 (battery assignment)
   useEffect(() => {
-    if (currentStep === 6 && bleIsReady) {
+    if (currentStep === 7 && bleIsReady) {
       startBleScan();
-    } else if (currentStep !== 6) {
+    } else if (currentStep !== 7) {
       stopBleScan();
     }
     
@@ -1183,6 +1213,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     setSelectedPlanId(planId);
   }, []);
 
+  // Handle vehicle scan (QR mode)
+  const handleScanVehicle = useCallback(() => {
+    console.info('[SALES VEHICLE] handleScanVehicle called - user clicked scan button');
+    scanTypeRef.current = 'vehicle';
+    startQrCodeScan();
+  }, [startQrCodeScan]);
+
   // Handle battery scan (QR mode)
   const handleScanBattery = useCallback(() => {
     console.info('[SALES BATTERY] Step 0: handleScanBattery called - user clicked scan button');
@@ -1450,6 +1487,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         }
         break;
       case 6:
+        // Vehicle scan step - if already scanned, proceed to battery; otherwise scan
+        if (scannedVehicleId) {
+          advanceToStep(7);
+        } else {
+          handleScanVehicle();
+        }
+        break;
+      case 7:
         // If battery already scanned, complete service; otherwise trigger scan
         if (scannedBatteryPending) {
           handleCompleteService();
@@ -1457,7 +1502,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           handleScanBattery();
         }
         break;
-      case 7:
+      case 8:
         // Reset everything for new registration
         // Clear the saved session since we're starting fresh
         clearSalesSession();
@@ -1507,6 +1552,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setPaymentAmountRemaining(0);
         setPaymentIncomplete(false);
         setConfirmedSubscriptionCode(null);
+        setScannedVehicleId(null);
         setAssignedBattery(null);
         setScannedBatteryPending(null);
         // Reset customer identification state (via hook)
@@ -1528,8 +1574,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     advanceToStep, 
     handlePaymentQrScan, 
     handleManualPayment,
+    handleScanVehicle,
     handleScanBattery,
     handleCompleteService,
+    scannedVehicleId,
     scannedBatteryPending,
     paymentInputMode,
     manualPaymentId,
@@ -1544,7 +1592,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Handle step click in timeline
   const handleStepClick = useCallback((step: SalesStep) => {
-    if (step <= maxStepReached && step < 7) {
+    if (step <= maxStepReached && step < 8) {
       setCurrentStep(step);
     }
   }, [maxStepReached]);
@@ -1640,10 +1688,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           />
         );
       case 6:
+        // Vehicle scan - scan QR code on vehicle being assigned to customer
+        return (
+          <Step6ScanVehicle
+            formData={formData}
+            onScanVehicle={handleScanVehicle}
+            isScannerOpening={isScannerOpening}
+            scannedVehicleId={scannedVehicleId}
+            subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}
+          />
+        );
+      case 7:
         // Battery assignment - Uses shared BatteryScanBind component
         // Note: BLE progress/errors are handled by BleProgressModal below
         return (
-          <Step6AssignBattery 
+          <Step7AssignBattery 
             formData={formData}
             selectedPlanId={selectedPlanId}
             onScanBattery={handleScanBattery}
@@ -1667,10 +1726,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             onManualIdentify={manualIdentifyCustomer}
           />
         );
-      case 7:
+      case 8:
         // Success - Show receipt with all purchases
         return (
-          <Step7Success 
+          <Step8Success 
             formData={formData}
             selectedPlanId={selectedPlanId}
             battery={assignedBattery}
@@ -1764,6 +1823,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         isLoading={isProcessing || isCreatingCustomer || isCompletingService}
         paymentInputMode={paymentInputMode}
         isDisabled={false}
+        hasVehicleScanned={!!scannedVehicleId}
         hasBatteryScanned={!!scannedBatteryPending}
         customerIdentified={customerIdentified}
         isIdentifying={isIdentifying}
