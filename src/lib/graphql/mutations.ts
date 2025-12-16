@@ -236,12 +236,45 @@ export const REPORT_PAYMENT_AND_SERVICE = gql`
 
 /**
  * Parse the metadata JSON string from identification response
+ * 
+ * Validates that the parsed metadata contains required fields.
+ * Returns null if metadata is empty or missing required data.
  */
 export function parseIdentifyCustomerMetadata(metadataString: string): IdentifyCustomerMetadata | null {
   try {
-    return JSON.parse(metadataString) as IdentifyCustomerMetadata;
+    // Handle empty or whitespace-only strings
+    if (!metadataString || !metadataString.trim()) {
+      console.warn('[parseIdentifyCustomerMetadata] Empty metadata string received');
+      return null;
+    }
+    
+    const parsed = JSON.parse(metadataString);
+    
+    // Validate that we have a non-empty object with required fields
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn('[parseIdentifyCustomerMetadata] Metadata is not an object:', typeof parsed);
+      return null;
+    }
+    
+    // Check for required fields - service_plan_data is essential
+    if (!parsed.service_plan_data || typeof parsed.service_plan_data !== 'object') {
+      console.warn('[parseIdentifyCustomerMetadata] Missing required service_plan_data field');
+      return null;
+    }
+    
+    // Validate service_plan_data has minimum required fields
+    const spd = parsed.service_plan_data;
+    if (!spd.servicePlanId && !spd.customerId) {
+      console.warn('[parseIdentifyCustomerMetadata] service_plan_data missing servicePlanId or customerId');
+      return null;
+    }
+    
+    return parsed as IdentifyCustomerMetadata;
   } catch (error) {
-    console.error('Failed to parse identifyCustomer metadata:', error);
+    // Only log as error if it's not an empty object (common case during retries)
+    if (metadataString !== '{}') {
+      console.error('[parseIdentifyCustomerMetadata] Failed to parse:', error);
+    }
     return null;
   }
 }

@@ -107,6 +107,12 @@ export interface UseCustomerIdentificationConfig {
   onStart?: () => void;
   /** Callback when identification completes (success or error) */
   onComplete?: () => void;
+  /**
+   * If true, suppresses toast notifications for errors and successes.
+   * Useful for background operations where the caller handles UI feedback.
+   * Default: false
+   */
+  silent?: boolean;
   /** 
    * @deprecated No longer needed - GraphQL doesn't require bridge
    * Kept for backwards compatibility with existing code
@@ -143,6 +149,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onError,
     onStart,
     onComplete,
+    silent = false,
   } = config;
 
   // Refs for correlation ID and cancellation
@@ -279,7 +286,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       const errorMsg = source === 'manual' 
         ? 'Please enter a Subscription ID' 
         : 'No subscription code found in QR code';
-      toast.error(errorMsg);
+      if (!silent) {
+        toast.error(errorMsg);
+      }
       onError?.(errorMsg);
       return;
     }
@@ -323,7 +332,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       if (result.errors && result.errors.length > 0) {
         const errorMsg = result.errors[0].message || 'Failed to identify customer';
         console.error('GraphQL errors:', result.errors);
-        toast.error(errorMsg);
+        if (!silent) {
+          toast.error(errorMsg);
+        }
         onError?.(errorMsg);
         onComplete?.();
         return;
@@ -331,7 +342,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
 
       if (!result.data?.identifyCustomer) {
         const errorMsg = 'No response from server';
-        toast.error(errorMsg);
+        if (!silent) {
+          toast.error(errorMsg);
+        }
         onError?.(errorMsg);
         onComplete?.();
         return;
@@ -344,16 +357,20 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       try {
         const identificationResult = processResponseData(response, input);
         if (identificationResult) {
-          const successMsg = identificationResult.isIdempotent 
-            ? 'Customer identified (cached)' 
-            : 'Customer identified';
-          toast.success(successMsg);
+          if (!silent) {
+            const successMsg = identificationResult.isIdempotent 
+              ? 'Customer identified (cached)' 
+              : 'Customer identified';
+            toast.success(successMsg);
+          }
           onSuccess(identificationResult);
         }
       } catch (err: unknown) {
         const error = err as Error;
         console.error('Customer identification failed:', error);
-        toast.error(error.message || 'Customer identification failed');
+        if (!silent) {
+          toast.error(error.message || 'Customer identification failed');
+        }
         onError?.(error.message || 'Customer identification failed');
       }
 
@@ -368,7 +385,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
 
       console.error('GraphQL request failed:', error);
       const errorMsg = error.message || 'Request failed. Please try again.';
-      toast.error(errorMsg);
+      if (!silent) {
+        toast.error(errorMsg);
+      }
       onError?.(errorMsg);
       onComplete?.();
     }
@@ -379,6 +398,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onError, 
     onStart, 
     onComplete,
+    silent,
   ]);
 
   /**
