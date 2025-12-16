@@ -26,6 +26,7 @@ import {
   type LatestPendingSessionResponse,
 } from '@/lib/odoo-api';
 import { getEmployeeToken, getSalesRoleToken } from '@/lib/attendant-auth';
+import { PAYMENT } from '@/lib/constants';
 
 // Session states for UI
 export type SessionStatus = 
@@ -867,13 +868,18 @@ export function extractAttendantStateFromSession(sessionData: WorkflowSessionDat
       energyDiff: sessionData.swapData?.energyDiff ?? 0,
       quotaDeduction: sessionData.swapData?.quotaDeduction ?? 0,
       chargeableEnergy: sessionData.swapData?.chargeableEnergy ?? 0,
-      // Financial values: use null to indicate "not yet determined from backend"
-      // NEVER use hardcoded defaults for pricing/financial data
-      grossEnergyCost: sessionData.swapData?.grossEnergyCost ?? null,
-      quotaCreditValue: sessionData.swapData?.quotaCreditValue ?? null,
-      cost: sessionData.swapData?.cost ?? null,
-      rate: sessionData.swapData?.rate ?? null,
-      currencySymbol: sessionData.swapData?.currencySymbol ?? null,
+      // Calculated monetary values: use 0 as safe default for Math operations
+      // These are derived from rate × energy, so 0 = "not yet calculated"
+      grossEnergyCost: sessionData.swapData?.grossEnergyCost ?? 0,
+      quotaCreditValue: sessionData.swapData?.quotaCreditValue ?? 0,
+      cost: sessionData.swapData?.cost ?? 0,
+      // Rate: use 0 if not in session - this indicates "rate not loaded from backend"
+      // 0 is safe for calculations (won't crash) but clearly indicates missing data
+      // The UI should detect rate=0 and require customer re-identification
+      // IMPORTANT: Never use a hardcoded fake rate like 120 - rate MUST come from backend
+      rate: sessionData.swapData?.rate ?? 0,
+      // Currency: use PAYMENT.defaultCurrency as last-resort fallback (per project rules)
+      currencySymbol: sessionData.swapData?.currencySymbol || PAYMENT.defaultCurrency,
     },
     paymentState: {
       inputMode: sessionData.payment?.inputMode || 'scan',

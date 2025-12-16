@@ -137,7 +137,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     grossEnergyCost: 0,     // energyDiff × rate, rounded UP
     quotaCreditValue: 0,    // quotaDeduction × rate, rounded DOWN
     cost: 0,                // Final cost after quota
-    rate: 120,              // Will be updated from service response
+    rate: 0,                // MUST be loaded from backend - 0 indicates "not yet loaded"
     currencySymbol: PAYMENT.defaultCurrency, // Will be updated from service/subscription response
   });
   
@@ -1603,7 +1603,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       grossEnergyCost: 0,
       quotaCreditValue: 0,
       cost: 0,
-      rate: 120,
+      rate: 0,  // MUST be loaded from backend - 0 indicates "not yet loaded"
       currencySymbol: PAYMENT.defaultCurrency,
     });
     setManualSubscriptionId('');
