@@ -362,6 +362,101 @@ export interface CompaniesResponse {
 // API Helper Functions
 // ============================================================================
 
+/**
+ * Check if an error is a network/connectivity error that may be transient
+ */
+function isNetworkError(error: Error | unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const networkPatterns = [
+    /network/i,
+    /fetch/i,
+    /timeout/i,
+    /connection refused/i,
+    /ECONNREFUSED/i,
+    /ETIMEDOUT/i,
+    /ENOTFOUND/i,
+    /net::ERR_/i,
+    /NetworkError/i,
+    /Failed to fetch/i,
+    /Load failed/i,
+    /Network request failed/i,
+    /ERR_INTERNET_DISCONNECTED/i,
+    /ERR_NETWORK_CHANGED/i,
+    /ERR_CONNECTION_TIMED_OUT/i,
+    /ERR_NAME_NOT_RESOLVED/i,
+    /AbortError/i,
+  ];
+  return networkPatterns.some(pattern => pattern.test(message));
+}
+
+/**
+ * Get a user-friendly message for network errors
+ */
+function getNetworkErrorMessage(error: Error | unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  
+  if (/timeout|ETIMEDOUT|ERR_CONNECTION_TIMED_OUT/i.test(message)) {
+    return 'Request timed out. Please check your connection and try again.';
+  }
+  
+  if (/Failed to fetch|NetworkError|net::ERR_|ERR_INTERNET_DISCONNECTED/i.test(message)) {
+    return 'Unable to connect to server. Please check your internet connection.';
+  }
+  
+  if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND/i.test(message)) {
+    return 'Cannot reach server. Please check your network or VPN connection.';
+  }
+  
+  return 'Network error. Please check your internet connection and try again.';
+}
+
+/**
+ * Retry configuration for API requests
+ */
+const RETRY_CONFIG = {
+  maxRetries: 2,         // Retry up to 2 times (3 attempts total)
+  baseDelayMs: 1000,     // Start with 1 second delay
+  maxDelayMs: 5000,      // Cap at 5 seconds
+};
+
+/**
+ * Execute a fetch with retry logic for transient network errors
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retryCount = 0
+): Promise<Response> {
+  try {
+    const response = await fetch(url, options);
+    return response;
+  } catch (error: unknown) {
+    // Only retry on network errors, not on other errors
+    if (!isNetworkError(error)) {
+      throw error;
+    }
+    
+    if (retryCount >= RETRY_CONFIG.maxRetries) {
+      // Max retries reached - throw a user-friendly error
+      const friendlyMessage = getNetworkErrorMessage(error);
+      console.error(`[Odoo API] Network error after ${retryCount + 1} attempts:`, error);
+      throw new Error(friendlyMessage);
+    }
+    
+    // Calculate delay with exponential backoff
+    const delay = Math.min(
+      RETRY_CONFIG.baseDelayMs * Math.pow(2, retryCount),
+      RETRY_CONFIG.maxDelayMs
+    );
+    
+    console.warn(`[Odoo API] Network error, retrying in ${delay}ms (attempt ${retryCount + 2}/${RETRY_CONFIG.maxRetries + 1}):`, 
+      error instanceof Error ? error.message : error);
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return fetchWithRetry(url, options, retryCount + 1);
+  }
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -375,7 +470,7 @@ async function apiRequest<T>(
   };
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       ...options,
       headers,
     });
@@ -388,7 +483,7 @@ async function apiRequest<T>(
     }
 
     return data as OdooApiResponse<T>;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Odoo API Request Failed:', error);
     throw error;
   }
@@ -466,7 +561,7 @@ export async function getSubscriptionProducts(
   }
 
   try {
-    const response = await fetch(url, { method: 'GET', headers });
+    const response = await fetchWithRetry(url, { method: 'GET', headers });
     const rawData: SubscriptionProductsRawResponse = await response.json();
 
     if (!response.ok) {
@@ -542,7 +637,7 @@ export async function purchaseSubscription(
   }
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -622,7 +717,7 @@ export async function purchaseMultiProducts(
   console.info('Payload:', JSON.stringify(payload, null, 2));
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -791,7 +886,7 @@ export async function createPaymentRequest(
   console.info('Payload:', JSON.stringify(payload, null, 2));
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -1158,7 +1253,7 @@ export async function createWorkflowSession(
   console.info('Payload:', JSON.stringify(payload, null, 2));
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -1218,7 +1313,7 @@ export async function updateWorkflowSession(
   console.info('Payload:', JSON.stringify(payload, null, 2));
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'PUT',
       headers,
       body: JSON.stringify(payload),
@@ -1273,7 +1368,7 @@ export async function updateWorkflowSessionWithPayment(
   console.info('Payload:', JSON.stringify(payload, null, 2));
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'PUT',
       headers,
       body: JSON.stringify(payload),
@@ -1319,7 +1414,7 @@ export async function getLatestPendingSession(
   console.info('URL:', url);
   
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers,
     });
