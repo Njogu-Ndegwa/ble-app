@@ -1397,12 +1397,14 @@ export async function updateWorkflowSessionWithPayment(
  * Fetch the latest pending session for the current sales rep
  * Used to resume an interrupted workflow
  * 
+ * Uses the /api/orders endpoint with latest_updated=true to get the most recently updated order
+ * 
  * @param authToken - Employee/salesperson token for authorization (required)
  */
 export async function getLatestPendingSession(
   authToken: string
 ): Promise<LatestPendingSessionResponse> {
-  const url = `${ODOO_BASE_URL}/api/orders/by-sales-rep/latest-pending`;
+  const url = `${ODOO_BASE_URL}/api/orders?latest_updated=true&limit=1`;
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -1410,7 +1412,7 @@ export async function getLatestPendingSession(
     'Authorization': `Bearer ${authToken}`,
   };
   
-  console.info('=== GET LATEST PENDING SESSION ===');
+  console.info('=== GET LATEST SESSION (latest_updated endpoint) ===');
   console.info('URL:', url);
   
   try {
@@ -1421,7 +1423,7 @@ export async function getLatestPendingSession(
     
     const data = await response.json();
     
-    console.info('=== GET LATEST PENDING SESSION - RESPONSE ===');
+    console.info('=== GET LATEST SESSION - RESPONSE ===');
     console.info('HTTP Status:', response.status);
     console.info('Response:', JSON.stringify(data, null, 2));
     
@@ -1432,7 +1434,7 @@ export async function getLatestPendingSession(
     
     return data as LatestPendingSessionResponse;
   } catch (error: any) {
-    console.error('=== GET LATEST PENDING SESSION - ERROR ===');
+    console.error('=== GET LATEST SESSION - ERROR ===');
     console.error('Error:', error);
     throw error;
   }
