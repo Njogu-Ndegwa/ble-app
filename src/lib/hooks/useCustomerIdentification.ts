@@ -107,6 +107,12 @@ export interface UseCustomerIdentificationConfig {
   onStart?: () => void;
   /** Callback when identification completes (success or error) */
   onComplete?: () => void;
+  /**
+   * If true, suppresses toast notifications for errors and successes.
+   * Useful for background operations where the caller handles UI feedback.
+   * Default: false
+   */
+  silent?: boolean;
   /** 
    * @deprecated No longer needed - GraphQL doesn't require bridge
    * Kept for backwards compatibility with existing code
@@ -143,6 +149,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onError,
     onStart,
     onComplete,
+    silent = false,
   } = config;
 
   // Refs for correlation ID and cancellation
@@ -211,9 +218,13 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     const batteryFleet = enrichedServiceStates.find(
       (s) => s.service_id?.includes('service-battery-fleet')
     );
-    const elecService = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-electricity')
+    
+    // Find energy service - check for both "service-energy" and "service-electricity" patterns
+    // Different deployments may use different naming conventions
+    const energyService = enrichedServiceStates.find(
+      (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity')
     );
+    
     const swapCountService = enrichedServiceStates.find(
       (s) => s.service_id?.includes('service-swap-count')
     );
@@ -224,16 +235,23 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     // Extract billing currency from common_terms (source of truth)
     const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
     
-    // Get rate from electricity service
-    const rate = elecService?.usageUnitPrice || defaultRate;
+    // Get rate from energy service - NO default fallback for Sales workflow
+    // If energy service is not found, rate will be 0 and Sales flow will require manual retry
+    const rate = energyService?.usageUnitPrice || 0;
+    
+    // Log warning if energy service not found - helps with debugging
+    if (!energyService) {
+      console.warn('[Customer Identification] Energy service not found in service states. Available services:', 
+        enrichedServiceStates.map(s => s.service_id).join(', '));
+    }
 
     // Check for infinite quota services
-    const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+    const hasInfiniteEnergyQuota = (energyService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
     const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
 
     // Calculate remaining quota values
-    const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-    const energyUnitPrice = elecService?.usageUnitPrice || 0;
+    const energyRemaining = energyService ? round(energyService.quota - energyService.used, 2) : 0;
+    const energyUnitPrice = energyService?.usageUnitPrice || 0;
     const energyValue = energyRemaining * energyUnitPrice;
 
     // Build customer data
@@ -246,7 +264,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       swapCount: swapCountService?.used || 0,
       lastSwap: 'N/A',
       energyRemaining,
-      energyTotal: elecService?.quota || 0,
+      energyTotal: energyService?.quota || 0,
       energyValue,
       energyUnitPrice,
       swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,
@@ -279,7 +297,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       const errorMsg = source === 'manual' 
         ? 'Please enter a Subscription ID' 
         : 'No subscription code found in QR code';
-      toast.error(errorMsg);
+      if (!silent) {
+        toast.error(errorMsg);
+      }
       onError?.(errorMsg);
       return;
     }
@@ -323,7 +343,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       if (result.errors && result.errors.length > 0) {
         const errorMsg = result.errors[0].message || 'Failed to identify customer';
         console.error('GraphQL errors:', result.errors);
-        toast.error(errorMsg);
+        if (!silent) {
+          toast.error(errorMsg);
+        }
         onError?.(errorMsg);
         onComplete?.();
         return;
@@ -331,7 +353,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
 
       if (!result.data?.identifyCustomer) {
         const errorMsg = 'No response from server';
-        toast.error(errorMsg);
+        if (!silent) {
+          toast.error(errorMsg);
+        }
         onError?.(errorMsg);
         onComplete?.();
         return;
@@ -344,16 +368,20 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       try {
         const identificationResult = processResponseData(response, input);
         if (identificationResult) {
-          const successMsg = identificationResult.isIdempotent 
-            ? 'Customer identified (cached)' 
-            : 'Customer identified';
-          toast.success(successMsg);
+          if (!silent) {
+            const successMsg = identificationResult.isIdempotent 
+              ? 'Customer identified (cached)' 
+              : 'Customer identified';
+            toast.success(successMsg);
+          }
           onSuccess(identificationResult);
         }
       } catch (err: unknown) {
         const error = err as Error;
         console.error('Customer identification failed:', error);
-        toast.error(error.message || 'Customer identification failed');
+        if (!silent) {
+          toast.error(error.message || 'Customer identification failed');
+        }
         onError?.(error.message || 'Customer identification failed');
       }
 
@@ -368,7 +396,9 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
 
       console.error('GraphQL request failed:', error);
       const errorMsg = error.message || 'Request failed. Please try again.';
-      toast.error(errorMsg);
+      if (!silent) {
+        toast.error(errorMsg);
+      }
       onError?.(errorMsg);
       onComplete?.();
     }
@@ -379,6 +409,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     onError, 
     onStart, 
     onComplete,
+    silent,
   ]);
 
   /**

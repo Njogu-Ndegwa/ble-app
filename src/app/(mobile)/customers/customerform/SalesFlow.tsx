@@ -1358,7 +1358,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
 
     // CRITICAL: Pricing info MUST be fetched before completing service
-    // We need the accurate rate from the backend - can't use default for Sales workflow
+    // We need the accurate rate from the backend - NEVER use default for Sales workflow
+    // Using incorrect pricing leads to wrong billing and customer disputes
     if (!customerIdentified) {
       // Check if identification is in progress
       if (isIdentifying) {
@@ -1368,7 +1369,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       
       // If identification failed, prompt for manual retry
       if (identificationFailed) {
-        toast.error(t('sales.pricingRequired') || 'Pricing info required. Please retry.');
+        toast.error(t('sales.pricingRequired') || 'Pricing info required. Tap "Fetch Pricing" to retry.');
         return;
       }
       
@@ -1382,9 +1383,32 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
+    // CRITICAL: Validate that we have a valid rate from the backend
+    // We NEVER use default values for pricing in Sales workflow
+    if (!customerRate || customerRate <= 0) {
+      console.error('[SALES SERVICE] Invalid rate from customer identification:', customerRate);
+      toast.error(t('sales.invalidPricing') || 'Invalid pricing data. Please tap "Fetch Pricing" to retry.');
+      return;
+    }
+
+    // CRITICAL: Validate that we have an energy service from customer identification
+    // We need the energy service ID to report the transaction correctly
+    const energyService = customerServiceStates.find(
+      (service) => typeof service?.service_id === 'string' && 
+        (service.service_id.includes('service-energy') || service.service_id.includes('service-electricity'))
+    );
+    
+    if (!energyService || !energyService.service_id) {
+      console.error('[SALES SERVICE] Energy service not found in customer service states:', 
+        customerServiceStates.map(s => s.service_id).join(', '));
+      toast.error(t('sales.energyServiceNotFound') || 'Energy service not found. Please tap "Fetch Pricing" to retry.');
+      return;
+    }
+
     // Calculate cost using centralized calculateSwapPayment function
     // This ensures consistent rounding behavior with the Attendant flow
-    const rate = customerRate || DEFAULT_RATE;
+    // Note: We use customerRate directly - NO fallback to DEFAULT_RATE
+    const rate = customerRate;
     const paymentCalc = calculateSwapPayment({
       newBatteryEnergyWh: scannedBatteryPending.energy,
       oldBatteryEnergyWh: 0, // First-time customer - no old battery
@@ -1431,13 +1455,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currencySymbol: customerCurrencySymbol,
       },
       customerType: 'first-time', // First-time customer - only new battery
-      // Dynamically extract electricity service ID from customerServiceStates (same pattern as AttendantFlow)
-      serviceId: (() => {
-        const electricityService = customerServiceStates.find(
-          (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
-        );
-        return electricityService?.service_id || 'service-electricity-default';
-      })(), // Electricity service
+      // Use the pre-validated energy service ID (validated above - never empty at this point)
+      serviceId: energyService.service_id,
       actor: {
         type: 'attendant', // Backend expects 'attendant' type
         id: `salesperson-${getEmployeeUser()?.id || '001'}`,
@@ -1896,6 +1915,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         hasBatteryScanned={!!scannedBatteryPending}
         customerIdentified={customerIdentified}
         isIdentifying={isIdentifying}
+        identificationFailed={identificationFailed}
       />
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment) */}

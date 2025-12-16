@@ -17,6 +17,8 @@ interface SalesActionBarProps {
   customerIdentified?: boolean;
   /** Whether customer identification is in progress */
   isIdentifying?: boolean;
+  /** Whether customer identification has failed after retries */
+  identificationFailed?: boolean;
 }
 
 // Icon components for action bar
@@ -106,6 +108,7 @@ export default function SalesActionBar({
   hasBatteryScanned,
   customerIdentified = true,
   isIdentifying = false,
+  identificationFailed = false,
 }: SalesActionBarProps) {
   const { t } = useI18n();
   const config = getStepConfig(currentStep, paymentInputMode, hasVehicleScanned, hasBatteryScanned);
@@ -114,7 +117,10 @@ export default function SalesActionBar({
   // On step 7 with battery scanned, require customer identification to be complete
   const isCompleteServiceStep = currentStep === 7 && hasBatteryScanned;
   const waitingForIdentification = isCompleteServiceStep && !customerIdentified;
-  const buttonDisabled = isLoading || isDisabled || waitingForIdentification;
+  
+  // Don't disable button if identification failed - user can click to see error message
+  // This allows them to understand why they need to fetch pricing first
+  const buttonDisabled = isLoading || isDisabled || (waitingForIdentification && isIdentifying);
 
   // Determine button text
   const getButtonContent = () => {
@@ -127,7 +133,7 @@ export default function SalesActionBar({
       );
     }
     
-    // Show "Fetching pricing..." when waiting for identification
+    // Show "Fetching pricing..." when actively fetching
     if (waitingForIdentification && isIdentifying) {
       return (
         <>
@@ -137,6 +143,8 @@ export default function SalesActionBar({
       );
     }
     
+    // When identification failed, show "Complete Service" but clicking will show error
+    // The user should use the "Fetch Pricing" button in the content area
     return (
       <>
         {ActionIcons[config.mainIcon]}

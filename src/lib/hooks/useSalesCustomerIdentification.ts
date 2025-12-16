@@ -131,17 +131,20 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
 
   /**
    * Handle successful identification
+   * 
+   * Note: Toast notifications are intentionally suppressed for automatic background operations.
+   * Only manual retries show success feedback, since the user explicitly requested it.
    */
   const handleSuccess = useCallback((identificationResult: CustomerIdentificationResult) => {
     if (!isActiveRef.current) return;
     
-    console.info('[SALES ID] Customer identified successfully');
+    console.info('[SALES ID] Customer identified successfully', isManualRetryRef.current ? '(manual retry)' : '(background)');
     setResult(identificationResult);
     setStatus('success');
     setLastError(null);
     currentRetryRef.current = 0;
     
-    // Show toast only for manual retry
+    // Show toast ONLY for explicit manual retry - background operations are silent
     if (isManualRetryRef.current) {
       toast.success('Customer identified successfully');
     }
@@ -149,30 +152,35 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
 
   /**
    * Handle identification error - may trigger retry
+   * 
+   * For Sales workflow, errors during automatic background identification are completely silent.
+   * The user will see the "Fetch Pricing" button in the UI if identification failed.
+   * Only manual retries (user clicking "Fetch Pricing") show error feedback.
    */
   const handleError = useCallback((error: string) => {
     if (!isActiveRef.current) return;
 
-    console.warn(`[SALES ID] Attempt ${currentRetryRef.current + 1} failed:`, error);
+    console.warn(`[SALES ID] Attempt ${currentRetryRef.current + 1} failed:`, error, 
+      isManualRetryRef.current ? '(manual retry)' : '(background)');
     setLastError(error);
 
-    // For manual retry, show error and don't auto-retry
+    // For manual retry (explicit user action), show error and don't auto-retry
     if (isManualRetryRef.current) {
       toast.error(error);
       setStatus('failed');
       return;
     }
 
-    // Check if we should retry (silent automatic retry)
+    // Automatic background retry - completely silent (no toasts)
     if (currentRetryRef.current < maxRetries) {
       const delay = calculateRetryDelay(currentRetryRef.current);
-      console.info(`[SALES ID] Scheduling retry ${currentRetryRef.current + 1}/${maxRetries} in ${Math.round(delay / 1000)}s...`);
+      console.info(`[SALES ID] Scheduling silent retry ${currentRetryRef.current + 1}/${maxRetries} in ${Math.round(delay / 1000)}s...`);
       
       setStatus('retrying');
       setRetryCount(currentRetryRef.current + 1);
       currentRetryRef.current += 1;
 
-      // Schedule retry - no toast notification (silent retry)
+      // Schedule retry - completely silent (no toast notification)
       retryTimeoutRef.current = setTimeout(() => {
         if (isActiveRef.current && inputRef.current && baseIdentifyRef.current) {
           // Trigger identification again via the base hook (using ref to avoid circular dep)
@@ -180,10 +188,10 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
         }
       }, delay);
     } else {
-      // All retries exhausted
-      console.error('[SALES ID] All retries exhausted');
+      // All retries exhausted - fail silently
+      // User will see the "Fetch Pricing" UI button when they try to complete service
+      console.warn('[SALES ID] All retries exhausted - failing silently');
       setStatus('failed');
-      // No toast - user will see the manual retry option in UI
     }
   }, [maxRetries, calculateRetryDelay]);
 
@@ -195,12 +203,14 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
   }, []);
 
   // Use the base customer identification hook (now uses GraphQL internally)
+  // Use silent mode to suppress all toast notifications - we handle UI feedback ourselves
   const { identifyCustomer: baseIdentifyCustomer, cancelIdentification: baseCancelIdentification } = useCustomerIdentification({
     attendantInfo,
     defaultRate,
     onSuccess: handleSuccess,
     onError: handleError,
     onComplete: handleComplete,
+    silent: true, // Suppress toasts - Sales flow handles its own UI feedback
   });
 
   // Keep baseIdentifyRef in sync for use in retry callback
