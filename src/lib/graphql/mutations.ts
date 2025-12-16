@@ -131,7 +131,7 @@ export interface IdentifyCustomerResponse {
   customer_identified: boolean;
   identification_method: string;
   signals: string[];
-  metadata: string; // JSON string that needs to be parsed
+  metadata: string | Record<string, unknown>; // Can be JSON string or already-parsed object
 }
 
 /**
@@ -209,7 +209,7 @@ export interface ReportPaymentAndServiceResponse {
   correlation_id: string;
   status_message: string;
   signals: string[];
-  metadata: string; // JSON string with detailed response
+  metadata: string | Record<string, unknown>; // Can be JSON string or already-parsed object
 }
 
 /**
@@ -235,24 +235,38 @@ export const REPORT_PAYMENT_AND_SERVICE = gql`
 // ============================================================================
 
 /**
- * Parse the metadata JSON string from identification response
+ * Parse the metadata from identification response
+ * 
+ * Handles both:
+ * - JSON string that needs to be parsed
+ * - Already-parsed object (when GraphQL returns object directly)
  * 
  * Validates that the parsed metadata contains required fields.
  * Returns null if metadata is empty or missing required data.
  */
-export function parseIdentifyCustomerMetadata(metadataString: string): IdentifyCustomerMetadata | null {
+export function parseIdentifyCustomerMetadata(metadata: string | Record<string, unknown>): IdentifyCustomerMetadata | null {
   try {
-    // Handle empty or whitespace-only strings
-    if (!metadataString || !metadataString.trim()) {
-      console.warn('[parseIdentifyCustomerMetadata] Empty metadata string received');
+    let parsed: Record<string, unknown>;
+    
+    // Handle different input types
+    if (typeof metadata === 'string') {
+      // Handle empty or whitespace-only strings
+      if (!metadata || !metadata.trim()) {
+        console.warn('[parseIdentifyCustomerMetadata] Empty metadata string received');
+        return null;
+      }
+      parsed = JSON.parse(metadata);
+    } else if (metadata && typeof metadata === 'object') {
+      // Already an object - use directly
+      parsed = metadata;
+    } else {
+      console.warn('[parseIdentifyCustomerMetadata] Invalid metadata type:', typeof metadata);
       return null;
     }
     
-    const parsed = JSON.parse(metadataString);
-    
     // Validate that we have a non-empty object with required fields
-    if (!parsed || typeof parsed !== 'object') {
-      console.warn('[parseIdentifyCustomerMetadata] Metadata is not an object:', typeof parsed);
+    if (!parsed || typeof parsed !== 'object' || Object.keys(parsed).length === 0) {
+      console.warn('[parseIdentifyCustomerMetadata] Metadata is empty or not an object:', typeof parsed);
       return null;
     }
     
@@ -263,16 +277,17 @@ export function parseIdentifyCustomerMetadata(metadataString: string): IdentifyC
     }
     
     // Validate service_plan_data has minimum required fields
-    const spd = parsed.service_plan_data;
+    const spd = parsed.service_plan_data as Record<string, unknown>;
     if (!spd.servicePlanId && !spd.customerId) {
       console.warn('[parseIdentifyCustomerMetadata] service_plan_data missing servicePlanId or customerId');
       return null;
     }
     
-    return parsed as IdentifyCustomerMetadata;
+    return parsed as unknown as IdentifyCustomerMetadata;
   } catch (error) {
     // Only log as error if it's not an empty object (common case during retries)
-    if (metadataString !== '{}') {
+    const metadataStr = typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
+    if (metadataStr !== '{}') {
       console.error('[parseIdentifyCustomerMetadata] Failed to parse:', error);
     }
     return null;
@@ -280,11 +295,23 @@ export function parseIdentifyCustomerMetadata(metadataString: string): IdentifyC
 }
 
 /**
- * Parse the metadata JSON string from payment/service response
+ * Parse the metadata from payment/service response
+ * 
+ * Handles both:
+ * - JSON string that needs to be parsed
+ * - Already-parsed object (when GraphQL returns object directly)
  */
-export function parsePaymentAndServiceMetadata(metadataString: string): Record<string, unknown> | null {
+export function parsePaymentAndServiceMetadata(metadata: string | Record<string, unknown>): Record<string, unknown> | null {
   try {
-    return JSON.parse(metadataString) as Record<string, unknown>;
+    if (typeof metadata === 'string') {
+      if (!metadata || !metadata.trim()) {
+        return null;
+      }
+      return JSON.parse(metadata) as Record<string, unknown>;
+    } else if (metadata && typeof metadata === 'object') {
+      return metadata;
+    }
+    return null;
   } catch (error) {
     console.error('Failed to parse paymentAndService metadata:', error);
     return null;
@@ -373,8 +400,8 @@ export interface UpdateAssetAssignmentResponse {
   updated_count: number;
   /** Signals from the operation */
   signals: string[];
-  /** Additional metadata (JSON string) */
-  metadata: string;
+  /** Additional metadata (can be JSON string or already-parsed object) */
+  metadata: string | Record<string, unknown>;
 }
 
 /**
@@ -405,11 +432,23 @@ export const UPDATE_ASSET_ASSIGNMENT_CURRENT_ASSET = gql`
 `;
 
 /**
- * Parse the metadata JSON string from vehicle assignment response
+ * Parse the metadata from vehicle assignment response
+ * 
+ * Handles both:
+ * - JSON string that needs to be parsed
+ * - Already-parsed object (when GraphQL returns object directly)
  */
-export function parseVehicleAssignmentMetadata(metadataString: string): Record<string, unknown> | null {
+export function parseVehicleAssignmentMetadata(metadata: string | Record<string, unknown>): Record<string, unknown> | null {
   try {
-    return JSON.parse(metadataString) as Record<string, unknown>;
+    if (typeof metadata === 'string') {
+      if (!metadata || !metadata.trim()) {
+        return null;
+      }
+      return JSON.parse(metadata) as Record<string, unknown>;
+    } else if (metadata && typeof metadata === 'object') {
+      return metadata;
+    }
+    return null;
   } catch (error) {
     console.error('Failed to parse vehicle assignment metadata:', error);
     return null;
