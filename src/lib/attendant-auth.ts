@@ -3,20 +3,38 @@
 // This is separate from:
 // - JWT-based auth in (auth)/context for BLE Device Manager (GraphQL ERM)
 // - Rider auth which uses Odoo /api/auth/login
+//
+// IMPORTANT: Attendant and Sales are now treated as SEPARATE roles
+// Each has its own storage keys and session management.
+// Backend returns role: "salesattendant" for attendants, "salesrep" for sales reps
 
 // User types for distinguishing between different login credentials
 export type UserType = 'attendant' | 'sales' | 'rider' | 'ble_device_manager';
 
+// Role names as returned by the backend API
+export type BackendRole = 'salesattendant' | 'salesrep';
+
 // Storage keys - each user type has distinct storage to avoid conflicts
+// ATTENDANT and SALES now have SEPARATE storage keys
 const STORAGE_KEYS = {
-  // Employee auth (Attendant/Sales)
+  // Attendant auth (role: salesattendant)
+  ATTENDANT_USER_EMAIL: 'oves-attendant-email',
+  ATTENDANT_USER_DATA: 'oves-attendant-data',
+  ATTENDANT_ACCESS_TOKEN: 'oves-attendant-token',
+  ATTENDANT_TOKEN_EXPIRES: 'oves-attendant-token-expires',
+  
+  // Sales auth (role: salesrep)
+  SALES_USER_EMAIL: 'oves-sales-email',
+  SALES_USER_DATA: 'oves-sales-data',
+  SALES_ACCESS_TOKEN: 'oves-sales-token',
+  SALES_TOKEN_EXPIRES: 'oves-sales-token-expires',
+  
+  // Legacy keys (deprecated - kept for backwards compatibility during migration)
   EMPLOYEE_USER_EMAIL: 'oves-employee-email',
   EMPLOYEE_USER_DATA: 'oves-employee-data',
   EMPLOYEE_ACCESS_TOKEN: 'oves-employee-token',
   EMPLOYEE_TOKEN_EXPIRES: 'oves-employee-token-expires',
   EMPLOYEE_USER_TYPE: 'oves-employee-type',
-  
-  // Legacy keys for backwards compatibility
   USER_EMAIL: 'oves-user-email',
   USER_DATA: 'oves-user-data',
   
@@ -45,7 +63,8 @@ export interface EmployeeUser {
   phone?: string;
   firstName?: string;
   lastName?: string;
-  role?: string;
+  role?: string; // Legacy role field
+  backendRole?: BackendRole; // The actual role from backend: "salesattendant" or "salesrep"
   accessToken?: string;
   tokenExpiresAt?: string;
   userType: UserType;
@@ -78,6 +97,7 @@ export interface EmployeeLoginResponse {
       name: string;
       email: string;
       company_id: number;
+      role: BackendRole; // "salesattendant" for attendants, "salesrep" for sales
       user_type: string; // e.g., "abs.employee"
     };
   };
@@ -85,8 +105,27 @@ export interface EmployeeLoginResponse {
 }
 
 /**
+ * Helper function to map backend role to userType
+ */
+function mapBackendRoleToUserType(backendRole: BackendRole): UserType {
+  switch (backendRole) {
+    case 'salesattendant':
+      return 'attendant';
+    case 'salesrep':
+      return 'sales';
+    default:
+      console.warn(`[EmployeeAuth] Unknown backend role: ${backendRole}, defaulting to attendant`);
+      return 'attendant';
+  }
+}
+
+/**
  * Login using the Employee API (for Attendant and Sales Person)
  * Endpoint: POST https://crm-omnivoltaic.odoo.com/api/employee/login
+ * 
+ * IMPORTANT: Attendant and Sales are now SEPARATE roles with separate sessions.
+ * The backend returns role: "salesattendant" for attendants, "salesrep" for sales reps.
+ * Each role has its own storage keys and must log in separately.
  * 
  * Response structure:
  * {
@@ -100,6 +139,7 @@ export interface EmployeeLoginResponse {
  *       "name": "Test Employee",
  *       "email": "test@example.com",
  *       "company_id": 14,
+ *       "role": "salesattendant", // or "salesrep"
  *       "user_type": "abs.employee"
  *     }
  *   }
@@ -108,10 +148,10 @@ export interface EmployeeLoginResponse {
 export async function employeeLogin(
   email: string,
   password: string,
-  userType: 'attendant' | 'sales'
-): Promise<{ success: boolean; user?: EmployeeUser; error?: string }> {
+  expectedUserType: 'attendant' | 'sales'
+): Promise<{ success: boolean; user?: EmployeeUser; error?: string; wrongRole?: boolean }> {
   try {
-    console.log(`[EmployeeAuth] Attempting ${userType} login for:`, email);
+    console.log(`[EmployeeAuth] Attempting ${expectedUserType} login for:`, email);
     console.log(`[EmployeeAuth] Endpoint: ${EMPLOYEE_API.BASE_URL}${EMPLOYEE_API.LOGIN_ENDPOINT}`);
 
     const response = await fetch(`${EMPLOYEE_API.BASE_URL}${EMPLOYEE_API.LOGIN_ENDPOINT}`, {
@@ -138,22 +178,43 @@ export async function employeeLogin(
         throw new Error('No employee data in response');
       }
 
+      // Get the role from the backend response
+      const backendRole = employee.role;
+      const actualUserType = mapBackendRoleToUserType(backendRole);
+      
+      console.log(`[EmployeeAuth] Backend role: ${backendRole}, mapped to userType: ${actualUserType}`);
+      console.log(`[EmployeeAuth] Expected userType: ${expectedUserType}`);
+      
+      // Check if the user's role matches the expected role for this login flow
+      if (actualUserType !== expectedUserType) {
+        const roleLabel = actualUserType === 'attendant' ? 'Attendant' : 'Sales Rep';
+        const expectedLabel = expectedUserType === 'attendant' ? 'Attendant' : 'Sales Rep';
+        console.error(`[EmployeeAuth] Role mismatch: User is ${roleLabel} but tried to log in as ${expectedLabel}`);
+        return { 
+          success: false, 
+          error: `This account is registered as ${roleLabel}. Please use the ${roleLabel} login.`,
+          wrongRole: true
+        };
+      }
+
       const user: EmployeeUser = {
         id: employee.id,
         name: employee.name,
         email: employee.email,
         accessToken: token,
         tokenExpiresAt: expires_at,
-        userType: userType,
+        userType: actualUserType,
+        backendRole: backendRole,
         employeeId: employee.id,
         companyId: employee.company_id,
         odooUserType: employee.user_type,
       };
 
-      // Save to storage with employee-specific keys
-      saveEmployeeLogin(user);
+      // Save to role-specific storage keys
+      saveRoleLogin(user);
 
       console.log('[EmployeeAuth] Login successful:', user.name);
+      console.log('[EmployeeAuth] Role:', backendRole, '-> userType:', actualUserType);
       console.log('[EmployeeAuth] Token expires at:', expires_at);
       return { success: true, user };
     } else {
@@ -235,16 +296,30 @@ export function isJwtTokenExpired(token?: string | null): boolean {
 
 /**
  * Get decoded information from the employee JWT token
+ * @param userType - Optional: specify 'attendant' or 'sales' to get role-specific token info
  */
-export function getEmployeeTokenInfo(): {
+export function getEmployeeTokenInfo(userType?: 'attendant' | 'sales'): {
   companyId?: number;
   email?: string;
   exp?: number;
   iat?: number;
   sub?: number;
   type?: string;
+  role?: string;
 } | null {
-  const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  let token: string | null = null;
+  
+  if (userType === 'attendant') {
+    token = localStorage.getItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN);
+  } else if (userType === 'sales') {
+    token = localStorage.getItem(STORAGE_KEYS.SALES_ACCESS_TOKEN);
+  } else {
+    // Legacy: check both, prefer attendant
+    token = localStorage.getItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN) 
+         || localStorage.getItem(STORAGE_KEYS.SALES_ACCESS_TOKEN)
+         || localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  }
+  
   if (!token) return null;
   
   const payload = decodeJwtPayload(token);
@@ -257,6 +332,7 @@ export function getEmployeeTokenInfo(): {
     iat: payload.iat,
     sub: payload.sub,
     type: payload.type,
+    role: payload.role,
   };
 }
 
@@ -291,22 +367,27 @@ export function isEmployeeTokenExpired(expiresAt?: string | null): boolean {
   }
 }
 
+// ============================================================================
+// Role-Specific Authentication Functions
+// Attendant and Sales are now SEPARATE roles with separate sessions
+// ============================================================================
+
 /**
- * Check if an employee (Attendant/Sales) is logged in with a valid (non-expired) token
+ * Check if an Attendant (salesattendant) is logged in with a valid token
  */
-export function isEmployeeLoggedIn(): boolean {
+export function isAttendantRoleLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
   
-  const userData = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
+  const userData = localStorage.getItem(STORAGE_KEYS.ATTENDANT_USER_DATA);
   if (!userData) return false;
   
-  const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  const token = localStorage.getItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN);
   if (!token) return false;
   
   // Check if JWT token is expired by decoding and checking exp claim
   if (isJwtTokenExpired(token)) {
-    console.log('[EmployeeAuth] JWT token expired, clearing session');
-    clearEmployeeLogin();
+    console.log('[EmployeeAuth] Attendant JWT token expired, clearing session');
+    clearAttendantRoleLogin();
     return false;
   }
   
@@ -314,15 +395,45 @@ export function isEmployeeLoggedIn(): boolean {
 }
 
 /**
- * Get the currently logged-in employee user (returns null if token expired)
+ * Check if a Sales Rep (salesrep) is logged in with a valid token
  */
-export function getEmployeeUser(): EmployeeUser | null {
+export function isSalesRoleLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const userData = localStorage.getItem(STORAGE_KEYS.SALES_USER_DATA);
+  if (!userData) return false;
+  
+  const token = localStorage.getItem(STORAGE_KEYS.SALES_ACCESS_TOKEN);
+  if (!token) return false;
+  
+  // Check if JWT token is expired by decoding and checking exp claim
+  if (isJwtTokenExpired(token)) {
+    console.log('[EmployeeAuth] Sales JWT token expired, clearing session');
+    clearSalesRoleLogin();
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * @deprecated Use isAttendantRoleLoggedIn() or isSalesRoleLoggedIn() instead
+ * Check if an employee (Attendant/Sales) is logged in with a valid (non-expired) token
+ * This is kept for backwards compatibility but will check both roles
+ */
+export function isEmployeeLoggedIn(): boolean {
+  return isAttendantRoleLoggedIn() || isSalesRoleLoggedIn();
+}
+
+/**
+ * Get the logged-in Attendant user (returns null if not logged in or token expired)
+ */
+export function getAttendantRoleUser(): EmployeeUser | null {
   if (typeof window === 'undefined') return null;
   
-  // First check if logged in (includes expiration check)
-  if (!isEmployeeLoggedIn()) return null;
+  if (!isAttendantRoleLoggedIn()) return null;
   
-  const userData = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
+  const userData = localStorage.getItem(STORAGE_KEYS.ATTENDANT_USER_DATA);
   if (!userData) return null;
   
   try {
@@ -333,17 +444,52 @@ export function getEmployeeUser(): EmployeeUser | null {
 }
 
 /**
- * Get the employee access token (returns null if expired)
+ * Get the logged-in Sales Rep user (returns null if not logged in or token expired)
  */
-export function getEmployeeToken(): string | null {
+export function getSalesRoleUser(): EmployeeUser | null {
   if (typeof window === 'undefined') return null;
   
-  const token = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  if (!isSalesRoleLoggedIn()) return null;
   
-  // Check if JWT token is expired
+  const userData = localStorage.getItem(STORAGE_KEYS.SALES_USER_DATA);
+  if (!userData) return null;
+  
+  try {
+    return JSON.parse(userData) as EmployeeUser;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @deprecated Use getAttendantRoleUser() or getSalesRoleUser() instead
+ * Get the currently logged-in employee user (returns null if token expired)
+ * This checks both roles and returns whichever is logged in
+ */
+export function getEmployeeUser(): EmployeeUser | null {
+  if (typeof window === 'undefined') return null;
+  
+  // Check attendant first, then sales
+  const attendantUser = getAttendantRoleUser();
+  if (attendantUser) return attendantUser;
+  
+  const salesUser = getSalesRoleUser();
+  if (salesUser) return salesUser;
+  
+  return null;
+}
+
+/**
+ * Get the Attendant access token (returns null if not logged in or expired)
+ */
+export function getAttendantRoleToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  const token = localStorage.getItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN);
+  
   if (isJwtTokenExpired(token)) {
-    console.log('[EmployeeAuth] JWT token expired when getting token');
-    clearEmployeeLogin();
+    console.log('[EmployeeAuth] Attendant JWT token expired when getting token');
+    clearAttendantRoleLogin();
     return null;
   }
   
@@ -351,32 +497,153 @@ export function getEmployeeToken(): string | null {
 }
 
 /**
- * Get the token expiration time
+ * Get the Sales Rep access token (returns null if not logged in or expired)
  */
-export function getEmployeeTokenExpiration(): string | null {
+export function getSalesRoleToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
+  
+  const token = localStorage.getItem(STORAGE_KEYS.SALES_ACCESS_TOKEN);
+  
+  if (isJwtTokenExpired(token)) {
+    console.log('[EmployeeAuth] Sales JWT token expired when getting token');
+    clearSalesRoleLogin();
+    return null;
+  }
+  
+  return token;
 }
 
 /**
+ * @deprecated Use getAttendantRoleToken() or getSalesRoleToken() instead
+ * Get the employee access token (returns null if expired)
+ */
+export function getEmployeeToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  // Try attendant first, then sales, then legacy
+  const attendantToken = getAttendantRoleToken();
+  if (attendantToken) return attendantToken;
+  
+  const salesToken = getSalesRoleToken();
+  if (salesToken) return salesToken;
+  
+  // Legacy fallback
+  const legacyToken = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
+  if (legacyToken && !isJwtTokenExpired(legacyToken)) {
+    return legacyToken;
+  }
+  
+  return null;
+}
+
+/**
+ * Get the token expiration time for a specific role
+ */
+export function getEmployeeTokenExpiration(userType?: 'attendant' | 'sales'): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  if (userType === 'attendant') {
+    return localStorage.getItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES);
+  } else if (userType === 'sales') {
+    return localStorage.getItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES);
+  }
+  
+  // Legacy: return whichever exists
+  return localStorage.getItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES)
+      || localStorage.getItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES)
+      || localStorage.getItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
+}
+
+/**
+ * @deprecated Roles are now separate, use isAttendantRoleLoggedIn() or isSalesRoleLoggedIn()
  * Get the current user type for employee
  */
 export function getEmployeeUserType(): UserType | null {
   if (typeof window === 'undefined') return null;
   
-  // Check if logged in (includes expiration check)
-  if (!isEmployeeLoggedIn()) return null;
+  if (isAttendantRoleLoggedIn()) return 'attendant';
+  if (isSalesRoleLoggedIn()) return 'sales';
   
+  // Legacy fallback
   const userType = localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_TYPE);
   return userType as UserType | null;
 }
 
 /**
+ * Save user data to role-specific storage after successful login
+ * This is the primary function to use for new logins
+ */
+export function saveRoleLogin(user: EmployeeUser): void {
+  if (typeof window === 'undefined') return;
+  
+  if (user.userType === 'attendant') {
+    localStorage.setItem(STORAGE_KEYS.ATTENDANT_USER_EMAIL, user.email);
+    localStorage.setItem(STORAGE_KEYS.ATTENDANT_USER_DATA, JSON.stringify(user));
+    
+    if (user.accessToken) {
+      localStorage.setItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN, user.accessToken);
+    }
+    
+    if (user.tokenExpiresAt) {
+      localStorage.setItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES, user.tokenExpiresAt);
+    }
+    
+    console.log('[EmployeeAuth] Saved Attendant login to role-specific storage');
+  } else if (user.userType === 'sales') {
+    localStorage.setItem(STORAGE_KEYS.SALES_USER_EMAIL, user.email);
+    localStorage.setItem(STORAGE_KEYS.SALES_USER_DATA, JSON.stringify(user));
+    
+    if (user.accessToken) {
+      localStorage.setItem(STORAGE_KEYS.SALES_ACCESS_TOKEN, user.accessToken);
+    }
+    
+    if (user.tokenExpiresAt) {
+      localStorage.setItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES, user.tokenExpiresAt);
+    }
+    
+    console.log('[EmployeeAuth] Saved Sales login to role-specific storage');
+  }
+}
+
+/**
+ * Clear Attendant login data on logout
+ */
+export function clearAttendantRoleLogin(): void {
+  if (typeof window === 'undefined') return;
+  
+  localStorage.removeItem(STORAGE_KEYS.ATTENDANT_USER_EMAIL);
+  localStorage.removeItem(STORAGE_KEYS.ATTENDANT_USER_DATA);
+  localStorage.removeItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES);
+  
+  console.log('[EmployeeAuth] Cleared Attendant login');
+}
+
+/**
+ * Clear Sales Rep login data on logout
+ */
+export function clearSalesRoleLogin(): void {
+  if (typeof window === 'undefined') return;
+  
+  localStorage.removeItem(STORAGE_KEYS.SALES_USER_EMAIL);
+  localStorage.removeItem(STORAGE_KEYS.SALES_USER_DATA);
+  localStorage.removeItem(STORAGE_KEYS.SALES_ACCESS_TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES);
+  
+  console.log('[EmployeeAuth] Cleared Sales login');
+}
+
+/**
+ * @deprecated Use saveRoleLogin() instead
  * Save employee user data after successful login
  */
 export function saveEmployeeLogin(user: EmployeeUser): void {
   if (typeof window === 'undefined') return;
   
+  // Use role-specific storage
+  saveRoleLogin(user);
+  
+  // Also save to legacy keys for backwards compatibility
   localStorage.setItem(STORAGE_KEYS.EMPLOYEE_USER_EMAIL, user.email);
   localStorage.setItem(STORAGE_KEYS.EMPLOYEE_USER_DATA, JSON.stringify(user));
   localStorage.setItem(STORAGE_KEYS.EMPLOYEE_USER_TYPE, user.userType);
@@ -389,35 +656,55 @@ export function saveEmployeeLogin(user: EmployeeUser): void {
     localStorage.setItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES, user.tokenExpiresAt);
   }
   
-  // Also save to legacy keys for backwards compatibility
   localStorage.setItem(STORAGE_KEYS.USER_EMAIL, user.email);
   localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
 }
 
 /**
+ * @deprecated Use clearAttendantRoleLogin() or clearSalesRoleLogin() instead
  * Clear employee login data on logout
  */
 export function clearEmployeeLogin(): void {
   if (typeof window === 'undefined') return;
   
-  // Clear employee-specific keys
+  // Clear role-specific keys
+  clearAttendantRoleLogin();
+  clearSalesRoleLogin();
+  
+  // Clear legacy keys
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_USER_EMAIL);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_USER_DATA);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_ACCESS_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_TOKEN_EXPIRES);
   localStorage.removeItem(STORAGE_KEYS.EMPLOYEE_USER_TYPE);
-  
-  // Clear legacy keys
   localStorage.removeItem(STORAGE_KEYS.USER_EMAIL);
   localStorage.removeItem(STORAGE_KEYS.USER_DATA);
 }
 
 /**
+ * Get stored email for a specific role (for pre-filling login form)
+ */
+export function getStoredRoleEmail(userType: 'attendant' | 'sales'): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  if (userType === 'attendant') {
+    return localStorage.getItem(STORAGE_KEYS.ATTENDANT_USER_EMAIL);
+  } else if (userType === 'sales') {
+    return localStorage.getItem(STORAGE_KEYS.SALES_USER_EMAIL);
+  }
+  
+  return null;
+}
+
+/**
+ * @deprecated Use getStoredRoleEmail() instead
  * Get stored email (for pre-filling login form)
  */
 export function getStoredEmployeeEmail(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_EMAIL);
+  return localStorage.getItem(STORAGE_KEYS.ATTENDANT_USER_EMAIL)
+      || localStorage.getItem(STORAGE_KEYS.SALES_USER_EMAIL)
+      || localStorage.getItem(STORAGE_KEYS.EMPLOYEE_USER_EMAIL);
 }
 
 // ============================================================================
@@ -510,10 +797,15 @@ export function isBleDeviceManagerLoggedIn(): boolean {
 
 /**
  * Get the currently active user type across all login systems
+ * Note: Both attendant and sales can be logged in simultaneously now
  */
 export function getActiveUserType(): UserType | null {
-  if (isEmployeeLoggedIn()) {
-    return getEmployeeUserType();
+  // Check role-specific logins first
+  if (isAttendantRoleLoggedIn()) {
+    return 'attendant';
+  }
+  if (isSalesRoleLoggedIn()) {
+    return 'sales';
   }
   if (isRiderLoggedIn()) {
     return 'rider';
@@ -525,12 +817,30 @@ export function getActiveUserType(): UserType | null {
 }
 
 /**
+ * Get all currently active user types (since attendant and sales can be logged in simultaneously)
+ */
+export function getActiveUserTypes(): UserType[] {
+  const types: UserType[] = [];
+  
+  if (isAttendantRoleLoggedIn()) types.push('attendant');
+  if (isSalesRoleLoggedIn()) types.push('sales');
+  if (isRiderLoggedIn()) types.push('rider');
+  if (isBleDeviceManagerLoggedIn()) types.push('ble_device_manager');
+  
+  return types;
+}
+
+/**
  * Clear all authentication data (logout from all systems)
  */
 export function clearAllAuth(): void {
   if (typeof window === 'undefined') return;
   
-  // Clear employee auth
+  // Clear role-specific auth
+  clearAttendantRoleLogin();
+  clearSalesRoleLogin();
+  
+  // Clear legacy employee auth
   clearEmployeeLogin();
   
   // Clear rider auth

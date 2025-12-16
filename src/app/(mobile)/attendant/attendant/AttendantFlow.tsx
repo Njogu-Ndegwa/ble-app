@@ -6,7 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantUser, clearEmployeeLogin } from '@/lib/attendant-auth';
+import { getAttendantRoleUser, clearAttendantRoleLogin } from '@/lib/attendant-auth';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
@@ -97,7 +97,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Load attendant info on mount
   useEffect(() => {
-    const user = getAttendantUser();
+    const user = getAttendantRoleUser();
     if (user) {
       setAttendantInfo({
         id: `attendant-${user.id}`,
@@ -1647,7 +1647,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     }
   }, [currentStep, isScanning, flowError, cancelOngoingScan]);
 
-  // Handle back to roles (don't logout - shared between Attendant & Sales)
+  // Handle back to roles (navigate to role selection without logging out)
   const handleBackToRoles = useCallback(() => {
     if (onBack) {
       onBack();
@@ -1656,9 +1656,10 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     }
   }, [onBack, router]);
 
-  // Handle logout - clear authentication and notify parent
+  // Handle logout - clear attendant authentication and notify parent
+  // Note: Attendant and Sales are now separate roles with separate sessions
   const handleLogout = useCallback(() => {
-    clearEmployeeLogin();
+    clearAttendantRoleLogin();
     toast.success(t('Signed out successfully'));
     if (onLogout) {
       onLogout();

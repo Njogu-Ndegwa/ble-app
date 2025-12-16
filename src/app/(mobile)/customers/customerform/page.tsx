@@ -5,9 +5,9 @@ import { Toaster } from 'react-hot-toast';
 import SalesFlow from './SalesFlow';
 import Login from '../../attendant/attendant/login';
 import { 
-  isEmployeeLoggedIn, 
-  getEmployeeUser, 
-  getEmployeeUserType,
+  isSalesRoleLoggedIn, 
+  getSalesRoleUser,
+  clearSalesRoleLogin,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
@@ -16,16 +16,15 @@ export default function CustomerFormPage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
   const [user, setUser] = useState<EmployeeUser | null>(null);
 
-  // Check login status on mount - verify user is logged in as sales
+  // Check login status on mount - specifically for sales role
+  // Note: Attendant and Sales are now separate roles with separate sessions
   // Also clears sales session if token has expired
   useEffect(() => {
-    const loggedIn = isEmployeeLoggedIn();
-    const userType = getEmployeeUserType();
+    const loggedIn = isSalesRoleLoggedIn();
     
-    // Allow access if employee is logged in (any type can use sales flow)
     setIsLoggedIn(loggedIn);
     if (loggedIn) {
-      setUser(getEmployeeUser());
+      setUser(getSalesRoleUser());
     } else {
       // Token has expired or user is not logged in
       // Clear any stored sales session to start fresh when they log in again
@@ -44,8 +43,10 @@ export default function CustomerFormPage() {
     setIsLoggedIn(true);
   }, []);
 
-  // Handle logout - reset login state and clear sales session
+  // Handle logout - reset login state and clear sales role session
+  // Note: Attendant and Sales are now separate roles with separate sessions
   const handleLogout = useCallback(() => {
+    clearSalesRoleLogin();
     clearSalesSession();
     setUser(null);
     setIsLoggedIn(false);

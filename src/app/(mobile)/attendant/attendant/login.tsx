@@ -8,8 +8,7 @@ import { Globe } from 'lucide-react';
 import Image from "next/image";
 import { 
   employeeLogin, 
-  saveEmployeeLogin, 
-  getStoredEmployeeEmail,
+  getStoredRoleEmail,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
 
@@ -63,13 +62,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
   
-  // Pre-fill email from stored value
+  // Pre-fill email from stored value for this specific role
   useEffect(() => {
-    const storedEmail = getStoredEmployeeEmail();
+    const storedEmail = getStoredRoleEmail(userType);
     if (storedEmail) {
       setEmail(storedEmail);
     }
-  }, []);
+  }, [userType]);
 
   // Lock body overflow for fixed container
   useEffect(() => {
@@ -216,7 +215,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
           throw new Error(t("No user data found in response"));
         }
         
-        // saveEmployeeLogin is already called inside employeeLogin()
+        // saveRoleLogin is automatically called inside employeeLogin() to persist the session
         onLoginSuccess(customerData);
       } else {
         throw new Error(result.error || t("Login failed. Please try again."));
