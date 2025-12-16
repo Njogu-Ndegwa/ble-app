@@ -218,9 +218,13 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     const batteryFleet = enrichedServiceStates.find(
       (s) => s.service_id?.includes('service-battery-fleet')
     );
-    const elecService = enrichedServiceStates.find(
-      (s) => s.service_id?.includes('service-electricity')
+    
+    // Find energy service - check for both "service-energy" and "service-electricity" patterns
+    // Different deployments may use different naming conventions
+    const energyService = enrichedServiceStates.find(
+      (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity')
     );
+    
     const swapCountService = enrichedServiceStates.find(
       (s) => s.service_id?.includes('service-swap-count')
     );
@@ -231,16 +235,23 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     // Extract billing currency from common_terms (source of truth)
     const billingCurrency = commonTerms?.billingCurrency || servicePlanData?.currency || PAYMENT.defaultCurrency;
     
-    // Get rate from electricity service
-    const rate = elecService?.usageUnitPrice || defaultRate;
+    // Get rate from energy service - NO default fallback for Sales workflow
+    // If energy service is not found, rate will be 0 and Sales flow will require manual retry
+    const rate = energyService?.usageUnitPrice || 0;
+    
+    // Log warning if energy service not found - helps with debugging
+    if (!energyService) {
+      console.warn('[Customer Identification] Energy service not found in service states. Available services:', 
+        enrichedServiceStates.map(s => s.service_id).join(', '));
+    }
 
     // Check for infinite quota services
-    const hasInfiniteEnergyQuota = (elecService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
+    const hasInfiniteEnergyQuota = (energyService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
     const hasInfiniteSwapQuota = (swapCountService?.quota || 0) > INFINITE_QUOTA_THRESHOLD;
 
     // Calculate remaining quota values
-    const energyRemaining = elecService ? round(elecService.quota - elecService.used, 2) : 0;
-    const energyUnitPrice = elecService?.usageUnitPrice || 0;
+    const energyRemaining = energyService ? round(energyService.quota - energyService.used, 2) : 0;
+    const energyUnitPrice = energyService?.usageUnitPrice || 0;
     const energyValue = energyRemaining * energyUnitPrice;
 
     // Build customer data
@@ -253,7 +264,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       swapCount: swapCountService?.used || 0,
       lastSwap: 'N/A',
       energyRemaining,
-      energyTotal: elecService?.quota || 0,
+      energyTotal: energyService?.quota || 0,
       energyValue,
       energyUnitPrice,
       swapsRemaining: swapCountService ? (swapCountService.quota - swapCountService.used) : 0,

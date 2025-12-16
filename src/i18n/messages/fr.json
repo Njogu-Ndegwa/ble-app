@@ -1246,6 +1246,7 @@
   "sales.fetchingPricing": "Récupération des tarifs...",
   "sales.invalidPricing": "Données de tarification invalides. Appuyez sur \"Récupérer les tarifs\" pour réessayer.",
   "sales.pricingRequiredToComplete": "Tarification requise avant de finaliser le service.",
+  "sales.energyServiceNotFound": "Service d'énergie introuvable. Appuyez sur \"Récupérer les tarifs\" pour réessayer.",
   
   "battery.scanQr": "Scanner QR",
   "battery.selectManually": "Sélection manuelle",

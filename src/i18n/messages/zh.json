@@ -1157,6 +1157,7 @@
   "sales.fetchingPricing": "正在获取价格...",
   "sales.invalidPricing": "价格数据无效。请点击\"获取价格\"重试。",
   "sales.pricingRequiredToComplete": "完成服务前需要价格信息。",
+  "sales.energyServiceNotFound": "未找到能源服务。请点击\"获取价格\"重试。",
   
   "battery.scanQr": "扫描二维码",
   "battery.selectManually": "手动选择",

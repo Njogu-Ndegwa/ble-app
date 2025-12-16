@@ -1255,6 +1255,7 @@
   "sales.fetchingPricing": "Fetching pricing...",
   "sales.invalidPricing": "Invalid pricing data. Please tap \"Fetch Pricing\" to retry.",
   "sales.pricingRequiredToComplete": "Pricing info required before completing service.",
+  "sales.energyServiceNotFound": "Energy service not found. Please tap \"Fetch Pricing\" to retry.",
   
   "battery.scanQr": "Scan QR",
   "battery.selectManually": "Select Manually",

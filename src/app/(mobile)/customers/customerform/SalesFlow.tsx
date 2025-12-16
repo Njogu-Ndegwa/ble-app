@@ -1391,6 +1391,20 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
 
+    // CRITICAL: Validate that we have an energy service from customer identification
+    // We need the energy service ID to report the transaction correctly
+    const energyService = customerServiceStates.find(
+      (service) => typeof service?.service_id === 'string' && 
+        (service.service_id.includes('service-energy') || service.service_id.includes('service-electricity'))
+    );
+    
+    if (!energyService || !energyService.service_id) {
+      console.error('[SALES SERVICE] Energy service not found in customer service states:', 
+        customerServiceStates.map(s => s.service_id).join(', '));
+      toast.error(t('sales.energyServiceNotFound') || 'Energy service not found. Please tap "Fetch Pricing" to retry.');
+      return;
+    }
+
     // Calculate cost using centralized calculateSwapPayment function
     // This ensures consistent rounding behavior with the Attendant flow
     // Note: We use customerRate directly - NO fallback to DEFAULT_RATE
@@ -1441,13 +1455,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         currencySymbol: customerCurrencySymbol,
       },
       customerType: 'first-time', // First-time customer - only new battery
-      // Dynamically extract electricity service ID from customerServiceStates (same pattern as AttendantFlow)
-      serviceId: (() => {
-        const electricityService = customerServiceStates.find(
-          (service) => typeof service?.service_id === 'string' && service.service_id.includes('service-electricity')
-        );
-        return electricityService?.service_id || 'service-electricity-default';
-      })(), // Electricity service
+      // Use the pre-validated energy service ID (validated above - never empty at this point)
+      serviceId: energyService.service_id,
       actor: {
         type: 'attendant', // Backend expects 'attendant' type
         id: `salesperson-${getEmployeeUser()?.id || '001'}`,
