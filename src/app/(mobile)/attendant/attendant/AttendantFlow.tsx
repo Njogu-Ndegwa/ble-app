@@ -284,6 +284,21 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     onSuccess: async (result: CustomerIdentificationResult) => {
       console.info('Customer identification successful:', result);
       
+      // Validate energy service and rate from identification result
+      const energyService = result.serviceStates.find(
+        (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity')
+      );
+      
+      if (!energyService) {
+        console.warn('[Attendant] WARNING: Energy service not found in customer service states:', 
+          result.serviceStates.map(s => s.service_id).join(', '));
+      }
+      
+      if (!result.rate || result.rate <= 0) {
+        console.warn('[Attendant] WARNING: Invalid rate from customer identification:', result.rate,
+          '- energy service usageUnitPrice:', energyService?.usageUnitPrice);
+      }
+      
       // Update all state from the result
       setCustomerData(result.customer as CustomerData);
       setServiceStates(result.serviceStates);
@@ -427,6 +442,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
         const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
         const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
+        
+        // Warn if rate is invalid - this could lead to incorrect cost calculations
+        if (!rate || rate <= 0) {
+          console.warn('[Attendant] WARNING: Rate is 0 or invalid during cost calculation. This may cause incorrect pricing.',
+            { rate, serviceUsageUnitPrice: electricityServiceRef.current?.usageUnitPrice, prevRate: prev.rate });
+        }
         
         // Use the centralized swap payment calculation
         const paymentCalc = calculateSwapPayment({
