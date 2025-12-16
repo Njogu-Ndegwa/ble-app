@@ -550,6 +550,10 @@ export async function getSubscriptionProducts(
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
   const url = `${ODOO_BASE_URL}/api/products/subscription?page=${page}&limit=${limit}`;
   
+  console.log('[ODOO API] getSubscriptionProducts called');
+  console.log('[ODOO API] URL:', url);
+  console.log('[ODOO API] Has auth token:', !!authToken);
+  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
@@ -561,7 +565,9 @@ export async function getSubscriptionProducts(
   }
 
   try {
+    console.log('[ODOO API] Making fetch request...');
     const response = await fetchWithRetry(url, { method: 'GET', headers });
+    console.log('[ODOO API] Fetch completed, status:', response.status);
     const rawData: SubscriptionProductsRawResponse = await response.json();
 
     if (!response.ok) {

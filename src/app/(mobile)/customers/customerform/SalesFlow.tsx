@@ -166,6 +166,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const packagesLoadError = catalogErrors.packages;
   const plansLoadError = catalogErrors.plans;
 
+  // DEBUG: Log catalog state on every render
+  console.log('[SALES FLOW] Catalog state:', {
+    packagesCount: availablePackages.length,
+    plansCount: availablePlans.length,
+    isLoadingPackages,
+    isLoadingPlans,
+    packagesLoadError,
+    plansLoadError,
+    selectedPackageId,
+    selectedPlanId,
+  });
+
   // Created customer data from Odoo registration
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
   const [createdPartnerId, setCreatedPartnerId] = useState<number | null>(null);
