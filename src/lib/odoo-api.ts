@@ -568,11 +568,58 @@ export async function getSubscriptionProducts(
     console.log('[ODOO API] Making fetch request...');
     const response = await fetchWithRetry(url, { method: 'GET', headers });
     console.log('[ODOO API] Fetch completed, status:', response.status);
-    const rawData: SubscriptionProductsRawResponse = await response.json();
-
+    
+    // Check if response is OK before trying to parse JSON
     if (!response.ok) {
-      console.error('Odoo API Error:', rawData);
-      throw new Error((rawData as any)?.error || `HTTP ${response.status}`);
+      // Try to get error details from response
+      const contentType = response.headers.get('content-type') || '';
+      let errorMessage = `Server error (HTTP ${response.status})`;
+      
+      if (contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        } catch {
+          // JSON parsing failed, use default message
+        }
+      } else {
+        // Response is not JSON (likely HTML error page)
+        const textPreview = await response.text().catch(() => '');
+        console.error('[ODOO API] Non-JSON error response:', textPreview.substring(0, 200));
+        
+        if (response.status === 500) {
+          errorMessage = 'Server error (500). The products service is temporarily unavailable. Please try again later.';
+        } else if (response.status === 401 || response.status === 403) {
+          errorMessage = 'Authentication failed. Please log out and log back in.';
+        } else if (response.status === 404) {
+          errorMessage = 'Products endpoint not found. Please contact support.';
+        }
+      }
+      
+      console.error('[ODOO API] Error response:', { status: response.status, message: errorMessage });
+      throw new Error(errorMessage);
+    }
+    
+    // Check content-type before parsing JSON
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const textPreview = await response.text().catch(() => '');
+      console.error('[ODOO API] Unexpected content-type:', contentType, 'Body preview:', textPreview.substring(0, 200));
+      throw new Error('Server returned an unexpected response. Please try again later.');
+    }
+    
+    let rawData: SubscriptionProductsRawResponse;
+    try {
+      rawData = await response.json();
+    } catch (parseError) {
+      console.error('[ODOO API] JSON parse error:', parseError);
+      throw new Error('Failed to parse server response. Please try again.');
+    }
+
+    // Check if API returned success: false
+    if (!rawData.success) {
+      console.error('[ODOO API] API returned success=false:', rawData);
+      throw new Error((rawData as any)?.error || (rawData as any)?.message || 'Failed to load products');
     }
 
     // Handle both old format (products array) and new format (categories object)
