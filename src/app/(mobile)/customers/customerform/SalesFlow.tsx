@@ -1200,16 +1200,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           registrationId: '',
         });
         
-        // Update session with products
-        const success = await updateSessionWithProducts(sessionData, products);
+        // Update session with products - returns subscription code from backend
+        const result = await updateSessionWithProducts(sessionData, products);
         
-        if (success) {
+        if (result.success) {
           // Update local state
           const totalPrice = currentSelectedPlan.price + currentSelectedPackage.price;
           
+          // Extract subscription code from response
+          const subscriptionCode = result.subscriptionCode || '';
+          
           setSubscriptionData({
-            id: 0, // Updated from backend later
-            subscriptionCode: '', // Updated from backend later
+            id: 0, // Will be populated after full subscription activation
+            subscriptionCode, // Now populated from session update response!
             status: 'pending',
             productName: currentSelectedPlan.name,
             priceAtSignup: totalPrice,
@@ -1221,10 +1224,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           setPaymentAmountExpected(totalPrice);
           setPaymentAmountRemaining(totalPrice);
           
-          console.log('Products added to order via session update');
+          console.log('Products added to order via session update:', {
+            subscriptionCode,
+            subscriptionsCreated: result.subscriptionsCreated,
+          });
           
           return {
-            subscriptionCode: '', // Will be populated after payment
+            subscriptionCode, // Now available from session update response
             orderId: sessionOrderId,
           };
         } else {

@@ -1293,6 +1293,15 @@ export interface UpdateSessionWithPaymentPayload {
 }
 
 /**
+ * Subscription created as part of a session update (when products are added)
+ */
+export interface CreatedSubscription {
+  subscription_code: string;
+  product_id: number;
+  product_name: string;
+}
+
+/**
  * Response from updating a session
  */
 export interface UpdateSessionResponse {
@@ -1302,16 +1311,24 @@ export interface UpdateSessionResponse {
     id: number;
     name: string;
     state: string;
+    sale_order_id?: number;
+    session_data?: Record<string, unknown>;
   };
   order?: {
     id: number;
     name: string;
     state: string;
     amount_total: number;
-    expected_amount: number;
-    paid_amount: number;
-    remaining_amount: number;
+    amount_untaxed?: number;
+    amount_tax?: number;
+    expected_amount?: number;
+    paid_amount?: number;
+    remaining_amount?: number;
   };
+  /** Subscription code returned when products are added to order */
+  subscription_code?: string;
+  /** Array of subscriptions created when products are added */
+  subscriptions_created?: CreatedSubscription[];
 }
 
 /**
