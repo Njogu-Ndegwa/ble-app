@@ -11,8 +11,7 @@
  * Used by the Sales workflow for customer registration.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { toast } from 'react-hot-toast';
+import { useState, useCallback, useEffect } from 'react';
 import {
   getSubscriptionProducts,
   type SubscriptionProduct,
@@ -424,7 +423,7 @@ export function useProductCatalog(
           setErrors(prev => ({ ...prev, plans: 'No subscription plans available' }));
         }
       } else {
-        // API returned failure
+        // API returned failure - errors will be displayed in Step 2 UI
         console.error('[PRODUCT CATALOG] API returned failure:', response);
         const errorMsg = 'Failed to load data from server. Please check your connection and try again.';
         setProducts([]);
@@ -435,9 +434,9 @@ export function useProductCatalog(
           packages: errorMsg,
           plans: errorMsg,
         });
-        toast.error('Could not load products from server');
       }
     } catch (error: any) {
+      // Network/system errors - will be displayed in Step 2 UI
       console.error('[PRODUCT CATALOG] Fetch failed:', error);
       console.error('[PRODUCT CATALOG] Error details:', {
         message: error.message,
@@ -453,7 +452,6 @@ export function useProductCatalog(
         packages: errorMsg,
         plans: errorMsg,
       });
-      toast.error(`Could not load products: ${error.message || 'Network error'}`);
     } finally {
       console.log('[PRODUCT CATALOG] ====== REFETCH COMPLETE ======');
       setIsLoading({ products: false, packages: false, plans: false });
@@ -488,26 +486,7 @@ export function useProductCatalog(
     }
   }, [autoFetch, refetch, workflowType]);
 
-  // DEBUG: Track loading state changes to show toast when fetch completes
-  const prevLoadingRef = useRef(isLoading.packages);
-  useEffect(() => {
-    const wasLoading = prevLoadingRef.current;
-    const isNowLoading = isLoading.packages;
-    
-    // Detect transition from loading -> not loading
-    if (wasLoading && !isNowLoading) {
-      console.log('[PRODUCT CATALOG] FETCH COMPLETED. Packages:', packages.length, 'Error:', errors.packages);
-      if (packages.length > 0) {
-        toast.success(`Loaded ${packages.length} packages`, { duration: 2000 });
-      } else if (errors.packages) {
-        toast.error(`Package load failed: ${errors.packages}`, { duration: 5000 });
-      } else {
-        toast(`No packages available`, { duration: 3000 });
-      }
-    }
-    
-    prevLoadingRef.current = isNowLoading;
-  }, [isLoading.packages, packages.length, errors.packages]);
+  // Note: Package loading is silent. Errors are shown in Step 2 UI via errors.packages state
 
   return {
     // Data
