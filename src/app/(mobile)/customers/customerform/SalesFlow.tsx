@@ -891,6 +891,31 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
   }, [currentStep, scannedVehicleId, advanceToStep]);
 
+  // Safety net: Auto-trigger customer identification when entering step 6 or 7
+  // This handles edge cases like session restore where the payment callback didn't run
+  // Identification is needed to get the energy rate for pricing the first battery
+  useEffect(() => {
+    // Only trigger on step 6 (vehicle scan) or step 7 (battery assignment)
+    if (currentStep !== 6 && currentStep !== 7) return;
+    
+    // Skip if already identified or identification is in progress
+    if (customerIdentified || isIdentifying) return;
+    
+    // Get the subscription code
+    const subscriptionId = confirmedSubscriptionCode || subscriptionData?.subscriptionCode;
+    if (!subscriptionId) {
+      console.warn('[SALES] Cannot trigger identification - no subscription code available');
+      return;
+    }
+    
+    // Trigger background identification
+    console.info('[SALES] Auto-triggering customer identification on step', currentStep);
+    identifyCustomer({
+      subscriptionCode: subscriptionId,
+      source: 'manual',
+    });
+  }, [currentStep, customerIdentified, isIdentifying, confirmedSubscriptionCode, subscriptionData?.subscriptionCode, identifyCustomer]);
+
   // NOTE: Product/package/plan fetching is now handled by useProductCatalog hook
   // The hook auto-fetches on mount and provides refetch via fetchProductsAndPlans
 
