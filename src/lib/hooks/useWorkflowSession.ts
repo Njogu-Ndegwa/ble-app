@@ -71,6 +71,19 @@ export interface SessionProductItem {
   price_unit: number;
 }
 
+// Result from updating session with products (includes subscription code from backend)
+export interface UpdateSessionWithProductsResult {
+  success: boolean;
+  /** Subscription code created when products are added to order */
+  subscriptionCode?: string;
+  /** Array of subscriptions created (if multiple products created subscriptions) */
+  subscriptionsCreated?: Array<{
+    subscription_code: string;
+    product_id: number;
+    product_name: string;
+  }>;
+}
+
 // Return type for the hook
 export interface UseWorkflowSessionReturn {
   // State
@@ -89,8 +102,11 @@ export interface UseWorkflowSessionReturn {
   // Session lifecycle - Sales workflow
   /** Create a session for Sales workflow using customer_id instead of subscription_code */
   createSalesSession: (customerId: number, companyId: number, initialData: WorkflowSessionData) => Promise<number | null>;
-  /** Update session with products (Sales workflow Step 4 - payment step) */
-  updateSessionWithProducts: (data: WorkflowSessionData, products: SessionProductItem[]) => Promise<boolean>;
+  /** 
+   * Update session with products (Sales workflow Step 4 - payment step)
+   * Returns the subscription code created by the backend
+   */
+  updateSessionWithProducts: (data: WorkflowSessionData, products: SessionProductItem[]) => Promise<UpdateSessionWithProductsResult>;
   
   // Session restoration
   restoreSession: () => Promise<WorkflowSessionData | null>;
@@ -497,14 +513,16 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   /**
    * Update session with products (Sales workflow Step 4 - payment step)
    * Adds order lines for subscription plan and package components
+   * 
+   * Returns the subscription code created by the backend when products are added
    */
   const updateSessionWithProductsFunc = useCallback(async (
     data: WorkflowSessionData,
     products: Array<{ product_id: number; quantity: number; price_unit: number }>
-  ): Promise<boolean> => {
+  ): Promise<UpdateSessionWithProductsResult> => {
     if (!orderId) {
       console.warn('[useWorkflowSession] Cannot update session with products - no orderId');
-      return false;
+      return { success: false };
     }
     
     const authToken = getAuthToken();
@@ -520,7 +538,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         savedAt: Date.now(),
       };
       
-      await updateWorkflowSessionWithProducts(orderId, {
+      const response = await updateWorkflowSessionWithProducts(orderId, {
         session_data: sessionPayload,
         products,
       }, authToken);
@@ -529,12 +547,24 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       setStatus('active');
       lastSavedDataRef.current = JSON.stringify(sessionPayload);
       
-      console.info('[useWorkflowSession] Session updated with products for order_id:', orderId);
-      return true;
+      // Extract subscription code from response
+      const subscriptionCode = response.subscription_code;
+      const subscriptionsCreated = response.subscriptions_created;
+      
+      console.info('[useWorkflowSession] Session updated with products for order_id:', orderId, {
+        subscriptionCode,
+        subscriptionsCreated,
+      });
+      
+      return {
+        success: true,
+        subscriptionCode,
+        subscriptionsCreated,
+      };
     } catch (err: any) {
       console.error('[useWorkflowSession] Error updating session with products:', err);
       handleError(err.message || 'Failed to update session with products');
-      return false;
+      return { success: false };
     }
   }, [orderId, getAuthToken, handleError]);
   
