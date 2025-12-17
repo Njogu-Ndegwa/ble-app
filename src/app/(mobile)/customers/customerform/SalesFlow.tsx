@@ -56,7 +56,6 @@ import type { WorkflowSessionData } from '@/lib/odoo-api';
 import {
   registerCustomer,
   purchaseMultiProducts,
-  initiatePayment,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
@@ -1290,14 +1289,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     customerCurrencySymbol,
   ]);
 
-  // Initiate payment with Odoo - send STK push to customer's phone
-  // NOTE: For Sales flow with backend sessions, the order is created in Step 1 (customer registration)
-  // Products are added to the order in Step 4 via updateSessionWithProducts
-  // Subscription code is optional - order_id is the primary identifier
-  // Accepts subscriptionCode and orderId parameters to avoid React state timing issues
-  const initiateOdooPayment = useCallback(async (subscriptionCode?: string, orderId?: number): Promise<boolean> => {
+  // Initialize local payment state for payment collection
+  // NOTE: For Sales flow with backend sessions:
+  // - Products are added to the order via updateSessionWithProducts (PUT /api/sessions/by-order/{orderId})
+  // - No STK push - salesperson collects payment receipt manually from customer
+  // - Payment confirmation uses confirmPaymentManual with order_id
+  const initiateOdooPayment = useCallback(async (orderId?: number): Promise<boolean> => {
     // Use passed orderId or fall back to state
-    // orderId is passed directly to avoid React state timing issues
     const orderIdToUse = orderId || paymentRequestOrderId;
     
     // Verify we have an order_id - this is the primary identifier for payment
@@ -1307,64 +1305,29 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return false;
     }
 
-    // Get the salesperson's employee token for authorization
-    const employeeToken = getSalesRoleToken();
-    
     // Calculate total amount: package + subscription
     const currentSelectedPackage = availablePackages.find(p => p.id === selectedPackageId);
     const currentSelectedPlan = availablePlans.find(p => p.id === selectedPlanId);
     const packagePrice = currentSelectedPackage?.price || 0;
     const subscriptionPrice = currentSelectedPlan?.price || 0;
     const totalAmount = packagePrice + subscriptionPrice;
+
+    // Set up local payment state for the payment collection UI
+    // Products were already added to order via updateSessionWithProducts
+    setPaymentAmountExpected(totalAmount);
+    setPaymentAmountRemaining(totalAmount);
+    setPaymentInitiated(true);
     
-    // Format phone number - ensure it starts with country code
-    let phoneNumber = formData.phone ? formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '') : '';
-    if (phoneNumber.startsWith('0')) {
-      phoneNumber = '254' + phoneNumber.slice(1);
-    } else if (phoneNumber && !phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
-      phoneNumber = '254' + phoneNumber;
-    }
-    phoneNumber = phoneNumber.replace('+', '');
-
-    try {
-      // Order is already created - products were added via updateSessionWithProducts
-      // No need to call createPaymentRequest - just set up for payment collection
-      toast.success('Order ready. Collect payment from customer.');
-
-      // Use the passed subscription code, or fall back to state (may be empty for session-based flow)
-      const subCode = subscriptionCode || subscriptionData?.subscriptionCode;
-
-      // Optionally try to send STK push if we have subscription code and phone (don't block if it fails)
-      if (phoneNumber && subCode) {
-        try {
-          console.log('Sending STK push to customer phone:', phoneNumber);
-          const stkResponse = await initiatePayment({
-            subscription_code: subCode,
-            phone_number: phoneNumber,
-            amount: totalAmount,
-          }, employeeToken || undefined);
-
-          if (stkResponse.success && stkResponse.data) {
-            console.log('STK push sent:', stkResponse.data);
-            toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
-          }
-        } catch (stkError) {
-          console.warn('STK push failed (non-blocking):', stkError);
-          // Don't show error toast - customer can still pay manually
-        }
-      } else if (phoneNumber && !subCode) {
-        // Session-based flow without subscription code yet - STK push not available
-        console.info('STK push skipped - subscription code not yet available (session-based flow)');
-      }
-
-      setPaymentInitiated(true);
-      return true;
-    } catch (error: any) {
-      console.error('Failed to initiate payment:', error);
-      toast.error(error.message || 'Failed to initiate payment. Please try again.');
-      return false;
-    }
-  }, [subscriptionData, selectedPackageId, availablePackages, selectedPlanId, availablePlans, formData.phone, paymentRequestOrderId]);
+    console.info('[SALES PAYMENT] Payment initialized:', {
+      orderId: orderIdToUse,
+      totalAmount,
+      packagePrice,
+      subscriptionPrice,
+    });
+    
+    toast.success('Order ready. Collect payment from customer.');
+    return true;
+  }, [selectedPackageId, availablePackages, selectedPlanId, availablePlans, paymentRequestOrderId]);
 
   // Handle payment confirmation via QR scan
   const handlePaymentQrScan = useCallback(async () => {
@@ -1789,12 +1752,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // It returns both subscriptionCode and orderId
           const purchaseResult = await purchaseCustomerSubscription();
           if (purchaseResult && purchaseResult.orderId) {
-            // Initiate payment to send M-Pesa prompt
-            // Pass both subscriptionCode and orderId directly to avoid React state timing issues
-            const paymentInitiatedSuccess = await initiateOdooPayment(
-              purchaseResult.subscriptionCode, 
-              purchaseResult.orderId
-            );
+            // Initialize local payment state
+            // Products were already added to order via updateSessionWithProducts
+            const paymentInitiatedSuccess = await initiateOdooPayment(purchaseResult.orderId);
             
             // Only advance to payment step if payment initiation was successful
             if (paymentInitiatedSuccess) {
