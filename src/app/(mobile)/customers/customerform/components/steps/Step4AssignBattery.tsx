@@ -137,7 +137,12 @@ export default function Step4AssignBattery({
         />
 
         {/* Identification Status / First-Time Customer Discount Card */}
-        {identificationFailed ? (
+        {/* Show failed/retry card when:
+            1. Identification explicitly failed (all retries exhausted), OR
+            2. Identification was never started AND we don't have pricing AND not currently identifying
+            This prevents the "loading pricing..." spinner from showing indefinitely when identification
+            wasn't triggered (e.g., session restore) or failed silently */}
+        {identificationFailed || (!isIdentifying && !customerIdentified && rate === 0) ? (
           <IdentificationFailedCard onRetry={onManualIdentify} />
         ) : (
           <FirstTimeDiscountCard
@@ -145,7 +150,7 @@ export default function Step4AssignBattery({
             rate={rate}
             cost={calculatedCost}
             currencySymbol={currencySymbol || selectedPlan?.currencySymbol || 'KES'}
-            isLoading={isIdentifying || (!customerIdentified && rate === 0)}
+            isLoading={isIdentifying}
           />
         )}
 
