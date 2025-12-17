@@ -654,11 +654,10 @@ function isSessionEffectivelyComplete(
     return false;
   }
   
-  // For salesperson workflow, similar logic could be added if needed
-  // For now, just check if at the final step
+  // For salesperson workflow, Step 8 is the success/completion step
   if (workflowType === 'salesperson') {
-    // Step 7 is the success step for salesperson
-    if (currentStep >= 7 || maxStepReached >= 7) {
+    // Step 8 is the success step for salesperson
+    if (currentStep >= 8 || maxStepReached >= 8) {
       return true;
     }
   }
