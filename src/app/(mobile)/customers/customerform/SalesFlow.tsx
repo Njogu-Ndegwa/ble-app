@@ -1543,6 +1543,34 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     toast('Ready to scan a new battery');
   }, [hookResetState, bleIsReady, startBleScan]);
 
+  // Handle manual identification retry - wrapper that handles both:
+  // 1. Normal retry (when identification was previously attempted)
+  // 2. Fresh identification (when identification was never started, e.g., session restore)
+  const handleManualIdentify = useCallback(() => {
+    // Get the subscription code
+    const subscriptionId = confirmedSubscriptionCode || subscriptionData?.subscriptionCode;
+    
+    if (!subscriptionId) {
+      toast.error('No subscription found. Please complete payment first.');
+      return;
+    }
+    
+    // If identification was previously attempted (status is 'failed' or has lastError),
+    // the manualRetry function will work. Otherwise, we need to trigger fresh identification.
+    if (identificationStatus === 'idle' || identificationStatus === 'pending' || identificationStatus === 'retrying') {
+      // Fresh identification - never started or still in progress
+      console.info('[SALES] Triggering fresh customer identification:', subscriptionId);
+      identifyCustomer({
+        subscriptionCode: subscriptionId,
+        source: 'manual',
+      });
+    } else {
+      // Retry - identification was attempted before (failed or success)
+      console.info('[SALES] Retrying customer identification:', subscriptionId);
+      manualIdentifyCustomer();
+    }
+  }, [confirmedSubscriptionCode, subscriptionData?.subscriptionCode, identificationStatus, identifyCustomer, manualIdentifyCustomer]);
+
   // Handle service completion - uses customer identification + payment and service hooks
   // This is for first-time customer purchase (new subscription)
   // 
@@ -2025,7 +2053,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             customerIdentified={customerIdentified}
             isIdentifying={isIdentifying}
             identificationFailed={identificationFailed}
-            onManualIdentify={manualIdentifyCustomer}
+            onManualIdentify={handleManualIdentify}
           />
         );
       case 8:
