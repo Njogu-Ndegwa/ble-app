@@ -56,7 +56,6 @@ import type { WorkflowSessionData } from '@/lib/odoo-api';
 import {
   registerCustomer,
   purchaseMultiProducts,
-  initiatePayment,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
@@ -68,14 +67,9 @@ import {
 // Note: Attendant and Sales are now separate roles with separate sessions
 import { getSalesRoleToken, clearSalesRoleLogin, getSalesRoleUser } from '@/lib/attendant-auth';
 
-// Import session persistence utilities
-import {
-  saveSalesSession,
-  loadSalesSession,
-  clearSalesSession,
-  getSessionSummary,
-  type SalesSessionData,
-} from '@/lib/sales-session';
+// Note: localStorage session persistence removed - now using backend sessions only
+// clearSalesSession kept for migration cleanup
+import { clearSalesSession } from '@/lib/sales-session';
 
 // Define WebViewJavascriptBridge type
 interface WebViewJavascriptBridge {
@@ -422,19 +416,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     },
   });
 
-  // Session restoration UI state
+  // Session restoration UI state (backend sessions only)
   const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
-  
-  // Legacy localStorage session state (for fallback/migration)
-  const [showResumePrompt, setShowResumePrompt] = useState(false);
-  const [savedSessionSummary, setSavedSessionSummary] = useState<{
-    customerName: string;
-    step: number;
-    savedAt: string;
-  } | null>(null);
   const [sessionRestored, setSessionRestored] = useState(false);
-  const isRestoringSession = useRef(false);
   
   // Process payment QR data ref
   const processPaymentQRDataRef = useRef<(paymentId: string) => void>(() => {});
@@ -453,23 +438,19 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Check for pending session from backend on mount
   useEffect(() => {
     const checkSession = async () => {
-      // First check backend for pending session
+      // Check backend for pending session (localStorage sessions removed)
       const hasPending = await checkForPendingSession();
       if (hasPending) {
         setShowSessionPrompt(true);
       } else {
-        // Fallback: check localStorage for legacy session (migration path)
-        const summary = getSessionSummary();
-        if (summary && !sessionRestored) {
-          setSavedSessionSummary(summary);
-          setShowResumePrompt(true);
-        }
+        // Clean up any leftover localStorage session from previous versions
+        clearSalesSession();
       }
       setSessionCheckComplete(true);
     };
     
     checkSession();
-  }, [checkForPendingSession, sessionRestored]);
+  }, [checkForPendingSession]);
 
   // Handle session resume from backend
   const handleResumeSession = useCallback(async () => {
@@ -485,62 +466,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     discardPendingSession();
     setShowSessionPrompt(false);
     setSessionRestored(true);
+    // Clean up any leftover localStorage session
+    clearSalesSession();
     toast(t('session.startNew') || 'Starting a new registration');
   }, [discardPendingSession, t]);
-
-  // Restore session from localStorage (legacy fallback)
-  const restoreLocalSession = useCallback(() => {
-    if (isRestoringSession.current) return;
-    isRestoringSession.current = true;
-
-    const savedSession = loadSalesSession();
-    if (savedSession) {
-      // Restore all state from saved session
-      setCurrentStep(savedSession.currentStep);
-      setMaxStepReached(savedSession.maxStepReached);
-      setFormData(savedSession.formData);
-      // Only restore package/plan IDs if they exist (backwards compatibility)
-      if (savedSession.selectedPackageId) {
-        setSelectedPackageId(savedSession.selectedPackageId);
-      }
-      if (savedSession.selectedPlanId) {
-        setSelectedPlanId(savedSession.selectedPlanId);
-      }
-      setCreatedCustomerId(savedSession.createdCustomerId);
-      setCreatedPartnerId(savedSession.createdPartnerId);
-      setCustomerSessionToken(savedSession.customerSessionToken);
-      setSubscriptionData(savedSession.subscriptionData);
-      setPaymentConfirmed(savedSession.paymentConfirmed);
-      setPaymentReference(savedSession.paymentReference);
-      setPaymentInitiated(savedSession.paymentInitiated);
-      setPaymentAmountPaid(savedSession.paymentAmountPaid);
-      setPaymentAmountExpected(savedSession.paymentAmountExpected);
-      setPaymentAmountRemaining(savedSession.paymentAmountRemaining);
-      setPaymentIncomplete(savedSession.paymentIncomplete);
-      setConfirmedSubscriptionCode(savedSession.confirmedSubscriptionCode);
-      // Restore vehicle scan if present
-      if (savedSession.scannedVehicleId) {
-        setScannedVehicleId(savedSession.scannedVehicleId);
-      }
-      setAssignedBattery(savedSession.assignedBattery);
-      setRegistrationId(savedSession.registrationId);
-
-      setSessionRestored(true);
-      // Clear localStorage since we're migrating to backend sessions
-      clearSalesSession();
-      toast.success(`Resuming from Step ${savedSession.currentStep}`);
-    }
-    
-    setShowResumePrompt(false);
-  }, []);
-
-  // Discard saved session and start fresh (legacy localStorage)
-  const discardLocalSession = useCallback(() => {
-    clearSalesSession();
-    setShowResumePrompt(false);
-    setSessionRestored(true); // Prevent prompt from appearing again
-    toast('Starting a new registration');
-  }, []);
 
   // Helper to build current session state
   const buildCurrentSessionState = useCallback((): SalesWorkflowState => {
@@ -1360,82 +1289,45 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     customerCurrencySymbol,
   ]);
 
-  // Initiate payment with Odoo - send STK push to customer's phone
-  // NOTE: For Sales flow, the order is already created by /api/subscription/purchase
-  // We just need to send the STK push and mark payment as initiated
-  // Accepts subscriptionCode and orderId parameters to avoid React state timing issues
-  const initiateOdooPayment = useCallback(async (subscriptionCode?: string, orderId?: number): Promise<boolean> => {
-    // Use the passed subscription code, or fall back to state
-    const subCode = subscriptionCode || subscriptionData?.subscriptionCode;
-    
-    if (!subCode) {
-      toast.error('No subscription created. Please try again.');
-      return false;
-    }
-
+  // Initialize local payment state for payment collection
+  // NOTE: For Sales flow with backend sessions:
+  // - Products are added to the order via updateSessionWithProducts (PUT /api/sessions/by-order/{orderId})
+  // - No STK push - salesperson collects payment receipt manually from customer
+  // - Payment confirmation uses confirmPaymentManual with order_id
+  const initiateOdooPayment = useCallback(async (orderId?: number): Promise<boolean> => {
     // Use passed orderId or fall back to state
-    // orderId is passed directly to avoid React state timing issues
     const orderIdToUse = orderId || paymentRequestOrderId;
     
-    // Verify we have an order_id from the purchase response
+    // Verify we have an order_id - this is the primary identifier for payment
     if (!orderIdToUse) {
-      console.error('No order_id from purchase response - cannot proceed with payment');
+      console.error('No order_id available - cannot proceed with payment');
       toast.error('Order not created properly. Please try again.');
       return false;
     }
 
-    // Get the salesperson's employee token for authorization
-    const employeeToken = getSalesRoleToken();
-    
     // Calculate total amount: package + subscription
     const currentSelectedPackage = availablePackages.find(p => p.id === selectedPackageId);
     const currentSelectedPlan = availablePlans.find(p => p.id === selectedPlanId);
     const packagePrice = currentSelectedPackage?.price || 0;
     const subscriptionPrice = currentSelectedPlan?.price || 0;
     const totalAmount = packagePrice + subscriptionPrice;
+
+    // Set up local payment state for the payment collection UI
+    // Products were already added to order via updateSessionWithProducts
+    setPaymentAmountExpected(totalAmount);
+    setPaymentAmountRemaining(totalAmount);
+    setPaymentInitiated(true);
     
-    // Format phone number - ensure it starts with country code
-    let phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
-    if (phoneNumber.startsWith('0')) {
-      phoneNumber = '254' + phoneNumber.slice(1);
-    } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
-      phoneNumber = '254' + phoneNumber;
-    }
-    phoneNumber = phoneNumber.replace('+', '');
-
-    try {
-      // Order is already created by /api/subscription/purchase endpoint
-      // No need to call createPaymentRequest - just send STK push
-      toast.success('Order ready. Collect payment from customer.');
-
-      // Optionally try to send STK push (don't block if it fails)
-      if (phoneNumber) {
-        try {
-          console.log('Sending STK push to customer phone:', phoneNumber);
-          const stkResponse = await initiatePayment({
-            subscription_code: subCode,
-            phone_number: phoneNumber,
-            amount: totalAmount,
-          }, employeeToken || undefined);
-
-          if (stkResponse.success && stkResponse.data) {
-            console.log('STK push sent:', stkResponse.data);
-            toast.success(stkResponse.data.instructions || 'Check customer phone for M-Pesa prompt');
-          }
-        } catch (stkError) {
-          console.warn('STK push failed (non-blocking):', stkError);
-          // Don't show error toast - customer can still pay manually
-        }
-      }
-
-      setPaymentInitiated(true);
-      return true;
-    } catch (error: any) {
-      console.error('Failed to initiate payment:', error);
-      toast.error(error.message || 'Failed to initiate payment. Please try again.');
-      return false;
-    }
-  }, [subscriptionData, selectedPackageId, availablePackages, selectedPlanId, availablePlans, formData.phone, paymentRequestOrderId]);
+    console.info('[SALES PAYMENT] Payment initialized:', {
+      orderId: orderIdToUse,
+      totalAmount,
+      packagePrice,
+      subscriptionPrice,
+    });
+    
+    toast.success('Order ready. Collect payment from customer.');
+    return true;
+  }, [selectedPackageId, availablePackages, selectedPlanId, availablePlans, paymentRequestOrderId]);
 
   // Handle payment confirmation via QR scan
   const handlePaymentQrScan = useCallback(async () => {
@@ -1860,12 +1752,9 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // It returns both subscriptionCode and orderId
           const purchaseResult = await purchaseCustomerSubscription();
           if (purchaseResult && purchaseResult.orderId) {
-            // Initiate payment to send M-Pesa prompt
-            // Pass both subscriptionCode and orderId directly to avoid React state timing issues
-            const paymentInitiatedSuccess = await initiateOdooPayment(
-              purchaseResult.subscriptionCode, 
-              purchaseResult.orderId
-            );
+            // Initialize local payment state
+            // Products were already added to order via updateSessionWithProducts
+            const paymentInitiatedSuccess = await initiateOdooPayment(purchaseResult.orderId);
             
             // Only advance to payment step if payment initiation was successful
             if (paymentInitiatedSuccess) {
@@ -2269,52 +2158,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         isLoading={isSessionLoading}
       />
 
-      {/* Legacy Resume Session Prompt - Shows when there's a saved localStorage session (migration) */}
-      {showResumePrompt && savedSessionSummary && !showSessionPrompt && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="resume-session-modal">
-            <div className="resume-session-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 8v4l3 3" />
-                <circle cx="12" cy="12" r="10" />
-              </svg>
-            </div>
-            <h3 className="resume-session-title">{t('session.resumePreviousSession') || 'Resume Previous Session?'}</h3>
-            <p className="resume-session-description">
-              {t('session.incompleteRegistration') || 'You have an incomplete registration for:'}
-            </p>
-            <div className="resume-session-details">
-              <div className="resume-session-customer">
-                {savedSessionSummary.customerName}
-              </div>
-              <div className="resume-session-meta">
-                {t('session.stepProgress', { current: savedSessionSummary.step, total: 8 }) || `Step ${savedSessionSummary.step} of 8`} • {t('session.saved') || 'Saved'} {savedSessionSummary.savedAt}
-              </div>
-            </div>
-            <div className="resume-session-actions">
-              <button 
-                className="resume-session-btn resume-session-btn-primary"
-                onClick={restoreLocalSession}
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-                {t('session.resume') || 'Resume'}
-              </button>
-              <button 
-                className="resume-session-btn resume-session-btn-secondary"
-                onClick={discardLocalSession}
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-                {t('session.startNew') || 'Start New'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Note: Legacy localStorage session prompt removed - using backend sessions only */}
 
       {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
       {!sessionCheckComplete && (
