@@ -583,6 +583,44 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     saveSessionToBackend();
   }, [currentStep, sessionOrderId, saveSessionToBackend, clearSession]);
 
+  // Auto-save session when payment state changes (especially for incomplete payments)
+  // This ensures incomplete payment state is saved even when the step doesn't change
+  const prevPaymentStateRef = useRef<{
+    incomplete: boolean;
+    amountPaid: number;
+    amountRemaining: number;
+  }>({ incomplete: false, amountPaid: 0, amountRemaining: 0 });
+  
+  useEffect(() => {
+    // Skip if no session or not on payment step (step 5)
+    if (!sessionOrderId || currentStep !== 5) {
+      return;
+    }
+    
+    const prevState = prevPaymentStateRef.current;
+    const stateChanged = 
+      prevState.incomplete !== paymentIncomplete ||
+      prevState.amountPaid !== paymentAmountPaid ||
+      prevState.amountRemaining !== paymentAmountRemaining;
+    
+    // Update the ref
+    prevPaymentStateRef.current = {
+      incomplete: paymentIncomplete,
+      amountPaid: paymentAmountPaid,
+      amountRemaining: paymentAmountRemaining,
+    };
+    
+    // Only save if payment state actually changed and we have a partial payment
+    if (stateChanged && (paymentIncomplete || paymentAmountPaid > 0)) {
+      console.info('[SalesFlow] Payment state changed - saving session:', {
+        incomplete: paymentIncomplete,
+        amountPaid: paymentAmountPaid,
+        amountRemaining: paymentAmountRemaining,
+      });
+      saveSessionToBackend();
+    }
+  }, [sessionOrderId, currentStep, paymentIncomplete, paymentAmountPaid, paymentAmountRemaining, saveSessionToBackend]);
+
   // NOTE: BLE timeout management is now handled by useFlowBatteryScan hook
 
   // MQTT publish function for service completion reporting
@@ -932,7 +970,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     // Email or Phone validation - at least one is required
     const hasEmail = formData.email.trim().length > 0;
-    const hasPhone = formData.phone.trim().length > 0;
+    // Phone number now includes country code (e.g., '+254712345678')
+    // Check if there's a local number beyond just the country code
+    const phoneDigits = formData.phone.replace(/[^0-9]/g, '');
+    const hasPhone = phoneDigits.length > 4; // More than just country code digits
     
     if (!hasEmail && !hasPhone) {
       // Show error on both fields so it displays in the combined field
@@ -943,8 +984,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
         errors.email = 'Please enter a valid email address';
       }
-      // Validate phone format if provided
-      if (hasPhone && !/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone.trim())) {
+      // Validate phone format if provided - phone should have at least 9 digits total (country code + local)
+      if (hasPhone && phoneDigits.length < 9) {
         errors.phone = 'Please enter a valid phone number';
       }
     }
@@ -977,16 +1018,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         console.warn('No employee token found - customer may not be associated with correct company');
       }
       
-      // Format phone number - ensure it starts with country code (only if provided)
+      // Format phone number - phone input now includes country code (e.g., '+254712345678')
+      // Just clean up the value and remove the + prefix for Odoo API
       let phoneNumber = '';
       if (formData.phone.trim()) {
+        // Remove spaces and non-numeric characters except +
         phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
-        if (phoneNumber.startsWith('0')) {
-          phoneNumber = '254' + phoneNumber.slice(1);
-        } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
-          phoneNumber = '254' + phoneNumber;
-        }
-        phoneNumber = phoneNumber.replace('+', '');
+        // Remove + prefix for API (Odoo expects digits only)
+        phoneNumber = phoneNumber.replace(/^\+/, '');
       }
 
       const registrationPayload: RegisterCustomerPayload = {

@@ -3,13 +3,14 @@
 import React, { useMemo } from 'react';
 import { useI18n } from '@/i18n';
 import { CustomerFormData } from '../types';
-import { getPhonePlaceholder } from '@/lib/phone-utils';
+import { detectCountryCodeFromLocale } from '@/lib/phone-utils';
 import { 
   Screen, 
   PageHeader, 
   FormInput, 
   FormSection, 
-  FormRow 
+  FormRow,
+  PhoneInputWithCountryCode,
 } from '@/components/ui';
 
 interface Step1Props {
@@ -21,9 +22,9 @@ interface Step1Props {
 export default function Step1CustomerForm({ formData, onFormChange, errors = {} }: Step1Props) {
   const { t, locale } = useI18n();
   
-  // Get dynamic phone placeholder based on current locale
-  // Updates automatically when locale changes
-  const phonePlaceholder = useMemo(() => getPhonePlaceholder(locale), [locale]);
+  // Get default country code based on current locale
+  // en → KE (Kenya), fr → TG (Togo), zh → CN (China)
+  const defaultCountry = useMemo(() => detectCountryCodeFromLocale(locale), [locale]);
   
   return (
     <Screen>
@@ -53,24 +54,22 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
           />
         </FormRow>
 
-        <FormRow columns={2}>
-          <FormInput
-            label={t('sales.emailAddress')}
-            type="email"
-            value={formData.email}
-            onChange={(e) => onFormChange('email', e.target.value)}
-            placeholder="customer@example.com"
-            error={errors.email}
-          />
-          <FormInput
-            label={t('sales.phoneNumber')}
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => onFormChange('phone', e.target.value)}
-            placeholder={phonePlaceholder}
-            error={errors.phone}
-          />
-        </FormRow>
+        <FormInput
+          label={t('sales.emailAddress')}
+          type="email"
+          value={formData.email}
+          onChange={(e) => onFormChange('email', e.target.value)}
+          placeholder="customer@example.com"
+          error={errors.email}
+        />
+        
+        <PhoneInputWithCountryCode
+          label={t('sales.phoneNumber')}
+          value={formData.phone}
+          onChange={(value) => onFormChange('phone', value)}
+          defaultCountry={defaultCountry}
+          error={errors.phone}
+        />
         {(errors.email || errors.phone) ? (
           <div className="text-sm text-red-400 mt-1 px-1">
             {errors.email || errors.phone}

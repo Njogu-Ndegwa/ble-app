@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 // ============================================
 // FORM INPUT
@@ -8,6 +9,22 @@ import React from 'react';
 
 export type InputType = 'text' | 'email' | 'tel' | 'password' | 'number' | 'search';
 export type InputSize = 'sm' | 'md' | 'lg';
+
+// Country code data for phone input
+export interface CountryCodeOption {
+  code: string;       // ISO country code (e.g., 'KE')
+  dialCode: string;   // Dial code with + (e.g., '+254')
+  name: string;       // Country name
+  flag: string;       // Flag emoji
+  placeholder: string; // Phone number placeholder without country code
+}
+
+// Supported countries - Kenya, Togo, China
+export const COUNTRY_CODES: CountryCodeOption[] = [
+  { code: 'KE', dialCode: '+254', name: 'Kenya', flag: '🇰🇪', placeholder: '7XX XXX XXX' },
+  { code: 'TG', dialCode: '+228', name: 'Togo', flag: '🇹🇬', placeholder: 'XX XX XX XX' },
+  { code: 'CN', dialCode: '+86', name: 'China', flag: '🇨🇳', placeholder: '1XX XXXX XXXX' },
+];
 
 interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** Input label */
@@ -114,6 +131,261 @@ export function FormInput({
           </div>
         )}
       </div>
+      {error && (
+        <span className="text-caption" style={{ 
+          display: 'block',
+          marginTop: 'var(--space-1)',
+          color: 'var(--color-error)',
+        }}>
+          {error}
+        </span>
+      )}
+      {helperText && !error && (
+        <span className="text-caption" style={{ 
+          display: 'block',
+          marginTop: 'var(--space-1)',
+          color: 'var(--text-muted)',
+        }}>
+          {helperText}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// PHONE INPUT WITH COUNTRY CODE
+// ============================================
+
+interface PhoneInputWithCountryCodeProps {
+  /** Input label */
+  label?: string;
+  /** The full phone number value including country code (e.g., '+254712345678') */
+  value: string;
+  /** Change handler - receives the full phone number with country code */
+  onChange: (value: string) => void;
+  /** Error message */
+  error?: string;
+  /** Helper text */
+  helperText?: string;
+  /** Required indicator */
+  required?: boolean;
+  /** Size variant */
+  size?: InputSize;
+  /** Default country code (e.g., 'KE') */
+  defaultCountry?: string;
+  /** Disabled state */
+  disabled?: boolean;
+  /** Custom className */
+  className?: string;
+}
+
+/**
+ * PhoneInputWithCountryCode - Phone input with country code selector
+ * 
+ * Allows selecting country code from a dropdown and entering the phone number.
+ * Value is stored as full phone number with country code (e.g., '+254712345678').
+ */
+export function PhoneInputWithCountryCode({
+  label,
+  value,
+  onChange,
+  error,
+  helperText,
+  required = false,
+  size = 'md',
+  defaultCountry = 'KE',
+  disabled = false,
+  className = '',
+}: PhoneInputWithCountryCodeProps) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Parse the current value to extract country code and local number
+  const parsePhoneValue = (phone: string): { countryCode: string; localNumber: string } => {
+    if (!phone) {
+      return { countryCode: defaultCountry, localNumber: '' };
+    }
+    
+    // Find matching country by dial code
+    for (const country of COUNTRY_CODES) {
+      if (phone.startsWith(country.dialCode)) {
+        return {
+          countryCode: country.code,
+          localNumber: phone.slice(country.dialCode.length),
+        };
+      }
+      // Also check without + prefix
+      const dialCodeWithoutPlus = country.dialCode.replace('+', '');
+      if (phone.startsWith(dialCodeWithoutPlus)) {
+        return {
+          countryCode: country.code,
+          localNumber: phone.slice(dialCodeWithoutPlus.length),
+        };
+      }
+    }
+    
+    // Default to provided defaultCountry if no match
+    return { countryCode: defaultCountry, localNumber: phone.replace(/^\+/, '') };
+  };
+  
+  const { countryCode, localNumber } = parsePhoneValue(value);
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
+  
+  // Handle country code selection
+  const handleCountrySelect = (country: CountryCodeOption) => {
+    setIsDropdownOpen(false);
+    // Rebuild the full phone number with new country code
+    onChange(`${country.dialCode}${localNumber}`);
+  };
+  
+  // Handle local number input
+  const handleLocalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newLocalNumber = e.target.value.replace(/[^0-9]/g, ''); // Only allow digits
+    onChange(`${selectedCountry.dialCode}${newLocalNumber}`);
+  };
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDropdownOpen]);
+  
+  const sizeStyle = SIZE_STYLES[size];
+  const hasError = !!error;
+  
+  return (
+    <div className={`form-group ${className}`} style={{ marginBottom: 'var(--space-2)' }}>
+      {label && (
+        <label className="text-label" style={{
+          display: 'block',
+          marginBottom: '4px',
+          fontSize: 'var(--font-sm)',
+          fontWeight: 500,
+          color: 'var(--text-secondary)',
+        }}>
+          {label}
+        </label>
+      )}
+      
+      <div style={{ display: 'flex', gap: '4px', position: 'relative' }} ref={dropdownRef}>
+        {/* Country Code Selector */}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            minWidth: '90px',
+            backgroundColor: 'var(--bg-surface)',
+            border: `1px solid ${hasError ? 'var(--color-error)' : 'var(--border-default)'}`,
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-primary)',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            transition: 'var(--transition-fast)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '12px',
+            ...sizeStyle,
+            padding: '0 8px',
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          <span style={{ fontSize: '16px' }}>{selectedCountry.flag}</span>
+          <span style={{ fontWeight: 500 }}>{selectedCountry.dialCode}</span>
+          <ChevronDown size={14} style={{ 
+            marginLeft: 'auto', 
+            transition: 'transform 0.2s',
+            transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+          }} />
+        </button>
+        
+        {/* Country Dropdown */}
+        {isDropdownOpen && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            marginTop: '4px',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            zIndex: 100,
+            minWidth: '180px',
+            overflow: 'hidden',
+          }}>
+            {COUNTRY_CODES.map((country) => (
+              <button
+                key={country.code}
+                type="button"
+                onClick={() => handleCountrySelect(country)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: country.code === selectedCountry.code 
+                    ? 'var(--bg-active)' 
+                    : 'transparent',
+                  border: 'none',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '13px',
+                  textAlign: 'left',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (country.code !== selectedCountry.code) {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 
+                    country.code === selectedCountry.code ? 'var(--bg-active)' : 'transparent';
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>{country.flag}</span>
+                <span style={{ flex: 1 }}>{country.name}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{country.dialCode}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        
+        {/* Phone Number Input */}
+        <input
+          type="tel"
+          value={localNumber}
+          onChange={handleLocalNumberChange}
+          placeholder={selectedCountry.placeholder}
+          disabled={disabled}
+          style={{
+            flex: 1,
+            backgroundColor: 'var(--bg-surface)',
+            border: `1px solid ${hasError ? 'var(--color-error)' : 'var(--border-default)'}`,
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-primary)',
+            outline: 'none',
+            transition: 'var(--transition-fast)',
+            fontFamily: 'var(--font-sans)',
+            ...sizeStyle,
+            opacity: disabled ? 0.5 : 1,
+          }}
+        />
+      </div>
+      
       {error && (
         <span className="text-caption" style={{ 
           display: 'block',

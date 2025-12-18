@@ -51,9 +51,11 @@ export {
   FormGroup, 
   FormSection, 
   FormRow, 
-  ToggleGroup 
+  ToggleGroup,
+  PhoneInputWithCountryCode,
+  COUNTRY_CODES,
 } from './Form';
-export type { InputType, InputSize } from './Form';
+export type { InputType, InputSize, CountryCodeOption } from './Form';
 
 // ============================================
 // STATE
