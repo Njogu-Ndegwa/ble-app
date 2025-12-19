@@ -12,7 +12,7 @@ export interface ActivityItem {
   currency?: string;
   isPositive?: boolean;
   time: string;
-  date: string; // ISO date string for grouping
+  date: string;
 }
 
 interface RiderActivityProps {
@@ -33,7 +33,6 @@ const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
     return activities.filter(a => a.type === typeMap[filter]);
   }, [activities, filter]);
 
-  // Group activities by date
   const groupedActivities = useMemo(() => {
     const groups: Record<string, ActivityItem[]> = {};
     
@@ -44,9 +43,9 @@ const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
       
       let displayDate: string;
       if (dateKey === today) {
-        displayDate = t('Today');
+        displayDate = t('rider.today') || 'Today';
       } else if (dateKey === yesterday) {
-        displayDate = t('Yesterday');
+        displayDate = t('rider.yesterday') || 'Yesterday';
       } else {
         displayDate = new Date(dateKey).toLocaleDateString('en-US', {
           month: 'short',
@@ -92,38 +91,36 @@ const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
 
   return (
     <div className="rider-screen active">
-      <h2 className="scan-title" style={{ marginBottom: '4px' }}>{t('Activity')}</h2>
-      <p className="scan-subtitle" style={{ marginBottom: '16px' }}>{t('Your swaps and payments')}</p>
+      <h2 className="scan-title" style={{ marginBottom: '4px' }}>{t('rider.activity') || 'Activity'}</h2>
+      <p className="scan-subtitle" style={{ marginBottom: '16px' }}>{t('rider.activitySubtitle') || 'Your swaps and payments'}</p>
 
-      {/* Activity Filters */}
       <div className="activity-filters">
         <button 
           className={`activity-filter ${filter === 'all' ? 'active' : ''}`}
           onClick={() => setFilter('all')}
         >
-          {t('All')}
+          {t('rider.all') || 'All'}
         </button>
         <button 
           className={`activity-filter ${filter === 'swaps' ? 'active' : ''}`}
           onClick={() => setFilter('swaps')}
         >
-          {t('Swaps')}
+          {t('rider.swaps') || 'Swaps'}
         </button>
         <button 
           className={`activity-filter ${filter === 'payments' ? 'active' : ''}`}
           onClick={() => setFilter('payments')}
         >
-          {t('Payments')}
+          {t('rider.payments') || 'Payments'}
         </button>
         <button 
           className={`activity-filter ${filter === 'topups' ? 'active' : ''}`}
           onClick={() => setFilter('topups')}
         >
-          {t('Top-ups')}
+          {t('rider.topUps') || 'Top-ups'}
         </button>
       </div>
 
-      {/* Activity List */}
       <div className="activity-list">
         {Object.entries(groupedActivities).map(([date, items]) => (
           <React.Fragment key={date}>
@@ -151,7 +148,7 @@ const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
         {filteredActivities.length === 0 && (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
             <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-              {t('No activities found')}
+              {t('rider.noActivities') || 'No activities found'}
             </p>
           </div>
         )}
@@ -161,3 +158,4 @@ const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
 };
 
 export default RiderActivity;
+

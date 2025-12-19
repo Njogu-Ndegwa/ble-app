@@ -4,38 +4,6 @@ import React from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
 
-// Helper function to get CSS class based on payment state
-const getPaymentStateClass = (paymentState: string): string => {
-  switch (paymentState) {
-    case 'PAID':
-      return 'active'; // Green
-    case 'RENEWAL_DUE':
-      return 'warning'; // Yellow/Orange
-    case 'OVERDUE':
-      return 'inactive'; // Red
-    case 'PENDING':
-      return 'pending'; // Gray
-    default:
-      return 'active';
-  }
-};
-
-// Helper function to get display label for payment state
-const getPaymentStateLabel = (paymentState: string, t: (key: string) => string): string => {
-  switch (paymentState) {
-    case 'PAID':
-      return t('Paid');
-    case 'RENEWAL_DUE':
-      return t('Renewal Due');
-    case 'OVERDUE':
-      return t('Overdue');
-    case 'PENDING':
-      return t('Pending');
-    default:
-      return paymentState;
-  }
-};
-
 interface Station {
   id: number;
   name: string;
@@ -82,12 +50,35 @@ const RiderHome: React.FC<RiderHomeProps> = ({
 }) => {
   const { t } = useI18n();
   
-  // Get time-appropriate greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return t('Good morning,');
-    if (hour < 17) return t('Good afternoon,');
-    return t('Good evening,');
+    if (hour < 12) return t('rider.goodMorning') || 'Good morning,';
+    if (hour < 17) return t('rider.goodAfternoon') || 'Good afternoon,';
+    return t('rider.goodEvening') || 'Good evening,';
+  };
+
+  const getPaymentStateClass = (paymentState: string): string => {
+    switch (paymentState) {
+      case 'PAID':
+      case 'active': return 'active';
+      case 'RENEWAL_DUE': return 'warning';
+      case 'OVERDUE':
+      case 'inactive': return 'inactive';
+      case 'PENDING': return 'pending';
+      default: return 'active';
+    }
+  };
+
+  const getPaymentStateLabel = (paymentState: string): string => {
+    switch (paymentState) {
+      case 'PAID':
+      case 'active': return t('common.active') || 'Active';
+      case 'RENEWAL_DUE': return t('attendant.renewalDue') || 'Renewal Due';
+      case 'OVERDUE':
+      case 'inactive': return t('attendant.overdue') || 'Overdue';
+      case 'PENDING': return t('common.pending') || 'Pending';
+      default: return paymentState === 'active' ? (t('common.active') || 'Active') : paymentState;
+    }
   };
 
   return (
@@ -102,11 +93,11 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       <div className="rider-bike-card">
         <div className="rider-bike-header">
           <div>
-            <div className="rider-bike-label">{t('My Bike')}</div>
+            <div className="rider-bike-label">{t('rider.myBike') || 'My Bike'}</div>
             <div className="rider-bike-model">{bike.model}</div>
           </div>
           <span className={`rider-bike-status ${getPaymentStateClass(bike.paymentState)}`}>
-            {getPaymentStateLabel(bike.paymentState, t)}
+            {getPaymentStateLabel(bike.paymentState)}
           </span>
         </div>
         <div className="rider-bike-content">
@@ -130,18 +121,16 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             )}
           </div>
           <div className="rider-bike-info">
-            {bike.currentBatteryId && (
-              <div className="rider-bike-detail">
-                <span className="rider-bike-detail-label">{t('Battery ID')}</span>
-                <span className="rider-bike-detail-value">{bike.currentBatteryId}</span>
-              </div>
-            )}
             <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">{t('Last Swap')}</span>
+              <span className="rider-bike-detail-label">{t('rider.vehicleId') || 'Vehicle ID'}</span>
+              <span className="rider-bike-detail-value">{bike.vehicleId}</span>
+            </div>
+            <div className="rider-bike-detail">
+              <span className="rider-bike-detail-label">{t('rider.lastSwap') || 'Last Swap'}</span>
               <span className="rider-bike-detail-value">{bike.lastSwap}</span>
             </div>
             <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">{t('Total Swaps')}</span>
+              <span className="rider-bike-detail-label">{t('rider.totalSwaps') || 'Total Swaps'}</span>
               <span className="rider-bike-detail-value">{bike.totalSwaps}</span>
             </div>
           </div>
@@ -158,12 +147,12 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             </svg>
           </div>
           <div>
-            <div className="account-balance-label">{t('Account Balance')}</div>
+            <div className="account-balance-label">{t('rider.accountBalance') || 'Account Balance'}</div>
             <div className="account-balance-value">{currency} {balance.toLocaleString()}</div>
           </div>
         </div>
         <button className="account-balance-action" onClick={onTopUp}>
-          {t('Top Up')}
+          {t('rider.topUp') || 'Top Up'}
         </button>
       </div>
 
@@ -176,7 +165,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               <circle cx="12" cy="10" r="3"/>
             </svg>
           </div>
-          <span className="quick-action-label">{t('Find Station')}</span>
+          <span className="quick-action-label">{t('rider.findStation') || 'Find Station'}</span>
         </div>
         <div className="quick-action" onClick={onShowQRCode}>
           <div className="quick-action-icon">
@@ -187,14 +176,14 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
           </div>
-          <span className="quick-action-label">{t('My QR Code')}</span>
+          <span className="quick-action-label">{t('rider.myQrCode') || 'My QR Code'}</span>
         </div>
       </div>
 
       {/* Nearby Stations Section */}
       <div className="rider-section-header">
-        <span className="rider-section-title">{t('Nearby Stations')}</span>
-        <span className="rider-section-link" onClick={onViewAllStations}>{t('View Map')}</span>
+        <span className="rider-section-title">{t('rider.nearbyStations') || 'Nearby Stations'}</span>
+        <span className="rider-section-link" onClick={onViewAllStations}>{t('rider.viewMap') || 'View Map'}</span>
       </div>
       
       <div className="stations-map-container">
@@ -202,10 +191,8 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <div className="stations-map">
           <div className="map-visual">
             <div className="map-grid"></div>
-            {/* User Location */}
             <div className="map-user-pulse"></div>
             <div className="map-user-marker"></div>
-            {/* Station Pins - positioned based on index for demo */}
             {nearbyStations.slice(0, 3).map((station, idx) => {
               const positions = [
                 { top: '25%', left: '30%' },
@@ -257,7 +244,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                   </span>
                   <span className="station-availability">
                     <span className={`station-availability-dot ${station.batteries < 5 ? 'low' : ''}`}></span>
-                    {station.batteries} {t('batteries')}
+                    {station.batteries} {t('rider.batteries') || 'batteries'}
                   </span>
                 </div>
               </div>
@@ -275,3 +262,4 @@ const RiderHome: React.FC<RiderHomeProps> = ({
 };
 
 export default RiderHome;
+

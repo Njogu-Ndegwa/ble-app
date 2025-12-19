@@ -40,7 +40,6 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, onNavigateToSta
     }
   };
 
-  // Station positions for the map (for demo purposes)
   const stationPositions = [
     { top: '20%', left: '25%' },
     { top: '65%', left: '60%' },
@@ -51,16 +50,14 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, onNavigateToSta
 
   return (
     <div className="rider-screen active">
-      <h2 className="scan-title" style={{ marginBottom: '4px' }}>{t('Swap Stations')}</h2>
-      <p className="scan-subtitle" style={{ marginBottom: '16px' }}>{t('Find a station near you')}</p>
+      <h2 className="scan-title" style={{ marginBottom: '4px' }}>{t('rider.swapStations') || 'Swap Stations'}</h2>
+      <p className="scan-subtitle" style={{ marginBottom: '16px' }}>{t('rider.findStationNearYou') || 'Find a station near you'}</p>
 
       <div className="full-map-container">
         <div className="map-visual">
           <div className="map-grid"></div>
-          {/* User Location */}
           <div className="map-user-pulse"></div>
           <div className="map-user-marker"></div>
-          {/* Station Pins */}
           {stations.map((station, idx) => {
             const pos = stationPositions[idx] || stationPositions[0];
             return (
@@ -81,7 +78,6 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, onNavigateToSta
           })}
         </div>
         
-        {/* Selected Station Detail Card */}
         {selectedStation && (
           <div className="station-detail-card">
             <div className="station-detail-header">
@@ -98,26 +94,26 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, onNavigateToSta
             <div className="station-detail-stats">
               <div className="station-detail-stat">
                 <div className="station-detail-stat-value">{selectedStation.distance}</div>
-                <div className="station-detail-stat-label">{t('Distance')}</div>
+                <div className="station-detail-stat-label">{t('rider.distance') || 'Distance'}</div>
               </div>
               <div className="station-detail-stat">
                 <div className="station-detail-stat-value">{selectedStation.batteries}</div>
-                <div className="station-detail-stat-label">{t('Batteries')}</div>
+                <div className="station-detail-stat-label">{t('rider.batteries') || 'Batteries'}</div>
               </div>
               <div className="station-detail-stat">
                 <div className="station-detail-stat-value">{selectedStation.waitTime}</div>
-                <div className="station-detail-stat-label">{t('Wait Time')}</div>
+                <div className="station-detail-stat-label">{t('rider.waitTime') || 'Wait Time'}</div>
               </div>
             </div>
             <div className="station-detail-actions">
               <button className="btn btn-secondary" onClick={handleHideDetail}>
-                {t('Close')}
+                {t('common.close') || 'Close'}
               </button>
               <button className="btn btn-primary" onClick={handleNavigate}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="3 11 22 2 13 21 11 13 3 11"/>
                 </svg>
-                {t('Navigate')}
+                {t('Navigate') || 'Navigate'}
               </button>
             </div>
           </div>
@@ -128,3 +124,4 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, onNavigateToSta
 };
 
 export default RiderStations;
+

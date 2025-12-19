@@ -111,7 +111,8 @@ export const useMenuVisibility = () => {
     ],
     CUSTOMER: [
     'keypad',
-    'rider','serviceplan1',
+    'rider','app',
+    // 'rider','serviceplan1',
     'attendant'
     // 'rider', 'routes', 'station', 'serviceplan', 'serviceplan1'
 ],

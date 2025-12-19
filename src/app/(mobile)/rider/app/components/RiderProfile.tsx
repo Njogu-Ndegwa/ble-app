@@ -4,38 +4,6 @@ import React from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
 
-// Helper function to get CSS class based on payment state
-const getPaymentStateClass = (paymentState: string): string => {
-  switch (paymentState) {
-    case 'PAID':
-      return 'paid';
-    case 'RENEWAL_DUE':
-      return 'renewal-due';
-    case 'OVERDUE':
-      return 'overdue';
-    case 'PENDING':
-      return 'pending';
-    default:
-      return 'paid';
-  }
-};
-
-// Helper function to get display label for payment state
-const getPaymentStateLabel = (paymentState: string, t: (key: string) => string): string => {
-  switch (paymentState) {
-    case 'PAID':
-      return t('Paid');
-    case 'RENEWAL_DUE':
-      return t('Renewal Due');
-    case 'OVERDUE':
-      return t('Overdue');
-    case 'PENDING':
-      return t('Pending');
-    default:
-      return paymentState;
-  }
-};
-
 interface ProfileData {
   name: string;
   initials: string;
@@ -49,8 +17,6 @@ interface ProfileData {
   vehicleInfo: string;
   paymentMethod: string;
   currentBatteryId?: string;
-  electricityUsed?: number;
-  electricityQuota?: number;
 }
 
 interface RiderProfileProps {
@@ -76,16 +42,38 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 }) => {
   const { t } = useI18n();
 
+  const getPaymentStateClass = (paymentState: string): string => {
+    switch (paymentState) {
+      case 'PAID':
+      case 'active': return 'paid';
+      case 'RENEWAL_DUE': return 'renewal-due';
+      case 'OVERDUE':
+      case 'inactive': return 'overdue';
+      case 'PENDING': return 'pending';
+      default: return 'paid';
+    }
+  };
+
+  const getPaymentStateLabel = (paymentState: string): string => {
+    switch (paymentState) {
+      case 'PAID':
+      case 'active': return t('common.active') || 'Active';
+      case 'RENEWAL_DUE': return t('attendant.renewalDue') || 'Renewal Due';
+      case 'OVERDUE':
+      case 'inactive': return t('attendant.overdue') || 'Overdue';
+      case 'PENDING': return t('common.pending') || 'Pending';
+      default: return paymentState === 'active' ? (t('common.active') || 'Active') : paymentState;
+    }
+  };
+
   return (
     <div className="rider-screen active">
-      {/* Profile Header */}
       <div className="profile-header">
         <div className="profile-avatar">{profile.initials}</div>
         <div className="profile-name">{profile.name}</div>
         <div className="profile-phone">{profile.phone}</div>
       </div>
 
-      {/* Energy Service Card */}
       <div className="energy-service-card">
         <div className="energy-service-header">
           <div className="energy-service-icon">
@@ -94,10 +82,10 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="energy-service-title">
-            <span className="energy-service-name">{t('Energy Service')}</span>
+            <span className="energy-service-name">{t('rider.energyService') || 'Energy Service'}</span>
             <span className={`energy-service-status ${getPaymentStateClass(profile.paymentState)}`}>
               <span className="status-dot"></span>
-              {getPaymentStateLabel(profile.paymentState, t)}
+              {getPaymentStateLabel(profile.paymentState)}
             </span>
           </div>
         </div>
@@ -124,7 +112,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </div>
             <div className="energy-stat-info">
               <span className="energy-stat-value">{profile.currency || 'XOF'} {profile.balance.toLocaleString()}</span>
-              <span className="energy-stat-label">{t('Account Balance')}</span>
+              <span className="energy-stat-label">{t('rider.accountBalance') || 'Account Balance'}</span>
             </div>
           </div>
           <div className="energy-stat-card">
@@ -136,18 +124,19 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </div>
             <div className="energy-stat-info">
               <span className="energy-stat-value">{profile.swapsThisMonth}</span>
-              <span className="energy-stat-label">{t('Swaps This Month')}</span>
+              <span className="energy-stat-label">{t('rider.swapsThisMonth') || 'Swaps This Month'}</span>
             </div>
           </div>
         </div>
         
         <div className="energy-service-footer">
-          <span className="energy-plan-name">{profile.planName}</span>
-          <span className="energy-plan-validity">{t('Valid until')} {profile.planValidity}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="energy-plan-name">{profile.planName}</span>
+            <span className="energy-plan-validity">{t('rider.validUntil') || 'Valid until'} {profile.planValidity}</span>
+          </div>
         </div>
       </div>
 
-      {/* Menu List */}
       <div className="menu-list">
         <div className="menu-item" onClick={onAccountDetails}>
           <div className="menu-item-icon">
@@ -157,8 +146,8 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="menu-item-content">
-            <div className="menu-item-title">{t('Account Details')}</div>
-            <div className="menu-item-subtitle">{t('Personal information & settings')}</div>
+            <div className="menu-item-title">{t('rider.accountDetails') || 'Account Details'}</div>
+            <div className="menu-item-subtitle">{t('rider.personalInfoDesc') || 'Personal information & settings'}</div>
           </div>
           <div className="menu-item-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -177,7 +166,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="menu-item-content">
-            <div className="menu-item-title">{t('My Vehicle')}</div>
+            <div className="menu-item-title">{t('rider.myVehicle') || 'My Vehicle'}</div>
             <div className="menu-item-subtitle">{profile.vehicleInfo}</div>
           </div>
           <div className="menu-item-arrow">
@@ -196,8 +185,8 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="menu-item-content">
-            <div className="menu-item-title">{t('Subscription Plan')}</div>
-            <div className="menu-item-subtitle">{t('Manage your plan & billing')}</div>
+            <div className="menu-item-title">{t('rider.subscriptionPlan') || 'Subscription Plan'}</div>
+            <div className="menu-item-subtitle">{t('rider.managePlanDesc') || 'Manage your plan & billing'}</div>
           </div>
           <div className="menu-item-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -214,7 +203,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="menu-item-content">
-            <div className="menu-item-title">{t('Payment Methods')}</div>
+            <div className="menu-item-title">{t('rider.paymentMethods') || 'Payment Methods'}</div>
             <div className="menu-item-subtitle">{profile.paymentMethod}</div>
           </div>
           <div className="menu-item-arrow">
@@ -233,8 +222,8 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="menu-item-content">
-            <div className="menu-item-title">{t('Help & Support')}</div>
-            <div className="menu-item-subtitle">{t('FAQs, contact support')}</div>
+            <div className="menu-item-title">{t('rider.helpSupport') || 'Help & Support'}</div>
+            <div className="menu-item-subtitle">{t('rider.supportDesc') || 'FAQs, contact support'}</div>
           </div>
           <div className="menu-item-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -254,7 +243,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
           <div className="menu-item-content">
-            <div className="menu-item-title">{t('Log Out')}</div>
+            <div className="menu-item-title">{t('common.logout') || 'Log Out'}</div>
           </div>
         </div>
       </div>
@@ -263,3 +252,4 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 };
 
 export default RiderProfile;
+
