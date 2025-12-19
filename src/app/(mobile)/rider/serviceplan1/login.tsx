@@ -41,6 +41,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const { locale, setLocale, t } = useI18n();
   const { bridge } = useBridge();
   const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [countryCode, setCountryCode] = useState<string>("254");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
@@ -209,29 +210,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsSigningIn(true);
 
     try {
-      // Check for demo credentials
-      if (phoneNumber.trim().toLowerCase() === "demo" && password === "demo") {
-        console.log("Demo login detected");
-        
-        // Create demo customer data
-        const demoCustomer: Customer = {
-          id: 9999,
-          name: "Demo Rider",
-          email: "demo@example.com",
-          phone: "+254700000000",
-          partner_id: 9999,
-        };
-        
-        // Save demo session
-        localStorage.setItem("userPhone", "demo");
-        localStorage.setItem("authToken_rider", "demo_token_" + Date.now());
-        
-        toast.success(t("rider.demoLoginSuccess") || "Demo login successful");
-        onLoginSuccess(demoCustomer);
-        return;
-      }
-
-      console.log("Attempting login with phone:", phoneNumber);
+      // Combine country code with phone number
+      // Remove leading 0 if present (e.g., 07xxxxxxxx -> 7xxxxxxxx)
+      const cleanPhone = phoneNumber.trim().replace(/^0+/, '');
+      const fullPhoneNumber = `${countryCode}${cleanPhone}`;
+      
+      console.log("Attempting login with phone:", fullPhoneNumber);
       console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
       const response = await fetch(
         "https://crm-omnivoltaic.odoo.com/api/auth/login",
@@ -241,7 +225,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ phone: phoneNumber, password }),
+          body: JSON.stringify({ phone: fullPhoneNumber, password }),
         }
       );
 
@@ -256,7 +240,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       if (response.status === 200) {
         console.log("Login successful");
-        localStorage.setItem("userPhone", phoneNumber);
+        // Save full phone number (with country code) to localStorage
+        localStorage.setItem("userPhone", fullPhoneNumber);
         // Save token to localStorage if present in response
         const token = data.session?.token || data.token;
         if (token) {
@@ -282,7 +267,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             id: sessionUser.id || 0,
             name: sessionUser.name || "",
             email: sessionUser.email || "",
-            phone: sessionUser.phone || "",
+            phone: sessionUser.phone || fullPhoneNumber,
             // Explicitly get partner_id - don't use || operator as 0 is valid
             partner_id: sessionUser.partner_id !== undefined ? sessionUser.partner_id : undefined,
           };
@@ -294,7 +279,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             id: fallbackCustomer.id || 0,
             name: fallbackCustomer.name || "",
             email: fallbackCustomer.email || "",
-            phone: fallbackCustomer.phone || "",
+            phone: fallbackCustomer.phone || fullPhoneNumber,
             partner_id: fallbackCustomer.partner_id !== undefined ? fallbackCustomer.partner_id : undefined,
           };
         } else {
@@ -305,6 +290,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.log("Login: partner_id from session.user:", data.session?.user?.partner_id);
         console.log("Login: Final customerData.partner_id:", customerData.partner_id);
         
+        // Persist customer data to localStorage for auto-login
+        localStorage.setItem("customerData_rider", JSON.stringify(customerData));
+        
         onLoginSuccess(customerData);
       } else if (response.status === 404) {
         console.error("=== Login Error Response (404) ===");
@@ -313,8 +301,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.error("Error Data:", JSON.stringify(data, null, 2));
         console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
-        // Optionally pre-fill the registration phone
-        setFormData(prev => ({ ...prev, phone: phoneNumber }));
+        // Optionally pre-fill the registration phone with full number
+        const cleanPhone = phoneNumber.trim().replace(/^0+/, '');
+        const fullPhoneNumber = `${countryCode}${cleanPhone}`;
+        setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
         console.error("=== Login Error Response (400) ===");
@@ -506,8 +496,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <path d="M20 8v6M23 11h-6"/>
               </svg>
             </div>
-            <h1 className="login-title">{t('Create Account')}</h1>
-            <p className="login-subtitle">{t('Join our community today')}</p>
+            <h1 className="login-title">{t('auth.createAccount') || 'Create Account'}</h1>
+            <p className="login-subtitle">{t('auth.joinCommunity') || 'Join our community today'}</p>
           </div>
 
         {/* Status Alert */}
@@ -530,11 +520,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Registration Form */}
         <div className="login-form">
           <div className="form-section">
-            <div className="form-section-title">{t('Personal Information')}</div>
+            <div className="form-section-title">{t('sales.personalInfo') || 'Personal Information'}</div>
             
             {/* Full Name */}
             <div className="form-group">
-              <label className="form-label">{t('Full Name')} *</label>
+              <label className="form-label">{t('sales.fullName') || 'Full Name'} *</label>
               <div className="input-with-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -545,7 +535,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`form-input ${errors.name ? 'error' : ''}`}
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder={t('Enter your full name')}
+                  placeholder={t('sales.enterFullName') || 'Enter your full name'}
                 />
               </div>
               {errors.name && <p className="form-error">{errors.name}</p>}
@@ -553,7 +543,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
             {/* Email */}
             <div className="form-group">
-              <label className="form-label">{t('Email')} *</label>
+              <label className="form-label">{t('sales.emailAddress') || 'Email'} *</label>
               <div className="input-with-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -564,7 +554,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   className={`form-input ${errors.email ? 'error' : ''}`}
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder={t('Enter your email')}
+                  placeholder={t('sales.enterEmail') || 'Enter your email'}
                 />
               </div>
               {errors.email && <p className="form-error">{errors.email}</p>}
@@ -572,7 +562,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
             {/* Phone */}
             <div className="form-group">
-              <label className="form-label">{t('Phone')} *</label>
+              <label className="form-label">{t('rider.phoneNumber') || 'Phone'} *</label>
               <div className="input-with-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -590,7 +580,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
             {/* Company (Read-only) */}
             <div className="form-group">
-              <label className="form-label">{t('Company')}</label>
+              <label className="form-label">{t('sales.company') || 'Company'}</label>
               <input
                 type="text"
                 value="OVS-TOGO"
@@ -600,7 +590,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 style={{ opacity: 0.6, cursor: 'not-allowed' }}
               />
               <p className="form-hint" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                {t('Currently fixed - will be selectable in the future')}
+                {t('sales.companyHint') || 'Currently fixed - will be selectable in the future'}
               </p>
             </div>
 
@@ -620,7 +610,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   }}
                   style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
                 />
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('Assign Battery')}</span>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('sales.assignBattery') || 'Assign Battery'}</span>
               </label>
               
               {assignBattery && (
@@ -632,7 +622,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       borderRadius: 'var(--radius-md)', 
                       padding: 12 
                     }}>
-                      <p style={{ fontSize: 11, color: 'var(--success)', marginBottom: 4 }}>{t('Battery Code Scanned')}:</p>
+                      <p style={{ fontSize: 11, color: 'var(--success)', marginBottom: 4 }}>{t('sales.batteryScanned') || 'Battery Code Scanned'}:</p>
                       <p style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--success)' }}>{scannedBatteryCode}</p>
                       <button
                         type="button"
@@ -650,7 +640,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                           fontFamily: 'inherit'
                         }}
                       >
-                        {t('Clear')}
+                        {t('common.clear') || 'Clear'}
                       </button>
                     </div>
                   ) : (
@@ -664,7 +654,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                       {isScanningBattery ? (
                         <>
                           <div className="loading-spinner" style={{ width: 14, height: 14, marginBottom: 0, borderWidth: 2 }}></div>
-                          <span>{t('Scanning...')}</span>
+                          <span>{t('common.scanning') || 'Scanning...'}</span>
                         </>
                       ) : (
                         <>
@@ -674,7 +664,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             <rect x="14" y="14" width="7" height="7"/>
                             <rect x="3" y="14" width="7" height="7"/>
                           </svg>
-                          <span>{t('Scan Battery QR Code')}</span>
+                          <span>{t('sales.scanBatteryQr') || 'Scan Battery QR Code'}</span>
                         </>
                       )}
                     </button>
@@ -693,7 +683,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             {isSubmitting ? (
               <>
                 <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
-                <span>{t('Creating Account...')}</span>
+                <span>{t('auth.creatingAccount') || 'Creating Account...'}</span>
               </>
             ) : (
               <>
@@ -702,18 +692,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   <circle cx="8.5" cy="7" r="4"/>
                   <path d="M20 8v6M23 11h-6"/>
                 </svg>
-                <span>{t('Create Account')}</span>
+                <span>{t('auth.createAccount') || 'Create Account'}</span>
               </>
             )}
           </button>
 
           <p className="login-help">
-            {t('Already have an account?')}{' '}
+            {t('auth.alreadyHaveAccount') || 'Already have an account?'}{' '}
             <button 
               onClick={() => setShowRegister(false)} 
               style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              {t('Sign In')}
+              {t('auth.signIn') || 'Sign In'}
             </button>
           </p>
         </div>
@@ -734,8 +724,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button 
               className="flow-header-back" 
               onClick={handleBackToRoles}
-              aria-label={t('Back')}
-              title={t('Back')}
+              aria-label={t('common.back') || 'Back'}
+              title={t('common.back') || 'Back'}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -756,7 +746,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
-              aria-label={t('role.switchLanguage')}
+              aria-label={t('role.switchLanguage') || 'Switch language'}
             >
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
@@ -774,34 +764,80 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <circle cx="12" cy="7" r="4"/>
             </svg>
           </div>
-          <h1 className="login-title">{t('Rider Login')}</h1>
+          <h1 className="login-title">{t('rider.loginTitle') || 'Rider Login'}</h1>
           <p className="login-subtitle">{t('rider.enterPhoneAndPassword') || 'Please enter phone number and password'}</p>
         </div>
 
       {/* Login Form */}
       <div className="login-form">
-        {/* Phone Number Input */}
+        {/* Phone Number Input with Country Code */}
         <div className="form-group">
           <label className="form-label">{t('rider.phoneNumber') || 'Phone Number'}</label>
-          <div className="input-with-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-            </svg>
-            <input
-              type="tel"
-              className="form-input"
-              value={phoneNumber}
-              onChange={handlePhoneChange}
-              onKeyPress={handleKeyPress}
-              placeholder={t('rider.enterPhone') || 'Enter your phone number'}
-              disabled={isSigningIn}
-            />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ position: 'relative', width: '100px', flexShrink: 0 }}>
+              <select
+                className="form-input"
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                disabled={isSigningIn}
+                style={{ 
+                  paddingLeft: '36px',
+                  paddingRight: '8px',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 8px center',
+                  cursor: isSigningIn ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <option value="254">+254</option>
+                <option value="228">+228</option>
+              </select>
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{ 
+                  position: 'absolute', 
+                  left: '10px', 
+                  top: '50%', 
+                  transform: 'translateY(-50%)',
+                  width: '16px',
+                  height: '16px',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none'
+                }}
+              >
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </div>
+            <div className="input-with-icon" style={{ flex: 1 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              <input
+                type="tel"
+                className="form-input"
+                value={phoneNumber}
+                onChange={handlePhoneChange}
+                onKeyPress={handleKeyPress}
+                placeholder={t('rider.enterPhone') || 'Enter your phone number'}
+                disabled={isSigningIn}
+                maxLength={10}
+              />
+            </div>
           </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            {t('rider.enterPhoneNumberHint') || 'Enter phone number (e.g., 7xxxxxxxx)'}
+          </p>
         </div>
 
         {/* Password Input */}
         <div className="form-group">
-          <label className="form-label">{t('Password')}</label>
+          <label className="form-label">{t('auth.passwordPlaceholder') || 'Password'}</label>
           <div className="input-with-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -813,7 +849,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               value={password}
               onChange={handlePasswordChange}
               onKeyPress={handleKeyPress}
-              placeholder={t('Enter your password')}
+              placeholder={t('auth.passwordPlaceholder') || 'Enter your password'}
               disabled={isSigningIn}
               style={{ paddingRight: 44 }}
             />
@@ -821,7 +857,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               type="button"
               className="password-toggle"
               onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? t('Hide password') : t('Show password')}
+              aria-label={showPassword ? t('common.hidePassword') || 'Hide password' : t('common.showPassword') || 'Show password'}
               disabled={isSigningIn}
             >
               {showPassword ? (
@@ -848,51 +884,21 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           {isSigningIn ? (
             <>
               <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
-              <span>{t('Signing in...')}</span>
+              <span>{t('auth.signingIn') || 'Signing in...'}</span>
             </>
           ) : (
             <>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
-              <span>{t('Sign In')}</span>
+              <span>{t('auth.signIn') || 'Sign In'}</span>
             </>
           )}
         </button>
 
-        {/* Create Account Button */}
-        <button
-          className="btn btn-secondary"
-          onClick={() => setShowRegister(true)}
-          disabled={isSigningIn}
-          style={{ width: '100%', marginTop: 10 }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="8.5" cy="7" r="4"/>
-            <path d="M20 8v6M23 11h-6"/>
-          </svg>
-          <span>{t('Create New Account')}</span>
-        </button>
-
-        {/* Demo credentials hint */}
-        <div style={{ 
-          marginTop: 16, 
-          padding: '12px 16px', 
-          background: 'rgba(0, 229, 229, 0.1)', 
-          borderRadius: 8,
-          border: '1px solid rgba(0, 229, 229, 0.2)'
-        }}>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
-            {t('rider.demoHint') || 'For demo access, use:'}
-          </p>
-          <p style={{ fontSize: 12, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-            {t('rider.demoCredentials') || 'Phone: demo | Password: demo'}
-          </p>
-        </div>
 
         <p className="login-help">
-          {t('Need help? Contact support')}
+          {t('auth.needHelp') || 'Need help? Contact support'}
         </p>
       </div>
     </div>
