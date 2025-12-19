@@ -32,7 +32,7 @@ const roles: RoleConfig[] = [
     id: 'rider',
     labelKey: 'role.rider',
     image: '/assets/Rider.png',
-    path: '/rider/serviceplan1',
+    path: '/rider/app',
   },
   {
     id: 'keypad',
