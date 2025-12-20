@@ -600,7 +600,7 @@ export default function PhoneInputWithCountry({
 
           .phone-number-input {
             padding: 0 12px;
-            font-size: 16px; /* Prevents zoom on iOS */
+            font-size: 12px; /* Match FormInput font size */
           }
 
           .country-dropdown {
