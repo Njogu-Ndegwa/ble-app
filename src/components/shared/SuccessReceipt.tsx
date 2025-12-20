@@ -145,7 +145,7 @@ export default function SuccessReceipt({
 export interface SwapReceiptData {
   transactionId: string;
   customerName: string;
-  subscriptionId?: string;
+  subscriptionId: string;
   oldBatteryId: string;
   oldBatteryLevel: number;
   newBatteryId: string;
@@ -172,14 +172,12 @@ export function buildSwapReceiptRows(
     },
   ];
 
-  // Add subscription ID if available
-  if (data.subscriptionId) {
-    rows.push({
-      label: t('attendant.subscriptionId') || 'Subscription ID',
-      value: data.subscriptionId,
-      mono: true
-    });
-  }
+  // Subscription ID - the primary identifier used to identify the customer
+  rows.push({
+    label: t('attendant.subscriptionId') || 'Subscription ID',
+    value: data.subscriptionId,
+    mono: true
+  });
 
   rows.push(
     { 
