@@ -1,30 +1,31 @@
 /**
  * Phone number utilities for internationalization
  * Provides country-specific phone number placeholders and formatting
+ * 
+ * Note: For the PhoneInputWithCountry component, we use the react-phone-number-input
+ * library which handles all country data internally. These utilities are kept for
+ * backward compatibility with other parts of the codebase.
  */
 
-export interface CountryPhoneFormat {
+export interface LegacyCountryPhoneFormat {
   countryCode: string;
   placeholder: string;
   example: string;
 }
 
-// Country phone formats - only 3 countries supported
-const COUNTRY_PHONE_FORMATS: Record<string, CountryPhoneFormat> = {
-  // Kenya (English locale)
-  KE: {
+// Country phone formats for the primary markets (used for placeholders and examples)
+const COUNTRY_PHONE_FORMATS: Record<string, LegacyCountryPhoneFormat> = {
+  'KE': {
     countryCode: '+254',
     placeholder: '+254 7XX XXX XXX',
     example: '+254 712 345 678',
   },
-  // Togo (French locale)
-  TG: {
+  'TG': {
     countryCode: '+228',
     placeholder: '+228 XX XX XX XX',
     example: '+228 90 12 34 56',
   },
-  // China (Chinese locale)
-  CN: {
+  'CN': {
     countryCode: '+86',
     placeholder: '+86 1XX XXXX XXXX',
     example: '+86 138 0013 8000',
@@ -66,7 +67,7 @@ export function detectCountryCodeFromLocale(locale?: string): string {
 /**
  * Get phone placeholder based on locale
  * @param locale - Locale string (e.g., 'en', 'fr', 'zh')
- * @returns Phone placeholder string
+ * @returns Phone placeholder string with country code
  */
 export function getPhonePlaceholder(locale?: string): string {
   const countryCode = detectCountryCodeFromLocale(locale);
@@ -78,7 +79,7 @@ export function getPhonePlaceholder(locale?: string): string {
  * @param locale - Locale string (e.g., 'en', 'fr', 'zh')
  * @returns Country phone format object
  */
-export function getCountryPhoneFormat(locale?: string): CountryPhoneFormat {
+export function getCountryPhoneFormat(locale?: string): LegacyCountryPhoneFormat {
   const countryCode = detectCountryCodeFromLocale(locale);
   return COUNTRY_PHONE_FORMATS[countryCode] || COUNTRY_PHONE_FORMATS.KE;
 }
@@ -94,9 +95,9 @@ export function formatPhoneWithCountryCode(phone: string, locale?: string): stri
   const format = getCountryPhoneFormat(locale);
   const cleaned = phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
   
-  // If already has country code, return as-is
+  // If already has country code, return as-is (remove +)
   if (cleaned.startsWith('+')) {
-    return cleaned;
+    return cleaned.slice(1);
   }
   
   // If starts with 0, replace with country code
@@ -105,10 +106,10 @@ export function formatPhoneWithCountryCode(phone: string, locale?: string): stri
   }
   
   // If doesn't start with country code, add it
-  if (!cleaned.startsWith(format.countryCode.replace('+', ''))) {
-    return format.countryCode.replace('+', '') + cleaned;
+  const codeWithoutPlus = format.countryCode.replace('+', '');
+  if (!cleaned.startsWith(codeWithoutPlus)) {
+    return codeWithoutPlus + cleaned;
   }
   
   return cleaned;
 }
-

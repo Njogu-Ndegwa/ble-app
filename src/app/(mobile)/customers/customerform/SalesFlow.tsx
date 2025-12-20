@@ -583,6 +583,26 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     saveSessionToBackend();
   }, [currentStep, sessionOrderId, saveSessionToBackend, clearSession]);
 
+  // Auto-save session when payment becomes incomplete
+  // This ensures the incomplete payment state is persisted even without a step change
+  // so users can resume from where they left off if they close the app
+  const prevPaymentIncompleteRef = useRef<boolean>(paymentIncomplete);
+  useEffect(() => {
+    // Skip if no session or payment incomplete state hasn't changed
+    if (!sessionOrderId || paymentIncomplete === prevPaymentIncompleteRef.current) {
+      prevPaymentIncompleteRef.current = paymentIncomplete;
+      return;
+    }
+    
+    // Payment incomplete state changed - save session
+    if (paymentIncomplete) {
+      console.info('[SalesFlow] Payment became incomplete - saving session with payment state');
+      saveSessionToBackend();
+    }
+    
+    prevPaymentIncompleteRef.current = paymentIncomplete;
+  }, [paymentIncomplete, sessionOrderId, saveSessionToBackend]);
+
   // NOTE: BLE timeout management is now handled by useFlowBatteryScan hook
 
   // MQTT publish function for service completion reporting
@@ -2192,8 +2212,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         identificationFailed={identificationFailed}
       />
 
-      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment) */}
-      {(isCreatingCustomer || isProcessing || isAssigningVehicle) && 
+      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment, service completion) */}
+      {(isCreatingCustomer || isProcessing || isAssigningVehicle || isCompletingService) && 
        !bleScanState.isConnecting && 
        !bleScanState.isReadingEnergy && (
         <div className="loading-overlay active">
@@ -2203,6 +2223,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
               ? t('sales.registeringCustomer') || 'Registering customer...'
               : isAssigningVehicle
               ? t('sales.assigningVehicle') || 'Assigning vehicle...'
+              : isCompletingService
+              ? t('sales.completingService') || 'Completing service...'
               : t('common.processing') || 'Processing...'}
           </div>
         </div>
