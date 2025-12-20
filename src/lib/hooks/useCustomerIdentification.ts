@@ -252,9 +252,10 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
     const energyValue = energyRemaining * energyUnitPrice;
 
     // Build customer data
+    // NOTE: We no longer use customer ID as a fallback for name - subscription ID is the primary identifier
     const customer: IdentifiedCustomerData = {
       id: identifiedCustomerId || servicePlanData.customerId || input.customerId || input.subscriptionCode,
-      name: input.name || identifiedCustomerId || 'Customer',
+      name: input.name || 'Customer',
       subscriptionId: servicePlanData.servicePlanId || input.subscriptionCode,
       subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
       phone: input.phone || '',

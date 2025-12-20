@@ -9,6 +9,8 @@ import { InputMode, getInitials, formatCurrency } from './types';
 interface CustomerInfo {
   name: string;
   initials?: string;
+  /** Subscription ID - primary identifier for the customer */
+  subscriptionId?: string;
 }
 
 interface PaymentCollectionProps {
@@ -100,7 +102,12 @@ export default function PaymentCollection({
         {customer && (
           <div className="payment-customer-mini">
             <div className="payment-customer-avatar">{customerInitials}</div>
-            <span className="payment-customer-name">{customer.name}</span>
+            <div className="payment-customer-details">
+              <span className="payment-customer-name">{customer.name}</span>
+              {customer.subscriptionId && (
+                <span className="payment-subscription-id">{customer.subscriptionId}</span>
+              )}
+            </div>
           </div>
         )}
         <div className="payment-amount-large">
