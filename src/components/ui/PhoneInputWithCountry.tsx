@@ -360,7 +360,7 @@ export default function PhoneInputWithCountry({
                         role="option"
                         aria-selected={isSelected}
                       >
-                        <FlagImage iso2={parsed.iso2} size="20px" className="country-flag" />
+                        <FlagImage iso2={parsed.iso2} size="18px" className="country-flag" />
                         <span className="country-name">{parsed.name}</span>
                         <span className="country-dial-code">+{parsed.dialCode}</span>
                       </li>
@@ -474,13 +474,13 @@ export default function PhoneInputWithCountry({
           top: calc(100% + 4px);
           left: 0;
           z-index: 9999;
-          min-width: 280px;
-          max-width: 320px;
+          min-width: 260px;
+          max-width: 300px;
           background-color: var(--bg-elevated, #1a2424);
           border: 1px solid var(--border-default, #1e2d2d);
           border-radius: var(--radius-md, 8px);
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-          max-height: 300px;
+          max-height: 280px;
           overflow: hidden;
           display: flex;
           flex-direction: column;
@@ -488,18 +488,18 @@ export default function PhoneInputWithCountry({
 
         /* Dropdown search container */
         .dropdown-search-container {
-          padding: 8px 12px;
+          padding: 6px 8px;
           border-bottom: 1px solid var(--border-default, #1e2d2d);
         }
 
         .dropdown-search-input {
           width: 100%;
-          height: 36px;
-          padding: 0 12px;
+          height: 32px;
+          padding: 0 10px;
           background-color: var(--bg-surface, rgba(255, 255, 255, 0.05));
           border: 1px solid var(--border-default, #1e2d2d);
           border-radius: 6px;
-          font-size: 14px;
+          font-size: 13px;
           font-family: var(--font-sans, 'Outfit', sans-serif);
           color: var(--text-primary, #f0fafa);
           outline: none;
@@ -518,7 +518,7 @@ export default function PhoneInputWithCountry({
         .country-list {
           flex: 1;
           overflow-y: auto;
-          padding: 4px 0;
+          padding: 2px 0;
           margin: 0;
           list-style: none;
           -webkit-overflow-scrolling: touch;
@@ -528,10 +528,10 @@ export default function PhoneInputWithCountry({
         .country-item {
           display: flex;
           align-items: center;
-          padding: 10px 16px;
+          padding: 7px 10px;
           cursor: pointer;
           transition: background-color 0.15s ease;
-          gap: 10px;
+          gap: 8px;
         }
 
         .country-item:hover {
@@ -544,10 +544,10 @@ export default function PhoneInputWithCountry({
         }
 
         .country-item.no-results {
-          padding: 20px;
+          padding: 16px;
           text-align: center;
           color: var(--text-muted, #5a8080);
-          font-size: 14px;
+          font-size: 13px;
           cursor: default;
         }
 
@@ -561,7 +561,7 @@ export default function PhoneInputWithCountry({
 
         .country-item .country-name {
           flex: 1;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 500;
           color: var(--text-primary, #f0fafa);
           overflow: hidden;
@@ -570,7 +570,7 @@ export default function PhoneInputWithCountry({
         }
 
         .country-item .country-dial-code {
-          font-size: 13px;
+          font-size: 12px;
           color: var(--text-secondary, #94b8b8);
           flex-shrink: 0;
         }
@@ -579,7 +579,7 @@ export default function PhoneInputWithCountry({
         .country-divider {
           height: 1px;
           background-color: var(--border-default, #1e2d2d);
-          margin: 4px 0;
+          margin: 2px 0;
           list-style: none;
         }
 
@@ -590,35 +590,54 @@ export default function PhoneInputWithCountry({
           }
 
           .country-selector-btn {
-            padding: 0 12px;
-            min-width: 90px;
+            padding: 0 10px;
+            min-width: 88px;
           }
 
           .country-selector-btn .dial-code {
-            font-size: 14px;
+            font-size: 13px;
           }
 
           .phone-number-input {
-            padding: 0 14px;
+            padding: 0 12px;
             font-size: 16px; /* Prevents zoom on iOS */
           }
 
           .country-dropdown {
-            max-height: 60vh;
-            min-width: 260px;
+            max-height: 55vh;
+            min-width: 240px;
+            max-width: 280px;
           }
 
-          .country-item {
-            padding: 12px 16px;
-          }
-
-          .country-item .country-name {
-            font-size: 15px;
+          .dropdown-search-container {
+            padding: 6px;
           }
 
           .dropdown-search-input {
-            height: 40px;
-            font-size: 16px;
+            height: 34px;
+            font-size: 16px; /* Prevents zoom on iOS */
+            padding: 0 10px;
+          }
+
+          .country-list {
+            padding: 2px 0;
+          }
+
+          .country-item {
+            padding: 8px 10px;
+            gap: 8px;
+          }
+
+          .country-item .country-name {
+            font-size: 14px;
+          }
+
+          .country-item .country-dial-code {
+            font-size: 12px;
+          }
+
+          .country-divider {
+            margin: 2px 0;
           }
         }
       `}</style>
