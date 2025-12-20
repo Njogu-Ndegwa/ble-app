@@ -1,18 +1,19 @@
 'use client';
 
 import React, { useCallback, useMemo } from 'react';
-import PhoneInput, { 
-  type Country, 
-  type Value,
-  getCountryCallingCode,
-  parsePhoneNumber as parsePhoneNumberLib,
-} from 'react-phone-number-input';
-import 'react-phone-number-input/style.css';
+import { 
+  PhoneInput, 
+  defaultCountries,
+  parseCountry,
+  type CountryIso2,
+  type ParsedCountry,
+} from 'react-international-phone';
+import 'react-international-phone/style.css';
 
 interface PhoneInputWithCountryProps {
-  /** Current phone value in E.164 format (e.g., "+254712345678") */
+  /** Current phone value (can be E.164 format or just digits) */
   value: string;
-  /** Callback when phone changes - receives the full E.164 phone number */
+  /** Callback when phone changes - receives the phone number without + prefix */
   onChange: (value: string) => void;
   /** Label for the input */
   label?: string;
@@ -22,8 +23,8 @@ interface PhoneInputWithCountryProps {
   required?: boolean;
   /** Whether the input is disabled */
   disabled?: boolean;
-  /** Initial country ISO code (e.g., 'KE') */
-  defaultCountry?: Country;
+  /** Initial country ISO code (e.g., 'ke' for Kenya) - lowercase */
+  defaultCountry?: CountryIso2;
   /** Current locale for default country detection */
   locale?: string;
   /** Placeholder text for the input */
@@ -32,22 +33,38 @@ interface PhoneInputWithCountryProps {
   className?: string;
 }
 
-// Map locale to default country
-const LOCALE_TO_COUNTRY: Record<string, Country> = {
-  'en': 'KE',
-  'fr': 'TG',
-  'zh': 'CN',
+// Map locale to default country (lowercase ISO2 codes)
+const LOCALE_TO_COUNTRY: Record<string, CountryIso2> = {
+  'en': 'ke', // Kenya
+  'fr': 'tg', // Togo
+  'zh': 'cn', // China
 };
+
+// Preferred countries to show at top of the dropdown
+const PREFERRED_COUNTRIES: CountryIso2[] = [
+  'ke', // Kenya
+  'tg', // Togo
+  'cn', // China
+  'ng', // Nigeria
+  'ug', // Uganda
+  'tz', // Tanzania
+  'rw', // Rwanda
+  'gh', // Ghana
+  'za', // South Africa
+  'in', // India
+];
 
 /**
  * PhoneInputWithCountry - Mobile-friendly phone input with country code selector
  * 
- * Uses react-phone-number-input library for robust international phone support.
+ * Uses react-international-phone library for robust international phone support.
+ * 
  * Features:
- * - Country flag and dial code selector
- * - Mobile-friendly dropdown for country selection
- * - Phone number formatting and validation
+ * - Searchable country dropdown with flags
+ * - Phone number formatting and validation per country
  * - Auto-detects country from locale or existing phone number
+ * - Mobile-friendly design
+ * - E.164 format output
  * 
  * @example
  * <PhoneInputWithCountry
@@ -70,35 +87,32 @@ export default function PhoneInputWithCountry({
   className = '',
 }: PhoneInputWithCountryProps) {
   // Determine default country from props or locale
-  const defaultCountryCode = useMemo((): Country => {
+  const defaultCountryCode = useMemo((): CountryIso2 => {
     if (defaultCountry) return defaultCountry;
     if (locale && LOCALE_TO_COUNTRY[locale.toLowerCase()]) {
       return LOCALE_TO_COUNTRY[locale.toLowerCase()];
     }
-    return 'KE'; // Default to Kenya
+    return 'ke'; // Default to Kenya
   }, [defaultCountry, locale]);
 
   // Handle phone change - convert to format backend expects
-  const handleChange = useCallback((newValue: Value) => {
-    // react-phone-number-input returns undefined when empty, or E.164 format
-    // Convert to string without + prefix for backend compatibility
-    if (!newValue) {
-      onChange('');
-      return;
-    }
-    
-    // Remove the + prefix for backend (e.g., "+254712345678" -> "254712345678")
-    const valueWithoutPlus = newValue.startsWith('+') ? newValue.slice(1) : newValue;
+  const handleChange = useCallback((
+    phone: string,
+    meta: { country: ParsedCountry; inputValue: string }
+  ) => {
+    // The library returns E.164 format with + prefix
+    // Remove the + prefix for backend compatibility (e.g., "+254712345678" -> "254712345678")
+    const valueWithoutPlus = phone.startsWith('+') ? phone.slice(1) : phone;
     onChange(valueWithoutPlus);
   }, [onChange]);
 
   // Convert value to E.164 format for the library (add + if needed)
   const displayValue = useMemo(() => {
-    if (!value) return undefined;
+    if (!value) return '';
     // If already has +, use as is
-    if (value.startsWith('+')) return value as Value;
+    if (value.startsWith('+')) return value;
     // Add + for the library
-    return `+${value}` as Value;
+    return `+${value}`;
   }, [value]);
 
   const hasError = !!error;
@@ -114,14 +128,24 @@ export default function PhoneInputWithCountry({
       
       <div className={`phone-input-container ${hasError ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''}`}>
         <PhoneInput
-          international
-          countryCallingCodeEditable={false}
           defaultCountry={defaultCountryCode}
           value={displayValue}
           onChange={handleChange}
           disabled={disabled}
           placeholder={placeholder || 'Enter phone number'}
-          className="phone-input-field"
+          preferredCountries={PREFERRED_COUNTRIES}
+          forceDialCode
+          inputClassName="phone-input-field"
+          countrySelectorStyleProps={{
+            buttonClassName: 'phone-country-button',
+            dropdownStyleProps: {
+              className: 'phone-country-dropdown',
+              listItemClassName: 'phone-country-item',
+              listItemFlagClassName: 'phone-country-flag',
+              listItemCountryNameClassName: 'phone-country-name',
+              listItemDialCodeClassName: 'phone-country-dialcode',
+            },
+          }}
         />
       </div>
       
@@ -150,24 +174,15 @@ export default function PhoneInputWithCountry({
 
         .phone-input-container {
           position: relative;
-          background-color: var(--bg-surface, #1a1a2e);
-          border: 1px solid var(--border-default, #2d2d44);
-          border-radius: var(--radius-md, 8px);
-          transition: border-color 0.2s ease;
-          overflow: hidden;
         }
 
-        .phone-input-container:focus-within {
-          border-color: var(--color-brand, #00e5e5);
-        }
-
-        .phone-input-container.has-error {
-          border-color: var(--color-error, #ef4444);
+        .phone-input-container.has-error .react-international-phone-input-container {
+          border-color: var(--color-error, #ef4444) !important;
         }
 
         .phone-input-container.is-disabled {
           opacity: 0.5;
-          cursor: not-allowed;
+          pointer-events: none;
         }
 
         .phone-input-error-text {
@@ -177,106 +192,219 @@ export default function PhoneInputWithCountry({
           color: var(--color-error, #ef4444);
         }
 
-        /* Override react-phone-number-input styles for dark theme */
-        .phone-input-field.PhoneInput {
+        /* Main container styling */
+        .react-international-phone-input-container {
           display: flex;
           align-items: center;
-          background: transparent;
-        }
-
-        .phone-input-field .PhoneInputCountry {
-          display: flex;
-          align-items: center;
-          padding: 10px 8px 10px 12px;
-          margin-right: 0;
-          background: transparent;
-          border-right: 1px solid var(--border-default, #2d2d44);
-        }
-
-        .phone-input-field .PhoneInputCountryIcon {
-          width: 24px;
-          height: 18px;
-          box-shadow: none;
-          border-radius: 2px;
+          background-color: var(--bg-surface, #1a1a2e) !important;
+          border: 1px solid var(--border-default, #2d2d44) !important;
+          border-radius: var(--radius-md, 8px) !important;
           overflow: hidden;
+          transition: border-color 0.2s ease;
         }
 
-        .phone-input-field .PhoneInputCountryIcon--border {
-          box-shadow: none;
-          background: transparent;
+        .react-international-phone-input-container:focus-within {
+          border-color: var(--color-brand, #00e5e5) !important;
         }
 
-        .phone-input-field .PhoneInputCountrySelectArrow {
-          width: 0;
-          height: 0;
-          border-left: 4px solid transparent;
-          border-right: 4px solid transparent;
-          border-top: 5px solid var(--text-muted, #6b7280);
-          margin-left: 6px;
-          opacity: 1;
-        }
-
-        .phone-input-field .PhoneInputCountrySelect {
-          position: absolute;
-          top: 0;
-          left: 0;
-          height: 100%;
-          width: 100%;
-          z-index: 1;
-          border: 0;
-          opacity: 0;
+        /* Country selector button */
+        .react-international-phone-country-selector-button {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 10px 8px 10px 12px !important;
+          background: transparent !important;
+          border: none !important;
+          border-right: 1px solid var(--border-default, #2d2d44) !important;
           cursor: pointer;
+          min-width: auto !important;
+          height: auto !important;
         }
 
-        .phone-input-field .PhoneInputCountrySelect:focus + .PhoneInputCountryIcon--border {
-          box-shadow: none;
+        .react-international-phone-country-selector-button:hover {
+          background-color: rgba(255, 255, 255, 0.05) !important;
         }
 
-        .phone-input-field .PhoneInputCountrySelect option {
-          background-color: var(--bg-primary, #0d0d1a);
-          color: var(--text-primary, #ffffff);
+        .react-international-phone-country-selector-button__button-content {
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
-        .phone-input-field .PhoneInputInput {
+        /* Flag in button */
+        .react-international-phone-flag-emoji {
+          font-size: 20px !important;
+          line-height: 1;
+        }
+
+        /* Dropdown arrow */
+        .react-international-phone-country-selector-button__dropdown-arrow {
+          border-top-color: var(--text-muted, #6b7280) !important;
+          margin-left: 4px;
+        }
+
+        /* Phone input field */
+        .react-international-phone-input {
           flex: 1;
-          padding: 10px 12px;
-          background: transparent;
-          border: none;
-          outline: none;
-          font-size: 14px;
-          font-family: var(--font-sans);
-          color: var(--text-primary, #ffffff);
+          padding: 10px 12px !important;
+          background: transparent !important;
+          border: none !important;
+          outline: none !important;
+          font-size: 14px !important;
+          font-family: var(--font-sans) !important;
+          color: var(--text-primary, #ffffff) !important;
           min-width: 0;
+          height: auto !important;
         }
 
-        .phone-input-field .PhoneInputInput::placeholder {
-          color: var(--text-muted, #6b7280);
+        .react-international-phone-input::placeholder {
+          color: var(--text-muted, #6b7280) !important;
         }
 
-        .phone-input-field .PhoneInputInput:disabled {
-          cursor: not-allowed;
+        /* Country dropdown */
+        .react-international-phone-country-selector-dropdown {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          z-index: 1000;
+          margin-top: 4px;
+          background-color: var(--bg-primary, #0d0d1a) !important;
+          border: 1px solid var(--border-default, #2d2d44) !important;
+          border-radius: var(--radius-md, 8px) !important;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+          max-height: 300px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
         }
 
-        /* Country select dropdown - ensure it's readable */
-        .phone-input-field .PhoneInputCountrySelect:focus {
-          outline: none;
+        /* Search input in dropdown */
+        .react-international-phone-country-selector-dropdown__search-input-container {
+          padding: 8px 12px;
+          border-bottom: 1px solid var(--border-default, #2d2d44);
         }
 
-        /* For mobile devices - increase touch targets */
+        .react-international-phone-country-selector-dropdown__search-input {
+          width: 100%;
+          padding: 10px 12px !important;
+          background-color: var(--bg-surface, #1a1a2e) !important;
+          border: 1px solid var(--border-default, #2d2d44) !important;
+          border-radius: 6px !important;
+          font-size: 14px !important;
+          font-family: var(--font-sans) !important;
+          color: var(--text-primary, #ffffff) !important;
+          outline: none !important;
+        }
+
+        .react-international-phone-country-selector-dropdown__search-input:focus {
+          border-color: var(--color-brand, #00e5e5) !important;
+        }
+
+        .react-international-phone-country-selector-dropdown__search-input::placeholder {
+          color: var(--text-muted, #6b7280) !important;
+        }
+
+        /* Country list */
+        .react-international-phone-country-selector-dropdown__list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 4px 0;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        /* Country list item */
+        .react-international-phone-country-selector-dropdown__list-item {
+          display: flex;
+          align-items: center;
+          padding: 12px 16px !important;
+          cursor: pointer;
+          transition: background-color 0.15s ease;
+          gap: 12px;
+        }
+
+        .react-international-phone-country-selector-dropdown__list-item:hover {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        .react-international-phone-country-selector-dropdown__list-item--selected,
+        .react-international-phone-country-selector-dropdown__list-item--focused {
+          background-color: rgba(0, 229, 229, 0.1) !important;
+        }
+
+        .react-international-phone-country-selector-dropdown__list-item-flag-emoji {
+          font-size: 22px !important;
+        }
+
+        .react-international-phone-country-selector-dropdown__list-item-country-name {
+          flex: 1;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--text-primary, #ffffff) !important;
+        }
+
+        .react-international-phone-country-selector-dropdown__list-item-dial-code {
+          font-size: 13px;
+          color: var(--text-secondary, #a0aec0) !important;
+        }
+
+        /* Preferred countries divider */
+        .react-international-phone-country-selector-dropdown__preferred-list-divider {
+          height: 1px;
+          background-color: var(--border-default, #2d2d44) !important;
+          margin: 4px 0;
+        }
+
+        /* No results */
+        .react-international-phone-country-selector-dropdown__list-item--no-results {
+          padding: 20px !important;
+          text-align: center;
+          color: var(--text-muted, #6b7280) !important;
+          font-size: 14px;
+        }
+
+        /* Mobile optimizations */
         @media (max-width: 640px) {
-          .phone-input-field .PhoneInputCountry {
-            padding: 12px 10px 12px 14px;
+          .react-international-phone-country-selector-button {
+            padding: 12px 10px 12px 14px !important;
           }
 
-          .phone-input-field .PhoneInputInput {
-            padding: 12px 14px;
-            font-size: 16px; /* Prevents zoom on iOS */
+          .react-international-phone-input {
+            padding: 12px 14px !important;
+            font-size: 16px !important; /* Prevents zoom on iOS */
           }
 
-          .phone-input-field .PhoneInputCountryIcon {
-            width: 28px;
-            height: 21px;
+          .react-international-phone-flag-emoji {
+            font-size: 24px !important;
           }
+
+          .react-international-phone-country-selector-dropdown {
+            max-height: 60vh;
+          }
+
+          .react-international-phone-country-selector-dropdown__list-item {
+            padding: 14px 16px !important;
+          }
+
+          .react-international-phone-country-selector-dropdown__list-item-flag-emoji {
+            font-size: 26px !important;
+          }
+
+          .react-international-phone-country-selector-dropdown__list-item-country-name {
+            font-size: 15px;
+          }
+
+          .react-international-phone-country-selector-dropdown__search-input {
+            padding: 12px 14px !important;
+            font-size: 16px !important;
+          }
+        }
+
+        /* Dial code preview (shown with the input) */
+        .react-international-phone-dial-code-preview {
+          color: var(--text-secondary, #a0aec0) !important;
+          font-size: 14px;
+          padding-left: 8px;
         }
       `}</style>
     </div>
@@ -285,8 +413,8 @@ export default function PhoneInputWithCountry({
 
 // Re-export useful types and utilities from the library
 export { 
-  getCountryCallingCode,
-  parsePhoneNumberLib as parsePhoneNumber,
-  type Country,
-  type Value as PhoneValue,
+  parseCountry,
+  defaultCountries,
+  type CountryIso2,
+  type ParsedCountry,
 };
