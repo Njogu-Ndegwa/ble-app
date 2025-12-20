@@ -144,7 +144,6 @@ export default function SuccessReceipt({
 
 export interface SwapReceiptData {
   transactionId: string;
-  customerName: string;
   subscriptionId: string;
   oldBatteryId: string;
   oldBatteryLevel: number;
@@ -165,19 +164,14 @@ export function buildSwapReceiptRows(
 ): ReceiptRow[] {
   const currency = data.currencySymbol || 'KES';
   
+  // Subscription ID is the primary identifier - no customer name/ID shown
   const rows: ReceiptRow[] = [
-    { 
-      label: t('attendant.step.customer'), 
-      value: data.customerName 
+    {
+      label: t('attendant.subscriptionId') || 'Subscription ID',
+      value: data.subscriptionId,
+      mono: true
     },
   ];
-
-  // Subscription ID - the primary identifier used to identify the customer
-  rows.push({
-    label: t('attendant.subscriptionId') || 'Subscription ID',
-    value: data.subscriptionId,
-    mono: true
-  });
 
   rows.push(
     { 

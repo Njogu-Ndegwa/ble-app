@@ -4,7 +4,7 @@ import React from 'react';
 import { useI18n } from '@/i18n';
 import ScannerArea from './ScannerArea';
 import InputModeToggle from './InputModeToggle';
-import { InputMode, getInitials, formatCurrency } from './types';
+import { InputMode } from './types';
 
 interface CustomerInfo {
   name: string;
@@ -89,7 +89,6 @@ export default function PaymentCollection({
 }: PaymentCollectionProps) {
   const { t } = useI18n();
   
-  const customerInitials = customer?.initials || (customer?.name ? getInitials(customer.name) : '');
   const displayTitle = title || t('attendant.collectPayment') || 'Collect Payment';
   const displayPlaceholder = placeholder || t('sales.enterTransactionId') || 'Enter transaction ID';
   
@@ -99,15 +98,9 @@ export default function PaymentCollection({
     <div className={`payment-collection ${className}`}>
       {/* Compact Customer + Amount Header */}
       <div className="payment-header-compact">
-        {customer && (
+        {customer?.subscriptionId && (
           <div className="payment-customer-mini">
-            <div className="payment-customer-avatar">{customerInitials}</div>
-            <div className="payment-customer-details">
-              <span className="payment-customer-name">{customer.name}</span>
-              {customer.subscriptionId && (
-                <span className="payment-subscription-id">{customer.subscriptionId}</span>
-              )}
-            </div>
+            <span className="payment-subscription-id">{customer.subscriptionId}</span>
           </div>
         )}
         <div className="payment-amount-large">
