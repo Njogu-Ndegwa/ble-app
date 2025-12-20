@@ -81,6 +81,8 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
             <div className="state-customer-info">
               <div className="state-customer-name">{customer.name}</div>
               <div className="state-plan-row">
+                <span className="state-subscription-id">{customer.subscriptionId}</span>
+                <span className="state-plan-separator">•</span>
                 <span className="state-plan-name">{customer.subscriptionType}</span>
               </div>
             </div>
