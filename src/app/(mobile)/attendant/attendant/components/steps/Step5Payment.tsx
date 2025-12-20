@@ -50,7 +50,7 @@ export default function Step5Payment({
       <PaymentCollection
         amount={displayAmount}
         currencySymbol={swapData.currencySymbol}
-        customer={customerData ? { name: customerData.name } : null}
+        customer={customerData ? { name: customerData.name, subscriptionId: customerData.subscriptionId } : null}
         inputMode={inputMode}
         onInputModeChange={setInputMode}
         paymentId={paymentId}
