@@ -139,6 +139,7 @@ export default function PhoneInputWithCountry({
           position: 'relative',
           opacity: disabled ? 0.5 : 1,
           pointerEvents: disabled ? 'none' : 'auto',
+          overflow: 'visible',
         }}
       >
         <PhoneInput
@@ -185,7 +186,7 @@ export default function PhoneInputWithCountry({
           background-color: var(--bg-surface, rgba(255, 255, 255, 0.05)) !important;
           border: 1px solid var(--border-default, #1e2d2d) !important;
           border-radius: var(--radius-md, 8px) !important;
-          overflow: hidden !important;
+          overflow: visible !important;
           transition: border-color 0.2s ease !important;
           box-sizing: border-box !important;
         }
@@ -272,13 +273,13 @@ export default function PhoneInputWithCountry({
           padding-right: 0 !important;
         }
 
-        /* Country dropdown */
+        /* Country dropdown - must appear above all other content */
         .react-international-phone-country-selector-dropdown {
           position: absolute !important;
           top: calc(100% + 4px) !important;
           left: 0 !important;
           right: auto !important;
-          z-index: 1000 !important;
+          z-index: 9999 !important;
           min-width: 280px !important;
           max-width: 320px !important;
           background-color: var(--bg-elevated, #1a2424) !important;
@@ -289,6 +290,12 @@ export default function PhoneInputWithCountry({
           overflow: hidden !important;
           display: flex !important;
           flex-direction: column !important;
+        }
+
+        /* Ensure country selector is interactive */
+        .react-international-phone-country-selector {
+          position: relative !important;
+          z-index: 1 !important;
         }
 
         /* Search input in dropdown */
