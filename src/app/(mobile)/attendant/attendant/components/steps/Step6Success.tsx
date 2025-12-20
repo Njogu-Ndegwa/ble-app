@@ -32,6 +32,7 @@ export default function Step6Success({
   const receiptRows = buildSwapReceiptRows({
     transactionId,
     customerName: customerData?.name || 'Customer',
+    subscriptionId: customerData?.subscriptionId || '---',
     // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
     oldBatteryId: swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.shortId || '---',
     oldBatteryLevel: swapData.oldBattery?.chargeLevel ?? 0,
