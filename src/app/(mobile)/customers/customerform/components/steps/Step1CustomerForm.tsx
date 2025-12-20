@@ -3,7 +3,6 @@
 import React, { useCallback } from 'react';
 import { useI18n } from '@/i18n';
 import { CustomerFormData } from '../types';
-import { type CountryPhoneFormat } from '@/lib/phone-utils';
 import { 
   Screen, 
   PageHeader, 
@@ -23,15 +22,9 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
   const { t, locale } = useI18n();
   
   // Handle phone number change from the country code selector
-  // The component returns the local number, full number, and selected country
-  // We store the full number (with country code) in the form
-  const handlePhoneChange = useCallback((
-    localNumber: string, 
-    fullNumber: string, 
-    country: CountryPhoneFormat
-  ) => {
-    // Store the full number with country code for submission
-    onFormChange('phone', fullNumber);
+  // The component returns the phone number in E.164 format without the + prefix
+  const handlePhoneChange = useCallback((value: string) => {
+    onFormChange('phone', value);
   }, [onFormChange]);
   
   return (
