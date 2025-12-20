@@ -1329,5 +1329,9 @@
   "session.updateFailed": "Failed to save session",
   "session.restoreFailed": "Failed to restore session",
   "session.checkingForSession": "Checking for pending session...",
-  "common.of": "of"
+  "common.of": "of",
+  
+  "phone.selectCountry": "Select Country",
+  "phone.searchCountry": "Search country or code...",
+  "phone.noCountriesFound": "No countries found"
 }

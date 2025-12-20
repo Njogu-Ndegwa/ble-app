@@ -1320,5 +1320,9 @@
   "session.updateFailed": "Échec d'enregistrement de la session",
   "session.restoreFailed": "Échec de restauration de la session",
   "session.checkingForSession": "Vérification de session en attente...",
-  "common.of": "de"
+  "common.of": "de",
+  
+  "phone.selectCountry": "Sélectionner le pays",
+  "phone.searchCountry": "Rechercher un pays ou un code...",
+  "phone.noCountriesFound": "Aucun pays trouvé"
 }
