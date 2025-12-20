@@ -2212,8 +2212,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         identificationFailed={identificationFailed}
       />
 
-      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment) */}
-      {(isCreatingCustomer || isProcessing || isAssigningVehicle) && 
+      {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment, service completion) */}
+      {(isCreatingCustomer || isProcessing || isAssigningVehicle || isCompletingService) && 
        !bleScanState.isConnecting && 
        !bleScanState.isReadingEnergy && (
         <div className="loading-overlay active">
@@ -2223,6 +2223,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
               ? t('sales.registeringCustomer') || 'Registering customer...'
               : isAssigningVehicle
               ? t('sales.assigningVehicle') || 'Assigning vehicle...'
+              : isCompletingService
+              ? t('sales.completingService') || 'Completing service...'
               : t('common.processing') || 'Processing...'}
           </div>
         </div>
