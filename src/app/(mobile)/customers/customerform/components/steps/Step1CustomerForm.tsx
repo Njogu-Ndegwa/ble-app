@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { useI18n } from '@/i18n';
 import { CustomerFormData } from '../types';
-import { getPhonePlaceholder } from '@/lib/phone-utils';
 import { 
   Screen, 
   PageHeader, 
   FormInput, 
   FormSection, 
-  FormRow 
+  FormRow,
+  PhoneInputWithCountry,
 } from '@/components/ui';
 
 interface Step1Props {
@@ -21,9 +21,11 @@ interface Step1Props {
 export default function Step1CustomerForm({ formData, onFormChange, errors = {} }: Step1Props) {
   const { t, locale } = useI18n();
   
-  // Get dynamic phone placeholder based on current locale
-  // Updates automatically when locale changes
-  const phonePlaceholder = useMemo(() => getPhonePlaceholder(locale), [locale]);
+  // Handle phone number change from the country code selector
+  // The component returns the phone number in E.164 format without the + prefix
+  const handlePhoneChange = useCallback((value: string) => {
+    onFormChange('phone', value);
+  }, [onFormChange]);
   
   return (
     <Screen>
@@ -53,29 +55,24 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
           />
         </FormRow>
 
-        <FormRow columns={2}>
-          <FormInput
-            label={t('sales.emailAddress')}
-            type="email"
-            value={formData.email}
-            onChange={(e) => onFormChange('email', e.target.value)}
-            placeholder="customer@example.com"
-            error={errors.email}
-          />
-          <FormInput
-            label={t('sales.phoneNumber')}
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => onFormChange('phone', e.target.value)}
-            placeholder={phonePlaceholder}
-            error={errors.phone}
-          />
-        </FormRow>
-        {(errors.email || errors.phone) ? (
-          <div className="text-sm text-red-400 mt-1 px-1">
-            {errors.email || errors.phone}
-          </div>
-        ) : (
+        <FormInput
+          label={t('sales.emailAddress')}
+          type="email"
+          value={formData.email}
+          onChange={(e) => onFormChange('email', e.target.value)}
+          placeholder="customer@example.com"
+          error={errors.email}
+        />
+        
+        <PhoneInputWithCountry
+          label={t('sales.phoneNumber')}
+          value={formData.phone}
+          onChange={handlePhoneChange}
+          locale={locale}
+          error={errors.phone}
+        />
+        
+        {!(errors.email || errors.phone) && (
           <p className="text-xs text-gray-400 mt-1 px-1">
             {t('sales.emailOrPhoneRequired') || 'Enter either an email address or phone number'}
           </p>

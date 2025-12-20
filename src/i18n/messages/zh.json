@@ -1231,5 +1231,9 @@
   "session.updateFailed": "保存会话失败",
   "session.restoreFailed": "恢复会话失败",
   "session.checkingForSession": "检查待处理会话...",
-  "common.of": "/"
+  "common.of": "/",
+  
+  "phone.selectCountry": "选择国家",
+  "phone.searchCountry": "搜索国家或代码...",
+  "phone.noCountriesFound": "未找到国家"
 }
