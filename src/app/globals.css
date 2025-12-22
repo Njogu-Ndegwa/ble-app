@@ -3087,6 +3087,18 @@ html.theme-transition *::after {
   flex-shrink: 1;
 }
 
+.state-subscription-id {
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.state-plan-separator {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
 /* State badges container - simple side-by-side layout */
 .state-badges {
   display: inline-flex;

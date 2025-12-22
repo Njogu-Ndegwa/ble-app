@@ -144,7 +144,7 @@ export default function SuccessReceipt({
 
 export interface SwapReceiptData {
   transactionId: string;
-  customerName: string;
+  subscriptionId: string;
   oldBatteryId: string;
   oldBatteryLevel: number;
   newBatteryId: string;
@@ -164,11 +164,16 @@ export function buildSwapReceiptRows(
 ): ReceiptRow[] {
   const currency = data.currencySymbol || 'KES';
   
-  return [
-    { 
-      label: t('attendant.step.customer'), 
-      value: data.customerName 
+  // Subscription ID is the primary identifier - no customer name/ID shown
+  const rows: ReceiptRow[] = [
+    {
+      label: t('attendant.subscriptionId') || 'Subscription ID',
+      value: data.subscriptionId,
+      mono: true
     },
+  ];
+
+  rows.push(
     { 
       label: t('attendant.returned') || 'Returned', 
       value: `${data.oldBatteryId} (${data.oldBatteryLevel}%)`,
@@ -200,8 +205,10 @@ export function buildSwapReceiptRows(
       label: t('attendant.time') || 'Time', 
       value: new Date().toLocaleTimeString(),
       mono: true 
-    },
-  ];
+    }
+  );
+
+  return rows;
 }
 
 export interface RegistrationReceiptData {
