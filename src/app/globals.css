@@ -2398,6 +2398,56 @@ html.theme-transition *::after {
   box-shadow: 0 8px 24px -8px var(--success-glow);
 }
 
+/* Ensure button text stays on one line on all screen sizes */
+.btn span {
+  white-space: nowrap;
+}
+
+/* Responsive button sizing for small screens */
+@media (max-width: 380px) {
+  .action-bar {
+    padding: 10px 12px;
+  }
+  
+  .action-bar-inner {
+    gap: 8px;
+  }
+  
+  .btn {
+    padding: 10px 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
+  
+  .btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}
+
+/* Extra small screens (iPhone SE, etc.) */
+@media (max-width: 340px) {
+  .action-bar {
+    padding: 8px 10px;
+  }
+  
+  .action-bar-inner {
+    gap: 6px;
+  }
+  
+  .btn {
+    padding: 10px 10px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  
+  .btn svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
 /* Form Styles */
 .form-group {
   margin-bottom: 10px;
