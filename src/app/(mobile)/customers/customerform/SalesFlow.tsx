@@ -245,8 +245,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       // User must click "Complete Service" to finalize the assignment
       console.info('Battery read via hook (for assignment):', battery);
       setScannedBatteryPending(battery);
-      // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId or id
-      toast.success(`Battery ${battery.actualBatteryId || battery.shortId || battery.id} scanned! Click "Complete Service" to finalize.`);
+      // Note: No scan success toast here - only show notification when binding is complete
+      // This avoids double notifications (scan success + bind success)
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
@@ -800,7 +800,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
               if (vehicleId) {
                 console.info('[SALES QR] Step 2b: Setting scanned vehicle ID:', vehicleId);
                 setScannedVehicleId(vehicleId);
-                toast.success(`Vehicle ${vehicleId} scanned!`);
+                // Note: No scan success toast here - only show notification when binding is complete
+                // This avoids double notifications (scan success + bind success)
                 
                 // Get the subscription code for vehicle assignment
                 const subCode = confirmedSubscriptionCodeRef.current || subscriptionDataRef.current?.subscriptionCode;
