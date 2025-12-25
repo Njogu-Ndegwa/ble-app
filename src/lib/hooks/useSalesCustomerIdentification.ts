@@ -135,7 +135,6 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
   const handleSuccess = useCallback((identificationResult: CustomerIdentificationResult) => {
     if (!isActiveRef.current) return;
     
-    console.info('[SALES ID] Customer identified successfully', isManualRetryRef.current ? '(manual retry)' : '(background)');
     setResult(identificationResult);
     setStatus('success');
     setLastError(null);
@@ -171,7 +170,6 @@ export function useSalesCustomerIdentification(config: UseSalesCustomerIdentific
     // Automatic background retry - completely silent (no toasts)
     if (currentRetryRef.current < maxRetries) {
       const delay = calculateRetryDelay(currentRetryRef.current);
-      console.info(`[SALES ID] Scheduling silent retry ${currentRetryRef.current + 1}/${maxRetries} in ${Math.round(delay / 1000)}s...`);
       
       setStatus('retrying');
       setRetryCount(currentRetryRef.current + 1);

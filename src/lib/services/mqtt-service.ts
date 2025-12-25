@@ -149,8 +149,6 @@ export class MqttService {
         qos: options.qos ?? MQTT.defaultQos,
       };
 
-      console.info(`MQTT: Subscribing to topic: ${topic}`);
-
       this.bridge!.callHandler(
         'mqttSubscribe',
         subscribeData,
@@ -159,9 +157,7 @@ export class MqttService {
             const parsed = typeof response === 'string' ? JSON.parse(response) : response;
             const success = parsed.respCode === '200' || parsed.success === true;
             
-            if (success) {
-              console.info(`MQTT: Successfully subscribed to: ${topic}`);
-            } else {
+            if (!success) {
               console.error(`MQTT: Failed to subscribe to: ${topic}`, parsed);
             }
 
@@ -229,9 +225,6 @@ export class MqttService {
         retain: options.retain ?? false,
       };
 
-      console.info(`MQTT: Publishing to topic: ${topic}`);
-      console.debug('MQTT: Publish payload:', publishData.message);
-
       this.bridge!.callHandler(
         'mqttPublishMsg',
         publishData,
@@ -254,9 +247,7 @@ export class MqttService {
               actualResponse.success === true ||
               parsed.respCode === '200';
 
-            if (success) {
-              console.info(`MQTT: Successfully published to: ${topic}`);
-            } else {
+            if (!success) {
               console.error(`MQTT: Failed to publish to: ${topic}`, parsed);
             }
 

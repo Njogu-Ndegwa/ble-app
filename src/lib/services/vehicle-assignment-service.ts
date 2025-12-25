@@ -118,11 +118,6 @@ export async function assignVehicle(
 
   onStatusChange?.('pending');
 
-  console.info('=== Assigning vehicle via GraphQL ===');
-  console.info('Correlation ID:', correlationId);
-  console.info('Plan ID:', planId);
-  console.info('Vehicle ID:', vehicleId);
-
   try {
     const result = await absApolloClient.mutate<{ 
       updateAssetAssignmentCurrentAsset: UpdateAssetAssignmentResponse 
@@ -151,9 +146,6 @@ export async function assignVehicle(
     }
 
     const response = result.data.updateAssetAssignmentCurrentAsset;
-    console.info('GraphQL Response:', response);
-    console.info('Signals:', response.signals);
-    console.info('Updated count:', response.updated_count);
 
     // Parse metadata for additional info
     const metadata = response.metadata ? parseVehicleAssignmentMetadata(response.metadata) : null;
@@ -186,7 +178,6 @@ export async function assignVehicle(
     if (isVehicleAssignmentSuccessful(response)) {
       const isIdempotent = response.signals.includes('IDEMPOTENT_OPERATION_DETECTED');
       
-      console.info('Vehicle assignment completed successfully!', isIdempotent ? '(idempotent)' : '');
       onStatusChange?.('success');
       onSuccess?.(isIdempotent);
       
@@ -202,7 +193,6 @@ export async function assignVehicle(
 
     // Response received but status unclear - treat as success if updated_count > 0
     if (response.updated_count > 0) {
-      console.info('Vehicle assignment completed (updated_count > 0)');
       onStatusChange?.('success');
       onSuccess?.(false);
       

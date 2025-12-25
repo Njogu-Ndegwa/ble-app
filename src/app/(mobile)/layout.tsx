@@ -15,7 +15,6 @@ function MobileLayout({
 }) {
   const [open, setOpen] = useState(false);
 
-  
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--bg-primary)' }}>
       {open && <Sidebar onClose={() => setOpen(false)} />}

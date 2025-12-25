@@ -204,7 +204,6 @@ export function usePaymentCollection(
     reset: resetPublishStatus,
   } = usePaymentAndService({
     onSuccess: (isIdempotent) => {
-      console.info('payment_and_service completed successfully!', isIdempotent ? '(idempotent)' : '');
       setIsProcessing(false);
       onSuccessRef.current?.(isIdempotent);
     },
@@ -254,19 +253,6 @@ export function usePaymentCollection(
         isQuotaBased,
         isZeroCostRounding,
       };
-
-      console.info('Calling publishPaymentAndService with params:', {
-        paymentReference,
-        isQuotaBased,
-        isZeroCostRounding,
-        planId: dynamicPlanId,
-        customerType,
-        serviceId: electricityServiceId,
-        oldBatteryId: swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.id,
-        newBatteryId: swapData.newBattery?.actualBatteryId || swapData.newBattery?.id,
-        energyDiff: swapData.energyDiff,
-        cost: swapData.cost,
-      });
 
       publishPaymentAndService(params);
     },
@@ -527,14 +513,6 @@ export function usePaymentCollection(
 
   const skipPayment = useCallback(
     (isQuotaBased: boolean, isZeroCostRounding: boolean) => {
-      const reason = isQuotaBased ? 'sufficient quota' : 'zero cost (rounded)';
-      console.info(`Skipping payment step - ${reason}`, {
-        isQuotaBased,
-        isZeroCostRounding,
-        cost: swapData.cost,
-        roundedCost: Math.floor(swapData.cost),
-      });
-
       toast.success(isQuotaBased ? 'Using quota credit - no payment required' : 'No payment required - zero cost');
 
       const skipReference = isZeroCostRounding ? `ZERO_COST_${Date.now()}` : `QUOTA_${Date.now()}`;
@@ -582,7 +560,6 @@ export function usePaymentCollection(
     amountRemaining: number;
     amountPaid: number;
   }) => {
-    console.info('Restoring payment state from session:', state);
     setPaymentInputMode(state.inputMode);
     setManualPaymentId(state.manualPaymentId);
     setPaymentRequestCreated(state.requestCreated);
