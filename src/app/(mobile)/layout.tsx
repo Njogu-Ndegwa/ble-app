@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Sidebar from '../../components/sidebar/sidebar';   // wherever you put the sidebar file
 import { User } from 'lucide-react';
 import { isAuth } from '@/lib/auth';
@@ -8,32 +8,12 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n';
 import Image from 'next/image';
 
-// Initialize VConsole for mobile debugging
-let vConsoleInstance: any = null;
-
 function MobileLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-
-  // Initialize VConsole for mobile debugging (only once)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !vConsoleInstance) {
-      import('vconsole').then((VConsoleModule) => {
-        const VConsole = VConsoleModule.default;
-        vConsoleInstance = new VConsole({ theme: 'dark' });
-      }).catch((err) => {
-        console.error('Failed to load VConsole:', err);
-      });
-    }
-    
-    // Cleanup on unmount (optional, but good practice)
-    return () => {
-      // Don't destroy VConsole on layout unmount as it should persist
-    };
-  }, []);
 
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--bg-primary)' }}>
