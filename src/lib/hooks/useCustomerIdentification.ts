@@ -257,7 +257,7 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       id: identifiedCustomerId || servicePlanData.customerId || input.customerId || input.subscriptionCode,
       name: input.name || 'Customer',
       subscriptionId: servicePlanData.servicePlanId || input.subscriptionCode,
-      subscriptionType: serviceBundle?.name || 'Pay-Per-Swap',
+      subscriptionType: servicePlanData.templateId || '',
       phone: input.phone || '',
       swapCount: swapCountService?.used || 0,
       lastSwap: 'N/A',
