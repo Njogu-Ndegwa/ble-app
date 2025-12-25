@@ -12,6 +12,7 @@ export const initBleData = (macAddress, callback) => {
     });
 };
 
+
 export const initServiceBleData = (data, callback) => {
   window.WebViewJavascriptBridge.callHandler(
       'initServiceBleData', 
