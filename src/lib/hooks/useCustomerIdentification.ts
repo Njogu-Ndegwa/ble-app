@@ -322,10 +322,6 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       attendant_station: attendantInfo.station,
     };
 
-    console.info(`=== Customer Identification GraphQL (${source}) ===`);
-    console.info('Correlation ID:', correlationId);
-    console.info('Input:', JSON.stringify(graphqlInput, null, 2));
-
     try {
       const result = await absApolloClient.mutate<{ identifyCustomer: IdentifyCustomerResponse }>({
         mutation: IDENTIFY_CUSTOMER,
@@ -334,7 +330,6 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
 
       // Check if cancelled while waiting for response
       if (isCancelledRef.current) {
-        console.info('Customer identification was cancelled');
         return;
       }
 
@@ -360,8 +355,6 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       }
 
       const response = result.data.identifyCustomer;
-      console.info('GraphQL Response:', response);
-      console.info('Signals:', response.signals);
 
       try {
         const identificationResult = processResponseData(response, input);
@@ -388,7 +381,6 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       const error = err as Error;
       // Check if cancelled
       if (isCancelledRef.current) {
-        console.info('Customer identification was cancelled');
         return;
       }
 

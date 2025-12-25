@@ -84,40 +84,31 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
 
   // Initialize Bridge - Step 1: Get the bridge object
   useEffect(() => {
-    console.info('=== Bridge Provider: Looking for WebViewJavascriptBridge ===');
-    
     const setupBridge = (b: WebViewJavascriptBridge) => {
       if (bridgeInitializedRef.current) {
-        console.info('Bridge already initialized, skipping');
         return;
       }
       
-      console.info('=== Bridge Found, Initializing... ===');
       bridgeInitializedRef.current = true;
       
       // CRITICAL: Call bridge.init() before using any other methods
       b.init((message: any, responseCallback: (response: any) => void) => {
-        console.info('Bridge default handler received message:', message);
         responseCallback({ success: true });
       });
       
-      console.info('=== Bridge Initialized Successfully ===');
       setBridge(b);
       setIsBridgeReady(true);
     };
 
     const ready = () => {
       if (window.WebViewJavascriptBridge) {
-        console.info('WebViewJavascriptBridge is available on window');
         setupBridge(window.WebViewJavascriptBridge);
       }
     };
 
     if (window.WebViewJavascriptBridge) {
-      console.info('WebViewJavascriptBridge already exists on window');
       ready();
     } else {
-      console.info('Waiting for WebViewJavascriptBridgeReady event...');
       document.addEventListener('WebViewJavascriptBridgeReady', ready, false);
     }
 
@@ -156,8 +147,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
     const delayMs = calculateRetryDelay(currentAttempt);
     const nextRetryInSeconds = Math.ceil(delayMs / 1000);
     
-    console.info(`MQTT: Scheduling reconnection attempt ${currentAttempt + 1}/${MQTT_RECONNECT_CONFIG.maxRetries} in ${nextRetryInSeconds}s`);
-    
     setMqttReconnectionState({
       isReconnecting: true,
       attemptCount: currentAttempt,
@@ -184,7 +173,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       reconnectAttemptRef.current++;
       
       if (connectToMqttRef.current) {
-        console.info(`MQTT: Executing reconnection attempt ${reconnectAttemptRef.current}`);
         connectToMqttRef.current();
       }
     }, delayMs);
@@ -192,8 +180,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
 
   // Manual reconnection function - resets retry counter and attempts immediately
   const reconnectMqtt = useCallback(() => {
-    console.info('MQTT: Manual reconnection triggered');
-    
     // Clear any existing timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);

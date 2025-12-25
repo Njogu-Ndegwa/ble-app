@@ -103,7 +103,6 @@ export function saveSalesSession(data: Omit<SalesSessionData, 'savedAt' | 'versi
     };
 
     localStorage.setItem(SALES_SESSION_KEY, JSON.stringify(sessionData));
-    console.info('Sales session saved successfully');
     return true;
   } catch (error) {
     console.error('Failed to save sales session:', error);
@@ -131,7 +130,6 @@ export function loadSalesSession(): SalesSessionData | null {
 
     // Validate version
     if (sessionData.version !== CURRENT_VERSION) {
-      console.info('Sales session version mismatch - clearing old session');
       clearSalesSession();
       return null;
     }
@@ -139,7 +137,6 @@ export function loadSalesSession(): SalesSessionData | null {
     // Check if session has expired
     const now = Date.now();
     if (now - sessionData.savedAt > SESSION_EXPIRY_MS) {
-      console.info('Sales session expired - clearing');
       clearSalesSession();
       return null;
     }
@@ -154,12 +151,10 @@ export function loadSalesSession(): SalesSessionData | null {
       sessionData.formData.phone.trim() !== '';
 
     if (!hasProgress) {
-      console.info('No meaningful progress in saved session - ignoring');
       clearSalesSession();
       return null;
     }
 
-    console.info('Sales session loaded successfully from step', sessionData.currentStep);
     return sessionData;
   } catch (error) {
     console.error('Failed to load sales session:', error);
@@ -179,7 +174,6 @@ export function clearSalesSession(): void {
 
   try {
     localStorage.removeItem(SALES_SESSION_KEY);
-    console.info('Sales session cleared');
   } catch (error) {
     console.error('Failed to clear sales session:', error);
   }

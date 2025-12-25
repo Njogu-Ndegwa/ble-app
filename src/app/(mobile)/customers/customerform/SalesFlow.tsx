@@ -160,17 +160,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const packagesLoadError = catalogErrors.packages;
   const plansLoadError = catalogErrors.plans;
 
-  // DEBUG: Log catalog state on every render
-  console.log('[SALES FLOW] Catalog state:', {
-    packagesCount: availablePackages.length,
-    plansCount: availablePlans.length,
-    isLoadingPackages,
-    isLoadingPlans,
-    packagesLoadError,
-    plansLoadError,
-    selectedPackageId,
-    selectedPlanId,
-  });
 
   // Created customer data from Odoo registration
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
@@ -243,7 +232,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     onOldBatteryRead: (battery) => {
       // In SalesFlow, battery is first stored as pending, not directly assigned
       // User must click "Complete Service" to finalize the assignment
-      console.info('Battery read via hook (for assignment):', battery);
       setScannedBatteryPending(battery);
       // Note: No scan success toast here - only show notification when binding is complete
       // This avoids double notifications (scan success + bind success)
@@ -252,7 +240,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     },
     onNewBatteryRead: (battery) => {
       // Not used in SalesFlow - battery assignment uses old_battery type
-      console.info('New battery read (unused in SalesFlow):', battery);
     },
     onError: (error, requiresReset) => {
       console.error('BLE error via hook:', error, { requiresReset });
@@ -308,7 +295,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     isReady: isPaymentServiceReady,
   } = usePaymentAndService({
     onSuccess: (isIdempotent) => {
-      console.info('[SALES] Payment and service completed successfully!', isIdempotent ? '(idempotent)' : '');
       // Move battery from pending to assigned
       setAssignedBattery(scannedBatteryPending);
       setScannedBatteryPending(null);
@@ -337,7 +323,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     isLoading: isAssigningVehicle,
   } = useVehicleAssignment({
     onSuccess: (isIdempotent) => {
-      console.info('[SALES] Vehicle assigned successfully!', isIdempotent ? '(idempotent)' : '');
       toast.success(isIdempotent 
         ? (t('sales.vehicleAlreadyAssigned') || 'Vehicle already assigned!') 
         : (t('sales.vehicleAssigned') || 'Vehicle assigned successfully!'));
@@ -376,8 +361,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   } = useWorkflowSession({
     workflowType: 'salesperson',
     onSessionRestored: (sessionData, orderId) => {
-      console.info('[SalesFlow] Session restored from backend:', { orderId, step: sessionData.currentStep });
-      
       // Extract state from session data and restore
       const restoredState = extractSalesStateFromSession(sessionData);
       
@@ -543,7 +526,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // Helper to save session to backend
   const saveSessionToBackend = useCallback(async () => {
     if (!sessionOrderId) {
-      console.info('[SalesFlow] No session orderId - skipping backend session save');
       return;
     }
     
@@ -563,7 +545,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     // When reaching step 8 (success), save the completed state then clear local tracking
     if (currentStep === 8) {
-      console.info('[SalesFlow] Workflow completed (step 8) - saving final state and clearing session');
       prevStepRef.current = currentStep;
       
       // Save step 8 to backend with status: 'completed'
@@ -576,7 +557,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       return;
     }
     
-    console.info(`[SalesFlow] Step changed from ${prevStepRef.current} to ${currentStep} - saving session`);
     prevStepRef.current = currentStep;
     
     // Save session with current state
@@ -596,7 +576,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     // Payment incomplete state changed - save session
     if (paymentIncomplete) {
-      console.info('[SalesFlow] Payment became incomplete - saving session with payment state');
       saveSessionToBackend();
     }
     
@@ -703,7 +682,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Process battery QR and connect via hook - delegates all BLE operations to the hook
   const processBatteryQRData = useCallback((qrData: string) => {
-    console.info('[SALES BATTERY] Processing QR via hook:', qrData);
     // Use "old_battery" type in SalesFlow since we're assigning a battery (not swapping)
     hookHandleQrScanned(qrData, 'old_battery');
   }, [hookHandleQrScanned]);
@@ -737,10 +715,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       window.WebViewJavascriptBridge.registerHandler(
         'scanQrcodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
-          console.info('[SALES QR] Step 1: QR Code Result Received from scanner');
-          console.info('[SALES QR] Step 1a: Raw callback data:', data);
-          console.info('[SALES QR] Step 1b: Current scanType:', scanTypeRef.current);
-          
           // Reset scanner opening state and clear timeout when result is received
           clearScannerTimeout();
           setIsScannerOpening(false);
@@ -752,53 +726,40 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             // Extract the actual QR code value from respData.value (this is the TEXT stored in the QR code)
             const qrVal = parsed.respData?.value || "";
             
-            console.info('[SALES QR] Step 1c: Parsed response - respCode:', parsed.respCode, 'success:', parsed.success);
-            console.info('[SALES QR] Step 1d: Extracted QR value (respData.value):', qrVal);
-            
             if (!qrVal) {
               // User cancelled scan (no QR value) - just reset state silently
-              console.info('[SALES QR] Step 1e: QR scan cancelled or empty - no value found');
               responseCallback({ success: false, cancelled: true });
               return;
             }
           
             if (scanTypeRef.current === 'battery') {
-              console.info('[SALES QR] Step 2: Detected as battery scan, calling processBatteryQRData with:', qrVal);
               processBatteryQRDataRef.current(qrVal);
             } else if (scanTypeRef.current === 'payment') {
-              console.info('[SALES QR] Step 2: Detected as payment scan');
               // Payment QR scanned - extract payment reference and confirm
               let paymentId = qrVal;
               try {
                 // Try to parse as JSON first (structured payment data)
                 const paymentData = JSON.parse(qrVal);
                 paymentId = paymentData.transaction_id || paymentData.receipt || paymentData.id || qrVal;
-                console.info('[SALES QR] Step 2a: Parsed payment QR as JSON, extracted ID:', paymentId);
               } catch {
                 // If not JSON, treat the entire string as payment reference
-                console.info('[SALES QR] Step 2a: Payment QR is plain text:', paymentId);
               }
               // Trigger payment confirmation via ref
               if (paymentId && processPaymentQRDataRef.current) {
-                console.info('[SALES QR] Step 2b: Calling processPaymentQRData with:', paymentId);
                 processPaymentQRDataRef.current(paymentId);
               }
             } else if (scanTypeRef.current === 'vehicle') {
-              console.info('[SALES QR] Step 2: Detected as vehicle scan');
               // Vehicle QR scanned - extract vehicle ID
               let vehicleId = qrVal;
               try {
                 // Try to parse as JSON first (structured vehicle data)
                 const vehicleData = JSON.parse(qrVal);
                 vehicleId = vehicleData.vehicle_id || vehicleData.id || vehicleData.vin || qrVal;
-                console.info('[SALES QR] Step 2a: Parsed vehicle QR as JSON, extracted ID:', vehicleId);
               } catch {
                 // If not JSON, treat the entire string as vehicle ID
-                console.info('[SALES QR] Step 2a: Vehicle QR is plain text:', vehicleId);
               }
               // Store the vehicle ID and call backend to assign
               if (vehicleId) {
-                console.info('[SALES QR] Step 2b: Setting scanned vehicle ID:', vehicleId);
                 setScannedVehicleId(vehicleId);
                 // Note: No scan success toast here - only show notification when binding is complete
                 // This avoids double notifications (scan success + bind success)
@@ -806,25 +767,21 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
                 // Get the subscription code for vehicle assignment
                 const subCode = confirmedSubscriptionCodeRef.current || subscriptionDataRef.current?.subscriptionCode;
                 if (subCode) {
-                  console.info('[SALES QR] Step 2c: Assigning vehicle to subscription:', subCode);
                   // Call the backend to assign vehicle - uses ref to avoid stale closure
                   assignVehicleRef.current?.({
                     planId: subCode,
                     vehicleId,
                   });
                 } else {
-                  console.warn('[SALES QR] Step 2c: No subscription code available for vehicle assignment');
+                  console.warn('[SALES QR] No subscription code available for vehicle assignment');
                 }
               }
               scanTypeRef.current = null;
-            } else {
-              console.info('[SALES QR] Step 2: Unknown scan type:', scanTypeRef.current, '- ignoring QR value');
             }
             
             responseCallback({ success: true });
           } catch (err) {
             console.error('[SALES QR] Error parsing QR callback data:', err);
-            console.error('[SALES QR] Raw data that failed to parse:', data);
             responseCallback({ success: false, error: String(err) });
           }
         }
@@ -832,8 +789,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
       // NOTE: BLE handlers (findBleDeviceCallBack, bleConnectSuccessCallBack, etc.)
       // are now registered by the useFlowBatteryScan hook
-
-      console.info('[SALES BATTERY] BLE handlers managed by useFlowBatteryScan hook');
 
       // NOTE: MQTT connection is handled globally by bridgeContext.tsx (connects at splash screen)
       // This provides auto-reconnection for unstable networks (e.g., VPN issues in China)
@@ -903,7 +858,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   // This removes the need for user to click "Continue" after scanning vehicle QR
   useEffect(() => {
     if (currentStep === 6 && scannedVehicleId) {
-      console.info('[SALES VEHICLE] Vehicle scanned, auto-advancing to battery assignment step');
       // Small delay to allow toast to show before navigation
       const timer = setTimeout(() => {
         advanceToStep(7);
@@ -930,7 +884,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     }
     
     // Trigger background identification
-    console.info('[SALES] Auto-triggering customer identification on step', currentStep);
     identifyCustomer({
       subscriptionCode: subscriptionId,
       source: 'manual',
@@ -1092,9 +1045,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             initialSessionData
           );
           
-          if (orderId) {
-            console.info('[SalesFlow] Backend session created with orderId:', orderId);
-          }
+          // Session created successfully
         } catch (err) {
           console.error('[SalesFlow] Failed to create backend session (non-blocking):', err);
           // Don't block the workflow if session creation fails
@@ -1370,13 +1321,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     setPaymentAmountRemaining(totalAmount);
     setPaymentInitiated(true);
     
-    console.info('[SALES PAYMENT] Payment initialized:', {
-      orderId: orderIdToUse,
-      totalAmount,
-      packagePrice,
-      subscriptionPrice,
-    });
-    
     toast.success('Order ready. Collect payment from customer.');
     return true;
   }, [selectedPackageId, availablePackages, selectedPlanId, availablePlans, paymentRequestOrderId]);
@@ -1468,7 +1412,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           // This gets the unit price (rate) so by the time we scan battery, we have pricing info
           const subCode = paymentData.subscription_code || subscriptionData?.subscriptionCode;
           if (subCode && !customerIdentified) {
-            console.info('[SALES] Starting background customer identification after payment...');
             identifyCustomer({
               subscriptionCode: subCode,
               source: 'manual',
@@ -1550,23 +1493,18 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Handle vehicle scan (QR mode)
   const handleScanVehicle = useCallback(() => {
-    console.info('[SALES VEHICLE] handleScanVehicle called - user clicked scan button');
     scanTypeRef.current = 'vehicle';
     startQrCodeScan();
   }, [startQrCodeScan]);
 
   // Handle battery scan (QR mode)
   const handleScanBattery = useCallback(() => {
-    console.info('[SALES BATTERY] Step 0: handleScanBattery called - user clicked scan button');
-    console.info('[SALES BATTERY] Step 0a: Setting scanType to "battery"');
     scanTypeRef.current = 'battery';
-    console.info('[SALES BATTERY] Step 0b: Calling startQrCodeScan...');
     startQrCodeScan();
   }, [startQrCodeScan]);
 
   // Handle battery device selection (manual mode)
   const handleBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
-    console.info('[SALES BATTERY] Manual device selected:', device);
     scanTypeRef.current = 'battery';
     
     // Use the device name as QR data (hook will match by last 6 chars)
@@ -1575,8 +1513,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
 
   // Handle re-scanning a different battery - clears current scanned battery and allows scanning again
   const handleRescanBattery = useCallback(() => {
-    console.info('[SALES BATTERY] Rescan requested - clearing current battery');
-    
     // Clear the scanned battery state
     setScannedBatteryPending(null);
     
@@ -1611,14 +1547,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     // the manualRetry function will work. Otherwise, we need to trigger fresh identification.
     if (identificationStatus === 'idle' || identificationStatus === 'pending' || identificationStatus === 'retrying') {
       // Fresh identification - never started or still in progress
-      console.info('[SALES] Triggering fresh customer identification:', subscriptionId);
       identifyCustomer({
         subscriptionCode: subscriptionId,
         source: 'manual',
       });
     } else {
       // Retry - identification was attempted before (failed or success)
-      console.info('[SALES] Retrying customer identification:', subscriptionId);
       manualIdentifyCustomer();
     }
   }, [confirmedSubscriptionCode, subscriptionData?.subscriptionCode, identificationStatus, identifyCustomer, manualIdentifyCustomer]);
@@ -1718,14 +1652,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     const energyKwh = paymentCalc.energyDiff;
     const calculatedCost = paymentCalc.cost;
     
-    console.info('[SALES SERVICE] Cost calculation (via calculateSwapPayment):', {
-      energyWh: scannedBatteryPending.energy,
-      energyKwh,
-      rate,
-      calculatedCost,
-      currencySymbol: customerCurrencySymbol,
-    });
-    
     setComputedEnergyCost(calculatedCost);
 
     // Build and publish payment_and_service
@@ -1766,9 +1692,6 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       isQuotaBased: false,
       isZeroCostRounding: false,
     };
-
-    console.info('[SALES SERVICE] Publishing payment_and_service:', params);
-    console.info('[SALES SERVICE] isQuotaBased: false - payment WILL be reported to BSS');
     
     // Publish via the hook - callbacks handle success/error
     await publishPaymentAndService(params);

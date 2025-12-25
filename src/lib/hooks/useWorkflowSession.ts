@@ -198,7 +198,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         
         // If session has workflow type and it doesn't match, ignore it
         if (sessionDataFromServer?.workflowType && sessionDataFromServer.workflowType !== workflowType) {
-          console.info(`[useWorkflowSession] Found pending session but wrong type: ${sessionDataFromServer.workflowType} vs ${workflowType}`);
           setStatus('idle');
           return false;
         }
@@ -207,12 +206,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         // This handles edge cases where the session was saved just before completion
         // (e.g., user was at Review step, clicked "Proceed", and app closed before MQTT response)
         if (isSessionEffectivelyComplete(sessionDataFromServer, workflowType)) {
-          console.info('[useWorkflowSession] Found pending session but it appears effectively complete - ignoring:', {
-            currentStep: sessionDataFromServer?.currentStep,
-            maxStepReached: sessionDataFromServer?.maxStepReached,
-            hasSwapData: !!(sessionDataFromServer?.swapData?.oldBattery && sessionDataFromServer?.swapData?.newBattery),
-            cost: sessionDataFromServer?.swapData?.cost,
-          });
           setStatus('idle');
           return false;
         }
@@ -234,7 +227,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         setPendingSession(summary);
         setStatus('has_pending');
         
-        console.info('[useWorkflowSession] Found pending session:', summary);
         return true;
       }
       
@@ -280,7 +272,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         setStatus('active');
         lastSavedDataRef.current = JSON.stringify(sessionPayload);
         
-        console.info('[useWorkflowSession] Session created with order_id:', response.order_id);
         return response.order_id;
       }
       
@@ -322,7 +313,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       setStatus('active');
       lastSavedDataRef.current = JSON.stringify(sessionPayload);
       
-      console.info('[useWorkflowSession] Session updated for order_id:', orderId);
       return true;
     } catch (err: any) {
       console.error('[useWorkflowSession] Error updating session:', err);
@@ -367,7 +357,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       setStatus('active');
       lastSavedDataRef.current = JSON.stringify(sessionPayload);
       
-      console.info('[useWorkflowSession] Session updated with payment for order_id:', orderId);
       return true;
     } catch (err: any) {
       console.error('[useWorkflowSession] Error updating session with payment:', err);
@@ -406,8 +395,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         setStatus('active');
         lastSavedDataRef.current = JSON.stringify(restoredData);
         
-        console.info('[useWorkflowSession] Session restored for order_id:', response.order.id);
-        
         // Notify callback
         onSessionRestored?.(restoredData, response.order.id);
         
@@ -428,7 +415,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   const discardPendingSession = useCallback(() => {
     setPendingSession(null);
     setStatus('idle');
-    console.info('[useWorkflowSession] Pending session discarded');
   }, []);
   
   /**
@@ -442,7 +428,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     setStatus('idle');
     setError(null);
     lastSavedDataRef.current = '';
-    console.info('[useWorkflowSession] Session cleared');
   }, [clearAutoSaveTimer]);
   
   /**
@@ -453,7 +438,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     if (newOrderId) {
       setStatus('active');
     }
-    console.info('[useWorkflowSession] Order ID set manually:', newOrderId);
   }, []);
   
   // ============================================
@@ -498,7 +482,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         setStatus('active');
         lastSavedDataRef.current = JSON.stringify(sessionPayload);
         
-        console.info('[useWorkflowSession] Sales session created with order_id:', response.order_id);
         return response.order_id;
       }
       
@@ -551,11 +534,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       const subscriptionCode = response.subscription_code;
       const subscriptionsCreated = response.subscriptions_created;
       
-      console.info('[useWorkflowSession] Session updated with products for order_id:', orderId, {
-        subscriptionCode,
-        subscriptionsCreated,
-      });
-      
       return {
         success: true,
         subscriptionCode,
@@ -580,7 +558,6 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     clearAutoSaveTimer();
     
     autoSaveTimerRef.current = setTimeout(async () => {
-      console.info('[useWorkflowSession] Auto-saving session...');
       await updateSession(sessionData);
     }, autoSaveDelay);
     

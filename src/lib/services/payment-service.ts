@@ -264,10 +264,6 @@ export async function publishPaymentAndService(
 
   onStatusChange?.('pending');
 
-  console.info('=== Publishing payment_and_service via GraphQL ===');
-  console.info('Correlation ID:', correlationId);
-  console.info('Input:', JSON.stringify(input, null, 2));
-
   try {
     const graphqlResult = await absApolloClient.mutate<{ reportPaymentAndServiceCompletion: ReportPaymentAndServiceResponse }>({
       mutation: REPORT_PAYMENT_AND_SERVICE,
@@ -290,8 +286,6 @@ export async function publishPaymentAndService(
     }
 
     const response = graphqlResult.data.reportPaymentAndServiceCompletion;
-    console.info('GraphQL Response:', response);
-    console.info('Signals:', response.signals);
 
     // Parse metadata for additional info
     const metadata = response.metadata ? parsePaymentAndServiceMetadata(response.metadata) : null;
@@ -322,7 +316,6 @@ export async function publishPaymentAndService(
     if (isPaymentAndServiceSuccessful(response)) {
       const isIdempotent = response.signals.includes('IDEMPOTENT_OPERATION_DETECTED');
       
-      console.info('payment_and_service completed successfully!', isIdempotent ? '(idempotent)' : '');
       onStatusChange?.('success');
       onSuccess?.(isIdempotent);
       

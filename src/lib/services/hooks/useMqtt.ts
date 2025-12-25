@@ -146,11 +146,8 @@ export function useMqtt(): UseMqttReturn {
   useEffect(() => {
     // Detect reconnection: was disconnected, now connected
     if (wasConnectedRef.current === false && isMqttConnected === true) {
-      console.info('MQTT: Connection restored, re-subscribing to topics...');
-      
       // Re-subscribe to all stored subscriptions
       subscriptionInfoRef.current.forEach((info, topic) => {
-        console.info(`MQTT: Re-subscribing to: ${topic}`);
         mqttServiceRef.current?.subscribe(topic, info.handler, info.options);
       });
     }
