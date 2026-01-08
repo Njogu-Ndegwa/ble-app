@@ -1740,8 +1740,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       if (currentStep === 6) {
         handleNewSwap(); // This also exits read-only mode
       } else if (currentStep < 6) {
-        // Navigate to next step
-        goToStep((currentStep + 1) as AttendantStep);
+        // Navigate to next step (using setCurrentStep directly since we don't track maxStepReached in read-only)
+        setCurrentStep((currentStep + 1) as AttendantStep);
       }
       return;
     }
@@ -1780,7 +1780,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession, goToStep]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession]);
 
   // Render current step content
   const renderStepContent = () => {
