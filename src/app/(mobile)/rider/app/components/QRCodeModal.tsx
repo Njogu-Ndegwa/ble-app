@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { useI18n } from '@/i18n';
 
@@ -11,19 +11,13 @@ interface QRCodeModalProps {
   subscriptionCode?: string;
 }
 
-const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, customerId, subscriptionCode }) => {
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, subscriptionCode }) => {
   const { t } = useI18n();
-  const [transactionId, setTransactionId] = useState('');
-  const [showQR, setShowQR] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Auto-generate QR code when modal opens with subscription code
   useEffect(() => {
     if (isOpen && subscriptionCode && canvasRef.current) {
-      // Reset state when modal opens
-      setShowQR(false);
-      setTransactionId('');
-      
       // Generate QR code with subscription code
       const qrData = subscriptionCode;
       
@@ -37,58 +31,14 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, customerId, 
       }, (error) => {
         if (error) {
           console.error('QR code generation error:', error);
-        } else {
-          setShowQR(true);
         }
       });
-    } else if (isOpen && !subscriptionCode) {
-      // Reset state if no subscription code
-      setShowQR(false);
-      setTransactionId('');
     }
   }, [isOpen, subscriptionCode]);
 
-  useEffect(() => {
-    if (showQR && transactionId.trim() && canvasRef.current && !subscriptionCode) {
-      // Only use transaction ID flow if no subscription code is provided
-      const qrData = JSON.stringify({
-        type: 'payment_verification',
-        customerId: customerId || 'unknown',
-        transactionId: transactionId,
-        timestamp: new Date().toISOString(),
-      });
-
-      QRCode.toCanvas(canvasRef.current, qrData, {
-        width: 180,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff',
-        },
-      }, (error) => {
-        if (error) console.error('QR code generation error:', error);
-      });
-    }
-  }, [showQR, transactionId, customerId, subscriptionCode]);
-
-  const handleGenerateQR = () => {
-    if (transactionId.trim()) {
-      setShowQR(true);
-    }
-  };
-
-  const handleReset = () => {
-    setShowQR(false);
-    setTransactionId('');
-  };
-
   const handleClose = () => {
-    handleReset();
     onClose();
   };
-
-  // If subscription code is provided, show QR directly
-  const shouldShowTransactionInput = !subscriptionCode;
 
   if (!isOpen) return null;
 
@@ -99,10 +49,7 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, customerId, 
       <div className="qr-modal">
         <div className="qr-modal-header">
           <h3 className="qr-modal-title">
-            {subscriptionCode 
-              ? (t('rider.myQrCode') || 'My QR Code')
-              : (t('rider.paymentQrCode') || 'Payment QR Code')
-            }
+            {t('rider.myQrCode') || 'My QR Code'}
           </h3>
           <button className="qr-modal-close" onClick={handleClose}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,61 +73,42 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, customerId, 
                 {t('rider.qrIdentifyDesc') || 'Show this QR code to the swap attendant to identify your account.'}
               </p>
             </div>
-          ) : !showQR ? (
-            // Show transaction ID input if no subscription code
-            <div className="qr-input-section">
-              <p className="qr-modal-desc">
-                {t('rider.qrPaymentDesc') || 'Enter your payment transaction ID from MTN Mobile Money, Flooz, or bank transfer to generate a QR code for the attendant.'}
-              </p>
-              
-              <div className="qr-input-group">
-                <label className="qr-input-label">{t('sales.transactionId') || 'Transaction ID'}</label>
-                <input 
-                  type="text" 
-                  className="qr-input" 
-                  placeholder={t('rider.transactionIdPlaceholder') || 'e.g. TXN-892741 or transaction code'}
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                  autoComplete="off"
-                />
-              </div>
-              
-              <button 
-                className="qr-generate-btn" 
-                onClick={handleGenerateQR}
-                disabled={!transactionId.trim()}
-                style={{ opacity: transactionId.trim() ? 1 : 0.5 }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          ) : (
+            // Show no QR code available message
+            <div className="qr-display-section" style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                margin: '0 auto 24px',
+                borderRadius: '50%',
+                background: 'var(--bg-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '40px', height: '40px', color: 'var(--text-muted)' }}>
                   <rect x="3" y="3" width="7" height="7"/>
                   <rect x="14" y="3" width="7" height="7"/>
                   <rect x="14" y="14" width="7" height="7"/>
                   <rect x="3" y="14" width="7" height="7"/>
+                  <line x1="3" y1="3" x2="21" y2="21" strokeWidth="2"/>
                 </svg>
-                {t('rider.generateQrCode') || 'Generate QR Code'}
-              </button>
-            </div>
-          ) : (
-            // Show transaction QR code
-            <div className="qr-display-section">
-              <div className="qr-code-container">
-                <canvas ref={canvasRef} style={{ display: 'block' }} />
               </div>
-              <div className="qr-transaction-info">
-                <span className="qr-transaction-label">{t('sales.transactionId') || 'Transaction ID'}:</span>
-                <span className="qr-transaction-value">{transactionId}</span>
-              </div>
-              <p className="qr-instruction">
-                {t('rider.qrVerifyDesc') || 'Show this QR code to the swap attendant to verify your payment.'}
+              <h4 style={{ 
+                fontSize: '18px', 
+                fontWeight: '600', 
+                color: 'var(--text-primary)', 
+                marginBottom: '8px' 
+              }}>
+                {t('rider.noQrCodeAvailable') || 'No QR Code Available'}
+              </h4>
+              <p style={{ 
+                fontSize: '14px', 
+                color: 'var(--text-muted)', 
+                lineHeight: '1.5' 
+              }}>
+                {t('rider.noQrCodeDesc') || 'You need an active subscription to generate a QR code. Please contact support or subscribe to a plan.'}
               </p>
-              
-              <button className="qr-new-btn" onClick={handleReset}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 4v6h6M23 20v-6h-6"/>
-                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                </svg>
-                {t('rider.enterNewTransaction') || 'Enter New Transaction'}
-              </button>
             </div>
           )}
         </div>
@@ -190,4 +118,3 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, customerId, 
 };
 
 export default QRCodeModal;
-

@@ -29,6 +29,7 @@ interface RiderHomeProps {
   currency?: string;
   bike: BikeInfo;
   nearbyStations: Station[];
+  isLoadingStations?: boolean;
   onFindStation: () => void;
   onShowQRCode: () => void;
   onTopUp: () => void;
@@ -42,6 +43,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   currency = 'XOF',
   bike,
   nearbyStations,
+  isLoadingStations = false,
   onFindStation,
   onShowQRCode,
   onTopUp,
@@ -183,80 +185,136 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       {/* Nearby Stations Section */}
       <div className="rider-section-header">
         <span className="rider-section-title">{t('rider.nearbyStations') || 'Nearby Stations'}</span>
-        <span className="rider-section-link" onClick={onViewAllStations}>{t('rider.viewMap') || 'View Map'}</span>
+        {nearbyStations.length > 0 && (
+          <span className="rider-section-link" onClick={onViewAllStations}>{t('rider.viewMap') || 'View Map'}</span>
+        )}
       </div>
       
-      <div className="stations-map-container">
-        {/* Simulated Map */}
-        <div className="stations-map">
-          <div className="map-visual">
-            <div className="map-grid"></div>
-            <div className="map-user-pulse"></div>
-            <div className="map-user-marker"></div>
-            {nearbyStations.slice(0, 3).map((station, idx) => {
-              const positions = [
-                { top: '25%', left: '30%' },
-                { top: '60%', left: '70%' },
-                { top: '35%', left: '75%' },
-              ];
-              const pos = positions[idx] || positions[0];
-              return (
-                <div 
-                  key={station.id}
-                  className="map-station-pin" 
-                  style={{ top: pos.top, left: pos.left }}
-                  onClick={() => onSelectStation(station.id)}
-                >
-                  <div className="map-station-icon">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                    </svg>
+      {isLoadingStations ? (
+        <div style={{ 
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '40px 20px',
+          textAlign: 'center',
+          marginTop: '12px'
+        }}>
+          <div className="loading-spinner" style={{ width: 32, height: 32, borderWidth: 3, margin: '0 auto 16px' }}></div>
+          <p style={{ 
+            fontSize: '14px', 
+            color: 'var(--text-muted)', 
+            lineHeight: '1.5',
+            margin: 0
+          }}>
+            {t('common.loading') || 'Loading stations...'}
+          </p>
+        </div>
+      ) : nearbyStations.length === 0 ? (
+        <div style={{ 
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '24px 20px',
+          textAlign: 'center',
+          marginTop: '12px'
+        }}>
+          <div style={{ 
+            width: '60px', 
+            height: '60px', 
+            margin: '0 auto 16px',
+            borderRadius: '50%',
+            background: 'var(--bg-tertiary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '30px', height: '30px', color: 'var(--text-muted)' }}>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
+          <p style={{ 
+            fontSize: '14px', 
+            color: 'var(--text-muted)', 
+            lineHeight: '1.5',
+            margin: 0
+          }}>
+            {t('rider.noStationsDesc') || 'You need an active subscription to view available swap stations. Please subscribe to a plan to access stations.'}
+          </p>
+        </div>
+      ) : (
+        <div className="stations-map-container">
+          {/* Simulated Map */}
+          <div className="stations-map">
+            <div className="map-visual">
+              <div className="map-grid"></div>
+              <div className="map-user-pulse"></div>
+              <div className="map-user-marker"></div>
+              {nearbyStations.slice(0, 3).map((station, idx) => {
+                const positions = [
+                  { top: '25%', left: '30%' },
+                  { top: '60%', left: '70%' },
+                  { top: '35%', left: '75%' },
+                ];
+                const pos = positions[idx] || positions[0];
+                return (
+                  <div 
+                    key={station.id}
+                    className="map-station-pin" 
+                    style={{ top: pos.top, left: pos.left }}
+                    onClick={() => onSelectStation(station.id)}
+                  >
+                    <div className="map-station-icon">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                      </svg>
+                    </div>
+                    <span className="map-station-label">{station.name.split(' ')[0]}</span>
                   </div>
-                  <span className="map-station-label">{station.name.split(' ')[0]}</span>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Station List */}
+          <div className="stations-list">
+            {nearbyStations.slice(0, 2).map((station) => (
+              <div 
+                key={station.id} 
+                className="station-item"
+                onClick={() => onSelectStation(station.id)}
+              >
+                <div className="station-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                  </svg>
                 </div>
-              );
-            })}
+                <div className="station-info">
+                  <div className="station-name">{station.name}</div>
+                  <div className="station-details">
+                    <span className="station-distance">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                      </svg>
+                      {station.distance}
+                    </span>
+                    <span className="station-availability">
+                      <span className={`station-availability-dot ${station.batteries < 5 ? 'low' : ''}`}></span>
+                      {station.batteries} {t('rider.batteries') || 'batteries'}
+                    </span>
+                  </div>
+                </div>
+                <button className="station-nav-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
           </div>
         </div>
-        
-        {/* Station List */}
-        <div className="stations-list">
-          {nearbyStations.slice(0, 2).map((station) => (
-            <div 
-              key={station.id} 
-              className="station-item"
-              onClick={() => onSelectStation(station.id)}
-            >
-              <div className="station-icon">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
-              </div>
-              <div className="station-info">
-                <div className="station-name">{station.name}</div>
-                <div className="station-details">
-                  <span className="station-distance">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                      <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                    {station.distance}
-                  </span>
-                  <span className="station-availability">
-                    <span className={`station-availability-dot ${station.batteries < 5 ? 'low' : ''}`}></span>
-                    {station.batteries} {t('rider.batteries') || 'batteries'}
-                  </span>
-                </div>
-              </div>
-              <button className="station-nav-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -167,8 +167,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const validatePhone = (phone: string): boolean => {
-    const phoneRegex = /^[\+]?[\s\d\-\(\)]{10,}$/;
-    return phoneRegex.test(phone);
+    // Allow digits, spaces, dashes, parentheses, and plus sign
+    // Minimum 5 digits (for short numbers), maximum 20 characters (for international numbers)
+    const phoneRegex = /^[\d\s\-\(\)\+]{5,20}$/;
+    // Must contain at least 5 digits
+    const digitCount = (phone.match(/\d/g) || []).length;
+    return phoneRegex.test(phone) && digitCount >= 5;
   };
 
   // Validate form - only name, email, phone are required by Odoo /api/auth/register
@@ -211,8 +215,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     try {
       // Combine country code with phone number
-      // Remove leading 0 if present (e.g., 07xxxxxxxx -> 7xxxxxxxx)
-      const cleanPhone = phoneNumber.trim().replace(/^0+/, '');
+      // Remove any non-digit characters (spaces, dashes, parentheses) but keep leading zeros
+      const cleanPhone = phoneNumber.trim().replace(/\D/g, '');
       const fullPhoneNumber = `${countryCode}${cleanPhone}`;
       
       console.log("Attempting login with phone:", fullPhoneNumber);
@@ -302,9 +306,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
         // Optionally pre-fill the registration phone with full number
-        const cleanPhone = phoneNumber.trim().replace(/^0+/, '');
-        const fullPhoneNumber = `${countryCode}${cleanPhone}`;
-        setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
+        const cleanPhoneForReg = phoneNumber.trim().replace(/^0+/, '');
+        const fullPhoneForReg = `${countryCode}${cleanPhoneForReg}`;
+        setFormData(prev => ({ ...prev, phone: fullPhoneForReg }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
         console.error("=== Login Error Response (400) ===");
@@ -826,7 +830,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 onKeyPress={handleKeyPress}
                 placeholder={t('rider.enterPhone') || 'Enter your phone number'}
                 disabled={isSigningIn}
-                maxLength={10}
+                inputMode="numeric"
               />
             </div>
           </div>

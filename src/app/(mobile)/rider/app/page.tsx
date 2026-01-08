@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { useBridge } from '@/app/context/bridgeContext';
 import {
   RiderNav,
   RiderHome,
@@ -53,9 +54,33 @@ interface Subscription {
   cycle_unit: string;
 }
 
+interface WebViewJavascriptBridge {
+  init: (
+    callback: (message: any, responseCallback: (response: any) => void) => void
+  ) => void;
+  registerHandler: (
+    handlerName: string,
+    handler: (data: string, responseCallback: (response: any) => void) => void
+  ) => void;
+  callHandler: (
+    handlerName: string,
+    data: any,
+    callback: (responseData: string) => void
+  ) => void;
+}
+
+declare global {
+  interface Window {
+    WebViewJavascriptBridge?: WebViewJavascriptBridge;
+  }
+}
+
 const RiderApp: React.FC = () => {
   const router = useRouter();
   const { t, locale, setLocale } = useI18n();
+  const { bridge } = useBridge();
+  const stationsSubscriptionRef = useRef<(() => void) | null>(null);
+  const [fleetIds, setFleetIds] = useState<string[]>([]);
   
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -72,6 +97,7 @@ const RiderApp: React.FC = () => {
   const [currency, setCurrency] = useState('XOF');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
+  const [isLoadingStations, setIsLoadingStations] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
     model: 'E-Trike 3X',
     vehicleId: 'VEH-2024-8847',
@@ -290,9 +316,17 @@ const RiderApp: React.FC = () => {
         const data = await response.json();
         
         if (data.success && data.subscriptions && data.subscriptions.length > 0) {
+          console.info('=== Subscription Data ===');
+          console.info('All subscriptions:', JSON.stringify(data.subscriptions, null, 2));
+          
           // Find active subscription or use the first one
           const activeSubscription = data.subscriptions.find((sub: Subscription) => sub.status === 'active') || data.subscriptions[0];
-          console.log('Subscription loaded:', activeSubscription.subscription_code, activeSubscription.product_name);
+          console.info('Selected subscription:', {
+            subscription_code: activeSubscription.subscription_code,
+            product_name: activeSubscription.product_name,
+            status: activeSubscription.status,
+            full_data: activeSubscription
+          });
           setSubscription(activeSubscription);
           
           // Update bike payment state with subscription status
@@ -326,43 +360,333 @@ const RiderApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscription?.subscription_code]);
 
-  // Fetch stations
+  // Fetch stations via MQTT - using direct bridge calls like serviceplan1
   useEffect(() => {
-    if (isLoggedIn) {
-      const fetchStations = async () => {
-        try {
-          const token = localStorage.getItem('authToken_rider');
-          const response = await fetch(`${API_BASE}/stations/nearby`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-KEY': API_KEY,
-              ...(token && { 'Authorization': `Bearer ${token}` }),
-            },
-          });
+    if (!isLoggedIn || !subscription?.subscription_code || !customer) return;
+    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) return;
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.stations) {
-              setStations(data.stations);
+    const planId = subscription.subscription_code;
+    const requestTopic = `call/uxi/service/plan/${planId}/get_assets`;
+    const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
+
+    console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
+    setIsLoadingStations(true);
+
+    // Generate unique correlation ID
+    const correlationId = `asset-discovery-${Date.now()}`;
+    
+    // Format timestamp without milliseconds
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    
+    const content = {
+      timestamp: timestamp,
+      plan_id: planId,
+      correlation_id: correlationId,
+      actor: {
+        type: "customer",
+        id: "CUST-RIDER-001"
+      },
+      data: {
+        action: "GET_REQUIRED_ASSET_IDS",
+        search_radius: 10
+      }
+    };
+
+    const dataToPublish = {
+      topic: requestTopic,
+      qos: 0,
+      content,
+    };
+
+    // Helper function to register handlers (same pattern as serviceplan1)
+    const reg = (name: string, handler: any) => {
+      bridge.registerHandler(name, handler);
+      return () => bridge.registerHandler(name, () => {});
+    };
+
+    // Register MQTT response handler FIRST (before subscribing/publishing)
+    console.info('[STATIONS MQTT] Registering mqttMsgArrivedCallBack handler');
+    const offResponseHandler = reg(
+      "mqttMsgArrivedCallBack",
+      (data: string, responseCallback: (response: any) => void) => {
+        try {
+          const parsedData = JSON.parse(data);
+          console.info('========================================');
+          console.info('[STATIONS MQTT] Received MQTT arrived callback data:', parsedData);
+
+          const message = parsedData;
+          const topic = message.topic;
+          const rawMessageContent = message.message;
+
+          console.info('[STATIONS MQTT] Topic:', topic);
+          console.info('[STATIONS MQTT] Expected topic:', responseTopic);
+          console.info('[STATIONS MQTT] Topic match:', topic === responseTopic);
+
+          if (topic === responseTopic) {
+            console.info('[STATIONS MQTT] ✅ Response received from rtrn topic!');
+            console.info('[STATIONS MQTT] Full message:', JSON.stringify(message, null, 2));
+            
+            let responseData;
+            try {
+              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
+            } catch (parseErr) {
+              console.error('[STATIONS MQTT] Error parsing message content:', parseErr);
+              responseData = rawMessageContent;
+            }
+
+            console.info('[STATIONS MQTT] Parsed response data:', JSON.stringify(responseData, null, 2));
+
+            // Extract fleet IDs from response
+            const fleetIdsData = responseData?.data?.metadata?.fleet_ids;
+            const swapStationFleetIds = fleetIdsData?.swap_station_fleet;
+
+            if (swapStationFleetIds && Array.isArray(swapStationFleetIds) && swapStationFleetIds.length > 0) {
+              console.info('[STATIONS MQTT] ✅ Found swap station fleet IDs:', swapStationFleetIds);
+              setFleetIds(swapStationFleetIds);
+            } else {
+              console.warn('[STATIONS MQTT] No swap_station_fleet IDs found in response');
+              console.warn('[STATIONS MQTT] Response structure:', {
+                hasData: !!responseData?.data,
+                hasMetadata: !!responseData?.data?.metadata,
+                hasFleetIds: !!responseData?.data?.metadata?.fleet_ids,
+                fleetIds: responseData?.data?.metadata?.fleet_ids,
+                fullResponse: responseData,
+              });
+              setIsLoadingStations(false);
+              setStations([]);
+            }
+            responseCallback({ success: true });
+          } else {
+            console.info('[STATIONS MQTT] Topic mismatch, ignoring. Expected:', responseTopic, 'Got:', topic);
+            responseCallback({ success: true });
+          }
+        } catch (err) {
+          console.error('[STATIONS MQTT] Error parsing MQTT arrived callback:', err);
+          responseCallback({ success: false, error: err });
+        }
+        console.info('========================================');
+      }
+    );
+
+    // Subscribe to response topic using mqttSubTopic (same as serviceplan1)
+    console.info('[STATIONS MQTT] Subscribing to response topic:', responseTopic);
+    if (!window.WebViewJavascriptBridge) {
+      console.error('[STATIONS MQTT] WebViewJavascriptBridge not available');
+      return;
+    }
+    
+    window.WebViewJavascriptBridge.callHandler(
+      "mqttSubTopic",
+      { topic: responseTopic, qos: 0 },
+      (subscribeResponse) => {
+        console.info('[STATIONS MQTT] Subscribe response:', subscribeResponse);
+        try {
+          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
+          if (subResp.respCode === "200") {
+            console.info('[STATIONS MQTT] ✅ Subscribed to response topic successfully');
+            
+            // Publish request AFTER subscription is confirmed
+            console.info('[STATIONS MQTT] Publishing request:', JSON.stringify(dataToPublish, null, 2));
+            if (window.WebViewJavascriptBridge) {
+              window.WebViewJavascriptBridge.callHandler(
+                "mqttPublishMsg",
+                JSON.stringify(dataToPublish),
+                (publishResponse) => {
+                  console.info('[STATIONS MQTT] Publish response:', publishResponse);
+                  try {
+                    const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
+                    if (pubResp.respCode === "200") {
+                      console.info('[STATIONS MQTT] ✅ Successfully published request');
+                    } else {
+                      console.error('[STATIONS MQTT] Publish failed:', pubResp.respDesc || pubResp.error);
+                    }
+                  } catch (err) {
+                    console.error('[STATIONS MQTT] Error parsing publish response:', err);
+                  }
+                }
+              );
+            }
+          } else {
+            console.error('[STATIONS MQTT] Subscribe failed:', subResp.respDesc || subResp.error);
+          }
+        } catch (err) {
+          console.error('[STATIONS MQTT] Error parsing subscribe response:', err);
+        }
+      }
+    );
+
+    // Store cleanup function
+    stationsSubscriptionRef.current = offResponseHandler;
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (stationsSubscriptionRef.current) {
+        stationsSubscriptionRef.current();
+        stationsSubscriptionRef.current = null;
+      }
+    };
+  }, [isLoggedIn, subscription?.subscription_code, customer, bridge]);
+
+  // Fetch stations from GraphQL when fleet IDs are available from MQTT response
+  useEffect(() => {
+    if (!fleetIds || fleetIds.length === 0) {
+      console.info('[STATIONS] Waiting for fleet IDs from MQTT response...');
+      return;
+    }
+
+    const fetchStationsFromGraphQL = async () => {
+      setIsLoadingStations(true);
+      try {
+        const authToken = localStorage.getItem('authToken_rider');
+        if (!authToken) {
+          console.warn('[STATIONS] No authToken_rider found in localStorage');
+          setIsLoadingStations(false);
+          return;
+        }
+
+        const graphqlEndpoint = 'https://thing-microservice-prod.omnivoltaic.com/graphql';
+        
+        const query = `
+          query GetFleetAvatars($fleetIds: [String!]!) {
+            getFleetAvatarsSummary(fleetIds: $fleetIds) {
+              fleets {
+                fleetId
+                items {
+                  oemItemID
+                  opid
+                  updatedAt
+                  coordinates {
+                    slat
+                    slon
+                  }
+                  Charge_slot {
+                    cnum
+                    btid
+                    chst
+                    rsoc
+                    reca
+                    pckv
+                    pckc
+                  }
+                }
+              }
+              missingFleetIds
             }
           }
-        } catch (error) {
-          console.error('Error fetching stations:', error);
-          // Use mock data as fallback
-          setStations([
-            { id: 1, name: 'Lome Central Station', address: 'Rue du Commerce, Lome', distance: '0.8 km', batteries: 12, waitTime: '~3 min' },
-            { id: 2, name: 'Tokoin Market Station', address: 'Tokoin Market Area', distance: '1.4 km', batteries: 3, waitTime: '~5 min' },
-            { id: 3, name: 'Agoe Station', address: 'Agoe District', distance: '2.1 km', batteries: 8, waitTime: '~2 min' },
-            { id: 4, name: 'Be Station', address: 'Be Quarter', distance: '3.2 km', batteries: 15, waitTime: '~1 min' },
-            { id: 5, name: 'Adidogome Station', address: 'Adidogome Area', distance: '4.5 km', batteries: 6, waitTime: '~4 min' },
-          ]);
-        }
-      };
+        `;
 
-      fetchStations();
+        console.info('[STATIONS] Fetching stations from GraphQL for fleet IDs:', fleetIds);
+
+        const response = await fetch(graphqlEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'access_token': authToken,
+          },
+          body: JSON.stringify({
+            query,
+            variables: {
+              fleetIds: fleetIds,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[STATIONS] GraphQL request failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+          });
+          setIsLoadingStations(false);
+          setStations([]);
+          return;
+        }
+
+        const result = await response.json();
+
+        if (result.errors) {
+          console.error('[STATIONS] GraphQL errors:', result.errors);
+          return;
+        }
+
+        const data = result.data?.getFleetAvatarsSummary;
+        console.info('[STATIONS] GraphQL response received:', data);
+
+        if (!data || !data.fleets || !Array.isArray(data.fleets)) {
+          console.warn('[STATIONS] Invalid response structure from GraphQL API');
+          return;
+        }
+
+        // Process all fleet responses
+        const allStations: Station[] = [];
+
+        data.fleets.forEach((fleet: any) => {
+          const fleetId = fleet.fleetId;
+          const items = fleet.items || [];
+
+          items.forEach((stationData: any, index: number) => {
+            const coordinates = stationData.coordinates;
+            if (!coordinates || typeof coordinates.slat !== 'number' || typeof coordinates.slon !== 'number') {
+              return;
+            }
+
+            const chargeSlots = stationData.Charge_slot || [];
+            // Only count batteries with rsoc = 100
+            const availableBatteries = chargeSlots.filter((slot: any) => 
+              slot.chst === 0 && 
+              slot.btid && 
+              slot.btid.trim() !== '' &&
+              slot.rsoc === 100
+            ).length;
+
+            const opid = stationData.opid || stationData.oemItemID || '';
+            const stationId = Math.abs(
+              parseInt(fleetId.substring(fleetId.length - 8), 36) + 
+              (opid ? parseInt(opid.substring(opid.length - 4), 36) : 0) + 
+              index
+            ) % 100000;
+
+            allStations.push({
+              id: stationId,
+              name: opid ? `Station ${opid}` : `Swap Station ${index + 1}`,
+              address: `${coordinates.slat.toFixed(4)}, ${coordinates.slon.toFixed(4)}`,
+              distance: 'N/A',
+              batteries: availableBatteries,
+              waitTime: '~5 min',
+              lat: coordinates.slat,
+              lng: coordinates.slon,
+            });
+          });
+        });
+
+        if (allStations.length > 0) {
+          console.info(`[STATIONS] Fetched ${allStations.length} stations from GraphQL`);
+          setStations(allStations);
+        } else {
+          console.warn('[STATIONS] No stations found in GraphQL response');
+          setStations([]);
+        }
+        setIsLoadingStations(false);
+      } catch (error) {
+        console.error('[STATIONS] Error fetching stations from GraphQL:', error);
+        setIsLoadingStations(false);
+        setStations([]);
+      }
+    };
+
+    fetchStationsFromGraphQL();
+  }, [fleetIds]);
+
+  // Set stations to empty if no subscription
+  useEffect(() => {
+    if (isLoggedIn && !subscription?.subscription_code) {
+      console.warn('[STATIONS] No subscription code available, setting stations to empty');
+      setIsLoadingStations(false);
+      setStations([]);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, subscription?.subscription_code]);
 
   // Lock body overflow
   useEffect(() => {
@@ -731,6 +1055,7 @@ const RiderApp: React.FC = () => {
                 distance: s.distance,
                 batteries: s.batteries,
               }))}
+              isLoadingStations={isLoadingStations}
               onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
               onTopUp={handleTopUp}
@@ -746,6 +1071,7 @@ const RiderApp: React.FC = () => {
           {currentScreen === 'stations' && (
             <RiderStations
               stations={stations}
+              isLoading={isLoadingStations}
               onNavigateToStation={handleNavigateToStation}
             />
           )}
