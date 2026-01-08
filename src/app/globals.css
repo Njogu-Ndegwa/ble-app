@@ -8658,6 +8658,11 @@ html.theme-transition *::after {
   transform: translateX(0);
 }
 
+.session-card-locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .session-card-avatar {
   width: 40px;
   height: 40px;

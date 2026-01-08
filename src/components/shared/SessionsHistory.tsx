@@ -133,7 +133,8 @@ export default function SessionsHistory({
   
   // Handle session selection
   const handleSelectOrder = useCallback((order: OrderListItem, isReadOnly: boolean) => {
-    // Allow selecting any order with session data
+    // Allow selecting any order with a session
+    // The parent component will handle cases where session_data might be incomplete
     if (order.session) {
       onSelectSession(order, isReadOnly);
     }
@@ -324,15 +325,19 @@ export default function SessionsHistory({
                 const currentStep = order.session?.session_data?.currentStep || 1;
                 const maxStep = workflowType === 'attendant' ? 6 : 7;
                 const isReadOnly = !statusInfo.canEdit;
+                // Consider clickable if it has a session (with session_data for workflow restoration)
+                // or if it's viewable (statusInfo.canView) even without full session data
+                const hasSession = !!order.session;
                 const hasSessionData = !!order.session?.session_data;
+                const isClickable = hasSession && (hasSessionData || statusInfo.canView);
                 
                 return (
                   <div
                     key={order.id}
-                    className={`session-card ${statusInfo.canEdit ? 'session-card-resumable' : 'session-card-viewable'}`}
-                    onClick={() => hasSessionData && handleSelectOrder(order, isReadOnly)}
-                    role={hasSessionData ? 'button' : undefined}
-                    tabIndex={hasSessionData ? 0 : undefined}
+                    className={`session-card ${statusInfo.canEdit ? 'session-card-resumable' : isClickable ? 'session-card-viewable' : 'session-card-locked'}`}
+                    onClick={() => isClickable && handleSelectOrder(order, isReadOnly)}
+                    role={isClickable ? 'button' : undefined}
+                    tabIndex={isClickable ? 0 : undefined}
                   >
                     {/* Left - Avatar/Icon */}
                     <div className="session-card-avatar">
@@ -371,7 +376,7 @@ export default function SessionsHistory({
                         <span>{statusInfo.label}</span>
                       </div>
                       
-                      {hasSessionData && (
+                      {isClickable && (
                         <div className={`session-card-action ${isReadOnly ? 'session-card-action-view' : ''}`}>
                           {isReadOnly ? <Eye size={14} /> : <Play size={14} />}
                         </div>
