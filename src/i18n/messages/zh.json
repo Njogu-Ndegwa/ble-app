@@ -1257,5 +1257,6 @@
   "sessions.viewEditHint": "点击查看。仅草稿会话可编辑。",
   "sessions.viewNext": "查看下一步",
   "sessions.readOnlyMode": "查看已完成会话（只读）",
-  "sessions.viewingReadOnly": "查看会话（只读）"
+  "sessions.viewingReadOnly": "查看会话（只读）",
+  "sessions.exitReview": "退出"
 }

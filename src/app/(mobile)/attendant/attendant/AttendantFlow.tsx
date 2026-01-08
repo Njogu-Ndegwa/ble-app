@@ -1930,6 +1930,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         maxStepReached={maxStepReached}
         onStepClick={handleTimelineClick}
         flowError={flowError}
+        readOnly={isReadOnlySession}
       />
 
       {/* Customer State Panel - Shows after customer identified, hidden on payment/success steps */}
@@ -1946,11 +1947,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             <span>{t('sessions.readOnlyMode') || 'Viewing completed session (read-only)'}</span>
           </div>
           <button 
-            className="readonly-banner-close"
+            className="readonly-banner-exit"
             onClick={handleNewSwap}
-            aria-label={t('common.close') || 'Close'}
+            aria-label={t('sessions.exitReview') || 'Exit Review'}
           >
             <X size={14} />
+            <span>{t('sessions.exitReview') || 'Exit'}</span>
           </button>
         </div>
       )}

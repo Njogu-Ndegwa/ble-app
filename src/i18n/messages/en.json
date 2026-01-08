@@ -1354,5 +1354,6 @@
   "sessions.viewEditHint": "Tap to view. Only draft sessions can be edited.",
   "sessions.viewNext": "View Next",
   "sessions.readOnlyMode": "Viewing completed session (read-only)",
-  "sessions.viewingReadOnly": "Viewing session (read-only)"
+  "sessions.viewingReadOnly": "Viewing session (read-only)",
+  "sessions.exitReview": "Exit"
 }

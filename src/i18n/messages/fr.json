@@ -1345,5 +1345,6 @@
   "sessions.viewEditHint": "Appuyez pour voir. Seules les sessions en brouillon peuvent être modifiées.",
   "sessions.viewNext": "Voir Suivant",
   "sessions.readOnlyMode": "Affichage de la session terminée (lecture seule)",
-  "sessions.viewingReadOnly": "Affichage de la session (lecture seule)"
+  "sessions.viewingReadOnly": "Affichage de la session (lecture seule)",
+  "sessions.exitReview": "Quitter"
 }
