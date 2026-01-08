@@ -1340,5 +1340,9 @@
   "sessions.completed": "Terminé",
   "sessions.cancelled": "Annulé",
   "sessions.confirmed": "Confirmé",
-  "sessions.draftOnlyHint": "Seules les sessions en brouillon peuvent être reprises"
+  "sessions.draftOnlyHint": "Seules les sessions en brouillon peuvent être reprises",
+  "sessions.viewEditHint": "Appuyez pour voir. Seules les sessions en brouillon peuvent être modifiées.",
+  "sessions.viewNext": "Voir Suivant",
+  "sessions.readOnlyMode": "Affichage de la session terminée (lecture seule)",
+  "sessions.viewingReadOnly": "Affichage de la session (lecture seule)"
 }

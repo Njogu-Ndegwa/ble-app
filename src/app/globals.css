@@ -8644,8 +8644,18 @@ html.theme-transition *::after {
   transform: translateX(0);
 }
 
-.session-card-locked {
-  opacity: 0.65;
+.session-card-viewable {
+  cursor: pointer;
+}
+
+.session-card-viewable:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--text-muted);
+  transform: translateX(2px);
+}
+
+.session-card-viewable:active {
+  transform: translateX(0);
 }
 
 .session-card-avatar {
@@ -8664,9 +8674,9 @@ html.theme-transition *::after {
   color: var(--accent);
 }
 
-.session-card-locked .session-card-avatar {
+.session-card-viewable .session-card-avatar {
   background: var(--bg-elevated);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .session-card-info {
@@ -8733,6 +8743,84 @@ html.theme-transition *::after {
   background: var(--accent);
   border-radius: var(--radius-sm);
   color: var(--bg-primary);
+}
+
+.session-card-action-view {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* Read-only Mode Banner */
+.readonly-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15));
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin: 0 16px;
+  gap: 12px;
+}
+
+.readonly-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.readonly-banner-content svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.readonly-banner-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.readonly-banner-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+/* Read-only main area styling */
+.attendant-main-readonly {
+  opacity: 0.95;
+}
+
+/* Disable interactive elements in read-only mode */
+.attendant-main-readonly button,
+.attendant-main-readonly input,
+.attendant-main-readonly select,
+.attendant-main-readonly textarea,
+.attendant-main-readonly .selectable-card,
+.attendant-main-readonly [role="button"] {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Action bar in read-only mode */
+.action-bar-readonly {
+  pointer-events: auto;
+}
+
+.action-bar-readonly .action-bar-inner {
+  justify-content: space-between;
 }
 
 .session-card-progress {

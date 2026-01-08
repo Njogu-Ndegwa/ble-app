@@ -13,6 +13,7 @@ interface ActionBarProps {
   paymentInputMode?: 'scan' | 'manual';
   hasSufficientQuota?: boolean;
   swapCost?: number;
+  readOnly?: boolean;
 }
 
 // Icon components for action bar
@@ -98,12 +99,46 @@ const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSu
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost }: ActionBarProps) {
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost, readOnly }: ActionBarProps) {
   const { t } = useI18n();
   const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode, swapCost);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
   const hideMainButton = currentStep === 1 && inputMode === 'manual';
+  
+  // In read-only mode, only show navigation buttons
+  if (readOnly) {
+    return (
+      <div className="action-bar action-bar-readonly">
+        <div className="action-bar-inner">
+          {currentStep > 1 && (
+            <button className="btn btn-secondary" onClick={onBack}>
+              {ActionIcons.back}
+              {t('sales.back')}
+            </button>
+          )}
+          {currentStep < 6 && (
+            <button 
+              className="btn btn-secondary"
+              onClick={onMainAction}
+            >
+              <span>{t('sessions.viewNext') || 'View Next'}</span>
+              {ActionIcons.arrow}
+            </button>
+          )}
+          {currentStep === 6 && (
+            <button 
+              className="btn btn-primary"
+              onClick={onMainAction}
+            >
+              {ActionIcons.plus}
+              <span>{t('attendant.startNewSwap')}</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="action-bar">

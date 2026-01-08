@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, History } from 'lucide-react';
+import { Globe, History, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } from '@/lib/attendant-auth';
@@ -170,6 +170,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
   
+  // Read-only mode for viewing completed sessions
+  const [isReadOnlySession, setIsReadOnlySession] = useState(false);
+  
   // Pending payment state restoration (stored temporarily until restorePaymentState is available)
   const [pendingPaymentRestore, setPendingPaymentRestore] = useState<{
     inputMode: 'scan' | 'manual';
@@ -270,7 +273,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   }, [discardPendingSession, t]);
   
   // Handle selecting a session from history
-  const handleSelectHistorySession = useCallback(async (order: OrderListItem) => {
+  const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
     if (!order.session?.session_data) {
       toast.error(t('sessions.noSessionData') || 'Session data not available');
       return;
@@ -279,20 +282,17 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     // Close the history modal
     setShowSessionsHistory(false);
     
+    // Set read-only mode based on whether the session can be edited
+    setIsReadOnlySession(isReadOnly);
+    
     // Extract state from session data and restore
     const sessionData = order.session.session_data;
     const restoredState = extractAttendantStateFromSession(sessionData);
     
-    // Set the orderId in the workflow session hook so updates go to the right order
-    // This is crucial for the session persistence to work correctly after restoration
-    if (order.id) {
-      // Access the setOrderId from the workflow session hook
-      // Note: We need to destructure setOrderId from the hook
-    }
-    
     // Restore all state from the session
     setCurrentStep(restoredState.currentStep as AttendantStep);
-    setMaxStepReached(restoredState.maxStepReached as AttendantStep);
+    // For read-only sessions, set maxStepReached to 6 to allow viewing all steps
+    setMaxStepReached(isReadOnly ? 6 : restoredState.maxStepReached as AttendantStep);
     setInputMode(restoredState.inputMode);
     setManualSubscriptionId(restoredState.manualSubscriptionId);
     setDynamicPlanId(restoredState.dynamicPlanId);
@@ -302,8 +302,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setSwapData(restoredState.swapData);
     setFlowError(restoredState.flowError);
     
-    // Store payment state for restoration
-    if (restoredState.paymentState && (restoredState.paymentState.amountPaid > 0 || restoredState.paymentState.amountRemaining > 0 || restoredState.paymentState.requestCreated)) {
+    // Store payment state for restoration (only for editable sessions)
+    if (!isReadOnly && restoredState.paymentState && (restoredState.paymentState.amountPaid > 0 || restoredState.paymentState.amountRemaining > 0 || restoredState.paymentState.requestCreated)) {
       setPendingPaymentRestore({
         inputMode: restoredState.paymentState.inputMode,
         manualPaymentId: restoredState.paymentState.manualPaymentId,
@@ -315,7 +315,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       });
     }
     
-    toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+    if (isReadOnly) {
+      toast(t('sessions.viewingReadOnly') || 'Viewing session (read-only)', { icon: '👁️' });
+    } else {
+      toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+    }
   }, [t]);
   
   // NOTE: saveSessionData helper is defined after usePaymentCollection hook 
@@ -1665,6 +1669,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setServiceStates([]);
     setCustomerType(null);
     setFlowError(null);
+    setIsReadOnlySession(false); // Reset read-only mode
     cancelOngoingScan();
     
     // Reset all payment state via hook
@@ -1730,6 +1735,17 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Get main action based on current step
   const handleMainAction = useCallback(() => {
+    // In read-only mode, just navigate (step 6 always starts new swap)
+    if (isReadOnlySession) {
+      if (currentStep === 6) {
+        handleNewSwap(); // This also exits read-only mode
+      } else if (currentStep < 6) {
+        // Navigate to next step
+        goToStep((currentStep + 1) as AttendantStep);
+      }
+      return;
+    }
+    
     switch (currentStep) {
       case 1:
         if (inputMode === 'scan') {
@@ -1764,7 +1780,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession, goToStep]);
 
   // Render current step content
   const renderStepContent = () => {
@@ -1922,8 +1938,25 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         visible={currentStep > 1 && currentStep < 5}
       />
 
+      {/* Read-only Mode Banner */}
+      {isReadOnlySession && (
+        <div className="readonly-banner">
+          <div className="readonly-banner-content">
+            <Eye size={16} />
+            <span>{t('sessions.readOnlyMode') || 'Viewing completed session (read-only)'}</span>
+          </div>
+          <button 
+            className="readonly-banner-close"
+            onClick={handleNewSwap}
+            aria-label={t('common.close') || 'Close'}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="attendant-main">
+      <main className={`attendant-main ${isReadOnlySession ? 'attendant-main-readonly' : ''}`}>
         {renderStepContent()}
       </main>
 
@@ -1938,6 +1971,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           paymentInputMode={paymentInputMode}
           hasSufficientQuota={hasSufficientQuota}
           swapCost={swapData.cost}
+          readOnly={isReadOnlySession}
         />
       )}
 

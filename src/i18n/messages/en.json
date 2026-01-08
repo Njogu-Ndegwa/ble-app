@@ -1349,5 +1349,9 @@
   "sessions.completed": "Completed",
   "sessions.cancelled": "Cancelled",
   "sessions.confirmed": "Confirmed",
-  "sessions.draftOnlyHint": "Only draft sessions can be resumed"
+  "sessions.draftOnlyHint": "Only draft sessions can be resumed",
+  "sessions.viewEditHint": "Tap to view. Only draft sessions can be edited.",
+  "sessions.viewNext": "View Next",
+  "sessions.readOnlyMode": "Viewing completed session (read-only)",
+  "sessions.viewingReadOnly": "Viewing session (read-only)"
 }

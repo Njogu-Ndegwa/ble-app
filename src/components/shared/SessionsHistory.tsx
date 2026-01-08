@@ -19,7 +19,7 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Play, 
-  Lock, 
+  Eye,
   CheckCircle,
   AlertCircle,
   RefreshCw,
@@ -34,8 +34,8 @@ export interface SessionsHistoryProps {
   isVisible: boolean;
   /** Called when user closes the sessions list */
   onClose: () => void;
-  /** Called when user selects a session to resume */
-  onSelectSession: (order: OrderListItem) => void;
+  /** Called when user selects a session to resume or view */
+  onSelectSession: (order: OrderListItem, isReadOnly: boolean) => void;
   /** Auth token for API calls */
   authToken: string;
   /** Current workflow type */
@@ -132,10 +132,10 @@ export default function SessionsHistory({
   }, [searchQuery, fetchOrders]);
   
   // Handle session selection
-  const handleSelectOrder = useCallback((order: OrderListItem) => {
-    // Only allow selecting draft orders
-    if (order.state === 'draft' && order.session) {
-      onSelectSession(order);
+  const handleSelectOrder = useCallback((order: OrderListItem, isReadOnly: boolean) => {
+    // Allow selecting any order with session data
+    if (order.session) {
+      onSelectSession(order, isReadOnly);
     }
   }, [onSelectSession]);
   
@@ -178,14 +178,15 @@ export default function SessionsHistory({
     const sessionState = order.session?.state;
     const sessionStatus = order.session?.session_data?.status;
     
-    // Order state determines if we can resume
+    // Order state determines if we can edit or only view
     if (order.state === 'done' || order.state === 'cancel') {
       return {
         label: order.state === 'done' ? (t('sessions.completed') || 'Completed') : (t('sessions.cancelled') || 'Cancelled'),
         color: order.state === 'done' ? colors.success : colors.error,
         bgColor: order.state === 'done' ? colors.successSoft : colors.errorSoft,
         icon: order.state === 'done' ? CheckCircle : AlertCircle,
-        canResume: false,
+        canEdit: false,
+        canView: true,
       };
     }
     
@@ -195,11 +196,12 @@ export default function SessionsHistory({
         color: colors.success,
         bgColor: colors.successSoft,
         icon: CheckCircle,
-        canResume: false,
+        canEdit: false,
+        canView: true,
       };
     }
     
-    // Draft orders can be resumed
+    // Draft orders can be edited/resumed
     if (order.state === 'draft') {
       const step = order.session?.session_data?.currentStep || 1;
       return {
@@ -207,7 +209,8 @@ export default function SessionsHistory({
         color: colors.warning,
         bgColor: colors.warningSoft,
         icon: Clock,
-        canResume: true,
+        canEdit: true,
+        canView: true,
       };
     }
     
@@ -216,7 +219,8 @@ export default function SessionsHistory({
       color: colors.text.muted,
       bgColor: 'rgba(128,128,128,0.1)',
       icon: Clock,
-      canResume: false,
+      canEdit: false,
+      canView: true,
     };
   }, [t]);
   
@@ -319,22 +323,20 @@ export default function SessionsHistory({
                                        order.session?.session_data?.customerData?.subscriptionId;
                 const currentStep = order.session?.session_data?.currentStep || 1;
                 const maxStep = workflowType === 'attendant' ? 6 : 7;
+                const isReadOnly = !statusInfo.canEdit;
+                const hasSessionData = !!order.session?.session_data;
                 
                 return (
                   <div
                     key={order.id}
-                    className={`session-card ${statusInfo.canResume ? 'session-card-resumable' : 'session-card-locked'}`}
-                    onClick={() => statusInfo.canResume && handleSelectOrder(order)}
-                    role={statusInfo.canResume ? 'button' : undefined}
-                    tabIndex={statusInfo.canResume ? 0 : undefined}
+                    className={`session-card ${statusInfo.canEdit ? 'session-card-resumable' : 'session-card-viewable'}`}
+                    onClick={() => hasSessionData && handleSelectOrder(order, isReadOnly)}
+                    role={hasSessionData ? 'button' : undefined}
+                    tabIndex={hasSessionData ? 0 : undefined}
                   >
                     {/* Left - Avatar/Icon */}
                     <div className="session-card-avatar">
-                      {statusInfo.canResume ? (
-                        <User size={20} />
-                      ) : (
-                        <Lock size={16} />
-                      )}
+                      <User size={20} />
                     </div>
                     
                     {/* Middle - Info */}
@@ -369,13 +371,13 @@ export default function SessionsHistory({
                         <span>{statusInfo.label}</span>
                       </div>
                       
-                      {statusInfo.canResume && (
-                        <div className="session-card-action">
-                          <Play size={14} />
+                      {hasSessionData && (
+                        <div className={`session-card-action ${isReadOnly ? 'session-card-action-view' : ''}`}>
+                          {isReadOnly ? <Eye size={14} /> : <Play size={14} />}
                         </div>
                       )}
                       
-                      {statusInfo.canResume && (
+                      {hasSessionData && (
                         <div className="session-card-progress">
                           <span>{currentStep}/{maxStep}</span>
                         </div>
@@ -416,7 +418,7 @@ export default function SessionsHistory({
         {/* Footer hint */}
         <div className="sessions-footer-hint">
           <AlertCircle size={14} />
-          <span>{t('sessions.draftOnlyHint') || 'Only draft sessions can be resumed'}</span>
+          <span>{t('sessions.viewEditHint') || 'Tap to view. Only draft sessions can be edited.'}</span>
         </div>
       </div>
     </div>
