@@ -16,6 +16,7 @@ interface Step5Props {
   selectedPackage?: PackageData | null;
   subscriptionCode?: string;
   amountPaid?: number;
+  customerPassword?: string | null;
 }
 
 /**
@@ -33,6 +34,7 @@ export default function Step5Success({
   selectedPackage,
   subscriptionCode,
   amountPaid,
+  customerPassword,
 }: Step5Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
@@ -57,6 +59,7 @@ export default function Step5Success({
     paymentReference,
     amountPaid: totalPurchaseAmount,
     currencySymbol,
+    password: customerPassword || undefined,
   }, t);
 
   return (

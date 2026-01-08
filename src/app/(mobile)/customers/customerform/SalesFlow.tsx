@@ -165,6 +165,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
   const [createdPartnerId, setCreatedPartnerId] = useState<number | null>(null);
   const [customerSessionToken, setCustomerSessionToken] = useState<string | null>(null);
+  const [customerPassword, setCustomerPassword] = useState<string | null>(null);
   
   // Subscription data from purchase
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
@@ -951,16 +952,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         console.warn('No employee token found - customer may not be associated with correct company');
       }
       
-      // Format phone number - ensure it starts with country code (only if provided)
+      // Phone number is already in E.164 format without + prefix from PhoneInputWithCountry
+      // The component handles country code selection (e.g., +228 for Togo, +254 for Kenya)
+      // So we just need to clean it up (remove any spaces or non-digit characters)
       let phoneNumber = '';
       if (formData.phone.trim()) {
-        phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
-        if (phoneNumber.startsWith('0')) {
-          phoneNumber = '254' + phoneNumber.slice(1);
-        } else if (!phoneNumber.startsWith('+') && !phoneNumber.startsWith('254')) {
-          phoneNumber = '254' + phoneNumber;
-        }
-        phoneNumber = phoneNumber.replace('+', '');
+        // Remove spaces and non-digit characters, but keep all digits
+        // PhoneInputWithCountry already includes the country code (e.g., 2281234567890 or 2541234567890)
+        phoneNumber = formData.phone.replace(/\D/g, '');
       }
 
       const registrationPayload: RegisterCustomerPayload = {
@@ -997,6 +996,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedCustomerId(session.user.id);
         setCreatedPartnerId(session.user.partner_id);
         setCustomerSessionToken(session.token);
+        
+        // Store password if provided in response
+        if (response.password) {
+          setCustomerPassword(response.password);
+          console.log('Customer password received from registration');
+        }
         
         // Create backend session after customer registration
         // This creates an order/session linked to the customer
@@ -1865,6 +1870,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         // Reset vehicle assignment hook
         resetVehicleAssignment();
         setRegistrationId('');
+        setCustomerPassword(null);
         // Reset session restored flag to allow new session tracking
         setSessionRestored(true);
         break;
@@ -2044,6 +2050,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             selectedPackage={selectedPackage}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode}
             amountPaid={paymentAmountPaid}
+            customerPassword={customerPassword}
           />
         );
       default:

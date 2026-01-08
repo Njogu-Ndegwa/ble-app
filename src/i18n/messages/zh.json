@@ -38,6 +38,8 @@
   "common.refresh": "刷新",
   "common.description": "描述",
   "common.copied": "已复制到剪贴板",
+  "common.copy": "复制",
+  "common.copyFailed": "复制失败",
 
   "ble.list.title": "所有设备",
   "ble.list.searchPlaceholder": "搜索设备...",
@@ -964,6 +966,7 @@
   "sales.customerRegistered": "客户已成功注册",
   "sales.registrationId": "注册ID",
   "sales.customerName": "客户姓名",
+  "sales.password": "密码",
   "sales.paymentRef": "支付参考",
   "sales.assignedBattery": "已分配电池",
   "sales.batteryCharge": "电池电量",

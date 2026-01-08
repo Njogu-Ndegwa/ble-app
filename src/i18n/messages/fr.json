@@ -38,6 +38,8 @@
   "common.refresh": "Rafraîchir",
   "common.description": "Description",
   "common.copied": "Valeur copiée dans le presse-papiers",
+  "common.copy": "Copier",
+  "common.copyFailed": "Échec de la copie",
 
   "ble.list.title": "Tous les appareils",
   "ble.list.searchPlaceholder": "Rechercher des appareils...",
@@ -1052,6 +1054,7 @@
   "sales.customerRegistered": "Le client a été inscrit avec succès",
   "sales.registrationId": "ID d'inscription",
   "sales.customerName": "Nom du client",
+  "sales.password": "Mot de passe",
   "sales.paymentRef": "Réf. paiement",
   "sales.assignedBattery": "Batterie attribuée",
   "sales.batteryCharge": "Charge de la batterie",

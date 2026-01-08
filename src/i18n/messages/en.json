@@ -38,6 +38,8 @@
   "common.refresh": "Refresh",
   "common.description": "Description",
   "common.copied": "Value copied to clipboard",
+  "common.copy": "Copy",
+  "common.copyFailed": "Failed to copy",
 
   "ble.list.title": "All Devices",
   "ble.list.searchPlaceholder": "Search devices...",
@@ -1061,6 +1063,7 @@
   "sales.customerRegistered": "Customer has been successfully registered",
   "sales.registrationId": "Registration ID",
   "sales.customerName": "Customer Name",
+  "sales.password": "Password",
   "sales.paymentRef": "Payment Ref",
   "sales.assignedBattery": "Assigned Battery",
   "sales.batteryCharge": "Battery Charge",

@@ -62,6 +62,7 @@ export interface RegisterCustomerResponse {
     };
   };
   email_sent: boolean;
+  password?: string; // Password generated for the customer (if provided by backend)
 }
 
 // Product Types - matches actual Odoo API response

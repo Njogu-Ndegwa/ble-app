@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useI18n } from '@/i18n';
+import { toast } from 'react-hot-toast';
 
 export interface ReceiptRow {
   /** Label for the row */
@@ -12,6 +13,8 @@ export interface ReceiptRow {
   mono?: boolean;
   /** Custom color for the value */
   color?: string;
+  /** Whether to show a copy button for this row */
+  copyable?: boolean;
 }
 
 interface SuccessReceiptProps {
@@ -98,6 +101,21 @@ export default function SuccessReceipt({
   icon = 'check',
   className = '',
 }: SuccessReceiptProps) {
+  const { t } = useI18n();
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const handleCopy = async (value: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedIndex(index);
+      toast.success(t('common.copied') || 'Copied to clipboard');
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error(t('common.copyFailed') || 'Failed to copy');
+    }
+  };
+
   return (
     <div className={`success-screen ${className}`} style={{ paddingTop: '12px' }}>
       {/* Success Icon */}
@@ -123,14 +141,44 @@ export default function SuccessReceipt({
         
         {/* Receipt Rows */}
         {rows.map((row, index) => (
-          <div key={index} className="receipt-row">
-            <span className="receipt-label">{row.label}</span>
-            <span 
-              className={`receipt-value ${row.mono ? 'font-mono-oves' : ''}`}
-              style={row.color ? { color: row.color } : undefined}
-            >
-              {row.value}
-            </span>
+          <div key={index} className="receipt-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+              <span className="receipt-label">{row.label}</span>
+              <span 
+                className={`receipt-value ${row.mono ? 'font-mono-oves' : ''}`}
+                style={row.color ? { color: row.color } : undefined}
+              >
+                {row.value}
+              </span>
+            </div>
+            {row.copyable && (
+              <button
+                onClick={() => handleCopy(row.value, index)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: copiedIndex === index ? 'var(--success)' : 'var(--text-secondary)',
+                  transition: 'color 0.2s',
+                }}
+                aria-label={t('common.copy') || 'Copy'}
+                title={t('common.copy') || 'Copy'}
+              >
+                {copiedIndex === index ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                )}
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -223,6 +271,7 @@ export interface RegistrationReceiptData {
   paymentReference?: string;
   amountPaid: number;
   currencySymbol?: string;
+  password?: string;
 }
 
 /**
@@ -289,6 +338,16 @@ export function buildRegistrationReceiptRows(
     mono: true,
     color: 'var(--success)'
   });
+
+  // Add password row if provided
+  if (data.password) {
+    rows.push({
+      label: t('sales.password') || 'Password',
+      value: data.password,
+      mono: true,
+      copyable: true,
+    });
+  }
 
   return rows;
 }
