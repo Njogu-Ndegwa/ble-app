@@ -1333,5 +1333,21 @@
   
   "phone.selectCountry": "Select Country",
   "phone.searchCountry": "Search country or code...",
-  "phone.noCountriesFound": "No countries found"
+  "phone.noCountriesFound": "No countries found",
+  
+  "sessions.historyTitle": "Past Sessions",
+  "sessions.searchPlaceholder": "Search by subscription ID...",
+  "sessions.loading": "Loading sessions...",
+  "sessions.loadError": "Failed to load sessions",
+  "sessions.authRequired": "Please log in to view sessions",
+  "sessions.noSessionsTitle": "No Sessions Found",
+  "sessions.noSessionsDesc": "Your past sessions will appear here",
+  "sessions.noSearchResults": "No sessions match your search",
+  "sessions.noSessionData": "Session data not available",
+  "sessions.step": "Step",
+  "sessions.page": "Page",
+  "sessions.completed": "Completed",
+  "sessions.cancelled": "Cancelled",
+  "sessions.confirmed": "Confirmed",
+  "sessions.draftOnlyHint": "Only draft sessions can be resumed"
 }

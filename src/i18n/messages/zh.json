@@ -1236,5 +1236,21 @@
   
   "phone.selectCountry": "选择国家",
   "phone.searchCountry": "搜索国家或代码...",
-  "phone.noCountriesFound": "未找到国家"
+  "phone.noCountriesFound": "未找到国家",
+  
+  "sessions.historyTitle": "历史会话",
+  "sessions.searchPlaceholder": "按订阅ID搜索...",
+  "sessions.loading": "加载会话中...",
+  "sessions.loadError": "加载会话失败",
+  "sessions.authRequired": "请登录以查看会话",
+  "sessions.noSessionsTitle": "未找到会话",
+  "sessions.noSessionsDesc": "您的历史会话将显示在这里",
+  "sessions.noSearchResults": "没有匹配您搜索的会话",
+  "sessions.noSessionData": "会话数据不可用",
+  "sessions.step": "步骤",
+  "sessions.page": "页",
+  "sessions.completed": "已完成",
+  "sessions.cancelled": "已取消",
+  "sessions.confirmed": "已确认",
+  "sessions.draftOnlyHint": "仅草稿会话可以恢复"
 }

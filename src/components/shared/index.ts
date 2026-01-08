@@ -101,6 +101,9 @@ export {
 } from './SessionResumePrompt';
 export type { SessionResumePromptProps } from './SessionResumePrompt';
 
+export { default as SessionsHistory } from './SessionsHistory';
+export type { SessionsHistoryProps } from './SessionsHistory';
+
 // ============================================
 // HOOKS
 // ============================================

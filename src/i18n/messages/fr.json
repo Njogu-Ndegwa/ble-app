@@ -1324,5 +1324,21 @@
   
   "phone.selectCountry": "Sélectionner le pays",
   "phone.searchCountry": "Rechercher un pays ou un code...",
-  "phone.noCountriesFound": "Aucun pays trouvé"
+  "phone.noCountriesFound": "Aucun pays trouvé",
+  
+  "sessions.historyTitle": "Sessions Passées",
+  "sessions.searchPlaceholder": "Rechercher par ID d'abonnement...",
+  "sessions.loading": "Chargement des sessions...",
+  "sessions.loadError": "Échec du chargement des sessions",
+  "sessions.authRequired": "Veuillez vous connecter pour voir les sessions",
+  "sessions.noSessionsTitle": "Aucune Session Trouvée",
+  "sessions.noSessionsDesc": "Vos sessions passées apparaîtront ici",
+  "sessions.noSearchResults": "Aucune session ne correspond à votre recherche",
+  "sessions.noSessionData": "Données de session non disponibles",
+  "sessions.step": "Étape",
+  "sessions.page": "Page",
+  "sessions.completed": "Terminé",
+  "sessions.cancelled": "Annulé",
+  "sessions.confirmed": "Confirmé",
+  "sessions.draftOnlyHint": "Seules les sessions en brouillon peuvent être reprises"
 }

@@ -1759,6 +1759,184 @@ export async function updateWorkflowSessionWithProducts(
 }
 
 // ============================================================================
+// Orders/Sessions List API
+// ============================================================================
+
+/**
+ * Session data nested within an order
+ */
+export interface OrderSession {
+  id: number;
+  name: string;
+  session_code: string | null;
+  state: 'active' | 'paused' | 'completed' | 'cancelled';
+  partner_id: number;
+  partner_name: string;
+  sales_rep_id: number;
+  sales_rep_name: string;
+  channel_partner_id: number | null;
+  channel_partner_name: string | null;
+  outlet_id: number | null;
+  outlet_name: string | null;
+  start_date: string;
+  pause_date: string | null;
+  resume_date: string | null;
+  completed_date: string | null;
+  cancelled_date: string | null;
+  session_data: WorkflowSessionData | null;
+  payment_attempt_count: number;
+}
+
+/**
+ * Order data from the orders list API
+ */
+export interface OrderListItem {
+  id: number;
+  name: string;
+  state: 'draft' | 'sent' | 'sale' | 'done' | 'cancel';
+  date_order: string;
+  amount_total: number;
+  amount_untaxed: number;
+  expected_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  currency: string;
+  client_order_ref: string;
+  invoice_status: string;
+  partner_id: number;
+  partner_name: string;
+  channel_partner_id: number | null;
+  channel_partner_name: string | null;
+  outlet_id: number | null;
+  outlet_name: string | null;
+  sales_rep_id: number;
+  sales_rep_name: string;
+  line_count: number;
+  session: OrderSession | null;
+}
+
+/**
+ * Pagination info from orders API
+ */
+export interface OrdersPagination {
+  current_page: number;
+  per_page: number;
+  total_records: number;
+  total_pages: number;
+  has_next_page: boolean;
+  has_previous_page: boolean;
+}
+
+/**
+ * Response from the orders list API
+ */
+export interface OrdersListResponse {
+  success: boolean;
+  orders: OrderListItem[];
+  pagination: OrdersPagination;
+}
+
+/**
+ * Parameters for fetching orders/sessions
+ */
+export interface GetOrdersParams {
+  /** Page number (1-indexed) */
+  page?: number;
+  /** Items per page */
+  limit?: number;
+  /** Filter by order state */
+  state?: 'draft' | 'sent' | 'sale' | 'done' | 'cancel';
+  /** Get only orders for the current user */
+  mine?: boolean;
+  /** Filter by subscription code */
+  subscription_code?: string;
+  /** Filter by customer ID */
+  customer_id?: number;
+  /** Get only the latest order */
+  latest?: boolean;
+  /** Get the most recently updated order */
+  latest_updated?: boolean;
+}
+
+/**
+ * Fetch orders/sessions list with pagination and filtering
+ * 
+ * This endpoint returns orders with their associated sessions,
+ * which can be used to display past sessions and allow resumption.
+ * 
+ * @param params - Query parameters for filtering and pagination
+ * @param authToken - Employee/salesperson token for authorization (required)
+ */
+export async function getOrdersList(
+  params: GetOrdersParams = {},
+  authToken: string
+): Promise<OrdersListResponse> {
+  // Build query string
+  const queryParams = new URLSearchParams();
+  
+  if (params.page !== undefined) {
+    queryParams.append('page', String(params.page));
+  }
+  if (params.limit !== undefined) {
+    queryParams.append('limit', String(params.limit));
+  }
+  if (params.state) {
+    queryParams.append('state', params.state);
+  }
+  if (params.mine) {
+    queryParams.append('mine', 'true');
+  }
+  if (params.subscription_code) {
+    queryParams.append('subscription_code', params.subscription_code);
+  }
+  if (params.customer_id !== undefined) {
+    queryParams.append('customer_id', String(params.customer_id));
+  }
+  if (params.latest) {
+    queryParams.append('latest', 'true');
+  }
+  if (params.latest_updated) {
+    queryParams.append('latest_updated', 'true');
+  }
+  
+  const queryString = queryParams.toString();
+  const url = `${ODOO_BASE_URL}/api/orders${queryString ? `?${queryString}` : ''}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+    'Authorization': `Bearer ${authToken}`,
+  };
+  
+  console.info('=== GET ORDERS LIST ===');
+  console.info('URL:', url);
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== GET ORDERS LIST - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Orders count:', data.orders?.length || 0);
+    
+    if (!response.ok) {
+      console.error('Get orders error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as OrdersListResponse;
+  } catch (error: any) {
+    console.error('=== GET ORDERS LIST - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

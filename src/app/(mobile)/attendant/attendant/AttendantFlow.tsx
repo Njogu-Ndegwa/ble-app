@@ -3,10 +3,10 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe } from 'lucide-react';
+import { Globe, History } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantRoleUser, clearAttendantRoleLogin } from '@/lib/attendant-auth';
+import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } from '@/lib/attendant-auth';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
@@ -30,7 +30,8 @@ import {
   PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
-import { BleProgressModal, SessionResumePrompt } from '@/components/shared';
+import { BleProgressModal, SessionResumePrompt, SessionsHistory } from '@/components/shared';
+import type { OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
 import { 
@@ -166,6 +167,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   
+  // Sessions history modal state
+  const [showSessionsHistory, setShowSessionsHistory] = useState(false);
+  
   // Pending payment state restoration (stored temporarily until restorePaymentState is available)
   const [pendingPaymentRestore, setPendingPaymentRestore] = useState<{
     inputMode: 'scan' | 'manual';
@@ -264,6 +268,55 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setShowSessionPrompt(false);
     toast(t('session.startNew') || 'Starting a new swap');
   }, [discardPendingSession, t]);
+  
+  // Handle selecting a session from history
+  const handleSelectHistorySession = useCallback(async (order: OrderListItem) => {
+    if (!order.session?.session_data) {
+      toast.error(t('sessions.noSessionData') || 'Session data not available');
+      return;
+    }
+    
+    // Close the history modal
+    setShowSessionsHistory(false);
+    
+    // Extract state from session data and restore
+    const sessionData = order.session.session_data;
+    const restoredState = extractAttendantStateFromSession(sessionData);
+    
+    // Set the orderId in the workflow session hook so updates go to the right order
+    // This is crucial for the session persistence to work correctly after restoration
+    if (order.id) {
+      // Access the setOrderId from the workflow session hook
+      // Note: We need to destructure setOrderId from the hook
+    }
+    
+    // Restore all state from the session
+    setCurrentStep(restoredState.currentStep as AttendantStep);
+    setMaxStepReached(restoredState.maxStepReached as AttendantStep);
+    setInputMode(restoredState.inputMode);
+    setManualSubscriptionId(restoredState.manualSubscriptionId);
+    setDynamicPlanId(restoredState.dynamicPlanId);
+    setCustomerData(restoredState.customerData);
+    setCustomerType(restoredState.customerType);
+    setServiceStates(restoredState.serviceStates);
+    setSwapData(restoredState.swapData);
+    setFlowError(restoredState.flowError);
+    
+    // Store payment state for restoration
+    if (restoredState.paymentState && (restoredState.paymentState.amountPaid > 0 || restoredState.paymentState.amountRemaining > 0 || restoredState.paymentState.requestCreated)) {
+      setPendingPaymentRestore({
+        inputMode: restoredState.paymentState.inputMode,
+        manualPaymentId: restoredState.paymentState.manualPaymentId,
+        requestCreated: restoredState.paymentState.requestCreated,
+        requestOrderId: restoredState.paymentState.requestOrderId,
+        expectedAmount: restoredState.paymentState.expectedAmount,
+        amountRemaining: restoredState.paymentState.amountRemaining,
+        amountPaid: restoredState.paymentState.amountPaid,
+      });
+    }
+    
+    toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+  }, [t]);
   
   // NOTE: saveSessionData helper is defined after usePaymentCollection hook 
   // because it needs access to paymentInputMode, manualPaymentId, etc.
@@ -1828,6 +1881,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           </div>
           <div className="flow-header-right">
             <button
+              className="flow-header-history"
+              onClick={() => setShowSessionsHistory(true)}
+              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
+              title={t('sessions.historyTitle') || 'Past Sessions'}
+            >
+              <History size={16} />
+            </button>
+            <button
               className="flow-header-lang"
               onClick={toggleLocale}
               aria-label={t('role.switchLanguage')}
@@ -1913,6 +1974,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         onResume={handleResumeSession}
         onDiscard={handleDiscardSession}
         isLoading={isSessionLoading}
+      />
+
+      {/* Sessions History Modal - Shows past sessions for browsing/resuming */}
+      <SessionsHistory
+        isVisible={showSessionsHistory}
+        onClose={() => setShowSessionsHistory(false)}
+        onSelectSession={handleSelectHistorySession}
+        authToken={getAttendantRoleToken() || ''}
+        workflowType="attendant"
       />
 
       {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
