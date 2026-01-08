@@ -16,6 +16,8 @@ interface Step5Props {
   selectedPackage?: PackageData | null;
   subscriptionCode?: string;
   amountPaid?: number;
+  /** Customer password from registration - shown on receipt for new customers */
+  customerPassword?: string | null;
 }
 
 /**
@@ -33,6 +35,7 @@ export default function Step5Success({
   selectedPackage,
   subscriptionCode,
   amountPaid,
+  customerPassword,
 }: Step5Props) {
   const { t } = useI18n();
   const selectedPlan = plans.find((p: PlanData) => p.id === selectedPlanId);
@@ -57,6 +60,8 @@ export default function Step5Success({
     paymentReference,
     amountPaid: totalPurchaseAmount,
     currencySymbol,
+    // Include customer password for printing on receipt
+    customerPassword: customerPassword || undefined,
   }, t);
 
   return (

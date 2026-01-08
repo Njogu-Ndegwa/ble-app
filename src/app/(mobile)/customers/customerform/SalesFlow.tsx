@@ -165,6 +165,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [createdCustomerId, setCreatedCustomerId] = useState<number | null>(null);
   const [createdPartnerId, setCreatedPartnerId] = useState<number | null>(null);
   const [customerSessionToken, setCustomerSessionToken] = useState<string | null>(null);
+  // Customer password from registration - shown on receipt for new customers
+  const [customerPassword, setCustomerPassword] = useState<string | null>(null);
   
   // Subscription data from purchase
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
@@ -997,6 +999,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedCustomerId(session.user.id);
         setCreatedPartnerId(session.user.partner_id);
         setCustomerSessionToken(session.token);
+        // Store password for display on receipt (for new customers)
+        setCustomerPassword(response.password || null);
         
         // Create backend session after customer registration
         // This creates an order/session linked to the customer
@@ -1842,6 +1846,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedCustomerId(null);
         setCreatedPartnerId(null);
         setCustomerSessionToken(null);
+        setCustomerPassword(null);
         setSubscriptionData(null);
         setPaymentConfirmed(false);
         setPaymentReference('');
@@ -2044,6 +2049,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             selectedPackage={selectedPackage}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode}
             amountPaid={paymentAmountPaid}
+            customerPassword={customerPassword}
           />
         );
       default:

@@ -223,6 +223,8 @@ export interface RegistrationReceiptData {
   paymentReference?: string;
   amountPaid: number;
   currencySymbol?: string;
+  /** Customer password from registration - shown on receipt for new customers */
+  customerPassword?: string;
 }
 
 /**
@@ -244,6 +246,17 @@ export function buildRegistrationReceiptRows(
       mono: true 
     },
   ];
+
+  // Show customer password prominently for new registrations
+  // This is important so the customer can see their password on the printed receipt
+  if (data.customerPassword) {
+    rows.push({ 
+      label: t('sales.customerPassword') || 'Password', 
+      value: data.customerPassword,
+      mono: true,
+      color: 'var(--brand-primary)'
+    });
+  }
 
   if (data.packageName) {
     rows.push({ 

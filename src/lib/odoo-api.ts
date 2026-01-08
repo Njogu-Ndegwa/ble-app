@@ -62,6 +62,8 @@ export interface RegisterCustomerResponse {
     };
   };
   email_sent: boolean;
+  // Password is returned for newly created customers so it can be shown on receipt
+  password?: string;
 }
 
 // Product Types - matches actual Odoo API response

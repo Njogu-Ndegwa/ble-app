@@ -1052,6 +1052,7 @@
   "sales.customerRegistered": "Le client a été inscrit avec succès",
   "sales.registrationId": "ID d'inscription",
   "sales.customerName": "Nom du client",
+  "sales.customerPassword": "Mot de passe",
   "sales.paymentRef": "Réf. paiement",
   "sales.assignedBattery": "Batterie attribuée",
   "sales.batteryCharge": "Charge de la batterie",

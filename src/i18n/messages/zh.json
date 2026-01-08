@@ -964,6 +964,7 @@
   "sales.customerRegistered": "客户已成功注册",
   "sales.registrationId": "注册ID",
   "sales.customerName": "客户姓名",
+  "sales.customerPassword": "密码",
   "sales.paymentRef": "支付参考",
   "sales.assignedBattery": "已分配电池",
   "sales.batteryCharge": "电池电量",
