@@ -31,7 +31,7 @@ import {
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 import { BleProgressModal, SessionResumePrompt, SessionsHistory } from '@/components/shared';
-import { getCustomerDashboard, type OrderListItem } from '@/lib/odoo-api';
+import { getCustomerDashboard, getOrdersList, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
 import { 
@@ -357,48 +357,82 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       let enrichedCustomerData: CustomerData = result.customer as CustomerData;
       
       // Try to enrich customer data from Odoo dashboard (name, phone, etc.)
-      // The customer.id might be a numeric Odoo partner_id
-      const customerId = parseInt(result.customer.id, 10);
-      if (!isNaN(customerId) && customerId > 0) {
+      // We need the Odoo partner_id to call the dashboard endpoint
+      // Strategy: Look up partner_id via orders API using subscription_code
+      const customerSubscriptionCode = result.customer.subscriptionId;
+      const authToken = getAttendantRoleToken();
+      
+      if (customerSubscriptionCode && authToken) {
         try {
-          console.info('[Attendant] Fetching customer dashboard for enrichment, ID:', customerId);
-          const authToken = getAttendantRoleToken();
-          const dashboard = await getCustomerDashboard(customerId, authToken || undefined);
+          console.info('[Attendant] Looking up partner_id via orders API, subscription_code:', customerSubscriptionCode);
           
-          if (dashboard.success && dashboard.customer) {
-            // Enrich customer data with Odoo info
-            const odooCustomer = dashboard.customer;
-            console.info('[Attendant] Customer dashboard fetched:', {
-              name: odooCustomer.name,
-              phone: odooCustomer.phone,
-              email: odooCustomer.email,
-            });
+          // First, try to get partner_id from orders with this subscription code
+          const ordersResponse = await getOrdersList({
+            subscription_code: customerSubscriptionCode,
+            limit: 1,
+          }, authToken);
+          
+          let partnerId: number | null = null;
+          
+          // Check if we got orders with partner_id
+          if (ordersResponse.orders && ordersResponse.orders.length > 0) {
+            partnerId = ordersResponse.orders[0].partner_id;
+            console.info('[Attendant] Found partner_id from orders:', partnerId);
+          }
+          
+          // If no partner_id from orders, try parsing customer.id directly (might already be partner_id)
+          if (!partnerId) {
+            // customer.id might have format "customer-303025", strip the prefix
+            const rawCustomerId = result.customer.id.replace(/^customer-/i, '');
+            const parsedId = parseInt(rawCustomerId, 10);
+            if (!isNaN(parsedId) && parsedId > 0) {
+              partnerId = parsedId;
+              console.info('[Attendant] Using customer.id as partner_id:', partnerId, '(raw:', result.customer.id, ')');
+            }
+          }
+          
+          // Fetch customer dashboard if we have a partner_id
+          if (partnerId) {
+            console.info('[Attendant] Fetching customer dashboard for enrichment, partner_id:', partnerId);
+            const dashboard = await getCustomerDashboard(partnerId, authToken);
             
-            // Update with enriched data - prefer Odoo data over GraphQL data
-            enrichedCustomerData = {
-              ...enrichedCustomerData,
-              name: odooCustomer.name || enrichedCustomerData.name,
-              phone: (typeof odooCustomer.phone === 'string' ? odooCustomer.phone : '') || 
-                     (typeof odooCustomer.mobile === 'string' ? odooCustomer.mobile : '') || 
-                     enrichedCustomerData.phone,
-              email: (typeof odooCustomer.email === 'string' ? odooCustomer.email : '') || 
-                     enrichedCustomerData.email,
-            };
-            
-            console.info('[Attendant] Customer data enriched:', {
-              id: enrichedCustomerData.id,
-              name: enrichedCustomerData.name,
-              phone: enrichedCustomerData.phone,
-              email: enrichedCustomerData.email,
-              subscriptionId: enrichedCustomerData.subscriptionId,
-            });
+            if (dashboard.success && dashboard.customer) {
+              // Enrich customer data with Odoo info
+              const odooCustomer = dashboard.customer;
+              console.info('[Attendant] Customer dashboard fetched:', {
+                name: odooCustomer.name,
+                phone: odooCustomer.phone,
+                email: odooCustomer.email,
+              });
+              
+              // Update with enriched data - prefer Odoo data over GraphQL data
+              enrichedCustomerData = {
+                ...enrichedCustomerData,
+                name: odooCustomer.name || enrichedCustomerData.name,
+                phone: (typeof odooCustomer.phone === 'string' ? odooCustomer.phone : '') || 
+                       (typeof odooCustomer.mobile === 'string' ? odooCustomer.mobile : '') || 
+                       enrichedCustomerData.phone,
+                email: (typeof odooCustomer.email === 'string' ? odooCustomer.email : '') || 
+                       enrichedCustomerData.email,
+              };
+              
+              console.info('[Attendant] Customer data enriched:', {
+                id: enrichedCustomerData.id,
+                name: enrichedCustomerData.name,
+                phone: enrichedCustomerData.phone,
+                email: enrichedCustomerData.email,
+                subscriptionId: enrichedCustomerData.subscriptionId,
+              });
+            }
+          } else {
+            console.info('[Attendant] Could not determine partner_id for dashboard enrichment');
           }
         } catch (err) {
           console.warn('[Attendant] Failed to fetch customer dashboard (non-blocking):', err);
           // Continue with original customer data if dashboard fetch fails
         }
       } else {
-        console.info('[Attendant] Customer ID is not numeric, skipping dashboard enrichment:', result.customer.id);
+        console.info('[Attendant] Missing subscription code or auth token, skipping dashboard enrichment');
       }
       
       // Update all state from the result (with enriched data)
