@@ -1939,6 +1939,146 @@ export async function getOrdersList(
 }
 
 // ============================================================================
+// Customer Dashboard API
+// ============================================================================
+
+/**
+ * Customer dashboard response from /api/customers/{id}/dashboard
+ */
+export interface CustomerDashboardResponse {
+  success: boolean;
+  customer: {
+    id: number;
+    name: string;
+    email: string | false;
+    phone: string | false;
+    mobile: string | false;
+    is_company: boolean;
+    customer_rank: number;
+    supplier_rank: number;
+    active: boolean;
+    street: string | false;
+    city: string | false;
+    zip: string | false;
+    country_id: [number, string] | false;
+    company_id: [number, string] | false;
+    parent_id: [number, string] | false;
+    create_date: string;
+    write_date: string;
+  };
+  summary: {
+    total_paid: number;
+    total_pending: number;
+    active_subscriptions: number;
+    pending_invoices_count: number;
+  };
+  subscribed_products: Array<{
+    product_id: number;
+    product_name: string;
+    product_code: string;
+    description: string;
+    subscription_id: number;
+    subscription_code: string;
+    subscription_name: string;
+    subscription_start: string;
+    last_payment: string;
+    next_payment_date: string;
+    total_paid: number;
+    amount_paid: number;
+    is_active: boolean;
+    billing_frequency: string;
+    subscription_state: string;
+    price_unit: number;
+    currency: string;
+    invoices: Array<{
+      id: number;
+      name: string;
+      amount_total: number;
+      amount_residual: number;
+      state: string;
+      invoice_date: string;
+      invoice_date_due: string;
+    }>;
+  }>;
+  payment_history: Array<{
+    id: number;
+    name: string;
+    amount: number;
+    date: string;
+    state: string;
+    payment_method: string;
+  }>;
+  pending_invoices: Array<{
+    id: number;
+    name: string;
+    amount_total: number;
+    amount_residual: number;
+    invoice_date_due: string;
+    state: string;
+  }>;
+  next_payment: {
+    next_due_date: string | null;
+    amount_due: number;
+    is_overdue: boolean;
+    days_until_due: number | null;
+    invoice_number: string | null;
+    message: string;
+  };
+  last_updated: string;
+}
+
+/**
+ * Get customer dashboard data including profile, subscriptions, and payment info
+ * This enriches customer data after identification with name, phone, etc.
+ * 
+ * @param customerId - The customer/partner ID from Odoo
+ * @param authToken - Optional authorization token
+ */
+export async function getCustomerDashboard(
+  customerId: number,
+  authToken?: string
+): Promise<CustomerDashboardResponse> {
+  const url = `${ODOO_BASE_URL}/api/customers/${customerId}/dashboard`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== GET CUSTOMER DASHBOARD ===');
+  console.info('URL:', url);
+  console.info('Customer ID:', customerId);
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== GET CUSTOMER DASHBOARD - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Customer Name:', data.customer?.name);
+    
+    if (!response.ok) {
+      console.error('Get customer dashboard error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as CustomerDashboardResponse;
+  } catch (error: any) {
+    console.error('=== GET CUSTOMER DASHBOARD - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

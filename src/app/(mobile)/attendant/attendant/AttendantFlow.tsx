@@ -31,7 +31,7 @@ import {
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 import { BleProgressModal, SessionResumePrompt, SessionsHistory } from '@/components/shared';
-import type { OrderListItem } from '@/lib/odoo-api';
+import { getCustomerDashboard, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
 import { 
@@ -332,10 +332,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Ref to track the scan type for identification (to clear it on complete)
   const identificationScanTypeRef = useRef<'customer' | null>(null);
   
+  // Customer identification via GraphQL (MQTT params deprecated but kept for compatibility)
   const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
-    bridge: bridge as any,
-    isBridgeReady,
-    isMqttConnected,
     attendantInfo,
     onSuccess: async (result: CustomerIdentificationResult) => {
       console.info('Customer identification successful:', result);
@@ -355,8 +353,53 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           '- energy service usageUnitPrice:', energyService?.usageUnitPrice);
       }
       
-      // Update all state from the result
-      setCustomerData(result.customer as CustomerData);
+      // Start with customer data from identification
+      let enrichedCustomerData: CustomerData = result.customer as CustomerData;
+      
+      // Try to enrich customer data from Odoo dashboard (name, phone, etc.)
+      // The customer.id might be a numeric Odoo partner_id
+      const customerId = parseInt(result.customer.id, 10);
+      if (!isNaN(customerId) && customerId > 0) {
+        try {
+          console.info('[Attendant] Fetching customer dashboard for enrichment, ID:', customerId);
+          const authToken = getAttendantRoleToken();
+          const dashboard = await getCustomerDashboard(customerId, authToken || undefined);
+          
+          if (dashboard.success && dashboard.customer) {
+            // Enrich customer data with Odoo info
+            const odooCustomer = dashboard.customer;
+            console.info('[Attendant] Customer dashboard fetched:', {
+              name: odooCustomer.name,
+              phone: odooCustomer.phone,
+              email: odooCustomer.email,
+            });
+            
+            // Update with enriched data - prefer Odoo data over MQTT data
+            enrichedCustomerData = {
+              ...enrichedCustomerData,
+              name: odooCustomer.name || enrichedCustomerData.name,
+              phone: (typeof odooCustomer.phone === 'string' ? odooCustomer.phone : '') || 
+                     (typeof odooCustomer.mobile === 'string' ? odooCustomer.mobile : '') || 
+                     enrichedCustomerData.phone,
+            };
+            
+            console.info('[Attendant] Customer data enriched:', {
+              id: enrichedCustomerData.id,
+              name: enrichedCustomerData.name,
+              phone: enrichedCustomerData.phone,
+              subscriptionId: enrichedCustomerData.subscriptionId,
+            });
+          }
+        } catch (err) {
+          console.warn('[Attendant] Failed to fetch customer dashboard (non-blocking):', err);
+          // Continue with original customer data if dashboard fetch fails
+        }
+      } else {
+        console.info('[Attendant] Customer ID is not numeric, skipping dashboard enrichment:', result.customer.id);
+      }
+      
+      // Update all state from the result (with enriched data)
+      setCustomerData(enrichedCustomerData);
       setServiceStates(result.serviceStates);
       setCustomerType(result.customerType);
       setSwapData(prev => ({
@@ -365,7 +408,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         currencySymbol: result.currencySymbol,
       }));
       
-      // Create backend session after customer identification
+      // Create backend session after customer identification (with enriched data)
       const subscriptionCode = result.customer.subscriptionId || dynamicPlanId;
       if (subscriptionCode) {
         try {
@@ -376,7 +419,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             inputMode,
             manualSubscriptionId,
             dynamicPlanId: subscriptionCode,
-            customerData: result.customer as CustomerData,
+            customerData: enrichedCustomerData, // Use enriched data for session
             customerType: result.customerType,
             serviceStates: result.serviceStates,
             swapData: {
