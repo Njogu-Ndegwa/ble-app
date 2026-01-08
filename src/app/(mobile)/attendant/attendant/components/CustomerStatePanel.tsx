@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { CustomerData, getInitials } from './types';
+import { Phone, Mail, User } from 'lucide-react';
 import { 
   Avatar, 
   Badge, 
@@ -79,10 +80,35 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
               variant="primary"
             />
             <div className="state-customer-info">
+              {/* Customer Name */}
+              <div className="state-customer-name">
+                <User size={14} className="state-info-icon" />
+                <span>{customer.name || 'Customer'}</span>
+              </div>
+              {/* Subscription Info */}
               <div className="state-plan-row">
                 <span className="state-subscription-id">{customer.subscriptionId}</span>
-                <span className="state-plan-separator">•</span>
-                <span className="state-plan-name">{customer.subscriptionType}</span>
+                {customer.subscriptionType && (
+                  <>
+                    <span className="state-plan-separator">•</span>
+                    <span className="state-plan-name">{customer.subscriptionType}</span>
+                  </>
+                )}
+              </div>
+              {/* Contact Info */}
+              <div className="state-contact-row">
+                {customer.phone && (
+                  <div className="state-contact-item">
+                    <Phone size={12} className="state-info-icon" />
+                    <span>{customer.phone}</span>
+                  </div>
+                )}
+                {customer.email && (
+                  <div className="state-contact-item">
+                    <Mail size={12} className="state-info-icon" />
+                    <span>{customer.email}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

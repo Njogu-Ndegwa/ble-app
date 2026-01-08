@@ -1072,6 +1072,7 @@ export interface WorkflowSessionData {
     subscriptionId?: string;
     subscriptionType?: string;
     phone?: string;
+    email?: string;
     swapCount?: number;
     lastSwap?: string;
     energyRemaining?: number;

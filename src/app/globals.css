@@ -3111,12 +3111,21 @@ html.theme-transition *::after {
 }
 
 .state-customer-name {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.state-info-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .state-plan-row {
@@ -3127,6 +3136,29 @@ html.theme-transition *::after {
   color: var(--text-secondary);
   flex-wrap: wrap;
   min-width: 0;
+  margin-bottom: 2px;
+}
+
+.state-contact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.state-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.state-contact-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
 
 .state-plan-name {

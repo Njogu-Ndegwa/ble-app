@@ -374,19 +374,22 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               email: odooCustomer.email,
             });
             
-            // Update with enriched data - prefer Odoo data over MQTT data
+            // Update with enriched data - prefer Odoo data over GraphQL data
             enrichedCustomerData = {
               ...enrichedCustomerData,
               name: odooCustomer.name || enrichedCustomerData.name,
               phone: (typeof odooCustomer.phone === 'string' ? odooCustomer.phone : '') || 
                      (typeof odooCustomer.mobile === 'string' ? odooCustomer.mobile : '') || 
                      enrichedCustomerData.phone,
+              email: (typeof odooCustomer.email === 'string' ? odooCustomer.email : '') || 
+                     enrichedCustomerData.email,
             };
             
             console.info('[Attendant] Customer data enriched:', {
               id: enrichedCustomerData.id,
               name: enrichedCustomerData.name,
               phone: enrichedCustomerData.phone,
+              email: enrichedCustomerData.email,
               subscriptionId: enrichedCustomerData.subscriptionId,
             });
           }
