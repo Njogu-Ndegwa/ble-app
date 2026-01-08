@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CustomerData, getInitials } from './types';
-import { Phone, Mail, User } from 'lucide-react';
+import { Phone, Mail, Battery, Hash } from 'lucide-react';
 import { 
   Avatar, 
   Badge, 
@@ -66,57 +66,27 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
   
   // Check if there are any quotas to display
   const hasQuotasToDisplay = showEnergyQuota || showSwapQuota;
+  
+  // Check if we have contact info
+  const hasContactInfo = customer.phone || customer.email;
 
   return (
     <>
-      {/* Customer Identity Panel */}
+      {/* Customer Identity Card */}
       <div className="customer-state-panel visible">
-        <div className="customer-state-inner">
-          {/* Customer Identity */}
-          <div className="state-customer">
+        <div className="customer-card">
+          {/* Header Row: Avatar + Name + Badges */}
+          <div className="customer-card-header">
             <Avatar 
               initials={getInitials(customer.name)} 
               size="md" 
               variant="primary"
             />
-            <div className="state-customer-info">
-              {/* Customer Name */}
-              <div className="state-customer-name">
-                <User size={14} className="state-info-icon" />
-                <span>{customer.name || 'Customer'}</span>
-              </div>
-              {/* Subscription Info */}
-              <div className="state-plan-row">
-                <span className="state-subscription-id">{customer.subscriptionId}</span>
-                {customer.subscriptionType && (
-                  <>
-                    <span className="state-plan-separator">•</span>
-                    <span className="state-plan-name">{customer.subscriptionType}</span>
-                  </>
-                )}
-              </div>
-              {/* Contact Info */}
-              <div className="state-contact-row">
-                {customer.phone && (
-                  <div className="state-contact-item">
-                    <Phone size={12} className="state-info-icon" />
-                    <span>{customer.phone}</span>
-                  </div>
-                )}
-                {customer.email && (
-                  <div className="state-contact-item">
-                    <Mail size={12} className="state-info-icon" />
-                    <span>{customer.email}</span>
-                  </div>
-                )}
-              </div>
+            <div className="customer-card-identity">
+              <span className="customer-card-name">{customer.name || 'Customer'}</span>
+              <span className="customer-card-sub-id">{customer.subscriptionId}</span>
             </div>
-          </div>
-          
-          {/* Right side: States + Battery */}
-          <div className="state-right-section">
-            {/* State Badges */}
-            <div className="state-badges-vertical">
+            <div className="customer-card-badges">
               {customer.paymentState && (
                 <Badge variant={paymentConfig.variant} size="xs">
                   {paymentConfig.shortLabel}
@@ -128,14 +98,35 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
                 </Badge>
               )}
             </div>
-            
+          </div>
+
+          {/* Details Grid: Contact + Plan + Battery */}
+          <div className="customer-card-details">
+            {/* Contact Info */}
+            {customer.phone && (
+              <div className="customer-detail-item">
+                <Phone size={12} />
+                <span>{customer.phone}</span>
+              </div>
+            )}
+            {customer.email && (
+              <div className="customer-detail-item">
+                <Mail size={12} />
+                <span>{customer.email}</span>
+              </div>
+            )}
+            {/* Plan Type */}
+            {customer.subscriptionType && (
+              <div className="customer-detail-item">
+                <Hash size={12} />
+                <span>{customer.subscriptionType}</span>
+              </div>
+            )}
             {/* Current Battery */}
             {customer.currentBatteryId && (
-              <div className="state-battery">
-                <div className="state-battery-icon">
-                  <div className="state-battery-fill" style={{ '--level': '100%' } as React.CSSProperties}></div>
-                </div>
-                <span className="state-battery-id">{customer.currentBatteryId}</span>
+              <div className="customer-detail-item customer-detail-battery">
+                <Battery size={12} />
+                <span>{customer.currentBatteryId}</span>
               </div>
             )}
           </div>
@@ -144,7 +135,7 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
 
       {/* Quota Summary - only show if there are quotas to display */}
       {hasQuotasToDisplay && (
-        <div className="state-quotas visible" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+        <div className="state-quotas visible">
           {/* Energy Quota - hidden for infinite quota services */}
           {showEnergyQuota && (
             <QuotaBar
