@@ -80,7 +80,7 @@ export default function SessionsHistory({
     
     try {
       // Build search params based on workflow type
-      let searchParams: { subscription_code?: string; customer_id?: number } = {};
+      const searchParams: { subscription_code?: string; customer_id?: number } = {};
       
       if (searchValue) {
         if (workflowType === 'salesperson') {
