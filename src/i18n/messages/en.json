@@ -1004,6 +1004,7 @@
   "sales.emailOrPhonePlaceholder": "Email or Phone Number",
   "sales.emailOrPhoneRequired": "Enter either an email address or phone number",
   "sales.contactInfoHint": "Please provide at least one contact method: email or phone number (or both).",
+  "sales.orEnterPhoneNumber": "Or enter phone number",
   "sales.companyNameRequired": "Company name is required",
   "sales.company": "Company",
   "sales.companyHint": "Currently fixed - will be selectable in the future",

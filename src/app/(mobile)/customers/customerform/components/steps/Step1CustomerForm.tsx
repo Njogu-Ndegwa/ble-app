@@ -79,7 +79,7 @@ export default function Step1CustomerForm({ formData, onFormChange, errors = {} 
         {/* "or" divider between email and phone */}
         <div className="flex items-center gap-3 my-2">
           <div className="flex-1 border-t border-gray-700"></div>
-          <span className="text-xs text-gray-500 uppercase">{t('common.or') || 'or'}</span>
+          <span className="text-xs text-gray-500">{t('sales.orEnterPhoneNumber') || 'Or enter phone number'}</span>
           <div className="flex-1 border-t border-gray-700"></div>
         </div>
         

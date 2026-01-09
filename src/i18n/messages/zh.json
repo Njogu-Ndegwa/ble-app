@@ -907,6 +907,7 @@
   "sales.emailOrPhonePlaceholder": "电子邮件或电话号码",
   "sales.emailOrPhoneRequired": "请输入电子邮件地址或电话号码",
   "sales.contactInfoHint": "请提供至少一种联系方式：电子邮件或电话号码（或两者都提供）。",
+  "sales.orEnterPhoneNumber": "或输入电话号码",
   "sales.companyNameRequired": "公司名称是必填项",
   "sales.company": "公司",
   "sales.companyHint": "当前固定 - 将来可选择",
