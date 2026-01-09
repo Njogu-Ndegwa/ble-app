@@ -908,7 +908,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     // Email or Phone validation - at least one is required
     const hasEmail = formData.email.trim().length > 0;
-    const hasPhone = formData.phone.trim().length > 0;
+    
+    // Phone field may contain country dial code (e.g., "254" for Kenya) even when user hasn't entered anything
+    // A valid phone number with dial code should have at least 7+ digits (dial code + local number)
+    // We check for 7+ digits to distinguish between "just dial code" and "actual phone number"
+    const phoneDigits = formData.phone.replace(/\D/g, ''); // Extract only digits
+    const hasPhone = phoneDigits.length >= 7; // At least 7 digits means user entered something beyond dial code
     
     if (!hasEmail && !hasPhone) {
       // Show error on both fields so it displays in the combined field
@@ -919,8 +924,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
         errors.email = 'Please enter a valid email address';
       }
-      // Validate phone format if provided
-      if (hasPhone && !/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone.trim())) {
+      // Validate phone format if provided - must have 10+ digits for a valid international number
+      if (hasPhone && phoneDigits.length < 10) {
         errors.phone = 'Please enter a valid phone number';
       }
     }
@@ -953,9 +958,13 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         console.warn('No employee token found - customer may not be associated with correct company');
       }
       
-      // Format phone number - ensure it starts with country code (only if provided)
+      // Format phone number - ensure it starts with country code
+      // Only process if user actually entered a phone number (more than just dial code)
       let phoneNumber = '';
-      if (formData.phone.trim()) {
+      const phoneDigits = formData.phone.replace(/\D/g, ''); // Extract only digits
+      const hasValidPhone = phoneDigits.length >= 7; // At least 7 digits = dial code + local number
+      
+      if (hasValidPhone) {
         phoneNumber = formData.phone.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
         if (phoneNumber.startsWith('0')) {
           phoneNumber = '254' + phoneNumber.slice(1);
