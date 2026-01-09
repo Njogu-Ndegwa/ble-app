@@ -1760,6 +1760,63 @@ export async function updateWorkflowSessionWithProducts(
 }
 
 // ============================================================================
+// Change Password API
+// ============================================================================
+
+/**
+ * Input for changing password
+ */
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+/**
+ * Response from change password endpoint
+ */
+export interface ChangePasswordResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Change customer password
+ * 
+ * @param payload - Password change data (current_password, new_password, confirm_password)
+ * @param authToken - Customer authentication token (Bearer token)
+ */
+export async function changePassword(
+  payload: ChangePasswordPayload,
+  authToken?: string
+): Promise<ChangePasswordResponse> {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  const response = await fetch(`${ODOO_BASE_URL}/api/auth/change-password`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || data.success === false) {
+    throw new Error(data.message || data.error || 'Failed to change password');
+  }
+
+  return data as ChangePasswordResponse;
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

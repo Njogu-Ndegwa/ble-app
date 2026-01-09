@@ -6612,8 +6612,10 @@ html.theme-transition *::after {
 
 .rider-bike-detail {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 .rider-bike-detail-label {
@@ -6628,6 +6630,7 @@ html.theme-transition *::after {
   font-weight: 500;
   color: var(--text-primary);
   font-family: 'DM Mono', monospace;
+  text-align: right;
 }
 
 /* Account Balance Card */

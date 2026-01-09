@@ -7,6 +7,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
+import { absApolloClient } from '@/lib/apollo-client';
+import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
 import {
   RiderNav,
   RiderHome,
@@ -16,6 +18,7 @@ import {
   QRCodeModal,
   TopUpModal,
 } from './components';
+import AccountDetailsModal from './components/AccountDetailsModal';
 import type { ActivityItem, Station } from './components';
 import Login from '../serviceplan1/login';
 
@@ -32,8 +35,7 @@ interface Customer {
 
 interface BikeInfo {
   model: string;
-  vehicleId: string;
-  lastSwap: string;
+  vehicleId: string | null;
   totalSwaps: number;
   paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | 'active' | 'inactive' | string;
   currentBatteryId?: string;
@@ -91,6 +93,7 @@ const RiderApp: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'stations' | 'activity' | 'profile'>('home');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  const [showAccountDetailsModal, setShowAccountDetailsModal] = useState(false);
   
   // Data state
   const [balance, setBalance] = useState(0);
@@ -100,9 +103,8 @@ const RiderApp: React.FC = () => {
   const [isLoadingStations, setIsLoadingStations] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
     model: 'E-Trike 3X',
-    vehicleId: 'VEH-2024-8847',
-    lastSwap: '2h ago',
-    totalSwaps: 47,
+    vehicleId: null,
+    totalSwaps: 0,
     paymentState: 'PAID',
     currentBatteryId: undefined,
   });
@@ -154,6 +156,108 @@ const RiderApp: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  // Fetch customer identification data to get vehicle ID and total swaps
+  const fetchCustomerIdentificationData = async (planId: string) => {
+    try {
+      // Generate unique correlation ID
+      const correlationId = `rider-app-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
+      const input: IdentifyCustomerInput = {
+        plan_id: planId,
+        correlation_id: correlationId,
+        qr_code_data: `RIDER_APP_${planId}`, // Placeholder value for rider app
+        attendant_station: 'STATION_001', // Default station
+      };
+
+      console.info('[RIDER] Fetching customer identification data for plan:', planId);
+
+      const result = await absApolloClient.mutate<{ identifyCustomer: any }>({
+        mutation: IDENTIFY_CUSTOMER,
+        variables: { input },
+      });
+
+      if (result.errors && result.errors.length > 0) {
+        console.error('[RIDER] GraphQL errors:', result.errors);
+        return;
+      }
+
+      if (!result.data?.identifyCustomer) {
+        console.warn('[RIDER] No response from identifyCustomer mutation');
+        return;
+      }
+
+      const response = result.data.identifyCustomer;
+      
+      if (!response.customer_identified) {
+        console.warn('[RIDER] Customer not identified');
+        return;
+      }
+
+      // Parse metadata
+      const metadata = parseIdentifyCustomerMetadata(response.metadata);
+      
+      if (!metadata || !metadata.service_plan_data) {
+        console.warn('[RIDER] Invalid metadata or missing service_plan_data');
+        return;
+      }
+
+      const { service_plan_data } = metadata;
+      const { serviceStates, paymentState } = service_plan_data;
+
+      if (!serviceStates || !Array.isArray(serviceStates)) {
+        console.warn('[RIDER] serviceStates is missing or not an array');
+        return;
+      }
+
+      // Extract vehicle ID from service-asset-assignment-access-001
+      const assetAssignmentService = serviceStates.find(
+        (service: any) => service.service_id === 'service-asset-assignment-access-001'
+      );
+      const vehicleId = assetAssignmentService?.current_asset || null;
+
+      // Extract total swaps from service-swap-count-togo-001
+      // Fallback: search for any service with "swap-count" in the service_id
+      let swapCountService = serviceStates.find(
+        (service: any) => service.service_id === 'service-swap-count-togo-001'
+      );
+      
+      if (!swapCountService) {
+        // Fallback: find any service with "swap-count" in the ID
+        swapCountService = serviceStates.find(
+          (service: any) => service.service_id?.toLowerCase().includes('swap-count')
+        );
+      }
+      
+      const totalSwaps = swapCountService?.used || 0;
+
+      console.info('[RIDER] Extracted data:', { 
+        vehicleId, 
+        totalSwaps, 
+        paymentState,
+        assetAssignmentServiceFound: !!assetAssignmentService,
+        assetAssignmentService: assetAssignmentService,
+        swapCountServiceFound: !!swapCountService,
+        swapCountServiceId: swapCountService?.service_id,
+        allServiceStates: serviceStates.map((s: any) => ({ service_id: s.service_id, current_asset: s.current_asset }))
+      });
+
+      // Update bike state with real data
+      setBike((prev) => {
+        const updated = {
+          ...prev,
+          vehicleId,
+          totalSwaps: Math.floor(totalSwaps), // Ensure it's an integer
+          paymentState: paymentState || prev.paymentState,
+        };
+        console.info('[RIDER] Updating bike state:', updated);
+        return updated;
+      });
+
+    } catch (error) {
+      console.error('[RIDER] Error fetching customer identification data:', error);
     }
   };
 
@@ -238,7 +342,7 @@ const RiderApp: React.FC = () => {
             });
           }
 
-          // Map serviceActions to "swap" type
+          // Map serviceActions to "swap" type (all service actions are swaps)
           if (serviceActions && Array.isArray(serviceActions)) {
             serviceActions.forEach((action: any) => {
               const date = new Date(action.createdAt);
@@ -259,13 +363,13 @@ const RiderApp: React.FC = () => {
                 title = t('rider.electricityUsage') || 'Electricity Usage';
                 subtitle = `${action.serviceAmount || 0} kWh`;
               } else {
-                title = t('common.service') || 'Service';
+                title = t('attendant.batterySwap') || 'Battery Swap';
                 subtitle = action.serviceType || '';
               }
 
               mappedActivities.push({
                 id: action.serviceActionId || `service-${Date.now()}`,
-                type: 'swap',
+                type: 'swap', // All serviceActions are swaps
                 title: title,
                 subtitle: subtitle,
                 amount: Math.abs(action.serviceAmount || 0),
@@ -339,6 +443,9 @@ const RiderApp: React.FC = () => {
           if (activeSubscription.subscription_code) {
             console.log('Fetching activity data for subscription:', activeSubscription.subscription_code);
             await fetchActivityData(activeSubscription.subscription_code);
+            
+            // Fetch customer identification data to get vehicle ID and total swaps
+            await fetchCustomerIdentificationData(activeSubscription.subscription_code);
           } else {
             console.warn('No subscription_code found in subscription data');
           }
@@ -1084,16 +1191,16 @@ const RiderApp: React.FC = () => {
                 phone: customer?.phone || '',
                 balance: balance,
                 currency: currency,
-                swapsThisMonth: activities.filter(a => a.type === 'swap').length,
+                swapsThisMonth: bike.totalSwaps, // Use real data from GraphQL API (same as home page)
                 planName: subscription?.product_name || '',
                 planValidity: subscription?.next_cycle_date 
                   ? new Date(subscription.next_cycle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   : '',
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'PAID',
-                vehicleInfo: 'E-Trike • REG-2024-KE',
+                vehicleInfo: bike.vehicleId || (t('rider.noVehicleAssigned') || 'No vehicle assigned'),
                 paymentMethod: t('rider.mtnMobileMoney'),
               }}
-              onAccountDetails={() => toast.success(t('rider.accountDetailsSoon') || 'Account details coming soon')}
+              onAccountDetails={() => setShowAccountDetailsModal(true)}
               onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
               onPlanDetails={() => toast.success(t('rider.planDetailsSoon') || 'Plan details coming soon')}
               onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
@@ -1124,6 +1231,13 @@ const RiderApp: React.FC = () => {
         onClose={() => setShowTopUpModal(false)}
         currency={currency}
         onConfirmTopUp={handleConfirmTopUp}
+      />
+
+      {/* Account Details Modal */}
+      <AccountDetailsModal
+        isOpen={showAccountDetailsModal}
+        onClose={() => setShowAccountDetailsModal(false)}
+        onPasswordChanged={handleLogout}
       />
     </>
   );

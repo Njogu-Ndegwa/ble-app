@@ -15,8 +15,7 @@ interface Station {
 
 interface BikeInfo {
   model: string;
-  vehicleId: string;
-  lastSwap: string;
+  vehicleId: string | null;
   totalSwaps: number;
   paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
   currentBatteryId?: string;
@@ -96,7 +95,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <div className="rider-bike-header">
           <div>
             <div className="rider-bike-label">{t('rider.myBike') || 'My Bike'}</div>
-            <div className="rider-bike-model">{bike.model}</div>
+            {/* <div className="rider-bike-model">{bike.model}</div> */}
           </div>
           <span className={`rider-bike-status ${getPaymentStateClass(bike.paymentState)}`}>
             {getPaymentStateLabel(bike.paymentState)}
@@ -125,11 +124,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           <div className="rider-bike-info">
             <div className="rider-bike-detail">
               <span className="rider-bike-detail-label">{t('rider.vehicleId') || 'Vehicle ID'}</span>
-              <span className="rider-bike-detail-value">{bike.vehicleId}</span>
-            </div>
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">{t('rider.lastSwap') || 'Last Swap'}</span>
-              <span className="rider-bike-detail-value">{bike.lastSwap}</span>
+              <span className="rider-bike-detail-value">{bike.vehicleId || 'N/A'}</span>
             </div>
             <div className="rider-bike-detail">
               <span className="rider-bike-detail-label">{t('rider.totalSwaps') || 'Total Swaps'}</span>
@@ -140,7 +135,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       </div>
 
       {/* Account Balance Card */}
-      <div className="account-balance-card">
+      {/* <div className="account-balance-card">
         <div className="account-balance-info">
           <div className="account-balance-icon">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -156,7 +151,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <button className="account-balance-action" onClick={onTopUp}>
           {t('rider.topUp') || 'Top Up'}
         </button>
-      </div>
+      </div> */}
 
       {/* Quick Actions */}
       <div className="quick-actions">

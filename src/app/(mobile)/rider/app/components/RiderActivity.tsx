@@ -21,14 +21,13 @@ interface RiderActivityProps {
 
 const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
   const { t } = useI18n();
-  const [filter, setFilter] = useState<'all' | 'swaps' | 'payments' | 'topups'>('all');
+  const [filter, setFilter] = useState<'all' | 'swaps' | 'payments'>('all');
 
   const filteredActivities = useMemo(() => {
     if (filter === 'all') return activities;
     const typeMap: Record<string, string> = {
       'swaps': 'swap',
       'payments': 'payment',
-      'topups': 'topup',
     };
     return activities.filter(a => a.type === typeMap[filter]);
   }, [activities, filter]);
@@ -112,12 +111,6 @@ const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
           onClick={() => setFilter('payments')}
         >
           {t('rider.payments') || 'Payments'}
-        </button>
-        <button 
-          className={`activity-filter ${filter === 'topups' ? 'active' : ''}`}
-          onClick={() => setFilter('topups')}
-        >
-          {t('rider.topUps') || 'Top-ups'}
         </button>
       </div>
 
