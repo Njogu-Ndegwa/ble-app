@@ -994,6 +994,8 @@
   "sales.emailOrPhone": "Email ou numéro de téléphone",
   "sales.emailOrPhonePlaceholder": "Email ou numéro de téléphone",
   "sales.emailOrPhoneRequired": "Entrez soit une adresse e-mail soit un numéro de téléphone",
+  "sales.contactInfoHint": "Veuillez fournir au moins une méthode de contact : e-mail ou numéro de téléphone (ou les deux).",
+  "sales.companyNameRequired": "Le nom de l'entreprise est requis",
   "sales.company": "Entreprise",
   "sales.companyHint": "Actuellement fixe - sera sélectionnable à l'avenir",
   "sales.nationalId": "Numéro d'identité nationale",
