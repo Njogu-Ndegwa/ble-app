@@ -142,16 +142,25 @@ const CustomerAcquisitionForm = () => {
     setSubmitStatus(null);
 
     try {
-      const apiData = {
+      // Build API data, only including email/phone if they have values
+      const apiData: Record<string, any> = {
         name: formData.customerType === 'individual' ? formData.name : formData.companyName,
-        email: formData.email,
-        phone: formData.phone,
-        mobile: formData.phone,
         street: formData.street,
         city: formData.city,
         zip: formData.zip,
         is_company: formData.customerType === 'company',
       };
+
+      // Only include email if provided
+      if (formData.email && formData.email.trim()) {
+        apiData.email = formData.email.trim();
+      }
+
+      // Only include phone/mobile if provided
+      if (formData.phone && formData.phone.trim()) {
+        apiData.phone = formData.phone.trim();
+        apiData.mobile = formData.phone.trim();
+      }
 
       console.log('Submitting to API:', {
         url: 'https://evans-musamia-odoorestapi.odoo.com/api/contacts',
