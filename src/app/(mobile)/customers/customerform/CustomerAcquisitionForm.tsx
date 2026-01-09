@@ -107,12 +107,21 @@ const CustomerAcquisitionForm = () => {
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear the field's own error
     if (errors[field as keyof FormErrors]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
-    // Clear the emailOrPhone error when either field is updated
-    if ((field === 'email' || field === 'phone') && errors.emailOrPhone) {
-      setErrors(prev => ({ ...prev, emailOrPhone: undefined }));
+    
+    // When email or phone changes, clear ALL contact-related errors
+    // This ensures that filling one field clears errors from the other
+    if (field === 'email' || field === 'phone') {
+      setErrors(prev => ({ 
+        ...prev, 
+        email: undefined,
+        phone: undefined,
+        emailOrPhone: undefined 
+      }));
     }
   };
 

@@ -1478,6 +1478,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
     }
+    // When email or phone changes, clear BOTH contact-related errors
+    // This ensures filling one field clears errors from the other
+    if (field === 'email' || field === 'phone') {
+      setFormErrors(prev => ({ 
+        ...prev, 
+        email: undefined, 
+        phone: undefined 
+      }));
+    }
   }, [formErrors]);
 
   // Handle product selection (physical products like bikes) - kept for backward compatibility
