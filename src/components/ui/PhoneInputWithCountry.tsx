@@ -375,10 +375,9 @@ export default function PhoneInputWithCountry({
       </div>
       
       {error && (
-        <span style={{ 
+        <span className="text-caption" style={{ 
           display: 'block',
           marginTop: 'var(--space-1, 4px)',
-          fontSize: '11px',
           color: 'var(--color-error, #ef4444)',
         }}>
           {error}
@@ -586,7 +585,7 @@ export default function PhoneInputWithCountry({
         /* Mobile optimizations */
         @media (max-width: 640px) {
           .phone-input-row {
-            height: 44px;
+            height: 40px; /* Match FormInput height */
           }
 
           .country-selector-btn {
