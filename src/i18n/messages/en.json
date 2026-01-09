@@ -1341,6 +1341,7 @@
   
   "sessions.historyTitle": "Past Sessions",
   "sessions.searchPlaceholder": "Search by subscription ID...",
+  "sessions.searchByCustomerId": "Search by customer ID...",
   "sessions.loading": "Loading sessions...",
   "sessions.loadError": "Failed to load sessions",
   "sessions.authRequired": "Please log in to view sessions",

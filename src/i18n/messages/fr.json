@@ -1332,6 +1332,7 @@
   
   "sessions.historyTitle": "Sessions Passées",
   "sessions.searchPlaceholder": "Rechercher par ID d'abonnement...",
+  "sessions.searchByCustomerId": "Rechercher par ID client...",
   "sessions.loading": "Chargement des sessions...",
   "sessions.loadError": "Échec du chargement des sessions",
   "sessions.authRequired": "Veuillez vous connecter pour voir les sessions",

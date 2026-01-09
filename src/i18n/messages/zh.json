@@ -1244,6 +1244,7 @@
   
   "sessions.historyTitle": "历史会话",
   "sessions.searchPlaceholder": "按订阅ID搜索...",
+  "sessions.searchByCustomerId": "按客户ID搜索...",
   "sessions.loading": "加载会话中...",
   "sessions.loadError": "加载会话失败",
   "sessions.authRequired": "请登录以查看会话",

@@ -67,7 +67,9 @@ export default function SessionsHistory({
   const ITEMS_PER_PAGE = 10;
   
   // Fetch orders from API
-  const fetchOrders = useCallback(async (page: number, subscriptionCode?: string) => {
+  // For attendant workflow: search by subscription_code
+  // For salesperson workflow: search by customer_id (numeric)
+  const fetchOrders = useCallback(async (page: number, searchValue?: string) => {
     if (!authToken) {
       setError(t('sessions.authRequired') || 'Please log in to view sessions');
       return;
@@ -77,11 +79,27 @@ export default function SessionsHistory({
     setError(null);
     
     try {
+      // Build search params based on workflow type
+      let searchParams: { subscription_code?: string; customer_id?: number } = {};
+      
+      if (searchValue) {
+        if (workflowType === 'salesperson') {
+          // For salesperson, search by customer_id (numeric)
+          const customerId = parseInt(searchValue, 10);
+          if (!isNaN(customerId)) {
+            searchParams.customer_id = customerId;
+          }
+        } else {
+          // For attendant, search by subscription_code
+          searchParams.subscription_code = searchValue;
+        }
+      }
+      
       const response = await getOrdersList({
         page,
         limit: ITEMS_PER_PAGE,
         mine: true,
-        ...(subscriptionCode ? { subscription_code: subscriptionCode } : {}),
+        ...searchParams,
       }, authToken);
       
       setOrders(response.orders || []);
@@ -93,7 +111,7 @@ export default function SessionsHistory({
       setIsLoading(false);
       setIsSearching(false);
     }
-  }, [authToken, t]);
+  }, [authToken, t, workflowType]);
   
   // Fetch on mount and when visible
   useEffect(() => {
@@ -255,7 +273,11 @@ export default function SessionsHistory({
             <input
               type="text"
               className="sessions-search-input"
-              placeholder={t('sessions.searchPlaceholder') || 'Search by subscription ID...'}
+              placeholder={
+                workflowType === 'salesperson'
+                  ? (t('sessions.searchByCustomerId') || 'Search by customer ID...')
+                  : (t('sessions.searchPlaceholder') || 'Search by subscription ID...')
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -323,7 +345,7 @@ export default function SessionsHistory({
                                        order.session?.session_data?.manualSubscriptionId ||
                                        order.session?.session_data?.customerData?.subscriptionId;
                 const currentStep = order.session?.session_data?.currentStep || 1;
-                const maxStep = workflowType === 'attendant' ? 6 : 7;
+                const maxStep = workflowType === 'attendant' ? 6 : 8;
                 const isReadOnly = !statusInfo.canEdit;
                 // Consider clickable if it has a session (with session_data for workflow restoration)
                 // or if it's viewable (statusInfo.canView) even without full session data
