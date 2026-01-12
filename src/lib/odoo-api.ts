@@ -1071,6 +1071,7 @@ export interface WorkflowSessionData {
     subscriptionId?: string;
     subscriptionType?: string;
     phone?: string;
+    email?: string;
     swapCount?: number;
     lastSwap?: string;
     energyRemaining?: number;
@@ -1791,6 +1792,8 @@ export async function changePassword(
   payload: ChangePasswordPayload,
   authToken?: string
 ): Promise<ChangePasswordResponse> {
+  const url = `${ODOO_BASE_URL}/api/auth/change-password`;
+  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
@@ -1801,7 +1804,7 @@ export async function changePassword(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
   
-  const response = await fetch(`${ODOO_BASE_URL}/api/auth/change-password`, {
+  const response = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
@@ -1814,6 +1817,325 @@ export async function changePassword(
   }
 
   return data as ChangePasswordResponse;
+}
+
+// ============================================================================
+// Orders/Sessions List API
+// ============================================================================
+
+/**
+ * Session data nested within an order
+ */
+export interface OrderSession {
+  id: number;
+  name: string;
+  session_code: string | null;
+  state: 'active' | 'paused' | 'completed' | 'cancelled';
+  partner_id: number;
+  partner_name: string;
+  sales_rep_id: number;
+  sales_rep_name: string;
+  channel_partner_id: number | null;
+  channel_partner_name: string | null;
+  outlet_id: number | null;
+  outlet_name: string | null;
+  start_date: string;
+  pause_date: string | null;
+  resume_date: string | null;
+  completed_date: string | null;
+  cancelled_date: string | null;
+  session_data: WorkflowSessionData | null;
+  payment_attempt_count: number;
+}
+
+/**
+ * Order data from the orders list API
+ */
+export interface OrderListItem {
+  id: number;
+  name: string;
+  state: 'draft' | 'sent' | 'sale' | 'done' | 'cancel';
+  date_order: string;
+  amount_total: number;
+  amount_untaxed: number;
+  expected_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  currency: string;
+  client_order_ref: string;
+  invoice_status: string;
+  partner_id: number;
+  partner_name: string;
+  channel_partner_id: number | null;
+  channel_partner_name: string | null;
+  outlet_id: number | null;
+  outlet_name: string | null;
+  sales_rep_id: number;
+  sales_rep_name: string;
+  line_count: number;
+  session: OrderSession | null;
+}
+
+/**
+ * Pagination info from orders API
+ */
+export interface OrdersPagination {
+  current_page: number;
+  per_page: number;
+  total_records: number;
+  total_pages: number;
+  has_next_page: boolean;
+  has_previous_page: boolean;
+}
+
+/**
+ * Response from the orders list API
+ */
+export interface OrdersListResponse {
+  success: boolean;
+  orders: OrderListItem[];
+  pagination: OrdersPagination;
+}
+
+/**
+ * Parameters for fetching orders/sessions
+ */
+export interface GetOrdersParams {
+  /** Page number (1-indexed) */
+  page?: number;
+  /** Items per page */
+  limit?: number;
+  /** Filter by order state */
+  state?: 'draft' | 'sent' | 'sale' | 'done' | 'cancel';
+  /** Get only orders for the current user */
+  mine?: boolean;
+  /** Filter by subscription code */
+  subscription_code?: string;
+  /** Filter by customer ID */
+  customer_id?: number;
+  /** Get only the latest order */
+  latest?: boolean;
+  /** Get the most recently updated order */
+  latest_updated?: boolean;
+}
+
+/**
+ * Fetch orders/sessions list with pagination and filtering
+ * 
+ * This endpoint returns orders with their associated sessions,
+ * which can be used to display past sessions and allow resumption.
+ * 
+ * @param params - Query parameters for filtering and pagination
+ * @param authToken - Employee/salesperson token for authorization (required)
+ */
+export async function getOrdersList(
+  params: GetOrdersParams = {},
+  authToken: string
+): Promise<OrdersListResponse> {
+  // Build query string
+  const queryParams = new URLSearchParams();
+  
+  if (params.page !== undefined) {
+    queryParams.append('page', String(params.page));
+  }
+  if (params.limit !== undefined) {
+    queryParams.append('limit', String(params.limit));
+  }
+  if (params.state) {
+    queryParams.append('state', params.state);
+  }
+  if (params.mine) {
+    queryParams.append('mine', 'true');
+  }
+  if (params.subscription_code) {
+    queryParams.append('subscription_code', params.subscription_code);
+  }
+  if (params.customer_id !== undefined) {
+    queryParams.append('customer_id', String(params.customer_id));
+  }
+  if (params.latest) {
+    queryParams.append('latest', 'true');
+  }
+  if (params.latest_updated) {
+    queryParams.append('latest_updated', 'true');
+  }
+  
+  const queryString = queryParams.toString();
+  const url = `${ODOO_BASE_URL}/api/orders${queryString ? `?${queryString}` : ''}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+    'Authorization': `Bearer ${authToken}`,
+  };
+  
+  console.info('=== GET ORDERS LIST ===');
+  console.info('URL:', url);
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== GET ORDERS LIST - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Orders count:', data.orders?.length || 0);
+    
+    if (!response.ok) {
+      console.error('Get orders error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as OrdersListResponse;
+  } catch (error: any) {
+    console.error('=== GET ORDERS LIST - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Customer Dashboard API
+// ============================================================================
+
+/**
+ * Customer dashboard response from /api/customers/{id}/dashboard
+ */
+export interface CustomerDashboardResponse {
+  success: boolean;
+  customer: {
+    id: number;
+    name: string;
+    email: string | false;
+    phone: string | false;
+    mobile: string | false;
+    is_company: boolean;
+    customer_rank: number;
+    supplier_rank: number;
+    active: boolean;
+    street: string | false;
+    city: string | false;
+    zip: string | false;
+    country_id: [number, string] | false;
+    company_id: [number, string] | false;
+    parent_id: [number, string] | false;
+    create_date: string;
+    write_date: string;
+  };
+  summary: {
+    total_paid: number;
+    total_pending: number;
+    active_subscriptions: number;
+    pending_invoices_count: number;
+  };
+  subscribed_products: Array<{
+    product_id: number;
+    product_name: string;
+    product_code: string;
+    description: string;
+    subscription_id: number;
+    subscription_code: string;
+    subscription_name: string;
+    subscription_start: string;
+    last_payment: string;
+    next_payment_date: string;
+    total_paid: number;
+    amount_paid: number;
+    is_active: boolean;
+    billing_frequency: string;
+    subscription_state: string;
+    price_unit: number;
+    currency: string;
+    invoices: Array<{
+      id: number;
+      name: string;
+      amount_total: number;
+      amount_residual: number;
+      state: string;
+      invoice_date: string;
+      invoice_date_due: string;
+    }>;
+  }>;
+  payment_history: Array<{
+    id: number;
+    name: string;
+    amount: number;
+    date: string;
+    state: string;
+    payment_method: string;
+  }>;
+  pending_invoices: Array<{
+    id: number;
+    name: string;
+    amount_total: number;
+    amount_residual: number;
+    invoice_date_due: string;
+    state: string;
+  }>;
+  next_payment: {
+    next_due_date: string | null;
+    amount_due: number;
+    is_overdue: boolean;
+    days_until_due: number | null;
+    invoice_number: string | null;
+    message: string;
+  };
+  last_updated: string;
+}
+
+/**
+ * Get customer dashboard data including profile, subscriptions, and payment info
+ * This enriches customer data after identification with name, phone, etc.
+ * 
+ * @param customerId - The customer/partner ID from Odoo
+ * @param authToken - Optional authorization token
+ */
+export async function getCustomerDashboard(
+  customerId: number,
+  authToken?: string
+): Promise<CustomerDashboardResponse> {
+  const url = `${ODOO_BASE_URL}/api/customers/${customerId}/dashboard`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  
+  // Add Authorization header if token is provided
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  console.info('=== GET CUSTOMER DASHBOARD ===');
+  console.info('URL:', url);
+  console.info('Customer ID:', customerId);
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== GET CUSTOMER DASHBOARD - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Customer Name:', data.customer?.name);
+    
+    if (!response.ok) {
+      console.error('Get customer dashboard error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as CustomerDashboardResponse;
+  } catch (error: any) {
+    console.error('=== GET CUSTOMER DASHBOARD - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
 }
 
 // ============================================================================

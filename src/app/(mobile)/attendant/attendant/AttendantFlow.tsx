@@ -3,10 +3,10 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe } from 'lucide-react';
+import { Globe, History, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantRoleUser, clearAttendantRoleLogin } from '@/lib/attendant-auth';
+import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } from '@/lib/attendant-auth';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
@@ -30,7 +30,8 @@ import {
   PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
-import { BleProgressModal, SessionResumePrompt } from '@/components/shared';
+import { BleProgressModal, SessionResumePrompt, SessionsHistory } from '@/components/shared';
+import { getCustomerDashboard, getOrdersList, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
 import { 
@@ -166,6 +167,12 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   
+  // Sessions history modal state
+  const [showSessionsHistory, setShowSessionsHistory] = useState(false);
+  
+  // Read-only mode for viewing completed sessions
+  const [isReadOnlySession, setIsReadOnlySession] = useState(false);
+  
   // Pending payment state restoration (stored temporarily until restorePaymentState is available)
   const [pendingPaymentRestore, setPendingPaymentRestore] = useState<{
     inputMode: 'scan' | 'manual';
@@ -265,6 +272,56 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     toast(t('session.startNew') || 'Starting a new swap');
   }, [discardPendingSession, t]);
   
+  // Handle selecting a session from history
+  const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
+    if (!order.session?.session_data) {
+      toast.error(t('sessions.noSessionData') || 'Session data not available');
+      return;
+    }
+    
+    // Close the history modal
+    setShowSessionsHistory(false);
+    
+    // Set read-only mode based on whether the session can be edited
+    setIsReadOnlySession(isReadOnly);
+    
+    // Extract state from session data and restore
+    const sessionData = order.session.session_data;
+    const restoredState = extractAttendantStateFromSession(sessionData);
+    
+    // Restore all state from the session
+    setCurrentStep(restoredState.currentStep as AttendantStep);
+    // For read-only sessions, set maxStepReached to 6 to allow viewing all steps
+    setMaxStepReached(isReadOnly ? 6 : restoredState.maxStepReached as AttendantStep);
+    setInputMode(restoredState.inputMode);
+    setManualSubscriptionId(restoredState.manualSubscriptionId);
+    setDynamicPlanId(restoredState.dynamicPlanId);
+    setCustomerData(restoredState.customerData);
+    setCustomerType(restoredState.customerType);
+    setServiceStates(restoredState.serviceStates);
+    setSwapData(restoredState.swapData);
+    setFlowError(restoredState.flowError);
+    
+    // Store payment state for restoration (only for editable sessions)
+    if (!isReadOnly && restoredState.paymentState && (restoredState.paymentState.amountPaid > 0 || restoredState.paymentState.amountRemaining > 0 || restoredState.paymentState.requestCreated)) {
+      setPendingPaymentRestore({
+        inputMode: restoredState.paymentState.inputMode,
+        manualPaymentId: restoredState.paymentState.manualPaymentId,
+        requestCreated: restoredState.paymentState.requestCreated,
+        requestOrderId: restoredState.paymentState.requestOrderId,
+        expectedAmount: restoredState.paymentState.expectedAmount,
+        amountRemaining: restoredState.paymentState.amountRemaining,
+        amountPaid: restoredState.paymentState.amountPaid,
+      });
+    }
+    
+    if (isReadOnly) {
+      toast(t('sessions.viewingReadOnly') || 'Viewing session (read-only)', { icon: '👁️' });
+    } else {
+      toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+    }
+  }, [t]);
+  
   // NOTE: saveSessionData helper is defined after usePaymentCollection hook 
   // because it needs access to paymentInputMode, manualPaymentId, etc.
   
@@ -275,10 +332,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   // Ref to track the scan type for identification (to clear it on complete)
   const identificationScanTypeRef = useRef<'customer' | null>(null);
   
+  // Customer identification via GraphQL (MQTT params deprecated but kept for compatibility)
   const { identifyCustomer, cancelIdentification } = useCustomerIdentification({
-    bridge: bridge as any,
-    isBridgeReady,
-    isMqttConnected,
     attendantInfo,
     onSuccess: async (result: CustomerIdentificationResult) => {
       console.info('Customer identification successful:', result);
@@ -298,8 +353,90 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           '- energy service usageUnitPrice:', energyService?.usageUnitPrice);
       }
       
-      // Update all state from the result
-      setCustomerData(result.customer as CustomerData);
+      // Start with customer data from identification
+      let enrichedCustomerData: CustomerData = result.customer as CustomerData;
+      
+      // Try to enrich customer data from Odoo dashboard (name, phone, etc.)
+      // We need the Odoo partner_id to call the dashboard endpoint
+      // Strategy: Look up partner_id via orders API using subscription_code
+      const customerSubscriptionCode = result.customer.subscriptionId;
+      const authToken = getAttendantRoleToken();
+      
+      if (customerSubscriptionCode && authToken) {
+        try {
+          console.info('[Attendant] Looking up partner_id via orders API, subscription_code:', customerSubscriptionCode);
+          
+          // First, try to get partner_id from orders with this subscription code
+          const ordersResponse = await getOrdersList({
+            subscription_code: customerSubscriptionCode,
+            limit: 1,
+          }, authToken);
+          
+          let partnerId: number | null = null;
+          
+          // Check if we got orders with partner_id
+          if (ordersResponse.orders && ordersResponse.orders.length > 0) {
+            partnerId = ordersResponse.orders[0].partner_id;
+            console.info('[Attendant] Found partner_id from orders:', partnerId);
+          }
+          
+          // If no partner_id from orders, try parsing customer.id directly (might already be partner_id)
+          if (!partnerId) {
+            // customer.id might have format "customer-303025", strip the prefix
+            const rawCustomerId = result.customer.id.replace(/^customer-/i, '');
+            const parsedId = parseInt(rawCustomerId, 10);
+            if (!isNaN(parsedId) && parsedId > 0) {
+              partnerId = parsedId;
+              console.info('[Attendant] Using customer.id as partner_id:', partnerId, '(raw:', result.customer.id, ')');
+            }
+          }
+          
+          // Fetch customer dashboard if we have a partner_id
+          if (partnerId) {
+            console.info('[Attendant] Fetching customer dashboard for enrichment, partner_id:', partnerId);
+            const dashboard = await getCustomerDashboard(partnerId, authToken);
+            
+            if (dashboard.success && dashboard.customer) {
+              // Enrich customer data with Odoo info
+              const odooCustomer = dashboard.customer;
+              console.info('[Attendant] Customer dashboard fetched:', {
+                name: odooCustomer.name,
+                phone: odooCustomer.phone,
+                email: odooCustomer.email,
+              });
+              
+              // Update with enriched data - prefer Odoo data over GraphQL data
+              enrichedCustomerData = {
+                ...enrichedCustomerData,
+                name: odooCustomer.name || enrichedCustomerData.name,
+                phone: (typeof odooCustomer.phone === 'string' ? odooCustomer.phone : '') || 
+                       (typeof odooCustomer.mobile === 'string' ? odooCustomer.mobile : '') || 
+                       enrichedCustomerData.phone,
+                email: (typeof odooCustomer.email === 'string' ? odooCustomer.email : '') || 
+                       enrichedCustomerData.email,
+              };
+              
+              console.info('[Attendant] Customer data enriched:', {
+                id: enrichedCustomerData.id,
+                name: enrichedCustomerData.name,
+                phone: enrichedCustomerData.phone,
+                email: enrichedCustomerData.email,
+                subscriptionId: enrichedCustomerData.subscriptionId,
+              });
+            }
+          } else {
+            console.info('[Attendant] Could not determine partner_id for dashboard enrichment');
+          }
+        } catch (err) {
+          console.warn('[Attendant] Failed to fetch customer dashboard (non-blocking):', err);
+          // Continue with original customer data if dashboard fetch fails
+        }
+      } else {
+        console.info('[Attendant] Missing subscription code or auth token, skipping dashboard enrichment');
+      }
+      
+      // Update all state from the result (with enriched data)
+      setCustomerData(enrichedCustomerData);
       setServiceStates(result.serviceStates);
       setCustomerType(result.customerType);
       setSwapData(prev => ({
@@ -308,7 +445,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         currencySymbol: result.currencySymbol,
       }));
       
-      // Create backend session after customer identification
+      // Create backend session after customer identification (with enriched data)
       const subscriptionCode = result.customer.subscriptionId || dynamicPlanId;
       if (subscriptionCode) {
         try {
@@ -319,7 +456,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             inputMode,
             manualSubscriptionId,
             dynamicPlanId: subscriptionCode,
-            customerData: result.customer as CustomerData,
+            customerData: enrichedCustomerData, // Use enriched data for session
             customerType: result.customerType,
             serviceStates: result.serviceStates,
             swapData: {
@@ -1612,6 +1749,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
     setServiceStates([]);
     setCustomerType(null);
     setFlowError(null);
+    setIsReadOnlySession(false); // Reset read-only mode
     cancelOngoingScan();
     
     // Reset all payment state via hook
@@ -1677,6 +1815,17 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
 
   // Get main action based on current step
   const handleMainAction = useCallback(() => {
+    // In read-only mode, just navigate (step 6 always starts new swap)
+    if (isReadOnlySession) {
+      if (currentStep === 6) {
+        handleNewSwap(); // This also exits read-only mode
+      } else if (currentStep < 6) {
+        // Navigate to next step (using setCurrentStep directly since we don't track maxStepReached in read-only)
+        setCurrentStep((currentStep + 1) as AttendantStep);
+      }
+      return;
+    }
+    
     switch (currentStep) {
       case 1:
         if (inputMode === 'scan') {
@@ -1711,7 +1860,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession]);
 
   // Render current step content
   const renderStepContent = () => {
@@ -1828,6 +1977,14 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           </div>
           <div className="flow-header-right">
             <button
+              className="flow-header-history"
+              onClick={() => setShowSessionsHistory(true)}
+              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
+              title={t('sessions.historyTitle') || 'Past Sessions'}
+            >
+              <History size={16} />
+            </button>
+            <button
               className="flow-header-lang"
               onClick={toggleLocale}
               aria-label={t('role.switchLanguage')}
@@ -1853,6 +2010,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         maxStepReached={maxStepReached}
         onStepClick={handleTimelineClick}
         flowError={flowError}
+        readOnly={isReadOnlySession}
       />
 
       {/* Customer State Panel - Shows after customer identified, hidden on payment/success steps */}
@@ -1861,8 +2019,26 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         visible={currentStep > 1 && currentStep < 5}
       />
 
+      {/* Read-only Mode Banner */}
+      {isReadOnlySession && (
+        <div className="readonly-banner">
+          <div className="readonly-banner-content">
+            <Eye size={16} />
+            <span>{t('sessions.readOnlyMode') || 'Viewing completed session (read-only)'}</span>
+          </div>
+          <button 
+            className="readonly-banner-exit"
+            onClick={handleNewSwap}
+            aria-label={t('sessions.exitReview') || 'Exit Review'}
+          >
+            <X size={14} />
+            <span>{t('sessions.exitReview') || 'Exit'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="attendant-main">
+      <main className={`attendant-main ${isReadOnlySession ? 'attendant-main-readonly' : ''}`}>
         {renderStepContent()}
       </main>
 
@@ -1877,6 +2053,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           paymentInputMode={paymentInputMode}
           hasSufficientQuota={hasSufficientQuota}
           swapCost={swapData.cost}
+          readOnly={isReadOnlySession}
         />
       )}
 
@@ -1913,6 +2090,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         onResume={handleResumeSession}
         onDiscard={handleDiscardSession}
         isLoading={isSessionLoading}
+      />
+
+      {/* Sessions History Modal - Shows past sessions for browsing/resuming */}
+      <SessionsHistory
+        isVisible={showSessionsHistory}
+        onClose={() => setShowSessionsHistory(false)}
+        onSelectSession={handleSelectHistorySession}
+        authToken={getAttendantRoleToken() || ''}
+        workflowType="attendant"
       />
 
       {/* Session Check Loading Overlay - Shows while checking for pending sessions */}

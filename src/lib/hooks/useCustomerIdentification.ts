@@ -51,6 +51,7 @@ export interface IdentifiedCustomerData {
   subscriptionId: string;
   subscriptionType: string;
   phone?: string;
+  email?: string;
   swapCount?: number;
   lastSwap?: string;
   energyRemaining?: number;

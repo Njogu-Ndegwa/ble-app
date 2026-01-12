@@ -1005,6 +1005,9 @@
   "sales.emailOrPhone": "Email or Phone Number",
   "sales.emailOrPhonePlaceholder": "Email or Phone Number",
   "sales.emailOrPhoneRequired": "Enter either an email address or phone number",
+  "sales.contactInfoHint": "Please provide at least one contact method: email or phone number (or both).",
+  "sales.orEnterPhoneNumber": "Or enter phone number",
+  "sales.companyNameRequired": "Company name is required",
   "sales.company": "Company",
   "sales.companyHint": "Currently fixed - will be selectable in the future",
   "sales.nationalId": "National ID",
@@ -1468,5 +1471,27 @@
   
   "phone.selectCountry": "Select Country",
   "phone.searchCountry": "Search country or code...",
-  "phone.noCountriesFound": "No countries found"
+  "phone.noCountriesFound": "No countries found",
+  
+  "sessions.historyTitle": "Past Sessions",
+  "sessions.searchPlaceholder": "Search by subscription ID...",
+  "sessions.searchByCustomerId": "Search by customer ID...",
+  "sessions.loading": "Loading sessions...",
+  "sessions.loadError": "Failed to load sessions",
+  "sessions.authRequired": "Please log in to view sessions",
+  "sessions.noSessionsTitle": "No Sessions Found",
+  "sessions.noSessionsDesc": "Your past sessions will appear here",
+  "sessions.noSearchResults": "No sessions match your search",
+  "sessions.noSessionData": "Session data not available",
+  "sessions.step": "Step",
+  "sessions.page": "Page",
+  "sessions.completed": "Completed",
+  "sessions.cancelled": "Cancelled",
+  "sessions.confirmed": "Confirmed",
+  "sessions.draftOnlyHint": "Only draft sessions can be resumed",
+  "sessions.viewEditHint": "Tap to view. Only draft sessions can be edited.",
+  "sessions.viewNext": "View Next",
+  "sessions.readOnlyMode": "Viewing completed session (read-only)",
+  "sessions.viewingReadOnly": "Viewing session (read-only)",
+  "sessions.exitReview": "Exit"
 }

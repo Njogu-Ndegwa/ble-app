@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut } from 'lucide-react';
+import { Globe, LogOut, History } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
@@ -39,7 +39,8 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionResumePrompt } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionResumePrompt, SessionsHistory } from '@/components/shared';
+import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
 
@@ -405,6 +406,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   const [sessionRestored, setSessionRestored] = useState(false);
   
+  // Sessions history modal state
+  const [showSessionsHistory, setShowSessionsHistory] = useState(false);
+  const [isReadOnlySession, setIsReadOnlySession] = useState(false);
+  
   // Process payment QR data ref
   const processPaymentQRDataRef = useRef<(paymentId: string) => void>(() => {});
   
@@ -454,6 +459,62 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     clearSalesSession();
     toast(t('session.startNew') || 'Starting a new registration');
   }, [discardPendingSession, t]);
+  
+  // Handle selecting a session from history
+  const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
+    if (!order.session?.session_data) {
+      toast.error(t('sessions.noSessionData') || 'Session data not available');
+      return;
+    }
+    
+    // Close the history modal
+    setShowSessionsHistory(false);
+    
+    // Set read-only mode based on whether the session can be edited
+    setIsReadOnlySession(isReadOnly);
+    
+    // Extract state from session data and restore
+    const sessionData = order.session.session_data;
+    const restoredState = extractSalesStateFromSession(sessionData);
+    
+    // Restore all state from the session
+    setCurrentStep(restoredState.currentStep as SalesStep);
+    // For read-only sessions, set maxStepReached to 8 to allow viewing all steps
+    setMaxStepReached(isReadOnly ? 8 : restoredState.maxStepReached as SalesStep);
+    setFormData(restoredState.formData);
+    
+    // Restore selections using the catalog hook's restoreSelections function
+    restoreCatalogSelections(restoredState.selectedPackageId, restoredState.selectedPlanId);
+    
+    setCreatedCustomerId(restoredState.createdCustomerId);
+    setCreatedPartnerId(restoredState.createdPartnerId);
+    setCustomerSessionToken(restoredState.customerSessionToken);
+    setSubscriptionData(restoredState.subscriptionData);
+    setPaymentConfirmed(restoredState.paymentState.confirmed);
+    setPaymentReference(restoredState.paymentState.reference);
+    setPaymentInitiated(restoredState.paymentState.initiated);
+    setPaymentAmountPaid(restoredState.paymentState.amountPaid);
+    setPaymentAmountExpected(restoredState.paymentState.amountExpected);
+    setPaymentAmountRemaining(restoredState.paymentState.amountRemaining);
+    setPaymentIncomplete(restoredState.paymentState.incomplete);
+    setPaymentInputMode(restoredState.paymentState.inputMode);
+    setManualPaymentId(restoredState.paymentState.manualPaymentId);
+    setPaymentRequestOrderId(restoredState.paymentState.requestOrderId);
+    setConfirmedSubscriptionCode(restoredState.confirmedSubscriptionCode);
+    setScannedVehicleId(restoredState.scannedVehicleId);
+    setScannedBatteryPending(restoredState.scannedBatteryPending);
+    setAssignedBattery(restoredState.assignedBattery);
+    setRegistrationId(restoredState.registrationId);
+    
+    // Also clear localStorage session since we're now using backend
+    clearSalesSession();
+    
+    if (isReadOnly) {
+      toast(t('sessions.viewingReadOnly') || 'Viewing session (read-only)', { icon: '👁️' });
+    } else {
+      toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
+    }
+  }, [t, restoreCatalogSelections]);
 
   // Helper to build current session state
   const buildCurrentSessionState = useCallback((): SalesWorkflowState => {
@@ -907,7 +968,12 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     
     // Email or Phone validation - at least one is required
     const hasEmail = formData.email.trim().length > 0;
-    const hasPhone = formData.phone.trim().length > 0;
+    
+    // Phone field may contain country dial code (e.g., "254" for Kenya) even when user hasn't entered anything
+    // A valid phone number with dial code should have at least 7+ digits (dial code + local number)
+    // We check for 7+ digits to distinguish between "just dial code" and "actual phone number"
+    const phoneDigits = formData.phone.replace(/\D/g, ''); // Extract only digits
+    const hasPhone = phoneDigits.length >= 7; // At least 7 digits means user entered something beyond dial code
     
     if (!hasEmail && !hasPhone) {
       // Show error on both fields so it displays in the combined field
@@ -918,8 +984,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
         errors.email = 'Please enter a valid email address';
       }
-      // Validate phone format if provided
-      if (hasPhone && !/^[\+]?[\s\d\-\(\)]{10,}$/.test(formData.phone.trim())) {
+      // Validate phone format if provided - must have 10+ digits for a valid international number
+      if (hasPhone && phoneDigits.length < 10) {
         errors.phone = 'Please enter a valid phone number';
       }
     }
@@ -996,6 +1062,8 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedCustomerId(session.user.id);
         setCreatedPartnerId(session.user.partner_id);
         setCustomerSessionToken(session.token);
+        // Store password for display on receipt (for new customers)
+        setCustomerPassword(response.password || null);
         
         // Store password if provided in response
         if (response.password) {
@@ -1479,6 +1547,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
     }
+    // When email or phone changes, clear BOTH contact-related errors
+    // This ensures filling one field clears errors from the other
+    if (field === 'email' || field === 'phone') {
+      setFormErrors(prev => ({ 
+        ...prev, 
+        email: undefined, 
+        phone: undefined 
+      }));
+    }
   }, [formErrors]);
 
   // Handle product selection (physical products like bikes) - kept for backward compatibility
@@ -1847,6 +1924,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedCustomerId(null);
         setCreatedPartnerId(null);
         setCustomerSessionToken(null);
+        setCustomerPassword(null);
         setSubscriptionData(null);
         setPaymentConfirmed(false);
         setPaymentReference('');
@@ -2091,6 +2169,14 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           </div>
           <div className="flow-header-right">
             <button
+              className="flow-header-history"
+              onClick={() => setShowSessionsHistory(true)}
+              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
+              title={t('sessions.historyTitle') || 'Past Sessions'}
+            >
+              <History size={16} />
+            </button>
+            <button
               className="flow-header-lang"
               onClick={toggleLocale}
               aria-label={t('role.switchLanguage')}
@@ -2168,6 +2254,15 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         onResume={handleResumeSession}
         onDiscard={handleDiscardSession}
         isLoading={isSessionLoading}
+      />
+
+      {/* Sessions History Modal - Shows past sessions for browsing/resuming */}
+      <SessionsHistory
+        isVisible={showSessionsHistory}
+        onClose={() => setShowSessionsHistory(false)}
+        onSelectSession={handleSelectHistorySession}
+        authToken={getSalesRoleToken() || ''}
+        workflowType="salesperson"
       />
 
       {/* Note: Legacy localStorage session prompt removed - using backend sessions only */}

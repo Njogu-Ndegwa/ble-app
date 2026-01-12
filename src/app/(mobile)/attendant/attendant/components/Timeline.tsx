@@ -9,6 +9,8 @@ interface TimelineProps {
   maxStepReached?: AttendantStep; // The furthest step the user has reached
   onStepClick?: (step: AttendantStep) => void;
   flowError?: FlowError | null;
+  /** Whether the session is in read-only mode (viewing completed session) */
+  readOnly?: boolean;
 }
 
 // Map step icons to translation keys
@@ -69,7 +71,7 @@ const StepIcons = {
   ),
 };
 
-export default function Timeline({ currentStep, maxStepReached = currentStep, onStepClick, flowError }: TimelineProps) {
+export default function Timeline({ currentStep, maxStepReached = currentStep, onStepClick, flowError, readOnly }: TimelineProps) {
   const { t } = useI18n();
   
   const getStepClass = (step: number): string => {
@@ -78,12 +80,16 @@ export default function Timeline({ currentStep, maxStepReached = currentStep, on
       return 'failed';
     }
     if (step === currentStep) {
+      // In read-only mode, use 'readonly-active' instead of 'active'
+      if (readOnly) {
+        return step === 6 ? 'readonly-success' : 'readonly-active';
+      }
       return step === 6 ? 'success' : 'active';
     }
-    // Steps before current are completed
-    if (step < currentStep) return 'completed';
+    // Steps before current are completed (or readonly-completed in read-only mode)
+    if (step < currentStep) return readOnly ? 'readonly-completed' : 'completed';
     // Steps after current but within maxStepReached are "reachable" (can navigate back to them)
-    if (step <= maxStepReached) return 'reachable';
+    if (step <= maxStepReached) return readOnly ? 'readonly-reachable' : 'reachable';
     return 'disabled';
   };
 
@@ -102,11 +108,15 @@ export default function Timeline({ currentStep, maxStepReached = currentStep, on
       return flowError.step === stepNum ? 'failed' : '';
     }
     // Show connector as completed if the step after it is within maxStepReached
-    return stepNum < maxStepReached ? 'completed' : '';
+    // Use readonly variant in read-only mode
+    if (stepNum < maxStepReached) {
+      return readOnly ? 'readonly-completed' : 'completed';
+    }
+    return '';
   };
 
   return (
-    <div className="flow-timeline">
+    <div className={`flow-timeline ${readOnly ? 'flow-timeline-readonly' : ''}`}>
       <div className="timeline-track">
         {STEP_CONFIGS.map((config, index) => {
           const stepClass = getStepClass(config.step);

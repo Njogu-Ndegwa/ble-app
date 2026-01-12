@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { User, Building2, Mail, Phone, Briefcase, MapPin, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { User, Building2, Mail, Phone, Briefcase, MapPin, CheckCircle, AlertCircle, X, Info } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface FormData {
   customerType: 'individual' | 'company';
@@ -19,12 +20,14 @@ interface FormErrors {
   companyName?: string;
   email?: string;
   phone?: string;
+  emailOrPhone?: string;
   street?: string;
   city?: string;
   zip?: string;
 }
 
 const CustomerAcquisitionForm = () => {
+  const { t } = useI18n();
   const [formData, setFormData] = useState<FormData>({
     customerType: 'individual',
     email: '',
@@ -56,39 +59,45 @@ const CustomerAcquisitionForm = () => {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
+    const hasEmail = formData.email && formData.email.trim().length > 0;
+    const hasPhone = formData.phone && formData.phone.trim().length > 0;
 
-    if (!formData.phone) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!validatePhone(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number';
+    // Require at least one of email or phone
+    if (!hasEmail && !hasPhone) {
+      newErrors.emailOrPhone = t('sales.emailOrPhoneRequired') || 'Enter either an email address or phone number';
+    } else {
+      // Validate email format if provided
+      if (hasEmail && !validateEmail(formData.email)) {
+        newErrors.email = t('Please enter a valid email address') || 'Please enter a valid email address';
+      }
+
+      // Validate phone format if provided
+      if (hasPhone && !validatePhone(formData.phone)) {
+        newErrors.phone = t('Please enter a valid phone number') || 'Please enter a valid phone number';
+      }
     }
 
     if (!formData.street || formData.street.trim().length === 0) {
-      newErrors.street = 'Street is required';
+      newErrors.street = t('Street address is required') || 'Street is required';
     }
 
     if (!formData.city || formData.city.trim().length === 0) {
-      newErrors.city = 'City is required';
+      newErrors.city = t('City is required') || 'City is required';
     }
 
     if (!formData.zip || formData.zip.trim().length === 0) {
-      newErrors.zip = 'Zip code is required';
+      newErrors.zip = t('Zip code is required') || 'Zip code is required';
     } else if (!validateZip(formData.zip)) {
-      newErrors.zip = 'Please enter a valid zip code';
+      newErrors.zip = t('Please enter a valid zip code') || 'Please enter a valid zip code';
     }
 
     if (formData.customerType === 'individual') {
       if (!formData.name || formData.name.trim().length === 0) {
-        newErrors.name = 'Name is required';
+        newErrors.name = t('Full name is required') || 'Name is required';
       }
     } else {
       if (!formData.companyName || formData.companyName.trim().length === 0) {
-        newErrors.companyName = 'Company name is required';
+        newErrors.companyName = t('sales.companyNameRequired') || 'Company name is required';
       }
     }
 
@@ -98,8 +107,21 @@ const CustomerAcquisitionForm = () => {
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear the field's own error
     if (errors[field as keyof FormErrors]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+    
+    // When email or phone changes, clear ALL contact-related errors
+    // This ensures that filling one field clears errors from the other
+    if (field === 'email' || field === 'phone') {
+      setErrors(prev => ({ 
+        ...prev, 
+        email: undefined,
+        phone: undefined,
+        emailOrPhone: undefined 
+      }));
     }
   };
 
@@ -129,16 +151,25 @@ const CustomerAcquisitionForm = () => {
     setSubmitStatus(null);
 
     try {
-      const apiData = {
+      // Build API data, only including email/phone if they have values
+      const apiData: Record<string, any> = {
         name: formData.customerType === 'individual' ? formData.name : formData.companyName,
-        email: formData.email,
-        phone: formData.phone,
-        mobile: formData.phone,
         street: formData.street,
         city: formData.city,
         zip: formData.zip,
         is_company: formData.customerType === 'company',
       };
+
+      // Only include email if provided
+      if (formData.email && formData.email.trim()) {
+        apiData.email = formData.email.trim();
+      }
+
+      // Only include phone/mobile if provided
+      if (formData.phone && formData.phone.trim()) {
+        apiData.phone = formData.phone.trim();
+        apiData.mobile = formData.phone.trim();
+      }
 
       console.log('Submitting to API:', {
         url: 'https://evans-musamia-odoorestapi.odoo.com/api/contacts',
@@ -359,56 +390,79 @@ const CustomerAcquisitionForm = () => {
                 </>
               )}
 
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-                  Email Address <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="email"
-                    id="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                      errors.email ? 'border-red-500' : 'border-gray-600'
-                    }`}
-                    placeholder="Enter your email address"
-                    aria-invalid={!!errors.email}
-                    aria-describedby={errors.email ? 'email-error' : undefined}
-                  />
-                </div>
-                {errors.email && (
-                  <p id="email-error" className="mt-1 text-sm text-red-400" role="alert">
-                    {errors.email}
+              {/* Contact Information Section with hint */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+                  <Info size={16} className="text-blue-400 flex-shrink-0" />
+                  <p className="text-xs text-blue-300">
+                    {t('sales.contactInfoHint') || 'Please provide at least one contact method: email or phone number (or both).'}
                   </p>
-                )}
-              </div>
+                </div>
 
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-1">
-                  Phone Number <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <Phone size={16} className="absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="tel"
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                      errors.phone ? 'border-red-500' : 'border-gray-600'
-                    }`}
-                    placeholder="Enter your phone number"
-                    aria-invalid={!!errors.phone}
-                    aria-describedby={errors.phone ? 'phone-error' : undefined}
-                  />
-                </div>
-                {errors.phone && (
-                  <p id="phone-error" className="mt-1 text-sm text-red-400" role="alert">
-                    {errors.phone}
+                {errors.emailOrPhone && (
+                  <p className="text-sm text-red-400 flex items-center gap-1" role="alert">
+                    <AlertCircle size={14} />
+                    {errors.emailOrPhone}
                   </p>
                 )}
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+                    {t('sales.emailAddress') || 'Email Address'}
+                  </label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      id="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                        errors.email || errors.emailOrPhone ? 'border-red-500' : 'border-gray-600'
+                      }`}
+                      placeholder={t('Enter your email') || 'Enter your email address'}
+                      aria-invalid={!!errors.email}
+                      aria-describedby={errors.email ? 'email-error' : undefined}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p id="email-error" className="mt-1 text-sm text-red-400" role="alert">
+                      {errors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 border-t border-gray-600"></div>
+                  <span className="text-xs text-gray-500 uppercase">{t('common.or') || 'or'}</span>
+                  <div className="flex-1 border-t border-gray-600"></div>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-1">
+                    {t('sales.phoneNumber') || 'Phone Number'}
+                  </label>
+                  <div className="relative">
+                    <Phone size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="tel"
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
+                      className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                        errors.phone || errors.emailOrPhone ? 'border-red-500' : 'border-gray-600'
+                      }`}
+                      placeholder={t('Enter your phone number') || 'Enter your phone number'}
+                      aria-invalid={!!errors.phone}
+                      aria-describedby={errors.phone ? 'phone-error' : undefined}
+                    />
+                  </div>
+                  {errors.phone && (
+                    <p id="phone-error" className="mt-1 text-sm text-red-400" role="alert">
+                      {errors.phone}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div>
