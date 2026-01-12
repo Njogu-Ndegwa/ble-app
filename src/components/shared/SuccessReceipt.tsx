@@ -296,12 +296,13 @@ export function buildRegistrationReceiptRows(
 
   // Show customer password prominently for new registrations
   // This is important so the customer can see their password on the printed receipt
-  if (data.customerPassword) {
+  if (data.password) {
     rows.push({ 
       label: t('sales.customerPassword') || 'Password', 
-      value: data.customerPassword,
+      value: data.password,
       mono: true,
-      color: 'var(--brand-primary)'
+      color: 'var(--brand-primary)',
+      copyable: true
     });
   }
 
@@ -349,16 +350,6 @@ export function buildRegistrationReceiptRows(
     mono: true,
     color: 'var(--success)'
   });
-
-  // Add password row if provided
-  if (data.password) {
-    rows.push({
-      label: t('sales.password') || 'Password',
-      value: data.password,
-      mono: true,
-      copyable: true,
-    });
-  }
 
   return rows;
 }
