@@ -1058,6 +1058,7 @@
   "sales.registrationId": "ID d'inscription",
   "sales.customerName": "Nom du client",
   "sales.password": "Mot de passe",
+  "sales.sentToEmail": "Envoyé par email",
   "sales.paymentRef": "Réf. paiement",
   "sales.assignedBattery": "Batterie attribuée",
   "sales.batteryCharge": "Charge de la batterie",

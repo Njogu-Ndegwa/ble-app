@@ -1062,14 +1062,10 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         setCreatedCustomerId(session.user.id);
         setCreatedPartnerId(session.user.partner_id);
         setCustomerSessionToken(session.token);
-        // Store password for display on receipt (for new customers)
-        setCustomerPassword(response.password || null);
         
-        // Store password if provided in response
-        if (response.password) {
-          setCustomerPassword(response.password);
-          console.log('Customer password received from registration');
-        }
+        // Store password for display on receipt
+        setCustomerPassword(response.plain_password || null);
+        console.log('Customer password:', response.plain_password || 'null');
         
         // Create backend session after customer registration
         // This creates an order/session linked to the customer

@@ -970,6 +970,7 @@
   "sales.registrationId": "注册ID",
   "sales.customerName": "客户姓名",
   "sales.password": "密码",
+  "sales.sentToEmail": "已发送至邮箱",
   "sales.paymentRef": "支付参考",
   "sales.assignedBattery": "已分配电池",
   "sales.batteryCharge": "电池电量",

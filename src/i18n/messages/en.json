@@ -1067,6 +1067,7 @@
   "sales.registrationId": "Registration ID",
   "sales.customerName": "Customer Name",
   "sales.password": "Password",
+  "sales.sentToEmail": "Sent to email",
   "sales.paymentRef": "Payment Ref",
   "sales.assignedBattery": "Assigned Battery",
   "sales.batteryCharge": "Battery Charge",

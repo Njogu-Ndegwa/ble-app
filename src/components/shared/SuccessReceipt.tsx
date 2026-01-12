@@ -375,17 +375,12 @@ export function buildRegistrationReceiptRows(
     mono: true 
   });
 
-  // Password shown at the very end - prominently displayed
-  // This is critical so customer can note down their login password
-  if (data.password) {
-    rows.push({ 
-      label: t('sales.password') || 'Password', 
-      value: data.password,
-      mono: true,
-      color: 'var(--brand-primary)',
-      copyable: true
-    });
-  }
+  // Password row
+  rows.push({ 
+    label: t('sales.password') || 'Password', 
+    value: data.password || 'N/A',
+    mono: true
+  });
 
   return rows;
 }

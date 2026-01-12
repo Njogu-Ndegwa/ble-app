@@ -59,10 +59,11 @@ export interface RegisterCustomerResponse {
       name: string;
       email: string;
       phone?: string;
+      user_type?: string;
     };
   };
   email_sent: boolean;
-  password?: string; // Password generated for the customer (if provided by backend)
+  plain_password?: string | null; // Password generated for the customer (field name from API)
 }
 
 // Product Types - matches actual Odoo API response
