@@ -139,46 +139,67 @@ export default function SuccessReceipt({
           </div>
         )}
         
-        {/* Receipt Rows */}
+        {/* Receipt Rows - Label on left, Value on right */}
         {rows.map((row, index) => (
-          <div key={index} className="receipt-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-              <span className="receipt-label">{row.label}</span>
+          <div 
+            key={index} 
+            className="receipt-row" 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
+              gap: '8px',
+              padding: '8px 0',
+              borderBottom: '1px solid var(--border-light, rgba(255,255,255,0.1))'
+            }}
+          >
+            {/* Label on left */}
+            <span className="receipt-label" style={{ flexShrink: 0 }}>
+              {row.label}
+            </span>
+            
+            {/* Value on right with optional copy button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
               <span 
                 className={`receipt-value ${row.mono ? 'font-mono-oves' : ''}`}
-                style={row.color ? { color: row.color } : undefined}
+                style={{ 
+                  color: row.color || undefined,
+                  textAlign: 'right',
+                  wordBreak: 'break-word'
+                }}
               >
                 {row.value}
               </span>
+              {row.copyable && (
+                <button
+                  onClick={() => handleCopy(row.value, index)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    color: copiedIndex === index ? 'var(--success)' : 'var(--text-secondary)',
+                    transition: 'color 0.2s',
+                  }}
+                  aria-label={t('common.copy') || 'Copy'}
+                  title={t('common.copy') || 'Copy'}
+                >
+                  {copiedIndex === index ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
-            {row.copyable && (
-              <button
-                onClick={() => handleCopy(row.value, index)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: copiedIndex === index ? 'var(--success)' : 'var(--text-secondary)',
-                  transition: 'color 0.2s',
-                }}
-                aria-label={t('common.copy') || 'Copy'}
-                title={t('common.copy') || 'Copy'}
-              >
-                {copiedIndex === index ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6L9 17l-5-5"/>
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                  </svg>
-                )}
-              </button>
-            )}
           </div>
         ))}
       </div>
@@ -276,6 +297,14 @@ export interface RegistrationReceiptData {
 
 /**
  * Build receipt rows for a customer registration
+ * 
+ * Layout matches Attendant workflow receipt structure:
+ * - Customer info at top
+ * - Package/subscription details
+ * - Battery assignment
+ * - Payment info
+ * - Time
+ * - Password at the very end (important for customer to note down)
  */
 export function buildRegistrationReceiptRows(
   data: RegistrationReceiptData,
@@ -293,18 +322,6 @@ export function buildRegistrationReceiptRows(
       mono: true 
     },
   ];
-
-  // Show customer password prominently for new registrations
-  // This is important so the customer can see their password on the printed receipt
-  if (data.password) {
-    rows.push({ 
-      label: t('sales.customerPassword') || 'Password', 
-      value: data.password,
-      mono: true,
-      color: 'var(--brand-primary)',
-      copyable: true
-    });
-  }
 
   if (data.packageName) {
     rows.push({ 
@@ -350,6 +367,25 @@ export function buildRegistrationReceiptRows(
     mono: true,
     color: 'var(--success)'
   });
+
+  // Add time row (matches Attendant workflow)
+  rows.push({ 
+    label: t('attendant.time') || 'Time', 
+    value: new Date().toLocaleTimeString(),
+    mono: true 
+  });
+
+  // Password shown at the very end - prominently displayed
+  // This is critical so customer can note down their login password
+  if (data.password) {
+    rows.push({ 
+      label: t('sales.password') || 'Password', 
+      value: data.password,
+      mono: true,
+      color: 'var(--brand-primary)',
+      copyable: true
+    });
+  }
 
   return rows;
 }
