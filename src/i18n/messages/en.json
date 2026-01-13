@@ -1315,6 +1315,7 @@
   "rider.switchAccount": "Switch Account",
   "rider.balanceTopUp": "Balance Top-up",
   "rider.subscriptionPayment": "Subscription Payment",
+  "rider.batterySwap": "Battery Swap",
   "rider.batterySwapTransaction": "Battery swap transaction",
   "rider.electricityUsage": "Electricity Usage",
   "rider.topUpSuccess": "Top-up successful",

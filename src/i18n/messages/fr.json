@@ -1306,6 +1306,7 @@
   "rider.switchAccount": "Changer de compte",
   "rider.balanceTopUp": "Recharge de solde",
   "rider.subscriptionPayment": "Paiement d'abonnement",
+  "rider.batterySwap": "Échange de batterie",
   "rider.batterySwapTransaction": "Transaction d'échange de batterie",
   "rider.electricityUsage": "Utilisation d'électricité",
   "rider.topUpSuccess": "Recharge réussie",

@@ -213,9 +213,7 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
         <div style="color: #000; font-family: system-ui; min-width: 150px;">
           <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${station.name}</h3>
           <p style="margin: 0 0 4px 0; font-size: 12px;">${station.address}</p>
-          <p style="margin: 0 0 4px 0; font-size: 12px;">Distance: ${station.distance}</p>
-          <p style="margin: 0 0 4px 0; font-size: 12px;">Batteries: ${station.batteries}</p>
-          <p style="margin: 0 0 8px 0; font-size: 12px;">Wait Time: ${station.waitTime}</p>
+          <p style="margin: 0 0 8px 0; font-size: 12px;">Batteries: ${station.batteries}</p>
         </div>
       `);
 
@@ -396,16 +394,8 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
             </div>
             <div className="station-detail-stats">
               <div className="station-detail-stat">
-                <div className="station-detail-stat-value">{selectedStation.distance}</div>
-                <div className="station-detail-stat-label">{t('rider.distance') || 'Distance'}</div>
-              </div>
-              <div className="station-detail-stat">
                 <div className="station-detail-stat-value">{selectedStation.batteries}</div>
                 <div className="station-detail-stat-label">{t('rider.batteries') || 'Batteries'}</div>
-              </div>
-              <div className="station-detail-stat">
-                <div className="station-detail-stat-value">{selectedStation.waitTime}</div>
-                <div className="station-detail-stat-label">{t('rider.waitTime') || 'Wait Time'}</div>
               </div>
             </div>
             <div className="station-detail-actions">

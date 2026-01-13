@@ -1,8 +1,15 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
+
+// Declare Leaflet types
+declare global {
+  interface Window {
+    L: any;
+  }
+}
 
 interface Station {
   id: number;
@@ -29,6 +36,7 @@ interface RiderHomeProps {
   bike: BikeInfo;
   nearbyStations: Station[];
   isLoadingStations?: boolean;
+  isLoadingBike?: boolean;
   onFindStation: () => void;
   onShowQRCode: () => void;
   onTopUp: () => void;
@@ -43,6 +51,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   bike,
   nearbyStations,
   isLoadingStations = false,
+  isLoadingBike = false,
   onFindStation,
   onShowQRCode,
   onTopUp,
@@ -50,6 +59,12 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   onViewAllStations,
 }) => {
   const { t } = useI18n();
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const userLocationMarkerRef = useRef<any>(null);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -81,6 +96,209 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       default: return paymentState === 'active' ? (t('common.active') || 'Active') : paymentState;
     }
   };
+
+  // Load Leaflet and initialize map
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current || isLoadingStations) return;
+
+    const loadLeaflet = async () => {
+      if (!window.L) {
+        // Load Leaflet CSS
+        const cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+        document.head.appendChild(cssLink);
+
+        // Load Leaflet JS
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+        script.onload = () => {
+          initializeMap();
+        };
+        script.onerror = () => {
+          console.error('[HOME MAP] Failed to load Leaflet library');
+        };
+        document.head.appendChild(script);
+      } else {
+        initializeMap();
+      }
+    };
+
+    const initializeMap = () => {
+      if (!mapContainerRef.current || !window.L) return;
+
+      // Default center (Nairobi, Kenya)
+      const defaultCenter: [number, number] = [-1.2921, 36.8219];
+      
+      // Calculate center from stations if available
+      let center: [number, number] = defaultCenter;
+      const validStations = nearbyStations.filter(s => s.lat && s.lng);
+      if (validStations.length > 0) {
+        const avgLat = validStations.reduce((sum, s) => sum + (s.lat || 0), 0) / validStations.length;
+        const avgLng = validStations.reduce((sum, s) => sum + (s.lng || 0), 0) / validStations.length;
+        center = [avgLat, avgLng];
+      }
+
+      // Initialize map
+      mapInstanceRef.current = window.L.map(mapContainerRef.current, {
+        center: center,
+        zoom: 13,
+        zoomControl: true,
+      });
+
+      // Add OpenStreetMap tile layer
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(mapInstanceRef.current);
+
+      setIsMapLoaded(true);
+    };
+
+    if (nearbyStations.length > 0) {
+      loadLeaflet();
+    }
+
+    return () => {
+      if (userLocationMarkerRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(userLocationMarkerRef.current);
+        userLocationMarkerRef.current = null;
+      }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      markersRef.current.forEach((marker) => {
+        if (marker && mapInstanceRef.current) {
+          mapInstanceRef.current.removeLayer(marker);
+        }
+      });
+      markersRef.current = [];
+    };
+  }, [nearbyStations.length, isLoadingStations]);
+
+  // Get user location
+  useEffect(() => {
+    if (!navigator.geolocation || !mapInstanceRef.current || !window.L || !isMapLoaded) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        
+        // Add or update user location marker
+        if (mapInstanceRef.current && window.L) {
+          if (userLocationMarkerRef.current) {
+            userLocationMarkerRef.current.setLatLng([latitude, longitude]);
+          } else {
+            userLocationMarkerRef.current = window.L.marker([latitude, longitude], {
+              icon: window.L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
+                iconSize: [20, 32],
+                iconAnchor: [10, 32],
+                popupAnchor: [1, -28],
+                shadowSize: [32, 32],
+              }),
+            }).addTo(mapInstanceRef.current);
+            userLocationMarkerRef.current.bindPopup(t('rider.yourLocation') || 'Your Location');
+          }
+        }
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isMapLoaded, t]);
+
+  // Update markers when stations change
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.L || !isMapLoaded) return;
+
+    // Clear existing markers
+    markersRef.current.forEach((marker) => {
+      if (marker && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(marker);
+      }
+    });
+    markersRef.current = [];
+
+    // Get first 5 stations to match the list
+    const stationsToShow = nearbyStations.slice(0, 5);
+    const validStations: typeof stationsToShow = [];
+    
+    // Add markers for each station
+    stationsToShow.forEach((station, index) => {
+      // Check if station has valid coordinates
+      if (typeof station.lat !== 'number' || typeof station.lng !== 'number' || 
+          isNaN(station.lat) || isNaN(station.lng) ||
+          station.lat === 0 || station.lng === 0) {
+        console.warn(`[HOME MAP] Station ${station.id} (${station.name}) has invalid coordinates:`, { lat: station.lat, lng: station.lng });
+        return;
+      }
+
+      // Add small offset for markers at exact same location to prevent overlap
+      // This ensures all markers are visible even if stations are very close
+      const offsetLat = station.lat + (index * 0.0001); // ~11 meters per 0.0001 degree
+      const offsetLng = station.lng + (index * 0.0001);
+
+      const marker = window.L.marker([offsetLat, offsetLng], {
+        icon: window.L.icon({
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+          iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+          shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
+          iconSize: [20, 32],
+          iconAnchor: [10, 32],
+          popupAnchor: [1, -28],
+          shadowSize: [32, 32],
+        }),
+      }).addTo(mapInstanceRef.current);
+
+      marker.bindPopup(`
+        <div style="color: #000; font-family: system-ui; min-width: 120px;">
+          <h3 style="margin: 0 0 4px 0; font-size: 13px; font-weight: 600;">${station.name}</h3>
+          <p style="margin: 0; font-size: 11px;">Batteries: ${station.batteries}</p>
+        </div>
+      `);
+
+      marker.on('click', () => {
+        onSelectStation(station.id);
+      });
+
+      markersRef.current.push(marker);
+      validStations.push(station);
+    });
+
+    console.info(`[HOME MAP] Created ${markersRef.current.length} markers out of ${stationsToShow.length} stations`);
+
+    // Fit map bounds to show all stations (using original coordinates, not offset)
+    if (validStations.length > 0) {
+      const bounds = window.L.latLngBounds(
+        validStations.map(s => [s.lat!, s.lng!])
+      );
+      // Use larger padding and set maxZoom to ensure all markers are visible even if close
+      mapInstanceRef.current.fitBounds(bounds, { 
+        padding: [50, 50],
+        maxZoom: 18 // Prevent zooming in too much so all markers stay visible
+      });
+      
+      // If all stations are at the same location, ensure minimum zoom
+      const boundsSize = bounds.getNorthEast().distanceTo(bounds.getSouthWest());
+      if (boundsSize < 100) { // Less than 100 meters apart
+        mapInstanceRef.current.setZoom(15, { animate: false });
+      }
+    }
+  }, [nearbyStations, isMapLoaded, onSelectStation]);
 
   return (
     <div className="rider-screen active">
@@ -124,11 +342,25 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           <div className="rider-bike-info">
             <div className="rider-bike-detail">
               <span className="rider-bike-detail-label">{t('rider.vehicleId') || 'Vehicle ID'}</span>
-              <span className="rider-bike-detail-value">{bike.vehicleId || 'N/A'}</span>
+              {isLoadingBike ? (
+                <span className="rider-bike-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="loading-spinner" style={{ width: 14, height: 14, borderWidth: 2 }}></div>
+                  <span style={{ opacity: 0.6 }}>{t('common.loading') || 'Loading...'}</span>
+                </span>
+              ) : (
+                <span className="rider-bike-detail-value">{bike.vehicleId || 'N/A'}</span>
+              )}
             </div>
             <div className="rider-bike-detail">
               <span className="rider-bike-detail-label">{t('rider.totalSwaps') || 'Total Swaps'}</span>
-              <span className="rider-bike-detail-value">{bike.totalSwaps}</span>
+              {isLoadingBike ? (
+                <span className="rider-bike-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="loading-spinner" style={{ width: 14, height: 14, borderWidth: 2 }}></div>
+                  <span style={{ opacity: 0.6 }}>{t('common.loading') || 'Loading...'}</span>
+                </span>
+              ) : (
+                <span className="rider-bike-detail-value">{bike.totalSwaps}</span>
+              )}
             </div>
           </div>
         </div>
@@ -204,7 +436,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             {t('common.loading') || 'Loading stations...'}
           </p>
         </div>
-      ) : nearbyStations.length === 0 ? (
+      ) : !isLoadingStations && nearbyStations.length === 0 ? (
         <div style={{ 
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border)',
@@ -239,41 +471,23 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
       ) : (
         <div className="stations-map-container">
-          {/* Simulated Map */}
-          <div className="stations-map">
-            <div className="map-visual">
-              <div className="map-grid"></div>
-              <div className="map-user-pulse"></div>
-              <div className="map-user-marker"></div>
-              {nearbyStations.slice(0, 3).map((station, idx) => {
-                const positions = [
-                  { top: '25%', left: '30%' },
-                  { top: '60%', left: '70%' },
-                  { top: '35%', left: '75%' },
-                ];
-                const pos = positions[idx] || positions[0];
-                return (
-                  <div 
-                    key={station.id}
-                    className="map-station-pin" 
-                    style={{ top: pos.top, left: pos.left }}
-                    onClick={() => onSelectStation(station.id)}
-                  >
-                    <div className="map-station-icon">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                      </svg>
-                    </div>
-                    <span className="map-station-label">{station.name.split(' ')[0]}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* OpenStreetMap */}
+          <div 
+            ref={mapContainerRef}
+            style={{ 
+              width: '100%', 
+              height: '250px',
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-tertiary)',
+              marginBottom: '12px',
+            }}
+          />
           
           {/* Station List */}
           <div className="stations-list">
-            {nearbyStations.slice(0, 2).map((station) => (
+            {nearbyStations.slice(0, 5).map((station) => (
               <div 
                 key={station.id} 
                 className="station-item"
@@ -287,13 +501,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <div className="station-info">
                   <div className="station-name">{station.name}</div>
                   <div className="station-details">
-                    <span className="station-distance">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                        <circle cx="12" cy="10" r="3"/>
-                      </svg>
-                      {station.distance}
-                    </span>
                     <span className="station-availability">
                       <span className={`station-availability-dot ${station.batteries < 5 ? 'low' : ''}`}></span>
                       {station.batteries} {t('rider.batteries') || 'batteries'}

@@ -101,6 +101,7 @@ const RiderApp: React.FC = () => {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+  const [isLoadingBike, setIsLoadingBike] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
     model: 'E-Trike 3X',
     vehicleId: null,
@@ -110,6 +111,30 @@ const RiderApp: React.FC = () => {
   });
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [showFoundCustomer, setShowFoundCustomer] = useState(false);
+
+  // Handle browser back button
+  useEffect(() => {
+    if (!isLoggedIn) return; // Only handle when logged in
+
+    const handlePopState = (event: PopStateEvent) => {
+      // If we're not on home, go to home
+      if (currentScreen !== 'home') {
+        setCurrentScreen('home');
+        // Prevent default back navigation by pushing state again
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
+
+    // Push initial state to history when screen changes
+    if (currentScreen !== 'home') {
+      window.history.pushState(null, '', window.location.href);
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [currentScreen, isLoggedIn]);
 
   // Check authentication on mount - show found customer screen if credentials exist
   useEffect(() => {
@@ -131,6 +156,15 @@ const RiderApp: React.FC = () => {
 
     checkAuth();
   }, []);
+
+  // Set loading states immediately when user logs in
+  useEffect(() => {
+    if (isLoggedIn) {
+      // Set loading states immediately when logged in, before any data is fetched
+      setIsLoadingBike(true);
+      setIsLoadingStations(true);
+    }
+  }, [isLoggedIn]);
 
   // Fetch dashboard data from API
   const fetchDashboardData = async (token: string) => {
@@ -258,6 +292,8 @@ const RiderApp: React.FC = () => {
 
     } catch (error) {
       console.error('[RIDER] Error fetching customer identification data:', error);
+    } finally {
+      setIsLoadingBike(false);
     }
   };
 
@@ -357,13 +393,13 @@ const RiderApp: React.FC = () => {
               let subtitle = '';
               
               if (action.serviceType?.includes('swap')) {
-                title = t('attendant.batterySwap') || 'Battery Swap';
+                title = t('rider.batterySwap') || 'Battery Swap';
                 subtitle = t('rider.batterySwapTransaction') || 'Battery swap transaction';
               } else if (action.serviceType?.includes('electricity')) {
                 title = t('rider.electricityUsage') || 'Electricity Usage';
                 subtitle = `${action.serviceAmount || 0} kWh`;
               } else {
-                title = t('attendant.batterySwap') || 'Battery Swap';
+                title = t('rider.batterySwap') || 'Battery Swap';
                 subtitle = action.serviceType || '';
               }
 
@@ -433,6 +469,9 @@ const RiderApp: React.FC = () => {
           });
           setSubscription(activeSubscription);
           
+          // Set loading state immediately when we have a subscription (before fetching)
+          setIsLoadingBike(true);
+          
           // Update bike payment state with subscription status
           setBike(prev => ({
             ...prev,
@@ -448,6 +487,7 @@ const RiderApp: React.FC = () => {
             await fetchCustomerIdentificationData(activeSubscription.subscription_code);
           } else {
             console.warn('No subscription_code found in subscription data');
+            setIsLoadingBike(false);
           }
         } else {
           console.warn('No subscriptions found in response');
@@ -472,12 +512,14 @@ const RiderApp: React.FC = () => {
     if (!isLoggedIn || !subscription?.subscription_code || !customer) return;
     if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) return;
 
+    // Set loading state immediately when we know we have a subscription
+    setIsLoadingStations(true);
+
     const planId = subscription.subscription_code;
     const requestTopic = `call/uxi/service/plan/${planId}/get_assets`;
     const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
 
     console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
-    setIsLoadingStations(true);
 
     // Generate unique correlation ID
     const correlationId = `asset-discovery-${Date.now()}`;
@@ -642,8 +684,10 @@ const RiderApp: React.FC = () => {
       return;
     }
 
+    // Set loading state immediately when we know we're about to fetch
+    setIsLoadingStations(true);
+
     const fetchStationsFromGraphQL = async () => {
-      setIsLoadingStations(true);
       try {
         const authToken = localStorage.getItem('authToken_rider');
         if (!authToken) {
@@ -814,6 +858,9 @@ const RiderApp: React.FC = () => {
 
   const handleLoginSuccess = async (customerData: Customer) => {
     setCustomer(customerData);
+    // Set loading states immediately before fetching data
+    setIsLoadingBike(true);
+    setIsLoadingStations(true);
     setIsLoggedIn(true);
     const token = localStorage.getItem('authToken_rider');
     if (token) {
@@ -915,11 +962,28 @@ const RiderApp: React.FC = () => {
           <header className="flow-header">
             <div className="flow-header-inner">
               <div className="flow-header-left">
-                <button className="flow-header-back" onClick={() => window.location.href = '/'} aria-label={t('common.back') || 'Back'}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <button 
+                  className="flow-header-back" 
+                  onClick={() => {
+                    if (isLoggedIn) {
+                      // If logged in and not on home, go to home
+                      if (currentScreen !== 'home') {
+                        setCurrentScreen('home');
+                      }
+                      // If already on home, do nothing (stay on home)
+                    } else if (showFoundCustomer) {
+                      // If on welcome back screen, go back to role selection
+                      window.location.href = '/';
+                    } else {
+                      // Otherwise, go back to role selection
+                      window.location.href = '/';
+                    }
+                  }} 
+                  aria-label={t('common.back') || 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
                     <path d="M19 12H5M12 19l-7-7 7-7"/>
                   </svg>
-                  <span style={{ marginLeft: '4px', fontSize: '14px' }}>{t('common.back') || 'Back'}</span>
                 </button>
               </div>
             </div>
@@ -1032,6 +1096,9 @@ const RiderApp: React.FC = () => {
                   onClick={async () => {
                     const token = localStorage.getItem('authToken_rider');
                     if (token && customer) {
+                      // Set loading states immediately before fetching data
+                      setIsLoadingBike(true);
+                      setIsLoadingStations(true);
                       setIsLoggedIn(true);
                       await fetchDashboardData(token);
                       if (customer.partner_id) {
@@ -1127,8 +1194,19 @@ const RiderApp: React.FC = () => {
         <header className="flow-header">
           <div className="flow-header-inner">
             <div className="flow-header-left">
-              <button className="flow-header-back" onClick={handleBackToRoles} aria-label={t('attendant.changeRole') || 'Change Role'}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <button 
+                className="flow-header-back" 
+                onClick={() => {
+                  // If not on home, go to home. If on home, go back to role selection
+                  if (currentScreen !== 'home') {
+                    setCurrentScreen('home');
+                  } else {
+                    handleBackToRoles();
+                  }
+                }} 
+                aria-label={currentScreen !== 'home' ? (t('common.back') || 'Back') : (t('attendant.changeRole') || 'Change Role')}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
                   <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
               </button>
@@ -1161,8 +1239,11 @@ const RiderApp: React.FC = () => {
                 name: s.name,
                 distance: s.distance,
                 batteries: s.batteries,
+                lat: s.lat,
+                lng: s.lng,
               }))}
               isLoadingStations={isLoadingStations}
+              isLoadingBike={isLoadingBike}
               onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
               onTopUp={handleTopUp}

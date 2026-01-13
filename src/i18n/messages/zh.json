@@ -1218,6 +1218,7 @@
   "rider.switchAccount": "切换账户",
   "rider.balanceTopUp": "余额充值",
   "rider.subscriptionPayment": "订阅支付",
+  "rider.batterySwap": "电池更换",
   "rider.batterySwapTransaction": "电池更换交易",
   "rider.electricityUsage": "用电量",
   "rider.topUpSuccess": "充值成功",
