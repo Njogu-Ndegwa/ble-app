@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 
@@ -39,6 +39,28 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocationActive, setIsLocationActive] = useState(false);
+  const [calculatedDistance, setCalculatedDistance] = useState<string | null>(null);
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): string => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    // Format distance: show meters if less than 1km, otherwise show km
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m`;
+    }
+    return `${distance.toFixed(1)} km`;
+  }, []);
 
 
   // Load Leaflet CSS and JS, then initialize map
@@ -161,7 +183,7 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
               }),
             }).addTo(mapInstanceRef.current);
             
-            userLocationMarkerRef.current.bindPopup(t('rider.yourLocation') || 'Your Location');
+            userLocationMarkerRef.current.bindPopup(t('rider.yourLocation') || 'My Location');
           }
         }
       },
@@ -219,6 +241,18 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
 
       marker.on('click', () => {
         setSelectedStation(station);
+        // Calculate distance if user location is available
+        if (userLocation && station.lat && station.lng) {
+          const distance = calculateDistance(
+            userLocation.lat,
+            userLocation.lng,
+            station.lat,
+            station.lng
+          );
+          setCalculatedDistance(distance);
+        } else {
+          setCalculatedDistance(null);
+        }
       });
 
       markersRef.current.push(marker);
@@ -241,6 +275,18 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
     const station = stations.find(s => s.id === stationId);
     if (station) {
       setSelectedStation(station);
+      // Calculate distance if user location is available
+      if (userLocation && station.lat && station.lng) {
+        const distance = calculateDistance(
+          userLocation.lat,
+          userLocation.lng,
+          station.lat,
+          station.lng
+        );
+        setCalculatedDistance(distance);
+      } else {
+        setCalculatedDistance(null);
+      }
       // Center map on selected station
       if (mapInstanceRef.current && station.lat && station.lng) {
         mapInstanceRef.current.setView([station.lat, station.lng], 15);
@@ -250,7 +296,21 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
 
   const handleHideDetail = () => {
     setSelectedStation(null);
+    setCalculatedDistance(null);
   };
+
+  // Recalculate distance when user location changes
+  useEffect(() => {
+    if (selectedStation && userLocation && selectedStation.lat && selectedStation.lng) {
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        selectedStation.lat,
+        selectedStation.lng
+      );
+      setCalculatedDistance(distance);
+    }
+  }, [userLocation, selectedStation, calculateDistance]);
 
   const handleNavigate = () => {
     if (!selectedStation) return;
@@ -397,6 +457,12 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
                 <div className="station-detail-stat-value">{selectedStation.batteries}</div>
                 <div className="station-detail-stat-label">{t('rider.batteries') || 'Batteries'}</div>
               </div>
+              {calculatedDistance && (
+                <div className="station-detail-stat">
+                  <div className="station-detail-stat-value">{calculatedDistance}</div>
+                  <div className="station-detail-stat-label">{t('rider.distance') || 'Distance'}</div>
+                </div>
+              )}
             </div>
             <div className="station-detail-actions">
               <button className="btn btn-secondary" onClick={handleHideDetail}>

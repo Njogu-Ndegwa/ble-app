@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CustomerData, getInitials } from './types';
-import { Phone, Mail, Battery, Hash } from 'lucide-react';
+import { Phone, Mail, Battery, Hash, CheckCircle, XCircle } from 'lucide-react';
 import { 
   Avatar, 
   Badge, 
@@ -10,6 +10,7 @@ import {
   BoltIcon,
   SwapIcon,
 } from '@/components/ui';
+import { useI18n } from '@/i18n';
 
 interface CustomerStatePanelProps {
   customer: CustomerData | null;
@@ -55,6 +56,8 @@ const getPaymentStateConfig = (state?: string): { variant: 'success' | 'warning'
 };
 
 export default function CustomerStatePanel({ customer, visible }: CustomerStatePanelProps) {
+  const { t } = useI18n();
+  
   if (!visible || !customer) return null;
 
   // Check for infinite quota services (should not be displayed)
@@ -120,6 +123,22 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
               <div className="customer-detail-item">
                 <Hash size={12} />
                 <span>{customer.subscriptionType}</span>
+              </div>
+            )}
+            {/* Plan Status */}
+            {customer.isPlanActive !== undefined && (
+              <div className="customer-detail-item" style={{
+                color: customer.isPlanActive ? 'var(--success)' : 'var(--error)'
+              }}>
+                {customer.isPlanActive ? (
+                  <CheckCircle size={12} />
+                ) : (
+                  <XCircle size={12} />
+                )}
+                <span>{customer.isPlanActive 
+                  ? (t('common.active') || 'Active') 
+                  : (t('common.inactive') || 'Inactive')
+                }</span>
               </div>
             )}
             {/* Current Battery */}

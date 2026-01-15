@@ -405,6 +405,11 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 email: odooCustomer.email,
               });
               
+              // Find matching subscription from subscribed_products
+              const matchingSubscription = dashboard.subscribed_products?.find(
+                (sub) => sub.subscription_code === customerSubscriptionCode
+              );
+              
               // Update with enriched data - prefer Odoo data over GraphQL data
               enrichedCustomerData = {
                 ...enrichedCustomerData,
@@ -414,6 +419,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                        enrichedCustomerData.phone,
                 email: (typeof odooCustomer.email === 'string' ? odooCustomer.email : '') || 
                        enrichedCustomerData.email,
+                // Add plan status from matching subscription
+                isPlanActive: matchingSubscription?.is_active ?? undefined,
+                planStatus: matchingSubscription?.subscription_state ?? undefined,
               };
               
               console.info('[Attendant] Customer data enriched:', {
@@ -422,6 +430,8 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
                 phone: enrichedCustomerData.phone,
                 email: enrichedCustomerData.email,
                 subscriptionId: enrichedCustomerData.subscriptionId,
+                isPlanActive: enrichedCustomerData.isPlanActive,
+                planStatus: enrichedCustomerData.planStatus,
               });
             }
           } else {
@@ -1939,6 +1949,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             transactionId={transactionId}
             amountDue={Math.floor(swapData.cost)}
             amountPaid={Math.floor(actualAmountPaid)}
+            currencySymbol={swapData.currencySymbol}
           />
         );
       default:

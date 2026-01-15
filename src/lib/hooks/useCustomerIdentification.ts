@@ -65,6 +65,9 @@ export interface IdentifiedCustomerData {
   paymentState?: 'INITIAL' | 'DEPOSIT_DUE' | 'CURRENT' | 'RENEWAL_DUE' | 'FINAL_DUE' | 'COMPLETE';
   serviceState?: 'INITIAL' | 'WAIT_BATTERY_ISSUE' | 'BATTERY_ISSUED' | 'BATTERY_RETURNED' | 'BATTERY_LOST' | 'COMPLETE';
   currentBatteryId?: string;
+  // Plan status
+  isPlanActive?: boolean;  // Whether the subscription plan is active
+  planStatus?: string;  // Subscription state (e.g., 'active', 'paused', 'cancelled')
 }
 
 /** Result returned on successful identification */

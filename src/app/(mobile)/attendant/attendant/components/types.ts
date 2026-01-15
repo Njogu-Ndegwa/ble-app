@@ -28,6 +28,9 @@ export interface CustomerData {
   // Service Cycle FSM states  
   serviceState?: 'INITIAL' | 'WAIT_BATTERY_ISSUE' | 'BATTERY_ISSUED' | 'BATTERY_RETURNED' | 'BATTERY_LOST' | 'COMPLETE';
   currentBatteryId?: string;
+  // Plan status
+  isPlanActive?: boolean;  // Whether the subscription plan is active
+  planStatus?: string;  // Subscription state (e.g., 'active', 'paused', 'cancelled')
 }
 
 // Payment initiation response from Odoo

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
+import { toast } from 'react-hot-toast';
 
 // Declare Leaflet types
 declare global {
@@ -63,8 +64,52 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const userLocationMarkerRef = useRef<any>(null);
+  const routeLineRef = useRef<any>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): string => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    // Format distance: show meters if less than 1km, otherwise show km
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m`;
+    }
+    return `${distance.toFixed(1)} km`;
+  }, []);
+
+  // Calculate distances for all stations
+  const stationsWithDistance = useMemo(() => {
+    if (!userLocation) {
+      return nearbyStations.map(station => ({ ...station, calculatedDistance: null }));
+    }
+    
+    return nearbyStations.map(station => {
+      if (!station.lat || !station.lng) {
+        return { ...station, calculatedDistance: null };
+      }
+      
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        station.lat,
+        station.lng
+      );
+      
+      return { ...station, calculatedDistance: distance };
+    });
+  }, [nearbyStations, userLocation, calculateDistance]);
   
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -160,6 +205,10 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     }
 
     return () => {
+      if (routeLineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(routeLineRef.current);
+        routeLineRef.current = null;
+      }
       if (userLocationMarkerRef.current && mapInstanceRef.current) {
         mapInstanceRef.current.removeLayer(userLocationMarkerRef.current);
         userLocationMarkerRef.current = null;
@@ -177,34 +226,17 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     };
   }, [nearbyStations.length, isLoadingStations]);
 
-  // Get user location
+  // Get user location (independent of map loading)
   useEffect(() => {
-    if (!navigator.geolocation || !mapInstanceRef.current || !window.L || !isMapLoaded) return;
+    if (!navigator.geolocation) {
+      console.warn('Geolocation is not supported by this browser');
+      return;
+    }
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
-        
-        // Add or update user location marker
-        if (mapInstanceRef.current && window.L) {
-          if (userLocationMarkerRef.current) {
-            userLocationMarkerRef.current.setLatLng([latitude, longitude]);
-          } else {
-            userLocationMarkerRef.current = window.L.marker([latitude, longitude], {
-              icon: window.L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-                iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
-                iconSize: [20, 32],
-                iconAnchor: [10, 32],
-                popupAnchor: [1, -28],
-                shadowSize: [32, 32],
-              }),
-            }).addTo(mapInstanceRef.current);
-            userLocationMarkerRef.current.bindPopup(t('rider.yourLocation') || 'Your Location');
-          }
-        }
       },
       (error) => {
         console.error('Error getting location:', error);
@@ -219,7 +251,30 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [isMapLoaded, t]);
+  }, []);
+
+  // Update user location marker on map when location changes and map is loaded
+  useEffect(() => {
+    if (!userLocation || !mapInstanceRef.current || !window.L || !isMapLoaded) return;
+
+    // Add or update user location marker
+    if (userLocationMarkerRef.current) {
+      userLocationMarkerRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+    } else {
+      userLocationMarkerRef.current = window.L.marker([userLocation.lat, userLocation.lng], {
+        icon: window.L.icon({
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+          iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+          shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
+          iconSize: [20, 32],
+          iconAnchor: [10, 32],
+          popupAnchor: [1, -28],
+          shadowSize: [32, 32],
+        }),
+      }).addTo(mapInstanceRef.current);
+            userLocationMarkerRef.current.bindPopup(t('rider.yourLocation') || 'My Location');
+    }
+  }, [userLocation, isMapLoaded, t]);
 
   // Update markers when stations change
   useEffect(() => {
@@ -299,6 +354,56 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       }
     }
   }, [nearbyStations, isMapLoaded, onSelectStation]);
+
+  const handleNavigate = (station: Station, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering onSelectStation
+    
+    if (!userLocation) {
+      toast.error(t('rider.locationRequired') || 'Location is required for navigation. Please enable location services.');
+      return;
+    }
+
+    if (!mapInstanceRef.current || !window.L) {
+      toast.error(t('rider.mapNotReady') || 'Map is not ready. Please wait a moment.');
+      return;
+    }
+
+    if (!station.lat || !station.lng) {
+      toast.error(t('rider.stationLocationMissing') || 'Station location is missing.');
+      return;
+    }
+
+    try {
+      // Remove existing route line if any
+      if (routeLineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(routeLineRef.current);
+        routeLineRef.current = null;
+      }
+
+      // Draw a simple straight line route from user location to station
+      const routeCoordinates = [
+        [userLocation.lat, userLocation.lng],
+        [station.lat, station.lng],
+      ];
+
+      routeLineRef.current = window.L.polyline(routeCoordinates, {
+        color: '#3b82f6',
+        weight: 5,
+        opacity: 0.8,
+        smoothFactor: 1,
+      }).addTo(mapInstanceRef.current);
+
+      // Fit map to show both locations
+      const bounds = window.L.latLngBounds([
+        [userLocation.lat, userLocation.lng],
+        [station.lat, station.lng],
+      ]);
+      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
+    } catch (error: any) {
+      console.error('Error drawing route:', error);
+      toast.error(t('rider.routingError') || 'Failed to draw route. Please try again.');
+    }
+  };
 
   return (
     <div className="rider-screen active">
@@ -487,7 +592,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           
           {/* Station List */}
           <div className="stations-list">
-            {nearbyStations.slice(0, 5).map((station) => (
+            {stationsWithDistance.slice(0, 5).map((station) => (
               <div 
                 key={station.id} 
                 className="station-item"
@@ -505,9 +610,22 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                       <span className={`station-availability-dot ${station.batteries < 5 ? 'low' : ''}`}></span>
                       {station.batteries} {t('rider.batteries') || 'batteries'}
                     </span>
+                    {station.calculatedDistance && (
+                      <span className="station-distance" style={{
+                        marginLeft: '12px',
+                        fontSize: '12px',
+                        color: 'var(--text-muted)',
+                        fontWeight: '500'
+                      }}>
+                        • {station.calculatedDistance}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <button className="station-nav-btn">
+                <button 
+                  className="station-nav-btn"
+                  onClick={(e) => handleNavigate(station, e)}
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polygon points="3 11 22 2 13 21 11 13 3 11"/>
                   </svg>
