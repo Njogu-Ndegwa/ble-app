@@ -25,6 +25,7 @@ interface BikeInfo {
   model: string;
   vehicleId: string | null;
   totalSwaps: number;
+  lastSwap: string | null;
   paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | string;
   currentBatteryId?: string;
   imageUrl?: string;
@@ -355,8 +356,42 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     }
   }, [nearbyStations, isMapLoaded, onSelectStation]);
 
+  // Handle clicking on a station - zoom to it on the map
+  const handleStationClick = (station: Station & { calculatedDistance: string | null }) => {
+    if (!mapInstanceRef.current || !window.L) {
+      // Map not ready, just select the station
+      onSelectStation(station.id);
+      return;
+    }
+
+    if (!station.lat || !station.lng) {
+      toast.error(t('rider.stationLocationMissing') || 'Station location is missing.');
+      return;
+    }
+
+    // Remove existing route line if any
+    if (routeLineRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(routeLineRef.current);
+      routeLineRef.current = null;
+    }
+
+    // Zoom to the station marker
+    mapInstanceRef.current.setView([station.lat, station.lng], 16, {
+      animate: true,
+      duration: 0.5,
+    });
+
+    // Find and open the popup for this station marker
+    markersRef.current.forEach((marker) => {
+      const markerLatLng = marker.getLatLng();
+      if (Math.abs(markerLatLng.lat - station.lat!) < 0.0001 && Math.abs(markerLatLng.lng - station.lng!) < 0.0001) {
+        marker.openPopup();
+      }
+    });
+  };
+
   const handleNavigate = (station: Station, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering onSelectStation
+    e.stopPropagation(); // Prevent triggering handleStationClick
     
     if (!userLocation) {
       toast.error(t('rider.locationRequired') || 'Location is required for navigation. Please enable location services.');
@@ -430,16 +465,16 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               <Image 
                 src={bike.imageUrl} 
                 alt={bike.model}
-                width={100}
-                height={70}
+                width={140}
+                height={100}
                 style={{ objectFit: 'contain' }}
               />
             ) : (
               <Image 
-                src="/assets/Rider.png" 
+                src="/assets/E-3-one.png" 
                 alt={bike.model}
-                width={100}
-                height={70}
+                width={140}
+                height={100}
                 style={{ objectFit: 'contain' }}
               />
             )}
@@ -454,6 +489,17 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 </span>
               ) : (
                 <span className="rider-bike-detail-value">{bike.vehicleId || 'N/A'}</span>
+              )}
+            </div>
+            <div className="rider-bike-detail">
+              <span className="rider-bike-detail-label">{t('rider.lastSwap') || 'Last Swap'}</span>
+              {isLoadingBike ? (
+                <span className="rider-bike-detail-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="loading-spinner" style={{ width: 14, height: 14, borderWidth: 2 }}></div>
+                  <span style={{ opacity: 0.6 }}>{t('common.loading') || 'Loading...'}</span>
+                </span>
+              ) : (
+                <span className="rider-bike-detail-value">{bike.lastSwap || 'N/A'}</span>
               )}
             </div>
             <div className="rider-bike-detail">
@@ -472,12 +518,12 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       </div>
 
       {/* Account Balance Card */}
-      {/* <div className="account-balance-card">
+      <div className="account-balance-card">
         <div className="account-balance-info">
           <div className="account-balance-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/>
-              <path d="M12 6v12M8 10h8M8 14h8" stroke="var(--bg-primary)" strokeWidth="2" fill="none"/>
+              <path d="M12 8v8M8 12h8"/>
             </svg>
           </div>
           <div>
@@ -488,7 +534,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <button className="account-balance-action" onClick={onTopUp}>
           {t('rider.topUp') || 'Top Up'}
         </button>
-      </div> */}
+      </div>
 
       {/* Quick Actions */}
       <div className="quick-actions">
@@ -590,13 +636,13 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             }}
           />
           
-          {/* Station List */}
+          {/* Station List - matching design from abs-design.vercel.app */}
           <div className="stations-list">
             {stationsWithDistance.slice(0, 5).map((station) => (
               <div 
                 key={station.id} 
                 className="station-item"
-                onClick={() => onSelectStation(station.id)}
+                onClick={() => handleStationClick(station)}
               >
                 <div className="station-icon">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -606,20 +652,23 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <div className="station-info">
                   <div className="station-name">{station.name}</div>
                   <div className="station-details">
-                    <span className="station-availability">
-                      <span className={`station-availability-dot ${station.batteries < 5 ? 'low' : ''}`}></span>
-                      {station.batteries} {t('rider.batteries') || 'batteries'}
+                    {/* Distance with marker icon - matching abs-design.vercel.app */}
+                    <span className="station-distance-info">
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                      </svg>
+                      {station.calculatedDistance || station.distance}
                     </span>
-                    {station.calculatedDistance && (
-                      <span className="station-distance" style={{
-                        marginLeft: '12px',
-                        fontSize: '12px',
-                        color: 'var(--text-muted)',
-                        fontWeight: '500'
-                      }}>
-                        • {station.calculatedDistance}
-                      </span>
-                    )}
+                    {/* Batteries with colored availability dot */}
+                    <span className="station-availability">
+                      <span className={`station-availability-dot ${
+                        station.batteries === 0 ? 'empty' : 
+                        station.batteries <= 3 ? 'low' : ''
+                      }`}></span>
+                      {station.batteries} {station.batteries === 1 
+                        ? (t('rider.battery') || 'battery') 
+                        : (t('rider.batteries') || 'batteries')}
+                    </span>
                   </div>
                 </div>
                 <button 

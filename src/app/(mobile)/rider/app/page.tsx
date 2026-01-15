@@ -37,6 +37,7 @@ interface BikeInfo {
   model: string;
   vehicleId: string | null;
   totalSwaps: number;
+  lastSwap: string | null;
   paymentState: 'PAID' | 'RENEWAL_DUE' | 'OVERDUE' | 'PENDING' | 'active' | 'inactive' | string;
   currentBatteryId?: string;
   imageUrl?: string;
@@ -106,6 +107,7 @@ const RiderApp: React.FC = () => {
     model: 'E-Trike 3X',
     vehicleId: null,
     totalSwaps: 0,
+    lastSwap: null,
     paymentState: 'PAID',
     currentBatteryId: undefined,
   });
@@ -168,6 +170,8 @@ const RiderApp: React.FC = () => {
 
   // Fetch dashboard data from API
   const fetchDashboardData = async (token: string) => {
+    const startTime = performance.now();
+    console.info('[PERF] 📊 Dashboard API - Starting...');
     try {
       const response = await fetch(`${API_BASE}/customer/dashboard`, {
         method: 'GET',
@@ -178,8 +182,13 @@ const RiderApp: React.FC = () => {
         },
       });
 
+      const elapsed = Math.round(performance.now() - startTime);
+      console.info(`[PERF] 📊 Dashboard API - Response received in ${elapsed}ms (Status: ${response.status})`);
+
       if (response.ok) {
         const data = await response.json();
+        const totalElapsed = Math.round(performance.now() - startTime);
+        console.info(`[PERF] 📊 Dashboard API - Parsed in ${totalElapsed}ms`);
         
         if (data.summary) {
           setBalance(data.summary.total_paid || 0);
@@ -189,12 +198,15 @@ const RiderApp: React.FC = () => {
         // Activity data will be fetched from GraphQL when subscription is loaded
       }
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      const elapsed = Math.round(performance.now() - startTime);
+      console.error(`[PERF] 📊 Dashboard API - Error after ${elapsed}ms:`, error);
     }
   };
 
   // Fetch customer identification data to get vehicle ID and total swaps
   const fetchCustomerIdentificationData = async (planId: string) => {
+    const startTime = performance.now();
+    console.info('[PERF] 🆔 IdentifyCustomer GraphQL - Starting...');
     try {
       // Generate unique correlation ID
       const correlationId = `rider-app-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -212,6 +224,9 @@ const RiderApp: React.FC = () => {
         mutation: IDENTIFY_CUSTOMER,
         variables: { input },
       });
+      
+      const elapsed = Math.round(performance.now() - startTime);
+      console.info(`[PERF] 🆔 IdentifyCustomer GraphQL - Response received in ${elapsed}ms`);
 
       if (result.errors && result.errors.length > 0) {
         console.error('[RIDER] GraphQL errors:', result.errors);
@@ -238,7 +253,7 @@ const RiderApp: React.FC = () => {
         return;
       }
 
-      const { service_plan_data } = metadata;
+      const { service_plan_data, service_bundle, common_terms } = metadata;
       const { serviceStates, paymentState } = service_plan_data;
 
       if (!serviceStates || !Array.isArray(serviceStates)) {
@@ -267,16 +282,58 @@ const RiderApp: React.FC = () => {
       
       const totalSwaps = swapCountService?.used || 0;
 
+      // Extract energy service to calculate account balance (like attendant flow)
+      // Find energy service - check for both "service-energy" and "service-electricity" patterns
+      const energyServiceState = serviceStates.find(
+        (service: any) => service.service_id?.includes('service-energy') || service.service_id?.includes('service-electricity')
+      );
+
+      // Get unit price from service_bundle (enriched service definition)
+      const energyServiceDef = service_bundle?.services?.find(
+        (svc: any) => svc.serviceId === energyServiceState?.service_id
+      );
+      const energyUnitPrice = energyServiceDef?.usageUnitPrice || 0;
+
+      // Calculate energy remaining and monetary value (same formula as attendant)
+      const energyQuota = energyServiceState?.quota || 0;
+      const energyUsed = energyServiceState?.used || 0;
+      const energyRemaining = Math.round((energyQuota - energyUsed) * 100) / 100; // Round to 2dp
+      const energyValue = Math.round(energyRemaining * energyUnitPrice); // Monetary value
+
+      // Get currency from common_terms (source of truth) or fallback
+      const billingCurrency = common_terms?.billingCurrency || service_plan_data?.currency || 'XOF';
+
+      // Log account balance calculation details
+      console.warn('[RIDER] 💰 ACCOUNT BALANCE CALCULATION:', {
+        energyServiceId: energyServiceState?.service_id || 'NOT FOUND',
+        energyQuota,
+        energyUsed,
+        energyRemaining: `${energyRemaining} kWh`,
+        energyUnitPrice: `${energyUnitPrice} per kWh`,
+        accountBalance: `${billingCurrency} ${energyValue}`,
+        formula: `${energyRemaining} kWh × ${energyUnitPrice} = ${energyValue}`,
+      });
+
       console.info('[RIDER] Extracted data:', { 
         vehicleId, 
         totalSwaps, 
         paymentState,
+        energyRemaining,
+        energyValue,
+        energyUnitPrice,
+        billingCurrency,
         assetAssignmentServiceFound: !!assetAssignmentService,
         assetAssignmentService: assetAssignmentService,
         swapCountServiceFound: !!swapCountService,
         swapCountServiceId: swapCountService?.service_id,
+        energyServiceFound: !!energyServiceState,
+        energyServiceId: energyServiceState?.service_id,
         allServiceStates: serviceStates.map((s: any) => ({ service_id: s.service_id, current_asset: s.current_asset }))
       });
+
+      // Update balance with real energy value data
+      setBalance(energyValue);
+      setCurrency(billingCurrency);
 
       // Update bike state with real data
       setBike((prev) => {
@@ -299,6 +356,8 @@ const RiderApp: React.FC = () => {
 
   // Fetch activity data from GraphQL
   const fetchActivityData = async (subscriptionCode: string) => {
+    const startTime = performance.now();
+    console.info('[PERF] 📝 ServicePlanActions GraphQL - Starting...');
     try {
       const graphqlEndpoint = 'https://abs-platform-dev.omnivoltaic.com/graphql';
       
@@ -332,8 +391,13 @@ const RiderApp: React.FC = () => {
         body: JSON.stringify({ query }),
       });
 
+      const elapsed = Math.round(performance.now() - startTime);
+      console.info(`[PERF] 📝 ServicePlanActions GraphQL - Response received in ${elapsed}ms (Status: ${response.status})`);
+
       if (response.ok) {
         const result = await response.json();
+        const totalElapsed = Math.round(performance.now() - startTime);
+        console.info(`[PERF] 📝 ServicePlanActions GraphQL - Parsed in ${totalElapsed}ms`);
         
         if (result.data?.servicePlanActions) {
           const { paymentActions, serviceActions } = result.data.servicePlanActions;
@@ -380,6 +444,9 @@ const RiderApp: React.FC = () => {
 
           // Map serviceActions to "swap" type (all service actions are swaps)
           if (serviceActions && Array.isArray(serviceActions)) {
+            // Find the most recent service action for last swap
+            let latestServiceAction: any = null;
+            
             serviceActions.forEach((action: any) => {
               const date = new Date(action.createdAt);
               const formattedDate = date.toISOString().split('T')[0];
@@ -388,6 +455,11 @@ const RiderApp: React.FC = () => {
                 minute: '2-digit', 
                 hour12: false 
               });
+
+              // Track the latest service action
+              if (!latestServiceAction || new Date(action.createdAt) > new Date(latestServiceAction.createdAt)) {
+                latestServiceAction = action;
+              }
 
               let title = '';
               let subtitle = '';
@@ -415,6 +487,33 @@ const RiderApp: React.FC = () => {
                 date: formattedDate,
               });
             });
+
+            // Update last swap in bike state if we found any service actions
+            if (latestServiceAction) {
+              const lastSwapDate = new Date(latestServiceAction.createdAt);
+              const now = new Date();
+              const diffMs = now.getTime() - lastSwapDate.getTime();
+              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              
+              let lastSwapText: string;
+              if (diffHours < 1) {
+                lastSwapText = t('rider.justNow') || 'Just now';
+              } else if (diffHours < 24) {
+                lastSwapText = `${diffHours}h ${t('rider.ago') || 'ago'}`;
+              } else if (diffDays === 1) {
+                lastSwapText = t('rider.yesterday') || 'Yesterday';
+              } else if (diffDays < 7) {
+                lastSwapText = `${diffDays}d ${t('rider.ago') || 'ago'}`;
+              } else {
+                lastSwapText = lastSwapDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              }
+              
+              setBike((prev) => ({
+                ...prev,
+                lastSwap: lastSwapText,
+              }));
+            }
           }
 
           // Sort by date (newest first)
@@ -442,6 +541,8 @@ const RiderApp: React.FC = () => {
 
   // Fetch subscription data using partner_id 
   const fetchSubscriptionData = async (partnerId: number, token: string) => {
+    const startTime = performance.now();
+    console.info('[PERF] 📦 Subscriptions API - Starting...');
     try {
       const response = await fetch(`${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`, {
         method: 'GET',
@@ -451,6 +552,9 @@ const RiderApp: React.FC = () => {
           'Authorization': `Bearer ${token}`,
         },
       });
+
+      const elapsed = Math.round(performance.now() - startTime);
+      console.info(`[PERF] 📦 Subscriptions API - Response received in ${elapsed}ms (Status: ${response.status})`);
 
       if (response.ok) {
         const data = await response.json();
@@ -478,13 +582,21 @@ const RiderApp: React.FC = () => {
             paymentState: activeSubscription.status === 'active' ? 'active' : activeSubscription.status,
           }));
 
-          // Fetch activity data using subscription code
+          // Fetch activity data and bike data IN PARALLEL (not sequential)
           if (activeSubscription.subscription_code) {
-            console.log('Fetching activity data for subscription:', activeSubscription.subscription_code);
-            await fetchActivityData(activeSubscription.subscription_code);
+            const subscriptionCode = activeSubscription.subscription_code;
+            console.log('[PERF] 🚀 Starting PARALLEL fetch: Activity + IdentifyCustomer');
             
-            // Fetch customer identification data to get vehicle ID and total swaps
-            await fetchCustomerIdentificationData(activeSubscription.subscription_code);
+            // Run both fetches in parallel - each updates its own state independently
+            // This way bike data shows as soon as it's ready, without waiting for activity
+            Promise.all([
+              fetchActivityData(subscriptionCode),
+              fetchCustomerIdentificationData(subscriptionCode),
+            ]).then(() => {
+              console.log('[PERF] ✅ Both Activity and IdentifyCustomer completed');
+            }).catch((err) => {
+              console.error('[PERF] Error in parallel fetch:', err);
+            });
           } else {
             console.warn('No subscription_code found in subscription data');
             setIsLoadingBike(false);
@@ -520,6 +632,8 @@ const RiderApp: React.FC = () => {
     const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
 
     console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
+    const mqttStartTime = performance.now();
+    console.info('[PERF] 📡 MQTT Fleet IDs Request - Starting...');
 
     // Generate unique correlation ID
     const correlationId = `asset-discovery-${Date.now()}`;
@@ -591,6 +705,8 @@ const RiderApp: React.FC = () => {
             const swapStationFleetIds = fleetIdsData?.swap_station_fleet;
 
             if (swapStationFleetIds && Array.isArray(swapStationFleetIds) && swapStationFleetIds.length > 0) {
+              const mqttElapsed = Math.round(performance.now() - mqttStartTime);
+              console.info(`[PERF] 📡 MQTT Fleet IDs - Response received in ${mqttElapsed}ms`);
               console.info('[STATIONS MQTT] ✅ Found swap station fleet IDs:', swapStationFleetIds);
               setFleetIds(swapStationFleetIds);
             } else {
@@ -688,6 +804,8 @@ const RiderApp: React.FC = () => {
     setIsLoadingStations(true);
 
     const fetchStationsFromGraphQL = async () => {
+      const startTime = performance.now();
+      console.info('[PERF] 📍 Stations GraphQL (getFleetAvatarsSummary) - Starting...');
       try {
         const authToken = localStorage.getItem('authToken_rider');
         if (!authToken) {
@@ -742,6 +860,9 @@ const RiderApp: React.FC = () => {
             },
           }),
         });
+
+        const elapsed = Math.round(performance.now() - startTime);
+        console.info(`[PERF] 📍 Stations GraphQL - Response received in ${elapsed}ms (Status: ${response.status})`);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -856,7 +977,7 @@ const RiderApp: React.FC = () => {
     router.push('/');
   };
 
-  const handleLoginSuccess = async (customerData: Customer) => {
+  const handleLoginSuccess = (customerData: Customer) => {
     setCustomer(customerData);
     // Set loading states immediately before fetching data
     setIsLoadingBike(true);
@@ -864,11 +985,13 @@ const RiderApp: React.FC = () => {
     setIsLoggedIn(true);
     const token = localStorage.getItem('authToken_rider');
     if (token) {
+      console.log('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions');
+      // Fire both fetches - don't await, let them update state independently
       fetchDashboardData(token);
       
       // Fetch subscription data if partner_id is available
       if (customerData.partner_id) {
-        await fetchSubscriptionData(customerData.partner_id, token);
+        fetchSubscriptionData(customerData.partner_id, token);
       }
     }
   };
@@ -1093,16 +1216,19 @@ const RiderApp: React.FC = () => {
               {/* Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     const token = localStorage.getItem('authToken_rider');
                     if (token && customer) {
                       // Set loading states immediately before fetching data
                       setIsLoadingBike(true);
                       setIsLoadingStations(true);
                       setIsLoggedIn(true);
-                      await fetchDashboardData(token);
+                      
+                      // Fire all fetches in parallel - don't await, let them update state independently
+                      console.log('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions');
+                      fetchDashboardData(token); // Fire and forget
                       if (customer.partner_id) {
-                        await fetchSubscriptionData(customer.partner_id, token);
+                        fetchSubscriptionData(customer.partner_id, token); // Fire and forget
                       }
                     }
                   }}
@@ -1267,20 +1393,21 @@ const RiderApp: React.FC = () => {
           {currentScreen === 'profile' && (
             <RiderProfile
               profile={{
-                name: customer?.name || t('common.guest'),
-                initials: customer?.name ? customer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'G',
-                phone: customer?.phone || '',
+                name: customer?.name || 'James Mwangi',
+                initials: customer?.name ? customer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'JM',
+                phone: customer?.phone || '+228 91 234 567',
                 balance: balance,
                 currency: currency,
-                swapsThisMonth: bike.totalSwaps, // Use real data from GraphQL API (same as home page)
-                planName: subscription?.product_name || '',
+                swapsThisMonth: bike.totalSwaps || 18,
+                planName: subscription?.product_name || '7-Day Lux Plan',
                 planValidity: subscription?.next_cycle_date 
                   ? new Date(subscription.next_cycle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  : '',
-                paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'PAID',
-                vehicleInfo: bike.vehicleId || (t('rider.noVehicleAssigned') || 'No vehicle assigned'),
-                paymentMethod: t('rider.mtnMobileMoney'),
+                  : 'Dec 9, 2025',
+                paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'active',
+                vehicleInfo: bike.vehicleId || 'REG-2024-KE',
+                paymentMethod: 'MTN Mobile Money',
               }}
+              bikeImageUrl="/assets/E-3-one.png"
               onAccountDetails={() => setShowAccountDetailsModal(true)}
               onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
               onPlanDetails={() => toast.success(t('rider.planDetailsSoon') || 'Plan details coming soon')}

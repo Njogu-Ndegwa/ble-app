@@ -66,15 +66,40 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
     }
   };
 
+  // Format phone number with + prefix and space after country code
+  const formatPhoneNumber = (phone: string): string => {
+    if (!phone) return '';
+    
+    // Remove any existing spaces and ensure we have just digits (and maybe a +)
+    let cleaned = phone.replace(/\s+/g, '');
+    
+    // Ensure + prefix
+    if (!cleaned.startsWith('+')) {
+      cleaned = '+' + cleaned;
+    }
+    
+    // Add space after country code (assume 1-3 digit country codes)
+    // Common patterns: +1, +44, +228, +254, etc.
+    const match = cleaned.match(/^(\+\d{1,3})(\d+)$/);
+    if (match) {
+      return `${match[1]} ${match[2]}`;
+    }
+    
+    return cleaned;
+  };
+
   return (
     <div className="rider-screen active">
+      {/* Profile Header - matching abs-design.vercel.app exactly */}
       <div className="profile-header">
         <div className="profile-avatar">{profile.initials}</div>
         <div className="profile-name">{profile.name}</div>
-        <div className="profile-phone">{profile.phone}</div>
+        <div className="profile-phone">{formatPhoneNumber(profile.phone)}</div>
       </div>
 
+      {/* Energy Service Card - matching abs-design.vercel.app exactly */}
       <div className="energy-service-card">
+        {/* Header with icon, title and status */}
         <div className="energy-service-header">
           <div className="energy-service-icon">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -90,54 +115,63 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           </div>
         </div>
         
+        {/* E-Trike Image */}
         <div className="energy-service-visual">
           <Image 
-            src={bikeImageUrl || "/assets/Rider.png"} 
-            alt="E-Vehicle" 
-            className="energy-service-bike"
-            width={120}
-            height={70}
+            src={bikeImageUrl || "/assets/E-3-one.png"} 
+            alt="E-Trike" 
+            width={180}
+            height={110}
             style={{ objectFit: 'contain' }}
           />
-          <div className="energy-service-glow"></div>
         </div>
         
-        <div className="energy-service-stats">
-          {/* <div className="energy-stat-card primary">
+        {/* Stats - Stacked vertically with icons */}
+        <div className="energy-service-stats-vertical">
+          {/* Account Balance - with accent border */}
+          <div className="energy-stat-row highlighted">
             <div className="energy-stat-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v12M8 10h8M8 14h8"/>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 8v8M8 12h8"/>
               </svg>
             </div>
-            <div className="energy-stat-info">
-              <span className="energy-stat-value">{profile.currency || 'XOF'} {profile.balance.toLocaleString()}</span>
-              <span className="energy-stat-label">{t('rider.accountBalance') || 'Account Balance'}</span>
+            <div className="energy-stat-content">
+              <div className="energy-stat-value">{profile.currency || 'XOF'} {profile.balance.toLocaleString()}</div>
+              <div className="energy-stat-label">{t('rider.accountBalance') || 'Account Balance'}</div>
             </div>
-          </div> */}
-          <div className="energy-stat-card">
+          </div>
+          
+          {/* Swaps This Month */}
+          <div className="energy-stat-row">
             <div className="energy-stat-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 6l-9.5 9.5-5-5L1 18"/>
-                <path d="M17 6h6v6"/>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M3 17l6-6 4 4 8-8"/>
+                <path d="M17 7h4v4"/>
               </svg>
             </div>
-            <div className="energy-stat-info">
-              <span className="energy-stat-value">{profile.swapsThisMonth}</span>
-              <span className="energy-stat-label">{t('rider.swapsThisMonth') || 'Swaps This Month'}</span>
+            <div className="energy-stat-content">
+              <div className="energy-stat-value">{profile.swapsThisMonth}</div>
+              <div className="energy-stat-label">
+                {profile.swapsThisMonth === 1 
+                  ? (t('rider.swapThisMonth') || 'Swap This Month')
+                  : (t('rider.swapsThisMonth') || 'Swaps This Month')
+                }
+              </div>
             </div>
           </div>
         </div>
         
-        <div className="energy-service-footer">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="energy-plan-name">{profile.planName}</span>
-            <span className="energy-plan-validity">{t('rider.validUntil') || 'Valid until'} {profile.planValidity}</span>
-          </div>
+        {/* Plan Info Footer - name on left, validity on right */}
+        <div className="energy-service-footer-row">
+          <span className="energy-plan-name">{profile.planName || '7-Day Lux Plan'}</span>
+          <span className="energy-plan-validity">{t('rider.validUntil') || 'Valid until'} {profile.planValidity || 'Dec 9, 2025'}</span>
         </div>
       </div>
 
+      {/* Menu List - matching abs-design.vercel.app exactly */}
       <div className="menu-list">
+        {/* Account Details */}
         <div className="menu-item" onClick={onAccountDetails}>
           <div className="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -156,6 +190,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           </div>
         </div>
 
+        {/* My Vehicle */}
         <div className="menu-item" onClick={onVehicle}>
           <div className="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -167,7 +202,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           </div>
           <div className="menu-item-content">
             <div className="menu-item-title">{t('rider.myVehicle') || 'My Vehicle'}</div>
-            <div className="menu-item-subtitle">{profile.vehicleInfo}</div>
+            <div className="menu-item-subtitle">{profile.vehicleInfo || 'Oves Tuk-Tuk • REG-2024-KE'}</div>
           </div>
           <div className="menu-item-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -176,7 +211,8 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           </div>
         </div>
 
-        {/* <div className="menu-item" onClick={onPlanDetails}>
+        {/* Subscription Plan */}
+        <div className="menu-item" onClick={onPlanDetails}>
           <div className="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -193,27 +229,29 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
-        </div> */}
+        </div>
 
-        {/* <div className="menu-item" onClick={onPaymentMethods}>
+        {/* Payment Methods */}
+        <div className="menu-item" onClick={onPaymentMethods}>
           <div className="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="4" width="22" height="16" rx="2"/>
-              <path d="M1 10h22"/>
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+              <line x1="1" y1="10" x2="23" y2="10"/>
             </svg>
           </div>
           <div className="menu-item-content">
             <div className="menu-item-title">{t('rider.paymentMethods') || 'Payment Methods'}</div>
-            <div className="menu-item-subtitle">{profile.paymentMethod}</div>
+            <div className="menu-item-subtitle">{t('rider.paymentMethodsDesc') || 'Manage your payment options'}</div>
           </div>
           <div className="menu-item-arrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
-        </div> */}
+        </div>
 
-        {/* <div className="menu-item" onClick={onSupport}>
+        {/* Help & Support */}
+        <div className="menu-item" onClick={onSupport}>
           <div className="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>
@@ -230,10 +268,9 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
-        </div> */}
-      </div>
+        </div>
 
-      <div className="menu-list">
+        {/* Log Out */}
         <div className="menu-item logout" onClick={onLogout}>
           <div className="menu-item-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -252,4 +289,3 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 };
 
 export default RiderProfile;
-

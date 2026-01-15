@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
 import { Globe } from 'lucide-react';
 import Image from "next/image";
+import { PhoneInputWithCountry } from '@/components/ui';
 
 // Define interfaces
 interface Customer {
@@ -40,8 +41,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const { bridge } = useBridge();
+  // Phone number in E.164 format without the + prefix (e.g., "254712345678")
   const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [countryCode, setCountryCode] = useState<string>("254");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
@@ -202,7 +203,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const handleSignIn = async () => {
-    if (!phoneNumber.trim()) {
+    // Phone number from PhoneInputWithCountry is already in E.164 format without + prefix
+    // Validate: should have at least 7 digits (dial code + some local number)
+    const phoneDigits = phoneNumber.replace(/\D/g, '');
+    if (phoneDigits.length < 7) {
       toast.error(t("rider.enterPhone") || t("Please enter your phone number"));
       return;
     }
@@ -214,10 +218,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsSigningIn(true);
 
     try {
-      // Combine country code with phone number
-      // Remove any non-digit characters (spaces, dashes, parentheses) but keep leading zeros
-      const cleanPhone = phoneNumber.trim().replace(/\D/g, '');
-      const fullPhoneNumber = `${countryCode}${cleanPhone}`;
+      // Phone number is already the full number from PhoneInputWithCountry
+      const fullPhoneNumber = phoneDigits;
       
       console.log("Attempting login with phone:", fullPhoneNumber);
       console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
@@ -303,26 +305,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.error("Response Status:", response.status);
         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.error("Error Data:", JSON.stringify(data, null, 2));
-        console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ phone: fullPhoneNumber, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
-        // Optionally pre-fill the registration phone with full number
-        const cleanPhoneForReg = phoneNumber.trim().replace(/^0+/, '');
-        const fullPhoneForReg = `${countryCode}${cleanPhoneForReg}`;
-        setFormData(prev => ({ ...prev, phone: fullPhoneForReg }));
+        // Pre-fill the registration phone with the full number
+        setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
         console.error("=== Login Error Response (400) ===");
         console.error("Response Status:", response.status);
         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.error("Error Data:", JSON.stringify(data, null, 2));
-        console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ phone: fullPhoneNumber, password: "***" }, null, 2));
         throw new Error(t("rider.invalidPhoneRequest") || t("Invalid request. Please ensure your phone number is correct."));
       } else {
         console.error("=== Login Error Response ===");
         console.error("Response Status:", response.status);
         console.error("Response Headers:", Object.fromEntries(response.headers.entries()));
         console.error("Error Data:", JSON.stringify(data, null, 2));
-        console.error("Payload Sent:", JSON.stringify({ phone: phoneNumber, password: "***" }, null, 2));
+        console.error("Payload Sent:", JSON.stringify({ phone: fullPhoneNumber, password: "***" }, null, 2));
         throw new Error(data.message || t("Login failed. Please try again."));
       }
     } catch (error: any) {
@@ -429,9 +429,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhoneNumber(e.target.value);
-  };
+  // Handle phone change from PhoneInputWithCountry (receives full number without + prefix)
+  const handlePhoneChange = useCallback((value: string) => {
+    setPhoneNumber(value);
+  }, []);
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
   };
@@ -775,69 +776,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       {/* Login Form */}
       <div className="login-form">
         {/* Phone Number Input with Country Code */}
-        <div className="form-group">
-          <label className="form-label">{t('rider.phoneNumber') || 'Phone Number'}</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ position: 'relative', width: '100px', flexShrink: 0 }}>
-              <select
-                className="form-input"
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                disabled={isSigningIn}
-                style={{ 
-                  paddingLeft: '36px',
-                  paddingRight: '8px',
-                  appearance: 'none',
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 8px center',
-                  cursor: isSigningIn ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <option value="254">+254</option>
-                <option value="228">+228</option>
-              </select>
-              <svg 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                style={{ 
-                  position: 'absolute', 
-                  left: '10px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)',
-                  width: '16px',
-                  height: '16px',
-                  color: 'var(--text-muted)',
-                  pointerEvents: 'none'
-                }}
-              >
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-              </svg>
-            </div>
-            <div className="input-with-icon" style={{ flex: 1 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-              </svg>
-              <input
-                type="tel"
-                className="form-input"
-                value={phoneNumber}
-                onChange={handlePhoneChange}
-                onKeyPress={handleKeyPress}
-                placeholder={t('rider.enterPhone') || 'Enter your phone number'}
-                disabled={isSigningIn}
-                inputMode="numeric"
-              />
-            </div>
-          </div>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            {t('rider.enterPhoneNumberHint') || 'Enter phone number (e.g., 7xxxxxxxx)'}
-          </p>
-        </div>
+        <PhoneInputWithCountry
+          label={t('rider.phoneNumber') || 'Phone Number'}
+          value={phoneNumber}
+          onChange={handlePhoneChange}
+          locale={locale}
+          placeholder={t('rider.enterPhone') || 'Enter your phone number'}
+          disabled={isSigningIn}
+        />
 
         {/* Password Input */}
         <div className="form-group">
@@ -883,7 +829,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <button
           className="btn btn-primary login-btn"
           onClick={handleSignIn}
-          disabled={isSigningIn || !phoneNumber.trim() || !password.trim()}
+          disabled={isSigningIn || phoneNumber.replace(/\D/g, '').length < 7 || !password.trim()}
         >
           {isSigningIn ? (
             <>
