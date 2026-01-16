@@ -3725,24 +3725,33 @@ html.theme-transition *::after {
   opacity: 0.7;
 }
 
-.panel-phone {
+/* Right column: Badges + Phone stacked */
+.panel-right-col {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 3px;
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.panel-phone svg {
-  width: 10px;
-  height: 10px;
   flex-shrink: 0;
 }
 
 .panel-badges {
   display: flex;
   gap: 4px;
+}
+
+.panel-phone {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.panel-phone svg {
+  width: 9px;
+  height: 9px;
   flex-shrink: 0;
+  opacity: 0.7;
 }
 
 /* Services row: Quotas + Battery inline */

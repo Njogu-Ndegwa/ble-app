@@ -85,7 +85,7 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
 
   return (
     <div className="customer-panel-unified visible">
-      {/* Row 1: Avatar + Identity + Badges */}
+      {/* Row 1: Avatar + Identity + Right Column (Badges + Phone) */}
       <div className="panel-row-main">
         <Avatar 
           initials={getInitials(customer.name)} 
@@ -102,24 +102,26 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
                 {customer.subscriptionType}
               </span>
             )}
-            {customer.phone && (
-              <span className="panel-phone">
-                <Phone size={10} />
-                {customer.phone}
-              </span>
-            )}
           </div>
         </div>
-        <div className="panel-badges">
-          {customer.paymentState && (
-            <Badge variant={paymentConfig.variant} size="xs">
-              {paymentConfig.shortLabel}
-            </Badge>
-          )}
-          {customer.serviceState && (
-            <Badge variant={serviceConfig.variant} size="xs">
-              {serviceConfig.shortLabel}
-            </Badge>
+        <div className="panel-right-col">
+          <div className="panel-badges">
+            {customer.paymentState && (
+              <Badge variant={paymentConfig.variant} size="xs">
+                {paymentConfig.shortLabel}
+              </Badge>
+            )}
+            {customer.serviceState && (
+              <Badge variant={serviceConfig.variant} size="xs">
+                {serviceConfig.shortLabel}
+              </Badge>
+            )}
+          </div>
+          {customer.phone && (
+            <span className="panel-phone">
+              <Phone size={9} />
+              {customer.phone}
+            </span>
           )}
         </div>
       </div>
