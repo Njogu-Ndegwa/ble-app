@@ -2274,6 +2274,7 @@ export async function getAttendantTransactions(
   console.info('=== GET ATTENDANT TRANSACTIONS ===');
   console.info('URL:', url);
   console.info('Period:', period);
+  console.info('Has Auth Token:', !!authToken);
   
   try {
     const response = await fetchWithRetry(url, {

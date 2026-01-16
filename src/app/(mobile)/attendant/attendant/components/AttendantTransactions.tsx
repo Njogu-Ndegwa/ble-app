@@ -35,7 +35,10 @@ const AttendantTransactions: React.FC<AttendantTransactionsProps> = ({ onSelectT
 
   const fetchTransactions = useCallback(async () => {
     const authToken = getAttendantRoleToken();
+    console.log('[AttendantTransactions] Fetching with token:', authToken ? `${authToken.substring(0, 20)}...` : 'NONE');
+    
     if (!authToken) {
+      console.error('[AttendantTransactions] No auth token available');
       setError(t('attendant.transactions.notAuthenticated') || 'Not authenticated');
       setIsLoading(false);
       return;
@@ -45,12 +48,27 @@ const AttendantTransactions: React.FC<AttendantTransactionsProps> = ({ onSelectT
     setError(null);
 
     try {
+      console.log('[AttendantTransactions] Calling API with period:', period);
       const response = await getAttendantTransactions(period, authToken);
-      setData(response);
+      console.log('[AttendantTransactions] API Response:', response);
+      
+      if (response && response.success !== false) {
+        setData(response);
+      } else {
+        console.error('[AttendantTransactions] API returned unsuccessful response:', response);
+        setError(t('attendant.transactions.fetchError') || 'Failed to load transactions');
+      }
     } catch (err: any) {
-      console.error('Failed to fetch transactions:', err);
-      setError(err.message || t('attendant.transactions.fetchError') || 'Failed to load transactions');
-      toast.error(t('attendant.transactions.fetchError') || 'Failed to load transactions');
+      console.error('[AttendantTransactions] Failed to fetch transactions:', err);
+      console.error('[AttendantTransactions] Error details:', {
+        message: err.message,
+        status: err.status,
+        stack: err.stack
+      });
+      
+      const errorMessage = err.message || t('attendant.transactions.fetchError') || 'Failed to load transactions';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

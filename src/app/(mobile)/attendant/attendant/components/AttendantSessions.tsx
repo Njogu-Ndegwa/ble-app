@@ -3,21 +3,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
-import { getOrdersList, type OrderListItem } from '@/lib/odoo-api';
+import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getAttendantRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, Clock, User, ChevronRight, FileText, Eye, Play } from 'lucide-react';
+import { RefreshCw, Clock, User, FileText, Eye, Play, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface AttendantSessionsProps {
   onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
 }
 
+const ITEMS_PER_PAGE = 15;
+
 const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }) => {
   const { t } = useI18n();
   const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<OrderListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<OrdersPagination | null>(null);
+  const [page, setPage] = useState(1);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
-  const fetchSessions = useCallback(async () => {
+  const fetchSessions = useCallback(async (pageNum: number = 1, subscriptionCode?: string) => {
     const authToken = getAttendantRoleToken();
     if (!authToken) {
       setError(t('attendant.sessions.notAuthenticated') || 'Not authenticated');
@@ -29,31 +38,83 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
     setError(null);
 
     try {
-      const response = await getOrdersList({
+      const params: { mine: boolean; limit: number; page: number; subscription_code?: string } = {
         mine: true,
-        limit: 50,
-      }, authToken);
+        limit: ITEMS_PER_PAGE,
+        page: pageNum,
+      };
+      
+      // Add subscription_code filter if searching
+      if (subscriptionCode && subscriptionCode.trim()) {
+        params.subscription_code = subscriptionCode.trim();
+      }
+
+      const response = await getOrdersList(params, authToken);
       
       // Filter to only show orders that have session data
       const sessionsWithData = (response.orders || []).filter(
         order => order.session && order.session.session_data
       );
+      
       setOrders(sessionsWithData);
+      setFilteredOrders(sessionsWithData);
+      setPagination(response.pagination);
     } catch (err: any) {
       console.error('Failed to fetch sessions:', err);
       setError(err.message || t('attendant.sessions.fetchError') || 'Failed to load sessions');
       toast.error(t('attendant.sessions.fetchError') || 'Failed to load sessions');
     } finally {
       setIsLoading(false);
+      setIsSearching(false);
     }
   }, [t]);
 
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+    fetchSessions(page);
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = () => {
-    fetchSessions();
+    setSearchQuery('');
+    setPage(1);
+    fetchSessions(1);
+  };
+
+  const handleSearch = () => {
+    if (!searchQuery.trim()) {
+      fetchSessions(1);
+      return;
+    }
+    setIsSearching(true);
+    setPage(1);
+    fetchSessions(1, searchQuery.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setPage(1);
+    fetchSessions(1);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination && pagination.has_next_page) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchSessions(nextPage, searchQuery.trim() || undefined);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (page > 1) {
+      const prevPage = page - 1;
+      setPage(prevPage);
+      fetchSessions(prevPage, searchQuery.trim() || undefined);
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -87,6 +148,12 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
     return session && (session.state === 'active' || session.state === 'paused');
   };
 
+  // Calculate pagination info
+  const totalItems = pagination?.total_records || filteredOrders.length;
+  const startItem = totalItems === 0 ? 0 : ((page - 1) * ITEMS_PER_PAGE) + 1;
+  const endItem = Math.min(page * ITEMS_PER_PAGE, totalItems);
+  const totalPages = pagination?.total_pages || Math.ceil(totalItems / ITEMS_PER_PAGE);
+
   return (
     <div className="attendant-sessions">
       {/* Header */}
@@ -101,6 +168,43 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
           aria-label={t('common.refresh') || 'Refresh'}
         >
           <RefreshCw size={18} className={isLoading ? 'spinning' : ''} />
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="sessions-search">
+        <div className="search-input-wrapper">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            className="search-input"
+            placeholder={t('attendant.sessions.searchPlaceholder') || 'Search by subscription code...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+          {searchQuery && (
+            <button 
+              className="search-clear-btn"
+              onClick={handleClearSearch}
+              aria-label={t('common.clear') || 'Clear'}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <button 
+          className="search-btn"
+          onClick={handleSearch}
+          disabled={isLoading}
+        >
+          {isSearching ? (
+            <span className="btn-loading-dots">
+              <span></span><span></span><span></span>
+            </span>
+          ) : (
+            t('common.search') || 'Search'
+          )}
         </button>
       </div>
 
@@ -123,69 +227,105 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
       )}
 
       {/* Empty State */}
-      {!isLoading && !error && orders.length === 0 && (
+      {!isLoading && !error && filteredOrders.length === 0 && (
         <div className="sessions-empty">
           <FileText size={48} strokeWidth={1} />
-          <p>{t('attendant.sessions.noSessions') || 'No sessions found'}</p>
+          <p>
+            {searchQuery 
+              ? (t('attendant.sessions.noSearchResults') || 'No sessions match your search')
+              : (t('attendant.sessions.noSessions') || 'No sessions found')
+            }
+          </p>
           <span className="empty-hint">
-            {t('attendant.sessions.noSessionsHint') || 'Sessions will appear here after starting swaps'}
+            {searchQuery 
+              ? (t('attendant.sessions.tryDifferentSearch') || 'Try a different search term')
+              : (t('attendant.sessions.noSessionsHint') || 'Sessions will appear here after starting swaps')
+            }
           </span>
         </div>
       )}
 
       {/* Sessions List */}
-      {!isLoading && !error && orders.length > 0 && (
-        <div className="sessions-list">
-          {orders.map((order) => {
-            const session = order.session;
-            const isResumable = canResume(order);
-            const isCompleted = session?.state === 'completed';
-            
-            return (
-              <div 
-                key={order.id}
-                className={`session-card-item ${isResumable ? 'resumable' : ''}`}
-                onClick={() => onSelectSession?.(order, !isResumable)}
-              >
-                <div className="session-card-main">
-                  <div className="session-card-left">
-                    <div className="session-avatar">
-                      <User size={18} />
+      {!isLoading && !error && filteredOrders.length > 0 && (
+        <>
+          <div className="sessions-list">
+            {filteredOrders.map((order) => {
+              const session = order.session;
+              const isResumable = canResume(order);
+              
+              return (
+                <div 
+                  key={order.id}
+                  className={`session-card-item ${isResumable ? 'resumable' : ''}`}
+                  onClick={() => onSelectSession?.(order, !isResumable)}
+                >
+                  <div className="session-card-main">
+                    <div className="session-card-left">
+                      <div className="session-avatar">
+                        <User size={18} />
+                      </div>
+                      <div className="session-info">
+                        <span className="session-customer-name">
+                          {order.partner_name || t('common.unknown') || 'Unknown'}
+                        </span>
+                        <span className="session-order-name">{order.name}</span>
+                      </div>
                     </div>
-                    <div className="session-info">
-                      <span className="session-customer-name">
-                        {order.partner_name || t('common.unknown') || 'Unknown'}
+                    <div className="session-card-right">
+                      {getStatusBadge(order)}
+                      <div className="session-action-icon">
+                        {isResumable ? <Play size={16} /> : <Eye size={16} />}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="session-card-footer">
+                    <div className="session-time">
+                      <Clock size={12} />
+                      <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
+                    </div>
+                    {session?.session_data?.currentStep && (
+                      <span className="session-step">
+                        {t('attendant.sessions.step') || 'Step'} {session.session_data.currentStep}/6
                       </span>
-                      <span className="session-order-name">{order.name}</span>
-                    </div>
-                  </div>
-                  <div className="session-card-right">
-                    {getStatusBadge(order)}
-                    <div className="session-action-icon">
-                      {isResumable ? <Play size={16} /> : <Eye size={16} />}
-                    </div>
+                    )}
                   </div>
                 </div>
-                
-                <div className="session-card-footer">
-                  <div className="session-time">
-                    <Clock size={12} />
-                    <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
-                  </div>
-                  {session?.session_data?.currentStep && (
-                    <span className="session-step">
-                      {t('attendant.sessions.step') || 'Step'} {session.session_data.currentStep}/6
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          <div className="sessions-pagination">
+            <div className="pagination-info">
+              {t('attendant.sessions.showing') || 'Showing'} {startItem}-{endItem} {t('attendant.sessions.of') || 'of'} {totalItems}
+            </div>
+            <div className="pagination-controls">
+              <button
+                className="pagination-btn"
+                onClick={handlePrevPage}
+                disabled={page <= 1 || isLoading}
+                aria-label={t('common.previous') || 'Previous'}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="pagination-page">
+                {page} / {totalPages || 1}
+              </span>
+              <button
+                className="pagination-btn"
+                onClick={handleNextPage}
+                disabled={!pagination?.has_next_page || isLoading}
+                aria-label={t('common.next') || 'Next'}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
 };
 
 export default AttendantSessions;
-

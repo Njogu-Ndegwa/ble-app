@@ -1162,6 +1162,11 @@ html.theme-transition *::after {
   width: 100%;
 }
 
+/* When bottom nav is present (set on container), add extra padding */
+.attendant-container.has-bottom-nav .attendant-main {
+  padding-bottom: 180px; /* Action bar height + bottom nav height + buffer */
+}
+
 /* Back to Roles Link */
 .back-to-roles {
   display: flex;
@@ -9147,16 +9152,12 @@ html.theme-transition *::after {
   bottom: 70px; /* Height of bottom nav */
 }
 
-.attendant-container.has-bottom-nav .attendant-main {
-  padding-bottom: 140px; /* Action bar + bottom nav */
-}
-
 @media (max-height: 700px) {
   .attendant-container.has-bottom-nav .action-bar {
     bottom: 56px;
   }
   .attendant-container.has-bottom-nav .attendant-main {
-    padding-bottom: 120px;
+    padding-bottom: 160px;
   }
 }
 
@@ -10040,4 +10041,169 @@ html.theme-transition *::after {
   font-size: var(--font-xs);
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+/* Sessions Search */
+.sessions-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search-input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 36px 10px 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  font-family: 'Outfit', sans-serif;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.search-clear-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.search-btn {
+  padding: 10px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+}
+
+.search-btn:hover:not(:disabled) {
+  background: var(--color-brand-light);
+}
+
+.search-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Sessions Pagination */
+.sessions-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+}
+
+.pagination-info {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-page {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Button loading dots */
+.btn-loading-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.btn-loading-dots span {
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: btnDotPulse 1.4s ease-in-out infinite both;
+}
+
+.btn-loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.btn-loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+.btn-loading-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes btnDotPulse {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
 }
