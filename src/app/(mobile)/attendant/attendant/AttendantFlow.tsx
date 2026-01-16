@@ -2061,23 +2061,26 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         {renderStepContent()}
       </main>
 
-      {/* Action Bar - Only show after session check is complete */}
-      {sessionCheckComplete && (
-        <ActionBar
-          currentStep={currentStep}
-          onBack={handleBack}
-          onMainAction={handleMainAction}
-          isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
-          inputMode={inputMode}
-          paymentInputMode={paymentInputMode}
-          hasSufficientQuota={hasSufficientQuota}
-          swapCost={swapData.cost}
-          readOnly={isReadOnlySession}
-        />
-      )}
+      {/* Bottom Fixed Area - Action Bar + Navigation */}
+      <div className="attendant-bottom-fixed">
+        {/* Action Bar - Only show after session check is complete */}
+        {sessionCheckComplete && (
+          <ActionBar
+            currentStep={currentStep}
+            onBack={handleBack}
+            onMainAction={handleMainAction}
+            isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
+            inputMode={inputMode}
+            paymentInputMode={paymentInputMode}
+            hasSufficientQuota={hasSufficientQuota}
+            swapCost={swapData.cost}
+            readOnly={isReadOnlySession}
+          />
+        )}
 
-      {/* Bottom Navigation - rendered by parent when using menu system */}
-      {renderBottomNav && renderBottomNav()}
+        {/* Bottom Navigation - rendered by parent when using menu system */}
+        {renderBottomNav && renderBottomNav()}
+      </div>
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
       {(isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending') && 

@@ -1164,7 +1164,7 @@ html.theme-transition *::after {
 
 /* When bottom nav is present (set on container), add extra padding */
 .attendant-container.has-bottom-nav .attendant-main {
-  padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); /* Compact: action bar + nav + buffer */
+  padding-bottom: 150px; /* Space for action bar + navigation + buffer */
 }
 
 /* Back to Roles Link */
@@ -9393,18 +9393,46 @@ html.theme-transition *::after {
   }
 }
 
-/* When bottom nav is present, adjust action bar and main content */
-.attendant-container.has-bottom-nav .action-bar {
-  /* Compact nav height (~50px) + safe area for notched devices */
-  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+/* Bottom fixed area - contains action bar and navigation together */
+.attendant-bottom-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.attendant-bottom-fixed > * {
+  pointer-events: auto;
+}
+
+/* When inside bottom-fixed wrapper, action bar is not fixed anymore */
+.attendant-bottom-fixed .action-bar {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 16px;
+  background: linear-gradient(to top, var(--bg-primary) 90%, transparent);
+}
+
+/* When inside bottom-fixed wrapper, nav is not fixed anymore */
+.attendant-bottom-fixed .attendant-nav {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
 }
 
 @media (max-height: 700px) {
-  .attendant-container.has-bottom-nav .action-bar {
-    bottom: calc(46px + env(safe-area-inset-bottom, 0px));
-  }
-  .attendant-container.has-bottom-nav .attendant-main {
-    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  .attendant-bottom-fixed .action-bar {
+    padding: 6px 12px;
   }
 }
 
@@ -9672,22 +9700,18 @@ html.theme-transition *::after {
   font-size: 12px;
 }
 
-/* Compact action bar */
-.attendant-container.has-bottom-nav .action-bar {
-  padding: 8px 12px;
-}
-
-.attendant-container.has-bottom-nav .action-bar-inner {
+/* Compact action bar styles */
+.attendant-bottom-fixed .action-bar-inner {
   gap: 8px;
 }
 
-.attendant-container.has-bottom-nav .action-bar .btn {
+.attendant-bottom-fixed .action-bar .btn {
   padding: 10px 14px;
   font-size: 12px;
   gap: 6px;
 }
 
-.attendant-container.has-bottom-nav .action-bar .btn svg {
+.attendant-bottom-fixed .action-bar .btn svg {
   width: 16px;
   height: 16px;
 }
@@ -9825,21 +9849,21 @@ html.theme-transition *::after {
 }
 
 /* Compact bottom nav */
-.attendant-container.has-bottom-nav .attendant-nav {
+.attendant-bottom-fixed .attendant-nav {
   padding: 6px 16px calc(8px + env(safe-area-inset-bottom, 0px));
 }
 
-.attendant-container.has-bottom-nav .attendant-nav-item {
+.attendant-bottom-fixed .attendant-nav-item {
   padding: 6px 10px;
   gap: 2px;
 }
 
-.attendant-container.has-bottom-nav .attendant-nav-item svg {
+.attendant-bottom-fixed .attendant-nav-item svg {
   width: 20px;
   height: 20px;
 }
 
-.attendant-container.has-bottom-nav .attendant-nav-label {
+.attendant-bottom-fixed .attendant-nav-label {
   font-size: 9px;
 }
 
