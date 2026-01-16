@@ -230,8 +230,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         .review-screen {
           display: flex;
           flex-direction: column;
-          gap: 16px;
-          padding: 0 8px;
+          gap: 10px;
+          padding: 0 4px;
         }
 
         /* Header */
@@ -239,52 +239,52 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 16px;
+          padding: 10px 12px;
           background: var(--bg-secondary);
-          border-radius: 12px;
+          border-radius: 10px;
         }
 
         .review-customer {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .review-avatar {
-          width: 40px;
-          height: 40px;
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
           background: var(--accent);
           color: var(--bg-primary);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 14px;
+          font-size: 12px;
           font-weight: 600;
         }
 
         .review-customer-info {
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 1px;
         }
 
         .review-customer-name {
-          font-size: 15px;
+          font-size: 13px;
           font-weight: 600;
           color: var(--text-primary);
         }
 
         .review-label {
-          font-size: 12px;
+          font-size: 10px;
           color: var(--text-muted);
         }
 
         .review-amount {
           display: flex;
           align-items: center;
-          gap: 6px;
-          font-size: 24px;
+          gap: 4px;
+          font-size: 20px;
           font-weight: 700;
           color: var(--text-primary);
           font-family: var(--font-mono);
@@ -292,29 +292,29 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
 
         .review-amount.free {
           color: #10b981;
-          font-size: 16px;
+          font-size: 14px;
         }
 
         /* Batteries */
         .review-batteries {
           display: grid;
           grid-template-columns: 1fr auto 1fr;
-          gap: 12px;
+          gap: 8px;
           align-items: center;
-          padding: 16px;
+          padding: 10px 12px;
           background: var(--bg-secondary);
-          border-radius: 12px;
+          border-radius: 10px;
         }
 
         .review-battery {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 8px;
+          gap: 4px;
         }
 
         .battery-label {
-          font-size: 11px;
+          font-size: 9px;
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -326,43 +326,43 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         }
 
         .battery-visual .battery-icon-swap {
-          width: 40px;
-          height: 56px;
+          width: 32px;
+          height: 44px;
         }
 
         .battery-visual .battery-percent {
-          font-size: 10px;
+          font-size: 8px;
         }
 
         .battery-details {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 2px;
+          gap: 1px;
         }
 
         .battery-energy {
-          font-size: 14px;
+          font-size: 12px;
           font-weight: 600;
           color: var(--text-primary);
         }
 
         .battery-value {
-          font-size: 12px;
+          font-size: 10px;
           font-weight: 500;
           color: var(--accent);
           font-family: var(--font-mono);
         }
 
         .battery-id {
-          font-size: 10px;
+          font-size: 9px;
           color: var(--text-muted);
           font-family: var(--font-mono);
         }
 
         .review-arrow {
-          width: 32px;
-          height: 32px;
+          width: 24px;
+          height: 24px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -370,8 +370,8 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         }
 
         .review-arrow svg {
-          width: 20px;
-          height: 20px;
+          width: 16px;
+          height: 16px;
         }
 
         /* Energy Gain */
@@ -379,35 +379,35 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          padding: 12px;
+          gap: 6px;
+          padding: 8px;
           background: var(--bg-secondary);
-          border-radius: 12px;
+          border-radius: 10px;
           color: var(--accent);
         }
 
         .review-energy-gain svg {
-          width: 18px;
-          height: 18px;
+          width: 16px;
+          height: 16px;
           flex-shrink: 0;
         }
 
         .energy-info {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .energy-value {
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 600;
         }
 
         .energy-money {
-          font-size: 14px;
+          font-size: 12px;
           font-weight: 600;
           font-family: var(--font-mono);
-          padding: 2px 8px;
+          padding: 2px 6px;
           background: var(--accent);
           color: var(--bg-primary);
           border-radius: 4px;
@@ -422,29 +422,29 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         .review-summary {
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          padding: 14px 16px;
+          gap: 6px;
+          padding: 10px 12px;
           background: var(--bg-secondary);
-          border-radius: 12px;
+          border-radius: 10px;
         }
 
         .summary-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: 13px;
+          font-size: 11px;
           font-weight: 600;
           color: var(--text-primary);
-          padding-bottom: 8px;
+          padding-bottom: 6px;
           border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
         }
 
         .rate-badge {
-          font-size: 11px;
+          font-size: 9px;
           font-weight: 500;
           color: var(--accent);
           background: rgba(0, 229, 229, 0.1);
-          padding: 2px 8px;
+          padding: 2px 6px;
           border-radius: 4px;
           font-family: var(--font-mono);
         }
@@ -453,29 +453,29 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: 13px;
+          font-size: 11px;
           color: var(--text-secondary);
         }
 
         .summary-row.calculation {
           flex-direction: column;
           align-items: flex-start;
-          gap: 2px;
+          gap: 1px;
         }
 
         .calc-label {
-          font-size: 12px;
+          font-size: 10px;
           color: var(--text-muted);
           display: flex;
           align-items: center;
-          gap: 4px;
+          gap: 3px;
         }
 
         .calc-formula {
-          font-size: 13px;
+          font-size: 11px;
           color: var(--text-secondary);
           font-family: var(--font-mono);
-          padding-left: 4px;
+          padding-left: 3px;
         }
 
         .calc-formula strong {
@@ -493,40 +493,40 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         .summary-divider {
           height: 1px;
           background: var(--border-color, rgba(255,255,255,0.1));
-          margin: 4px 0;
+          margin: 2px 0;
         }
 
         .summary-row.total {
-          padding-top: 4px;
+          padding-top: 2px;
         }
 
         .summary-row.total .calc-label {
-          font-size: 13px;
+          font-size: 11px;
           font-weight: 600;
           color: var(--text-primary);
         }
 
         .calc-total {
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 700;
           color: var(--text-primary);
           font-family: var(--font-mono);
           display: flex;
           align-items: center;
-          gap: 4px;
+          gap: 3px;
         }
 
         .calc-total.free {
           color: #10b981;
-          font-size: 14px;
+          font-size: 12px;
         }
 
         .summary-note {
-          font-size: 10px;
+          font-size: 9px;
           color: var(--text-muted);
           text-align: right;
           font-style: italic;
-          padding-top: 2px;
+          padding-top: 1px;
           font-family: var(--font-mono);
         }
       `}</style>

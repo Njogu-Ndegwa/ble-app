@@ -1164,7 +1164,7 @@ html.theme-transition *::after {
 
 /* When bottom nav is present (set on container), add extra padding */
 .attendant-container.has-bottom-nav .attendant-main {
-  padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px)); /* Action bar height + bottom nav height + buffer */
+  padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); /* Compact: action bar + nav + buffer */
 }
 
 /* Back to Roles Link */
@@ -9395,16 +9395,16 @@ html.theme-transition *::after {
 
 /* When bottom nav is present, adjust action bar and main content */
 .attendant-container.has-bottom-nav .action-bar {
-  /* Nav height (70px) + safe area for notched devices */
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  /* Compact nav height (~50px) + safe area for notched devices */
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-height: 700px) {
   .attendant-container.has-bottom-nav .action-bar {
-    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(46px + env(safe-area-inset-bottom, 0px));
   }
   .attendant-container.has-bottom-nav .attendant-main {
-    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -9462,6 +9462,385 @@ html.theme-transition *::after {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 70px; /* Space for bottom nav */
+}
+
+/* =====================================================
+   COMPACT LAYOUT FOR ATTENDANT WITH BOTTOM NAV
+   Makes content more compact so buttons aren't hidden
+   ===================================================== */
+
+/* Compact header when bottom nav present */
+.attendant-container.has-bottom-nav .flow-header {
+  padding: 8px 12px;
+}
+
+.attendant-container.has-bottom-nav .flow-header-back {
+  width: 28px;
+  height: 28px;
+}
+
+.attendant-container.has-bottom-nav .flow-header-back svg {
+  width: 14px;
+  height: 14px;
+}
+
+.attendant-container.has-bottom-nav .flow-header-lang {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.attendant-container.has-bottom-nav .flow-header-logo img {
+  height: 20px;
+}
+
+/* Compact scan prompt */
+.attendant-container.has-bottom-nav .scan-prompt {
+  padding-top: 8px;
+}
+
+.attendant-container.has-bottom-nav .scan-title {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.attendant-container.has-bottom-nav .scan-subtitle {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+/* Compact scanner area */
+.attendant-container.has-bottom-nav .scanner-area {
+  width: 150px;
+  height: 150px;
+  margin: 0 auto 12px;
+}
+
+.attendant-container.has-bottom-nav .scanner-corners {
+  inset: 10px;
+}
+
+.attendant-container.has-bottom-nav .scanner-corners::before,
+.attendant-container.has-bottom-nav .scanner-corners::after,
+.attendant-container.has-bottom-nav .scanner-corner-bl,
+.attendant-container.has-bottom-nav .scanner-corner-br {
+  width: 18px;
+  height: 18px;
+}
+
+.attendant-container.has-bottom-nav .scanner-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.attendant-container.has-bottom-nav .scanner-label {
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.attendant-container.has-bottom-nav .scan-hint {
+  font-size: 10px;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.attendant-container.has-bottom-nav .scan-hint svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Compact input toggle */
+.attendant-container.has-bottom-nav .input-toggle {
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.attendant-container.has-bottom-nav .toggle-btn {
+  padding: 8px 12px;
+  font-size: 11px;
+  gap: 6px;
+}
+
+.attendant-container.has-bottom-nav .toggle-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Compact manual entry */
+.attendant-container.has-bottom-nav .manual-entry-form {
+  padding: 12px;
+}
+
+.attendant-container.has-bottom-nav .form-label {
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+
+.attendant-container.has-bottom-nav .form-input {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* Compact device list */
+.attendant-container.has-bottom-nav .device-list {
+  max-height: 180px;
+  gap: 6px;
+}
+
+.attendant-container.has-bottom-nav .device-item {
+  padding: 10px 12px;
+}
+
+.attendant-container.has-bottom-nav .device-name {
+  font-size: 12px;
+}
+
+.attendant-container.has-bottom-nav .device-mac {
+  font-size: 9px;
+}
+
+.attendant-container.has-bottom-nav .device-rssi {
+  font-size: 9px;
+}
+
+/* Compact customer state panel */
+.attendant-container.has-bottom-nav .customer-state-panel {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.attendant-container.has-bottom-nav .state-customer-name {
+  font-size: 13px;
+}
+
+.attendant-container.has-bottom-nav .state-subscription-id {
+  font-size: 9px;
+}
+
+.attendant-container.has-bottom-nav .state-quotas {
+  gap: 6px;
+  padding-bottom: 8px;
+  margin-top: 6px;
+}
+
+.attendant-container.has-bottom-nav .state-quota-item {
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+/* Compact battery scan card */
+.attendant-container.has-bottom-nav .battery-scanned-card {
+  padding: 12px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-header {
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-icon-wrapper {
+  width: 36px;
+  height: 36px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-title {
+  font-size: 13px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-subtitle {
+  font-size: 10px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-grid {
+  gap: 8px;
+}
+
+.attendant-container.has-bottom-nav .battery-scanned-item {
+  padding: 8px;
+}
+
+.attendant-container.has-bottom-nav .battery-item-label {
+  font-size: 9px;
+}
+
+.attendant-container.has-bottom-nav .battery-item-value {
+  font-size: 12px;
+}
+
+/* Compact action bar */
+.attendant-container.has-bottom-nav .action-bar {
+  padding: 8px 12px;
+}
+
+.attendant-container.has-bottom-nav .action-bar-inner {
+  gap: 8px;
+}
+
+.attendant-container.has-bottom-nav .action-bar .btn {
+  padding: 10px 14px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.attendant-container.has-bottom-nav .action-bar .btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Compact first-time customer message */
+.attendant-container.has-bottom-nav .first-time-msg {
+  padding: 10px 12px;
+  font-size: 11px;
+}
+
+/* Compact expected battery info */
+.attendant-container.has-bottom-nav .expected-battery-info {
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+
+.attendant-container.has-bottom-nav .expected-battery-title {
+  font-size: 10px;
+}
+
+.attendant-container.has-bottom-nav .expected-battery-id {
+  font-size: 12px;
+}
+
+/* Compact QR scanner area (for payment) */
+.attendant-container.has-bottom-nav .qr-scanner-area {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 10px;
+}
+
+.attendant-container.has-bottom-nav .confirm-payment-cta {
+  width: 120px;
+  height: 120px;
+  margin: 12px auto;
+}
+
+.attendant-container.has-bottom-nav .confirm-payment-cta svg {
+  width: 36px;
+  height: 36px;
+}
+
+.attendant-container.has-bottom-nav .confirm-payment-cta span {
+  font-size: 11px;
+}
+
+/* Compact success receipt */
+.attendant-container.has-bottom-nav .success-receipt {
+  padding: 16px;
+}
+
+.attendant-container.has-bottom-nav .success-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+}
+
+.attendant-container.has-bottom-nav .success-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.attendant-container.has-bottom-nav .success-title {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.attendant-container.has-bottom-nav .success-message {
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.attendant-container.has-bottom-nav .receipt-card {
+  padding: 12px;
+}
+
+.attendant-container.has-bottom-nav .receipt-header {
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.attendant-container.has-bottom-nav .receipt-title {
+  font-size: 11px;
+}
+
+.attendant-container.has-bottom-nav .receipt-id {
+  font-size: 10px;
+}
+
+.attendant-container.has-bottom-nav .receipt-row {
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+/* Compact payment collection */
+.attendant-container.has-bottom-nav .payment-header-compact {
+  padding: 10px 12px;
+}
+
+.attendant-container.has-bottom-nav .payment-header-compact .payment-customer-name {
+  font-size: 13px;
+}
+
+.attendant-container.has-bottom-nav .payment-header-compact .payment-customer-id {
+  font-size: 9px;
+}
+
+.attendant-container.has-bottom-nav .payment-amount-large {
+  font-size: 18px;
+}
+
+.attendant-container.has-bottom-nav .payment-amount-label {
+  font-size: 10px;
+}
+
+.attendant-container.has-bottom-nav .payment-amount-value {
+  font-size: 13px;
+}
+
+.attendant-container.has-bottom-nav .payment-amount-value.payment-amount-remaining {
+  font-size: 16px;
+}
+
+.attendant-container.has-bottom-nav .payment-input-mode {
+  padding: 12px;
+}
+
+.attendant-container.has-bottom-nav .payment-input-mode .scan-title {
+  font-size: 15px;
+}
+
+.attendant-container.has-bottom-nav .payment-input-mode .scan-subtitle {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+/* Compact bottom nav */
+.attendant-container.has-bottom-nav .attendant-nav {
+  padding: 6px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+.attendant-container.has-bottom-nav .attendant-nav-item {
+  padding: 6px 10px;
+  gap: 2px;
+}
+
+.attendant-container.has-bottom-nav .attendant-nav-item svg {
+  width: 20px;
+  height: 20px;
+}
+
+.attendant-container.has-bottom-nav .attendant-nav-label {
+  font-size: 9px;
 }
 
 /* =====================================================
