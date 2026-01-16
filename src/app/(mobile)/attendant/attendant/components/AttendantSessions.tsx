@@ -137,8 +137,8 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
     
     return (
       <span className={`session-status-badge ${isCompleted ? 'completed' : isPending ? 'pending' : 'default'}`}>
-        {isCompleted ? (t('common.completed') || 'Completed') : 
-         isPending ? (t('common.inProgress') || 'In Progress') : state}
+        {isCompleted ? (t('sessions.completed') || 'Completed') : 
+         isPending ? (t('attendant.sessions.inProgress') || 'In Progress') : state}
       </span>
     );
   };

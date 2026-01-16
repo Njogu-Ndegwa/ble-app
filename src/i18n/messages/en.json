@@ -1279,6 +1279,7 @@
   "attendant.sessions.tryDifferentSearch": "Try a different search term",
   "attendant.sessions.showing": "Showing",
   "attendant.sessions.of": "of",
+  "attendant.sessions.inProgress": "In Progress",
 
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",

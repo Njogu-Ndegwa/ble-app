@@ -1182,6 +1182,7 @@
   "attendant.sessions.tryDifferentSearch": "尝试不同的搜索词",
   "attendant.sessions.showing": "显示",
   "attendant.sessions.of": "共",
+  "attendant.sessions.inProgress": "进行中",
 
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",

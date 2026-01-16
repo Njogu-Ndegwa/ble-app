@@ -73,9 +73,15 @@ interface AttendantFlowProps {
   hideHeaderActions?: boolean;
   /** Render function for bottom navigation (passed from AttendantApp) */
   renderBottomNav?: () => React.ReactNode;
+  /** Session to restore immediately on mount (from sessions screen) */
+  initialSession?: OrderListItem | null;
+  /** Whether the initial session should be read-only */
+  initialSessionReadOnly?: boolean;
+  /** Callback to clear the initial session after it's been consumed */
+  onInitialSessionConsumed?: () => void;
 }
 
-export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -325,6 +331,15 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
   }, [t]);
+  
+  // Effect to automatically restore initial session from props (from sessions screen)
+  useEffect(() => {
+    if (initialSession) {
+      handleSelectHistorySession(initialSession, initialSessionReadOnly || false);
+      // Notify parent that we've consumed the session
+      onInitialSessionConsumed?.();
+    }
+  }, [initialSession, initialSessionReadOnly, handleSelectHistorySession, onInitialSessionConsumed]);
   
   // NOTE: saveSessionData helper is defined after usePaymentCollection hook 
   // because it needs access to paymentInputMode, manualPaymentId, etc.

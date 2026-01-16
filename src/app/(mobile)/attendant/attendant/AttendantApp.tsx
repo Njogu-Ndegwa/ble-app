@@ -33,6 +33,10 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<AttendantScreen>('swap');
   
+  // Selected session to restore (from sessions screen)
+  const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
+  const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
+  
   // Employee info
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   
@@ -103,15 +107,18 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
 
   // Handle session selection from sessions screen
   const handleSelectSession = useCallback((order: OrderListItem, isReadOnly: boolean) => {
-    // Switch to swap screen - the user can use the history button in AttendantFlow
-    // to restore the session if needed
+    // Store the selected session to pass to AttendantFlow
+    setSelectedSession(order);
+    setSelectedSessionReadOnly(isReadOnly);
+    // Switch to swap screen - AttendantFlow will automatically restore the session
     setCurrentScreen('swap');
-    toast(isReadOnly 
-      ? (t('attendant.sessions.viewSession') || 'View session from history in swap screen')
-      : (t('attendant.sessions.resumeSession') || 'Resume session from history in swap screen'),
-      { icon: '📋' }
-    );
-  }, [t]);
+  }, []);
+  
+  // Callback to clear selected session after AttendantFlow consumes it
+  const handleSessionConsumed = useCallback(() => {
+    setSelectedSession(null);
+    setSelectedSessionReadOnly(false);
+  }, []);
 
   // For swap screen, render AttendantFlow with integrated bottom nav
   if (currentScreen === 'swap') {
@@ -125,6 +132,9 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
             onNavigate={handleNavigate}
           />
         )}
+        initialSession={selectedSession}
+        initialSessionReadOnly={selectedSessionReadOnly}
+        onInitialSessionConsumed={handleSessionConsumed}
       />
     );
   }

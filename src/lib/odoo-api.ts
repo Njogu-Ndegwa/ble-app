@@ -2275,6 +2275,7 @@ export async function getAttendantTransactions(
   console.info('URL:', url);
   console.info('Period:', period);
   console.info('Has Auth Token:', !!authToken);
+  console.info('Token preview:', authToken ? `${authToken.substring(0, 30)}...` : 'NONE');
   
   try {
     const response = await fetchWithRetry(url, {
@@ -2282,11 +2283,17 @@ export async function getAttendantTransactions(
       headers,
     });
     
+    console.info('=== GET ATTENDANT TRANSACTIONS - RESPONSE RECEIVED ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Response OK:', response.ok);
+    console.info('Content-Type:', response.headers.get('content-type'));
+    
     const data = await response.json();
     
     console.info('=== GET ATTENDANT TRANSACTIONS - RESPONSE ===');
     console.info('HTTP Status:', response.status);
     console.info('Total Transactions:', data.summary?.total_transactions);
+    console.info('Success:', data.success);
     
     if (!response.ok) {
       console.error('Get attendant transactions error (HTTP):', data);
@@ -2296,7 +2303,17 @@ export async function getAttendantTransactions(
     return data as AttendantTransactionsResponse;
   } catch (error: any) {
     console.error('=== GET ATTENDANT TRANSACTIONS - ERROR ===');
-    console.error('Error:', error);
+    console.error('Error type:', error?.constructor?.name);
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    
+    // Check if this is a network error vs other error
+    const errorMsg = error?.message || String(error);
+    if (/Failed to fetch|NetworkError|net::ERR_|TypeError/i.test(errorMsg)) {
+      console.error('This appears to be a network connectivity issue');
+      console.error('Possible causes: CORS, network offline, server unreachable, or request blocked');
+    }
+    
     throw error;
   }
 }
