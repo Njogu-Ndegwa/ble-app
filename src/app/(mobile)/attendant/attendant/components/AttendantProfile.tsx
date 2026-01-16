@@ -6,7 +6,7 @@ import { User, Mail, Phone, LogOut, Shield, ChevronRight } from 'lucide-react';
 
 interface AttendantProfileProps {
   employee: {
-    id: number;
+    id: string | number;
     name: string;
     email: string;
     phone?: string;

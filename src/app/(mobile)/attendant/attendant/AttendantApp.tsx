@@ -187,7 +187,7 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
           <div className="flow-header-left">
             <button 
               className="flow-header-back" 
-              onClick={() => currentScreen !== 'swap' ? setCurrentScreen('swap') : handleBackToRoles()}
+              onClick={() => setCurrentScreen('swap')}
               aria-label={t('common.back') || 'Back'}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
