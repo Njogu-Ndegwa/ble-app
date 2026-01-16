@@ -7,6 +7,7 @@ export { default as AttendantNav } from './AttendantNav';
 export type { AttendantScreen } from './AttendantNav';
 export { default as AttendantTransactions } from './AttendantTransactions';
 export { default as AttendantProfile } from './AttendantProfile';
+export { default as AttendantSessions } from './AttendantSessions';
 
 // ScannerArea is now imported from @/components/shared
 

@@ -1951,7 +1951,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   };
 
   return (
-    <div className="attendant-container">
+    <div className={`attendant-container ${renderBottomNav ? 'has-bottom-nav' : ''}`}>
       <div className="attendant-bg-gradient" />
       
       {/* Header with Back + Logo on left, Language Toggle on right */}

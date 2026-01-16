@@ -17,9 +17,9 @@ import {
   AttendantNav, 
   AttendantTransactions,
   AttendantProfile,
+  AttendantSessions,
   type AttendantScreen 
 } from './components';
-import { SessionsHistory } from '@/components/shared';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface AttendantAppProps {
@@ -35,9 +35,6 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
   
   // Employee info
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
-  
-  // Sessions history modal state (for viewing from sessions screen)
-  const [showSessionsHistory, setShowSessionsHistory] = useState(false);
   
   // Load employee info on mount
   useEffect(() => {
@@ -101,84 +98,40 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
 
   // Handle navigation
   const handleNavigate = useCallback((screen: AttendantScreen) => {
-    // Special handling for sessions - just open the modal
-    if (screen === 'sessions') {
-      setShowSessionsHistory(true);
-      return;
-    }
     setCurrentScreen(screen);
   }, []);
 
-  // Handle session selection from history
+  // Handle session selection from sessions screen
   const handleSelectSession = useCallback((order: OrderListItem, isReadOnly: boolean) => {
-    setShowSessionsHistory(false);
-    // Switch to swap screen and it will handle session restoration
+    // Switch to swap screen - the user can use the history button in AttendantFlow
+    // to restore the session if needed
     setCurrentScreen('swap');
-    // The AttendantFlow handles session restoration internally via its own SessionsHistory
-    // For now, we'll just navigate to swap - the user can use the history button there
-    // In a future iteration, we could pass the selected order to AttendantFlow
-  }, []);
+    toast(isReadOnly 
+      ? (t('attendant.sessions.viewSession') || 'View session from history in swap screen')
+      : (t('attendant.sessions.resumeSession') || 'Resume session from history in swap screen'),
+      { icon: '📋' }
+    );
+  }, [t]);
 
-  // Render current screen content
-  const renderScreenContent = () => {
-    switch (currentScreen) {
-      case 'swap':
-        return (
-          <AttendantFlow 
-            onLogout={handleLogout}
-            hideHeaderActions={true} // Hide header actions since we have bottom nav
-          />
-        );
-      case 'transactions':
-        return (
-          <div className="attendant-screen-container">
-            <AttendantTransactions />
-          </div>
-        );
-      case 'profile':
-        return (
-          <div className="attendant-screen-container">
-            <AttendantProfile 
-              employee={employee}
-              onLogout={handleLogout}
-            />
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  // For swap screen, AttendantFlow handles its own header
+  // For swap screen, render AttendantFlow with integrated bottom nav
   if (currentScreen === 'swap') {
     return (
-      <>
-        <AttendantFlow 
-          onLogout={handleLogout}
-          hideHeaderActions={false}
-          renderBottomNav={() => (
-            <AttendantNav 
-              currentScreen={currentScreen}
-              onNavigate={handleNavigate}
-            />
-          )}
-        />
-        
-        {/* Sessions History Modal */}
-        <SessionsHistory
-          isVisible={showSessionsHistory}
-          onClose={() => setShowSessionsHistory(false)}
-          onSelectSession={handleSelectSession}
-          authToken={getAttendantRoleToken() || ''}
-          workflowType="attendant"
-        />
-      </>
+      <AttendantFlow 
+        onLogout={handleLogout}
+        hideHeaderActions={false}
+        renderBottomNav={() => (
+          <AttendantNav 
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+          />
+        )}
+      />
     );
   }
 
-  // For other screens, render with header and nav
+  // For other screens, render with header, content, and bottom nav
   return (
-    <div className="attendant-container">
+    <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
       
       {/* Header */}
@@ -227,25 +180,32 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
       </header>
 
       {/* Main Content */}
-      <main className="attendant-main attendant-main-full">
-        {renderScreenContent()}
+      <main className="attendant-main attendant-main-screen">
+        {currentScreen === 'transactions' && (
+          <div className="attendant-screen-container">
+            <AttendantTransactions />
+          </div>
+        )}
+        {currentScreen === 'sessions' && (
+          <div className="attendant-screen-container">
+            <AttendantSessions onSelectSession={handleSelectSession} />
+          </div>
+        )}
+        {currentScreen === 'profile' && (
+          <div className="attendant-screen-container">
+            <AttendantProfile 
+              employee={employee}
+              onLogout={handleLogout}
+            />
+          </div>
+        )}
       </main>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation - Always visible */}
       <AttendantNav 
         currentScreen={currentScreen}
         onNavigate={handleNavigate}
       />
-
-      {/* Sessions History Modal */}
-      <SessionsHistory
-        isVisible={showSessionsHistory}
-        onClose={() => setShowSessionsHistory(false)}
-        onSelectSession={handleSelectSession}
-        authToken={getAttendantRoleToken() || ''}
-        workflowType="attendant"
-      />
     </div>
   );
 }
-

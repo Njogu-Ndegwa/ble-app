@@ -1166,6 +1166,15 @@
   "attendant.profile.employeeId": "员工ID",
   "attendant.profile.actions": "操作",
 
+  "attendant.sessions.title": "换电会话",
+  "attendant.sessions.notAuthenticated": "未验证",
+  "attendant.sessions.fetchError": "加载会话失败",
+  "attendant.sessions.noSessions": "未找到会话",
+  "attendant.sessions.noSessionsHint": "开始换电后会话将显示在此处",
+  "attendant.sessions.step": "步骤",
+  "attendant.sessions.viewSession": "在换电屏幕中从历史记录查看会话",
+  "attendant.sessions.resumeSession": "在换电屏幕中从历史记录恢复会话",
+
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",
   "sales.scanBatteryHint": "扫描电池上的二维码进行分配",

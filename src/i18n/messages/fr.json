@@ -1254,6 +1254,15 @@
   "attendant.profile.employeeId": "ID Employé",
   "attendant.profile.actions": "Actions",
 
+  "attendant.sessions.title": "Sessions d'échange",
+  "attendant.sessions.notAuthenticated": "Non authentifié",
+  "attendant.sessions.fetchError": "Échec du chargement des sessions",
+  "attendant.sessions.noSessions": "Aucune session trouvée",
+  "attendant.sessions.noSessionsHint": "Les sessions apparaîtront ici après avoir commencé les échanges",
+  "attendant.sessions.step": "Étape",
+  "attendant.sessions.viewSession": "Voir la session depuis l'historique dans l'écran d'échange",
+  "attendant.sessions.resumeSession": "Reprendre la session depuis l'historique dans l'écran d'échange",
+
   "sales.selectBatteryManually": "Sélectionner la batterie",
   "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",
   "sales.scanBatteryHint": "Scannez le code QR sur la batterie à attribuer",

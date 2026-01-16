@@ -1263,6 +1263,15 @@
   "attendant.profile.employeeId": "Employee ID",
   "attendant.profile.actions": "Actions",
 
+  "attendant.sessions.title": "Swap Sessions",
+  "attendant.sessions.notAuthenticated": "Not authenticated",
+  "attendant.sessions.fetchError": "Failed to load sessions",
+  "attendant.sessions.noSessions": "No sessions found",
+  "attendant.sessions.noSessionsHint": "Sessions will appear here after starting swaps",
+  "attendant.sessions.step": "Step",
+  "attendant.sessions.viewSession": "View session from history in swap screen",
+  "attendant.sessions.resumeSession": "Resume session from history in swap screen",
+
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",
   "sales.scanBatteryHint": "Scan the QR code on the battery to assign",

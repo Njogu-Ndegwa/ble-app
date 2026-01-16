@@ -9128,14 +9128,35 @@ html.theme-transition *::after {
   padding: 10px 20px 20px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
-  position: relative;
-  z-index: 10;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200; /* Higher than action-bar (100) */
   flex-shrink: 0;
 }
 
 @media (max-height: 700px) {
   .attendant-nav {
     padding: 8px 16px 12px;
+  }
+}
+
+/* When bottom nav is present, adjust action bar and main content */
+.attendant-container.has-bottom-nav .action-bar {
+  bottom: 70px; /* Height of bottom nav */
+}
+
+.attendant-container.has-bottom-nav .attendant-main {
+  padding-bottom: 140px; /* Action bar + bottom nav */
+}
+
+@media (max-height: 700px) {
+  .attendant-container.has-bottom-nav .action-bar {
+    bottom: 56px;
+  }
+  .attendant-container.has-bottom-nav .attendant-main {
+    padding-bottom: 120px;
   }
 }
 
@@ -9181,11 +9202,18 @@ html.theme-transition *::after {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  padding-bottom: 90px; /* Space for bottom nav */
   -webkit-overflow-scrolling: touch;
 }
 
 .attendant-main-full {
   padding-bottom: 0;
+}
+
+.attendant-main-screen {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 70px; /* Space for bottom nav */
 }
 
 /* =====================================================
@@ -9768,4 +9796,248 @@ html.theme-transition *::after {
   font-size: var(--font-xs);
   color: var(--text-muted);
   font-family: 'DM Mono', monospace;
+}
+
+/* =====================================================
+   ATTENDANT SESSIONS STYLES
+   ===================================================== */
+
+.attendant-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+
+.sessions-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sessions-title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.sessions-refresh-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sessions-refresh-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.sessions-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Sessions Loading */
+.sessions-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 16px;
+}
+
+.sessions-loading p {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+/* Sessions Error */
+.sessions-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 16px;
+  text-align: center;
+}
+
+.sessions-error p {
+  color: var(--color-error);
+  font-size: var(--font-sm);
+}
+
+/* Sessions Empty */
+.sessions-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 12px;
+  text-align: center;
+}
+
+.sessions-empty svg {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.sessions-empty p {
+  color: var(--text-secondary);
+  font-size: var(--font-md);
+  font-weight: 500;
+  margin: 0;
+}
+
+/* Sessions List */
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Session Card Item */
+.session-card-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.session-card-item:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-focus);
+}
+
+.session-card-item.resumable {
+  border-color: var(--accent);
+  border-width: 1px;
+}
+
+.session-card-item.resumable:hover {
+  border-color: var(--color-brand-light);
+}
+
+.session-card-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.session-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-avatar {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  border-radius: 50%;
+  color: var(--accent);
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-customer-name {
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.session-order-name {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  font-family: 'DM Mono', monospace;
+}
+
+.session-card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: var(--font-2xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.session-status-badge.completed {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.session-status-badge.pending {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.session-status-badge.default {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.session-action-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+}
+
+.session-card-item.resumable .session-action-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.session-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.session-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+.session-step {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
 }

@@ -1,0 +1,191 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
+import { useI18n } from '@/i18n';
+import { getOrdersList, type OrderListItem } from '@/lib/odoo-api';
+import { getAttendantRoleToken } from '@/lib/attendant-auth';
+import { RefreshCw, Clock, User, ChevronRight, FileText, Eye, Play } from 'lucide-react';
+
+interface AttendantSessionsProps {
+  onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
+}
+
+const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }) => {
+  const { t } = useI18n();
+  const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSessions = useCallback(async () => {
+    const authToken = getAttendantRoleToken();
+    if (!authToken) {
+      setError(t('attendant.sessions.notAuthenticated') || 'Not authenticated');
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await getOrdersList({
+        mine: true,
+        limit: 50,
+      }, authToken);
+      
+      // Filter to only show orders that have session data
+      const sessionsWithData = (response.orders || []).filter(
+        order => order.session && order.session.session_data
+      );
+      setOrders(sessionsWithData);
+    } catch (err: any) {
+      console.error('Failed to fetch sessions:', err);
+      setError(err.message || t('attendant.sessions.fetchError') || 'Failed to load sessions');
+      toast.error(t('attendant.sessions.fetchError') || 'Failed to load sessions');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  const handleRefresh = () => {
+    fetchSessions();
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusBadge = (order: OrderListItem) => {
+    const session = order.session;
+    if (!session) return null;
+    
+    const state = session.state;
+    const isCompleted = state === 'completed';
+    const isPending = state === 'active' || state === 'paused';
+    
+    return (
+      <span className={`session-status-badge ${isCompleted ? 'completed' : isPending ? 'pending' : 'default'}`}>
+        {isCompleted ? (t('common.completed') || 'Completed') : 
+         isPending ? (t('common.inProgress') || 'In Progress') : state}
+      </span>
+    );
+  };
+
+  const canResume = (order: OrderListItem) => {
+    const session = order.session;
+    return session && (session.state === 'active' || session.state === 'paused');
+  };
+
+  return (
+    <div className="attendant-sessions">
+      {/* Header */}
+      <div className="sessions-header-bar">
+        <h2 className="sessions-title">
+          {t('attendant.sessions.title') || 'Swap Sessions'}
+        </h2>
+        <button 
+          className="sessions-refresh-btn"
+          onClick={handleRefresh}
+          disabled={isLoading}
+          aria-label={t('common.refresh') || 'Refresh'}
+        >
+          <RefreshCw size={18} className={isLoading ? 'spinning' : ''} />
+        </button>
+      </div>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="sessions-loading">
+          <div className="loading-spinner"></div>
+          <p>{t('common.loading') || 'Loading...'}</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <div className="sessions-error">
+          <p>{error}</p>
+          <button onClick={handleRefresh} className="retry-btn">
+            {t('common.tryAgain') || 'Try Again'}
+          </button>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && !error && orders.length === 0 && (
+        <div className="sessions-empty">
+          <FileText size={48} strokeWidth={1} />
+          <p>{t('attendant.sessions.noSessions') || 'No sessions found'}</p>
+          <span className="empty-hint">
+            {t('attendant.sessions.noSessionsHint') || 'Sessions will appear here after starting swaps'}
+          </span>
+        </div>
+      )}
+
+      {/* Sessions List */}
+      {!isLoading && !error && orders.length > 0 && (
+        <div className="sessions-list">
+          {orders.map((order) => {
+            const session = order.session;
+            const isResumable = canResume(order);
+            const isCompleted = session?.state === 'completed';
+            
+            return (
+              <div 
+                key={order.id}
+                className={`session-card-item ${isResumable ? 'resumable' : ''}`}
+                onClick={() => onSelectSession?.(order, !isResumable)}
+              >
+                <div className="session-card-main">
+                  <div className="session-card-left">
+                    <div className="session-avatar">
+                      <User size={18} />
+                    </div>
+                    <div className="session-info">
+                      <span className="session-customer-name">
+                        {order.partner_name || t('common.unknown') || 'Unknown'}
+                      </span>
+                      <span className="session-order-name">{order.name}</span>
+                    </div>
+                  </div>
+                  <div className="session-card-right">
+                    {getStatusBadge(order)}
+                    <div className="session-action-icon">
+                      {isResumable ? <Play size={16} /> : <Eye size={16} />}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="session-card-footer">
+                  <div className="session-time">
+                    <Clock size={12} />
+                    <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
+                  </div>
+                  {session?.session_data?.currentStep && (
+                    <span className="session-step">
+                      {t('attendant.sessions.step') || 'Step'} {session.session_data.currentStep}/6
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AttendantSessions;
+
