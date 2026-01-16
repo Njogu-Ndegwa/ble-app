@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
-import AttendantFlow from "./AttendantFlow";
+import AttendantApp from "./AttendantApp";
 import Login from "./login";
 import { 
   isAttendantRoleLoggedIn, 
   getAttendantRoleUser,
-  clearAttendantRoleLogin,
   type EmployeeUser 
 } from "@/lib/attendant-auth";
 
@@ -86,7 +85,7 @@ export default function AttendantPage() {
         }}
       />
       {isLoggedIn ? (
-        <AttendantFlow onLogout={handleLogout} />
+        <AttendantApp onLogout={handleLogout} />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} userType="attendant" />
       )}

@@ -69,9 +69,13 @@ declare global {
 interface AttendantFlowProps {
   onBack?: () => void;
   onLogout?: () => void;
+  /** Hide history/logout buttons in header (when using bottom nav) */
+  hideHeaderActions?: boolean;
+  /** Render function for bottom navigation (passed from AttendantApp) */
+  renderBottomNav?: () => React.ReactNode;
 }
 
-export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -1976,14 +1980,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             </div>
           </div>
           <div className="flow-header-right">
-            <button
-              className="flow-header-history"
-              onClick={() => setShowSessionsHistory(true)}
-              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
-              title={t('sessions.historyTitle') || 'Past Sessions'}
-            >
-              <History size={16} />
-            </button>
+            {!hideHeaderActions && (
+              <button
+                className="flow-header-history"
+                onClick={() => setShowSessionsHistory(true)}
+                aria-label={t('sessions.historyTitle') || 'Past Sessions'}
+                title={t('sessions.historyTitle') || 'Past Sessions'}
+              >
+                <History size={16} />
+              </button>
+            )}
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -1992,14 +1998,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
             </button>
-            <button
-              className="flow-header-logout"
-              onClick={handleLogout}
-              aria-label={t('common.logout')}
-              title={t('common.logout')}
-            >
-              <LogOut size={16} />
-            </button>
+            {!hideHeaderActions && (
+              <button
+                className="flow-header-logout"
+                onClick={handleLogout}
+                aria-label={t('common.logout')}
+                title={t('common.logout')}
+              >
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -2056,6 +2064,9 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
           readOnly={isReadOnlySession}
         />
       )}
+
+      {/* Bottom Navigation - rendered by parent when using menu system */}
+      {renderBottomNav && renderBottomNav()}
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
       {(isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending') && 

@@ -2140,6 +2140,167 @@ export async function getCustomerDashboard(
 }
 
 // ============================================================================
+// Attendant Transactions API
+// ============================================================================
+
+/**
+ * Transaction item from /api/payments/my-transactions
+ */
+export interface AttendantTransaction {
+  payment_id: number;
+  payment_date: string;
+  amount: number;
+  currency: string;
+  state: 'paid' | 'pending' | 'cancelled' | string;
+  payment_type: 'inbound' | 'outbound' | string;
+  payment_method: string;
+  reference: string;
+  customer: {
+    id: number;
+    name: string;
+    phone: string;
+  };
+  outlet: {
+    id: number;
+    name: string;
+  } | null;
+  order: {
+    id: number;
+    name: string;
+    amount_total: number;
+    paid_amount: number;
+    payment_status: 'paid' | 'partial' | 'pending' | string;
+  } | null;
+  payment_request: {
+    id: number;
+    reference: string;
+  } | null;
+}
+
+/**
+ * Response from /api/payments/my-transactions
+ */
+export interface AttendantTransactionsResponse {
+  success: boolean;
+  period: string;
+  date_range: {
+    from: string;
+    to: string;
+    from_datetime: string;
+    to_datetime: string;
+  };
+  employee: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+    is_viewing_own: boolean;
+  };
+  logged_in_employee: {
+    id: number;
+    name: string;
+    role: string;
+    can_view_others: boolean;
+  };
+  summary: {
+    total_transactions: number;
+    total_amount: number;
+    unique_customers: number;
+    average_transaction: number;
+  };
+  transactions: AttendantTransaction[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total_count: number;
+    has_more: boolean;
+    next_offset: number | null;
+  };
+  filters_applied: {
+    company_id: number | null;
+    partner_id: number | null;
+    outlet_id: number | null;
+    state: string | null;
+    min_amount: number | null;
+    max_amount: number | null;
+  };
+  access_control: {
+    note: string;
+    role: string;
+    can_view_others: boolean;
+  };
+}
+
+/**
+ * Period options for transaction queries
+ */
+export type TransactionPeriod = 'today' | '3days' | '5days' | '7days' | '14days' | '30days' | 'all';
+
+/**
+ * Get attendant's own transactions
+ * 
+ * @param period - Time period to fetch (e.g., 'today', '5days', '7days', '30days')
+ * @param authToken - Authorization token (required)
+ * @param options - Additional filter options
+ */
+export async function getAttendantTransactions(
+  period: TransactionPeriod = '7days',
+  authToken: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+    state?: string;
+    min_amount?: number;
+    max_amount?: number;
+  }
+): Promise<AttendantTransactionsResponse> {
+  const params = new URLSearchParams();
+  params.append('period', period);
+  
+  if (options?.limit) params.append('limit', options.limit.toString());
+  if (options?.offset) params.append('offset', options.offset.toString());
+  if (options?.state) params.append('state', options.state);
+  if (options?.min_amount) params.append('min_amount', options.min_amount.toString());
+  if (options?.max_amount) params.append('max_amount', options.max_amount.toString());
+  
+  const url = `${ODOO_BASE_URL}/api/payments/my-transactions?${params.toString()}`;
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+    'Authorization': `Bearer ${authToken}`,
+  };
+  
+  console.info('=== GET ATTENDANT TRANSACTIONS ===');
+  console.info('URL:', url);
+  console.info('Period:', period);
+  
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+    });
+    
+    const data = await response.json();
+    
+    console.info('=== GET ATTENDANT TRANSACTIONS - RESPONSE ===');
+    console.info('HTTP Status:', response.status);
+    console.info('Total Transactions:', data.summary?.total_transactions);
+    
+    if (!response.ok) {
+      console.error('Get attendant transactions error (HTTP):', data);
+      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
+    }
+    
+    return data as AttendantTransactionsResponse;
+  } catch (error: any) {
+    console.error('=== GET ATTENDANT TRANSACTIONS - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

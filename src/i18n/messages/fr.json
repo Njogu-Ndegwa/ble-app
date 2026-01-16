@@ -1232,6 +1232,28 @@
   "attendant.amountToPay": "Montant à payer",
   "attendant.roundingNote": "Décimales arrondies vers le bas",
 
+  "attendant.nav.swap": "Échange",
+  "attendant.nav.transactions": "Transactions",
+  "attendant.nav.sessions": "Sessions",
+  "attendant.nav.profile": "Profil",
+
+  "attendant.transactions.title": "Mes Transactions",
+  "attendant.transactions.notAuthenticated": "Non authentifié",
+  "attendant.transactions.fetchError": "Échec du chargement des transactions",
+  "attendant.transactions.totalAmount": "Total",
+  "attendant.transactions.count": "Transactions",
+  "attendant.transactions.customers": "Clients",
+  "attendant.transactions.noTransactions": "Aucune transaction trouvée",
+  "attendant.transactions.noTransactionsHint": "Les transactions apparaîtront ici après avoir effectué des échanges",
+  "attendant.transactions.date": "Date",
+  "attendant.transactions.method": "Méthode",
+  "attendant.transactions.order": "Commande",
+  "attendant.transactions.reference": "Référence",
+
+  "attendant.profile.accountInfo": "Informations du compte",
+  "attendant.profile.employeeId": "ID Employé",
+  "attendant.profile.actions": "Actions",
+
   "sales.selectBatteryManually": "Sélectionner la batterie",
   "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",
   "sales.scanBatteryHint": "Scannez le code QR sur la batterie à attribuer",
