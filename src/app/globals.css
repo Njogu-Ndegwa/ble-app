@@ -9924,12 +9924,12 @@ html.theme-transition *::after {
 }
 
 .session-card-item.resumable {
-  border-color: var(--accent);
-  border-width: 1px;
+  /* Same styling as regular cards - no special border */
 }
 
 .session-card-item.resumable:hover {
-  border-color: var(--color-brand-light);
+  background: var(--bg-tertiary);
+  border-color: var(--border-focus);
 }
 
 .session-card-main {
