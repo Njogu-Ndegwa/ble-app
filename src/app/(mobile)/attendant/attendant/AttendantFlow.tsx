@@ -661,9 +661,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // NOTE: All BLE refs (pendingBatteryQrCodeRef, detectedBleDevicesRef, etc.) 
   // are now managed internally by the useFlowBatteryScan hook
   
-  // Stats (fetched from API in a real implementation)
-  const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
-  
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
   
@@ -1895,7 +1892,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             onManualLookup={handleManualLookup}
             isProcessing={isProcessing}
             isScannerOpening={isScanning}
-            stats={stats}
           />
         );
       case 2:
