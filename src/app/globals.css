@@ -6818,18 +6818,18 @@ html.theme-transition *::after {
 }
 
 .account-balance-icon {
-  width: 44px;
-  height: 44px;
-  background: var(--bg-tertiary);
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
 }
 
 .account-balance-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   color: var(--accent);
 }
 
@@ -6894,19 +6894,19 @@ html.theme-transition *::after {
 }
 
 .quick-action-icon {
-  width: 40px;
-  height: 40px;
-  background: var(--accent-soft);
-  border-radius: var(--radius-sm);
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent);
+  border-radius: 50%;
+  background: var(--accent-soft);
 }
 
 .quick-action-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
 }
 
 .quick-action-label {
@@ -7017,12 +7017,13 @@ html.theme-transition *::after {
 .map-station-icon {
   width: 28px;
   height: 28px;
-  background: var(--success);
-  border-radius: 50%;
+  transform: rotate(-45deg);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 217, 160, 0.4);
+  box-shadow: rgba(0, 217, 160, 0.4) 0px 2px 8px;
+  background: var(--success);
+  border-radius: 50% 50% 50% 0px;
   transition: all 0.2s ease;
 }
 
@@ -7030,10 +7031,51 @@ html.theme-transition *::after {
   width: 14px;
   height: 14px;
   color: white;
+  transform: rotate(45deg);
 }
 
 .map-station-pin:hover .map-station-icon {
-  transform: scale(1.15);
+  transform: rotate(-45deg) scale(1.15);
+}
+
+/* Leaflet custom marker styles */
+.leaflet-station-marker {
+  width: 28px;
+  height: 28px;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: rgba(0, 217, 160, 0.4) 0px 2px 8px;
+  background: var(--success);
+  border-radius: 50% 50% 50% 0px;
+}
+
+.leaflet-station-marker svg {
+  width: 14px;
+  height: 14px;
+  color: white;
+  transform: rotate(45deg);
+}
+
+/* User location marker - cyan teardrop */
+.leaflet-user-marker {
+  width: 28px;
+  height: 28px;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: rgba(0, 229, 229, 0.4) 0px 2px 8px;
+  background: var(--accent);
+  border-radius: 50% 50% 50% 0px;
+}
+
+.leaflet-user-marker svg {
+  width: 14px;
+  height: 14px;
+  color: white;
+  transform: rotate(45deg);
 }
 
 .map-station-label {
@@ -7079,12 +7121,12 @@ html.theme-transition *::after {
 .station-icon {
   width: 36px;
   height: 36px;
-  background: var(--success-soft);
-  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--success-soft);
 }
 
 .station-icon svg {
@@ -7332,7 +7374,7 @@ html.theme-transition *::after {
 .stations-search-icon {
   position: absolute;
   left: 14px;
-  color: var(--text-muted);
+  color: var(--accent);
   pointer-events: none;
 }
 
@@ -7621,8 +7663,8 @@ html.theme-transition *::after {
 .station-detail-icon {
   width: 36px;
   height: 36px;
-  background: rgba(0, 229, 229, 0.15);
-  border-radius: 10px;
+  background: var(--accent);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7632,7 +7674,7 @@ html.theme-transition *::after {
 .station-detail-icon svg {
   width: 18px;
   height: 18px;
-  color: var(--accent);
+  color: #000;
 }
 
 .station-detail-info {
@@ -8275,53 +8317,68 @@ html.theme-transition *::after {
 
 /* Activity List */
 .activity-list {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .activity-date-header {
-  padding: 10px 14px;
-  background: var(--bg-tertiary);
+  padding: 12px 4px 8px;
+  background: transparent;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
 }
 
 .activity-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background 0.2s ease;
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .activity-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .activity-item:hover {
   background: var(--bg-tertiary);
 }
 
+.activity-item:active,
+.activity-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
 .activity-item-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
 }
 
 .activity-item-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
 }
 
 .activity-item-icon.swap {
@@ -8330,13 +8387,13 @@ html.theme-transition *::after {
 }
 
 .activity-item-icon.topup {
-  background: var(--success-soft);
-  color: var(--success);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .activity-item-icon.payment {
-  background: var(--info-soft);
-  color: var(--info);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .activity-item-content {
@@ -8437,8 +8494,8 @@ html.theme-transition *::after {
 .energy-service-icon {
   width: 40px;
   height: 40px;
-  background: rgba(0, 229, 229, 0.15);
-  border-radius: var(--radius-sm);
+  background: var(--accent);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8447,7 +8504,7 @@ html.theme-transition *::after {
 .energy-service-icon svg {
   width: 20px;
   height: 20px;
-  color: var(--accent);
+  color: #000;
 }
 
 .energy-service-title {
@@ -8532,6 +8589,29 @@ html.theme-transition *::after {
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
+}
+
+/* Shadow/glow effect below the E-Trike */
+.energy-service-visual::after {
+  content: '';
+  position: absolute;
+  width: 200px;
+  height: 60px;
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: radial-gradient(ellipse, var(--accent-soft) 0%, transparent 70%);
+}
+
+/* E-Trike image styling */
+.energy-service-visual img {
+  max-height: 90px;
+  max-width: 160px;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(rgba(0, 0, 0, 0.3) 0px 8px 16px);
 }
 
 .energy-service-bike {
@@ -8654,18 +8734,29 @@ html.theme-transition *::after {
 .energy-stat-icon {
   width: 36px;
   height: 36px;
-  background: rgba(0, 229, 229, 0.15);
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-radius: 10px;
 }
 
 .energy-stat-icon svg {
   width: 18px;
   height: 18px;
   color: var(--accent);
+}
+
+/* Balance stat icon - cyan background, black icon */
+.energy-stat-row.highlighted .energy-stat-icon {
+  background: var(--accent);
+  border: none;
+  box-shadow: none;
+}
+
+.energy-stat-row.highlighted .energy-stat-icon svg {
+  color: #000;
 }
 
 .energy-stat-content {
@@ -8729,7 +8820,7 @@ html.theme-transition *::after {
   width: 36px;
   height: 36px;
   background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9038,8 +9129,8 @@ html.theme-transition *::after {
   }
   
   .quick-action-icon {
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
   }
   
   .stations-map {

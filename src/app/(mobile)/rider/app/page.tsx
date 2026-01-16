@@ -113,6 +113,7 @@ const RiderApp: React.FC = () => {
   });
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [showFoundCustomer, setShowFoundCustomer] = useState(false);
+  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
 
   // Handle browser back button
   useEffect(() => {
@@ -138,7 +139,11 @@ const RiderApp: React.FC = () => {
     };
   }, [currentScreen, isLoggedIn]);
 
+  // Track if we've started prefetching
+  const prefetchStartedRef = useRef(false);
+  
   // Check authentication on mount - show found customer screen if credentials exist
+  // AND start prefetching data immediately so it's ready when user clicks Continue
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('authToken_rider');
@@ -149,6 +154,17 @@ const RiderApp: React.FC = () => {
           const customerData = JSON.parse(storedCustomerData);
           setCustomer(customerData);
           setShowFoundCustomer(true); // Show found customer screen instead of auto-login
+          
+          // 🚀 PREFETCH: Start loading data immediately while user sees welcome screen
+          if (!prefetchStartedRef.current && customerData.partner_id) {
+            prefetchStartedRef.current = true;
+            dataLoadStartRef.current = performance.now();
+            console.warn('[PERF] 🚀 PREFETCH - Starting data load while showing welcome screen');
+            
+            // Start fetching in background - don't set loading states yet (user hasn't clicked Continue)
+            fetchDashboardData(token);
+            fetchSubscriptionData(customerData.partner_id, token);
+          }
         } catch (e) {
           console.error('Error parsing stored customer data:', e);
         }
@@ -157,6 +173,7 @@ const RiderApp: React.FC = () => {
     };
 
     checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Set loading states immediately when user logs in
@@ -343,13 +360,16 @@ const RiderApp: React.FC = () => {
           totalSwaps: Math.floor(totalSwaps), // Ensure it's an integer
           paymentState: paymentState || prev.paymentState,
         };
-        console.info('[RIDER] Updating bike state:', updated);
+        const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
+        console.warn(`[PERF] 🏍️ BIKE DATA READY - Total time from login: ${totalElapsed}ms`, updated);
         return updated;
       });
 
     } catch (error) {
       console.error('[RIDER] Error fetching customer identification data:', error);
     } finally {
+      const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
+      console.warn(`[PERF] ✅ BIKE LOADING COMPLETE - Setting isLoadingBike=false after ${totalElapsed}ms from data load start`);
       setIsLoadingBike(false);
     }
   };
@@ -539,10 +559,16 @@ const RiderApp: React.FC = () => {
     }
   };
 
+  // Track when data loading started (for overall timing)
+  const dataLoadStartRef = useRef<number>(0);
+  
   // Fetch subscription data using partner_id 
   const fetchSubscriptionData = async (partnerId: number, token: string) => {
+    if (dataLoadStartRef.current === 0) {
+      dataLoadStartRef.current = performance.now();
+    }
     const startTime = performance.now();
-    console.info('[PERF] 📦 Subscriptions API - Starting...');
+    console.warn('[PERF] 📦 Subscriptions API - Starting...');
     try {
       const response = await fetch(`${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`, {
         method: 'GET',
@@ -565,6 +591,8 @@ const RiderApp: React.FC = () => {
           
           // Find active subscription or use the first one
           const activeSubscription = data.subscriptions.find((sub: Subscription) => sub.status === 'active') || data.subscriptions[0];
+          const subElapsed = Math.round(performance.now() - startTime);
+          console.warn(`[PERF] 📦 Subscription found in ${subElapsed}ms - Now starting identity + activity fetches`);
           console.info('Selected subscription:', {
             subscription_code: activeSubscription.subscription_code,
             product_name: activeSubscription.product_name,
@@ -620,17 +648,40 @@ const RiderApp: React.FC = () => {
   }, [subscription?.subscription_code]);
 
   // Fetch stations via MQTT - using direct bridge calls like serviceplan1
+  // Now also supports prefetching: triggers when prefetch started OR when logged in
   useEffect(() => {
-    if (!isLoggedIn || !subscription?.subscription_code || !customer) return;
-    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) return;
+    // Allow MQTT to start if either: logged in, OR prefetch has started (welcome screen visible)
+    const canFetch = isLoggedIn || prefetchStartedRef.current;
+    
+    if (!canFetch || !subscription?.subscription_code || !customer) {
+      if (canFetch) {
+        console.warn('[PERF] 📡 MQTT - Waiting for dependencies:', {
+          hasSubscription: !!subscription?.subscription_code,
+          hasCustomer: !!customer,
+          isPrefetch: prefetchStartedRef.current && !isLoggedIn,
+        });
+      }
+      return;
+    }
+    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) {
+      console.warn('[PERF] 📡 MQTT - Bridge NOT ready:', {
+        bridge: !!bridge,
+        webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
+      });
+      return;
+    }
 
-    // Set loading state immediately when we know we have a subscription
-    setIsLoadingStations(true);
+    // Only set loading state if user is logged in (not during prefetch - don't show loading on welcome screen)
+    if (isLoggedIn) {
+      setIsLoadingStations(true);
+    }
 
     const planId = subscription.subscription_code;
     const requestTopic = `call/uxi/service/plan/${planId}/get_assets`;
     const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
 
+    const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 0;
+    console.warn(`[PERF] 📡 MQTT - Starting at ${totalElapsed}ms from data load start`);
     console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
     const mqttStartTime = performance.now();
     console.info('[PERF] 📡 MQTT Fleet IDs Request - Starting...');
@@ -934,7 +985,8 @@ const RiderApp: React.FC = () => {
         });
 
         if (allStations.length > 0) {
-          console.info(`[STATIONS] Fetched ${allStations.length} stations from GraphQL`);
+          const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
+          console.warn(`[PERF] 📍 STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
           setStations(allStations);
         } else {
           console.warn('[STATIONS] No stations found in GraphQL response');
@@ -978,6 +1030,9 @@ const RiderApp: React.FC = () => {
   };
 
   const handleLoginSuccess = (customerData: Customer) => {
+    dataLoadStartRef.current = performance.now();
+    console.warn('[PERF] ⏱️ LOGIN START - Beginning data load sequence');
+    
     setCustomer(customerData);
     // Set loading states immediately before fetching data
     setIsLoadingBike(true);
@@ -985,14 +1040,26 @@ const RiderApp: React.FC = () => {
     setIsLoggedIn(true);
     const token = localStorage.getItem('authToken_rider');
     if (token) {
-      console.log('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions');
+      console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions');
+      console.warn('[PERF] Bridge status:', { 
+        bridgeAvailable: !!bridge, 
+        webViewBridgeAvailable: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge 
+      });
+      
       // Fire both fetches - don't await, let them update state independently
       fetchDashboardData(token);
       
       // Fetch subscription data if partner_id is available
       if (customerData.partner_id) {
-        fetchSubscriptionData(customerData.partner_id, token);
+        fetchSubscriptionData(customerData.partner_id, token).then(() => {
+          const elapsed = Math.round(performance.now() - dataLoadStartRef.current);
+          console.warn(`[PERF] ⏱️ Subscription chain complete in ${elapsed}ms (includes identity + activity)`);
+        });
+      } else {
+        console.warn('[PERF] ⚠️ No partner_id available - cannot fetch subscription');
       }
+    } else {
+      console.warn('[PERF] ⚠️ No auth token - cannot fetch data');
     }
   };
 
@@ -1050,6 +1117,7 @@ const RiderApp: React.FC = () => {
   };
 
   const handleSelectStation = (stationId: number) => {
+    setSelectedStationId(stationId);
     setCurrentScreen('stations');
   };
 
@@ -1219,16 +1287,34 @@ const RiderApp: React.FC = () => {
                   onClick={() => {
                     const token = localStorage.getItem('authToken_rider');
                     if (token && customer) {
-                      // Set loading states immediately before fetching data
-                      setIsLoadingBike(true);
-                      setIsLoadingStations(true);
+                      // Check if data was already prefetched
+                      const wasPrefetched = prefetchStartedRef.current;
+                      const prefetchElapsed = dataLoadStartRef.current > 0 
+                        ? Math.round(performance.now() - dataLoadStartRef.current) 
+                        : 0;
+                      
+                      console.warn(`[PERF] ⏱️ CONTINUE clicked - Prefetched: ${wasPrefetched}, Time since prefetch: ${prefetchElapsed}ms`);
+                      
+                      // Set loading states - if prefetch already completed, these will show briefly then clear
+                      // If prefetch still in progress, show loading until it completes
+                      if (!bike.vehicleId) {
+                        setIsLoadingBike(true);
+                      }
+                      if (stations.length === 0) {
+                        setIsLoadingStations(true);
+                      }
                       setIsLoggedIn(true);
                       
-                      // Fire all fetches in parallel - don't await, let them update state independently
-                      console.log('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions');
-                      fetchDashboardData(token); // Fire and forget
-                      if (customer.partner_id) {
-                        fetchSubscriptionData(customer.partner_id, token); // Fire and forget
+                      // Only fetch if prefetch wasn't started
+                      if (!wasPrefetched) {
+                        dataLoadStartRef.current = performance.now();
+                        console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions (no prefetch)');
+                        fetchDashboardData(token);
+                        if (customer.partner_id) {
+                          fetchSubscriptionData(customer.partner_id, token);
+                        }
+                      } else {
+                        console.warn('[PERF] ✅ Data was prefetched - skipping redundant API calls');
                       }
                     }
                   }}
@@ -1387,6 +1473,8 @@ const RiderApp: React.FC = () => {
               stations={stations}
               isLoading={isLoadingStations}
               onNavigateToStation={handleNavigateToStation}
+              initialSelectedStationId={selectedStationId}
+              onStationDeselected={() => setSelectedStationId(null)}
             />
           )}
           

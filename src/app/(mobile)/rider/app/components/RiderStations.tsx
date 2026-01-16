@@ -20,6 +20,8 @@ interface RiderStationsProps {
   stations: Station[];
   isLoading?: boolean;
   onNavigateToStation: (station: Station) => void;
+  initialSelectedStationId?: number | null;
+  onStationDeselected?: () => void;
 }
 
 // Declare Leaflet types
@@ -30,9 +32,16 @@ declare global {
 }
 
 
-const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = false, onNavigateToStation }) => {
+const RiderStations: React.FC<RiderStationsProps> = ({ 
+  stations, 
+  isLoading = false, 
+  onNavigateToStation,
+  initialSelectedStationId,
+  onStationDeselected,
+}) => {
   const { t } = useI18n();
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
+  const initialSelectionDoneRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState('');
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -230,16 +239,20 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
           if (userLocationMarkerRef.current) {
             userLocationMarkerRef.current.setLatLng([latitude, longitude]);
           } else {
+            const userIcon = window.L.divIcon({
+              className: 'custom-user-marker',
+              html: `<div class="leaflet-user-marker">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                  <circle cx="12" cy="12" r="8"/>
+                </svg>
+              </div>`,
+              iconSize: [28, 28],
+              iconAnchor: [14, 28],
+              popupAnchor: [0, -28],
+            });
+
             userLocationMarkerRef.current = window.L.marker([latitude, longitude], {
-              icon: window.L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-                iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41],
-              }),
+              icon: userIcon,
             }).addTo(mapInstanceRef.current);
             userLocationMarkerRef.current.bindPopup(t('rider.yourLocation') || 'My Location');
           }
@@ -269,16 +282,20 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
     stations.forEach((station) => {
       if (!station.lat || !station.lng) return;
 
+      const stationIcon = window.L.divIcon({
+        className: 'custom-station-marker',
+        html: `<div class="leaflet-station-marker">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -28],
+      });
+
       const marker = window.L.marker([station.lat, station.lng], {
-        icon: window.L.icon({
-          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-          iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-          shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
-          iconSize: [25, 41],
-          iconAnchor: [12, 41],
-          popupAnchor: [1, -34],
-          shadowSize: [41, 41],
-        }),
+        icon: stationIcon,
       }).addTo(mapInstanceRef.current);
 
       // Click marker to show detail card (no popup needed)
@@ -303,6 +320,27 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
     }
   }, [userLocation, selectedStation, calculateDistance]);
 
+  // Handle initial station selection from Home page
+  useEffect(() => {
+    if (initialSelectedStationId && !initialSelectionDoneRef.current && stations.length > 0 && isMapLoaded) {
+      const station = stations.find(s => s.id === initialSelectedStationId);
+      if (station) {
+        initialSelectionDoneRef.current = true;
+        setSelectedStation(station);
+        if (userLocation && station.lat && station.lng) {
+          const dist = calculateDistance(userLocation.lat, userLocation.lng, station.lat, station.lng);
+          setCalculatedDistance(formatDistance(dist));
+        }
+        // Zoom to the selected station
+        if (mapInstanceRef.current && station.lat && station.lng) {
+          setTimeout(() => {
+            mapInstanceRef.current.setView([station.lat, station.lng], 15, { animate: true });
+          }, 300);
+        }
+      }
+    }
+  }, [initialSelectedStationId, stations, isMapLoaded, userLocation, calculateDistance]);
+
   const handleSelectStation = (stationId: number) => {
     const station = stations.find(s => s.id === stationId);
     if (station) {
@@ -322,6 +360,8 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
   const handleHideDetail = () => {
     setSelectedStation(null);
     setCalculatedDistance(null);
+    // Notify parent that station was deselected
+    onStationDeselected?.();
     // Remove route line
     if (routeLineRef.current && mapInstanceRef.current) {
       mapInstanceRef.current.removeLayer(routeLineRef.current);
@@ -396,7 +436,7 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
     }
   };
 
-  // Zoom to station when search matches
+  // Zoom to station when search matches and show detail card
   useEffect(() => {
     if (!searchQuery.trim() || !mapInstanceRef.current || !window.L) return;
     
@@ -408,8 +448,14 @@ const RiderStations: React.FC<RiderStationsProps> = ({ stations, isLoading = fal
     
     if (matchedStation && matchedStation.lat && matchedStation.lng) {
       mapInstanceRef.current.setView([matchedStation.lat, matchedStation.lng], 15, { animate: true });
+      // Also select the station to show detail card
+      setSelectedStation(matchedStation);
+      if (userLocation) {
+        const dist = calculateDistance(userLocation.lat, userLocation.lng, matchedStation.lat, matchedStation.lng);
+        setCalculatedDistance(formatDistance(dist));
+      }
     }
-  }, [searchQuery, stations]);
+  }, [searchQuery, stations, userLocation, calculateDistance]);
 
   return (
     <div className="stations-page">
