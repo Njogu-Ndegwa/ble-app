@@ -131,21 +131,30 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
     const session = order.session;
     if (!session) return null;
     
-    const state = session.state;
-    const isCompleted = state === 'completed';
-    const isPending = state === 'active' || state === 'paused';
+    // Use session_data.status for the actual workflow status
+    // session.state is the backend state (usually "active")
+    // session.session_data.status is "completed" or "in_progress"
+    const workflowStatus = session.session_data?.status;
+    const isCompleted = workflowStatus === 'completed';
+    const isPending = workflowStatus === 'in_progress';
     
     return (
       <span className={`session-status-badge ${isCompleted ? 'completed' : isPending ? 'pending' : 'default'}`}>
         {isCompleted ? (t('sessions.completed') || 'Completed') : 
-         isPending ? (t('attendant.sessions.inProgress') || 'In Progress') : state}
+         isPending ? (t('attendant.sessions.inProgress') || 'In Progress') : 
+         (workflowStatus || session.state)}
       </span>
     );
   };
 
   const canResume = (order: OrderListItem) => {
     const session = order.session;
-    return session && (session.state === 'active' || session.state === 'paused');
+    if (!session) return false;
+    
+    // A session can be resumed only if the workflow status is "in_progress"
+    // Completed sessions should be read-only
+    const workflowStatus = session.session_data?.status;
+    return workflowStatus === 'in_progress';
   };
 
   // Calculate pagination info
