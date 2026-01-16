@@ -2,14 +2,8 @@
 
 import React from 'react';
 import { CustomerData, getInitials } from './types';
-import { Phone, Mail, Battery, Hash } from 'lucide-react';
-import { 
-  Avatar, 
-  Badge, 
-  QuotaBar,
-  BoltIcon,
-  SwapIcon,
-} from '@/components/ui';
+import { Phone, Battery, Zap, RefreshCw } from 'lucide-react';
+import { Avatar, Badge } from '@/components/ui';
 
 interface CustomerStatePanelProps {
   customer: CustomerData | null;
@@ -54,6 +48,13 @@ const getPaymentStateConfig = (state?: string): { variant: 'success' | 'warning'
   }
 };
 
+// Get progress bar color based on percentage
+const getQuotaColor = (percent: number): string => {
+  if (percent > 50) return 'var(--success)';
+  if (percent > 20) return 'var(--color-warning)';
+  return 'var(--error)';
+};
+
 export default function CustomerStatePanel({ customer, visible }: CustomerStatePanelProps) {
   if (!visible || !customer) return null;
 
@@ -67,100 +68,104 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
   // Check if there are any quotas to display
   const hasQuotasToDisplay = showEnergyQuota || showSwapQuota;
   
-  // Check if we have contact info
-  const hasContactInfo = customer.phone || customer.email;
+  // Calculate percentages for mini progress bars
+  const energyPercent = customer.energyTotal ? (customer.energyRemaining || 0) / customer.energyTotal * 100 : 0;
+  const swapsPercent = customer.swapsTotal ? (customer.swapsRemaining || 0) / customer.swapsTotal * 100 : 0;
+
+  // Format remaining values nicely
+  const formatValue = (val: number): string => {
+    if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+    if (Number.isInteger(val)) return val.toString();
+    return val.toFixed(1);
+  };
 
   return (
-    <>
-      {/* Customer Identity Card */}
-      <div className="customer-state-panel visible">
-        <div className="customer-card">
-          {/* Header Row: Avatar + Name + Badges */}
-          <div className="customer-card-header">
-            <Avatar 
-              initials={getInitials(customer.name)} 
-              size="md" 
-              variant="primary"
-            />
-            <div className="customer-card-identity">
-              <span className="customer-card-name">{customer.name || 'Customer'}</span>
-              <span className="customer-card-sub-id">{customer.subscriptionId}</span>
-            </div>
-            <div className="customer-card-badges">
-              {customer.paymentState && (
-                <Badge variant={paymentConfig.variant} size="xs">
-                  {paymentConfig.shortLabel}
-                </Badge>
-              )}
-              {customer.serviceState && (
-                <Badge variant={serviceConfig.variant} size="xs">
-                  {serviceConfig.shortLabel}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Details Grid: Contact + Plan + Battery */}
-          <div className="customer-card-details">
-            {/* Contact Info */}
+    <div className="customer-panel-unified visible">
+      {/* Row 1: Avatar + Identity + Badges */}
+      <div className="panel-row-main">
+        <Avatar 
+          initials={getInitials(customer.name)} 
+          size="sm" 
+          variant="primary"
+        />
+        <div className="panel-identity">
+          <span className="panel-name">{customer.name || 'Customer'}</span>
+          <div className="panel-meta">
+            <span className="panel-sub-code">{customer.subscriptionId}</span>
             {customer.phone && (
-              <div className="customer-detail-item">
-                <Phone size={12} />
-                <span>{customer.phone}</span>
-              </div>
-            )}
-            {customer.email && (
-              <div className="customer-detail-item">
-                <Mail size={12} />
-                <span>{customer.email}</span>
-              </div>
-            )}
-            {/* Plan Type */}
-            {customer.subscriptionType && (
-              <div className="customer-detail-item">
-                <Hash size={12} />
-                <span>{customer.subscriptionType}</span>
-              </div>
-            )}
-            {/* Current Battery */}
-            {customer.currentBatteryId && (
-              <div className="customer-detail-item customer-detail-battery">
-                <Battery size={12} />
-                <span>{customer.currentBatteryId}</span>
-              </div>
+              <span className="panel-phone">
+                <Phone size={10} />
+                {customer.phone}
+              </span>
             )}
           </div>
+        </div>
+        <div className="panel-badges">
+          {customer.paymentState && (
+            <Badge variant={paymentConfig.variant} size="xs">
+              {paymentConfig.shortLabel}
+            </Badge>
+          )}
+          {customer.serviceState && (
+            <Badge variant={serviceConfig.variant} size="xs">
+              {serviceConfig.shortLabel}
+            </Badge>
+          )}
         </div>
       </div>
 
-      {/* Quota Summary - only show if there are quotas to display */}
-      {hasQuotasToDisplay && (
-        <div className="state-quotas visible">
-          {/* Energy Quota - hidden for infinite quota services */}
+      {/* Row 2: Quotas + Battery - compact inline */}
+      {(hasQuotasToDisplay || customer.currentBatteryId) && (
+        <div className="panel-row-services">
+          {/* Energy Quota Mini */}
           {showEnergyQuota && (
-            <QuotaBar
-              remaining={customer.energyRemaining || 0}
-              total={customer.energyTotal || 100}
-              unit="kWh"
-              type="energy"
-              icon={<BoltIcon size={16} />}
-              monetaryValue={customer.energyValue}
-              currency="XOF"
-            />
+            <div className="panel-quota">
+              <Zap size={12} className="quota-icon energy" />
+              <div className="quota-info">
+                <span className="quota-value">{formatValue(customer.energyRemaining || 0)}</span>
+                <span className="quota-unit">kWh</span>
+              </div>
+              <div className="quota-bar-mini">
+                <div 
+                  className="quota-bar-fill" 
+                  style={{ 
+                    width: `${Math.min(energyPercent, 100)}%`,
+                    background: getQuotaColor(energyPercent)
+                  }} 
+                />
+              </div>
+            </div>
           )}
 
-          {/* Swaps Quota - hidden for infinite quota services */}
+          {/* Swaps Quota Mini */}
           {showSwapQuota && (
-            <QuotaBar
-              remaining={customer.swapsRemaining || 0}
-              total={customer.swapsTotal || 10}
-              unit="swaps left"
-              type="swaps"
-              icon={<SwapIcon size={16} />}
-            />
+            <div className="panel-quota">
+              <RefreshCw size={12} className="quota-icon swaps" />
+              <div className="quota-info">
+                <span className="quota-value">{customer.swapsRemaining || 0}</span>
+                <span className="quota-unit">swaps</span>
+              </div>
+              <div className="quota-bar-mini">
+                <div 
+                  className="quota-bar-fill" 
+                  style={{ 
+                    width: `${Math.min(swapsPercent, 100)}%`,
+                    background: getQuotaColor(swapsPercent)
+                  }} 
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Current Battery */}
+          {customer.currentBatteryId && (
+            <div className="panel-battery">
+              <Battery size={12} />
+              <span>{customer.currentBatteryId}</span>
+            </div>
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

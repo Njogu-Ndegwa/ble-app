@@ -3644,6 +3644,212 @@ html.theme-transition *::after {
   }
 }
 
+/* ========================================== */
+/* UNIFIED CUSTOMER PANEL (Compact Design)   */
+/* ========================================== */
+
+.customer-panel-unified {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  margin: 8px 16px 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.customer-panel-unified.visible {
+  display: flex;
+}
+
+/* Main row: Avatar + Identity + Badges */
+.panel-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panel-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.panel-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panel-sub-code {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+
+.panel-phone {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.panel-phone svg {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.panel-badges {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Services row: Quotas + Battery inline */
+.panel-row-services {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+/* Mini quota display */
+.panel-quota {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 100px;
+  max-width: 140px;
+}
+
+.quota-icon {
+  flex-shrink: 0;
+}
+
+.quota-icon.energy {
+  color: var(--color-warning);
+}
+
+.quota-icon.swaps {
+  color: var(--accent);
+}
+
+.quota-info {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.quota-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.quota-unit {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: lowercase;
+}
+
+.quota-bar-mini {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 30px;
+}
+
+.quota-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Battery display */
+.panel-battery {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--success);
+}
+
+.panel-battery svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments for unified panel */
+@media (max-height: 700px) {
+  .customer-panel-unified {
+    margin: 6px 12px 0;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  
+  .panel-name {
+    font-size: 12px;
+  }
+  
+  .panel-sub-code {
+    font-size: 10px;
+  }
+  
+  .panel-row-services {
+    padding-top: 6px;
+    gap: 8px;
+  }
+  
+  .quota-value {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .panel-quota {
+    min-width: 80px;
+    max-width: 110px;
+  }
+  
+  .quota-bar-mini {
+    display: none;
+  }
+}
+
 /* ===================== */
 /* BATTERY RETURN CARD   */
 /* ===================== */
@@ -10016,9 +10222,17 @@ html.theme-transition *::after {
   color: var(--text-muted);
 }
 
-.session-card-item.resumable .session-action-icon {
+/* Active sessions (in-progress) - vibrant play button */
+.session-action-icon.active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* Completed sessions - muted/faded play button */
+.session-action-icon.completed {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .session-card-footer {
