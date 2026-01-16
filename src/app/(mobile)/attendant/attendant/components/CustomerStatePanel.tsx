@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CustomerData, getInitials } from './types';
-import { Phone, Battery, Zap, RefreshCw } from 'lucide-react';
+import { Phone, Battery, Zap, RefreshCw, Tag } from 'lucide-react';
 import { Avatar, Badge } from '@/components/ui';
 
 interface CustomerStatePanelProps {
@@ -68,6 +68,10 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
   // Check if there are any quotas to display
   const hasQuotasToDisplay = showEnergyQuota || showSwapQuota;
   
+  // Count visible quotas for layout decisions
+  const visibleQuotaCount = (showEnergyQuota ? 1 : 0) + (showSwapQuota ? 1 : 0);
+  const singleQuotaLayout = visibleQuotaCount === 1 && customer.currentBatteryId;
+  
   // Calculate percentages for mini progress bars
   const energyPercent = customer.energyTotal ? (customer.energyRemaining || 0) / customer.energyTotal * 100 : 0;
   const swapsPercent = customer.swapsTotal ? (customer.swapsRemaining || 0) / customer.swapsTotal * 100 : 0;
@@ -92,6 +96,12 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
           <span className="panel-name">{customer.name || 'Customer'}</span>
           <div className="panel-meta">
             <span className="panel-sub-code">{customer.subscriptionId}</span>
+            {customer.subscriptionType && (
+              <span className="panel-template">
+                <Tag size={9} />
+                {customer.subscriptionType}
+              </span>
+            )}
             {customer.phone && (
               <span className="panel-phone">
                 <Phone size={10} />
@@ -116,7 +126,7 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
 
       {/* Row 2: Quotas + Battery - compact inline */}
       {(hasQuotasToDisplay || customer.currentBatteryId) && (
-        <div className="panel-row-services">
+        <div className={`panel-row-services ${singleQuotaLayout ? 'single-quota' : ''}`}>
           {/* Energy Quota Mini */}
           {showEnergyQuota && (
             <div className="panel-quota">

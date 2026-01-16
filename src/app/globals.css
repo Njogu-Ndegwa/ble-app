@@ -3707,6 +3707,24 @@ html.theme-transition *::after {
   letter-spacing: 0.3px;
 }
 
+.panel-template {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.panel-template svg {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
 .panel-phone {
   display: flex;
   align-items: center;
@@ -3735,6 +3753,19 @@ html.theme-transition *::after {
   padding-top: 8px;
   border-top: 1px solid var(--border-subtle);
   flex-wrap: wrap;
+}
+
+/* When only 1 quota is shown, push battery to the right */
+.panel-row-services.single-quota {
+  justify-content: space-between;
+}
+
+.panel-row-services.single-quota .panel-quota {
+  flex: 0 0 auto;
+}
+
+.panel-row-services.single-quota .panel-battery {
+  margin-left: auto;
 }
 
 /* Mini quota display */
