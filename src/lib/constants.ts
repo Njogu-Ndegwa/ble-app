@@ -216,7 +216,7 @@ export const PAYMENT = {
    * Fallback currency used ONLY when backend doesn't provide one.
    * This should rarely be used - currency should always come from backend data.
    */
-  defaultCurrency: 'KES',
+  defaultCurrency: 'CFA',
   
   // Payment methods
   methods: ['mpesa', 'card', 'cash', 'bank_transfer'] as const,

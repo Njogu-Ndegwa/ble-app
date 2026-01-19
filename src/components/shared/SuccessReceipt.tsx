@@ -235,7 +235,7 @@ export function buildSwapReceiptRows(
   data: SwapReceiptData,
   t: (key: string) => string
 ): ReceiptRow[] {
-  const currency = data.currencySymbol || 'KES';
+  const currency = data.currencySymbol || 'CFA';
   
   // Subscription ID is the primary identifier - no customer name/ID shown
   const rows: ReceiptRow[] = [
@@ -316,7 +316,7 @@ export function buildRegistrationReceiptRows(
   data: RegistrationReceiptData,
   t: (key: string) => string
 ): ReceiptRow[] {
-  const currency = data.currencySymbol || 'KES';
+  const currency = data.currencySymbol || 'CFA';
   const rows: ReceiptRow[] = [
     { 
       label: t('sales.customerName'), 

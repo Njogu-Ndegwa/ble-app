@@ -25,7 +25,7 @@ export default function Step6Success({
   transactionId,
   amountDue,
   amountPaid,
-  currencySymbol = 'KES'
+  currencySymbol = 'CFA'
 }: Step6Props) {
   const { t } = useI18n();
   
