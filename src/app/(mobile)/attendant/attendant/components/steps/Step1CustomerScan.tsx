@@ -13,7 +13,6 @@ interface Step1Props {
   onManualLookup: () => void;
   isProcessing: boolean;
   isScannerOpening?: boolean; // Prevents multiple scanner opens
-  stats: { today: number; thisWeek: number; successRate: number };
 }
 
 export default function Step1CustomerScan({
@@ -25,7 +24,6 @@ export default function Step1CustomerScan({
   onManualLookup,
   isProcessing,
   isScannerOpening = false,
-  stats,
 }: Step1Props) {
   const { t } = useI18n();
   
@@ -109,21 +107,6 @@ export default function Step1CustomerScan({
             </p>
           </div>
         )}
-      </div>
-
-      <div className="stats-row">
-        <div className="stat-card">
-          <div className="stat-value">{stats.today}</div>
-          <div className="stat-label">{t('attendant.today')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.thisWeek}</div>
-          <div className="stat-label">{t('attendant.thisWeek')}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.successRate}%</div>
-          <div className="stat-label">{t('attendant.success')}</div>
-        </div>
       </div>
     </div>
   );

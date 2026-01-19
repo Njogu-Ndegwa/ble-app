@@ -69,9 +69,19 @@ declare global {
 interface AttendantFlowProps {
   onBack?: () => void;
   onLogout?: () => void;
+  /** Hide history/logout buttons in header (when using bottom nav) */
+  hideHeaderActions?: boolean;
+  /** Render function for bottom navigation (passed from AttendantApp) */
+  renderBottomNav?: () => React.ReactNode;
+  /** Session to restore immediately on mount (from sessions screen) */
+  initialSession?: OrderListItem | null;
+  /** Whether the initial session should be read-only */
+  initialSessionReadOnly?: boolean;
+  /** Callback to clear the initial session after it's been consumed */
+  onInitialSessionConsumed?: () => void;
 }
 
-export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -321,6 +331,15 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
   }, [t]);
+  
+  // Effect to automatically restore initial session from props (from sessions screen)
+  useEffect(() => {
+    if (initialSession) {
+      handleSelectHistorySession(initialSession, initialSessionReadOnly || false);
+      // Notify parent that we've consumed the session
+      onInitialSessionConsumed?.();
+    }
+  }, [initialSession, initialSessionReadOnly, handleSelectHistorySession, onInitialSessionConsumed]);
   
   // NOTE: saveSessionData helper is defined after usePaymentCollection hook 
   // because it needs access to paymentInputMode, manualPaymentId, etc.
@@ -651,9 +670,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   
   // NOTE: All BLE refs (pendingBatteryQrCodeRef, detectedBleDevicesRef, etc.) 
   // are now managed internally by the useFlowBatteryScan hook
-  
-  // Stats (fetched from API in a real implementation)
-  const [stats] = useState({ today: 0, thisWeek: 0, successRate: 0 });
   
   // Ref for correlation ID
   const correlationIdRef = useRef<string>('');
@@ -1886,7 +1902,6 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             onManualLookup={handleManualLookup}
             isProcessing={isProcessing}
             isScannerOpening={isScanning}
-            stats={stats}
           />
         );
       case 2:
@@ -1958,7 +1973,7 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
   };
 
   return (
-    <div className="attendant-container">
+    <div className={`attendant-container ${renderBottomNav ? 'has-bottom-nav' : ''}`}>
       <div className="attendant-bg-gradient" />
       
       {/* Header with Back + Logo on left, Language Toggle on right */}
@@ -1987,14 +2002,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
             </div>
           </div>
           <div className="flow-header-right">
-            <button
-              className="flow-header-history"
-              onClick={() => setShowSessionsHistory(true)}
-              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
-              title={t('sessions.historyTitle') || 'Past Sessions'}
-            >
-              <History size={16} />
-            </button>
+            {!hideHeaderActions && (
+              <button
+                className="flow-header-history"
+                onClick={() => setShowSessionsHistory(true)}
+                aria-label={t('sessions.historyTitle') || 'Past Sessions'}
+                title={t('sessions.historyTitle') || 'Past Sessions'}
+              >
+                <History size={16} />
+              </button>
+            )}
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -2003,14 +2020,16 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
             </button>
-            <button
-              className="flow-header-logout"
-              onClick={handleLogout}
-              aria-label={t('common.logout')}
-              title={t('common.logout')}
-            >
-              <LogOut size={16} />
-            </button>
+            {!hideHeaderActions && (
+              <button
+                className="flow-header-logout"
+                onClick={handleLogout}
+                aria-label={t('common.logout')}
+                title={t('common.logout')}
+              >
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -2053,20 +2072,26 @@ export default function AttendantFlow({ onBack, onLogout }: AttendantFlowProps) 
         {renderStepContent()}
       </main>
 
-      {/* Action Bar - Only show after session check is complete */}
-      {sessionCheckComplete && (
-        <ActionBar
-          currentStep={currentStep}
-          onBack={handleBack}
-          onMainAction={handleMainAction}
-          isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
-          inputMode={inputMode}
-          paymentInputMode={paymentInputMode}
-          hasSufficientQuota={hasSufficientQuota}
-          swapCost={swapData.cost}
-          readOnly={isReadOnlySession}
-        />
-      )}
+      {/* Bottom Fixed Area - Action Bar + Navigation */}
+      <div className="attendant-bottom-fixed">
+        {/* Action Bar - Only show after session check is complete */}
+        {sessionCheckComplete && (
+          <ActionBar
+            currentStep={currentStep}
+            onBack={handleBack}
+            onMainAction={handleMainAction}
+            isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
+            inputMode={inputMode}
+            paymentInputMode={paymentInputMode}
+            hasSufficientQuota={hasSufficientQuota}
+            swapCost={swapData.cost}
+            readOnly={isReadOnlySession}
+          />
+        )}
+
+        {/* Bottom Navigation - rendered by parent when using menu system */}
+        {renderBottomNav && renderBottomNav()}
+      </div>
 
       {/* Loading Overlay - Simple overlay for non-BLE operations */}
       {(isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending') && 

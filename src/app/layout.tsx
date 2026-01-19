@@ -3,6 +3,7 @@
 // import type { Metadata } from "next";
 import { Outfit, DM_Mono } from "next/font/google";
 import "./globals.css";
+import { useEffect } from "react";
 
 // Oves Design System fonts
 const outfit = Outfit({
@@ -24,11 +25,39 @@ import { ApolloProvider } from "@apollo/client";
 import { I18nProvider } from "@/i18n";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
+// VConsole for mobile debugging - ENABLED for debugging transactions issue
+// TODO: Set to false or use env variable in production when debugging is complete
+const ENABLE_VCONSOLE = true;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  // Initialize VConsole for mobile debugging
+  useEffect(() => {
+    if (ENABLE_VCONSOLE && typeof window !== 'undefined') {
+      import('vconsole').then((VConsoleModule) => {
+        const VConsole = VConsoleModule.default;
+        const vConsole = new VConsole({ theme: 'dark' });
+        console.log('[VConsole] Initialized for debugging');
+        
+        // Store reference to destroy on cleanup
+        (window as any).__vconsole__ = vConsole;
+      }).catch((err) => {
+        console.error('[VConsole] Failed to initialize:', err);
+      });
+    }
+    
+    return () => {
+      // Cleanup VConsole on unmount (though this rarely happens for root layout)
+      if ((window as any).__vconsole__) {
+        (window as any).__vconsole__.destroy();
+        delete (window as any).__vconsole__;
+      }
+    };
+  }, []);
 
   return (
     <html lang="en">
