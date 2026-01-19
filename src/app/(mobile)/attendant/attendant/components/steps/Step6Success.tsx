@@ -29,15 +29,21 @@ export default function Step6Success({
 }: Step6Props) {
   const { t } = useI18n();
   
+  // Convert energy from Wh to kWh for display
+  const oldBatteryEnergyKwh = (swapData.oldBattery?.energy ?? 0) / 1000;
+  const newBatteryEnergyKwh = (swapData.newBattery?.energy ?? 0) / 1000;
+  
   const receiptRows = buildSwapReceiptRows({
     transactionId,
     subscriptionId: customerData?.subscriptionId || '---',
     // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
     oldBatteryId: swapData.oldBattery?.actualBatteryId || swapData.oldBattery?.shortId || '---',
     oldBatteryLevel: swapData.oldBattery?.chargeLevel ?? 0,
+    oldBatteryEnergy: oldBatteryEnergyKwh,
     // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
     newBatteryId: swapData.newBattery?.actualBatteryId || swapData.newBattery?.shortId || '---',
     newBatteryLevel: swapData.newBattery?.chargeLevel ?? 0,
+    newBatteryEnergy: newBatteryEnergyKwh,
     energyDiff: swapData.energyDiff,
     amountDue,
     amountPaid,

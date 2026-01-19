@@ -216,8 +216,12 @@ export interface SwapReceiptData {
   subscriptionId: string;
   oldBatteryId: string;
   oldBatteryLevel: number;
+  /** Old battery energy in kWh */
+  oldBatteryEnergy: number;
   newBatteryId: string;
   newBatteryLevel: number;
+  /** New battery energy in kWh */
+  newBatteryEnergy: number;
   energyDiff: number;
   amountDue: number;
   amountPaid: number;
@@ -245,16 +249,18 @@ export function buildSwapReceiptRows(
   rows.push(
     { 
       label: t('attendant.returned') || 'Returned', 
-      value: `${data.oldBatteryId} (${data.oldBatteryLevel}%)`,
+      // Show both charge % and energy in kWh
+      value: `${data.oldBatteryId} (${data.oldBatteryLevel}%, ${data.oldBatteryEnergy.toFixed(2)} kWh)`,
       mono: true 
     },
     { 
       label: t('attendant.issued') || 'Issued', 
-      value: `${data.newBatteryId} (${data.newBatteryLevel}%)`,
+      // Show both charge % and energy in kWh
+      value: `${data.newBatteryId} (${data.newBatteryLevel}%, ${data.newBatteryEnergy.toFixed(2)} kWh)`,
       mono: true 
     },
     { 
-      label: t('attendant.energy') || 'Energy', 
+      label: t('attendant.energyDiff') || 'Energy Diff', 
       // data.energyDiff is already floored to 2 decimals
       value: `${data.energyDiff.toFixed(2)} kWh`,
       mono: true 
