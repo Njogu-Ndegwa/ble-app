@@ -27,7 +27,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // VConsole for mobile debugging - ENABLED for debugging transactions issue
 // TODO: Set to false or use env variable in production when debugging is complete
-const ENABLE_VCONSOLE = true;
+const ENABLE_VCONSOLE = false;
 
 export default function RootLayout({
   children,
