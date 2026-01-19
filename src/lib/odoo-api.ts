@@ -1219,6 +1219,9 @@ export interface WorkflowSessionData {
   // Registration ID (generated on success)
   registrationId?: string;
   
+  // Customer password from registration (for display on receipt)
+  customerPassword?: string | null;
+  
   // Metadata
   savedAt?: number;
   version?: number;

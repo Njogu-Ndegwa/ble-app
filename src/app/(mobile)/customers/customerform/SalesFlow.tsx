@@ -389,6 +389,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       setScannedBatteryPending(restoredState.scannedBatteryPending);
       setAssignedBattery(restoredState.assignedBattery);
       setRegistrationId(restoredState.registrationId);
+      setCustomerPassword(restoredState.customerPassword);
       
       // Also clear localStorage session since we're now using backend
       clearSalesSession();
@@ -554,6 +555,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
       },
       scannedVehicleId,
       registrationId,
+      customerPassword,
     };
   }, [
     currentStep,
@@ -583,6 +585,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
     customerCurrencySymbol,
     scannedVehicleId,
     registrationId,
+    customerPassword,
   ]);
 
   // Helper to save session to backend
@@ -1106,6 +1109,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
             },
             scannedVehicleId: null,
             registrationId: '',
+            customerPassword: response.plain_password || null,
           });
           
           const orderId = await createSalesSession(
@@ -1239,6 +1243,7 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
           },
           scannedVehicleId: null,
           registrationId: '',
+          customerPassword,
         });
         
         // Update session with products - returns subscription code from backend

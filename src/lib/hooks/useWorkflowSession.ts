@@ -997,6 +997,9 @@ export interface SalesWorkflowState {
   
   // Registration ID
   registrationId: string;
+  
+  // Customer password from registration
+  customerPassword?: string | null;
 }
 
 /**
@@ -1095,6 +1098,9 @@ export function buildSalesSessionData(state: SalesWorkflowState): WorkflowSessio
     // Registration ID
     registrationId: state.registrationId,
     
+    // Customer password from registration
+    customerPassword: state.customerPassword || null,
+    
     // Metadata
     savedAt: Date.now(),
     version: 1,
@@ -1166,6 +1172,7 @@ export interface ExtractedSalesState {
   };
   scannedVehicleId: string | null;
   registrationId: string;
+  customerPassword: string | null;
 }
 
 export function extractSalesStateFromSession(sessionData: WorkflowSessionData): ExtractedSalesState {
@@ -1237,6 +1244,7 @@ export function extractSalesStateFromSession(sessionData: WorkflowSessionData): 
     },
     scannedVehicleId: sessionData.scannedVehicleId || null,
     registrationId: sessionData.registrationId || '',
+    customerPassword: sessionData.customerPassword || null,
   };
 }
 
