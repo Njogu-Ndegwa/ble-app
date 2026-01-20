@@ -258,9 +258,12 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // internally via getEmployeeToken(). This avoids race conditions with attendantInfo state.
   // Skip the check if we have an initialSession (user selected from sessions list)
   useEffect(() => {
-    // If we have an initialSession, skip the pending session check
+    // If we have an initialSession, skip the pending session check entirely
     // The session will be restored via the initialSession effect
+    // Also discard any pending session and hide the prompt to prevent the modal from showing
     if (initialSession) {
+      setShowSessionPrompt(false);
+      discardPendingSession();
       setSessionCheckComplete(true);
       return;
     }
@@ -274,7 +277,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     };
     
     checkSession();
-  }, [checkForPendingSession, initialSession]);
+  }, [checkForPendingSession, initialSession, discardPendingSession]);
   
   // Handle session resume
   const handleResumeSession = useCallback(async () => {
@@ -298,8 +301,9 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       return;
     }
     
-    // Close the history modal
+    // Close the history modal and hide any session resume prompt
     setShowSessionsHistory(false);
+    setShowSessionPrompt(false);
     
     // Set read-only mode based on whether the session can be edited
     setIsReadOnlySession(isReadOnly);
