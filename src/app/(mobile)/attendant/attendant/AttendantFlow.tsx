@@ -209,6 +209,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     discardPendingSession,
     clearSession,
     checkForPendingSession,
+    setOrderId: setSessionOrderId,
     isLoading: isSessionLoading,
   } = useWorkflowSession({
     workflowType: 'attendant',
@@ -255,7 +256,15 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Check for pending session on mount
   // Note: We always call checkSession() immediately - the hook handles auth verification
   // internally via getEmployeeToken(). This avoids race conditions with attendantInfo state.
+  // Skip the check if we have an initialSession (user selected from sessions list)
   useEffect(() => {
+    // If we have an initialSession, skip the pending session check
+    // The session will be restored via the initialSession effect
+    if (initialSession) {
+      setSessionCheckComplete(true);
+      return;
+    }
+    
     const checkSession = async () => {
       const hasPending = await checkForPendingSession();
       if (hasPending) {
@@ -265,7 +274,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     };
     
     checkSession();
-  }, [checkForPendingSession]);
+  }, [checkForPendingSession, initialSession]);
   
   // Handle session resume
   const handleResumeSession = useCallback(async () => {
@@ -294,6 +303,12 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     
     // Set read-only mode based on whether the session can be edited
     setIsReadOnlySession(isReadOnly);
+    
+    // IMPORTANT: Set the session order ID so auto-save works correctly
+    // This allows the session to be updated when user makes progress
+    if (!isReadOnly) {
+      setSessionOrderId(order.id);
+    }
     
     // Extract state from session data and restore
     const sessionData = order.session.session_data;
@@ -330,7 +345,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     } else {
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
-  }, [t]);
+  }, [t, setSessionOrderId]);
   
   // Effect to automatically restore initial session from props (from sessions screen)
   useEffect(() => {

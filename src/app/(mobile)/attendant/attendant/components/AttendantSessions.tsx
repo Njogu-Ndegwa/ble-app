@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getAttendantRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Battery, Hash, Eye, Zap } from 'lucide-react';
 
 interface AttendantSessionsProps {
   onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
@@ -260,7 +260,18 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
           <div className="sessions-list">
             {filteredOrders.map((order) => {
               const session = order.session;
+              const sessionData = session?.session_data;
               const isResumable = canResume(order);
+              
+              // Extract relevant info from session data
+              const subscriptionCode = sessionData?.dynamicPlanId || 
+                                       sessionData?.customerData?.subscriptionId ||
+                                       sessionData?.manualSubscriptionId;
+              const oldBattery = sessionData?.swapData?.oldBattery;
+              const newBattery = sessionData?.swapData?.newBattery;
+              const currentStep = sessionData?.currentStep || 1;
+              const maxStep = sessionData?.maxStepReached || currentStep;
+              const hasPaymentInfo = order.amount_total > 0;
               
               return (
                 <div 
@@ -268,6 +279,7 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
                   className={`session-card-item ${isResumable ? 'resumable' : ''}`}
                   onClick={() => onSelectSession?.(order, !isResumable)}
                 >
+                  {/* Main Row: Customer Name + Status */}
                   <div className="session-card-main">
                     <div className="session-card-left">
                       <div className="session-avatar">
@@ -277,27 +289,60 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
                         <span className="session-customer-name">
                           {order.partner_name || t('common.unknown') || 'Unknown'}
                         </span>
-                        <span className="session-order-name">{order.name}</span>
+                        {/* Subscription Code - Important identifier */}
+                        {subscriptionCode && (
+                          <span className="session-subscription-code">
+                            <Hash size={11} />
+                            {subscriptionCode}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="session-card-right">
                       {getStatusBadge(order)}
                       <div className={`session-action-icon ${isResumable ? 'active' : 'completed'}`}>
-                        <Play size={16} />
+                        {isResumable ? <Play size={16} /> : <Eye size={16} />}
                       </div>
                     </div>
                   </div>
                   
+                  {/* Battery Info Row - Shows scanned batteries */}
+                  {(oldBattery || newBattery) && (
+                    <div className="session-card-batteries">
+                      {oldBattery && (
+                        <span className="session-battery session-battery-old">
+                          <Battery size={12} />
+                          <span>{oldBattery.shortId || oldBattery.id?.substring(0, 8)}</span>
+                        </span>
+                      )}
+                      {oldBattery && newBattery && (
+                        <span className="session-battery-arrow">→</span>
+                      )}
+                      {newBattery && (
+                        <span className="session-battery session-battery-new">
+                          <Zap size={12} />
+                          <span>{newBattery.shortId || newBattery.id?.substring(0, 8)}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Footer: Time + Progress + Amount */}
                   <div className="session-card-footer">
                     <div className="session-time">
                       <Clock size={12} />
                       <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
                     </div>
-                    {session?.session_data?.currentStep && (
+                    <div className="session-card-meta">
                       <span className="session-step">
-                        {t('attendant.sessions.step') || 'Step'} {session.session_data.currentStep}/6
+                        {t('attendant.sessions.step') || 'Step'} {currentStep}/6
                       </span>
-                    )}
+                      {hasPaymentInfo && order.paid_amount > 0 && (
+                        <span className="session-amount">
+                          {order.currency} {order.paid_amount.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

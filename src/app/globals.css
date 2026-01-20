@@ -11840,6 +11840,80 @@ html.theme-transition *::after {
   font-family: 'DM Mono', monospace;
 }
 
+.session-subscription-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-xs);
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  background: var(--accent-soft);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  margin-top: 2px;
+}
+
+.session-subscription-code svg {
+  opacity: 0.7;
+}
+
+.session-card-batteries {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.session-battery {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-xxs);
+  font-family: 'DM Mono', monospace;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.session-battery-old {
+  background: rgba(255, 193, 7, 0.1);
+  color: var(--warning);
+}
+
+.session-battery-old svg {
+  color: var(--warning);
+}
+
+.session-battery-new {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success);
+}
+
+.session-battery-new svg {
+  color: var(--success);
+}
+
+.session-battery-arrow {
+  color: var(--text-muted);
+  font-size: var(--font-xxs);
+}
+
+.session-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-amount {
+  font-size: var(--font-xs);
+  color: var(--success);
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+}
+
 .session-card-right {
   display: flex;
   align-items: center;
