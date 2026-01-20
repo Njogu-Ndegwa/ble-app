@@ -121,13 +121,6 @@ export default function CustomerStatePanel({ customer, visible }: CustomerStateP
                 }</span>
               </div>
             )}
-            {/* Current Battery */}
-            {customer.currentBatteryId && (
-              <div className="customer-detail-item customer-detail-battery">
-                <Battery size={12} />
-                <span>{customer.currentBatteryId}</span>
-              </div>
-            )}
           </div>
         </div>
         <div className="panel-right-col">
