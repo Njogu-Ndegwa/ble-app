@@ -5395,7 +5395,8 @@ html.theme-transition *::after {
 /* SALES REP MODULE      */
 /* ===================== */
 
-.sales-flow-container {
+.sales-flow-container,
+.sales-container {
   position: fixed;
   inset: 0;
   background: var(--bg-primary);
@@ -5403,6 +5404,71 @@ html.theme-transition *::after {
   flex-direction: column;
   overflow: hidden;
   z-index: 100;
+}
+
+/* Sales screen container - for non-flow screens */
+.sales-screen-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 20px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sales-main-screen {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 70px; /* Space for bottom nav */
+}
+
+/* Sales Nav - inherits from .bottom-nav */
+.sales-nav {
+  /* Uses base .bottom-nav styles - matches Rider design */
+}
+
+/* Sales Bottom Fixed - contains action bar and navigation together */
+.sales-bottom-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  max-width: 430px;
+  margin: 0 auto;
+}
+
+.sales-bottom-fixed > * {
+  pointer-events: auto;
+}
+
+/* When inside sales-bottom-fixed wrapper, action bar is not fixed anymore */
+.sales-bottom-fixed .action-bar {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 16px;
+  background: linear-gradient(to top, var(--bg-primary) 90%, transparent);
+}
+
+/* When inside sales-bottom-fixed wrapper, nav is not fixed anymore */
+.sales-bottom-fixed .sales-nav,
+.sales-bottom-fixed .bottom-nav {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+}
+
+@media (max-height: 700px) {
+  .sales-bottom-fixed .action-bar {
+    padding: 6px 12px;
+  }
 }
 
 .sales-bg-gradient {
@@ -6846,8 +6912,12 @@ html.theme-transition *::after {
   display: block;
 }
 
-/* Bottom Navigation Bar for Rider */
-.rider-nav {
+/* =====================================================
+   SHARED BOTTOM NAVIGATION - Base Styles
+   Used by Rider, Attendant, and Sales apps
+   ===================================================== */
+
+.bottom-nav {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -6860,12 +6930,12 @@ html.theme-transition *::after {
 }
 
 @media (max-height: 700px) {
-  .rider-nav {
+  .bottom-nav {
     padding: 8px 16px 12px;
   }
 }
 
-.rider-nav-item {
+.bottom-nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -6879,27 +6949,42 @@ html.theme-transition *::after {
   font-family: 'Outfit', sans-serif;
 }
 
-.rider-nav-item:hover {
+.bottom-nav-item:hover {
   color: var(--text-secondary);
 }
 
-.rider-nav-item.active {
+.bottom-nav-item.active {
   color: var(--accent);
 }
 
-.rider-nav-item svg {
+.bottom-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bottom-nav-icon svg {
   width: 22px;
   height: 22px;
   transition: all 0.2s ease;
 }
 
-.rider-nav-item.active svg {
+.bottom-nav-item.active .bottom-nav-icon svg {
   transform: scale(1.1);
 }
 
-.rider-nav-label {
+.bottom-nav-label {
   font-size: 10px;
   font-weight: 500;
+}
+
+/* =====================================================
+   APP-SPECIFIC OVERRIDES
+   ===================================================== */
+
+/* Rider Nav - inherits from .bottom-nav, no additional overrides needed */
+.rider-nav {
+  /* Uses base .bottom-nav styles */
 }
 
 /* Rider Dashboard Header */
@@ -8690,6 +8775,45 @@ html.theme-transition *::after {
 }
 
 /* Profile Screen */
+
+/* Centered Profile Header - Avatar in middle, name and phone below */
+.profile-header-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.profile-avatar-large {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 12px;
+}
+
+.profile-header-centered .profile-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.profile-header-centered .profile-phone {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: 'DM Mono', monospace;
+}
+
+/* Legacy profile header styles */
 .profile-header {
   text-align: center;
   padding: 20px 0 24px;
@@ -10494,26 +10618,9 @@ html.theme-transition *::after {
    ATTENDANT NAVIGATION & MENU STYLES
    ===================================================== */
 
-/* Attendant Bottom Navigation */
+/* Attendant Bottom Navigation - inherits from .bottom-nav, same as Rider */
 .attendant-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 10px 20px calc(12px + env(safe-area-inset-bottom, 0px));
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 200; /* Higher than action-bar (100) */
-  flex-shrink: 0;
-}
-
-@media (max-height: 700px) {
-  .attendant-nav {
-    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
-  }
+  /* Uses base .bottom-nav styles - matches Rider design */
 }
 
 /* Bottom fixed area - contains action bar and navigation together */
@@ -10545,7 +10652,8 @@ html.theme-transition *::after {
 }
 
 /* When inside bottom-fixed wrapper, nav is not fixed anymore */
-.attendant-bottom-fixed .attendant-nav {
+.attendant-bottom-fixed .attendant-nav,
+.attendant-bottom-fixed .bottom-nav {
   position: relative;
   bottom: auto;
   left: auto;
@@ -10559,6 +10667,8 @@ html.theme-transition *::after {
   }
 }
 
+/* Attendant nav items now use .bottom-nav-item from the shared component */
+/* Legacy selectors kept for backward compatibility if any other code uses them */
 .attendant-nav-item {
   display: flex;
   flex-direction: column;
@@ -10600,8 +10710,7 @@ html.theme-transition *::after {
 .attendant-screen-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  padding-bottom: 90px; /* Space for bottom nav */
+  padding-bottom: 20px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -10971,24 +11080,8 @@ html.theme-transition *::after {
   margin-bottom: 10px;
 }
 
-/* Compact bottom nav */
-.attendant-bottom-fixed .attendant-nav {
-  padding: 6px 16px calc(8px + env(safe-area-inset-bottom, 0px));
-}
-
-.attendant-bottom-fixed .attendant-nav-item {
-  padding: 6px 10px;
-  gap: 2px;
-}
-
-.attendant-bottom-fixed .attendant-nav-item svg {
-  width: 20px;
-  height: 20px;
-}
-
-.attendant-bottom-fixed .attendant-nav-label {
-  font-size: 9px;
-}
+/* Bottom nav in fixed wrapper uses same styles as base - no compact overrides */
+/* This ensures consistent nav size across all screens */
 
 /* =====================================================
    ATTENDANT TRANSACTIONS STYLES

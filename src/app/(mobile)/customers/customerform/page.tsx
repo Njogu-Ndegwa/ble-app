@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
-import SalesFlow from './SalesFlow';
+import SalesApp from './SalesApp';
 import Login from '../../attendant/attendant/login';
 import { 
   isSalesRoleLoggedIn, 
@@ -97,7 +97,7 @@ export default function CustomerFormPage() {
         }}
       />
       {isLoggedIn ? (
-        <SalesFlow onLogout={handleLogout} />
+        <SalesApp onLogout={handleLogout} />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
       )}

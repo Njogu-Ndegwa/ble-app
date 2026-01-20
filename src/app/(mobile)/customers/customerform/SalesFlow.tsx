@@ -94,9 +94,24 @@ const SALESPERSON_STATION = "STATION_001";
 interface SalesFlowProps {
   onBack?: () => void;
   onLogout?: () => void;
+  /** Render function for bottom navigation */
+  renderBottomNav?: () => React.ReactNode;
+  /** Initial session to resume */
+  initialSession?: OrderListItem | null;
+  /** Whether the initial session is read-only */
+  initialSessionReadOnly?: boolean;
+  /** Callback when initial session is consumed */
+  onInitialSessionConsumed?: () => void;
 }
 
-export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
+export default function SalesFlow({ 
+  onBack, 
+  onLogout, 
+  renderBottomNav,
+  initialSession,
+  initialSessionReadOnly,
+  onInitialSessionConsumed,
+}: SalesFlowProps) {
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
   // This leverages the auto-reconnection mechanism for unstable networks
@@ -2215,20 +2230,40 @@ export default function SalesFlow({ onBack, onLogout }: SalesFlowProps) {
         {renderStepContent()}
       </main>
 
-      {/* Action Bar - disabled in manual payment mode since user should use the CTA in content area */}
-      <SalesActionBar
-        currentStep={currentStep}
-        onBack={handleBack}
-        onMainAction={handleMainAction}
-        isLoading={isProcessing || isCreatingCustomer || isCompletingService || isAssigningVehicle}
-        paymentInputMode={paymentInputMode}
-        isDisabled={false}
-        hasVehicleScanned={!!scannedVehicleId}
-        hasBatteryScanned={!!scannedBatteryPending}
-        customerIdentified={customerIdentified}
-        isIdentifying={isIdentifying}
-        identificationFailed={identificationFailed}
-      />
+      {/* Bottom Fixed Area - contains action bar and navigation together when nav is present */}
+      {renderBottomNav ? (
+        <div className="sales-bottom-fixed">
+          <SalesActionBar
+            currentStep={currentStep}
+            onBack={handleBack}
+            onMainAction={handleMainAction}
+            isLoading={isProcessing || isCreatingCustomer || isCompletingService || isAssigningVehicle}
+            paymentInputMode={paymentInputMode}
+            isDisabled={false}
+            hasVehicleScanned={!!scannedVehicleId}
+            hasBatteryScanned={!!scannedBatteryPending}
+            customerIdentified={customerIdentified}
+            isIdentifying={isIdentifying}
+            identificationFailed={identificationFailed}
+          />
+          {renderBottomNav()}
+        </div>
+      ) : (
+        /* Action Bar - standalone when no bottom nav */
+        <SalesActionBar
+          currentStep={currentStep}
+          onBack={handleBack}
+          onMainAction={handleMainAction}
+          isLoading={isProcessing || isCreatingCustomer || isCompletingService || isAssigningVehicle}
+          paymentInputMode={paymentInputMode}
+          isDisabled={false}
+          hasVehicleScanned={!!scannedVehicleId}
+          hasBatteryScanned={!!scannedBatteryPending}
+          customerIdentified={customerIdentified}
+          isIdentifying={isIdentifying}
+          identificationFailed={identificationFailed}
+        />
+      )}
 
       {/* Loading Overlay - Simple overlay for non-BLE operations (customer registration, processing, vehicle assignment, service completion) */}
       {(isCreatingCustomer || isProcessing || isAssigningVehicle || isCompletingService) && 

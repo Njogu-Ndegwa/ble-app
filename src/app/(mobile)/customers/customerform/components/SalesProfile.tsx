@@ -3,7 +3,7 @@
 import React from 'react';
 import { useI18n } from '@/i18n';
 
-interface AttendantProfileProps {
+interface SalesProfileProps {
   employee: {
     id: string | number;
     name: string;
@@ -13,7 +13,7 @@ interface AttendantProfileProps {
   onLogout: () => void;
 }
 
-const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout }) => {
+const SalesProfile: React.FC<SalesProfileProps> = ({ employee, onLogout }) => {
   const { t } = useI18n();
 
   const initials = employee?.name
@@ -23,7 +23,7 @@ const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout 
         .join('')
         .substring(0, 2)
         .toUpperCase()
-    : 'AT';
+    : 'SR';
 
   // Format phone number with + prefix and spaced digit groups
   const formatPhoneNumber = (phone: string): string => {
@@ -68,15 +68,14 @@ const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout 
         <div className="energy-service-header">
           <div className="energy-service-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="8.5" cy="7" r="4"/>
-              <line x1="20" y1="8" x2="20" y2="14"/>
-              <line x1="23" y1="11" x2="17" y2="11"/>
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <path d="M16 10a4 4 0 0 1-8 0"/>
             </svg>
           </div>
           <div className="energy-service-title">
             <span className="energy-service-name">
-              {t('role.attendant') || 'Swap Attendant'}
+              {t('role.salesRep') || 'Sales Representative'}
             </span>
             <span className="energy-service-status paid">
               <span className="status-dot"></span>
@@ -99,7 +98,7 @@ const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout 
             </div>
             <div className="energy-stat-content">
               <div className="energy-stat-value">ID #{employee?.id || 'N/A'}</div>
-              <div className="energy-stat-label">{t('attendant.profile.employeeId') || 'Employee ID'}</div>
+              <div className="energy-stat-label">{t('sales.profile.employeeId') || 'Employee ID'}</div>
             </div>
           </div>
 
@@ -167,4 +166,4 @@ const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout 
   );
 };
 
-export default AttendantProfile;
+export default SalesProfile;

@@ -122,9 +122,9 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 
   return (
     <div className="rider-screen active">
-      {/* Profile Header - matching abs-design.vercel.app exactly */}
-      <div className="profile-header">
-        <div className="profile-avatar">{profile.initials}</div>
+      {/* Profile Header - Avatar centered, name and phone below */}
+      <div className="profile-header-centered">
+        <div className="profile-avatar-large">{profile.initials}</div>
         <div className="profile-name">{profile.name}</div>
         <div className="profile-phone">{formatPhoneNumber(profile.phone)}</div>
       </div>
@@ -173,10 +173,9 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              stroke-width="2"
+              strokeWidth="2"
             >
               <circle cx="12" cy="12" r="10"></circle>
-
               <path d="M12 6v12M8 10h8M8 14h8"></path>
             </svg>
             </div>

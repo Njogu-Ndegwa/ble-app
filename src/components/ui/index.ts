@@ -97,3 +97,9 @@ export {
 // PHONE INPUT WITH COUNTRY
 // ============================================
 export { default as PhoneInputWithCountry } from './PhoneInputWithCountry';
+
+// ============================================
+// BOTTOM NAVIGATION
+// ============================================
+export { default as BottomNav, NavIcons } from './BottomNav';
+export type { NavItem, BottomNavProps } from './BottomNav';
