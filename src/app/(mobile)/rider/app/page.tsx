@@ -163,8 +163,15 @@ const RiderApp: React.FC = () => {
     const checkAuth = async () => {
       const token = localStorage.getItem('authToken_rider');
       const storedCustomerData = localStorage.getItem('customerData_rider');
+      const showLoginPage = localStorage.getItem('showLoginPage_rider') === 'true';
       
-      if (token && storedCustomerData) {
+      // Clear the login page flag after reading
+      if (showLoginPage) {
+        localStorage.removeItem('showLoginPage_rider');
+      }
+      
+      // If user just logged out (showLoginPage flag), show login page even if credentials exist
+      if (token && storedCustomerData && !showLoginPage) {
         try {
           const customerData = JSON.parse(storedCustomerData);
           setCustomer(customerData);
@@ -1246,17 +1253,16 @@ const RiderApp: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Clear all session state and credentials on logout
+    // Clear session state but KEEP credentials for fingerprint login
     setIsLoggedIn(false);
     setCustomer(null);
-    setShowFoundCustomer(false);
+    setShowFoundCustomer(false); // Force login page instead of welcome back
     setCurrentScreen('home');
-    setIsFingerprintEnabled(false);
-    // Clear all credentials and preferences - user starts fresh
-    localStorage.removeItem('authToken_rider');
-    localStorage.removeItem('customerData_rider');
+    // Keep credentials and fingerprint preference for fingerprint login
+    // Only clear the phone number (user can re-enter if needed)
     localStorage.removeItem('userPhone');
-    localStorage.removeItem('fingerprintEnabled_rider'); // Clear so modal shows on next login
+    // Set flag to show login page instead of welcome back on next check
+    localStorage.setItem('showLoginPage_rider', 'true');
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 

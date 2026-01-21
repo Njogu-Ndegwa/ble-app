@@ -96,15 +96,20 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       // Fingerprint is available only if credentials exist AND user has enabled it
       const available = hasCredentials && fingerprintEnabled;
       setIsFingerprintAvailable(available);
-      console.info('[FINGERPRINT] Availability:', { 
+      console.info('[FINGERPRINT] Login page - Availability check:', { 
         hasToken: !!token, 
         hasCustomerData: !!customerData,
         fingerprintEnabled,
-        available 
+        fingerprintEnabledRaw: localStorage.getItem('fingerprintEnabled_rider'),
+        available,
+        willShowButton: available
       });
     };
     
+    // Check immediately
     checkFingerprintAvailability();
+    // Also check after a short delay in case localStorage isn't ready
+    setTimeout(checkFingerprintAvailability, 500);
     // Check periodically in case credentials change
     const interval = setInterval(checkFingerprintAvailability, 2000);
     
