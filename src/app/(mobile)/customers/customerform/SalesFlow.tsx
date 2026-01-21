@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut, History } from 'lucide-react';
+import { Globe, LogOut, History, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
@@ -1857,6 +1857,14 @@ export default function SalesFlow({
 
   // Handle main action button
   const handleMainAction = useCallback(async () => {
+    // In read-only mode, just navigate between steps (no actions)
+    // Except for step 8 where we reset to start a new registration
+    if (isReadOnlySession && currentStep < 8) {
+      // Just advance to next step for viewing
+      advanceToStep((currentStep + 1) as SalesStep);
+      return;
+    }
+    
     switch (currentStep) {
       case 1:
         // Validate and create customer in Odoo
@@ -2003,6 +2011,8 @@ export default function SalesFlow({
         resetVehicleAssignment();
         setRegistrationId('');
         setCustomerPassword(null);
+        // Reset read-only mode when starting new registration
+        setIsReadOnlySession(false);
         // Reset session restored flag to allow new session tracking
         setSessionRestored(true);
         break;
@@ -2031,6 +2041,7 @@ export default function SalesFlow({
     resetCustomerIdentification,
     resetPaymentAndService,
     resetVehicleAssignment,
+    isReadOnlySession,
   ]);
 
   // Handle step click in timeline
@@ -2039,6 +2050,74 @@ export default function SalesFlow({
       setCurrentStep(step);
     }
   }, [maxStepReached]);
+
+  // Exit read-only mode and start new registration (same as Attendant's handleNewSwap)
+  const handleExitReadOnlyMode = useCallback(() => {
+    // Clear the saved session since we're starting fresh
+    clearSalesSession();
+    
+    setCurrentStep(1);
+    setMaxStepReached(1);
+    setFormData({
+      firstName: '',
+      lastName: '',
+      phone: '',
+      email: '',
+      street: '',
+      city: '',
+      zip: '',
+    });
+    setFormErrors({});
+    // Reset to first available package if any
+    if (availablePackages.length > 0) {
+      setSelectedPackageId(availablePackages[0].id);
+    } else {
+      setSelectedPackageId('');
+    }
+    // Reset to first available product if any
+    if (availableProducts.length > 0) {
+      setSelectedProductId(availableProducts[0].id);
+    } else {
+      setSelectedProductId('');
+    }
+    // Reset to first available plan if any
+    if (availablePlans.length > 0) {
+      setSelectedPlanId(availablePlans[0].id);
+    } else {
+      setSelectedPlanId('');
+    }
+    setCreatedCustomerId(null);
+    setCreatedPartnerId(null);
+    setCustomerSessionToken(null);
+    setCustomerPassword(null);
+    setSubscriptionData(null);
+    setPaymentConfirmed(false);
+    setPaymentReference('');
+    setPaymentInitiated(false);
+    setPaymentInputMode('scan');
+    setManualPaymentId('');
+    setPaymentRequestOrderId(null);
+    setPaymentAmountPaid(0);
+    setPaymentAmountExpected(0);
+    setPaymentAmountRemaining(0);
+    setPaymentIncomplete(false);
+    setConfirmedSubscriptionCode(null);
+    setScannedVehicleId(null);
+    setAssignedBattery(null);
+    setScannedBatteryPending(null);
+    // Reset customer identification state (via hook)
+    resetCustomerIdentification();
+    setComputedEnergyCost(0);
+    // Reset payment and service hook
+    resetPaymentAndService();
+    // Reset vehicle assignment hook
+    resetVehicleAssignment();
+    setRegistrationId('');
+    // Reset read-only mode
+    setIsReadOnlySession(false);
+    // Reset session restored flag to allow new session tracking
+    setSessionRestored(true);
+  }, [availablePackages, availableProducts, availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment]);
 
   // Handle back to roles
   const handleBackToRoles = useCallback(() => {
@@ -2264,8 +2343,26 @@ export default function SalesFlow({
         readOnly={isReadOnlySession}
       />
 
+      {/* Read-only Mode Banner */}
+      {isReadOnlySession && (
+        <div className="readonly-banner">
+          <div className="readonly-banner-content">
+            <Eye size={16} />
+            <span>{t('sessions.readOnlyMode') || 'Viewing completed session (read-only)'}</span>
+          </div>
+          <button 
+            className="readonly-banner-exit"
+            onClick={handleExitReadOnlyMode}
+            aria-label={t('sessions.exitReview') || 'Exit Review'}
+          >
+            <X size={14} />
+            <span>{t('sessions.exitReview') || 'Exit'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="sales-main">
+      <main className={`sales-main ${isReadOnlySession ? 'sales-main-readonly' : ''}`}
         {renderStepContent()}
       </main>
 
@@ -2284,6 +2381,7 @@ export default function SalesFlow({
             customerIdentified={customerIdentified}
             isIdentifying={isIdentifying}
             identificationFailed={identificationFailed}
+            readOnly={isReadOnlySession}
           />
           {renderBottomNav()}
         </div>
@@ -2301,6 +2399,7 @@ export default function SalesFlow({
           customerIdentified={customerIdentified}
           isIdentifying={isIdentifying}
           identificationFailed={identificationFailed}
+          readOnly={isReadOnlySession}
         />
       )}
 
