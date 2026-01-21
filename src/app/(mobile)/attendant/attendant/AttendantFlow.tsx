@@ -79,9 +79,13 @@ interface AttendantFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback to clear the initial session after it's been consumed */
   onInitialSessionConsumed?: () => void;
+  /** Skip the pending session check (e.g., when navigating via bottom nav, not from Roles page) */
+  skipSessionCheck?: boolean;
+  /** Callback when the initial session check is complete (whether or not a session was found) */
+  onInitialSessionCheckComplete?: () => void;
 }
 
-export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, skipSessionCheck, onInitialSessionCheckComplete }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -256,7 +260,9 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Check for pending session on mount
   // Note: We always call checkSession() immediately - the hook handles auth verification
   // internally via getEmployeeToken(). This avoids race conditions with attendantInfo state.
-  // Skip the check if we have an initialSession (user selected from sessions list)
+  // Skip the check if:
+  // 1. We have an initialSession (user selected from sessions list)
+  // 2. skipSessionCheck is true (user navigated via bottom nav, not from Roles page)
   useEffect(() => {
     // If we have an initialSession, skip the pending session check entirely
     // The session will be restored via the initialSession effect
@@ -264,6 +270,14 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     if (initialSession) {
       setShowSessionPrompt(false);
       discardPendingSession();
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+      return;
+    }
+    
+    // If skipSessionCheck is true, user is navigating via bottom nav (not from Roles page)
+    // Don't show the session resume modal - just mark check as complete
+    if (skipSessionCheck) {
       setSessionCheckComplete(true);
       return;
     }
@@ -274,10 +288,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         setShowSessionPrompt(true);
       }
       setSessionCheckComplete(true);
+      // Notify parent that the initial session check is complete
+      // This prevents the modal from showing on subsequent navigations
+      onInitialSessionCheckComplete?.();
     };
     
     checkSession();
-  }, [checkForPendingSession, initialSession, discardPendingSession]);
+  }, [checkForPendingSession, initialSession, discardPendingSession, skipSessionCheck, onInitialSessionCheckComplete]);
   
   // Handle session resume
   const handleResumeSession = useCallback(async () => {

@@ -102,6 +102,10 @@ interface SalesFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback when initial session is consumed */
   onInitialSessionConsumed?: () => void;
+  /** Skip the pending session check (e.g., when navigating via bottom nav, not from Roles page) */
+  skipSessionCheck?: boolean;
+  /** Callback when the initial session check is complete (whether or not a session was found) */
+  onInitialSessionCheckComplete?: () => void;
 }
 
 export default function SalesFlow({ 
@@ -111,6 +115,8 @@ export default function SalesFlow({
   initialSession,
   initialSessionReadOnly,
   onInitialSessionConsumed,
+  skipSessionCheck,
+  onInitialSessionCheckComplete,
 }: SalesFlowProps) {
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
@@ -441,7 +447,27 @@ export default function SalesFlow({
   }, []);
 
   // Check for pending session from backend on mount
+  // Skip the check if:
+  // 1. We have an initialSession (user selected from sessions list)
+  // 2. skipSessionCheck is true (user navigated via bottom nav, not from Roles page)
   useEffect(() => {
+    // If we have an initialSession, skip the pending session check entirely
+    // The session will be restored via the initialSession effect
+    if (initialSession) {
+      setShowSessionPrompt(false);
+      discardPendingSession();
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+      return;
+    }
+    
+    // If skipSessionCheck is true, user is navigating via bottom nav (not from Roles page)
+    // Don't show the session resume modal - just mark check as complete
+    if (skipSessionCheck) {
+      setSessionCheckComplete(true);
+      return;
+    }
+    
     const checkSession = async () => {
       // Check backend for pending session (localStorage sessions removed)
       const hasPending = await checkForPendingSession();
@@ -452,10 +478,13 @@ export default function SalesFlow({
         clearSalesSession();
       }
       setSessionCheckComplete(true);
+      // Notify parent that the initial session check is complete
+      // This prevents the modal from showing on subsequent navigations
+      onInitialSessionCheckComplete?.();
     };
     
     checkSession();
-  }, [checkForPendingSession]);
+  }, [checkForPendingSession, initialSession, discardPendingSession, skipSessionCheck, onInitialSessionCheckComplete]);
 
   // Handle session resume from backend
   const handleResumeSession = useCallback(async () => {
@@ -531,6 +560,15 @@ export default function SalesFlow({
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
   }, [t, restoreCatalogSelections]);
+  
+  // Effect to automatically restore initial session from props (from sessions screen)
+  useEffect(() => {
+    if (initialSession) {
+      handleSelectHistorySession(initialSession, initialSessionReadOnly || false);
+      // Notify parent that we've consumed the session
+      onInitialSessionConsumed?.();
+    }
+  }, [initialSession, initialSessionReadOnly, handleSelectHistorySession, onInitialSessionConsumed]);
 
   // Helper to build current session state
   const buildCurrentSessionState = useCallback((): SalesWorkflowState => {
