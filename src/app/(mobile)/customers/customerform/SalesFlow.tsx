@@ -2362,7 +2362,7 @@ export default function SalesFlow({
       )}
 
       {/* Main Content */}
-      <main className={`sales-main ${isReadOnlySession ? 'sales-main-readonly' : ''}`}
+      <main className={`sales-main ${isReadOnlySession ? 'sales-main-readonly' : ''}`}>
         {renderStepContent()}
       </main>
 
