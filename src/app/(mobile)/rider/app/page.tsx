@@ -1012,6 +1012,152 @@ const RiderApp: React.FC = () => {
     }
   }, [isLoggedIn, subscription?.subscription_code]);
 
+  // Check fingerprint availability (credentials + preference)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem('authToken_rider');
+    const customerData = localStorage.getItem('customerData_rider');
+    const fingerprintEnabled = localStorage.getItem('fingerprintEnabled_rider') === 'true';
+    const hasCredentials = !!(token && customerData);
+    // Only enable if both credentials exist AND user has enabled fingerprint
+    if (hasCredentials && fingerprintEnabled) {
+      // Fingerprint is available
+      console.info('[FINGERPRINT] Fingerprint login available for this user');
+    }
+  }, []);
+
+  // Register fingerprint callback handler for welcome back screen (after functions are defined)
+  useEffect(() => {
+    if (!bridge || !customer || !showFoundCustomer) return;
+
+    const reg = (name: string, handler: any) => {
+      bridge.registerHandler(name, handler);
+      return () => bridge.registerHandler(name, () => {});
+    };
+
+    // Register fingerprint verification callback
+    const offFingerprint = reg("fingerprintVerificationCallBack", (data: any, resp: any) => {
+      try {
+        console.info('[FINGERPRINT] ===== CALLBACK RECEIVED =====');
+        console.info('[FINGERPRINT] Raw data:', data);
+        console.info('[FINGERPRINT] Data type:', typeof data);
+        console.info('[FINGERPRINT] Data stringified:', JSON.stringify(data));
+        
+        // Parse response - handle different formats
+        let parsed: any;
+        if (typeof data === 'string') {
+          try {
+            parsed = JSON.parse(data);
+            console.info('[FINGERPRINT] Parsed as JSON:', parsed);
+          } catch (e) {
+            // If not JSON, treat as string
+            parsed = data;
+            console.info('[FINGERPRINT] Treated as string:', parsed);
+          }
+        } else {
+          parsed = data;
+          console.info('[FINGERPRINT] Already an object:', parsed);
+        }
+        
+        // Check for failure indicators FIRST - be strict about failures
+        const isFailure = 
+          parsed?.success === false ||
+          parsed?.error === true ||
+          parsed?.failed === true ||
+          parsed?.status === 'failed' ||
+          parsed?.status === 'error' ||
+          parsed?.result === 'failed' ||
+          parsed === false ||
+          parsed === 'false' ||
+          (typeof parsed === 'string' && (
+            parsed.toLowerCase() === 'failed' ||
+            parsed.toLowerCase() === 'false' ||
+            parsed.toLowerCase().includes('fail') ||
+            parsed.toLowerCase().includes('error') ||
+            parsed.toLowerCase().includes("don't match") ||
+            parsed.toLowerCase().includes('not match') ||
+            parsed.toLowerCase().includes('mismatch')
+          )) ||
+          (parsed && typeof parsed === 'object' && (parsed.error || parsed.failed || parsed.message?.toLowerCase().includes('fail')));
+        
+        // Only check for success if it's NOT a failure
+        const success = !isFailure && (
+          parsed?.success === true || 
+          parsed?.respData === true || 
+          parsed === true ||
+          parsed?.status === 'success' ||
+          parsed?.result === 'success' ||
+          parsed?.verified === true ||
+          (typeof parsed === 'string' && (
+            parsed.toLowerCase() === 'success' || 
+            parsed.toLowerCase() === 'true' ||
+            parsed.toLowerCase() === 'verified'
+          ))
+        );
+        
+        console.info('[FINGERPRINT] Success determination:', { 
+          success, 
+          isFailure,
+          parsed, 
+          dataType: typeof data,
+          checks: {
+            isFailure: isFailure,
+            successProp: parsed?.success === true,
+            respDataProp: parsed?.respData === true,
+            isTrue: parsed === true,
+            statusSuccess: parsed?.status === 'success',
+            resultSuccess: parsed?.result === 'success',
+            verifiedProp: parsed?.verified === true,
+            stringSuccess: typeof parsed === 'string' && parsed.toLowerCase() === 'success'
+          }
+        });
+        
+        // Only proceed if explicitly successful AND not a failure
+        if (success && !isFailure && customer) {
+          // Fingerprint verified, proceed with login
+          console.info('[FINGERPRINT] ✓ Verification successful, proceeding with login...');
+          const token = localStorage.getItem('authToken_rider');
+          if (token) {
+            setIsLoadingBike(true);
+            setIsLoadingStations(true);
+            setIsLoggedIn(true);
+            fetchDashboardData(token).then(() => {
+              if (customer.partner_id) {
+                fetchSubscriptionData(customer.partner_id, token);
+              }
+            }).catch((err) => {
+              console.error('[FINGERPRINT] Error during login:', err);
+              toast.error(t("auth.loginFailed") || "Login failed. Please try again.");
+              setIsLoggedIn(false);
+            });
+          } else {
+            console.error('[FINGERPRINT] No token found in localStorage');
+            toast.error(t("auth.noCredentials") || "No saved credentials found.");
+          }
+        } else {
+          console.warn('[FINGERPRINT] ✗ Verification failed or cancelled:', parsed);
+          // Only show error if it's explicitly a failure, not a cancellation
+          if (parsed && (
+            (typeof parsed === 'object' && (parsed.error || parsed.failed)) ||
+            (typeof parsed === 'string' && parsed.toLowerCase().includes('fail'))
+          )) {
+            toast.error(t("auth.fingerprintFailed") || "Fingerprint verification failed");
+          }
+        }
+      } catch (err) {
+        console.error("[FINGERPRINT] Error processing fingerprint data:", err);
+        toast.error(t("auth.fingerprintError") || "Error processing fingerprint verification");
+      }
+      resp(data);
+    });
+
+    console.info('[FINGERPRINT] Callback handler registered for welcome screen');
+    
+    return () => {
+      offFingerprint();
+    };
+  }, [bridge, customer, showFoundCustomer, t]);
+
   // Lock body overflow
   useEffect(() => {
     document.body.classList.add('overflow-locked');
@@ -1064,13 +1210,17 @@ const RiderApp: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Clear all credentials from localStorage on logout
-    localStorage.removeItem('authToken_rider');
-    localStorage.removeItem('customerData_rider');
-    localStorage.removeItem('userPhone');
+    // Clear session state but keep credentials for fingerprint login
+    // This allows users to login again with fingerprint without re-entering password
+    // Only clear credentials if user explicitly wants to (e.g., "Logout and clear data")
     setIsLoggedIn(false);
     setCustomer(null);
     setCurrentScreen('home');
+    // Note: Keeping authToken_rider and customerData_rider for fingerprint login
+    // If you want to clear them, uncomment the lines below:
+    // localStorage.removeItem('authToken_rider');
+    // localStorage.removeItem('customerData_rider');
+    localStorage.removeItem('userPhone'); // Clear phone number
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 
