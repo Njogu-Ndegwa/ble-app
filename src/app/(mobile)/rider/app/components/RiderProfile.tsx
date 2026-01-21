@@ -3,6 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { useI18n } from "@/i18n";
+import { Fingerprint } from "lucide-react";
 
 interface ProfileData {
   name: string;
@@ -28,6 +29,8 @@ interface RiderProfileProps {
   onPaymentMethods: () => void;
   onSupport: () => void;
   onLogout: () => void;
+  isFingerprintEnabled?: boolean;
+  onToggleFingerprint?: () => void;
 }
 
 const RiderProfile: React.FC<RiderProfileProps> = ({
@@ -39,6 +42,8 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
   onPaymentMethods,
   onSupport,
   onLogout,
+  isFingerprintEnabled = false,
+  onToggleFingerprint,
 }) => {
   const { t } = useI18n();
 
@@ -377,6 +382,52 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
         </div>
+
+        {/* Fingerprint Login */}
+        {onToggleFingerprint && (
+          <div className="menu-item" onClick={onToggleFingerprint}>
+            <div className="menu-item-icon">
+              <Fingerprint size={20} />
+            </div>
+            <div className="menu-item-content">
+              <div className="menu-item-title">
+                {t("auth.fingerprintLogin") || "Fingerprint Login"}
+              </div>
+              <div className="menu-item-subtitle">
+                {isFingerprintEnabled 
+                  ? (t("common.enabled") || "Enabled") 
+                  : (t("common.disabled") || "Disabled")}
+              </div>
+            </div>
+            <div className="menu-item-arrow" style={{ display: 'flex', alignItems: 'center' }}>
+              <div 
+                style={{
+                  width: '44px',
+                  height: '24px',
+                  borderRadius: '12px',
+                  background: isFingerprintEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
+                  position: 'relative',
+                  transition: 'background 0.2s ease',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div 
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: 'white',
+                    position: 'absolute',
+                    top: '1px',
+                    left: isFingerprintEnabled ? '22px' : '1px',
+                    transition: 'left 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Help & Support */}
         <div className="menu-item" onClick={onSupport}>

@@ -46,6 +46,8 @@
   "common.useFingerprint": "Utiliser l'empreinte digitale",
   "common.verifying": "Vérification...",
   "common.skip": "Passer",
+  "common.enabled": "Activé",
+  "common.disabled": "Désactivé",
   "common.loginSuccess": "Connexion réussie",
   "common.bridgeNotInitialized": "Bridge non initialisé",
   "auth.sessionExpired": "Session expirée. Veuillez vous connecter avec votre mot de passe.",

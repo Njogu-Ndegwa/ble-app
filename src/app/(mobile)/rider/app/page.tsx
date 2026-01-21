@@ -116,6 +116,8 @@ const RiderApp: React.FC = () => {
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
   const [showFingerprintPrompt, setShowFingerprintPrompt] = useState(false);
   const [isFingerprintEnabled, setIsFingerprintEnabled] = useState(false);
+  const [isEnablingFingerprint, setIsEnablingFingerprint] = useState(false);
+  const isEnablingFingerprintRef = useRef(false); // Ref for callback to access current state
 
   // Check if fingerprint is enabled on mount and when showFoundCustomer changes
   useEffect(() => {
@@ -1053,9 +1055,11 @@ const RiderApp: React.FC = () => {
     }
   }, []);
 
-  // Register fingerprint callback handler for welcome back screen (after functions are defined)
+  // Register fingerprint callback handler - for both login (welcome screen) and enrollment
   useEffect(() => {
-    if (!bridge || !customer || !showFoundCustomer) return;
+    if (!bridge) return;
+    // Register when: on welcome screen with customer, OR when logged in (for enrollment)
+    if (!((customer && showFoundCustomer) || isLoggedIn)) return;
 
     const reg = (name: string, handler: any) => {
       bridge.registerHandler(name, handler);
@@ -1067,26 +1071,21 @@ const RiderApp: React.FC = () => {
       try {
         console.info('[FINGERPRINT] ===== CALLBACK RECEIVED =====');
         console.info('[FINGERPRINT] Raw data:', data);
-        console.info('[FINGERPRINT] Data type:', typeof data);
-        console.info('[FINGERPRINT] Data stringified:', JSON.stringify(data));
+        console.info('[FINGERPRINT] isEnablingFingerprint:', isEnablingFingerprintRef.current);
         
         // Parse response - handle different formats
         let parsed: any;
         if (typeof data === 'string') {
           try {
             parsed = JSON.parse(data);
-            console.info('[FINGERPRINT] Parsed as JSON:', parsed);
           } catch (e) {
-            // If not JSON, treat as string
             parsed = data;
-            console.info('[FINGERPRINT] Treated as string:', parsed);
           }
         } else {
           parsed = data;
-          console.info('[FINGERPRINT] Already an object:', parsed);
         }
         
-        // Check for failure indicators FIRST - be strict about failures
+        // Check for failure indicators FIRST
         const isFailure = 
           parsed?.success === false ||
           parsed?.error === true ||
@@ -1122,27 +1121,28 @@ const RiderApp: React.FC = () => {
           ))
         );
         
-        console.info('[FINGERPRINT] Success determination:', { 
-          success, 
-          isFailure,
-          parsed, 
-          dataType: typeof data,
-          checks: {
-            isFailure: isFailure,
-            successProp: parsed?.success === true,
-            respDataProp: parsed?.respData === true,
-            isTrue: parsed === true,
-            statusSuccess: parsed?.status === 'success',
-            resultSuccess: parsed?.result === 'success',
-            verifiedProp: parsed?.verified === true,
-            stringSuccess: typeof parsed === 'string' && parsed.toLowerCase() === 'success'
-          }
-        });
+        console.info('[FINGERPRINT] Success:', success, 'isFailure:', isFailure);
         
-        // Only proceed if explicitly successful AND not a failure
-        if (success && !isFailure && customer) {
-          // Fingerprint verified, proceed with login
-          console.info('[FINGERPRINT] ✓ Verification successful, proceeding with login...');
+        // Check if this is for enrollment or login
+        if (isEnablingFingerprintRef.current) {
+          // ENROLLMENT MODE
+          setIsEnablingFingerprint(false);
+          isEnablingFingerprintRef.current = false;
+          
+          if (success && !isFailure) {
+            // Fingerprint verified successfully during enrollment
+            console.info('[FINGERPRINT] ✓ Enrollment verification successful');
+            localStorage.setItem('fingerprintEnabled_rider', 'true');
+            setIsFingerprintEnabled(true);
+            setShowFingerprintPrompt(false);
+            toast.success(t('auth.fingerprintEnabled') || 'Fingerprint login enabled');
+          } else {
+            console.warn('[FINGERPRINT] ✗ Enrollment verification failed');
+            toast.error(t('auth.fingerprintFailed') || 'Fingerprint verification failed. Please try again.');
+          }
+        } else if (success && !isFailure && customer) {
+          // LOGIN MODE - Fingerprint verified, proceed with login
+          console.info('[FINGERPRINT] ✓ Login verification successful');
           const token = localStorage.getItem('authToken_rider');
           if (token) {
             setIsLoadingBike(true);
@@ -1158,12 +1158,11 @@ const RiderApp: React.FC = () => {
               setIsLoggedIn(false);
             });
           } else {
-            console.error('[FINGERPRINT] No token found in localStorage');
             toast.error(t("auth.noCredentials") || "No saved credentials found.");
           }
-        } else {
-          console.warn('[FINGERPRINT] ✗ Verification failed or cancelled:', parsed);
-          // Only show error if it's explicitly a failure, not a cancellation
+        } else if (!isEnablingFingerprintRef.current) {
+          // LOGIN MODE - Failed
+          console.warn('[FINGERPRINT] ✗ Login verification failed');
           if (parsed && (
             (typeof parsed === 'object' && (parsed.error || parsed.failed)) ||
             (typeof parsed === 'string' && parsed.toLowerCase().includes('fail'))
@@ -1173,17 +1172,19 @@ const RiderApp: React.FC = () => {
         }
       } catch (err) {
         console.error("[FINGERPRINT] Error processing fingerprint data:", err);
+        setIsEnablingFingerprint(false);
+        isEnablingFingerprintRef.current = false;
         toast.error(t("auth.fingerprintError") || "Error processing fingerprint verification");
       }
       resp(data);
     });
 
-    console.info('[FINGERPRINT] Callback handler registered for welcome screen');
+    console.info('[FINGERPRINT] Callback handler registered');
     
     return () => {
       offFingerprint();
     };
-  }, [bridge, customer, showFoundCustomer, t]);
+  }, [bridge, customer, showFoundCustomer, isLoggedIn, t]);
 
   // Lock body overflow
   useEffect(() => {
@@ -1237,18 +1238,16 @@ const RiderApp: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Clear session state but keep credentials for fingerprint login
-    // This allows users to login again with fingerprint without re-entering password
-    // Only clear credentials if user explicitly wants to (e.g., "Logout and clear data")
+    // Clear all session state and credentials on logout
     setIsLoggedIn(false);
     setCustomer(null);
-    setShowFoundCustomer(false); // Reset so next time auth check runs fresh
+    setShowFoundCustomer(false);
     setCurrentScreen('home');
-    // Note: Keeping authToken_rider and customerData_rider for fingerprint login
-    // If you want to clear them, uncomment the lines below:
-    // localStorage.removeItem('authToken_rider');
-    // localStorage.removeItem('customerData_rider');
-    localStorage.removeItem('userPhone'); // Clear phone number
+    // Clear all credentials - user will need to login again
+    localStorage.removeItem('authToken_rider');
+    localStorage.removeItem('customerData_rider');
+    localStorage.removeItem('userPhone');
+    // Keep fingerprintEnabled_rider preference - they can re-enable after next login
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 
@@ -1725,6 +1724,30 @@ const RiderApp: React.FC = () => {
               onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
               onSupport={() => router.push('/rider/serviceplan1?page=support')}
               onLogout={handleLogout}
+              isFingerprintEnabled={isFingerprintEnabled}
+              onToggleFingerprint={() => {
+                if (isFingerprintEnabled) {
+                  // Disable fingerprint
+                  localStorage.setItem('fingerprintEnabled_rider', 'false');
+                  setIsFingerprintEnabled(false);
+                  toast.success(t('auth.fingerprintDisabled') || 'Fingerprint login disabled');
+                } else {
+                  // Enable fingerprint - trigger verification first
+                  if (bridge) {
+                    setIsEnablingFingerprint(true);
+                    isEnablingFingerprintRef.current = true;
+                    bridge.callHandler(
+                      'fingerprintVerification',
+                      '',
+                      (responseData: any) => {
+                        console.info('[FINGERPRINT] Settings toggle - verification initiated:', responseData);
+                      }
+                    );
+                  } else {
+                    toast.error(t('common.bridgeNotInitialized') || 'Bridge not initialized');
+                  }
+                }
+              }}
             />
           )}
         </main>
@@ -1829,10 +1852,24 @@ const RiderApp: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <button
                 onClick={() => {
-                  localStorage.setItem('fingerprintEnabled_rider', 'true');
-                  setShowFingerprintPrompt(false);
-                  toast.success(t('auth.fingerprintEnabled') || 'Fingerprint login enabled');
+                  if (!bridge) {
+                    toast.error(t('common.bridgeNotInitialized') || 'Bridge not initialized');
+                    return;
+                  }
+                  // Set enrollment mode
+                  setIsEnablingFingerprint(true);
+                  isEnablingFingerprintRef.current = true;
+                  // Trigger native fingerprint verification
+                  console.info('[FINGERPRINT] Triggering enrollment verification');
+                  bridge.callHandler(
+                    'fingerprintVerification',
+                    '',
+                    (responseData: any) => {
+                      console.info('[FINGERPRINT] Enrollment verification initiated:', responseData);
+                    }
+                  );
                 }}
+                disabled={isEnablingFingerprint}
                 style={{
                   width: '100%',
                   padding: '14px',
@@ -1842,15 +1879,25 @@ const RiderApp: React.FC = () => {
                   color: 'white',
                   fontSize: '15px',
                   fontWeight: '600',
-                  cursor: 'pointer',
+                  cursor: isEnablingFingerprint ? 'wait' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
+                  opacity: isEnablingFingerprint ? 0.7 : 1,
                 }}
               >
-                <Fingerprint size={18} />
-                {t('auth.enableFingerprint') || 'Enable Fingerprint'}
+                {isEnablingFingerprint ? (
+                  <>
+                    <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+                    {t('common.verifying') || 'Verifying...'}
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint size={18} />
+                    {t('auth.enableFingerprint') || 'Enable Fingerprint'}
+                  </>
+                )}
               </button>
               <button
                 onClick={() => {

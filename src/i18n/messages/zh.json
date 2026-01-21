@@ -46,6 +46,8 @@
   "common.useFingerprint": "使用指纹",
   "common.verifying": "验证中...",
   "common.skip": "跳过",
+  "common.enabled": "已启用",
+  "common.disabled": "已禁用",
   "common.loginSuccess": "登录成功",
   "common.bridgeNotInitialized": "Bridge 未初始化",
   "auth.sessionExpired": "会话已过期，请使用密码登录。",

@@ -46,6 +46,8 @@
   "common.useFingerprint": "Use Fingerprint",
   "common.verifying": "Verifying...",
   "common.skip": "Skip",
+  "common.enabled": "Enabled",
+  "common.disabled": "Disabled",
   "common.loginSuccess": "Login successful",
   "common.bridgeNotInitialized": "Bridge not initialized",
   "auth.sessionExpired": "Session expired. Please login with password.",
