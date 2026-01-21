@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getAttendantRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Battery, Hash, Eye, Zap } from 'lucide-react';
+import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Hash, Eye } from 'lucide-react';
 
 interface AttendantSessionsProps {
   onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
@@ -267,10 +267,7 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
               const subscriptionCode = sessionData?.dynamicPlanId || 
                                        sessionData?.customerData?.subscriptionId ||
                                        sessionData?.manualSubscriptionId;
-              const oldBattery = sessionData?.swapData?.oldBattery;
-              const newBattery = sessionData?.swapData?.newBattery;
               const currentStep = sessionData?.currentStep || 1;
-              const maxStep = sessionData?.maxStepReached || currentStep;
               const hasPaymentInfo = order.amount_total > 0;
               
               return (
@@ -290,10 +287,10 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
                           {order.partner_name || t('common.unknown') || 'Unknown'}
                         </span>
                         {/* Subscription Code - Important identifier */}
-                        {subscriptionCode && (
+                        {subscriptionCode && subscriptionCode.toString().trim() && (
                           <span className="session-subscription-code">
                             <Hash size={11} />
-                            {subscriptionCode}
+                            {subscriptionCode.toString().trim()}
                           </span>
                         )}
                       </div>
@@ -306,26 +303,6 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
                     </div>
                   </div>
                   
-                  {/* Battery Info Row - Shows scanned batteries */}
-                  {(oldBattery || newBattery) && (
-                    <div className="session-card-batteries">
-                      {oldBattery && (
-                        <span className="session-battery session-battery-old">
-                          <Battery size={12} />
-                          <span>{oldBattery.shortId || oldBattery.id?.substring(0, 8)}</span>
-                        </span>
-                      )}
-                      {oldBattery && newBattery && (
-                        <span className="session-battery-arrow">→</span>
-                      )}
-                      {newBattery && (
-                        <span className="session-battery session-battery-new">
-                          <Zap size={12} />
-                          <span>{newBattery.shortId || newBattery.id?.substring(0, 8)}</span>
-                        </span>
-                      )}
-                    </div>
-                  )}
                   
                   {/* Footer: Time + Progress + Amount */}
                   <div className="session-card-footer">
