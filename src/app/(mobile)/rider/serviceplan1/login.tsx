@@ -469,99 +469,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         localStorage.setItem("customerData_rider", JSON.stringify(customerData));
         
         // Check if this is first login (no fingerprint preference set)
+        // Mark for fingerprint prompt to be shown after navigation
         const fingerprintPreference = localStorage.getItem('fingerprintEnabled_rider');
         if (fingerprintPreference === null) {
-          // First login - show non-blocking toast with enable option
-          setTimeout(() => {
-            const toastId = toast.custom(
-              (toastInstance) => (
-                <div
-                  style={{
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    maxWidth: '400px',
-                    width: '100%',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Fingerprint size={24} color="var(--accent)" />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '15px', 
-                        fontWeight: '600', 
-                        color: 'var(--text-primary)',
-                        marginBottom: '4px'
-                      }}>
-                        {t('auth.enableFingerprintTitle') || 'Enable Fingerprint Login?'}
-                      </div>
-                      <div style={{ 
-                        fontSize: '13px', 
-                        color: 'var(--text-muted)',
-                        lineHeight: '1.4'
-                      }}>
-                        {t('auth.enableFingerprintToastMessage') || 'Quickly access your account using your fingerprint'}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '8px',
-                    marginTop: '4px'
-                  }}>
-                    <button
-                      onClick={() => {
-                        localStorage.setItem('fingerprintEnabled_rider', 'true');
-                        toast.dismiss(toastId);
-                        toast.success(t('auth.fingerprintEnabled') || 'Fingerprint login enabled');
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '10px 16px',
-                        background: 'var(--accent)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: 'white',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {t('auth.enableFingerprint') || 'Enable'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        localStorage.setItem('fingerprintEnabled_rider', 'false');
-                        toast.dismiss(toastId);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '10px 16px',
-                        background: 'var(--bg-secondary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        color: 'var(--text-secondary)',
-                        fontSize: '13px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {t('common.skip') || 'Skip'}
-                    </button>
-                  </div>
-                </div>
-              ),
-              {
-                duration: 10000,
-                position: 'top-center',
-              }
-            );
-          }, 500);
+          // Set a flag so the main app can show the fingerprint prompt
+          localStorage.setItem('showFingerprintPrompt_rider', 'true');
         }
         
         onLoginSuccess(customerData);
