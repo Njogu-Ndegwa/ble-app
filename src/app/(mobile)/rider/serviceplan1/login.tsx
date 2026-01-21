@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
-import { Globe } from 'lucide-react';
+import { Globe, Fingerprint } from 'lucide-react';
 import Image from "next/image";
 import { PhoneInputWithCountry } from '@/components/ui';
 
@@ -49,6 +49,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [showRegister, setShowRegister] = useState<boolean>(false);
   const [scannedBatteryCode, setScannedBatteryCode] = useState<string | null>(null);
   const [isScanningBattery, setIsScanningBattery] = useState<boolean>(false);
+  const [isFingerprintAvailable, setIsFingerprintAvailable] = useState<boolean>(false);
+  const [isFingerprintAuthenticating, setIsFingerprintAuthenticating] = useState<boolean>(false);
   const bridgeInitRef = useRef(false);
   
   // Registration form state - only fields accepted by Odoo /api/auth/register
@@ -83,6 +85,32 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     router.push('/');
   }, [router]);
 
+  // Check fingerprint availability and preference on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const checkFingerprintAvailability = () => {
+      const token = localStorage.getItem('authToken_rider');
+      const customerData = localStorage.getItem('customerData_rider');
+      const fingerprintEnabled = localStorage.getItem('fingerprintEnabled_rider') === 'true';
+      const hasCredentials = !!(token && customerData);
+      // Fingerprint is available only if credentials exist AND user has enabled it
+      const available = hasCredentials && fingerprintEnabled;
+      setIsFingerprintAvailable(available);
+      console.info('[FINGERPRINT] Availability:', { 
+        hasToken: !!token, 
+        hasCustomerData: !!customerData,
+        fingerprintEnabled,
+        available 
+      });
+    };
+    
+    checkFingerprintAvailability();
+    // Check periodically in case credentials change
+    const interval = setInterval(checkFingerprintAvailability, 2000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   // Load scanned battery code from localStorage on mount and when registration form is shown
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -104,7 +132,70 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   }, [scannedBatteryCode]);
 
-  // Setup bridge for QR code scanning
+  // Handle fingerprint login using stored credentials
+  const handleFingerprintLogin = useCallback(async () => {
+    const token = localStorage.getItem('authToken_rider');
+    const storedCustomerData = localStorage.getItem('customerData_rider');
+    
+    if (!token || !storedCustomerData) {
+      toast.error(t("auth.noCredentials") || "No saved credentials found. Please login with password first.");
+      setIsFingerprintAvailable(false);
+      return;
+    }
+
+    try {
+      const customerData = JSON.parse(storedCustomerData);
+      // Verify token is still valid by checking with backend
+      const response = await fetch(
+        "https://crm-omnivoltaic.odoo.com/api/customer/dashboard",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+            "Authorization": `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Token is valid, proceed with login
+        onLoginSuccess(customerData);
+        toast.success(t("common.loginSuccess") || "Login successful");
+      } else {
+        // Token expired, need to login with password again
+        toast.error(t("auth.sessionExpired") || "Session expired. Please login with password.");
+        localStorage.removeItem('authToken_rider');
+        localStorage.removeItem('customerData_rider');
+        setIsFingerprintAvailable(false);
+      }
+    } catch (error: any) {
+      console.error("Fingerprint login error:", error);
+      toast.error(t("auth.fingerprintLoginFailed") || "Fingerprint login failed. Please try password login.");
+      setIsFingerprintAuthenticating(false);
+    }
+  }, [onLoginSuccess, t]);
+
+  // Trigger fingerprint verification
+  const handleFingerprintAuth = useCallback(() => {
+    if (!bridge) {
+      toast.error(t("common.bridgeNotInitialized") || "Bridge not initialized");
+      return;
+    }
+
+    setIsFingerprintAuthenticating(true);
+    // Call fingerprintVerification with empty string
+    bridge.callHandler(
+      'fingerprintVerification',
+      '',
+      (responseData: any) => {
+        // Response is handled by the registered callback
+        console.info('[FINGERPRINT] Verification initiated:', responseData);
+      }
+    );
+  }, [bridge, t]);
+
+  // Setup bridge for QR code scanning and fingerprint verification
   useEffect(() => {
     if (!bridge || bridgeInitRef.current) return;
 
@@ -135,14 +226,92 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         resp(data);
       });
 
+      // Register fingerprint verification callback
+      const offFingerprint = reg("fingerprintVerificationCallBack", (data: string, resp: any) => {
+        try {
+          setIsFingerprintAuthenticating(false);
+          console.info('[FINGERPRINT] Callback received:', data);
+          
+          // Parse response - could be string or object
+          let parsed: any;
+          if (typeof data === 'string') {
+            try {
+              parsed = JSON.parse(data);
+            } catch (e) {
+              parsed = data;
+            }
+          } else {
+            parsed = data;
+          }
+          
+          // Check for failure indicators FIRST
+          const isFailure = 
+            parsed?.success === false ||
+            parsed?.error === true ||
+            parsed?.failed === true ||
+            parsed?.status === 'failed' ||
+            parsed?.status === 'error' ||
+            parsed === false ||
+            parsed === 'false' ||
+            (typeof parsed === 'string' && (
+              parsed.toLowerCase() === 'failed' ||
+              parsed.toLowerCase() === 'false' ||
+              parsed.toLowerCase().includes('fail') ||
+              parsed.toLowerCase().includes('error') ||
+              parsed.toLowerCase().includes("don't match") ||
+              parsed.toLowerCase().includes('not match')
+            )) ||
+            (parsed && typeof parsed === 'object' && (parsed.error || parsed.failed));
+          
+          // Only check for success if it's NOT a failure
+          const success = !isFailure && (
+            parsed?.success === true || 
+            parsed?.respData === true || 
+            parsed === true ||
+            parsed?.status === 'success' ||
+            parsed?.result === 'success' ||
+            (typeof parsed === 'string' && (
+              parsed.toLowerCase() === 'success' || 
+              parsed.toLowerCase() === 'true'
+            ))
+          );
+          
+          console.info('[FINGERPRINT] Login page - Success check:', { success, isFailure, parsed });
+          
+          if (success && !isFailure) {
+            // Fingerprint verified successfully, use stored credentials to login
+            console.info('[FINGERPRINT] Verification successful, logging in...');
+            handleFingerprintLogin().catch((err) => {
+              console.error("Fingerprint login error:", err);
+              setIsFingerprintAuthenticating(false);
+            });
+          } else {
+            // Fingerprint verification failed or cancelled
+            console.warn('[FINGERPRINT] Verification failed or cancelled:', parsed);
+            if (parsed && (
+              (typeof parsed === 'object' && (parsed.error || parsed.failed)) ||
+              (typeof parsed === 'string' && parsed.toLowerCase().includes('fail'))
+            )) {
+              toast.error(t("auth.fingerprintFailed") || "Fingerprint verification failed");
+            }
+          }
+        } catch (err) {
+          console.error("Error processing fingerprint data:", err);
+          setIsFingerprintAuthenticating(false);
+          toast.error(t("auth.fingerprintError") || "Error processing fingerprint verification");
+        }
+        resp(data);
+      });
+
       return () => {
         offQr();
+        offFingerprint();
         bridgeInitRef.current = false;
       };
     };
 
     return setupBridge();
-  }, [bridge, t]);
+  }, [bridge, t, handleFingerprintLogin]);
 
   // Start QR code scan
   const startBatteryQrScan = useCallback(() => {
@@ -298,6 +467,102 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         
         // Persist customer data to localStorage for auto-login
         localStorage.setItem("customerData_rider", JSON.stringify(customerData));
+        
+        // Check if this is first login (no fingerprint preference set)
+        const fingerprintPreference = localStorage.getItem('fingerprintEnabled_rider');
+        if (fingerprintPreference === null) {
+          // First login - show non-blocking toast with enable option
+          setTimeout(() => {
+            const toastId = toast.custom(
+              (toastInstance) => (
+                <div
+                  style={{
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    maxWidth: '400px',
+                    width: '100%',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Fingerprint size={24} color="var(--accent)" />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ 
+                        fontSize: '15px', 
+                        fontWeight: '600', 
+                        color: 'var(--text-primary)',
+                        marginBottom: '4px'
+                      }}>
+                        {t('auth.enableFingerprintTitle') || 'Enable Fingerprint Login?'}
+                      </div>
+                      <div style={{ 
+                        fontSize: '13px', 
+                        color: 'var(--text-muted)',
+                        lineHeight: '1.4'
+                      }}>
+                        {t('auth.enableFingerprintToastMessage') || 'Quickly access your account using your fingerprint'}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '8px',
+                    marginTop: '4px'
+                  }}>
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('fingerprintEnabled_rider', 'true');
+                        toast.dismiss(toastId);
+                        toast.success(t('auth.fingerprintEnabled') || 'Fingerprint login enabled');
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        background: 'var(--accent)',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t('auth.enableFingerprint') || 'Enable'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('fingerprintEnabled_rider', 'false');
+                        toast.dismiss(toastId);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        color: 'var(--text-secondary)',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t('common.skip') || 'Skip'}
+                    </button>
+                  </div>
+                </div>
+              ),
+              {
+                duration: 10000,
+                position: 'top-center',
+              }
+            );
+          }, 500);
+        }
         
         onLoginSuccess(customerData);
       } else if (response.status === 404) {
@@ -846,6 +1111,27 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           )}
         </button>
 
+        {/* Fingerprint Login Button - only show if available */}
+        {isFingerprintAvailable && (
+          <button
+            className="btn btn-secondary login-btn"
+            onClick={handleFingerprintAuth}
+            disabled={isFingerprintAuthenticating}
+            style={{ marginTop: 12 }}
+          >
+            {isFingerprintAuthenticating ? (
+              <>
+                <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+                <span>{t('common.verifying') || 'Verifying...'}</span>
+              </>
+            ) : (
+              <>
+                <Fingerprint size={18} />
+                <span>{t('common.useFingerprint') || 'Use Fingerprint'}</span>
+              </>
+            )}
+          </button>
+        )}
 
         <p className="login-help">
           {t('auth.needHelp') || 'Need help? Contact support'}
