@@ -204,9 +204,17 @@ const RiderApp: React.FC = () => {
   useEffect(() => {
     if (isLoggedIn && typeof window !== 'undefined') {
       const shouldShowPrompt = localStorage.getItem('showFingerprintPrompt_rider') === 'true';
+      const fingerprintPref = localStorage.getItem('fingerprintEnabled_rider');
+      console.info('[FINGERPRINT] Checking prompt:', { 
+        isLoggedIn, 
+        shouldShowPrompt, 
+        fingerprintPref,
+        showFingerprintPromptFlag: localStorage.getItem('showFingerprintPrompt_rider')
+      });
       if (shouldShowPrompt) {
         // Clear the flag and show the prompt after a short delay
         localStorage.removeItem('showFingerprintPrompt_rider');
+        console.info('[FINGERPRINT] Showing fingerprint enable prompt...');
         setTimeout(() => {
           setShowFingerprintPrompt(true);
         }, 1000); // Show after 1 second to let the UI settle
@@ -1243,11 +1251,12 @@ const RiderApp: React.FC = () => {
     setCustomer(null);
     setShowFoundCustomer(false);
     setCurrentScreen('home');
-    // Clear all credentials - user will need to login again
+    setIsFingerprintEnabled(false);
+    // Clear all credentials and preferences - user starts fresh
     localStorage.removeItem('authToken_rider');
     localStorage.removeItem('customerData_rider');
     localStorage.removeItem('userPhone');
-    // Keep fingerprintEnabled_rider preference - they can re-enable after next login
+    localStorage.removeItem('fingerprintEnabled_rider'); // Clear so modal shows on next login
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 

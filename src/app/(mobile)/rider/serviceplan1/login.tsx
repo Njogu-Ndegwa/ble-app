@@ -471,9 +471,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         // Check if this is first login (no fingerprint preference set)
         // Mark for fingerprint prompt to be shown after navigation
         const fingerprintPreference = localStorage.getItem('fingerprintEnabled_rider');
+        console.info('[FINGERPRINT] Login - checking if should show prompt:', { fingerprintPreference });
         if (fingerprintPreference === null) {
           // Set a flag so the main app can show the fingerprint prompt
           localStorage.setItem('showFingerprintPrompt_rider', 'true');
+          console.info('[FINGERPRINT] Login - set showFingerprintPrompt_rider flag to true');
         }
         
         onLoginSuccess(customerData);
