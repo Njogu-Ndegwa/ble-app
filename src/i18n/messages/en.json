@@ -34,7 +34,7 @@
   "auth.fingerprintError": "Error processing fingerprint verification",
   "auth.fingerprintAvailableAfterLogin": "Available after first login",
   "auth.enableFingerprintTitle": "Enable Fingerprint Login?",
-  "auth.enableFingerprintDescription": "Quickly access your account using your fingerprint. You can enable this later in settings if you skip.",
+  "auth.enableFingerprintDescription": "Enable this later in settings.",
   "auth.enableFingerprint": "Enable Fingerprint",
   "auth.fingerprintEnabled": "Fingerprint login enabled",
   "auth.fingerprintDisabled": "Fingerprint login disabled",

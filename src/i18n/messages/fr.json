@@ -34,7 +34,7 @@
   "auth.fingerprintError": "Erreur lors de la vérification de l'empreinte digitale",
   "auth.fingerprintAvailableAfterLogin": "Disponible après la première connexion",
   "auth.enableFingerprintTitle": "Activer la connexion par empreinte digitale ?",
-  "auth.enableFingerprintDescription": "Accédez rapidement à votre compte grâce à votre empreinte digitale. Vous pouvez activer cette option plus tard dans les paramètres.",
+  "auth.enableFingerprintDescription": "Activez ceci plus tard dans les paramètres.",
   "auth.enableFingerprint": "Activer l'empreinte digitale",
   "auth.fingerprintEnabled": "Connexion par empreinte digitale activée",
   "auth.fingerprintDisabled": "Connexion par empreinte digitale désactivée",

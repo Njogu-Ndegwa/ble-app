@@ -1861,7 +1861,7 @@ const RiderApp: React.FC = () => {
                   lineHeight: '1.5',
                 }}
               >
-                {t('auth.enableFingerprintDescription') || 'Quickly access your account using your fingerprint. You can change this later in settings.'}
+                {t('auth.enableFingerprintDescription') || 'Enable this later in settings.'}
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
