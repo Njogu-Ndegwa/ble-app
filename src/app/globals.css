@@ -10464,6 +10464,31 @@ html.theme-transition *::after {
   opacity: 0.6;
 }
 
+/* Sales workflow read-only main area styling */
+.sales-main-readonly {
+  position: relative;
+}
+
+.sales-main-readonly::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.sales-main-readonly button,
+.sales-main-readonly input,
+.sales-main-readonly select,
+.sales-main-readonly textarea,
+.sales-main-readonly .selectable-card,
+.sales-main-readonly [role="button"] {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
 /* Read-only timeline styles - use amber/yellow color scheme */
 .flow-timeline-readonly {
   opacity: 0.9;

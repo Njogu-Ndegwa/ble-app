@@ -19,6 +19,8 @@ interface SalesActionBarProps {
   isIdentifying?: boolean;
   /** Whether customer identification has failed after retries */
   identificationFailed?: boolean;
+  /** Whether viewing a read-only completed session */
+  readOnly?: boolean;
 }
 
 // Icon components for action bar
@@ -109,6 +111,7 @@ export default function SalesActionBar({
   customerIdentified = true,
   isIdentifying = false,
   identificationFailed = false,
+  readOnly = false,
 }: SalesActionBarProps) {
   const { t } = useI18n();
   const config = getStepConfig(currentStep, paymentInputMode, hasVehicleScanned, hasBatteryScanned);
@@ -152,6 +155,40 @@ export default function SalesActionBar({
       </>
     );
   };
+
+  // In read-only mode, only show navigation buttons (same as Attendant workflow)
+  if (readOnly) {
+    return (
+      <div className="action-bar action-bar-readonly">
+        <div className="action-bar-inner">
+          {currentStep > 1 && (
+            <button className="btn btn-secondary" onClick={onBack}>
+              {ActionIcons.back}
+              {t('sales.back')}
+            </button>
+          )}
+          {currentStep < 8 && (
+            <button 
+              className="btn btn-secondary"
+              onClick={onMainAction}
+            >
+              <span>{t('sessions.viewNext') || 'View Next'}</span>
+              {ActionIcons.arrow}
+            </button>
+          )}
+          {currentStep === 8 && (
+            <button 
+              className="btn btn-primary"
+              onClick={onMainAction}
+            >
+              {ActionIcons.plus}
+              <span>{t('sales.newRegistration')}</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="action-bar">

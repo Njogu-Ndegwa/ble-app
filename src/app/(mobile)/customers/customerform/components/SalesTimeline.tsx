@@ -8,6 +8,8 @@ interface SalesTimelineProps {
   currentStep: SalesStep;
   maxStepReached?: SalesStep;
   onStepClick?: (step: SalesStep) => void;
+  /** Whether the session is in read-only mode (viewing completed session) */
+  readOnly?: boolean;
 }
 
 // Map step icons to translation keys
@@ -79,30 +81,43 @@ const StepIcons: Record<string, React.ReactNode> = {
   ),
 };
 
-export default function SalesTimeline({ currentStep, maxStepReached = currentStep, onStepClick }: SalesTimelineProps) {
+export default function SalesTimeline({ currentStep, maxStepReached = currentStep, onStepClick, readOnly }: SalesTimelineProps) {
   const { t } = useI18n();
   
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
+      // In read-only mode, use 'readonly-active' instead of 'active'
+      if (readOnly) {
+        return step === 8 ? 'readonly-success' : 'readonly-active';
+      }
       return step === 8 ? 'success' : 'active';
     }
-    if (step < currentStep) return 'completed';
-    if (step <= maxStepReached) return 'reachable';
+    // Steps before current are completed (or readonly-completed in read-only mode)
+    if (step < currentStep) return readOnly ? 'readonly-completed' : 'completed';
+    // Steps after current but within maxStepReached are "reachable" (can navigate back to them)
+    if (step <= maxStepReached) return readOnly ? 'readonly-reachable' : 'reachable';
     return 'disabled';
   };
 
   const handleStepClick = (step: number) => {
+    // Allow clicking on any step up to maxStepReached (not just completed steps)
+    // This allows users to go back and forth without losing progress
     if (step <= maxStepReached && step !== currentStep && onStepClick) {
       onStepClick(step as SalesStep);
     }
   };
 
   const getConnectorClass = (stepNum: number): string => {
-    return stepNum < maxStepReached ? 'completed' : '';
+    // Show connector as completed if the step after it is within maxStepReached
+    // Use readonly variant in read-only mode
+    if (stepNum < maxStepReached) {
+      return readOnly ? 'readonly-completed' : 'completed';
+    }
+    return '';
   };
 
   return (
-    <div className="flow-timeline" id="sales-timeline">
+    <div className={`flow-timeline ${readOnly ? 'flow-timeline-readonly' : ''}`} id="sales-timeline">
       <div className="timeline-track">
         {STEP_CONFIGS.map((config, index) => {
           const stepClass = getStepClass(config.step);

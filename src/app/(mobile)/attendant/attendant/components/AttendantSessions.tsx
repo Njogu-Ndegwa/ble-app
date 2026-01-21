@@ -24,11 +24,19 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState(''); // The query that was actually searched
   const [isSearching, setIsSearching] = useState(false);
 
   const fetchSessions = useCallback(async (pageNum: number = 1, subscriptionCode?: string) => {
     const authToken = getAttendantRoleToken();
+    
+    console.log('=== [AttendantSessions] FETCH SESSIONS START ===');
+    console.log('[AttendantSessions] pageNum:', pageNum);
+    console.log('[AttendantSessions] subscriptionCode:', subscriptionCode);
+    console.log('[AttendantSessions] authToken exists:', !!authToken);
+    
     if (!authToken) {
+      console.error('[AttendantSessions] No auth token!');
       setError(t('attendant.sessions.notAuthenticated') || 'Not authenticated');
       setIsLoading(false);
       return;
@@ -47,20 +55,40 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
       // Add subscription_code filter if searching
       if (subscriptionCode && subscriptionCode.trim()) {
         params.subscription_code = subscriptionCode.trim();
+        console.log('[AttendantSessions] Added subscription_code filter:', params.subscription_code);
       }
 
+      console.log('[AttendantSessions] API params:', JSON.stringify(params, null, 2));
+      
       const response = await getOrdersList(params, authToken);
+      
+      console.log('[AttendantSessions] API response received');
+      console.log('[AttendantSessions] Total orders from API:', response.orders?.length || 0);
+      console.log('[AttendantSessions] Pagination:', JSON.stringify(response.pagination, null, 2));
       
       // Filter to only show orders that have session data
       const sessionsWithData = (response.orders || []).filter(
         order => order.session && order.session.session_data
       );
       
+      console.log('[AttendantSessions] Sessions with data after filter:', sessionsWithData.length);
+      
+      // Log each session's subscription info for debugging
+      sessionsWithData.forEach((order, idx) => {
+        const sessionData = order.session?.session_data;
+        const subCode = sessionData?.dynamicPlanId || sessionData?.customerData?.subscriptionId || sessionData?.manualSubscriptionId;
+        console.log(`[AttendantSessions] Session ${idx}: order=${order.name}, subscriptionCode=${subCode}, customer=${order.partner_name}`);
+      });
+      
       setOrders(sessionsWithData);
       setFilteredOrders(sessionsWithData);
       setPagination(response.pagination);
+      
+      console.log('=== [AttendantSessions] FETCH SESSIONS END ===');
     } catch (err: any) {
-      console.error('Failed to fetch sessions:', err);
+      console.error('[AttendantSessions] FETCH ERROR:', err);
+      console.error('[AttendantSessions] Error message:', err.message);
+      console.error('[AttendantSessions] Error stack:', err.stack);
       setError(err.message || t('attendant.sessions.fetchError') || 'Failed to load sessions');
       toast.error(t('attendant.sessions.fetchError') || 'Failed to load sessions');
     } finally {
@@ -69,30 +97,38 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
     }
   }, [t]);
 
+  // Fetch sessions on mount and when page/activeSearchQuery changes
   useEffect(() => {
-    fetchSessions(page);
-  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+    console.log('=== [AttendantSessions] useEffect TRIGGERED ===');
+    console.log('[AttendantSessions] page:', page);
+    console.log('[AttendantSessions] activeSearchQuery:', activeSearchQuery);
+    fetchSessions(page, activeSearchQuery || undefined);
+  }, [page, activeSearchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = () => {
     setSearchQuery('');
+    setActiveSearchQuery('');
     setPage(1);
-    fetchSessions(1);
+    // fetchSessions will be called by useEffect
   };
 
   const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      fetchSessions(1);
-      return;
-    }
+    const query = searchQuery.trim();
+    console.log('=== [AttendantSessions] HANDLE SEARCH ===');
+    console.log('[AttendantSessions] searchQuery (raw):', searchQuery);
+    console.log('[AttendantSessions] query (trimmed):', query);
+    console.log('[AttendantSessions] query length:', query.length);
     setIsSearching(true);
+    setActiveSearchQuery(query); // This will trigger useEffect
     setPage(1);
-    fetchSessions(1, searchQuery.trim());
+    // fetchSessions will be called by useEffect with the new activeSearchQuery
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
+    setActiveSearchQuery('');
     setPage(1);
-    fetchSessions(1);
+    // fetchSessions will be called by useEffect
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -103,17 +139,15 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
 
   const handleNextPage = () => {
     if (pagination && pagination.has_next_page) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchSessions(nextPage, searchQuery.trim() || undefined);
+      setPage(page + 1);
+      // fetchSessions will be called by useEffect with activeSearchQuery
     }
   };
 
   const handlePrevPage = () => {
     if (page > 1) {
-      const prevPage = page - 1;
-      setPage(prevPage);
-      fetchSessions(prevPage, searchQuery.trim() || undefined);
+      setPage(page - 1);
+      // fetchSessions will be called by useEffect with activeSearchQuery
     }
   };
 
