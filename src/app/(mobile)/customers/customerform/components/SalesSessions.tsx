@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Eye, Phone, Mail } from 'lucide-react';
 
 interface SalesSessionsProps {
   onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
@@ -254,7 +254,15 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
           <div className="sessions-list">
             {filteredOrders.map((order) => {
               const session = order.session;
+              const sessionData = session?.session_data;
               const isResumable = canResume(order);
+              
+              // Extract relevant info from session data
+              const customerPhone = sessionData?.formData?.phone;
+              const customerEmail = sessionData?.formData?.email;
+              const currentStep = sessionData?.currentStep || 1;
+              const hasPaymentInfo = order.amount_total > 0;
+              const amountPaid = sessionData?.payment?.amountPaid || order.paid_amount || 0;
               
               return (
                 <div 
@@ -262,6 +270,7 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
                   className={`session-card-item ${isResumable ? 'resumable' : ''}`}
                   onClick={() => onSelectSession?.(order, !isResumable)}
                 >
+                  {/* Main Row: Customer Name + Status */}
                   <div className="session-card-main">
                     <div className="session-card-left">
                       <div className="session-avatar">
@@ -271,7 +280,18 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
                         <span className="session-customer-name">
                           {order.partner_name || t('common.unknown') || 'Unknown'}
                         </span>
-                        <span className="session-order-name">{order.name}</span>
+                        {/* Contact Info - Phone (priority) or Email */}
+                        {customerPhone && customerPhone.toString().trim() ? (
+                          <span className="session-subscription-code">
+                            <Phone size={11} />
+                            {customerPhone.toString().trim()}
+                          </span>
+                        ) : customerEmail && customerEmail.toString().trim() ? (
+                          <span className="session-subscription-code">
+                            <Mail size={11} />
+                            {customerEmail.toString().trim()}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <div className="session-card-right">
@@ -282,16 +302,22 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
                     </div>
                   </div>
                   
+                  {/* Footer: Time + Progress + Amount */}
                   <div className="session-card-footer">
                     <div className="session-time">
                       <Clock size={12} />
                       <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
                     </div>
-                    {session?.session_data?.currentStep && (
+                    <div className="session-card-meta">
                       <span className="session-step">
-                        {t('sales.sessions.step') || 'Step'} {session.session_data.currentStep}/8
+                        {t('sales.sessions.step') || 'Step'} {currentStep}/8
                       </span>
-                    )}
+                      {hasPaymentInfo && amountPaid > 0 && (
+                        <span className="session-amount">
+                          {order.currency} {amountPaid.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
