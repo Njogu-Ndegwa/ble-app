@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
 interface SalesSessionsProps {
   onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
@@ -277,7 +277,7 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
                     <div className="session-card-right">
                       {getStatusBadge(order)}
                       <div className={`session-action-icon ${isResumable ? 'active' : 'completed'}`}>
-                        <Play size={16} />
+                        {isResumable ? <Play size={16} /> : <Eye size={16} />}
                       </div>
                     </div>
                   </div>

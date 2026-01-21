@@ -2261,6 +2261,7 @@ export default function SalesFlow({
         currentStep={currentStep}
         maxStepReached={maxStepReached}
         onStepClick={handleStepClick}
+        readOnly={isReadOnlySession}
       />
 
       {/* Main Content */}
