@@ -2045,11 +2045,17 @@ export default function SalesFlow({
   ]);
 
   // Handle step click in timeline
+  // In read-only mode, allow navigating to any step including step 8
+  // In normal mode, prevent jumping to step 8 (success) directly
   const handleStepClick = useCallback((step: SalesStep) => {
-    if (step <= maxStepReached && step < 8) {
+    if (step <= maxStepReached && step !== currentStep) {
+      // In normal mode, don't allow jumping to step 8 directly
+      if (!isReadOnlySession && step === 8) {
+        return;
+      }
       setCurrentStep(step);
     }
-  }, [maxStepReached]);
+  }, [maxStepReached, currentStep, isReadOnlySession]);
 
   // Exit read-only mode and start new registration (same as Attendant's handleNewSwap)
   const handleExitReadOnlyMode = useCallback(() => {
