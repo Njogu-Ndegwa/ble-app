@@ -293,6 +293,7 @@ export interface RegistrationReceiptData {
   packageName?: string;
   subscriptionName?: string;
   subscriptionCode?: string;
+  vehicleId?: string;
   batteryId?: string;
   batteryLevel?: number;
   paymentReference?: string;
@@ -347,6 +348,14 @@ export function buildRegistrationReceiptRows(
     rows.push({ 
       label: t('sales.subscriptionId') || 'Subscription ID', 
       value: data.subscriptionCode,
+      mono: true 
+    });
+  }
+
+  if (data.vehicleId) {
+    rows.push({ 
+      label: t('sales.vehicleId') || 'Vehicle ID', 
+      value: data.vehicleId,
       mono: true 
     });
   }

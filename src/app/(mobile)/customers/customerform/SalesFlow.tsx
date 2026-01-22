@@ -2266,6 +2266,7 @@ export default function SalesFlow({
             plans={availablePlans}
             selectedPackage={selectedPackage}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode}
+            vehicleId={scannedVehicleId}
             amountPaid={paymentAmountPaid}
             customerPassword={customerPassword}
           />

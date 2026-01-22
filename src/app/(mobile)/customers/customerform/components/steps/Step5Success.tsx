@@ -15,6 +15,7 @@ interface Step5Props {
   plans: PlanData[];
   selectedPackage?: PackageData | null;
   subscriptionCode?: string;
+  vehicleId?: string | null;
   amountPaid?: number;
   customerPassword?: string | null;
 }
@@ -33,6 +34,7 @@ export default function Step5Success({
   plans,
   selectedPackage,
   subscriptionCode,
+  vehicleId,
   amountPaid,
   customerPassword,
 }: Step5Props) {
@@ -53,6 +55,7 @@ export default function Step5Success({
     packageName: selectedPackage?.name,
     subscriptionName: selectedPlan?.name,
     subscriptionCode,
+    vehicleId: vehicleId || undefined,
     // Use actualBatteryId from ATT service (OPID/PPID), fallback to shortId (BLE device name)
     batteryId: battery?.actualBatteryId || battery?.shortId,
     batteryLevel: battery?.chargeLevel,
