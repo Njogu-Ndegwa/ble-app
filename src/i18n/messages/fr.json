@@ -1098,6 +1098,7 @@
   "sales.subscriptionId": "ID d'abonnement",
   "sales.scanVehicle": "Scanner le véhicule",
   "sales.scanVehicleQr": "Scannez le code QR du véhicule",
+  "sales.scanVehicleBtn": "Scanner le véhicule",
   "sales.vehicleId": "ID du véhicule",
   "sales.vehicleScanned": "Véhicule scanné",
   "sales.vehicleScannedAutoProceeding": "Passage à l'attribution de la batterie...",

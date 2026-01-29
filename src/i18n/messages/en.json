@@ -1107,6 +1107,7 @@
   "sales.subscriptionId": "Subscription ID",
   "sales.scanVehicle": "Scan Vehicle",
   "sales.scanVehicleQr": "Scan the vehicle QR code",
+  "sales.scanVehicleBtn": "Scan Vehicle",
   "sales.vehicleId": "Vehicle ID",
   "sales.vehicleScanned": "Vehicle Scanned",
   "sales.vehicleScannedAutoProceeding": "Proceeding to battery assignment...",

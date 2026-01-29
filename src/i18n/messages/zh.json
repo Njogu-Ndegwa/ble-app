@@ -1010,6 +1010,7 @@
   "sales.subscriptionId": "订阅ID",
   "sales.scanVehicle": "扫描车辆",
   "sales.scanVehicleQr": "扫描车辆二维码",
+  "sales.scanVehicleBtn": "扫描车辆",
   "sales.vehicleId": "车辆ID",
   "sales.vehicleScanned": "车辆已扫描",
   "sales.vehicleScannedAutoProceeding": "正在进入电池分配...",
