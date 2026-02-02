@@ -188,6 +188,10 @@ const AppContainer = () => {
     Batt: "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1731146523/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_bxwpf9.png",
     UBP1: "https://res.cloudinary.com/oves/image/upload/t_BLE%20APP%20500X500/v1743147157/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-1K/UBP1K_AC_Output_250W_ee1ar3.png",
     UBP2: "https://res.cloudinary.com/oves/image/upload/t_BLE%20APP%20500X500/v1743155669/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-2K/UBP_2_AC_Output_._ottb1j.png",
+    BT73: "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1770020682/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat30Ah/E-Mob-Bat30Ah%20New%20Shell/E-Mob-Bat30Ah_PNG_y3dfxy.png",
+    BT74: "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1770020635/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_PNG_poanss.png",
+    BT7H: "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1755251939/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat100Ah/E-Mob-Bat100Ah-PNG_egieyn.png",
+    FRZR: "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1770021563/OVES-PRODUCTS/CROSS-GRID/AC-Productive%20Appliances/BD-228DV%20Freezer/BD-228DV_PNG_qqnaow.png"
   };
   // Get device image - returns undefined for unmapped devices (show nothing rather than confuse users)
   const getImageUrl = (name: string): string | undefined => {
