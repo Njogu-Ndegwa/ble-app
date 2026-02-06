@@ -550,6 +550,7 @@ export default function SalesFlow({
     setScannedBatteryPending(restoredState.scannedBatteryPending);
     setAssignedBattery(restoredState.assignedBattery);
     setRegistrationId(restoredState.registrationId);
+    setCustomerPassword(restoredState.customerPassword);
     
     // Also clear localStorage session since we're now using backend
     clearSalesSession();
