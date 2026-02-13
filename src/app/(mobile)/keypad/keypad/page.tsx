@@ -146,8 +146,8 @@ const AppContainer = () => {
   // };
    const handleBackToList = () => {
     setSelectedDevice(null);
-    // sessionStorage.removeItem("connectedDeviceMac");
-    // setConnectedDevice(null);
+    sessionStorage.removeItem("connectedDeviceMac");
+    setConnectedDevice(null);
     setServiceAttrList([]);
     setAtrrList([]);
     setLoadingService(null);
