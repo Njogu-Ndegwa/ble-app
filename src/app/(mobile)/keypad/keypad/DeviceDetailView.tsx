@@ -143,7 +143,8 @@ useEffect(() => {
   const handleRead = (
     serviceUuid: string,
     characteristicUuid: string,
-    name: string
+    name: string,
+    onComplete?: () => void
   ) => {
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(
@@ -157,6 +158,7 @@ useEffect(() => {
         } else {
           toast.error(t('Failed to read {name}', { name }));
         }
+        onComplete?.();
       }
     );
   };
@@ -164,7 +166,8 @@ useEffect(() => {
   const writeCharacteristic = (
     char: any,
     value: string | number,
-    afterWrite?: () => void
+    afterWrite?: () => void,
+    options?: { suppressToast?: boolean }
   ) => {
     if (!char || !cmdService) return;
 
@@ -224,8 +227,9 @@ useEffect(() => {
       }
 
       if (writeSuccess) {
-        // toast.success(t("Value written to {name}", { name: char.name }));
-        toast.success(t("Success"));
+        if (!options?.suppressToast) {
+          toast.success(t("Success"));
+        }
         setTimeout(() => {
           const stillConnected = sessionStorage.getItem("connectedDeviceMac");
           if (stillConnected === device.macAddress) {
@@ -236,12 +240,6 @@ useEffect(() => {
         }, 2000);
       } else {
         console.error("Write failed:", errorMessage || "Unknown error");
-        // toast.error(
-        //   t("Failed to write {name}: {error}", {
-        //     name: char.name,
-        //     error: errorMessage || t("Write operation failed"),
-        //   })
-        // );
         toast.error(
           t("Failed")
         );
@@ -339,10 +337,16 @@ useEffect(() => {
     if (!pubkCharacteristic) return toast.error(t('Public key characteristic not found'));
     const rawCode = buildRawCode(digitInput);
     writeCharacteristic(pubkCharacteristic, formatInputCode(rawCode), () => {
-      setTimeout(() =>
-        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name),
-      1000);
-    });
+      handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name, () => {
+        if (stsService && rcrdCharacteristic) {
+          handleRead(stsService.uuid, rcrdCharacteristic.uuid, rcrdCharacteristic.name, () => {
+            toast.success(t("Success"));
+          });
+        } else {
+          toast.success(t("Success"));
+        }
+      });
+    }, { suppressToast: true });
     setDigitInput('');
   };
 
