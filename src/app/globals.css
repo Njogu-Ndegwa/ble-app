@@ -62,6 +62,7 @@
   
   --loading-overlay: rgba(10, 15, 15, 0.92);
   --logo-icon-text: #0a0f0f;
+  --readonly-overlay: rgba(0, 0, 0, 0.12);
   
   /* Legacy support */
   --background: #0a0f0f;
@@ -103,6 +104,7 @@
   
   --loading-overlay: rgba(245, 250, 250, 0.95);
   --logo-icon-text: #ffffff;
+  --readonly-overlay: rgba(0, 0, 0, 0.04);
   
   --background: #f5fafa;
   --foreground: #0a1a1a;
@@ -4299,24 +4301,24 @@ html.theme-transition *::after {
 
 /* BLE Scanning Active State */
 .ble-scanning-active {
-  border-color: rgba(34, 197, 94, 0.4);
+  border-color: var(--color-success);
   background: linear-gradient(135deg, 
-    rgba(34, 197, 94, 0.1) 0%, 
-    rgba(59, 130, 246, 0.08) 100%);
+    var(--color-success-soft) 0%, 
+    var(--color-info-soft) 100%);
 }
 
 .ble-scanning-active .bluetooth-notice-icon {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1));
-  border-color: rgba(34, 197, 94, 0.3);
+  background: var(--color-success-soft);
+  border-color: var(--color-success);
 }
 
 .ble-scanning-active .bluetooth-notice-title {
-  color: #22c55e;
+  color: var(--color-success);
 }
 
 .ble-scanning-icon {
   animation: ble-pulse 1.5s ease-in-out infinite;
-  color: #22c55e !important;
+  color: var(--color-success) !important;
 }
 
 @keyframes ble-pulse {
@@ -4340,7 +4342,7 @@ html.theme-transition *::after {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px 20px;
-  box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-card);
 }
 
 /* Close Icon - Top Right Cancel Button */
@@ -4364,22 +4366,22 @@ html.theme-transition *::after {
 .ble-progress-close-icon svg {
   width: 18px;
   height: 18px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   transition: color 0.2s ease;
 }
 
 .ble-progress-close-icon:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.4);
+  background: var(--color-error-soft);
+  border-color: var(--color-error);
 }
 
 .ble-progress-close-icon:hover svg {
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .ble-progress-close-icon:active {
   transform: scale(0.95);
-  background: rgba(239, 68, 68, 0.3);
+  background: var(--color-error-soft);
 }
 
 .ble-progress-header {
@@ -4413,7 +4415,7 @@ html.theme-transition *::after {
 .ble-progress-icon svg {
   width: 24px;
   height: 24px;
-  color: #3b82f6;
+  color: var(--color-info);
 }
 
 .ble-progress-title {
@@ -4445,7 +4447,7 @@ html.theme-transition *::after {
 .ble-battery-id-value {
   font-size: 15px;
   font-weight: 700;
-  color: #3b82f6;
+  color: var(--color-info);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   letter-spacing: 0.05em;
 }
@@ -4465,7 +4467,7 @@ html.theme-transition *::after {
 
 .ble-progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, var(--accent) 100%);
+  background: linear-gradient(90deg, var(--color-info) 0%, var(--color-info-light) 50%, var(--accent) 100%);
   border-radius: 4px;
   transition: width 0.3s ease-out;
   position: relative;
@@ -4543,15 +4545,15 @@ html.theme-transition *::after {
 }
 
 .ble-step.active .ble-step-dot {
-  background: #3b82f6;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  background: var(--color-info);
+  box-shadow: 0 0 0 4px var(--color-info-soft);
 }
 
 .ble-step.active .ble-step-dot::before {
   content: '';
   position: absolute;
   inset: 2px;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 50%;
   animation: dotPulse 1s ease-in-out infinite;
 }
@@ -4589,7 +4591,7 @@ html.theme-transition *::after {
 }
 
 .ble-step.active span {
-  color: #3b82f6;
+  color: var(--color-info);
 }
 
 .ble-step.completed span {
@@ -4634,7 +4636,7 @@ html.theme-transition *::after {
 .ble-progress-help {
   margin-top: 16px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   text-align: center;
   line-height: 1.5;
 }
@@ -4680,8 +4682,8 @@ html.theme-transition *::after {
 .ble-reset-instructions {
   margin: 16px 0;
   padding: 16px;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning);
   border-radius: 12px;
 }
 
@@ -4696,7 +4698,7 @@ html.theme-transition *::after {
   align-items: center;
   gap: 12px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
 }
 
 .ble-reset-step-number {
@@ -4729,27 +4731,27 @@ html.theme-transition *::after {
 .ble-countdown-timer {
   margin: 12px 0 16px;
   padding: 12px 16px;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: var(--color-info-soft);
+  border: 1px solid var(--color-info);
   border-radius: 10px;
   text-align: center;
 }
 
 .ble-countdown-text {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
   line-height: 1.4;
 }
 
 .ble-countdown-text strong {
-  color: #60a5fa;
+  color: var(--color-info);
   font-weight: 600;
   font-family: 'DM Mono', monospace;
 }
 
 .ble-countdown-expired {
   font-size: 13px;
-  color: #fbbf24;
+  color: var(--color-warning);
   line-height: 1.5;
 }
 
@@ -5016,14 +5018,14 @@ html.theme-transition *::after {
 .connection-progress-bar {
   flex: 1;
   height: 6px;
-  background: rgba(59, 130, 246, 0.15);
+  background: var(--color-info-soft);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .connection-progress-bar .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, var(--accent) 100%);
+  background: linear-gradient(90deg, var(--color-info) 0%, var(--color-info-light) 50%, var(--accent) 100%);
   border-radius: 3px;
   transition: width 0.3s ease-out;
   position: relative;
@@ -10396,8 +10398,8 @@ html.theme-transition *::after {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.15));
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning);
   border-radius: var(--radius-md);
   padding: 12px 16px;
   margin: 8px 16px;
@@ -10415,7 +10417,7 @@ html.theme-transition *::after {
 }
 
 .readonly-banner-content svg {
-  color: #fbbf24;
+  color: var(--color-warning);
   flex-shrink: 0;
 }
 
@@ -10425,7 +10427,7 @@ html.theme-transition *::after {
   justify-content: center;
   gap: 6px;
   padding: 8px 14px;
-  background: rgba(251, 191, 36, 0.2);
+  background: var(--color-warning-soft);
   border: 1px solid rgba(251, 191, 36, 0.4);
   border-radius: var(--radius-sm);
   color: #fbbf24;
@@ -10437,8 +10439,8 @@ html.theme-transition *::after {
 }
 
 .readonly-banner-exit:hover {
-  background: rgba(251, 191, 36, 0.3);
-  border-color: rgba(251, 191, 36, 0.6);
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning);
 }
 
 .readonly-banner-exit:active {
@@ -10454,7 +10456,7 @@ html.theme-transition *::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--readonly-overlay, rgba(0, 0, 0, 0.08));
   pointer-events: none;
   z-index: 1;
   border-radius: var(--radius-md);
@@ -10468,7 +10470,7 @@ html.theme-transition *::after {
 .attendant-main-readonly .selectable-card,
 .attendant-main-readonly [role="button"] {
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 /* Sales workflow read-only main area styling */
@@ -10480,7 +10482,7 @@ html.theme-transition *::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--readonly-overlay, rgba(0, 0, 0, 0.08));
   pointer-events: none;
   z-index: 1;
   border-radius: inherit;
@@ -10493,7 +10495,7 @@ html.theme-transition *::after {
 .sales-main-readonly .selectable-card,
 .sales-main-readonly [role="button"] {
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 /* Read-only timeline styles - use amber/yellow color scheme */

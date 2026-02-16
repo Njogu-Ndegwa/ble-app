@@ -10,55 +10,55 @@
 // ============================================
 
 export const colors = {
-  // Brand Colors
+  // Brand Colors (theme-aware via CSS variables)
   brand: {
-    primary: '#00e5e5',      // Omnivoltaic Cyan
-    primaryLight: '#33ffff',
-    primaryDark: '#00b8b8',
+    primary: 'var(--color-brand)',
+    primaryLight: 'var(--color-brand-light)',
+    primaryDark: 'var(--color-brand-dark)',
   },
 
   // Background Colors
   bg: {
-    primary: '#0a0f0f',
-    secondary: '#0f1515',
-    tertiary: '#141c1c',
-    elevated: '#1a2424',
+    primary: 'var(--bg-primary)',
+    secondary: 'var(--bg-secondary)',
+    tertiary: 'var(--bg-tertiary)',
+    elevated: 'var(--bg-elevated)',
   },
 
   // Text Colors
   text: {
-    primary: '#f0fafa',
-    secondary: '#94b8b8',
-    muted: '#5a8080',
-    inverse: '#0a0f0f',
+    primary: 'var(--text-primary)',
+    secondary: 'var(--text-secondary)',
+    muted: 'var(--text-muted)',
+    inverse: 'var(--text-inverse)',
   },
 
   // Border Colors
   border: {
-    default: '#1e2d2d',
-    subtle: '#172222',
+    default: 'var(--border-default)',
+    subtle: 'var(--border-subtle)',
   },
 
   // Semantic Colors
-  success: '#10b981',     // Green
-  successLight: '#34d399',
-  successSoft: 'rgba(16, 185, 129, 0.15)',
+  success: 'var(--color-success)',
+  successLight: 'var(--color-success-light)',
+  successSoft: 'var(--color-success-soft)',
   
-  warning: '#f59e0b',     // Amber
-  warningLight: '#fbbf24',
-  warningSoft: 'rgba(245, 158, 11, 0.15)',
+  warning: 'var(--color-warning)',
+  warningLight: 'var(--color-warning-light)',
+  warningSoft: 'var(--color-warning-soft)',
   
-  error: '#ef4444',       // Red
-  errorLight: '#f87171',
-  errorSoft: 'rgba(239, 68, 68, 0.15)',
+  error: 'var(--color-error)',
+  errorLight: 'var(--color-error-light)',
+  errorSoft: 'var(--color-error-soft)',
   
-  info: '#3b82f6',        // Blue
-  infoLight: '#60a5fa',
-  infoSoft: 'rgba(59, 130, 246, 0.15)',
+  info: 'var(--color-info)',
+  infoLight: 'var(--color-info-light)',
+  infoSoft: 'var(--color-info-soft)',
 
   // Overlay
-  overlay: 'rgba(10, 15, 15, 0.8)',
-  overlayLight: 'rgba(10, 15, 15, 0.5)',
+  overlay: 'var(--overlay)',
+  overlayLight: 'var(--overlay-light)',
 } as const;
 
 // ============================================
@@ -298,14 +298,14 @@ export const radius = {
 
 export const shadow = {
   none: 'none',
-  sm: '0 1px 2px rgba(0, 0, 0, 0.3)',
-  md: '0 4px 8px rgba(0, 0, 0, 0.3)',
-  lg: '0 8px 16px rgba(0, 0, 0, 0.3)',
-  xl: '0 12px 24px rgba(0, 0, 0, 0.4)',
-  glow: `0 0 24px rgba(0, 229, 229, 0.3)`,
-  glowSuccess: `0 0 24px rgba(16, 185, 129, 0.3)`,
-  glowError: `0 0 24px rgba(239, 68, 68, 0.3)`,
-  card: '0 4px 24px -8px rgba(0, 0, 0, 0.5)',
+  sm: 'var(--shadow-sm)',
+  md: 'var(--shadow-md)',
+  lg: 'var(--shadow-lg)',
+  xl: 'var(--shadow-xl)',
+  glow: 'var(--shadow-glow)',
+  glowSuccess: 'var(--shadow-glow-success)',
+  glowError: 'var(--shadow-glow-error)',
+  card: 'var(--shadow-card)',
 } as const;
 
 // ============================================
