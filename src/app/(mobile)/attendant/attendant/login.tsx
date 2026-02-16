@@ -11,6 +11,7 @@ import {
   getStoredRoleEmail,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 // Define interfaces
 interface Customer {
@@ -368,7 +369,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -611,7 +613,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}

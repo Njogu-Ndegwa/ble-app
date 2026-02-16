@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
 import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
@@ -1426,7 +1427,8 @@ const RiderApp: React.FC = () => {
                 <Image src="/assets/Logo-Oves.png" alt="Omnivoltaic" width={100} height={28} style={{ objectFit: 'contain' }} priority />
               </div>
             </div>
-            <div className="flow-header-right">
+            <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ThemeToggle />
               <button className="flow-header-lang" onClick={toggleLocale} aria-label={t('role.switchLanguage') || 'Switch Language'}>
                 <Globe size={14} />
                 <span className="flow-header-lang-label">{locale.toUpperCase()}</span>

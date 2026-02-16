@@ -7,6 +7,7 @@ import { Globe, LogOut, History, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 // Import components
 import {
@@ -2308,7 +2309,8 @@ export default function SalesFlow({
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-history"
               onClick={() => setShowSessionsHistory(true)}

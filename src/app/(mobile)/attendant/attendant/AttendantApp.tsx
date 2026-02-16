@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Globe, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { 
   getAttendantRoleUser, 
   clearAttendantRoleLogin,
@@ -181,7 +182,8 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}

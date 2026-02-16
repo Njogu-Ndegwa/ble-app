@@ -9,6 +9,7 @@ import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } from '@/lib/attendant-auth';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 // Import components
 import {
@@ -2037,7 +2038,8 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             {!hideHeaderActions && (
               <button
                 className="flow-header-history"

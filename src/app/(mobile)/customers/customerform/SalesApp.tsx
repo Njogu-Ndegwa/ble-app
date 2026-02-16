@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Globe } from 'lucide-react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { 
   getSalesRoleUser, 
   clearSalesRoleLogin,
@@ -156,7 +157,8 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}

@@ -12,6 +12,7 @@ import { useI18n } from '@/i18n';
 import Image from 'next/image';
 import { Globe, User } from 'lucide-react';
 import Sidebar from '@/components/sidebar/sidebar';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
 export interface BleDevice {
@@ -882,7 +883,8 @@ const AppContainer = () => {
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
