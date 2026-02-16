@@ -1614,25 +1614,25 @@ const AppContainer: React.FC = () => {
 
     if (selectedPlan && showPaymentOptions) {
       return (
-        <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
+        <div className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">{t("Confirm Product")}</h1>
-            <p className="text-gray-400">
+            <h1 className="text-2xl font-bold text-text-primary mb-2">{t("Confirm Product")}</h1>
+            <p className="text-text-secondary">
               {t("Plan selected:")} {selectedPlan.name} - ${selectedPlan.price}
             </p>
-            <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
+            <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
           </div>
           <button
             onClick={handlePayByYourself}
             disabled={isProcessingPayment}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
           >
             {t("Pay by Yourself")}
           </button>
           <button
             onClick={handlePayThroughAttendant}
             disabled={isProcessingPayment}
-            className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+            className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
           >
             {isProcessingPayment ? (
               <>
@@ -1646,7 +1646,7 @@ const AppContainer: React.FC = () => {
           {/* <button
             onClick={handleTopUp}
             disabled={isProcessingPayment}
-            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
           >
             {isProcessingPayment ? (
               <>
@@ -1665,7 +1665,7 @@ const AppContainer: React.FC = () => {
               setPendingOrder(null);
             }}
             disabled={isProcessingPayment}
-            className="w-full mt-4 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+            className="w-full mt-4 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary text-text-primary font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
           >
             {t("Change Product")}
           </button>
@@ -1675,29 +1675,29 @@ const AppContainer: React.FC = () => {
 
     if (selectedPlan) {
       return (
-        <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
+        <div className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">{t("Confirm Product")}</h1>
-            <p className="text-gray-400">
+            <h1 className="text-2xl font-bold text-text-primary mb-2">{t("Confirm Product")}</h1>
+            <p className="text-text-secondary">
               {t("Plan selected:")} {selectedPlan.name} - ${selectedPlan.price}
             </p>
-            <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
+            <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
           </div>
           <button
             onClick={handlePayByYourself}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             {t("Pay by Yourself")}
           </button>
           <button
             onClick={handlePayThroughAttendant}
-            className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+            className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             {t("Pay through Attendant")}
           </button>
           {/* <button
             onClick={handleTopUp}
-            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             {t("Top Up")}
           </button> */}
@@ -1707,7 +1707,7 @@ const AppContainer: React.FC = () => {
               setOrderId(null);
               setPendingOrder(null);
             }}
-            className="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+            className="w-full mt-4 bg-bg-elevated hover:bg-bg-elevated text-text-primary font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
           >
             {t("Change Product")}
           </button>
@@ -1786,13 +1786,13 @@ const AppContainer: React.FC = () => {
             },
             success: {
               iconTheme: {
-                primary: "#00d9a0",
+                primary: "var(--color-success)",
                 secondary: "white",
               },
             },
             error: {
               iconTheme: {
-                primary: "#ff5a5a",
+                primary: "var(--color-error)",
                 secondary: "white",
               },
             },
@@ -1805,27 +1805,27 @@ const AppContainer: React.FC = () => {
 
   // When logged in, render the full app with sidebar and navigation
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex">
+    <div className="min-h-screen bg-gradient-page flex">
       <Toaster
         position="top-center"
         toastOptions={{
           duration: 3000,
           style: {
-            background: "#333",
-            color: "#fff",
+            background: "var(--toast-bg)",
+            color: "var(--toast-text)",
             padding: "16px",
             borderRadius: "12px",
-            border: "1px solid #374151",
+            border: "1px solid var(--border-default)",
           },
           success: {
             iconTheme: {
-              primary: "#10B981",
+              primary: "var(--color-success)",
               secondary: "white",
             },
           },
           error: {
             iconTheme: {
-              primary: "#EF4444",
+              primary: "var(--color-error)",
               secondary: "white",
             },
           },
@@ -1834,27 +1834,27 @@ const AppContainer: React.FC = () => {
 
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+          <div className="bg-bg-secondary rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md relative">
             <button
               onClick={handleCloseModal}
               disabled={isProcessingPayment}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+              className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors duration-200 disabled:opacity-50"
             >
               <X className="w-6 h-6" />
             </button>
 
             <div className="text-center mb-6">
               <div className="bg-indigo-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <Wallet className="w-8 h-8 text-white" />
+                <Wallet className="w-8 h-8 text-text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">{t("Complete Payment")}</h2>
-              <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
-              <p className="text-gray-400 text-sm mt-1">{selectedPlan?.default_code}</p>
+              <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Complete Payment")}</h2>
+              <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
+              <p className="text-text-secondary text-sm mt-1">{selectedPlan?.default_code}</p>
               <p className="text-indigo-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
 
             <div className="mb-6">
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="phone" className="block text-sm font-medium text-text-primary mb-2">
                 {t("Mobile Number")}
               </label>
               <div className="flex items-center">
@@ -1867,10 +1867,10 @@ const AppContainer: React.FC = () => {
                   placeholder="0768194214"
                   maxLength={10}
                   disabled={isProcessingPayment}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-text-muted mt-1">
                 {t("Enter your 10-digit mobile number (e.g., 0768194214)")}
               </p>
             </div>
@@ -1879,14 +1879,14 @@ const AppContainer: React.FC = () => {
               <button
                 onClick={handleCloseModal}
                 disabled={isProcessingPayment}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+                className="flex-1 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary disabled:cursor-not-allowed text-text-primary font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
                 {t("Cancel")}
               </button>
               <button
                 onClick={handlePaymentSubmit}
                 disabled={isProcessingPayment || phoneNumber.length !== 10}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200"
               >
                 {isProcessingPayment ? (
                   <>
@@ -1905,7 +1905,7 @@ const AppContainer: React.FC = () => {
       {/* Attendant Payment Modal */}
       {showAttendantPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+          <div className="bg-bg-secondary rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md relative">
             <button
               onClick={() => {
                 setShowAttendantPaymentModal(false);
@@ -1913,24 +1913,24 @@ const AppContainer: React.FC = () => {
                 setReceipt("");
               }}
               disabled={isProcessingPayment}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+              className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors duration-200 disabled:opacity-50"
             >
               <X className="w-6 h-6" />
             </button>
 
             <div className="text-center mb-6">
               <div className="bg-green-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <User className="w-8 h-8 text-white" />
+                <User className="w-8 h-8 text-text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">{t("Pay via Attendant")}</h2>
-              <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
-              <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
+              <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Pay via Attendant")}</h2>
+              <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
+              <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
               <p className="text-green-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
 
             {/* Transaction ID Input Section */}
             <div className="mb-6">
-              <label htmlFor="transactionId" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="transactionId" className="block text-sm font-medium text-text-primary mb-2">
                 {t("Transaction ID")}
               </label>
               <input
@@ -1940,9 +1940,9 @@ const AppContainer: React.FC = () => {
                 onChange={(e) => setTransactionId(e.target.value)}
                 placeholder={t("Enter transaction ID from your text messages")}
                 disabled={isProcessingPayment}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-text-muted mt-1">
                 {t("Enter the transaction ID you received via text message from the attendant.")}
               </p>
             </div>
@@ -1955,14 +1955,14 @@ const AppContainer: React.FC = () => {
                   setReceipt("");
                 }}
                 disabled={isProcessingPayment}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+                className="flex-1 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary disabled:cursor-not-allowed text-text-primary font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
                 {t("Cancel")}
               </button>
               <button
                 onClick={handleAttendantPaymentConfirm}
                 disabled={isProcessingPayment || !transactionId.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200"
               >
                 {isProcessingPayment ? (
                   <>
@@ -1981,7 +1981,7 @@ const AppContainer: React.FC = () => {
       {/* Top Up Payment Modal */}
       {showTopUpModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+          <div className="bg-bg-secondary rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md relative">
             <button
               onClick={() => {
                 setShowTopUpModal(false);
@@ -1990,24 +1990,24 @@ const AppContainer: React.FC = () => {
                 setServiceId("");
               }}
               disabled={isProcessingPayment}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+              className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors duration-200 disabled:opacity-50"
             >
               <X className="w-6 h-6" />
             </button>
 
             <div className="text-center mb-6">
               <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <Wallet className="w-8 h-8 text-white" />
+                <Wallet className="w-8 h-8 text-text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">{t("Top Up")}</h2>
-              <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
-              <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
+              <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Top Up")}</h2>
+              <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
+              <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
               <p className="text-blue-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
 
             {/* Transaction ID Input Section */}
             <div className="mb-4">
-              <label htmlFor="topUpTransactionId" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="topUpTransactionId" className="block text-sm font-medium text-text-primary mb-2">
                 {t("Transaction ID")}
               </label>
               <input
@@ -2017,16 +2017,16 @@ const AppContainer: React.FC = () => {
                 onChange={(e) => setTransactionId(e.target.value)}
                 placeholder={t("Enter transaction ID from your text messages")}
                 disabled={isProcessingPayment}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-text-muted mt-1">
                 {t("Enter the transaction ID you received via text message from the attendant.")}
               </p>
             </div>
 
             {/* Service ID Input Section */}
             <div className="mb-6">
-              <label htmlFor="serviceId" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="serviceId" className="block text-sm font-medium text-text-primary mb-2">
                 {t("Service ID")}
               </label>
               <input
@@ -2036,9 +2036,9 @@ const AppContainer: React.FC = () => {
                 onChange={(e) => setServiceId(e.target.value)}
                 placeholder={t("Enter service ID")}
                 disabled={isProcessingPayment}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-text-muted mt-1">
                 {t("Enter the service ID for the top up.")}
               </p>
             </div>
@@ -2052,14 +2052,14 @@ const AppContainer: React.FC = () => {
                   setServiceId("");
                 }}
                 disabled={isProcessingPayment}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+                className="flex-1 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary disabled:cursor-not-allowed text-text-primary font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
                 {t("Cancel")}
               </button>
               <button
                 onClick={handleTopUpPaymentConfirm}
                 disabled={isProcessingPayment || !transactionId.trim() || !serviceId.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200"
               >
                 {isProcessingPayment ? (
                   <>
@@ -2077,15 +2077,15 @@ const AppContainer: React.FC = () => {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-bg-secondary border-r border-border transform ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } transition-transform duration-300 ease-in-out`}
       >
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
-          <h2 className="text-xl font-bold text-white">{t("Menu")}</h2>
+        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+          <h2 className="text-xl font-bold text-text-primary">{t("Menu")}</h2>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="text-gray-400 hover:text-white"
+            className="text-text-secondary hover:text-text-primary"
           >
             <X className="w-6 h-6" />
           </button>
@@ -2108,8 +2108,8 @@ const AppContainer: React.FC = () => {
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-all duration-200 ${
                     currentPage === item.id
-                      ? "bg-gray-600 text-white shadow-lg"
-                      : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                      ? "bg-bg-elevated text-text-primary shadow-lg"
+                      : "text-text-primary hover:bg-bg-tertiary hover:text-text-primary"
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -2119,14 +2119,14 @@ const AppContainer: React.FC = () => {
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-700">
+          <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3">
               <div className="bg-blue-600 rounded-full p-2">
-                <User className="w-5 h-5 text-white" />
+                <User className="w-5 h-5 text-text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{customer?.name || "User"}</p>
-                <p className="text-xs text-gray-400 truncate">{customer?.email || "No email"}</p>
+                <p className="text-sm font-medium text-text-primary truncate">{customer?.name || "User"}</p>
+                <p className="text-xs text-text-secondary truncate">{customer?.email || "No email"}</p>
               </div>
             </div>
           </div>
@@ -2142,14 +2142,14 @@ const AppContainer: React.FC = () => {
 
       {/* Main content area */}
       <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
-        <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center justify-between h-16 px-6 bg-bg-secondary border-b border-border">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-400 hover:text-white"
+            className="text-text-secondary hover:text-text-primary"
           >
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="text-xl font-bold text-white capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
+          <h1 className="text-xl font-bold text-text-primary capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
           <div className="w-6" />
         </div>
 
@@ -3686,25 +3686,25 @@ export default AppContainer;
 
 //     if (selectedPlan && showPaymentOptions) {
 //       return (
-//         <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
+//         <div className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md mx-auto">
 //           <div className="text-center mb-8">
-//             <h1 className="text-2xl font-bold text-white mb-2">{t("Confirm Product")}</h1>
-//             <p className="text-gray-400">
+//             <h1 className="text-2xl font-bold text-text-primary mb-2">{t("Confirm Product")}</h1>
+//             <p className="text-text-secondary">
 //               {t("Plan selected:")} {selectedPlan.name} - ${selectedPlan.price}
 //             </p>
-//             <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
+//             <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
 //           </div>
 //           <button
 //             onClick={handlePayByYourself}
 //             disabled={isProcessingPayment}
-//             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+//             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
 //           >
 //             {t("Pay by Yourself")}
 //           </button>
 //           <button
 //             onClick={handlePayThroughAttendant}
 //             disabled={isProcessingPayment}
-//             className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+//             className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
 //           >
 //             {isProcessingPayment ? (
 //               <>
@@ -3718,7 +3718,7 @@ export default AppContainer;
 //           <button
 //             onClick={handleTopUp}
 //             disabled={isProcessingPayment}
-//             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+//             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
 //           >
 //             {isProcessingPayment ? (
 //               <>
@@ -3737,7 +3737,7 @@ export default AppContainer;
 //               setPendingOrder(null);
 //             }}
 //             disabled={isProcessingPayment}
-//             className="w-full mt-4 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
+//             className="w-full mt-4 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary text-text-primary font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:cursor-not-allowed"
 //           >
 //             {t("Change Product")}
 //           </button>
@@ -3747,29 +3747,29 @@ export default AppContainer;
 
 //     if (selectedPlan) {
 //       return (
-//         <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md mx-auto">
+//         <div className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md mx-auto">
 //           <div className="text-center mb-8">
-//             <h1 className="text-2xl font-bold text-white mb-2">{t("Confirm Product")}</h1>
-//             <p className="text-gray-400">
+//             <h1 className="text-2xl font-bold text-text-primary mb-2">{t("Confirm Product")}</h1>
+//             <p className="text-text-secondary">
 //               {t("Plan selected:")} {selectedPlan.name} - ${selectedPlan.price}
 //             </p>
-//             <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
+//             <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan.default_code}</p>
 //           </div>
 //           <button
 //             onClick={handlePayByYourself}
-//             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+//             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
 //           >
 //             {t("Pay by Yourself")}
 //           </button>
 //           <button
 //             onClick={handlePayThroughAttendant}
-//             className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+//             className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
 //           >
 //             {t("Pay through Attendant")}
 //           </button>
 //           <button
 //             onClick={handleTopUp}
-//             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+//             className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
 //           >
 //             {t("Top Up")}
 //           </button>
@@ -3779,7 +3779,7 @@ export default AppContainer;
 //               setOrderId(null);
 //               setPendingOrder(null);
 //             }}
-//             className="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
+//             className="w-full mt-4 bg-bg-elevated hover:bg-bg-elevated text-text-primary font-semibold py-3 px-6 rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-border focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02]"
 //           >
 //             {t("Change Product")}
 //           </button>
@@ -3826,14 +3826,14 @@ export default AppContainer;
 
 //   if (isCheckingAuth) {
 //     return (
-//       <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex items-center justify-center">
+//       <div className="min-h-screen bg-gradient-page flex items-center justify-center">
 //         <Loader2 className="w-12 h-12 animate-spin text-gray-600" />
 //       </div>
 //     );
 //   }
 
 //   return (
-//     <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] flex">
+//     <div className="min-h-screen bg-gradient-page flex">
 //       <Toaster
 //         position="top-center"
 //         toastOptions={{
@@ -3862,27 +3862,27 @@ export default AppContainer;
 
 //       {showPaymentModal && (
 //         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-//           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+//           <div className="bg-bg-secondary rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md relative">
 //             <button
 //               onClick={handleCloseModal}
 //               disabled={isProcessingPayment}
-//               className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+//               className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors duration-200 disabled:opacity-50"
 //             >
 //               <X className="w-6 h-6" />
 //             </button>
 
 //             <div className="text-center mb-6">
 //               <div className="bg-indigo-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-//                 <Wallet className="w-8 h-8 text-white" />
+//                 <Wallet className="w-8 h-8 text-text-primary" />
 //               </div>
-//               <h2 className="text-2xl font-bold text-white mb-2">{t("Complete Payment")}</h2>
-//               <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
-//               <p className="text-gray-400 text-sm mt-1">{selectedPlan?.default_code}</p>
+//               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Complete Payment")}</h2>
+//               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
+//               <p className="text-text-secondary text-sm mt-1">{selectedPlan?.default_code}</p>
 //               <p className="text-indigo-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
 //             </div>
 
 //             <div className="mb-6">
-//               <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-2">
+//               <label htmlFor="phone" className="block text-sm font-medium text-text-primary mb-2">
 //                 {t("Mobile Number")}
 //               </label>
 //               <div className="flex items-center">
@@ -3895,10 +3895,10 @@ export default AppContainer;
 //                   placeholder="0768194214"
 //                   maxLength={10}
 //                   disabled={isProcessingPayment}
-//                   className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+//                   className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 //                 />
 //               </div>
-//               <p className="text-xs text-gray-500 mt-1">
+//               <p className="text-xs text-text-muted mt-1">
 //                 {t("Enter your 10-digit mobile number (e.g., 0768194214)")}
 //               </p>
 //             </div>
@@ -3907,14 +3907,14 @@ export default AppContainer;
 //               <button
 //                 onClick={handleCloseModal}
 //                 disabled={isProcessingPayment}
-//                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+//                 className="flex-1 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary disabled:cursor-not-allowed text-text-primary font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
 //               >
 //                 {t("Cancel")}
 //               </button>
 //               <button
 //                 onClick={handlePaymentSubmit}
 //                 disabled={isProcessingPayment || phoneNumber.length !== 10}
-//                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+//                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200"
 //               >
 //                 {isProcessingPayment ? (
 //                   <>
@@ -3933,7 +3933,7 @@ export default AppContainer;
 //       {/* Attendant Payment Modal */}
 //       {showAttendantPaymentModal && (
 //         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-//           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+//           <div className="bg-bg-secondary rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md relative">
 //             <button
 //               onClick={() => {
 //                 setShowAttendantPaymentModal(false);
@@ -3941,24 +3941,24 @@ export default AppContainer;
 //                 setReceipt("");
 //               }}
 //               disabled={isProcessingPayment}
-//               className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+//               className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors duration-200 disabled:opacity-50"
 //             >
 //               <X className="w-6 h-6" />
 //             </button>
 
 //             <div className="text-center mb-6">
 //               <div className="bg-green-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-//                 <User className="w-8 h-8 text-white" />
+//                 <User className="w-8 h-8 text-text-primary" />
 //               </div>
-//               <h2 className="text-2xl font-bold text-white mb-2">{t("Pay via Attendant")}</h2>
-//               <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
-//               <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
+//               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Pay via Attendant")}</h2>
+//               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
+//               <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
 //               <p className="text-green-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
 //             </div>
 
 //             {/* Transaction ID Input Section */}
 //             <div className="mb-6">
-//               <label htmlFor="transactionId" className="block text-sm font-medium text-gray-300 mb-2">
+//               <label htmlFor="transactionId" className="block text-sm font-medium text-text-primary mb-2">
 //                 {t("Transaction ID")}
 //               </label>
 //               <input
@@ -3968,9 +3968,9 @@ export default AppContainer;
 //                 onChange={(e) => setTransactionId(e.target.value)}
 //                 placeholder={t("Enter transaction ID from your text messages")}
 //                 disabled={isProcessingPayment}
-//                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+//                 className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 //               />
-//               <p className="text-xs text-gray-500 mt-1">
+//               <p className="text-xs text-text-muted mt-1">
 //                 {t("Enter the transaction ID you received via text message from the attendant.")}
 //               </p>
 //             </div>
@@ -3983,14 +3983,14 @@ export default AppContainer;
 //                   setReceipt("");
 //                 }}
 //                 disabled={isProcessingPayment}
-//                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+//                 className="flex-1 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary disabled:cursor-not-allowed text-text-primary font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
 //               >
 //                 {t("Cancel")}
 //               </button>
 //               <button
 //                 onClick={handleAttendantPaymentConfirm}
 //                 disabled={isProcessingPayment || !transactionId.trim()}
-//                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+//                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200"
 //               >
 //                 {isProcessingPayment ? (
 //                   <>
@@ -4009,7 +4009,7 @@ export default AppContainer;
 //       {/* Top Up Payment Modal */}
 //       {showTopUpModal && (
 //         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-//           <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 w-full max-w-md relative">
+//           <div className="bg-bg-secondary rounded-2xl p-8 shadow-2xl border border-border w-full max-w-md relative">
 //             <button
 //               onClick={() => {
 //                 setShowTopUpModal(false);
@@ -4018,24 +4018,24 @@ export default AppContainer;
 //                 setServiceId("");
 //               }}
 //               disabled={isProcessingPayment}
-//               className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+//               className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors duration-200 disabled:opacity-50"
 //             >
 //               <X className="w-6 h-6" />
 //             </button>
 
 //             <div className="text-center mb-6">
 //               <div className="bg-blue-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-//                 <Wallet className="w-8 h-8 text-white" />
+//                 <Wallet className="w-8 h-8 text-text-primary" />
 //               </div>
-//               <h2 className="text-2xl font-bold text-white mb-2">{t("Top Up")}</h2>
-//               <p className="text-gray-400 text-sm">{selectedPlan?.name}</p>
-//               <p className="text-gray-400 text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
+//               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Top Up")}</h2>
+//               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
+//               <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
 //               <p className="text-blue-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
 //             </div>
 
 //             {/* Transaction ID Input Section */}
 //             <div className="mb-4">
-//               <label htmlFor="topUpTransactionId" className="block text-sm font-medium text-gray-300 mb-2">
+//               <label htmlFor="topUpTransactionId" className="block text-sm font-medium text-text-primary mb-2">
 //                 {t("Transaction ID")}
 //               </label>
 //               <input
@@ -4045,16 +4045,16 @@ export default AppContainer;
 //                 onChange={(e) => setTransactionId(e.target.value)}
 //                 placeholder={t("Enter transaction ID from your text messages")}
 //                 disabled={isProcessingPayment}
-//                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+//                 className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 //               />
-//               <p className="text-xs text-gray-500 mt-1">
+//               <p className="text-xs text-text-muted mt-1">
 //                 {t("Enter the transaction ID you received via text message from the attendant.")}
 //               </p>
 //             </div>
 
 //             {/* Service ID Input Section */}
 //             <div className="mb-6">
-//               <label htmlFor="serviceId" className="block text-sm font-medium text-gray-300 mb-2">
+//               <label htmlFor="serviceId" className="block text-sm font-medium text-text-primary mb-2">
 //                 {t("Service ID")}
 //               </label>
 //               <input
@@ -4064,9 +4064,9 @@ export default AppContainer;
 //                 onChange={(e) => setServiceId(e.target.value)}
 //                 placeholder={t("Enter service ID")}
 //                 disabled={isProcessingPayment}
-//                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+//                 className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 //               />
-//               <p className="text-xs text-gray-500 mt-1">
+//               <p className="text-xs text-text-muted mt-1">
 //                 {t("Enter the service ID for the top up.")}
 //               </p>
 //             </div>
@@ -4080,14 +4080,14 @@ export default AppContainer;
 //                   setServiceId("");
 //                 }}
 //                 disabled={isProcessingPayment}
-//                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
+//                 className="flex-1 bg-bg-elevated hover:bg-bg-elevated disabled:bg-bg-tertiary disabled:cursor-not-allowed text-text-primary font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50"
 //               >
 //                 {t("Cancel")}
 //               </button>
 //               <button
 //                 onClick={handleTopUpPaymentConfirm}
 //                 disabled={isProcessingPayment || !transactionId.trim() || !serviceId.trim()}
-//                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 flex items-center justify-center gap-2 transition-all duration-200"
+//                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary flex items-center justify-center gap-2 transition-all duration-200"
 //               >
 //                 {isProcessingPayment ? (
 //                   <>
@@ -4108,15 +4108,15 @@ export default AppContainer;
 //       ) : (
 //         <>
 //           <div
-//             className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 border-r border-gray-700 transform ${
+//             className={`fixed inset-y-0 left-0 z-50 w-64 bg-bg-secondary border-r border-border transform ${
 //               sidebarOpen ? "translate-x-0" : "-translate-x-full"
 //             } transition-transform duration-300 ease-in-out`}
 //           >
-//             <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
-//               <h2 className="text-xl font-bold text-white">{t("Menu")}</h2>
+//             <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+//               <h2 className="text-xl font-bold text-text-primary">{t("Menu")}</h2>
 //               <button
 //                 onClick={() => setSidebarOpen(false)}
-//                 className="text-gray-400 hover:text-white"
+//                 className="text-text-secondary hover:text-text-primary"
 //               >
 //                 <X className="w-6 h-6" />
 //               </button>
@@ -4139,8 +4139,8 @@ export default AppContainer;
 //                       }}
 //                       className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-all duration-200 ${
 //                         currentPage === item.id
-//                           ? "bg-gray-600 text-white shadow-lg"
-//                           : "text-gray-300 hover:bg-gray-700 hover:text-white"
+//                           ? "bg-bg-elevated text-text-primary shadow-lg"
+//                           : "text-text-primary hover:bg-bg-tertiary hover:text-text-primary"
 //                       }`}
 //                     >
 //                       <Icon className="w-5 h-5" />
@@ -4150,14 +4150,14 @@ export default AppContainer;
 //                 })}
 //               </nav>
 
-//               <div className="p-4 border-t border-gray-700">
+//               <div className="p-4 border-t border-border">
 //                 <div className="flex items-center gap-3">
 //                   <div className="bg-blue-600 rounded-full p-2">
-//                     <User className="w-5 h-5 text-white" />
+//                     <User className="w-5 h-5 text-text-primary" />
 //                   </div>
 //                   <div className="flex-1 min-w-0">
-//                     <p className="text-sm font-medium text-white truncate">{customer?.name || "User"}</p>
-//                     <p className="text-xs text-gray-400 truncate">{customer?.email || "No email"}</p>
+//                     <p className="text-sm font-medium text-text-primary truncate">{customer?.name || "User"}</p>
+//                     <p className="text-xs text-text-secondary truncate">{customer?.email || "No email"}</p>
 //                   </div>
 //                 </div>
 //               </div>
@@ -4172,14 +4172,14 @@ export default AppContainer;
 //           )}
 
 //           <div className={`flex-1 flex flex-col ${sidebarOpen ? "hidden" : "flex"}`}>
-//             <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700">
+//             <div className="flex items-center justify-between h-16 px-6 bg-bg-secondary border-b border-border">
 //               <button
 //                 onClick={() => setSidebarOpen(true)}
-//                 className="text-gray-400 hover:text-white"
+//                 className="text-text-secondary hover:text-text-primary"
 //               >
 //                 <Menu className="w-6 h-6" />
 //               </button>
-//               <h1 className="text-xl font-bold text-white capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
+//               <h1 className="text-xl font-bold text-text-primary capitalize">{t(menuItems.find((i) => i.id === currentPage)?.labelKey || currentPage)}</h1>
 //               <div className="w-6" />
 //             </div>
 

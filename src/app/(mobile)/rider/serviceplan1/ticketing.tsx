@@ -83,9 +83,9 @@ const getPriorityColor = (priority: string, t: any) => {
   } else if (translatedPrio === t("Medium") || prio === t("Medium")) {
     return "bg-yellow-100 text-yellow-800 border-yellow-200";
   } else if (translatedPrio === t("Low") || prio === t("Low")) {
-    return "bg-gray-100 text-gray-800 border-gray-200";
+    return "bg-bg-surface text-text-muted border-border-subtle";
   }
-  return "bg-gray-100 text-gray-800 border-gray-200";
+  return "bg-bg-surface text-text-muted border-border-subtle";
 };
 
 const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
@@ -290,7 +290,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
   if (isLoadingTickets) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E]">
+      <div className="flex justify-center items-center min-h-screen bg-gradient-page">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
@@ -299,17 +299,17 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
   // New Ticket Form View
   if (showNewTicketForm) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] p-4">
+      <div className="min-h-screen bg-gradient-page p-4">
         <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
+          <div className="bg-bg-secondary rounded-xl p-4 sm:p-6 border border-border">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-gray-400" />
-                <h2 className="text-lg font-semibold text-white">{t('New Ticket')}</h2>
+                <HelpCircle className="w-5 h-5 text-text-secondary" />
+                <h2 className="text-lg font-semibold text-text-primary">{t('New Ticket')}</h2>
               </div>
               <button
                 onClick={() => setShowNewTicketForm(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-text-secondary hover:text-text-primary transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -317,7 +317,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   {t('Subject *')}
                 </label>
                 <input
@@ -326,12 +326,12 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
                   value={formData.subject}
                   onChange={handleFormChange}
                   placeholder={t('Enter ticket subject')}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   {t('Description *')}
                 </label>
                 <textarea
@@ -340,19 +340,19 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
                   onChange={handleFormChange}
                   placeholder={t('Describe your issue...')}
                   rows={4}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   {t('Priority *')}
                 </label>
                 <select
                   name="priority"
                   value={formData.priority}
                   onChange={handleFormChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">{t('Select Priority')}</option>
                   <option value="Low">{t('Low')}</option>
@@ -363,14 +363,14 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   {t('Product (Optional)')}
                 </label>
                 <select
                   name="product_id"
                   value={formData.product_id}
                   onChange={handleFormChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">{t('Select Product')}</option>
                   {allPlans.map((plan) => (
@@ -382,14 +382,14 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   {t('Subscription (Optional)')}
                 </label>
                 <select
                   name="subscription_id"
                   value={formData.subscription_id}
                   onChange={handleFormChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">{t('None')}</option>
                   <option value="1">{t('Basic Plan')}</option>
@@ -400,7 +400,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
               <button
                 onClick={handleCreateTicket}
                 disabled={!isFormValid || isCreatingTicket}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-bg-elevated text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50"
               >
                 {isCreatingTicket ? (
                   <>
@@ -424,15 +424,15 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
   // Ticket Details View
   if (showDetails && selectedTicket) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] p-4">
+      <div className="min-h-screen bg-gradient-page p-4">
         <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700 space-y-4">
+          <div className="bg-bg-secondary rounded-xl p-4 sm:p-6 border border-border space-y-4">
             <button
               onClick={() => {
                 setShowDetails(false);
                 setSelectedTicket(null);
               }}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4"
+              className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors mb-4"
             >
               <ArrowLeft className="w-4 h-4" />
               {t('Back to Tickets')}
@@ -440,10 +440,10 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
             <div className="space-y-4">
               <div>
-                <h3 className="text-xl font-bold text-white mb-2">
+                <h3 className="text-xl font-bold text-text-primary mb-2">
                   {t('Ticket #')}{selectedTicket.number}: {selectedTicket.subject}
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-text-secondary text-sm">
                   {t('Customer:')} {selectedTicket.customer}
                 </p>
               </div>
@@ -459,7 +459,7 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
                 </span>
               </div>
 
-              <div className="text-sm text-gray-400 space-y-1">
+              <div className="text-sm text-text-secondary space-y-1">
                 <p>
                   {t('Created:')}{" "}
                   {new Date(selectedTicket.create_date).toLocaleDateString()}
@@ -467,11 +467,11 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
               </div>
 
               <div>
-                <h4 className="text-sm font-medium text-gray-300 mb-3">
+                <h4 className="text-sm font-medium text-text-primary mb-3">
                   {t('Timeline')}
                 </h4>
                 <div className="space-y-4">
-                  <p className="text-gray-400 text-sm">{t('No messages yet.')}</p>
+                  <p className="text-text-secondary text-sm">{t('No messages yet.')}</p>
                 </div>
               </div>
             </div>
@@ -483,13 +483,13 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
   // Main Tickets List View
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#24272C] to-[#0C0C0E] p-4">
+    <div className="min-h-screen bg-gradient-page p-4">
       <div className="max-w-2xl mx-auto">
-        <div className="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700 space-y-4">
+        <div className="bg-bg-secondary rounded-xl p-4 sm:p-6 border border-border space-y-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-gray-400" />
-              <h2 className="text-lg font-semibold text-white">{t('My Tickets')}</h2>
+              <MessageCircle className="w-5 h-5 text-text-secondary" />
+              <h2 className="text-lg font-semibold text-text-primary">{t('My Tickets')}</h2>
             </div>
             <button
               onClick={() => setShowNewTicketForm(true)}
@@ -502,13 +502,13 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
           <div className="space-y-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-secondary w-4 h-4" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={t('Search tickets...')}
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-4 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -519,14 +519,14 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
                 <div
                   key={ticket.id}
                   onClick={() => handleViewTicket(ticket.id)}
-                  className="bg-gray-700 rounded-lg p-4 border border-gray-600 cursor-pointer hover:bg-gray-600 transition-colors duration-200"
+                  className="bg-bg-tertiary rounded-lg p-4 border border-border cursor-pointer hover:bg-bg-elevated transition-colors duration-200"
                 >
                   <div className="space-y-3">
                     {/* Header with ticket number and priority */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <HelpCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                        <span className="font-semibold text-white text-base">
+                        <span className="font-semibold text-text-primary text-base">
                           {ticket.number}
                         </span>
                       </div>
@@ -542,14 +542,14 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
                     {/* Subject */}
                     <div>
-                      <h3 className="text-sm font-medium text-white line-clamp-2 leading-relaxed">
+                      <h3 className="text-sm font-medium text-text-primary line-clamp-2 leading-relaxed">
                         {ticket.subject}
                       </h3>
                     </div>
 
                     {/* Footer with metadata */}
-                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-600">
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-border">
+                      <div className="flex items-center gap-2 text-xs text-text-secondary">
                         <Clock className="w-3.5 h-3.5" />
                         <span>
                           {new Date(ticket.create_date).toLocaleDateString()}
@@ -561,9 +561,9 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
               ))
             ) : (
               <div className="text-center py-12">
-                <MessageCircle className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">{t('No tickets found.')}</p>
-                <p className="text-gray-500 text-sm mt-1">
+                <MessageCircle className="w-12 h-12 text-text-muted mx-auto mb-3" />
+                <p className="text-text-secondary">{t('No tickets found.')}</p>
+                <p className="text-text-muted text-sm mt-1">
                   {t('Create your first ticket to get started.')}
                 </p>
               </div>

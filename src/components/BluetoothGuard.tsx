@@ -144,7 +144,7 @@ export function BluetoothGuard({ children, onBluetoothError }: BluetoothGuardPro
       <>
         {/* Overlay warning */}
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
-          <div className="bg-[#1a1d21] rounded-2xl p-6 max-w-sm w-full border border-gray-800">
+          <div className="bg-bg-secondary rounded-2xl p-6 max-w-sm w-full border border-border-subtle">
             {/* Bluetooth Icon */}
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -159,12 +159,12 @@ export function BluetoothGuard({ children, onBluetoothError }: BluetoothGuardPro
             </div>
 
             {/* Title */}
-            <h2 className="text-xl font-semibold text-white text-center mb-2">
+            <h2 className="text-xl font-semibold text-text-primary text-center mb-2">
               Bluetooth is Off
             </h2>
 
             {/* Description */}
-            <p className="text-gray-400 text-sm text-center mb-6">
+            <p className="text-text-secondary text-sm text-center mb-6">
               Bluetooth is required to connect to batteries and read their energy levels. 
               Please turn on Bluetooth to continue.
             </p>
@@ -184,14 +184,14 @@ export function BluetoothGuard({ children, onBluetoothError }: BluetoothGuardPro
               
               <button
                 onClick={handleRetry}
-                className="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-colors"
+                className="w-full py-3 px-4 bg-bg-tertiary hover:bg-bg-elevated text-text-primary font-medium rounded-xl transition-colors"
               >
                 Check Again
               </button>
 
               <button
                 onClick={handleDismiss}
-                className="w-full py-2 px-4 text-gray-500 hover:text-gray-400 text-sm transition-colors"
+                className="w-full py-2 px-4 text-text-muted hover:text-text-secondary text-sm transition-colors"
               >
                 Continue Anyway
               </button>

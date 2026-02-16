@@ -323,20 +323,20 @@ const ChargingStationFinder = ({
       case "busy":
         return "text-red-400";
       default:
-        return "text-gray-400";
+        return "text-text-secondary";
     }
   };
 
   const getMarkerColor = (status: string) => {
     switch (status) {
       case "available":
-        return "#10b981";
+        return "var(--color-success)";
       case "limited":
-        return "#f59e0b";
+        return "var(--color-warning)";
       case "busy":
-        return "#ef4444";
+        return "var(--color-error)";
       default:
-        return "#6b7280";
+        return "var(--text-muted)";
     }
   };
 
@@ -361,9 +361,9 @@ const ChargingStationFinder = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-bg-primary text-text-primary">
       <div className="flex flex-col h-[calc(100vh-80px)]">
-        <div className="relative bg-gray-800 h-64 border-b border-gray-700">
+        <div className="relative bg-bg-secondary h-64 border-b border-border">
           {hasValidCoordinates(currentUserLocation) ? (
             <MapContainer
               center={[currentUserLocation.latitude, currentUserLocation.longitude]}
@@ -383,7 +383,7 @@ const ChargingStationFinder = ({
                 icon={UserLocationIcon}
               >
                 <Popup>
-                  <div className="text-gray-800">
+                  <div className="text-text-muted">
                     <h3 className="font-semibold text-blue-500">Your Location</h3>
                     <p>Lat: {currentUserLocation.latitude.toFixed(6)}</p>
                     <p>Lng: {currentUserLocation.longitude.toFixed(6)}</p>
@@ -408,7 +408,7 @@ const ChargingStationFinder = ({
                   }}
                 >
                   <Popup>
-                    <div className="text-gray-800">
+                    <div className="text-text-muted">
                       <h3 className="font-semibold">{station.name}</h3>
                       <p>{station.location}</p>
                       <p>Distance: {station.distance}</p>
@@ -423,17 +423,17 @@ const ChargingStationFinder = ({
               {route && (
                 <Polyline 
                   positions={route} 
-                  color="#3b82f6"
+                  color="var(--color-info)"
                   weight={4}
                   opacity={0.8}
                 />
               )}
             </MapContainer>
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-800">
+            <div className="w-full h-full flex items-center justify-center bg-bg-secondary">
               <div className="text-center">
                 <MapPin size={48} className="text-blue-400 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">Waiting for location...</p>
+                <p className="text-text-secondary text-sm">Waiting for location...</p>
               </div>
             </div>
           )}
@@ -448,19 +448,19 @@ const ChargingStationFinder = ({
           </button>
 
           {hasValidCoordinates(currentUserLocation) && (
-            <div className="absolute top-4 left-4 bg-gray-800 bg-opacity-90 px-3 py-2 rounded-lg flex items-center space-x-2">
+            <div className="absolute top-4 left-4 bg-bg-secondary bg-opacity-90 px-3 py-2 rounded-lg flex items-center space-x-2">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
             </div>
           )}
         </div>
 
         {/* Rest of your component remains the same */}
-        <div className="p-4 bg-gray-800 border-b border-gray-700">
+        <div className="p-4 bg-bg-secondary border-b border-border">
           <div className="flex items-center space-x-2">
             <input
               type="text"
               placeholder="Search stations..."
-              className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+              className="w-full bg-bg-tertiary rounded-lg px-3 py-2 text-sm text-text-primary"
               value={filterOptions.name}
               onChange={(e) => setFilterOptions({...filterOptions, name: e.target.value})}
             />
@@ -477,14 +477,14 @@ const ChargingStationFinder = ({
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Swapping Stations</h2>
-              <span className="text-sm text-gray-400">{filteredStations.length} stations nearby</span>
+              <span className="text-sm text-text-secondary">{filteredStations.length} stations nearby</span>
             </div>
 
             <div className="space-y-3">
               {filteredStations.map((station) => (
                 <div
                   key={station.id}
-                  className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer"
+                  className="bg-bg-secondary rounded-xl p-4 border border-border hover:border-border transition-colors cursor-pointer"
                   onClick={() => {
                     setSelectedStation(station);
                     setIsDetailsModalOpen(true);
@@ -492,8 +492,8 @@ const ChargingStationFinder = ({
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-medium text-white mb-1">{station.name}</h3>
-                      <p className="text-sm text-gray-400 flex items-center">
+                      <h3 className="font-medium text-text-primary mb-1">{station.name}</h3>
+                      <p className="text-sm text-text-secondary flex items-center">
                         <MapPin size={12} className="mr-1" />
                         {station.location}
                       </p>
@@ -505,10 +505,10 @@ const ChargingStationFinder = ({
 
                   <div className="mb-3">
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-gray-400">Battery Level</span>
-                      <span className="text-white font-medium">{station.batteryLevel.toFixed(2)}%</span>
+                      <span className="text-text-secondary">Battery Level</span>
+                      <span className="text-text-primary font-medium">{station.batteryLevel.toFixed(2)}%</span>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div className="w-full bg-bg-tertiary rounded-full h-2">
                       <div
                         className={`h-2 rounded-full ${getBatteryColor(station.batteryLevel)}`}
                         style={{ width: `${station.batteryLevel}%` }}
@@ -543,7 +543,7 @@ const ChargingStationFinder = ({
       {/* Filter Modal (same as before) */}
       {isFilterModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md relative">
+          <div className="bg-bg-secondary rounded-lg p-6 w-full max-w-md relative">
             {/* ... (same filter modal content as before) ... */}
           </div>
         </div>
@@ -552,7 +552,7 @@ const ChargingStationFinder = ({
       {/* Station Details Modal (same as before) */}
       {isDetailsModalOpen && selectedStation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md relative">
+          <div className="bg-bg-secondary rounded-lg p-6 w-full max-w-md relative">
             {/* ... (same details modal content as before) ... */}
           </div>
         </div>

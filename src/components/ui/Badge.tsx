@@ -83,12 +83,12 @@ const VARIANT_STYLES: Record<BadgeVariant, React.CSSProperties> = {
   },
   // Service states
   'service-active': {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)',
-    color: '#06b6d4',
+    backgroundColor: 'var(--color-info-soft)',
+    color: 'var(--color-info)',
   },
   'service-pending': {
-    backgroundColor: 'rgba(168, 85, 247, 0.15)',
-    color: '#a855f7',
+    backgroundColor: 'var(--color-warning-soft)',
+    color: 'var(--color-warning)',
   },
   'service-complete': {
     backgroundColor: 'var(--color-success-soft)',

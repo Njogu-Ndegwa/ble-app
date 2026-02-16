@@ -47,14 +47,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   return (
-    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
+    <div className="max-w-md mx-auto bg-gradient-page min-h-screen text-text-primary">
       {/* Header */}
       <div className="p-4 flex items-center">
         <button onClick={handleBack} className="mr-4">
-          <ArrowLeft className="w-6 h-6 text-gray-400" />
+          <ArrowLeft className="w-6 h-6 text-text-secondary" />
         </button>
         <h1 className="text-lg font-semibold flex-1">Device Details</h1>
-        <Share2 className="w-5 h-5 text-gray-400" />
+        <Share2 className="w-5 h-5 text-text-secondary" />
       </div>
 
       {/* Device Image and Basic Info */}
@@ -67,18 +67,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           />
         </div>
         <h2 className="text-xl font-semibold">{device.title}</h2>
-        <p className="text-sm text-gray-400 mt-1">{device.subtitle}</p>
+        <p className="text-sm text-text-secondary mt-1">{device.subtitle}</p>
 
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-800">
+      <div className="border-b border-border-subtle">
         <div className="flex justify-between px-4">
           {tabs.map(tab => (
             <button
               key={tab.id}
               className={`py-3 px-4 text-sm font-medium relative ${
-                activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'
+                activeTab === tab.id ? 'text-blue-500' : 'text-text-secondary'
               }`}
               onClick={() => setActiveTab(tab.id)}
             >
@@ -96,36 +96,36 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         {activeTab === 'ATT' && (
           <div className="space-y-4">
             {/* FRMV Section */}
-            <div className="border border-gray-700 rounded-lg overflow-hidden">
-              <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex justify-between items-center bg-bg-secondary px-4 py-2">
                 <span className="text-sm font-medium">FRMV</span>
-                <button className="text-xs bg-gray-700 px-3 py-1 rounded">Read</button>
+                <button className="text-xs bg-bg-tertiary px-3 py-1 rounded">Read</button>
               </div>
               <div className="p-4 space-y-2">
                 <div>
-                  <p className="text-xs text-gray-400">Value</p>
+                  <p className="text-xs text-text-secondary">Value</p>
                   <p className="text-sm">{device.firmwareVersion}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400">Firmware Version</p>
+                  <p className="text-xs text-text-secondary">Firmware Version</p>
                   <p className="text-sm">{device.firmwareVersion}</p>
                 </div>
               </div>
             </div>
 
             {/* OEM Device ID Section */}
-            <div className="border border-gray-700 rounded-lg overflow-hidden">
-              <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex justify-between items-center bg-bg-secondary px-4 py-2">
                 <span className="text-sm font-medium">OPID</span>
-                <button className="text-xs bg-gray-700 px-3 py-1 rounded">Read</button>
+                <button className="text-xs bg-bg-tertiary px-3 py-1 rounded">Read</button>
               </div>
               <div className="p-4 space-y-2">
                 <div>
-                  <p className="text-xs text-gray-400">Value</p>
+                  <p className="text-xs text-text-secondary">Value</p>
                   <p className="text-sm">{device.deviceId}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400">OEM Device ID, Factory Set</p>
+                  <p className="text-xs text-text-secondary">OEM Device ID, Factory Set</p>
                   <p className="text-sm">{device.deviceId}</p>
                 </div>
               </div>
@@ -134,25 +134,25 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         )}
 
         {activeTab === 'CMD' && (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-6 text-center text-text-secondary">
             <p>Command interface will be displayed here</p>
           </div>
         )}
 
         {activeTab === 'SVC' && (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-6 text-center text-text-secondary">
             <p>Service information will be displayed here</p>
           </div>
         )}
 
         {activeTab === 'DTA' && (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-6 text-center text-text-secondary">
             <p>Data metrics will be displayed here</p>
           </div>
         )}
 
         {activeTab === 'DIA' && (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-6 text-center text-text-secondary">
             <p>Diagnostics will be displayed here</p>
           </div>
         )}

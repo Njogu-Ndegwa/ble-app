@@ -587,8 +587,8 @@ export default function BleDeviceList({
         .ble-device-qr-spinner {
           width: 18px;
           height: 18px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
+          border: 2px solid var(--border-default);
+          border-top-color: var(--text-primary);
           border-radius: 50%;
           animation: qr-spin 0.8s linear infinite;
         }

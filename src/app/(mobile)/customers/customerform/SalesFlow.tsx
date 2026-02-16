@@ -2454,7 +2454,7 @@ export default function SalesFlow({
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="loading-spinner"></div>
-            <div className="text-white text-sm opacity-80">
+            <div className="text-text-inverse text-sm opacity-80">
               {t('session.checkingForSession') || 'Checking for pending session...'}
             </div>
           </div>

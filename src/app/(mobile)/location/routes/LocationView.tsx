@@ -138,18 +138,24 @@ const LocationView: React.FC<LocationViewProps> = ({
     const getPolylineColor = useCallback((timestamp: number, activeTab: string): string => {
         const now = Date.now();
         const timeDiff = now - timestamp;
+        const colorInfo = typeof document !== 'undefined'
+            ? getComputedStyle(document.documentElement).getPropertyValue('--color-info').trim() || '#3B82F6'
+            : '#3B82F6';
+        const colorInfoLight = typeof document !== 'undefined'
+            ? getComputedStyle(document.documentElement).getPropertyValue('--color-info-light').trim() || '#93C5FD'
+            : '#93C5FD';
 
         switch (activeTab) {
             case '1hour':
-                return timeDiff < 30 * 60 * 1000 ? '#3B82F6' : '#93C5FD';
+                return timeDiff < 30 * 60 * 1000 ? colorInfo : colorInfoLight;
             case '8hours':
-                return timeDiff < 4 * 60 * 60 * 1000 ? '#3B82F6' : '#93C5FD';
+                return timeDiff < 4 * 60 * 60 * 1000 ? colorInfo : colorInfoLight;
             case '12hours':
-                return timeDiff < 6 * 60 * 60 * 1000 ? '#3B82F6' : '#93C5FD';
+                return timeDiff < 6 * 60 * 60 * 1000 ? colorInfo : colorInfoLight;
             case '24hours':
-                return timeDiff < 12 * 60 * 60 * 1000 ? '#3B82F6' : '#93C5FD';
+                return timeDiff < 12 * 60 * 60 * 1000 ? colorInfo : colorInfoLight;
             default:
-                return '#3B82F6';
+                return colorInfo;
         }
     }, []);
 
@@ -340,18 +346,18 @@ const LocationView: React.FC<LocationViewProps> = ({
     const defaultCenter: [number, number] = [-1.286389, 36.817223]; // Nairobi coordinates
 
     return (
-        <div className={`p-4 bg-gradient-to-b from-[#24272C] to-[#0C0C0E] ${isFullScreenMap ? 'fixed inset-0 z-50' : 'min-h-screen'}`}>
+        <div className={`p-4 bg-gradient-page ${isFullScreenMap ? 'fixed inset-0 z-50' : 'min-h-screen'}`}>
             <Toaster />
 
             {isFullScreenMap && (
-                <div className="flex justify-center items-center p-2 bg-[#2A2F33] mb-2 rounded-lg">
-                    <h2 className="text-white text-lg font-medium">{t('Map View')}</h2>
+                <div className="flex justify-center items-center p-2 bg-bg-tertiary mb-2 rounded-lg">
+                    <h2 className="text-text-primary text-lg font-medium">{t('Map View')}</h2>
                 </div>
             )}
 
             <div className={`${isFullScreenMap ? '' : 'mt-2'}`}>
-                <div className="bg-[#2A2F33] rounded-lg p-4 relative">
-                    {!isFullScreenMap && <h3 className="text-white text-lg font-medium mb-2">Map View</h3>}
+                <div className="bg-bg-tertiary rounded-lg p-4 relative">
+                    {!isFullScreenMap && <h3 className="text-text-primary text-lg font-medium mb-2">Map View</h3>}
 
                     {!isFullScreenMap && (
                         <button
@@ -364,7 +370,7 @@ const LocationView: React.FC<LocationViewProps> = ({
                     )}
 
                     {isLoading ? (
-                        <div className="mb-4 h-48 bg-[#34393E] rounded-lg flex items-center justify-center">
+                        <div className="mb-4 h-48 bg-bg-tertiary rounded-lg flex items-center justify-center">
                             <div className="flex flex-col items-center">
                                 <svg
                                     className="animate-spin h-8 w-8 text-blue-500"
@@ -386,7 +392,7 @@ const LocationView: React.FC<LocationViewProps> = ({
                                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                                     ></path>
                                 </svg>
-                                <p className="text-gray-400 text-sm mt-2">{t('Loading location...')}</p>
+                                <p className="text-text-secondary text-sm mt-2">{t('Loading location...')}</p>
                             </div>
                         </div>
                     ) : (
@@ -431,10 +437,10 @@ const LocationView: React.FC<LocationViewProps> = ({
                                                     <p className="font-medium">
                                                         {location.displayName || t('Unknown location')}
                                                     </p>
-                                                    <p className="text-sm text-gray-600 mt-1">
+                                                    <p className="text-sm text-text-secondary mt-1">
                                                         {formatTimestamp(location.timestamp)}
                                                     </p>
-                                                    <p className="text-xs text-gray-500">
+                                                    <p className="text-xs text-text-secondary">
                                                         {formatDate(location.timestamp)}
                                                     </p>
                                                 </div>
@@ -457,7 +463,7 @@ const LocationView: React.FC<LocationViewProps> = ({
                                                     <p className="text-sm">
                                                         {userLocation.displayName || t('Unknown location')}
                                                     </p>
-                                                    <p className="text-sm text-gray-600 mt-1">
+                                                    <p className="text-sm text-text-secondary mt-1">
                                                         {formatTimestamp(Date.now())}
                                                     </p>
                                                 </div>
@@ -495,9 +501,9 @@ const LocationView: React.FC<LocationViewProps> = ({
                     {!isFullScreenMap && (
                         <div className="space-y-3">
                             {hasValidCoordinates(userLocation) && !isLoading ? (
-                                <div className="mt-2 p-3 bg-[#34393E] rounded">
-                                    <p className="text-gray-400 text-xs mt-1">{t('Status')}: {isLocationActive ? t('Active') : t('Inactive')}</p>
-                                    <p className="text-gray-400 text-xs">
+                                <div className="mt-2 p-3 bg-bg-tertiary rounded">
+                                    <p className="text-text-secondary text-xs mt-1">{t('Status')}: {isLocationActive ? t('Active') : t('Inactive')}</p>
+                                    <p className="text-text-secondary text-xs">
                                         {t('Time')}: {new Date().toLocaleTimeString([], {
                                             hour: '2-digit',
                                             minute: '2-digit',
@@ -506,7 +512,7 @@ const LocationView: React.FC<LocationViewProps> = ({
                                     </p>
                                 </div>
                             ) : (
-                                <p className="text-gray-400 text-sm">{isLoading ? t('Loading location data...') : t('No location data available')}</p>
+                                <p className="text-text-secondary text-sm">{isLoading ? t('Loading location data...') : t('No location data available')}</p>
                             )}
                         </div>
                     )}
@@ -514,15 +520,15 @@ const LocationView: React.FC<LocationViewProps> = ({
             </div>
 
             {!isFullScreenMap && (
-                <div className="bg-[#2A2F33] rounded-lg p-4 mt-4">
-                    <h3 className="text-white text-lg font-medium mb-4">{t('My Routes')}</h3>
+                <div className="bg-bg-tertiary rounded-lg p-4 mt-4">
+                    <h3 className="text-text-primary text-lg font-medium mb-4">{t('My Routes')}</h3>
 
-                    <div className="flex bg-[#34393E] rounded mb-4">
+                    <div className="flex bg-bg-tertiary rounded mb-4">
                         {['1hour', '8hours', '12hours', '24hours'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`flex-1 py-2 px-4 text-center text-sm ${activeTab === tab ? 'bg-blue-500 text-white rounded' : 'text-gray-300'}`}
+                                className={`flex-1 py-2 px-4 text-center text-sm ${activeTab === tab ? 'bg-blue-500 text-white rounded' : 'text-text-primary'}`}
                             >
                                 {tab === '1hour' ? t('1 Hour') :
                                  tab === '8hours' ? t('8 Hours') :
@@ -536,21 +542,21 @@ const LocationView: React.FC<LocationViewProps> = ({
                             filteredLocations.map((location, index) => (
                                 <div
                                     key={index}
-                                    className="mt-2 p-3 bg-[#34393E] rounded mb-2 border-l-4 border-blue-500 cursor-pointer hover:bg-[#3A3F44]"
+                                    className="mt-2 p-3 bg-bg-tertiary rounded mb-2 border-l-4 border-blue-500 cursor-pointer hover:bg-bg-elevated"
                                     onClick={() => handleListItemClick(location)}
                                 >
                                     {shouldShowDate(location.timestamp, index, filteredLocations) && (
-                                        <div className="my-2 px-2 py-1 bg-[#222529] rounded text-gray-300 text-xs">
+                                        <div className="my-2 px-2 py-1 bg-bg-secondary rounded text-text-primary text-xs">
                                             {formatDate(location.timestamp)}
                                         </div>
                                     )}
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <div className="flex items-center text-white text-sm mb-1">
-                                                <Clock size={14} className="mr-1 text-gray-400" />
+                                            <div className="flex items-center text-text-primary text-sm mb-1">
+                                                <Clock size={14} className="mr-1 text-text-secondary" />
                                                 {formatTimestamp(location.timestamp)}
                                             </div>
-                                            <p className="text-white text-sm">
+                                            <p className="text-text-primary text-sm">
                                                 {location.displayName || t('Unknown location')}
                                             </p>
                                         </div>
@@ -558,7 +564,7 @@ const LocationView: React.FC<LocationViewProps> = ({
                                 </div>
                             ))
                         ) : (
-                            <p className="text-gray-400 text-sm text-center py-4">
+                            <p className="text-text-secondary text-sm text-center py-4">
                                 {t('No location history available for this period')}
                             </p>
                         )}
@@ -568,12 +574,12 @@ const LocationView: React.FC<LocationViewProps> = ({
 
             {isFullScreenMap && (
                 <div className="fixed bottom-4 left-0 right-0 flex justify-center">
-                    <div className="flex bg-[#34393E] rounded-full shadow-lg">
+                    <div className="flex bg-bg-tertiary rounded-full shadow-lg">
                         {['1hour', '8hours', '12hours', '24hours'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`py-2 px-4 text-center text-sm ${activeTab === tab ? 'bg-blue-500 text-white rounded-full' : 'text-gray-300'}`}
+                                className={`py-2 px-4 text-center text-sm ${activeTab === tab ? 'bg-blue-500 text-white rounded-full' : 'text-text-primary'}`}
                             >
                                 {tab === '1hour' ? t('1 Hour') :
                                  tab === '8hours' ? t('8 Hours') :

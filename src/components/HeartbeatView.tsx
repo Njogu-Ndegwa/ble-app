@@ -186,13 +186,13 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
 
   if (missingServices.length > 0) {
     return (
-      <div className="p-6 text-center text-gray-400">
+      <div className="p-6 text-center text-text-secondary">
         <p className="mb-4">
           {t('heartbeat.missingServices', { services: missingServices.join(', ') })}
         </p>
         <button
           onClick={handleManualRefresh}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors disabled:bg-gray-600"
+          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-white text-sm transition-colors disabled:bg-bg-elevated"
           disabled={isLoading}
           aria-label={t('heartbeat.loadRequired')}
         >
@@ -206,12 +206,12 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-medium text-white">{t('heartbeat.title')}</h3>
+          <h3 className="text-lg font-medium text-text-primary">{t('heartbeat.title')}</h3>
         </div>
         <div className="flex space-x-2">
           <button
             onClick={handleManualRefresh}
-            className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors disabled:bg-gray-600"
+            className="flex items-center space-x-1 bg-bg-tertiary hover:bg-bg-elevated text-text-primary px-3 py-1 rounded-md text-sm transition-colors disabled:bg-bg-elevated"
             disabled={isLoading}
             aria-label={t('heartbeat.refreshButton')}
           >
@@ -230,33 +230,33 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
         {metrics.map((metric) => (
           <div
             key={`${metric.service}-${metric.name}`}
-            className="border border-gray-700 rounded-lg overflow-hidden"
+            className="border border-border rounded-lg overflow-hidden"
             role="region"
             aria-label={`${metric.name} ${t('heartbeat.metric.label')}`}
           >
-            <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
+            <div className="flex justify-between items-center bg-bg-secondary px-4 py-2">
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">{metric.name}</span>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs text-gray-400">{metric.service}</span>
+                <span className="text-xs text-text-secondary">{metric.service}</span>
               </div>
             </div>
             <div className="px-4 py-3 space-y-3">
               <div>
-                <p className="text-xs text-gray-400">{t('common.description')}</p>
-                <p className="text-sm text-gray-200">{metric.description}</p>
+                <p className="text-xs text-text-secondary">{t('common.description')}</p>
+                <p className="text-sm text-text-primary">{metric.description}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400">{t('ble.detail.currentValue')}</p>
-                <p className="text-sm font-mono text-white">{metric.value}</p>
+                <p className="text-xs text-text-secondary">{t('ble.detail.currentValue')}</p>
+                <p className="text-sm font-mono text-text-primary">{metric.value}</p>
               </div>
             </div>
           </div>
         ))}
       </div>
       {metrics.length === 0 && (
-        <div className="text-center p-8 text-gray-400">
+        <div className="text-center p-8 text-text-secondary">
           <p>{t('heartbeat.noMetrics')}</p>
           <button
             onClick={handleManualRefresh}

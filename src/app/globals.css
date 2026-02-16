@@ -154,6 +154,13 @@ html.theme-transition *::after {
 }
 
 /* ===================== */
+/* THEME UTILITY CLASSES */
+/* ===================== */
+.bg-gradient-page {
+  background: linear-gradient(to bottom, var(--gradient-page-from), var(--gradient-page-to));
+}
+
+/* ===================== */
 /* SPLASH SCREEN STYLES  */
 /* ===================== */
 .splash-screen {

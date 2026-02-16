@@ -150,7 +150,7 @@ export default function SuccessReceipt({
               justifyContent: 'space-between', 
               gap: '8px',
               padding: '8px 0',
-              borderBottom: '1px solid var(--border-light, rgba(255,255,255,0.1))'
+              borderBottom: '1px solid var(--border-subtle)'
             }}
           >
             {/* Label on left */}

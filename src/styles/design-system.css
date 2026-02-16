@@ -67,6 +67,17 @@
   --color-primary: var(--color-brand);
   --accent: var(--color-brand);
   
+  /* Page gradient */
+  --gradient-page-from: #1a2424;
+  --gradient-page-to: #0a0f0f;
+  
+  /* Toast / snackbar */
+  --toast-bg: #1a2424;
+  --toast-text: #f0fafa;
+  
+  /* QR code (always white for scanability) */
+  --qr-bg: #FFFFFF;
+  
   
   /* -------------------- Typography -------------------- */
   
@@ -574,4 +585,18 @@
   --shadow-lg: 0 8px 16px rgba(0, 80, 80, 0.1);
   --shadow-xl: 0 12px 24px rgba(0, 80, 80, 0.12);
   --shadow-card: 0 4px 24px -8px rgba(0, 80, 80, 0.1);
+  --shadow-glow: 0 0 24px rgba(0, 184, 184, 0.2);
+  --shadow-glow-success: 0 0 24px rgba(16, 185, 129, 0.2);
+  --shadow-glow-error: 0 0 24px rgba(239, 68, 68, 0.2);
+  
+  /* Border focus */
+  --border-focus: var(--color-brand);
+  
+  /* Page gradient */
+  --gradient-page-from: #e8f4f4;
+  --gradient-page-to: #f5fafa;
+  
+  /* Toast / snackbar */
+  --toast-bg: #ffffff;
+  --toast-text: #0a1a1a;
 }

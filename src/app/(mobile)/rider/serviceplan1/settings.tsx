@@ -125,19 +125,19 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-gray-700">
+      <div className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-border">
         <div className="text-center mb-8">
           <div className="bg-indigo-600 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <Settings className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">{t("Settings")}</h2>
-          <p className="text-gray-400 text-sm">{t("Change your password")}</p>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Settings")}</h2>
+          <p className="text-text-secondary text-sm">{t("Change your password")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Current Password */}
           <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-text-primary mb-2">
               {t("Current Password")}
             </label>
             <div className="relative">
@@ -148,13 +148,13 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 disabled={isSubmitting}
                 placeholder={t("Enter your current password")}
-                className="w-full px-4 py-3 pr-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 pr-10 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="button"
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                 disabled={isSubmitting}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary hover:text-text-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label={showCurrentPassword ? t("Hide password") : t("Show password")}
               >
                 {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -167,7 +167,7 @@ const SettingsPage: React.FC = () => {
 
           {/* New Password */}
           <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="newPassword" className="block text-sm font-medium text-text-primary mb-2">
               {t("New Password")}
             </label>
             <div className="relative">
@@ -178,13 +178,13 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => setNewPassword(e.target.value)}
                 disabled={isSubmitting}
                 placeholder={t("Enter your new password")}
-                className="w-full px-4 py-3 pr-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 pr-10 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="button"
                 onClick={() => setShowNewPassword(!showNewPassword)}
                 disabled={isSubmitting}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary hover:text-text-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label={showNewPassword ? t("Hide password") : t("Show password")}
               >
                 {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -197,7 +197,7 @@ const SettingsPage: React.FC = () => {
 
           {/* Confirm New Password */}
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-text-primary mb-2">
               {t("Confirm New Password")}
             </label>
             <div className="relative">
@@ -208,13 +208,13 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 disabled={isSubmitting}
                 placeholder={t("Confirm your new password")}
-                className="w-full px-4 py-3 pr-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 pr-10 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 disabled={isSubmitting}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary hover:text-text-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label={showConfirmPassword ? t("Hide password") : t("Show password")}
               >
                 {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -229,7 +229,7 @@ const SettingsPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting || !currentPassword || !newPassword || !confirmPassword}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-bg-elevated disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
           >
             {isSubmitting ? (
               <>

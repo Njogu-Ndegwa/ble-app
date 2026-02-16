@@ -65,7 +65,7 @@ export default function BridgeGate({
 
   // Default loading UI
   return (
-    <div className="fixed inset-0 bg-gradient-to-b from-[#1a1d21] to-[#0d0f12] flex flex-col items-center justify-center z-50">
+    <div className="fixed inset-0 bg-gradient-page flex flex-col items-center justify-center z-50">
       {/* Logo or brand */}
       <div className="mb-8">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
@@ -87,25 +87,25 @@ export default function BridgeGate({
 
       {/* Loading spinner */}
       <div className="relative mb-6">
-        <div className="w-12 h-12 border-4 border-gray-700 border-t-teal-500 rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-border border-t-teal-500 rounded-full animate-spin"></div>
       </div>
 
       {/* Status message */}
-      <p className="text-gray-400 text-sm mb-2">{initStatus}</p>
+      <p className="text-text-secondary text-sm mb-2">{initStatus}</p>
 
       {/* Progress indicators */}
       <div className="flex items-center gap-3 mt-4">
-        <div className={`flex items-center gap-2 text-xs ${bridge ? 'text-teal-400' : 'text-gray-500'}`}>
-          <div className={`w-2 h-2 rounded-full ${bridge ? 'bg-teal-400' : 'bg-gray-600'}`}></div>
+        <div className={`flex items-center gap-2 text-xs ${bridge ? 'text-teal-400' : 'text-text-muted'}`}>
+          <div className={`w-2 h-2 rounded-full ${bridge ? 'bg-teal-400' : 'bg-bg-elevated'}`}></div>
           Bridge
         </div>
-        <div className={`flex items-center gap-2 text-xs ${isBridgeReady ? 'text-teal-400' : 'text-gray-500'}`}>
-          <div className={`w-2 h-2 rounded-full ${isBridgeReady ? 'bg-teal-400' : 'bg-gray-600'}`}></div>
+        <div className={`flex items-center gap-2 text-xs ${isBridgeReady ? 'text-teal-400' : 'text-text-muted'}`}>
+          <div className={`w-2 h-2 rounded-full ${isBridgeReady ? 'bg-teal-400' : 'bg-bg-elevated'}`}></div>
           Initialized
         </div>
         {requireMqtt && (
-          <div className={`flex items-center gap-2 text-xs ${isMqttConnected ? 'text-teal-400' : 'text-gray-500'}`}>
-            <div className={`w-2 h-2 rounded-full ${isMqttConnected ? 'bg-teal-400' : 'bg-gray-600'}`}></div>
+          <div className={`flex items-center gap-2 text-xs ${isMqttConnected ? 'text-teal-400' : 'text-text-muted'}`}>
+            <div className={`w-2 h-2 rounded-full ${isMqttConnected ? 'bg-teal-400' : 'bg-bg-elevated'}`}></div>
             Connected
           </div>
         )}
@@ -117,7 +117,7 @@ export default function BridgeGate({
           <p className="text-amber-400 text-sm mb-2">
             Taking longer than expected...
           </p>
-          <p className="text-gray-500 text-xs">
+          <p className="text-text-muted text-xs">
             Please ensure you&apos;re using the app within the native container.
             <br />
             If running in a browser, some features may not be available.

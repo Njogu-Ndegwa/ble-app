@@ -436,14 +436,14 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           font-weight: 600;
           color: var(--text-primary);
           padding-bottom: 6px;
-          border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
+          border-bottom: 1px solid var(--border-subtle);
         }
 
         .rate-badge {
           font-size: 9px;
           font-weight: 500;
           color: var(--accent);
-          background: rgba(0, 229, 229, 0.1);
+          background: var(--color-brand-soft, rgba(0, 229, 229, 0.1));
           padding: 2px 6px;
           border-radius: 4px;
           font-family: var(--font-mono);
@@ -487,12 +487,12 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         }
 
         .summary-row.quota .calc-formula strong {
-          color: #10b981;
+          color: var(--color-success);
         }
 
         .summary-divider {
           height: 1px;
-          background: var(--border-color, rgba(255,255,255,0.1));
+          background: var(--border-subtle);
           margin: 2px 0;
         }
 

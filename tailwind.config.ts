@@ -72,6 +72,18 @@ export default {
           light: "var(--color-info-light)",
           soft: "var(--color-info-soft)",
         },
+        
+        // Gradient stops (for from-*, to-* classes)
+        gradient: {
+          from: "var(--gradient-page-from)",
+          to: "var(--gradient-page-to)",
+        },
+        
+        // Toast / snackbar
+        toast: {
+          bg: "var(--toast-bg)",
+          text: "var(--toast-text)",
+        },
       },
       
       // ==================== TYPOGRAPHY ====================

@@ -35,25 +35,25 @@ const Products: React.FC<ProductsProps> = ({
   const renderPlanCard = (plan: ServicePlan) => (
     <div
       key={`${plan.productId}-${plan.default_code}`}
-      className="bg-gray-700 rounded-xl p-4 border border-gray-600 cursor-pointer hover:bg-gray-600 transition-colors duration-200"
+      className="bg-bg-tertiary rounded-xl p-4 border border-border cursor-pointer hover:bg-bg-elevated transition-colors duration-200"
       onClick={() => onSelectPlan(plan)}
     >
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3">
-          <Package className="w-5 h-5 text-gray-400" />
+          <Package className="w-5 h-5 text-text-secondary" />
           <div>
-            <h3 className="text-sm font-semibold text-white">{plan.name}</h3>
-            {/* <p className="text-xs text-gray-400">Subscription</p> */}
-            <p className="text-xs text-gray-500">{t('Code:')} {plan.default_code}</p>
+            <h3 className="text-sm font-semibold text-text-primary">{plan.name}</h3>
+            {/* <p className="text-xs text-text-secondary">Subscription</p> */}
+            <p className="text-xs text-text-muted">{t('Code:')} {plan.default_code}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-white">${plan.price}</p>
+          <p className="text-lg font-bold text-text-primary">${plan.price}</p>
         </div>
       </div>
 
       <div
-        className="w-full py-2 px-3 rounded-lg text-center font-semibold text-xs transition-colors duration-200 bg-gray-600 text-white border border-gray-500 hover:bg-gray-500"
+        className="w-full py-2 px-3 rounded-lg text-center font-semibold text-xs transition-colors duration-200 bg-bg-elevated text-text-primary border border-border hover:bg-bg-tertiary"
       >
         {t('Select Product')}
       </div>
@@ -69,16 +69,16 @@ const Products: React.FC<ProductsProps> = ({
     }
 
     return (
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-gray-800/80 border border-gray-700/60 rounded-xl px-4 py-3 shadow-inner">
-        <div className="text-sm text-gray-300">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-bg-secondary/80 border border-border/60 rounded-xl px-4 py-3 shadow-inner">
+        <div className="text-sm text-text-primary">
           {totalCount > 0 ? (
             <>
               {t('Showing')}{' '}
-              <span className="text-white font-semibold">
+              <span className="text-text-primary font-semibold">
                 {startItem}-{endItem}
               </span>{' '}
               {t('of')}{' '}
-              <span className="text-white font-semibold">{totalCount}</span>
+              <span className="text-text-primary font-semibold">{totalCount}</span>
             </>
           ) : (
             t('No products available')
@@ -89,25 +89,25 @@ const Products: React.FC<ProductsProps> = ({
           <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isLoading}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-700/80 hover:bg-gray-600/80 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary/80 hover:bg-bg-elevated/80 disabled:opacity-50 disabled:cursor-not-allowed text-text-primary rounded-lg transition-colors text-sm"
           >
             <ChevronLeft size={16} />
             <span className="hidden sm:inline">{t('Previous')}</span>
           </button>
 
-          <div className="flex flex-col text-center text-xs text-gray-400">
-            <span className="uppercase tracking-wide text-[10px] text-gray-500">
+          <div className="flex flex-col text-center text-xs text-text-secondary">
+            <span className="uppercase tracking-wide text-[10px] text-text-muted">
               {t('Page')}
             </span>
-            <span className="text-white text-sm font-semibold">
-              {currentPage} <span className="text-gray-400">{t('of')} {totalPages}</span>
+            <span className="text-text-primary text-sm font-semibold">
+              {currentPage} <span className="text-text-secondary">{t('of')} {totalPages}</span>
             </span>
           </div>
 
           <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage >= totalPages || isLoading}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-700/80 hover:bg-gray-600/80 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary/80 hover:bg-bg-elevated/80 disabled:opacity-50 disabled:cursor-not-allowed text-text-primary rounded-lg transition-colors text-sm"
           >
             <span className="hidden sm:inline">{t('Next')}</span>
             <ChevronRight size={16} />
@@ -122,8 +122,8 @@ const Products: React.FC<ProductsProps> = ({
       <div className="space-y-4">
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-gray-400" />
-            <h2 className="text-lg font-semibold text-white">{t('Products')}</h2>
+            <Package className="w-5 h-5 text-text-secondary" />
+            <h2 className="text-lg font-semibold text-text-primary">{t('Products')}</h2>
           </div>
           {renderPaginationControls()}
         </div>
@@ -131,7 +131,7 @@ const Products: React.FC<ProductsProps> = ({
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-            <span className="ml-3 text-gray-400">{t('Loading products...')}</span>
+            <span className="ml-3 text-text-secondary">{t('Loading products...')}</span>
           </div>
         ) : (
           <div className="space-y-4">
@@ -139,7 +139,7 @@ const Products: React.FC<ProductsProps> = ({
               allPlans.map((plan) => renderPlanCard(plan))
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-400">{t('No products available')}</p>
+                <p className="text-text-secondary">{t('No products available')}</p>
               </div>
             )}
           </div>

@@ -546,8 +546,8 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
                 width: 300,
                 margin: 2,
                 color: {
-                  dark: "#000000",
-                  light: "#FFFFFF",
+                  dark: typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#000000' : '#000000',
+                  light: typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue('--qr-bg').trim() || '#ffffff' : '#ffffff',
                 },
               });
               return { id: sub.id, dataUrl: qrDataUrl };
@@ -601,7 +601,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
 
   if (!customer?.partner_id && !customer?.id) {
     return (
-      <div className="text-center text-gray-400 py-8">
+      <div className="text-center text-text-secondary py-8">
         <p>{t("Please log in to view your subscription QR codes")}</p>
       </div>
     );
@@ -609,9 +609,9 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
 
   if (subscriptions.length === 0) {
     return (
-      <div className="text-center text-gray-400 py-8">
+      <div className="text-center text-text-secondary py-8">
         <p>{t("No subscriptions found")}</p>
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-text-muted mt-2">
           Partner ID: {customer?.partner_id || customer?.id || "N/A"}
         </p>
       </div>
@@ -620,9 +620,9 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
 
   return (
     <div className="space-y-6">
-      {/* <div className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-gray-700">
-        <h2 className="text-xl font-bold text-white mb-4">{t("Subscription QR Codes")}</h2>
-        <p className="text-gray-400 text-sm mb-6">
+      {/* <div className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-border">
+        <h2 className="text-xl font-bold text-text-primary mb-4">{t("Subscription QR Codes")}</h2>
+        <p className="text-text-secondary text-sm mb-6">
           {t("Each QR code contains your customer ID, subscription code, and product name")}
         </p>
       </div> */}
@@ -631,7 +631,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
         {subscriptions.map((subscription) => (
           <div
             key={subscription.id}
-            className="bg-gray-800 bg-opacity-90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-gray-700"
+            className="bg-bg-secondary bg-opacity-90 backdrop-blur-sm rounded-2xl p-6 shadow-2xl border border-border"
           >
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
               <div className="flex-shrink-0">
@@ -639,20 +639,20 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
                   <img
                     src={qrDataUrls[subscription.id]}
                     alt={`QR Code for ${subscription.subscription_code}`}
-                    className="w-64 h-64 border-4 border-gray-700 rounded-lg bg-white p-2"
+                    className="w-64 h-64 border-4 border-border rounded-lg bg-white p-2"
                   />
                 ) : (
-                  <div className="w-64 h-64 border-4 border-gray-700 rounded-lg bg-gray-700 flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                  <div className="w-64 h-64 border-4 border-border rounded-lg bg-bg-tertiary flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-text-secondary" />
                   </div>
                 )}
               </div>
 
               <div className="flex-1 text-center md:text-left">
-                <h3 className="text-lg font-semibold text-white mb-2">
+                <h3 className="text-lg font-semibold text-text-primary mb-2">
                   {subscription.product_name}
                 </h3>
-                <div className="space-y-2 text-sm text-gray-300">
+                <div className="space-y-2 text-sm text-text-primary">
                   <p>
                     <span className="font-medium">{t("Subscription Code:")}</span>{" "}
                     <span className="text-indigo-400">{subscription.subscription_code}</span>
@@ -678,7 +678,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
                     disabled={bindingStatus[subscription.id] === "loading"}
                     className={`w-full md:w-auto px-4 py-2 rounded-lg font-medium transition-all ${
                       bindingStatus[subscription.id] === "loading"
-                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                        ? "bg-bg-elevated text-text-secondary cursor-not-allowed"
                         : bindingStatus[subscription.id] === "success"
                         ? "bg-green-600 hover:bg-green-700 text-white"
                         : bindingStatus[subscription.id] === "error"

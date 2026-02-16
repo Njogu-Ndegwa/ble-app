@@ -278,7 +278,7 @@ export default function PhoneInputWithCountry({
           color: 'var(--text-secondary, #94b8b8)',
         }}>
           {label}
-          {required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+          {required && <span style={{ color: 'var(--color-error)', marginLeft: '2px' }}>*</span>}
         </label>
       )}
       
@@ -390,7 +390,7 @@ export default function PhoneInputWithCountry({
           display: flex;
           align-items: center;
           height: 40px;
-          background-color: var(--bg-surface, rgba(255, 255, 255, 0.05));
+          background-color: var(--bg-surface);
           border: 1px solid var(--border-default, #1e2d2d);
           border-radius: var(--radius-md, 8px);
           overflow: hidden;
@@ -421,7 +421,7 @@ export default function PhoneInputWithCountry({
         }
 
         .country-selector-btn:hover {
-          background-color: rgba(255, 255, 255, 0.05);
+          background-color: var(--bg-surface);
         }
 
         .country-selector-btn:disabled {
@@ -495,7 +495,7 @@ export default function PhoneInputWithCountry({
           width: 100%;
           height: 32px;
           padding: 0 10px;
-          background-color: var(--bg-surface, rgba(255, 255, 255, 0.05));
+          background-color: var(--bg-surface);
           border: 1px solid var(--border-default, #1e2d2d);
           border-radius: 6px;
           font-size: 13px;
@@ -534,7 +534,7 @@ export default function PhoneInputWithCountry({
         }
 
         .country-item:hover {
-          background-color: rgba(255, 255, 255, 0.05);
+          background-color: var(--bg-surface);
         }
 
         .country-item.selected,

@@ -206,7 +206,7 @@ function BatterySuccessCard({
           gap: '8px', 
           marginBottom: '10px',
           padding: '6px 10px',
-          background: 'rgba(16, 185, 129, 0.1)',
+          background: 'var(--color-success-soft)',
           borderRadius: '6px',
         }}>
           <div style={{ 
@@ -221,7 +221,7 @@ function BatterySuccessCard({
           }}>
             <CheckCircle size={14} color="white" />
           </div>
-          <span style={{ fontSize: '13px', fontWeight: 500, color: '#10b981' }}>
+          <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-success)' }}>
             {t('sales.batteryScanned') || 'Battery Scanned'}
           </span>
         </div>

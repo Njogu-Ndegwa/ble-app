@@ -731,7 +731,7 @@ const ChargingStationFinder = ({
       routeWhileDragging: false,
       addWaypoints: false,
       createMarker: () => null,
-      lineOptions: { styles: [{ color: "#3b82f6", weight: 4, opacity: 0.8 }] },
+      lineOptions: { styles: [{ color: getComputedStyle(document.documentElement).getPropertyValue('--color-info').trim() || '#3b82f6', weight: 4, opacity: 0.8 }] },
       show: false,
       collapsible: true,
     }).addTo(mapInstanceRef.current);
@@ -1259,7 +1259,7 @@ const ChargingStationFinder = ({
       case "busy":
         return "text-red-400";
       default:
-        return "text-gray-400";
+        return "text-text-secondary";
     }
   };
 
@@ -1269,7 +1269,7 @@ const ChargingStationFinder = ({
       disabled={disabled}
       className={`flex items-center justify-center px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex-1 min-h-[40px] ${
         disabled
-          ? "bg-gray-600 cursor-not-allowed text-gray-400"
+          ? "bg-bg-elevated cursor-not-allowed text-text-secondary"
           : `${color} hover:shadow-lg hover:shadow-opacity-50 active:scale-95`
       }`}
     >
@@ -1285,23 +1285,23 @@ const ChargingStationFinder = ({
   );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white overflow-hidden">
+    <div className="min-h-screen bg-bg-primary text-text-primary overflow-hidden">
       <div className="flex flex-col h-screen">
         {/* Map Container */}
-        <div className="relative bg-gray-800 h-48 md:h-64 border-b border-gray-700 flex-shrink-0">
+        <div className="relative bg-bg-secondary h-48 md:h-64 border-b border-border flex-shrink-0">
           <div
             ref={mapRef}
             className="w-full h-full"
             style={{ display: isMapVisible ? "block" : "none" }}
           />
           {!isMapLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+            <div className="absolute inset-0 flex items-center justify-center bg-bg-secondary">
               <div className="text-center">
                 <MapPin
                   size={48}
                   className="text-blue-400 mx-auto mb-2 animate-pulse"
                 />
-                <p className="text-gray-400 text-sm">Loading map...</p>
+                <p className="text-text-secondary text-sm">Loading map...</p>
               </div>
             </div>
           )}
@@ -1319,7 +1319,7 @@ const ChargingStationFinder = ({
         </div>
         {/* Find Stations Button - Show when no stations are loaded */}
         {stations.length === 0 && onFindStations && (
-          <div className="px-4 py-4 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+          <div className="px-4 py-4 bg-bg-secondary border-b border-border flex-shrink-0">
             <button
               onClick={handleFindStationsClick}
               disabled={isFindingStations || propIsLoadingStations}
@@ -1341,12 +1341,12 @@ const ChargingStationFinder = ({
         )}
         {/* Search & Filter Bar - Only show when stations are loaded */}
         {stations.length > 0 && (
-          <div className="px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+          <div className="px-4 py-3 bg-bg-secondary border-b border-border flex-shrink-0">
             <div className="flex gap-2">
               <input
                 type="text"
                 placeholder="Search stations..."
-                className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 bg-bg-tertiary rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={filterOptions.name}
                 onChange={(e) =>
                   setFilterOptions({ ...filterOptions, name: e.target.value })
@@ -1368,18 +1368,18 @@ const ChargingStationFinder = ({
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Stations</h2>
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-text-secondary">
                 {filteredStations.length} nearby
               </span>
             </div>
             {propIsLoadingStations && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-400 mr-2" />
-                <p className="text-gray-400">Loading stations...</p>
+                <p className="text-text-secondary">Loading stations...</p>
               </div>
             )}
             {!propIsLoadingStations && filteredStations.length === 0 && !isShowcasing && (
-              <p className="text-gray-400 text-center py-8">
+              <p className="text-text-secondary text-center py-8">
                 No stations match your filters.
               </p>
             )}
@@ -1388,11 +1388,11 @@ const ChargingStationFinder = ({
                 {filteredStations.map((station) => (
                 <div
                   key={station.id}
-                  className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all cursor-pointer"
+                  className="bg-bg-secondary rounded-xl p-4 border border-border hover:border-border transition-all cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white truncate">
+                      <h3 className="font-semibold text-text-primary truncate">
                         {station.name}
                       </h3>
                     </div>
@@ -1446,17 +1446,17 @@ const ChargingStationFinder = ({
       {/* Filter Modal */}
       {isFilterModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-t-2xl md:rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-bg-secondary rounded-t-2xl md:rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsFilterModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              className="absolute top-4 right-4 text-text-secondary hover:text-text-primary"
             >
               <X size={20} />
             </button>
             <h3 className="text-lg font-semibold mb-6">Filter Stations</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-2">
+                <label className="block text-sm text-text-primary mb-2">
                   Station Name
                 </label>
                 <input
@@ -1465,12 +1465,12 @@ const ChargingStationFinder = ({
                   onChange={(e) =>
                     setFilterOptions({ ...filterOptions, name: e.target.value })
                   }
-                  className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-bg-tertiary rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Search..."
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">
+                <label className="block text-sm text-text-primary mb-2">
                   Distance (km)
                 </label>
                 <div className="flex gap-2">
@@ -1483,7 +1483,7 @@ const ChargingStationFinder = ({
                         minDistance: e.target.value,
                       })
                     }
-                    className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 bg-bg-tertiary rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Min"
                   />
                   <input
@@ -1497,13 +1497,13 @@ const ChargingStationFinder = ({
                           : null,
                       })
                     }
-                    className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 bg-bg-tertiary rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Max"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">
+                <label className="block text-sm text-text-primary mb-2">
                   Battery Level
                 </label>
                 <div className="flex gap-2">
@@ -1519,7 +1519,7 @@ const ChargingStationFinder = ({
                       className={`flex-1 py-2 px-3 rounded-lg text-sm transition-colors ${
                         filterOptions.minBatteryLevel === parseInt(level)
                           ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                          : "bg-bg-tertiary text-text-primary hover:bg-bg-elevated"
                       }`}
                     >
                       {level}%
@@ -1528,7 +1528,7 @@ const ChargingStationFinder = ({
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">
+                <label className="block text-sm text-text-primary mb-2">
                   Min Chargers
                 </label>
                 <div className="flex gap-2">
@@ -1544,7 +1544,7 @@ const ChargingStationFinder = ({
                       className={`flex-1 py-2 px-3 rounded-lg text-sm transition-colors ${
                         filterOptions.minAvailableChargers === parseInt(count)
                           ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                          : "bg-bg-tertiary text-text-primary hover:bg-bg-elevated"
                       }`}
                     >
                       {count}+
@@ -1553,7 +1553,7 @@ const ChargingStationFinder = ({
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">
+                <label className="block text-sm text-text-primary mb-2">
                   Sort By
                 </label>
                 <select
@@ -1564,7 +1564,7 @@ const ChargingStationFinder = ({
                       sortBy: e.target.value as any,
                     })
                   }
-                  className="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-bg-tertiary rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="distance">Distance</option>
                   <option value="name">Name</option>
@@ -1573,7 +1573,7 @@ const ChargingStationFinder = ({
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">
+                <label className="block text-sm text-text-primary mb-2">
                   Sort Order
                 </label>
                 <div className="flex gap-2">
@@ -1589,7 +1589,7 @@ const ChargingStationFinder = ({
                       className={`flex-1 py-2 px-3 rounded-lg text-sm transition-colors ${
                         filterOptions.sortOrder === order
                           ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                          : "bg-bg-tertiary text-text-primary hover:bg-bg-elevated"
                       }`}
                     >
                       {order === "asc" ? "↑ Ascending" : "↓ Descending"}
@@ -1611,7 +1611,7 @@ const ChargingStationFinder = ({
                     sortOrder: "asc",
                   });
                 }}
-                className="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="flex-1 bg-bg-tertiary hover:bg-bg-elevated px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Reset
               </button>
@@ -1627,13 +1627,13 @@ const ChargingStationFinder = ({
       )}
       {/* Service Modal */}
       {!isSelectStationDisabled && isServiceModalOpen && selectedStation && (
-        <div className="fixed inset-0 bg-gray-900 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-bg-primary z-50 overflow-y-auto">
           <div className="min-h-screen">
             {/* Header */}
-            <div className="bg-gray-800 px-4 py-6">
+            <div className="bg-bg-secondary px-4 py-6">
               <button
                 onClick={() => setIsServiceModalOpen(false)}
-                className="flex items-center gap-2 text-white mb-4 hover:opacity-80 transition-opacity"
+                className="flex items-center gap-2 text-text-primary mb-4 hover:opacity-80 transition-opacity"
               >
                 <svg
                   className="w-5 h-5"
@@ -1650,7 +1650,7 @@ const ChargingStationFinder = ({
                 </svg>
                 Back
               </button>
-              <h2 className="text-2xl font-bold text-white">Select Service</h2>
+              <h2 className="text-2xl font-bold text-text-primary">Select Service</h2>
               <p className="text-blue-100 text-sm mt-1">
                 Choose what you need today
               </p>
@@ -1660,7 +1660,7 @@ const ChargingStationFinder = ({
             <div className="p-4 space-y-6">
               {/* Available Services Section */}
               <div>
-                <h3 className="text-white font-semibold mb-3">
+                <h3 className="text-text-primary font-semibold mb-3">
                   Available Services
                 </h3>
                 <div className="space-y-3">
@@ -1670,15 +1670,15 @@ const ChargingStationFinder = ({
                       setSelectedService("battery_swap");
                     }}
                     disabled={processingId === selectedStation.id}
-                    className="w-full bg-gray-800 border-2 border-blue-500 rounded-xl p-4 flex items-center justify-between hover:bg-gray-750 transition-colors disabled:opacity-50"
+                    className="w-full bg-bg-secondary border-2 border-blue-500 rounded-xl p-4 flex items-center justify-between hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
                         <Battery className="w-6 h-6 text-blue-400" />
                       </div>
                       <div className="text-left">
-                        <p className="text-white font-semibold">Battery Swap</p>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-text-primary font-semibold">Battery Swap</p>
+                        <p className="text-text-secondary text-sm">
                           Quick battery exchange
                         </p>
                       </div>
@@ -1712,15 +1712,15 @@ const ChargingStationFinder = ({
                       setSelectedService("maintenance");
                     }}
                     disabled={processingId === selectedStation.id}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl p-4 flex items-center justify-between hover:border-orange-500 hover:bg-gray-750 transition-colors disabled:opacity-50"
+                    className="w-full bg-bg-secondary border-2 border-border rounded-xl p-4 flex items-center justify-between hover:border-orange-500 hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
                         <Hammer className="w-6 h-6 text-orange-400" />
                       </div>
                       <div className="text-left">
-                        <p className="text-white font-semibold">Maintenance</p>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-text-primary font-semibold">Maintenance</p>
+                        <p className="text-text-secondary text-sm">
                           Service & repair
                         </p>
                       </div>
@@ -1753,15 +1753,15 @@ const ChargingStationFinder = ({
                       setSelectedService("multi_service");
                     }}
                     disabled={processingId === selectedStation.id}
-                    className="w-full bg-gray-800 border-2 border-gray-700 rounded-xl p-4 flex items-center justify-between hover:border-orange-500 hover:bg-gray-750 transition-colors disabled:opacity-50"
+                    className="w-full bg-bg-secondary border-2 border-border rounded-xl p-4 flex items-center justify-between hover:border-orange-500 hover:bg-bg-tertiary transition-colors disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
                         <Wrench className="w-6 h-6 text-orange-400" />
                       </div>
                       <div className="text-left">
-                        <p className="text-white font-semibold">Dual service</p>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-text-primary font-semibold">Dual service</p>
+                        <p className="text-text-secondary text-sm">
                           Battery swap & repair
                         </p>
                       </div>
@@ -1794,23 +1794,23 @@ const ChargingStationFinder = ({
               {/* Station Details Section */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-semibold">
+                  <h3 className="text-text-primary font-semibold">
                     {selectedStation.name}
                   </h3>
                   <button className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
                     <MapPin className="w-4 h-4 text-blue-400" />
                   </button>
                 </div>
-                <p className="text-gray-400 text-sm mb-4">Service Location</p>
+                <p className="text-text-secondary text-sm mb-4">Service Location</p>
 
                 <div className="space-y-3 mb-6">
-                  <div className="flex items-center gap-3 text-gray-300">
+                  <div className="flex items-center gap-3 text-text-primary">
                     <Navigation className="w-4 h-4 text-blue-400" />
                     <span className="text-sm">
                       {selectedStation.distance} from your location
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-300">
+                  <div className="flex items-center gap-3 text-text-primary">
                     <Zap className="w-4 h-4 text-green-400" />
                     <span className="text-sm">
                       {selectedStation.availableChargers}{" "}

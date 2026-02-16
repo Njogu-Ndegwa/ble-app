@@ -6,13 +6,13 @@ export default function LanguageSwitcher() {
   const { locale, setLocale, t } = useI18n();
 
   return (
-    <div className="ml-auto flex items-center gap-2 text-sm text-gray-300">
+    <div className="ml-auto flex items-center gap-2 text-sm text-text-secondary">
       <label className="sr-only" htmlFor="lang-select">Language</label>
       <select
         id="lang-select"
         value={locale}
         onChange={(e) => setLocale(e.target.value as "en" | "fr" | "zh")}
-        className="bg-[#2a2d31] text-gray-200 rounded px-2 py-1 border border-gray-700 focus:outline-none"
+        className="bg-bg-tertiary text-text-primary rounded px-2 py-1 border border-border focus:outline-none"
       >
         <option value="en">{t("common.language.english")}</option>
         <option value="fr">{t("common.language.french")}</option>

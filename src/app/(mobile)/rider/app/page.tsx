@@ -1193,7 +1193,7 @@ const RiderApp: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 24px',
-                border: '2px solid rgba(255, 255, 255, 0.2)'
+                border: '2px solid var(--border-default)'
               }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -1215,7 +1215,7 @@ const RiderApp: React.FC = () => {
               {/* Welcome Message */}
               <p style={{
                 fontSize: '14px',
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'var(--text-secondary)',
                 textAlign: 'center',
                 marginBottom: '32px'
               }}>
@@ -1260,7 +1260,7 @@ const RiderApp: React.FC = () => {
                   <div style={{ 
                     fontSize: '13px', 
                     fontWeight: '400', 
-                    color: 'rgba(255, 255, 255, 0.6)'
+                    color: 'var(--text-secondary)'
                   }}>
                     {t('role.rider') || 'Rider'}
                   </div>

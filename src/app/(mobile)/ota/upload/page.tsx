@@ -27,10 +27,10 @@ const FileUploadPage = () => {
     if (extension === 'pdf') return <FileText className="w-6 h-6 text-red-500" />;
     if (extension === 'hex16') return <Archive className="w-6 h-6 text-purple-500" />;
     if (extension === 'doc' || extension === 'docx') return <FileText className="w-6 h-6 text-blue-500" />;
-    if (extension === 'txt') return <FileText className="w-6 h-6 text-gray-500" />;
+    if (extension === 'txt') return <FileText className="w-6 h-6 text-text-muted" />;
     if (extension === 'xls' || extension === 'xlsx') return <FileText className="w-6 h-6 text-green-500" />;
     if (extension === 'ppt' || extension === 'pptx') return <FileText className="w-6 h-6 text-orange-500" />;
-    return <File className="w-6 h-6 text-gray-600" />;
+    return <File className="w-6 h-6 text-text-muted" />;
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -142,8 +142,8 @@ const FileUploadPage = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{t('Upload Documents')}</h1>
-          <p className="text-gray-600">{t('Browse and upload PDF, HEX16, and other document files')}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">{t('Upload Documents')}</h1>
+          <p className="text-text-muted">{t('Browse and upload PDF, HEX16, and other document files')}</p>
         </div>
 
         {/* Upload Section */}
@@ -170,9 +170,9 @@ const FileUploadPage = () => {
             ) : (
               <div className="flex flex-col items-center">
                 <Plus className="w-12 h-12 text-blue-500 mb-4" />
-                <p className="text-lg font-medium text-gray-900 mb-2">{t('Choose documents to upload')}</p>
-                <p className="text-gray-500 mb-2">{t('Tap here to browse your device')}</p>
-                <p className="text-sm text-gray-400">{t('Supports: PDF, HEX16, DOC, TXT, XLS, and more')}</p>
+                <p className="text-lg font-medium text-text-primary mb-2">{t('Choose documents to upload')}</p>
+                <p className="text-text-muted mb-2">{t('Tap here to browse your device')}</p>
+                <p className="text-sm text-text-secondary">{t('Supports: PDF, HEX16, DOC, TXT, XLS, and more')}</p>
               </div>
             )}
           </div>
@@ -181,14 +181,14 @@ const FileUploadPage = () => {
         {/* Files List */}
         {files.length > 0 && (
           <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            <h2 className="text-xl font-semibold text-text-primary mb-4">
               {t('Uploaded Files')} ({files.length})
             </h2>
             <div className="space-y-3">
               {files.map((fileItem: FileItem) => (
                 <div
                   key={fileItem.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-bg-tertiary rounded-xl hover:bg-bg-elevated transition-colors"
                 >
                   <div className="flex items-center space-x-4 flex-1 min-w-0 mb-3 sm:mb-0">
                     {getFileIcon(fileItem.type, fileItem.name)}
@@ -199,7 +199,7 @@ const FileUploadPage = () => {
                             type="text"
                             value={newFileName}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFileName(e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-base"
+                            className="flex-1 px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-base"
                             onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleKeyPress(e, fileItem.id)}
                             placeholder={t('Enter new filename')}
                           />
@@ -212,7 +212,7 @@ const FileUploadPage = () => {
                             </button>
                             <button
                               onClick={cancelEdit}
-                              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 active:bg-gray-700 transition-colors text-sm font-medium min-w-0 touch-manipulation"
+                              className="px-4 py-2 bg-bg-tertiary text-text-primary rounded-lg hover:bg-bg-elevated active:bg-bg-elevated transition-colors text-sm font-medium min-w-0 touch-manipulation"
                             >
                               {t('Cancel')}
                             </button>
@@ -220,8 +220,8 @@ const FileUploadPage = () => {
                         </div>
                       ) : (
                         <>
-                          <p className="font-medium text-gray-900 truncate text-sm sm:text-base">{fileItem.name}</p>
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-gray-500">
+                          <p className="font-medium text-text-primary truncate text-sm sm:text-base">{fileItem.name}</p>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-sm text-text-muted">
                             <span>{formatFileSize(fileItem.size)}</span>
                             <span className="hidden sm:inline">•</span>
                             <span>{t('Uploaded')}: {fileItem.uploadDate}</span>
@@ -264,9 +264,9 @@ const FileUploadPage = () => {
 
         {files.length === 0 && !isUploading && (
           <div className="text-center py-12">
-            <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">{t('No documents uploaded yet')}</p>
-            <p className="text-gray-400">{t('Upload some files to get started')}</p>
+            <Upload className="w-16 h-16 text-text-secondary mx-auto mb-4" />
+            <p className="text-text-muted text-lg">{t('No documents uploaded yet')}</p>
+            <p className="text-text-secondary">{t('Upload some files to get started')}</p>
           </div>
         )}
       </div>

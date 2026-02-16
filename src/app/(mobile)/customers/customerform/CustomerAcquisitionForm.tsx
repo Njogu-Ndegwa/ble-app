@@ -250,12 +250,12 @@ const CustomerAcquisitionForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-bg-primary text-text-primary">
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">Join Our Platform</h1>
-            <p className="text-gray-400 text-sm">Get Started</p>
+            <h1 className="text-2xl font-bold text-text-primary mb-2">Join Our Platform</h1>
+            <p className="text-text-secondary text-sm">Get Started</p>
           </div>
 
           {submitStatus && (
@@ -274,7 +274,7 @@ const CustomerAcquisitionForm = () => {
               </div>
               <button
                 onClick={dismissMessage}
-                className="text-gray-400 hover:text-white ml-2"
+                className="text-text-secondary hover:text-text-primary ml-2"
                 aria-label="Dismiss message"
               >
                 <X size={16} />
@@ -282,14 +282,14 @@ const CustomerAcquisitionForm = () => {
             </div>
           )}
 
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <div className="bg-bg-secondary rounded-xl p-6 border border-border">
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-300 mb-3">I am a:</label>
+              <label className="block text-sm font-medium text-text-primary mb-3">I am a:</label>
               <div className="grid grid-cols-2 gap-3">
                 <label className={`cursor-pointer border-2 rounded-lg p-4 flex flex-col items-center space-y-2 transition-all ${
                   formData.customerType === 'individual'
                     ? 'border-blue-500 bg-blue-900/20 text-blue-300'
-                    : 'border-gray-600 hover:border-gray-500 text-gray-300'
+                    : 'border-border hover:border-border text-text-primary'
                 }`}>
                   <input
                     type="radio"
@@ -302,7 +302,7 @@ const CustomerAcquisitionForm = () => {
                   />
                   <User size={24} />
                   <span className="text-sm font-medium">Individual</span>
-                  <span id="individual-desc" className="text-xs text-center text-gray-400">
+                  <span id="individual-desc" className="text-xs text-center text-text-secondary">
                     Personal account
                   </span>
                 </label>
@@ -310,7 +310,7 @@ const CustomerAcquisitionForm = () => {
                 <label className={`cursor-pointer border-2 rounded-lg p-4 flex flex-col items-center space-y-2 transition-all ${
                   formData.customerType === 'company'
                     ? 'border-blue-500 bg-blue-900/20 text-blue-300'
-                    : 'border-gray-600 hover:border-gray-500 text-gray-300'
+                    : 'border-border hover:border-border text-text-primary'
                 }`}>
                   <input
                     type="radio"
@@ -323,7 +323,7 @@ const CustomerAcquisitionForm = () => {
                   />
                   <Building2 size={24} />
                   <span className="text-sm font-medium">Company</span>
-                  <span id="company-desc" className="text-xs text-center text-gray-400">
+                  <span id="company-desc" className="text-xs text-center text-text-secondary">
                     Business account
                   </span>
                 </label>
@@ -333,18 +333,18 @@ const CustomerAcquisitionForm = () => {
             <div className="space-y-4">
               {formData.customerType === 'individual' && (
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">
+                  <label htmlFor="name" className="block text-sm font-medium text-text-primary mb-1">
                     Full Name <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <User size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <User size={16} className="absolute left-3 top-3 text-text-secondary" />
                     <input
                       type="text"
                       id="name"
                       value={formData.name || ''}
                       onChange={(e) => handleInputChange('name', e.target.value)}
-                      className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                        errors.name ? 'border-red-500' : 'border-gray-600'
+                      className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                        errors.name ? 'border-red-500' : 'border-border'
                       }`}
                       placeholder="Enter your full name"
                       aria-invalid={!!errors.name}
@@ -362,18 +362,18 @@ const CustomerAcquisitionForm = () => {
               {formData.customerType === 'company' && (
                 <>
                   <div>
-                    <label htmlFor="companyName" className="block text-sm font-medium text-gray-300 mb-1">
+                    <label htmlFor="companyName" className="block text-sm font-medium text-text-primary mb-1">
                       Company Name <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
-                      <Building2 size={16} className="absolute left-3 top-3 text-gray-400" />
+                      <Building2 size={16} className="absolute left-3 top-3 text-text-secondary" />
                       <input
                         type="text"
                         id="companyName"
                         value={formData.companyName || ''}
                         onChange={(e) => handleInputChange('companyName', e.target.value)}
-                        className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                          errors.companyName ? 'border-red-500' : 'border-gray-600'
+                        className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                          errors.companyName ? 'border-red-500' : 'border-border'
                         }`}
                         placeholder="Enter company name"
                         aria-invalid={!!errors.companyName}
@@ -407,18 +407,18 @@ const CustomerAcquisitionForm = () => {
                 )}
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+                  <label htmlFor="email" className="block text-sm font-medium text-text-primary mb-1">
                     {t('sales.emailAddress') || 'Email Address'}
                   </label>
                   <div className="relative">
-                    <Mail size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <Mail size={16} className="absolute left-3 top-3 text-text-secondary" />
                     <input
                       type="email"
                       id="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                        errors.email || errors.emailOrPhone ? 'border-red-500' : 'border-gray-600'
+                      className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                        errors.email || errors.emailOrPhone ? 'border-red-500' : 'border-border'
                       }`}
                       placeholder={t('Enter your email') || 'Enter your email address'}
                       aria-invalid={!!errors.email}
@@ -433,24 +433,24 @@ const CustomerAcquisitionForm = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="flex-1 border-t border-gray-600"></div>
-                  <span className="text-xs text-gray-500 uppercase">{t('common.or') || 'or'}</span>
-                  <div className="flex-1 border-t border-gray-600"></div>
+                  <div className="flex-1 border-t border-border"></div>
+                  <span className="text-xs text-text-muted uppercase">{t('common.or') || 'or'}</span>
+                  <div className="flex-1 border-t border-border"></div>
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-1">
+                  <label htmlFor="phone" className="block text-sm font-medium text-text-primary mb-1">
                     {t('sales.phoneNumber') || 'Phone Number'}
                   </label>
                   <div className="relative">
-                    <Phone size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <Phone size={16} className="absolute left-3 top-3 text-text-secondary" />
                     <input
                       type="tel"
                       id="phone"
                       value={formData.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
-                      className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                        errors.phone || errors.emailOrPhone ? 'border-red-500' : 'border-gray-600'
+                      className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                        errors.phone || errors.emailOrPhone ? 'border-red-500' : 'border-border'
                       }`}
                       placeholder={t('Enter your phone number') || 'Enter your phone number'}
                       aria-invalid={!!errors.phone}
@@ -466,18 +466,18 @@ const CustomerAcquisitionForm = () => {
               </div>
 
               <div>
-                <label htmlFor="street" className="block text-sm font-medium text-gray-300 mb-1">
+                <label htmlFor="street" className="block text-sm font-medium text-text-primary mb-1">
                   Street Address <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <MapPin size={16} className="absolute left-3 top-3 text-gray-400" />
+                  <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
                   <input
                     type="text"
                     id="street"
                     value={formData.street}
                     onChange={(e) => handleInputChange('street', e.target.value)}
-                    className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                      errors.street ? 'border-red-500' : 'border-gray-600'
+                    className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                      errors.street ? 'border-red-500' : 'border-border'
                     }`}
                     placeholder="Enter your street address"
                     aria-invalid={!!errors.street}
@@ -492,18 +492,18 @@ const CustomerAcquisitionForm = () => {
               </div>
 
               <div>
-                <label htmlFor="city" className="block text-sm font-medium text-gray-300 mb-1">
+                <label htmlFor="city" className="block text-sm font-medium text-text-primary mb-1">
                   City <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <MapPin size={16} className="absolute left-3 top-3 text-gray-400" />
+                  <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
                   <input
                     type="text"
                     id="city"
                     value={formData.city}
                     onChange={(e) => handleInputChange('city', e.target.value)}
-                    className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                      errors.city ? 'border-red-500' : 'border-gray-600'
+                    className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                      errors.city ? 'border-red-500' : 'border-border'
                     }`}
                     placeholder="Enter your city"
                     aria-invalid={!!errors.city}
@@ -518,18 +518,18 @@ const CustomerAcquisitionForm = () => {
               </div>
 
               <div>
-                <label htmlFor="zip" className="block text-sm font-medium text-gray-300 mb-1">
+                <label htmlFor="zip" className="block text-sm font-medium text-text-primary mb-1">
                   Zip Code <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <MapPin size={16} className="absolute left-3 top-3 text-gray-400" />
+                  <MapPin size={16} className="absolute left-3 top-3 text-text-secondary" />
                   <input
                     type="text"
                     id="zip"
                     value={formData.zip}
                     onChange={(e) => handleInputChange('zip', e.target.value)}
-                    className={`w-full bg-gray-700 border rounded-lg px-10 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                      errors.zip ? 'border-red-500' : 'border-gray-600'
+                    className={`w-full bg-bg-tertiary border rounded-lg px-10 py-2.5 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                      errors.zip ? 'border-red-500' : 'border-border'
                     }`}
                     placeholder="Enter your zip code"
                     aria-invalid={!!errors.zip}
@@ -548,15 +548,15 @@ const CustomerAcquisitionForm = () => {
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className={`w-full mt-6 py-3 px-4 rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 ${
+              className={`w-full mt-6 py-3 px-4 rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-bg-primary ${
                 isSubmitting
-                  ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                  ? 'bg-bg-elevated text-text-primary cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
               }`}
             >
               {isSubmitting ? (
                 <div className="flex items-center justify-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-border border-t-transparent rounded-full animate-spin"></div>
                   <span>Submitting...</span>
                 </div>
               ) : (
@@ -564,7 +564,7 @@ const CustomerAcquisitionForm = () => {
               )}
             </button>
 
-            <p className="text-xs text-gray-400 text-center mt-4">
+            <p className="text-xs text-text-secondary text-center mt-4">
               By submitting this form, you agree to our terms of service and privacy policy.
             </p>
           </div>

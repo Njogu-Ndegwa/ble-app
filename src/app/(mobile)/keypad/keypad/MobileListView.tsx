@@ -129,7 +129,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         {/* Sort and Filter */}
         {/* <div className="flex gap-2 mb-4">
           <button
-            className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
+            className="flex-1 px-4 py-2 border border-border rounded-lg text-text-primary text-sm flex items-center justify-between bg-bg-secondary"
             onClick={(e) => e.stopPropagation()}
           >
             {t('Sort by...')}
@@ -138,7 +138,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
             </span>
           </button>
           <button
-            className="flex-1 px-4 py-2 border border-[#52545c] rounded-lg text-white text-sm flex items-center justify-between bg-gray-800"
+            className="flex-1 px-4 py-2 border border-border rounded-lg text-text-primary text-sm flex items-center justify-between bg-bg-secondary"
             onClick={(e) => e.stopPropagation()}
           >
             {t('Filter')}
