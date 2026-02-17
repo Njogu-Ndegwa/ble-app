@@ -142,7 +142,7 @@ export default function ListScreen({
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="w-9 h-9 flex items-center justify-center rounded-lg border border-border bg-surface-secondary text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-all disabled:opacity-50"
+            className="w-9 h-9 flex items-center justify-center rounded-lg border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-all disabled:opacity-50"
             aria-label={t('common.refresh') || 'Refresh'}
           >
             <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
@@ -161,7 +161,7 @@ export default function ListScreen({
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder={searchPlaceholder}
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-border bg-surface-secondary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
             {searchQuery && (
               <button
@@ -188,7 +188,7 @@ export default function ListScreen({
           <div className="relative">
             <button
               onClick={() => setShowPeriodPicker(!showPeriodPicker)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-surface-secondary text-text-secondary text-sm hover:text-text-primary hover:bg-surface-elevated transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-bg-tertiary text-text-secondary text-sm hover:text-text-primary hover:bg-bg-elevated transition-all"
             >
               <Calendar size={14} />
               <span>
@@ -202,7 +202,7 @@ export default function ListScreen({
               />
             </button>
             {showPeriodPicker && (
-              <div className="absolute top-full left-0 right-auto mt-1 z-20 min-w-[180px] rounded-xl border border-border bg-surface-elevated shadow-lg overflow-hidden">
+              <div className="absolute top-full left-0 right-auto mt-1 z-20 min-w-[180px] rounded-xl border border-border bg-bg-elevated shadow-lg overflow-hidden">
                 {PERIOD_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -213,7 +213,7 @@ export default function ListScreen({
                     className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                       period === opt.value
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-text-secondary hover:bg-white/5'
+                        : 'text-text-secondary hover:bg-bg-tertiary'
                     }`}
                   >
                     {t(opt.labelKey) || opt.fallback}
@@ -236,13 +236,13 @@ export default function ListScreen({
             {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
-                className="rounded-xl border border-border bg-surface-secondary p-4 animate-pulse"
+                className="rounded-xl border border-border bg-bg-tertiary p-4 animate-pulse"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/10" />
+                  <div className="w-10 h-10 rounded-full bg-border/50" />
                   <div className="flex-1">
-                    <div className="h-4 w-32 bg-white/10 rounded mb-2" />
-                    <div className="h-3 w-48 bg-white/10 rounded" />
+                    <div className="h-4 w-32 bg-border/50 rounded mb-2" />
+                    <div className="h-3 w-48 bg-border/50 rounded" />
                   </div>
                 </div>
               </div>
@@ -266,7 +266,7 @@ export default function ListScreen({
         {/* Empty state */}
         {!isLoading && !error && isEmpty && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mb-4">
               {emptyIcon}
             </div>
             <p className="text-sm text-text-secondary mb-1">{emptyMessage}</p>
@@ -298,7 +298,7 @@ export default function ListScreen({
             <button
               onClick={onPrevPage}
               disabled={page! <= 1}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-white/5 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-bg-tertiary transition-colors"
               aria-label={t('common.previous') || 'Previous'}
             >
               <ChevronLeft size={16} />
@@ -309,7 +309,7 @@ export default function ListScreen({
             <button
               onClick={onNextPage}
               disabled={!hasNextPage}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-white/5 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-bg-tertiary transition-colors"
               aria-label={t('common.next') || 'Next'}
             >
               <ChevronRight size={16} />

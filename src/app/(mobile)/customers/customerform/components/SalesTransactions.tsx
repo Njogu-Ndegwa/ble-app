@@ -95,24 +95,24 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
       case 'paid': return 'bg-green-500/15 text-green-400';
       case 'pending': return 'bg-yellow-500/15 text-yellow-400';
       case 'cancelled': return 'bg-red-500/15 text-red-400';
-      default: return 'bg-white/10 text-text-secondary';
+      default: return 'bg-bg-elevated text-text-secondary';
     }
   };
 
   // Summary cards rendered between filter and list
   const summaryCards = data?.summary && !isLoading ? (
     <div className="flex gap-2 mb-3">
-      <div className="flex-1 rounded-xl border border-border bg-surface-secondary p-3 text-center">
+      <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-3 text-center">
         <span className="text-xs text-text-muted block">{t('sales.transactions.totalAmount') || 'Total'}</span>
         <span className="text-sm font-semibold text-text-primary">
           {data.transactions[0]?.currency || ''} {data.summary.total_amount.toLocaleString()}
         </span>
       </div>
-      <div className="flex-1 rounded-xl border border-border bg-surface-secondary p-3 text-center">
+      <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-3 text-center">
         <span className="text-xs text-text-muted block">{t('sales.transactions.count') || 'Transactions'}</span>
         <span className="text-sm font-semibold text-text-primary">{data.summary.total_transactions}</span>
       </div>
-      <div className="flex-1 rounded-xl border border-border bg-surface-secondary p-3 text-center">
+      <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-3 text-center">
         <span className="text-xs text-text-muted block">{t('sales.transactions.customers') || 'Customers'}</span>
         <span className="text-sm font-semibold text-text-primary">{data.summary.unique_customers}</span>
       </div>
@@ -152,40 +152,34 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
       {filteredTransactions.map((transaction) => (
         <div 
           key={transaction.payment_id}
-          className="rounded-xl border border-border bg-surface-secondary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40 cursor-pointer"
+          className="rounded-xl border border-border bg-bg-tertiary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40 cursor-pointer"
           onClick={() => onSelectTransaction?.(transaction)}
         >
-          {/* Main row */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary flex-shrink-0">
-                <User size={16} />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary flex-shrink-0">
+              <User size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-medium text-text-primary truncate">{transaction.customer.name}</h4>
+              <div className="flex items-center gap-3 mt-0.5">
+                {transaction.customer.phone && (
+                  <span className="text-xs text-text-muted truncate">{transaction.customer.phone}</span>
+                )}
+                <span className="text-xs text-text-muted">{formatDate(transaction.payment_date)}</span>
+                <span className="text-xs text-text-muted">{transaction.payment_method}</span>
               </div>
-              <div className="min-w-0">
-                <span className="text-sm font-medium text-text-primary block truncate">{transaction.customer.name}</span>
-                <span className="text-xs text-text-muted block truncate">{transaction.customer.phone}</span>
-              </div>
+              {transaction.reference && (
+                <span className="text-xs text-text-muted mt-0.5 block truncate font-mono">{transaction.reference}</span>
+              )}
             </div>
             <div className="text-right flex-shrink-0 ml-2">
               <span className="text-sm font-semibold text-text-primary block">
                 {formatAmount(transaction.amount, transaction.currency)}
               </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium inline-block mt-0.5 ${getStateBadgeClass(transaction.state)}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium inline-block mt-1 ${getStateBadgeClass(transaction.state)}`}>
                 {transaction.state.charAt(0).toUpperCase() + transaction.state.slice(1)}
               </span>
             </div>
-          </div>
-
-          {/* Detail rows */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted border-t border-border/50 pt-2 mt-1">
-            <span>{t('sales.transactions.date') || 'Date'}: <span className="text-text-secondary">{formatDate(transaction.payment_date)}</span></span>
-            <span>{t('sales.transactions.method') || 'Method'}: <span className="text-text-secondary">{transaction.payment_method}</span></span>
-            {transaction.order && (
-              <span>{t('sales.transactions.order') || 'Order'}: <span className="text-text-secondary">{transaction.order.name}</span></span>
-            )}
-            {transaction.reference && (
-              <span>{t('sales.transactions.reference') || 'Ref'}: <span className="text-text-secondary font-mono">{transaction.reference}</span></span>
-            )}
           </div>
         </div>
       ))}

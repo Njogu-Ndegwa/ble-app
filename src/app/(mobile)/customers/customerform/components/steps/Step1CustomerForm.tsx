@@ -133,7 +133,7 @@ export default function Step1CustomerForm({
 
       {/* Mode Toggle - Pill style */}
       <div className="flex items-center justify-center mb-4 px-1">
-        <div className="flex w-full rounded-xl overflow-hidden border border-border bg-surface-secondary">
+        <div className="flex w-full rounded-xl overflow-hidden border border-border bg-bg-tertiary">
           <button
             type="button"
             onClick={() => onModeChange('new')}
@@ -269,7 +269,7 @@ export default function Step1CustomerForm({
                 <button
                   type="button"
                   onClick={() => onSelectExistingCustomer(null)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-text-muted"
+                  className="p-1.5 rounded-lg hover:bg-bg-elevated text-text-muted"
                 >
                   <X size={16} />
                 </button>
@@ -310,7 +310,7 @@ export default function Step1CustomerForm({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('sales.searchCustomerPlaceholder') || 'Search by name, email, or phone...'}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-surface-secondary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
             {searchQuery && (
               <button
@@ -327,12 +327,12 @@ export default function Step1CustomerForm({
           {isSearching && (
             <div className="flex flex-col gap-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-xl border border-border bg-surface-secondary p-4 animate-pulse">
+                <div key={i} className="rounded-xl border border-border bg-bg-tertiary p-4 animate-pulse">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-white/10" />
+                    <div className="w-10 h-10 rounded-full bg-border/50" />
                     <div className="flex-1">
-                      <div className="h-4 w-32 bg-white/10 rounded mb-2" />
-                      <div className="h-3 w-48 bg-white/10 rounded" />
+                      <div className="h-4 w-32 bg-border/50 rounded mb-2" />
+                      <div className="h-3 w-48 bg-border/50 rounded" />
                     </div>
                   </div>
                 </div>
@@ -356,12 +356,12 @@ export default function Step1CustomerForm({
                     className={`w-full text-left rounded-xl border p-3.5 transition-all active:scale-[0.98] ${
                       isSelected
                         ? 'border-primary bg-primary/10'
-                        : 'border-border bg-surface-secondary hover:border-primary/40'
+                        : 'border-border bg-bg-tertiary hover:border-primary/40'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
-                        isSelected ? 'bg-primary/20 text-primary' : 'bg-white/10 text-text-secondary'
+                        isSelected ? 'bg-primary/20 text-primary' : 'bg-bg-elevated text-text-secondary'
                       }`}>
                         {customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
@@ -403,7 +403,7 @@ export default function Step1CustomerForm({
           {/* Empty state */}
           {!isSearching && hasSearched && searchResults.length === 0 && searchQuery.trim() && (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center mb-3">
+              <div className="w-14 h-14 rounded-full bg-bg-tertiary flex items-center justify-center mb-3">
                 <User size={24} className="text-text-muted" />
               </div>
               <p className="text-sm text-text-secondary mb-1">

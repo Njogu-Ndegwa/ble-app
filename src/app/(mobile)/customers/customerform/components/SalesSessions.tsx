@@ -147,7 +147,7 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
       ? 'bg-green-500/15 text-green-400'
       : isPending
         ? 'bg-yellow-500/15 text-yellow-400'
-        : 'bg-white/10 text-text-secondary';
+        : 'bg-bg-elevated text-text-secondary';
 
     return (
       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeClass}`}>
@@ -220,21 +220,20 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
         return (
           <div 
             key={order.id}
-            className={`rounded-xl border bg-surface-secondary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40 cursor-pointer ${
+            className={`rounded-xl border bg-bg-tertiary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40 cursor-pointer ${
               isResumable ? 'border-primary/30' : 'border-border'
             }`}
             onClick={() => onSelectSession?.(order, !isResumable)}
           >
-            {/* Main row */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary flex-shrink-0">
-                  <User size={16} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-sm font-medium text-text-primary block truncate">
-                    {order.partner_name || t('common.unknown') || 'Unknown'}
-                  </span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary flex-shrink-0">
+                <User size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-medium text-text-primary truncate">
+                  {order.partner_name || t('common.unknown') || 'Unknown'}
+                </h4>
+                <div className="flex items-center gap-3 mt-0.5">
                   {customerPhone && customerPhone.toString().trim() ? (
                     <span className="flex items-center gap-1 text-xs text-text-muted truncate">
                       <Phone size={11} /> {customerPhone.toString().trim()}
@@ -244,31 +243,27 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
                       <Mail size={11} /> {customerEmail.toString().trim()}
                     </span>
                   ) : null}
+                  <span className="flex items-center gap-1 text-xs text-text-muted">
+                    <Clock size={11} />
+                    {session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}
+                  </span>
                 </div>
+                <span className="text-xs text-text-muted mt-0.5 block">
+                  {t('sales.sessions.step') || 'Step'} {currentStep}/8
+                </span>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-2">
                 {getStatusBadge(order)}
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  isResumable ? 'bg-primary/15 text-primary' : 'bg-white/5 text-text-muted'
-                }`}>
-                  {isResumable ? <Play size={14} /> : <Eye size={14} />}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between text-xs text-text-muted border-t border-border/50 pt-2 mt-1">
-              <span className="flex items-center gap-1">
-                <Clock size={12} />
-                {session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}
-              </span>
-              <div className="flex items-center gap-3">
-                <span>{t('sales.sessions.step') || 'Step'} {currentStep}/8</span>
                 {hasPaymentInfo && amountPaid > 0 && (
-                  <span className="font-medium text-text-secondary">
+                  <span className="text-sm font-semibold text-text-primary">
                     {order.currency} {amountPaid.toLocaleString()}
                   </span>
                 )}
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                  isResumable ? 'bg-primary/15 text-primary' : 'bg-bg-elevated text-text-muted'
+                }`}>
+                  {isResumable ? <Play size={12} /> : <Eye size={12} />}
+                </div>
               </div>
             </div>
           </div>

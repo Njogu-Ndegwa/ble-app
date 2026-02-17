@@ -314,7 +314,7 @@ export default function SalesCustomers() {
           <button
             key={customer.id}
             onClick={() => openDetail(customer)}
-            className="w-full text-left rounded-xl border border-border bg-surface-secondary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40"
+            className="w-full text-left rounded-xl border border-border bg-bg-tertiary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-sm font-semibold text-primary flex-shrink-0">
@@ -356,7 +356,7 @@ export default function SalesCustomers() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-          <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors" aria-label="Back">
+          <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
             <ArrowLeft size={20} className="text-text-primary" />
           </button>
           <h2 className="text-lg font-semibold text-text-primary flex-1 truncate">{selectedCustomer.name}</h2>
@@ -400,7 +400,7 @@ export default function SalesCustomers() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-        <button onClick={subView === 'edit' ? goBackToDetail : goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors" aria-label="Back">
+        <button onClick={subView === 'edit' ? goBackToDetail : goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
           <ArrowLeft size={20} className="text-text-primary" />
         </button>
         <h2 className="text-lg font-semibold text-text-primary">
@@ -447,8 +447,8 @@ export default function SalesCustomers() {
 
 function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-border bg-surface-secondary p-3.5">
-      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-text-muted flex-shrink-0 mt-0.5">{icon}</div>
+    <div className="flex items-start gap-3 rounded-xl border border-border bg-bg-tertiary p-3.5">
+      <div className="w-8 h-8 rounded-lg bg-bg-elevated flex items-center justify-center text-text-muted flex-shrink-0 mt-0.5">{icon}</div>
       <div className="flex-1 min-w-0">
         <p className="text-xs text-text-muted mb-0.5">{label}</p>
         <p className="text-sm text-text-primary break-all">{value}</p>
