@@ -61,7 +61,7 @@ export default function SalesCustomers() {
   const [customers, setCustomers] = useState<ExistingCustomer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [period, setPeriod] = useState<ListPeriod>('30days');
+  const [period, setPeriod] = useState<ListPeriod>('all');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Form state (edit / create)

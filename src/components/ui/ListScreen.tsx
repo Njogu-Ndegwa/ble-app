@@ -24,6 +24,7 @@ export const PERIOD_OPTIONS: { value: ListPeriod; labelKey: string; fallback: st
   { value: '7days', labelKey: 'common.period7Days', fallback: 'Last 7 Days' },
   { value: '14days', labelKey: 'common.period14Days', fallback: 'Last 14 Days' },
   { value: '30days', labelKey: 'common.period30Days', fallback: 'Last 30 Days' },
+  { value: 'all', labelKey: 'common.periodAll', fallback: 'All Time' },
 ];
 
 export interface ListScreenProps {

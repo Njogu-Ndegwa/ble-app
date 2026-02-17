@@ -1383,6 +1383,7 @@
   "common.period7Days": "Last 7 Days",
   "common.period14Days": "Last 14 Days",
   "common.period30Days": "Last 30 Days",
+  "common.periodAll": "All Time",
 
   "battery.scanQr": "Scan QR",
   "battery.selectManually": "Select Manually",

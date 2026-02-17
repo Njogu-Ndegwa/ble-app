@@ -1286,6 +1286,7 @@
   "common.period7Days": "最近7天",
   "common.period14Days": "最近14天",
   "common.period30Days": "最近30天",
+  "common.periodAll": "全部",
 
   "battery.scanQr": "扫描二维码",
   "battery.selectManually": "手动选择",
