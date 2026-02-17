@@ -1353,6 +1353,8 @@
   "sales.customerCreated": "Customer created",
   "sales.saveChanges": "Save Changes",
   "sales.createdAt": "Created",
+  "sales.contactInfo": "Contact",
+  "sales.otherInfo": "Other",
   "sales.pleaseSelectCustomer": "Please select a customer",
   "sales.customerSelected": "Customer selected successfully!",
   "sales.customerSingular": "customer",

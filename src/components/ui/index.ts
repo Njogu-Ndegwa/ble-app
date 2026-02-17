@@ -105,6 +105,12 @@ export { default as ListScreen, PERIOD_OPTIONS } from './ListScreen';
 export type { ListScreenProps, ListPeriod } from './ListScreen';
 
 // ============================================
+// DETAIL SCREEN
+// ============================================
+export { default as DetailScreen } from './DetailScreen';
+export type { DetailScreenProps, DetailSection, DetailField, DetailAction } from './DetailScreen';
+
+// ============================================
 // BOTTOM NAVIGATION
 // ============================================
 export { default as BottomNav, NavIcons } from './BottomNav';

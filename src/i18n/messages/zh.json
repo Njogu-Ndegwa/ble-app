@@ -1256,6 +1256,8 @@
   "sales.customerCreated": "客户已创建",
   "sales.saveChanges": "保存更改",
   "sales.createdAt": "创建时间",
+  "sales.contactInfo": "联系方式",
+  "sales.otherInfo": "其他",
   "sales.pleaseSelectCustomer": "请选择客户",
   "sales.customerSelected": "客户选择成功！",
   "sales.customerSingular": "位客户",

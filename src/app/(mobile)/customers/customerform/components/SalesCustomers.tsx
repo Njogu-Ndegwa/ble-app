@@ -12,6 +12,7 @@ import {
   Calendar,
   Edit3,
 } from 'lucide-react';
+import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import {
   FormInput,
   FormSection,
@@ -350,47 +351,48 @@ export default function SalesCustomers() {
   }
 
   // ------------------------------------------------------------------
-  // DETAIL VIEW
+  // DETAIL VIEW (uses shared DetailScreen)
   // ------------------------------------------------------------------
   if (subView === 'detail' && selectedCustomer) {
+    const initials = selectedCustomer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+    const detailSections: DetailSectionType[] = [
+      {
+        title: t('sales.contactInfo') || 'Contact',
+        fields: [
+          { icon: <Phone size={15} />, label: t('sales.phoneNumber') || 'Phone', value: formatPhone(selectedCustomer.phone) },
+          { icon: <Mail size={15} />, label: t('sales.emailAddress') || 'Email', value: selectedCustomer.email || '--' },
+        ],
+      },
+      {
+        title: t('sales.addressInfo') || 'Address',
+        fields: [
+          { icon: <MapPin size={15} />, label: t('sales.street') || 'Street', value: selectedCustomer.street || '--' },
+          { icon: <MapPin size={15} />, label: t('sales.city') || 'City', value: selectedCustomer.city || '--' },
+          { icon: <MapPin size={15} />, label: t('sales.zip') || 'ZIP', value: selectedCustomer.zip || '--' },
+        ],
+      },
+      {
+        title: t('sales.otherInfo') || 'Other',
+        fields: [
+          { icon: <Calendar size={15} />, label: t('sales.createdAt') || 'Created', value: formatDate(selectedCustomer.createdAt) },
+        ],
+      },
+    ];
+
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-          <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
-            <ArrowLeft size={20} className="text-text-primary" />
-          </button>
-          <h2 className="text-lg font-semibold text-text-primary flex-1 truncate">{selectedCustomer.name}</h2>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 pb-6">
-          <div className="flex flex-col items-center py-6">
-            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center text-2xl font-bold text-primary mb-3">
-              {selectedCustomer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-            </div>
-            <h3 className="text-lg font-semibold text-text-primary">{selectedCustomer.name}</h3>
-            <p className="text-xs text-text-muted mt-1">ID: {selectedCustomer.id}</p>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <DetailRow icon={<Phone size={16} />} label={t('sales.phoneNumber') || 'Phone'} value={formatPhone(selectedCustomer.phone)} />
-            <DetailRow icon={<Mail size={16} />} label={t('sales.emailAddress') || 'Email'} value={selectedCustomer.email || '--'} />
-            <DetailRow icon={<MapPin size={16} />} label={t('sales.street') || 'Street'} value={selectedCustomer.street || '--'} />
-            <DetailRow icon={<MapPin size={16} />} label={t('sales.city') || 'City'} value={selectedCustomer.city || '--'} />
-            <DetailRow icon={<MapPin size={16} />} label={t('sales.zip') || 'ZIP'} value={selectedCustomer.zip || '--'} />
-            <DetailRow icon={<Calendar size={16} />} label={t('sales.createdAt') || 'Created'} value={formatDate(selectedCustomer.createdAt)} />
-          </div>
-        </div>
-
-        <div className="px-4 py-3 border-t border-border">
-          <button
-            onClick={() => openEdit(selectedCustomer)}
-            className="w-full py-3 rounded-xl bg-primary text-white font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-          >
-            <Edit3 size={16} />
-            {t('sales.editCustomer') || 'Edit Customer'}
-          </button>
-        </div>
-      </div>
+      <DetailScreen
+        onBack={goBackToList}
+        avatar={initials}
+        title={selectedCustomer.name}
+        subtitle={`ID: ${selectedCustomer.id}`}
+        sections={detailSections}
+        primaryAction={{
+          icon: <Edit3 size={16} />,
+          label: t('sales.editCustomer') || 'Edit Customer',
+          onClick: () => openEdit(selectedCustomer),
+          variant: 'primary',
+        }}
+      />
     );
   }
 
@@ -445,14 +447,3 @@ export default function SalesCustomers() {
   );
 }
 
-function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-border bg-bg-tertiary p-3.5">
-      <div className="w-8 h-8 rounded-lg bg-bg-elevated flex items-center justify-center text-text-muted flex-shrink-0 mt-0.5">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-text-muted mb-0.5">{label}</p>
-        <p className="text-sm text-text-primary break-all">{value}</p>
-      </div>
-    </div>
-  );
-}

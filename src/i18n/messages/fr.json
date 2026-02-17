@@ -1344,6 +1344,8 @@
   "sales.customerCreated": "Client créé",
   "sales.saveChanges": "Enregistrer",
   "sales.createdAt": "Créé le",
+  "sales.contactInfo": "Contact",
+  "sales.otherInfo": "Autre",
   "sales.pleaseSelectCustomer": "Veuillez sélectionner un client",
   "sales.customerSelected": "Client sélectionné avec succès !",
   "sales.customerSingular": "client",
