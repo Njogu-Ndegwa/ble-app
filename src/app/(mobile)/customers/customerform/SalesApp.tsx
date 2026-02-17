@@ -17,6 +17,7 @@ import SalesNav, { type SalesScreen } from './components/SalesNav';
 import SalesProfile from './components/SalesProfile';
 import SalesSessions from './components/SalesSessions';
 import SalesTransactions from './components/SalesTransactions';
+import SalesCustomers from './components/SalesCustomers';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface SalesAppProps {
@@ -173,6 +174,11 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
 
       {/* Main Content */}
       <main className="sales-main sales-main-screen">
+        {currentScreen === 'customers' && (
+          <div className="sales-screen-container">
+            <SalesCustomers />
+          </div>
+        )}
         {currentScreen === 'sessions' && (
           <div className="sales-screen-container">
             <SalesSessions onSelectSession={handleSelectSession} />

@@ -34,6 +34,9 @@ import {
 } from './components';
 // ProgressiveLoading removed - using simple loading overlay like Attendant flow
 
+// Import customer service for existing customer selection
+import type { ExistingCustomer } from '@/lib/services/customer-service';
+
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
 import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
@@ -154,6 +157,10 @@ export default function SalesFlow({
     zip: '',
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
+
+  // Customer mode: 'new' for creating from scratch, 'existing' for selecting a pre-existing customer
+  const [customerMode, setCustomerMode] = useState<'new' | 'existing'>('new');
+  const [selectedExistingCustomer, setSelectedExistingCustomer] = useState<ExistingCustomer | null>(null);
 
   // Product catalog hook - fetches products, packages, and plans from Odoo
   // Using workflowType: 'sales' to ensure we use the correct sales role token
@@ -1869,11 +1876,90 @@ export default function SalesFlow({
     
     switch (currentStep) {
       case 1:
-        // Validate and create customer in Odoo
-        if (validateForm()) {
-          const customerCreated = await createCustomerInOdoo();
-          if (customerCreated) {
+        if (customerMode === 'existing') {
+          // Use an already-registered customer
+          if (!selectedExistingCustomer) {
+            toast.error(t('sales.pleaseSelectCustomer') || 'Please select a customer');
+            return;
+          }
+          setIsProcessing(true);
+          try {
+            // Populate IDs from the selected customer (skip Odoo registration)
+            setCreatedCustomerId(selectedExistingCustomer.id);
+            setCreatedPartnerId(selectedExistingCustomer.partnerId);
+            // Populate form data from the selected customer for display in later steps
+            const nameParts = selectedExistingCustomer.name.split(' ');
+            const existingFormData = {
+              firstName: nameParts[0] || '',
+              lastName: nameParts.slice(1).join(' ') || '',
+              phone: selectedExistingCustomer.phone || '',
+              email: selectedExistingCustomer.email || '',
+              street: selectedExistingCustomer.street || '',
+              city: selectedExistingCustomer.city || '',
+              zip: selectedExistingCustomer.zip || '',
+            };
+            setFormData(existingFormData);
+            // Create backend session for the existing customer
+            try {
+              const initialSessionData = buildSalesSessionData({
+                currentStep: 2,
+                maxStepReached: 2,
+                actor: {
+                  id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
+                  station: SALESPERSON_STATION,
+                },
+                formData: existingFormData,
+                selectedPackageId,
+                selectedPlanId,
+                createdCustomerId: selectedExistingCustomer.id,
+                createdPartnerId: selectedExistingCustomer.partnerId,
+                customerSessionToken: null,
+                subscriptionData: null,
+                paymentState: {
+                  initiated: false,
+                  confirmed: false,
+                  reference: '',
+                  amountPaid: 0,
+                  amountExpected: 0,
+                  amountRemaining: 0,
+                  incomplete: false,
+                  inputMode: 'scan',
+                  manualPaymentId: '',
+                  requestOrderId: null,
+                },
+                confirmedSubscriptionCode: null,
+                scannedBatteryPending: null,
+                assignedBattery: null,
+                customerIdentification: {
+                  identified: false,
+                  rate: null,
+                  currencySymbol: null,
+                },
+                scannedVehicleId: null,
+                registrationId: '',
+                customerPassword: null,
+              });
+              
+              await createSalesSession(
+                selectedExistingCustomer.partnerId,
+                DEFAULT_COMPANY_ID,
+                initialSessionData
+              );
+            } catch (err) {
+              console.error('[SalesFlow] Failed to create backend session for existing customer (non-blocking):', err);
+            }
+            toast.success(t('sales.customerSelected') || 'Customer selected successfully!');
             advanceToStep(2);
+          } finally {
+            setIsProcessing(false);
+          }
+        } else {
+          // Validate and create customer in Odoo
+          if (validateForm()) {
+            const customerCreated = await createCustomerInOdoo();
+            if (customerCreated) {
+              advanceToStep(2);
+            }
           }
         }
         break;
@@ -1967,6 +2053,9 @@ export default function SalesFlow({
           zip: '',
         });
         setFormErrors({});
+        // Reset customer mode
+        setCustomerMode('new');
+        setSelectedExistingCustomer(null);
         // Reset to first available package if any
         if (availablePackages.length > 0) {
           setSelectedPackageId(availablePackages[0].id);
@@ -2044,6 +2133,10 @@ export default function SalesFlow({
     resetPaymentAndService,
     resetVehicleAssignment,
     isReadOnlySession,
+    customerMode,
+    selectedExistingCustomer,
+    t,
+    createSalesSession,
   ]);
 
   // Handle step click in timeline
@@ -2076,6 +2169,9 @@ export default function SalesFlow({
       zip: '',
     });
     setFormErrors({});
+    // Reset customer mode
+    setCustomerMode('new');
+    setSelectedExistingCustomer(null);
     // Reset to first available package if any
     if (availablePackages.length > 0) {
       setSelectedPackageId(availablePackages[0].id);
@@ -2161,6 +2257,10 @@ export default function SalesFlow({
             formData={formData}
             onFormChange={handleFormChange}
             errors={formErrors}
+            customerMode={customerMode}
+            onModeChange={setCustomerMode}
+            onSelectExistingCustomer={setSelectedExistingCustomer}
+            selectedExistingCustomer={selectedExistingCustomer}
           />
         );
       case 2:
