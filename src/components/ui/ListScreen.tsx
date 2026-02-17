@@ -312,7 +312,8 @@ export default function ListScreen({
       {fabAction && (
         <button
           onClick={fabAction}
-          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full bg-primary text-white font-medium text-sm shadow-xl shadow-primary/30 active:scale-95 transition-transform z-30 hover:bg-primary/90"
+          style={{ backgroundColor: 'var(--color-brand)' }}
+          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
           aria-label={fabLabel || 'Add'}
         >
           <Plus size={20} strokeWidth={2.5} />
