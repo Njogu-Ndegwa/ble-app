@@ -254,52 +254,6 @@ export default function Step1CustomerForm({
       {/* EXISTING CUSTOMER MODE */}
       {customerMode === 'existing' && (
         <div className="flex flex-col gap-3">
-          {/* Selected customer card */}
-          {selectedExistingCustomer && (
-            <div className="border-2 border-green-500/60 bg-green-900/20 rounded-xl p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                    <Check size={16} className="text-green-400" />
-                  </div>
-                  <span className="text-xs font-medium text-green-400 uppercase tracking-wide">
-                    {t('sales.selectedCustomer') || 'Selected'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onSelectExistingCustomer(null)}
-                  className="p-1.5 rounded-lg hover:bg-bg-elevated text-text-muted"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <h3 className="text-base font-semibold text-text-primary mb-1">
-                {selectedExistingCustomer.name}
-              </h3>
-              <div className="flex flex-col gap-1">
-                {selectedExistingCustomer.phone && (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Phone size={13} className="text-text-muted" />
-                    <span>{formatPhone(selectedExistingCustomer.phone)}</span>
-                  </div>
-                )}
-                {selectedExistingCustomer.email && (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Mail size={13} className="text-text-muted" />
-                    <span>{selectedExistingCustomer.email}</span>
-                  </div>
-                )}
-                {selectedExistingCustomer.city && (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <MapPin size={13} className="text-text-muted" />
-                    <span>{selectedExistingCustomer.city}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Search input */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -352,19 +306,29 @@ export default function Step1CustomerForm({
                   <button
                     key={customer.id}
                     type="button"
-                    onClick={() => onSelectExistingCustomer(customer)}
-                    className={`w-full text-left rounded-xl border p-3.5 transition-all active:scale-[0.98] ${
+                    onClick={() => onSelectExistingCustomer(isSelected ? null : customer)}
+                    className={`w-full text-left rounded-xl border-2 p-3.5 transition-all active:scale-[0.98] ${
                       isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border bg-bg-tertiary hover:border-primary/40'
+                        ? 'border-primary bg-primary/8'
+                        : 'border-transparent bg-bg-tertiary hover:border-border'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
+                      {/* Radio-style indicator */}
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary'
+                          : 'border-text-muted bg-transparent'
+                      }`}>
+                        {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+                      </div>
+                      {/* Avatar */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
                         isSelected ? 'bg-primary/20 text-primary' : 'bg-bg-elevated text-text-secondary'
                       }`}>
                         {customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
+                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-medium text-text-primary truncate">
                           {customer.name}
@@ -390,9 +354,6 @@ export default function Step1CustomerForm({
                           </span>
                         )}
                       </div>
-                      {isSelected && (
-                        <Check size={18} className="text-primary flex-shrink-0" />
-                      )}
                     </div>
                   </button>
                 );
