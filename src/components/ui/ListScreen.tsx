@@ -35,7 +35,7 @@ export interface ListScreenProps {
   searchQuery: string;
   /** Called on every keystroke */
   onSearchChange: (query: string) => void;
-  /** If provided, shows a separate Search button (for server-side search) */
+  /** If provided, called when user presses Enter in the search bar (for server-side search) */
   onSearch?: () => void;
   /** Current period filter value */
   period?: ListPeriod;
@@ -150,35 +150,24 @@ export default function ListScreen({
         </div>
 
         {/* Search bar */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Search size={16} className="text-text-muted" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder={searchPlaceholder}
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="absolute inset-y-0 right-0 flex items-center pr-2.5"
-              >
-                <X size={14} className="text-text-muted hover:text-text-primary" />
-              </button>
-            )}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search size={16} className="text-text-muted" />
           </div>
-          {onSearch && (
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder={searchPlaceholder}
+            className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+          />
+          {searchQuery && (
             <button
-              onClick={onSearch}
-              disabled={isLoading}
-              className="px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium disabled:opacity-50 transition-all active:scale-95"
+              onClick={() => onSearchChange('')}
+              className="absolute inset-y-0 right-0 flex items-center pr-2.5"
             >
-              {t('common.search') || 'Search'}
+              <X size={14} className="text-text-muted hover:text-text-primary" />
             </button>
           )}
         </div>
@@ -322,10 +311,11 @@ export default function ListScreen({
       {fabAction && (
         <button
           onClick={fabAction}
-          className="fixed bottom-24 right-5 w-14 h-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform z-30 hover:bg-primary/90"
+          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full bg-primary text-white font-medium text-sm shadow-xl shadow-primary/30 active:scale-95 transition-transform z-30 hover:bg-primary/90"
           aria-label={fabLabel || 'Add'}
         >
-          <Plus size={24} />
+          <Plus size={20} strokeWidth={2.5} />
+          {fabLabel && <span>{fabLabel}</span>}
         </button>
       )}
     </div>
