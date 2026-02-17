@@ -63,7 +63,7 @@ const DUMMY_CUSTOMERS: ExistingCustomer[] = [
 ];
 
 // In-memory copy so updates persist during session
-let customersDb = [...DUMMY_CUSTOMERS];
+const customersDb = [...DUMMY_CUSTOMERS];
 
 // ============================================================================
 // Helper: Simulate network delay
