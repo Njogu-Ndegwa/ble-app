@@ -386,12 +386,13 @@ export default function SalesCustomers() {
         title={selectedCustomer.name}
         subtitle={`ID: ${selectedCustomer.id}`}
         sections={detailSections}
-        primaryAction={{
-          icon: <Edit3 size={16} />,
-          label: t('sales.editCustomer') || 'Edit Customer',
-          onClick: () => openEdit(selectedCustomer),
-          variant: 'primary',
-        }}
+        headerActions={[
+          {
+            icon: <Edit3 size={18} />,
+            label: t('sales.editCustomer') || 'Edit Customer',
+            onClick: () => openEdit(selectedCustomer),
+          },
+        ]}
       />
     );
   }

@@ -92,11 +92,13 @@ export default function DetailScreen({
           <button
             key={i}
             onClick={action.onClick}
-            className="p-2 rounded-lg hover:bg-bg-elevated transition-colors text-text-secondary"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--color-brand) 15%, transparent)', color: 'var(--color-brand)' }}
             aria-label={action.label}
             title={action.label}
           >
             {action.icon}
+            <span>{action.label}</span>
           </button>
         ))}
       </div>
