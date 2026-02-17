@@ -56,6 +56,12 @@ export interface DetailScreenProps {
   primaryAction?: DetailAction;
   /** Secondary action button at bottom */
   secondaryAction?: DetailAction;
+  /** FAB action handler */
+  fabAction?: () => void;
+  /** FAB icon (defaults to Plus) */
+  fabIcon?: React.ReactNode;
+  /** FAB label text */
+  fabLabel?: string;
 }
 
 /**
@@ -75,6 +81,9 @@ export default function DetailScreen({
   headerActions,
   primaryAction,
   secondaryAction,
+  fabAction,
+  fabIcon,
+  fabLabel,
 }: DetailScreenProps) {
   return (
     <div className="flex flex-col h-full">
@@ -92,13 +101,11 @@ export default function DetailScreen({
           <button
             key={i}
             onClick={action.onClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
-            style={{ backgroundColor: 'color-mix(in srgb, var(--color-brand) 15%, transparent)', color: 'var(--color-brand)' }}
+            className="p-2 rounded-lg hover:bg-bg-elevated transition-colors text-text-secondary"
             aria-label={action.label}
             title={action.label}
           >
             {action.icon}
-            <span>{action.label}</span>
           </button>
         ))}
       </div>
@@ -179,6 +186,19 @@ export default function DetailScreen({
             </button>
           )}
         </div>
+      )}
+
+      {/* ---- FAB ---- */}
+      {fabAction && (
+        <button
+          onClick={fabAction}
+          style={{ backgroundColor: 'var(--color-brand)' }}
+          className="fixed bottom-24 right-5 flex items-center gap-2 h-12 px-5 rounded-full text-black font-semibold text-sm active:scale-95 transition-transform z-30"
+          aria-label={fabLabel || 'Action'}
+        >
+          {fabIcon}
+          {fabLabel && <span>{fabLabel}</span>}
+        </button>
       )}
     </div>
   );

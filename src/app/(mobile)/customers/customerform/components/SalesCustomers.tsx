@@ -386,13 +386,9 @@ export default function SalesCustomers() {
         title={selectedCustomer.name}
         subtitle={`ID: ${selectedCustomer.id}`}
         sections={detailSections}
-        headerActions={[
-          {
-            icon: <Edit3 size={18} />,
-            label: t('sales.editCustomer') || 'Edit Customer',
-            onClick: () => openEdit(selectedCustomer),
-          },
-        ]}
+        fabAction={() => openEdit(selectedCustomer)}
+        fabIcon={<Edit3 size={20} strokeWidth={2.5} />}
+        fabLabel={t('sales.editCustomer') || 'Edit Customer'}
       />
     );
   }
