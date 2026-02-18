@@ -645,11 +645,64 @@ export default function SalesFlow({
   // Helper to save session to backend
   const saveSessionToBackend = useCallback(async () => {
     if (!sessionOrderId) {
+      console.info('[SalesFlow] saveSessionToBackend skipped - no sessionOrderId');
       return;
     }
     
-    const sessionData = buildSalesSessionData(buildCurrentSessionState());
-    await updateSession(sessionData);
+    let currentState: SalesWorkflowState;
+    let sessionData: ReturnType<typeof buildSalesSessionData>;
+    
+    try {
+      currentState = buildCurrentSessionState();
+      sessionData = buildSalesSessionData(currentState);
+    } catch (buildErr) {
+      console.error('❌ [SalesFlow] saveSessionToBackend — FAILED to build session data', {
+        error: buildErr,
+        errorMessage: buildErr instanceof Error ? buildErr.message : String(buildErr),
+        sessionOrderId,
+      });
+      return;
+    }
+    
+    const isPaymentConfirmedSave = currentState.paymentState.confirmed && !currentState.paymentState.incomplete;
+    console.info(`[SalesFlow] saveSessionToBackend — sending session update to server${isPaymentConfirmedSave ? ' 🟢 (PAYMENT CONFIRMED, saving new step to order)' : ''}`, {
+      sessionOrderId,
+      currentStep: currentState.currentStep,
+      maxStepReached: currentState.maxStepReached,
+      paymentConfirmed: currentState.paymentState.confirmed,
+      paymentIncomplete: currentState.paymentState.incomplete,
+      amountPaid: currentState.paymentState.amountPaid,
+      amountExpected: currentState.paymentState.amountExpected,
+      amountRemaining: currentState.paymentState.amountRemaining,
+      requestOrderId: currentState.paymentState.requestOrderId,
+      sessionDataStep: sessionData.currentStep,
+      sessionDataStatus: sessionData.status,
+      sessionDataPayment: sessionData.payment,
+    });
+    
+    try {
+      const result = await updateSession(sessionData);
+      if (result) {
+        console.info('✅ [SalesFlow] saveSessionToBackend — updateSession succeeded', {
+          sessionOrderId,
+          step: currentState.currentStep,
+        });
+      } else {
+        console.error('❌ [SalesFlow] saveSessionToBackend — updateSession returned false (failed)', {
+          sessionOrderId,
+          step: currentState.currentStep,
+          paymentConfirmed: currentState.paymentState.confirmed,
+        });
+      }
+    } catch (err) {
+      console.error('❌ [SalesFlow] saveSessionToBackend — updateSession threw error', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        sessionOrderId,
+        step: currentState.currentStep,
+        paymentConfirmed: currentState.paymentState.confirmed,
+      });
+    }
   }, [sessionOrderId, buildCurrentSessionState, updateSession]);
 
   // Auto-save session on step transitions (after state has updated)
@@ -662,10 +715,21 @@ export default function SalesFlow({
       return;
     }
     
+    const isPostPaymentAdvance = prevStepRef.current === 5 && currentStep === 6;
+    console.info(`[SalesFlow] Step transition detected — saving session${isPostPaymentAdvance ? ' 🟢 (THIS IS THE POST-PAYMENT SESSION UPDATE)' : ''}`, {
+      previousStep: prevStepRef.current,
+      currentStep,
+      sessionOrderId,
+      paymentConfirmed,
+      paymentIncomplete,
+      isPostPaymentAdvance,
+    });
+    
     // When reaching step 8 (success), save the completed state then clear local tracking
     if (currentStep === 8) {
       prevStepRef.current = currentStep;
       
+      console.info('[SalesFlow] Reached final step 8 — saving completed session then clearing');
       // Save step 8 to backend with status: 'completed'
       saveSessionToBackend().then(() => {
         clearSession();
@@ -679,7 +743,15 @@ export default function SalesFlow({
     prevStepRef.current = currentStep;
     
     // Save session with current state
-    saveSessionToBackend();
+    saveSessionToBackend().catch((err) => {
+      console.error('❌ [SalesFlow] Step transition save FAILED', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        previousStep: prevStepRef.current,
+        currentStep,
+        sessionOrderId,
+      });
+    });
   }, [currentStep, sessionOrderId, saveSessionToBackend, clearSession]);
 
   // Auto-save session when payment becomes incomplete
@@ -702,7 +774,15 @@ export default function SalesFlow({
         paymentAmountExpected,
         paymentIncomplete,
       });
-      saveSessionToBackend();
+      saveSessionToBackend().catch((err) => {
+        console.error('❌ [SalesFlow] Partial payment session save FAILED', {
+          error: err,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          sessionOrderId,
+          paymentAmountPaid,
+          paymentAmountRemaining,
+        });
+      });
     }
     
     prevPaymentIncompleteRef.current = paymentIncomplete;
@@ -1488,7 +1568,8 @@ export default function SalesFlow({
 
   // Handle manual payment entry - confirm with Odoo using order_id ONLY
   const handleManualPayment = useCallback(async (receipt: string) => {
-    console.info('[SalesFlow] handleManualPayment called', {
+    const isRetryAfterPartial = paymentIncomplete && paymentAmountPaid > 0;
+    console.info(`[SalesFlow] handleManualPayment called ${isRetryAfterPartial ? '(RETRY after partial payment)' : '(first attempt)'}`, {
       receipt,
       paymentInitiated,
       paymentRequestOrderId,
@@ -1496,6 +1577,8 @@ export default function SalesFlow({
       paymentAmountPaid,
       paymentAmountRemaining,
       paymentAmountExpected,
+      isRetryAfterPartial,
+      currentStep,
     });
     setIsProcessing(true);
     
@@ -1576,7 +1659,16 @@ export default function SalesFlow({
         const isFullyPaid = remainingAmount === 0;
         
         if (isFullyPaid) {
-          console.info('[SalesFlow] Payment FULLY PAID - advancing to step 6 (battery assignment)');
+          console.info('🟢🟢🟢 [SalesFlow] PAYMENT IS ENOUGH — PROCEEDING 🟢🟢🟢', {
+            paidAmount,
+            expectedAmount,
+            remainingAmount,
+            wasRetryAfterPartial: isRetryAfterPartial,
+            previouslyPaid: isRetryAfterPartial ? paymentAmountPaid : 0,
+            order_id: paymentRequestOrderId,
+            receipt,
+            nextAction: 'advanceToStep(6) → step change effect → saveSessionToBackend → PUT /api/sessions/by-order',
+          });
           // Payment complete - proceed to battery assignment
           setPaymentConfirmed(true);
           setPaymentIncomplete(false);
@@ -1592,14 +1684,17 @@ export default function SalesFlow({
             });
           }
           
+          console.info('🟢 [SalesFlow] About to call advanceToStep(6) — this will trigger session save to server');
           advanceToStep(6);
         } else {
-          console.info('[SalesFlow] Payment INCOMPLETE - staying on payment step', {
+          console.info('[SalesFlow] Payment INCOMPLETE — staying on step 5 (payment)', {
             paidAmount,
             expectedAmount,
             remainingAmount,
+            currentStep,
             willSetPaymentIncomplete: true,
             customerMustPayAgain: true,
+            sessionWillUpdate: '(paymentIncomplete effect triggers → saveSessionToBackend → PUT /api/sessions/by-order)',
           });
           // Payment incomplete - show amounts and stay on payment step
           setPaymentIncomplete(true);

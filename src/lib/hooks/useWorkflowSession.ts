@@ -294,6 +294,14 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     
     const authToken = getAuthToken();
     
+    console.info('[useWorkflowSession] updateSession called', {
+      orderId,
+      hasAuthToken: !!authToken,
+      dataStep: data.currentStep,
+      dataStatus: data.status,
+      dataPayment: data.payment,
+    });
+    
     setStatus('updating');
     setError(null);
     
@@ -305,9 +313,19 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
         savedAt: Date.now(),
       };
       
+      console.info('[useWorkflowSession] Sending PUT to server', {
+        orderId,
+        step: sessionPayload.currentStep,
+        status: sessionPayload.status,
+        payment: sessionPayload.payment,
+        savedAt: sessionPayload.savedAt,
+      });
+      
       await updateWorkflowSession(orderId, {
         session_data: sessionPayload,
       }, authToken);
+      
+      console.info('✅ [useWorkflowSession] Session update successful', { orderId, step: sessionPayload.currentStep });
       
       setSessionData(sessionPayload);
       setStatus('active');
@@ -315,7 +333,17 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       
       return true;
     } catch (err: any) {
-      console.error('[useWorkflowSession] Error updating session:', err);
+      console.error('❌ [useWorkflowSession] Error updating session', {
+        error: err,
+        errorMessage: err?.message,
+        errorStack: err?.stack,
+        orderId,
+        step: data.currentStep,
+        status: data.status,
+        payment: data.payment,
+        hasAuthToken: !!authToken,
+        workflowType,
+      });
       handleError(err.message || 'Failed to update session');
       return false;
     }

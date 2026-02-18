@@ -564,11 +564,22 @@ async function apiRequest<T>(
 
     const result = await parseOdooResponse<OdooApiResponse<T>>(response, endpoint);
 
-    console.info(`[Odoo API] <<< ${endpoint} response (HTTP ${response.status})`, JSON.stringify(result, null, 2));
+    console.info(`✅ [Odoo API] <<< ${endpoint} response (HTTP ${response.status})`, JSON.stringify(result, null, 2));
 
     return result;
   } catch (error: unknown) {
-    console.error(`[Odoo API] ${endpoint} - Request failed:`, error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    console.error(`❌ [Odoo API] ${endpoint} - Request FAILED`, {
+      errorMessage: errMsg,
+      errorStack: errStack,
+      error,
+      request: {
+        method: options.method || 'GET',
+        url,
+        body: options.body ? JSON.parse(options.body as string) : undefined,
+      },
+    });
     throw error;
   }
 }
@@ -1026,19 +1037,32 @@ export async function confirmPaymentManual(
     hasAuthToken: !!authToken,
   });
   
-  const result = await apiRequest<ManualConfirmPaymentResponse>('/api/lipay/manual-confirm', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    headers,
-  });
+  try {
+    const result = await apiRequest<ManualConfirmPaymentResponse>('/api/lipay/manual-confirm', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers,
+    });
 
-  console.info('[confirmPaymentManual] <<< Server response', {
-    success: result.success,
-    data: result.data,
-    fullResponse: JSON.stringify(result, null, 2),
-  });
+    console.info('[confirmPaymentManual] <<< Server response', {
+      success: result.success,
+      data: result.data,
+      fullResponse: JSON.stringify(result, null, 2),
+    });
 
-  return result;
+    return result;
+  } catch (error: any) {
+    console.error('❌ [confirmPaymentManual] <<< REQUEST FAILED', {
+      errorMessage: error?.message,
+      error,
+      request: {
+        order_id: payload.order_id,
+        receipt: payload.receipt,
+        hasAuthToken: !!authToken,
+      },
+    });
+    throw error;
+  }
 }
 
 // ============================================================================
@@ -1501,33 +1525,53 @@ export async function updateWorkflowSession(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
   
-  console.info('=== UPDATE WORKFLOW SESSION - PAYLOAD ===');
+  const requestBody = JSON.stringify(payload);
+  console.info('=== UPDATE WORKFLOW SESSION - REQUEST ===');
+  console.info('Method: PUT');
   console.info('URL:', url);
   console.info('Order ID:', orderId);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
+  console.info('Has Auth Token:', !!authToken);
+  console.info('Request Body:', JSON.stringify(payload, null, 2));
   
   try {
     const response = await fetchWithRetry(url, {
       method: 'PUT',
       headers,
-      body: JSON.stringify(payload),
+      body: requestBody,
     });
     
-    const data = await response.json();
+    let data: any;
+    const responseText = await response.text();
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error('❌ === UPDATE WORKFLOW SESSION - JSON PARSE ERROR ===');
+      console.error('HTTP Status:', response.status);
+      console.error('Raw response text:', responseText.substring(0, 500));
+      console.error('Parse error:', parseErr);
+      console.error('Request was: PUT', url, '| orderId:', orderId);
+      throw new Error(`Failed to parse server response (HTTP ${response.status})`);
+    }
     
     console.info('=== UPDATE WORKFLOW SESSION - RESPONSE ===');
     console.info('HTTP Status:', response.status);
     console.info('Response:', JSON.stringify(data, null, 2));
     
     if (!response.ok) {
-      console.error('Update session error (HTTP):', data);
+      console.error('❌ === UPDATE WORKFLOW SESSION - HTTP ERROR ===');
+      console.error('HTTP Status:', response.status);
+      console.error('Error response:', JSON.stringify(data, null, 2));
+      console.error('Request was: PUT', url, '| orderId:', orderId);
       throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
     }
     
+    console.info('✅ === UPDATE WORKFLOW SESSION - SUCCESS ===');
     return data as UpdateSessionResponse;
   } catch (error: any) {
-    console.error('=== UPDATE WORKFLOW SESSION - ERROR ===');
+    console.error('❌ === UPDATE WORKFLOW SESSION - ERROR ===');
+    console.error('Error message:', error?.message);
     console.error('Error:', error);
+    console.error('Request was: PUT', url, '| orderId:', orderId);
     throw error;
   }
 }
