@@ -1117,6 +1117,7 @@ export default function SalesFlow({
       
       // Log full response for debugging
       console.log('Odoo registration response:', JSON.stringify(response, null, 2));
+      console.info('[SalesFlow] Customer creation response:', response);
 
       if (response.success && response.session) {
         const { session } = response;
