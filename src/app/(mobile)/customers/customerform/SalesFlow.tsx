@@ -389,6 +389,14 @@ export default function SalesFlow({
   } = useWorkflowSession({
     workflowType: 'salesperson',
     onSessionRestored: (sessionData, orderId) => {
+      console.info('[SalesFlow] onSessionRestored callback — resuming pending session', {
+        orderId,
+        sessionDataStep: sessionData.currentStep,
+        sessionDataStatus: sessionData.status,
+        sessionDataPayment: sessionData.payment,
+        note: 'Hook already called setOrderId(orderId) internally — sessionOrderId should be set',
+      });
+
       // Extract state from session data and restore
       const restoredState = extractSalesStateFromSession(sessionData);
       
@@ -409,6 +417,8 @@ export default function SalesFlow({
       setPaymentAmountExpected(restoredState.paymentState.amountExpected);
       setPaymentAmountRemaining(restoredState.paymentState.amountRemaining);
       setPaymentIncomplete(restoredState.paymentState.incomplete);
+      setPaymentInputMode(restoredState.paymentState.inputMode);
+      setManualPaymentId(restoredState.paymentState.manualPaymentId);
       setPaymentRequestOrderId(restoredState.paymentState.requestOrderId);
       setConfirmedSubscriptionCode(restoredState.confirmedSubscriptionCode);
       setScannedVehicleId(restoredState.scannedVehicleId);
@@ -419,6 +429,14 @@ export default function SalesFlow({
       
       // Also clear localStorage session since we're now using backend
       clearSalesSession();
+      
+      console.info('[SalesFlow] onSessionRestored — all state restored', {
+        orderId,
+        restoredStep: restoredState.currentStep,
+        paymentRequestOrderId: restoredState.paymentState.requestOrderId,
+        paymentIncomplete: restoredState.paymentState.incomplete,
+        paymentAmountPaid: restoredState.paymentState.amountPaid,
+      });
       
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     },
@@ -565,6 +583,14 @@ export default function SalesFlow({
     setAssignedBattery(restoredState.assignedBattery);
     setRegistrationId(restoredState.registrationId);
     setCustomerPassword(restoredState.customerPassword);
+    
+    // Restore the session order ID so session updates work (e.g. after payment confirmation)
+    setSessionOrderId(order.id);
+    console.info('[SalesFlow] handleSelectHistorySession — restored sessionOrderId from order:', {
+      orderId: order.id,
+      restoredStep: restoredState.currentStep,
+      paymentRequestOrderId: restoredState.paymentState.requestOrderId,
+    });
     
     // Also clear localStorage session since we're now using backend
     clearSalesSession();
@@ -734,7 +760,12 @@ export default function SalesFlow({
     // Skip if no session, step hasn't changed, or still on step 1 without customer
     if (!sessionOrderId || currentStep === prevStepRef.current || currentStep < 2) {
       if (!sessionOrderId) {
-        console.info('⚠️ [SalesFlow] Step transition effect SKIPPED — no sessionOrderId');
+        console.info('⚠️ [SalesFlow] Step transition effect SKIPPED — no sessionOrderId', {
+          sessionOrderId,
+          currentStep,
+          prevStep: prevStepRef.current,
+          paymentRequestOrderId,
+        });
       } else if (currentStep === prevStepRef.current) {
         console.info('⚠️ [SalesFlow] Step transition effect SKIPPED — step unchanged', { currentStep, prevStep: prevStepRef.current });
       } else if (currentStep < 2) {
@@ -1288,10 +1319,14 @@ export default function SalesFlow({
             initialSessionData
           );
           
-          // Session created successfully
+          if (orderId) {
+            console.info('✅ [SalesFlow] Backend session created — sessionOrderId set to:', orderId);
+          } else {
+            console.error('❌ [SalesFlow] createSalesSession returned null — sessionOrderId will be NULL');
+          }
         } catch (err) {
-          console.error('[SalesFlow] Failed to create backend session (non-blocking):', err);
-          // Don't block the workflow if session creation fails
+          console.error('❌ [SalesFlow] Failed to create backend session (non-blocking):', err);
+          console.error('❌ [SalesFlow] sessionOrderId will be NULL — session updates will NOT work');
         }
         
         toast.success('Customer registered successfully!');
@@ -1365,8 +1400,13 @@ export default function SalesFlow({
 
       // NEW: If we have a backend session, use updateSessionWithProducts
       // This adds products to the existing order created in Step 1
+      console.info('[SalesFlow] purchaseCustomerSubscription — checking session path', {
+        sessionOrderId,
+        hasSessionOrderId: !!sessionOrderId,
+        path: sessionOrderId ? 'SESSION (updateSessionWithProducts)' : 'FALLBACK (purchaseMultiProducts)',
+      });
       if (sessionOrderId) {
-        console.log('Using session-based product update for orderId:', sessionOrderId);
+        console.info('[SalesFlow] Using SESSION path for orderId:', sessionOrderId);
         
         // Build session data for the update
         const sessionData = buildSalesSessionData({
@@ -1456,7 +1496,7 @@ export default function SalesFlow({
       
       // FALLBACK: No session - use the old purchaseMultiProducts flow
       // This creates both the subscription AND the order automatically
-      console.log('Using legacy purchaseMultiProducts flow (no session)');
+      console.info('⚠️ [SalesFlow] Using FALLBACK purchaseMultiProducts flow (no sessionOrderId)');
       
       // Determine notes based on subscription type
       const periodLower = currentSelectedPlan.name.toLowerCase();
@@ -1501,9 +1541,14 @@ export default function SalesFlow({
         setPaymentRequestOrderId(order.id);
         
         // Also set the session orderId for future updates
+        console.info('[SalesFlow] FALLBACK path — calling setSessionOrderId with order.id:', order.id);
         setSessionOrderId(order.id);
         
-        console.log('Subscription purchased:', subscription);
+        console.info('[SalesFlow] Subscription purchased via fallback:', { 
+          subscriptionCode: subscription.subscription_code,
+          orderId: order.id,
+          sessionOrderIdSetTo: order.id,
+        });
         
         // Return both subscription code and order_id
         return {
@@ -1713,7 +1758,12 @@ export default function SalesFlow({
             });
           }
           
-          console.info('🟢 [SalesFlow] About to call advanceToStep(6) — this will trigger session save to server');
+          console.info('🟢 [SalesFlow] About to call advanceToStep(6)', {
+            sessionOrderId,
+            hasSessionOrderId: !!sessionOrderId,
+            paymentRequestOrderId,
+            WARNING: !sessionOrderId ? '❌ sessionOrderId is NULL — step transition effect will SKIP the session save!' : '✅ sessionOrderId exists',
+          });
           advanceToStep(6);
           console.info('🟢 [SalesFlow] advanceToStep(6) returned — setCurrentStep(6) has been dispatched');
         } else {
