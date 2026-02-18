@@ -551,13 +551,22 @@ async function apiRequest<T>(
     ...options.headers,
   };
 
+  console.info(`[Odoo API] >>> ${options.method || 'GET'} ${endpoint}`, {
+    url,
+    body: options.body ? JSON.parse(options.body as string) : undefined,
+  });
+
   try {
     const response = await fetchWithRetry(url, {
       ...options,
       headers,
     });
 
-    return await parseOdooResponse<OdooApiResponse<T>>(response, endpoint);
+    const result = await parseOdooResponse<OdooApiResponse<T>>(response, endpoint);
+
+    console.info(`[Odoo API] <<< ${endpoint} response (HTTP ${response.status})`, JSON.stringify(result, null, 2));
+
+    return result;
   } catch (error: unknown) {
     console.error(`[Odoo API] ${endpoint} - Request failed:`, error);
     throw error;
@@ -1010,12 +1019,26 @@ export async function confirmPaymentManual(
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
+
+  console.info('[confirmPaymentManual] >>> Sending payment confirmation', {
+    order_id: payload.order_id,
+    receipt: payload.receipt,
+    hasAuthToken: !!authToken,
+  });
   
-  return apiRequest<ManualConfirmPaymentResponse>('/api/lipay/manual-confirm', {
+  const result = await apiRequest<ManualConfirmPaymentResponse>('/api/lipay/manual-confirm', {
     method: 'POST',
     body: JSON.stringify(payload),
     headers,
   });
+
+  console.info('[confirmPaymentManual] <<< Server response', {
+    success: result.success,
+    data: result.data,
+    fullResponse: JSON.stringify(result, null, 2),
+  });
+
+  return result;
 }
 
 // ============================================================================

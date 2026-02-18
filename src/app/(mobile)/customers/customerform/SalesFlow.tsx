@@ -695,6 +695,13 @@ export default function SalesFlow({
     
     // Payment incomplete state changed - save session
     if (paymentIncomplete) {
+      console.info('[SalesFlow] Payment became incomplete - saving session for recovery', {
+        sessionOrderId,
+        paymentAmountPaid,
+        paymentAmountRemaining,
+        paymentAmountExpected,
+        paymentIncomplete,
+      });
       saveSessionToBackend();
     }
     
@@ -1429,9 +1436,17 @@ export default function SalesFlow({
     // Use passed orderId or fall back to state
     const orderIdToUse = orderId || paymentRequestOrderId;
     
+    console.info('[SalesFlow] initiateOdooPayment called', {
+      passedOrderId: orderId,
+      stateOrderId: paymentRequestOrderId,
+      resolvedOrderId: orderIdToUse,
+      selectedPackageId,
+      selectedPlanId,
+    });
+
     // Verify we have an order_id - this is the primary identifier for payment
     if (!orderIdToUse) {
-      console.error('No order_id available - cannot proceed with payment');
+      console.error('[SalesFlow] No order_id available - cannot proceed with payment');
       toast.error('Order not created properly. Please try again.');
       return false;
     }
@@ -1442,6 +1457,13 @@ export default function SalesFlow({
     const packagePrice = currentSelectedPackage?.price || 0;
     const subscriptionPrice = currentSelectedPlan?.price || 0;
     const totalAmount = packagePrice + subscriptionPrice;
+
+    console.info('[SalesFlow] initiateOdooPayment - setting payment state', {
+      packagePrice,
+      subscriptionPrice,
+      totalAmount,
+      orderIdToUse,
+    });
 
     // Set up local payment state for the payment collection UI
     // Products were already added to order via updateSessionWithProducts
@@ -1466,13 +1488,24 @@ export default function SalesFlow({
 
   // Handle manual payment entry - confirm with Odoo using order_id ONLY
   const handleManualPayment = useCallback(async (receipt: string) => {
+    console.info('[SalesFlow] handleManualPayment called', {
+      receipt,
+      paymentInitiated,
+      paymentRequestOrderId,
+      paymentIncomplete,
+      paymentAmountPaid,
+      paymentAmountRemaining,
+      paymentAmountExpected,
+    });
     setIsProcessing(true);
     
     try {
       // First initiate payment if not already done
       if (!paymentInitiated) {
+        console.info('[SalesFlow] Payment not yet initiated, calling initiateOdooPayment...');
         const initiated = await initiateOdooPayment();
         if (!initiated) {
+          console.info('[SalesFlow] initiateOdooPayment failed, aborting');
           setIsProcessing(false);
           return;
         }
@@ -1480,6 +1513,7 @@ export default function SalesFlow({
 
       // order_id is REQUIRED - obtained from purchaseMultiProducts response
       if (!paymentRequestOrderId) {
+        console.info('[SalesFlow] No paymentRequestOrderId available, aborting');
         toast.error('Order not created. Please go back and try again.');
         setIsProcessing(false);
         return;
@@ -1488,10 +1522,10 @@ export default function SalesFlow({
       // Get the salesperson's employee token for authorization
       const employeeToken = getSalesRoleToken();
 
-      // Use Odoo manual confirmation endpoint with order_id ONLY
-      console.log('Confirming payment with order_id:', {
+      console.info('[SalesFlow] Confirming payment with Odoo', {
         order_id: paymentRequestOrderId,
         receipt,
+        hasEmployeeToken: !!employeeToken,
       });
 
       // Pass the employee token for authorization
@@ -1499,6 +1533,13 @@ export default function SalesFlow({
         order_id: paymentRequestOrderId,
         receipt,
       }, employeeToken || undefined);
+
+      console.info('[SalesFlow] confirmPaymentManual raw response', {
+        success: response.success,
+        hasData: !!response.data,
+        responseKeys: Object.keys(response),
+        dataKeys: response.data ? Object.keys(response.data) : [],
+      });
       
       if (response.success) {
         // Extract payment amounts from response
@@ -1515,11 +1556,15 @@ export default function SalesFlow({
         const remainingAmount = paymentData.remaining_to_pay ?? paymentData.amount_remaining ?? 0;
         const expectedAmount = paymentData.expected_to_pay ?? paymentData.amount_expected ?? 0;
         
-        console.log('Payment validation response:', {
-          total_paid: paidAmount,
-          remaining_to_pay: remainingAmount,
-          expected_to_pay: expectedAmount,
+        console.info('[SalesFlow] Payment amounts extracted', {
+          paidAmount,
+          remainingAmount,
+          expectedAmount,
           order_id: paymentData.order_id,
+          subscription_code: paymentData.subscription_code,
+          isFullyPaid: remainingAmount === 0,
+          isPartialPayment: paidAmount > 0 && remainingAmount > 0,
+          shortfall: remainingAmount > 0 ? remainingAmount : 0,
         });
         
         // Track payment amounts
@@ -1531,6 +1576,7 @@ export default function SalesFlow({
         const isFullyPaid = remainingAmount === 0;
         
         if (isFullyPaid) {
+          console.info('[SalesFlow] Payment FULLY PAID - advancing to step 6 (battery assignment)');
           // Payment complete - proceed to battery assignment
           setPaymentConfirmed(true);
           setPaymentIncomplete(false);
@@ -1548,6 +1594,13 @@ export default function SalesFlow({
           
           advanceToStep(6);
         } else {
+          console.info('[SalesFlow] Payment INCOMPLETE - staying on payment step', {
+            paidAmount,
+            expectedAmount,
+            remainingAmount,
+            willSetPaymentIncomplete: true,
+            customerMustPayAgain: true,
+          });
           // Payment incomplete - show amounts and stay on payment step
           setPaymentIncomplete(true);
           setPaymentConfirmed(false);
@@ -1557,10 +1610,11 @@ export default function SalesFlow({
           );
         }
       } else {
+        console.info('[SalesFlow] Payment confirmation response.success was false', { response });
         throw new Error('Payment confirmation failed');
       }
     } catch (err: any) {
-      console.error('Payment confirmation error:', err);
+      console.error('[SalesFlow] Payment confirmation error:', err);
       toast.error(err.message || 'Payment confirmation failed. Please try again.');
     } finally {
       setIsProcessing(false);
@@ -1923,13 +1977,26 @@ export default function SalesFlow({
         }
         break;
       case 5:
+        console.info('[SalesFlow] Step 5 action: confirming payment', {
+          paymentInputMode,
+          manualPaymentId,
+          paymentIncomplete,
+          paymentAmountPaid,
+          paymentAmountRemaining,
+          paymentInitiated,
+          paymentRequestOrderId,
+        });
         // Handle payment based on input mode (like Attendant flow)
         if (paymentInputMode === 'scan') {
+          console.info('[SalesFlow] Using scan mode for payment confirmation');
           handlePaymentQrScan();
         } else {
           // Manual mode - call backend with manual payment ID
           if (manualPaymentId.trim()) {
+            console.info('[SalesFlow] Using manual mode, receipt:', manualPaymentId.trim());
             handleManualPayment(manualPaymentId.trim());
+          } else {
+            console.info('[SalesFlow] Manual mode but no paymentId entered');
           }
         }
         break;

@@ -25,9 +25,9 @@ import { ApolloProvider } from "@apollo/client";
 import { I18nProvider } from "@/i18n";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// VConsole for mobile debugging - disabled
-// Set to true to enable for debugging
-const ENABLE_VCONSOLE = false;
+// VConsole for mobile debugging
+// Set to false to disable
+const ENABLE_VCONSOLE = true;
 
 export default function RootLayout({
   children,
