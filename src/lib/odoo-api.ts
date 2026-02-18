@@ -2322,6 +2322,236 @@ export async function getAttendantTransactions(
 }
 
 // ============================================================================
+// Contacts API (Customer Management)
+// ============================================================================
+
+/**
+ * Raw contact from the Odoo /api/contacts endpoint
+ */
+export interface OdooContact {
+  id: number;
+  name: string;
+  email: string | false;
+  phone: string | false;
+  mobile: string | false;
+  is_company: boolean;
+  customer_rank: number;
+  supplier_rank: number;
+  active: boolean;
+  street: string | false;
+  city: string | false;
+  zip: string | false;
+  country_id: number | null;
+  company_id: number | null;
+  parent_id: number | null;
+  create_date: string;
+  write_date: string;
+  user_id: number | null;
+  country_name: string | null;
+  company_name: string | null;
+  parent_name: string | null;
+  user_name: string | null;
+  assigned_employee_id: number | null;
+  assigned_employee_name: string | null;
+}
+
+export interface ContactsListApiResponse {
+  success: boolean;
+  contacts: OdooContact[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total_records: number;
+    total_pages: number;
+    has_next_page: boolean;
+    has_previous_page: boolean;
+    next_page: number | null;
+    previous_page: number | null;
+  };
+  filters_applied?: Record<string, unknown>;
+}
+
+export interface ContactDetailApiResponse {
+  success: boolean;
+  contact: OdooContact;
+}
+
+export interface ContactUpdateApiResponse {
+  success: boolean;
+  contact: OdooContact;
+  message?: string;
+}
+
+export interface ContactCreateApiResponse {
+  success: boolean;
+  contact: OdooContact;
+  message?: string;
+}
+
+export interface GetContactsParams {
+  q?: string;
+  page?: number;
+  limit?: number;
+  type?: 'all' | 'company' | 'individual';
+  name?: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+}
+
+export interface ContactWritePayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  street?: string;
+  city?: string;
+  zip?: string;
+  is_company?: boolean;
+  company_id?: number;
+  parent_id?: number;
+  country_id?: number;
+}
+
+/**
+ * Fetch contacts with search/filter and pagination.
+ * Uses the salesperson's token for `mine_only` filtering on the backend.
+ *
+ * GET /api/contacts?q=term&page=1&limit=20&type=all
+ */
+export async function getContacts(
+  params: GetContactsParams = {},
+  authToken?: string
+): Promise<ContactsListApiResponse> {
+  const qp = new URLSearchParams();
+
+  if (params.q) qp.append('q', params.q);
+  if (params.page !== undefined) qp.append('page', String(params.page));
+  if (params.limit !== undefined) qp.append('limit', String(params.limit));
+  if (params.type) qp.append('type', params.type);
+  if (params.name) qp.append('name', params.name);
+  if (params.email) qp.append('email', params.email);
+  if (params.phone) qp.append('phone', params.phone);
+  if (params.mobile) qp.append('mobile', params.mobile);
+
+  const qs = qp.toString();
+  const endpoint = `/api/contacts${qs ? `?${qs}` : ''}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  try {
+    const response = await fetchWithRetry(url, { method: 'GET', headers });
+    return await parseOdooResponse<ContactsListApiResponse>(response, endpoint);
+  } catch (error) {
+    console.error('[Odoo API] getContacts failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get a single contact by ID.
+ *
+ * GET /api/contacts/:id
+ */
+export async function getContactById(
+  contactId: number,
+  authToken?: string
+): Promise<ContactDetailApiResponse> {
+  const endpoint = `/api/contacts/${contactId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  try {
+    const response = await fetchWithRetry(url, { method: 'GET', headers });
+    return await parseOdooResponse<ContactDetailApiResponse>(response, endpoint);
+  } catch (error) {
+    console.error('[Odoo API] getContactById failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update an existing contact.
+ *
+ * PUT /api/contacts/:id
+ */
+export async function updateContact(
+  contactId: number,
+  payload: ContactWritePayload,
+  authToken?: string
+): Promise<ContactUpdateApiResponse> {
+  const endpoint = `/api/contacts/${contactId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return await parseOdooResponse<ContactUpdateApiResponse>(response, endpoint);
+  } catch (error) {
+    console.error('[Odoo API] updateContact failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create a new contact.
+ *
+ * POST /api/contacts
+ */
+export async function createContact(
+  payload: ContactWritePayload,
+  authToken?: string
+): Promise<ContactCreateApiResponse> {
+  const endpoint = '/api/contacts';
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return await parseOdooResponse<ContactCreateApiResponse>(response, endpoint);
+  } catch (error) {
+    console.error('[Odoo API] createContact failed:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Export default company ID for convenience
 // ============================================================================
 

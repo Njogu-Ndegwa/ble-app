@@ -25,7 +25,7 @@ import {
   searchCustomers,
   getAllCustomers,
   updateCustomer,
-  createCustomerDummy,
+  createCustomer,
   type ExistingCustomer,
 } from '@/lib/services/customer-service';
 
@@ -238,7 +238,7 @@ export default function SalesCustomers() {
         toast.success(t('sales.customerUpdated') || 'Customer updated');
         setSubView('detail');
       } else {
-        await createCustomerDummy(payload, token);
+        await createCustomer(payload, token);
         toast.success(t('sales.customerCreated') || 'Customer created');
         goBackToList();
       }
