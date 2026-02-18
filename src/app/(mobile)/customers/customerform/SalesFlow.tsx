@@ -142,6 +142,11 @@ export default function SalesFlow({
   const [currentStep, setCurrentStep] = useState<SalesStep>(1);
   const [maxStepReached, setMaxStepReached] = useState<SalesStep>(1);
 
+  // Debug: track when currentStep actually changes in React state
+  useEffect(() => {
+    console.info(`🔵 [SalesFlow] currentStep state is now: ${currentStep}`, { currentStep, maxStepReached });
+  }, [currentStep, maxStepReached]);
+
   // Form data - fields for Odoo /api/auth/register (company_id from salesperson token)
   const [formData, setFormData] = useState<CustomerFormData>({
     firstName: '',
@@ -442,8 +447,17 @@ export default function SalesFlow({
 
   // Advance to a new step
   const advanceToStep = useCallback((step: SalesStep) => {
+    console.info(`🔵 [SalesFlow] advanceToStep(${step}) CALLED — setCurrentStep(${step}) executing now`, {
+      requestedStep: step,
+      typeof_step: typeof step,
+    });
     setCurrentStep(step);
-    setMaxStepReached(prev => Math.max(prev, step) as SalesStep);
+    setMaxStepReached(prev => {
+      const newMax = Math.max(prev, step) as SalesStep;
+      console.info(`🔵 [SalesFlow] advanceToStep(${step}) — setMaxStepReached: ${prev} → ${newMax}`);
+      return newMax;
+    });
+    console.info(`🔵 [SalesFlow] advanceToStep(${step}) — setState calls dispatched (will apply on next render)`);
   }, []);
 
   // Check for pending session from backend on mount
@@ -709,8 +723,23 @@ export default function SalesFlow({
   // This ensures the backend has the latest data for session recovery
   const prevStepRef = useRef<number>(currentStep);
   useEffect(() => {
+    console.info('🔵 [SalesFlow] Step transition effect running', {
+      currentStep,
+      prevStep: prevStepRef.current,
+      sessionOrderId,
+      hasSessionOrderId: !!sessionOrderId,
+      stepChanged: currentStep !== prevStepRef.current,
+      stepAbove2: currentStep >= 2,
+    });
     // Skip if no session, step hasn't changed, or still on step 1 without customer
     if (!sessionOrderId || currentStep === prevStepRef.current || currentStep < 2) {
+      if (!sessionOrderId) {
+        console.info('⚠️ [SalesFlow] Step transition effect SKIPPED — no sessionOrderId');
+      } else if (currentStep === prevStepRef.current) {
+        console.info('⚠️ [SalesFlow] Step transition effect SKIPPED — step unchanged', { currentStep, prevStep: prevStepRef.current });
+      } else if (currentStep < 2) {
+        console.info('⚠️ [SalesFlow] Step transition effect SKIPPED — step < 2', { currentStep });
+      }
       prevStepRef.current = currentStep;
       return;
     }
@@ -1686,6 +1715,7 @@ export default function SalesFlow({
           
           console.info('🟢 [SalesFlow] About to call advanceToStep(6) — this will trigger session save to server');
           advanceToStep(6);
+          console.info('🟢 [SalesFlow] advanceToStep(6) returned — setCurrentStep(6) has been dispatched');
         } else {
           console.info('[SalesFlow] Payment INCOMPLETE — staying on step 5 (payment)', {
             paidAmount,
