@@ -159,7 +159,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
               return (
                 <div
                   key={item.macAddress}
-                  className={`list-card ${isConnected ? 'list-card--resumable' : ''}`}
+                  className="list-card"
                   onClick={() => handleDeviceClick(item.macAddress)}
                 >
                   <div className="list-card-body list-card-body--with-avatar">

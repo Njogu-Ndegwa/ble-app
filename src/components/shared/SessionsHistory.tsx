@@ -348,16 +348,10 @@ export default function SessionsHistory({
                 const hasSessionData = !!order.session?.session_data;
                 const isClickable = hasSession && (hasSessionData || statusInfo.canView);
                 
-                const cardModifier = statusInfo.canEdit
-                  ? 'list-card--resumable'
-                  : (order.state === 'done' || order.state === 'sale')
-                    ? 'list-card--completed'
-                    : '';
-
                 return (
                   <div
                     key={order.id}
-                    className={`list-card ${cardModifier} ${!isClickable ? 'session-card-locked' : ''}`}
+                    className={`list-card ${!isClickable ? 'session-card-locked' : ''}`}
                     onClick={() => isClickable && handleSelectOrder(order, isReadOnly)}
                     role={isClickable ? 'button' : undefined}
                     tabIndex={isClickable ? 0 : undefined}

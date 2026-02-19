@@ -12221,21 +12221,7 @@ html.theme-transition *::after {
   transform: scale(0.985);
 }
 
-.list-card--resumable {
-  border-color: rgba(0, 229, 229, 0.12);
-}
-
-[data-theme="light"] .list-card--resumable {
-  border-color: rgba(0, 184, 184, 0.18);
-  background: rgba(0, 184, 184, 0.03);
-}
-
-.list-card--resumable:hover {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
-}
-
-/* Card body (the main content area beside the accent bar) */
+/* Card body */
 .list-card-body {
   flex: 1;
   min-width: 0;

@@ -297,7 +297,6 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
               const session = order.session;
               const sessionData = session?.session_data;
               const isResumable = canResume(order);
-              const isCompleted = sessionData?.status === 'completed';
               
               const subscriptionCode = sessionData?.dynamicPlanId || 
                                        sessionData?.customerData?.subscriptionId ||
@@ -309,7 +308,7 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
               return (
                 <div 
                   key={order.id}
-                  className={`list-card ${isResumable ? 'list-card--resumable' : ''} ${isCompleted ? 'list-card--completed' : ''}`}
+                  className="list-card"
                   onClick={() => onSelectSession?.(order, !isResumable)}
                 >
                   <div className="list-card-body">
