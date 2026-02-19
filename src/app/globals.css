@@ -62,7 +62,6 @@
   
   --loading-overlay: rgba(10, 15, 15, 0.92);
   --logo-icon-text: #0a0f0f;
-  --readonly-overlay: rgba(0, 0, 0, 0.12);
   
   /* Legacy support */
   --background: #0a0f0f;
@@ -104,7 +103,6 @@
   
   --loading-overlay: rgba(245, 250, 250, 0.95);
   --logo-icon-text: #ffffff;
-  --readonly-overlay: rgba(0, 0, 0, 0.04);
   
   --background: #f5fafa;
   --foreground: #0a1a1a;
@@ -10447,21 +10445,6 @@ html.theme-transition *::after {
   transform: scale(0.98);
 }
 
-/* Read-only main area styling - fainter view */
-.attendant-main-readonly {
-  position: relative;
-}
-
-.attendant-main-readonly::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--readonly-overlay, rgba(0, 0, 0, 0.08));
-  pointer-events: none;
-  z-index: 1;
-  border-radius: var(--radius-md);
-}
-
 /* Disable interactive elements in read-only mode */
 .attendant-main-readonly button,
 .attendant-main-readonly input,
@@ -10473,21 +10456,7 @@ html.theme-transition *::after {
   opacity: 0.7;
 }
 
-/* Sales workflow read-only main area styling */
-.sales-main-readonly {
-  position: relative;
-}
-
-.sales-main-readonly::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--readonly-overlay, rgba(0, 0, 0, 0.08));
-  pointer-events: none;
-  z-index: 1;
-  border-radius: inherit;
-}
-
+/* Sales workflow read-only mode */
 .sales-main-readonly button,
 .sales-main-readonly input,
 .sales-main-readonly select,
