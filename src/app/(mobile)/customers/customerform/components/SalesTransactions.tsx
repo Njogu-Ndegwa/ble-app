@@ -10,7 +10,7 @@ import {
   type TransactionPeriod 
 } from '@/lib/odoo-api';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { User, Receipt } from 'lucide-react';
+import { Receipt, Clock, CreditCard } from 'lucide-react';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 
 interface SalesTransactionsProps {
@@ -92,10 +92,9 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
 
   const getStateBadgeClass = (state: string) => {
     switch (state) {
-      case 'paid': return 'bg-success-soft text-success';
-      case 'pending': return 'bg-warning-soft text-warning';
-      case 'cancelled': return 'bg-error-soft text-error';
-      default: return 'bg-bg-elevated text-text-secondary';
+      case 'paid': return 'list-card-badge--completed';
+      case 'pending': return 'list-card-badge--progress';
+      default: return 'list-card-badge--default';
     }
   };
 
@@ -152,31 +151,29 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
       {filteredTransactions.map((transaction) => (
         <div 
           key={transaction.payment_id}
-          className="rounded-xl border border-border bg-bg-tertiary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40 cursor-pointer"
+          className="list-card"
           onClick={() => onSelectTransaction?.(transaction)}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary flex-shrink-0">
-              <User size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-text-primary truncate">{transaction.customer.name}</h4>
-              <div className="flex items-center gap-3 mt-0.5">
-                {transaction.customer.phone && (
-                  <span className="text-xs text-text-muted truncate">{transaction.customer.phone}</span>
-                )}
-                <span className="text-xs text-text-muted">{formatDate(transaction.payment_date)}</span>
-                <span className="text-xs text-text-muted">{transaction.payment_method}</span>
-              </div>
+          <div className="list-card-body">
+            <div className="list-card-content">
+              <div className="list-card-primary">{transaction.customer.name}</div>
               {transaction.reference && (
-                <span className="text-xs text-text-muted mt-0.5 block truncate font-mono">{transaction.reference}</span>
+                <div className="list-card-secondary">
+                  {transaction.reference}
+                </div>
               )}
+              <div className="list-card-meta">
+                <Clock size={10} />
+                <span>{formatDate(transaction.payment_date)}</span>
+                <span className="list-card-dot">&middot;</span>
+                <CreditCard size={10} />
+                <span>{transaction.payment_method}</span>
+                <span className="list-card-dot">&middot;</span>
+                <span className="list-card-meta-mono list-card-meta-bold">{formatAmount(transaction.amount, transaction.currency)}</span>
+              </div>
             </div>
-            <div className="text-right flex-shrink-0 ml-2">
-              <span className="text-sm font-semibold text-text-primary block">
-                {formatAmount(transaction.amount, transaction.currency)}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium inline-block mt-1 ${getStateBadgeClass(transaction.state)}`}>
+            <div className="list-card-actions">
+              <span className={`list-card-badge ${getStateBadgeClass(transaction.state)}`}>
                 {transaction.state.charAt(0).toUpperCase() + transaction.state.slice(1)}
               </span>
             </div>

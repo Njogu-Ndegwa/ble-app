@@ -10,7 +10,7 @@ import {
   type TransactionPeriod 
 } from '@/lib/odoo-api';
 import { getAttendantRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, ChevronRight, User, Receipt, Calendar, Filter } from 'lucide-react';
+import { RefreshCw, ChevronRight, Receipt, Calendar, Clock, CreditCard } from 'lucide-react';
 
 interface AttendantTransactionsProps {
   onSelectTransaction?: (transaction: AttendantTransaction) => void;
@@ -111,10 +111,9 @@ const AttendantTransactions: React.FC<AttendantTransactionsProps> = ({ onSelectT
 
   const getStateBadgeClass = (state: string) => {
     switch (state) {
-      case 'paid': return 'transaction-badge-success';
-      case 'pending': return 'transaction-badge-warning';
-      case 'cancelled': return 'transaction-badge-error';
-      default: return 'transaction-badge-default';
+      case 'paid': return 'list-card-badge--completed';
+      case 'pending': return 'list-card-badge--progress';
+      default: return 'list-card-badge--default';
     }
   };
 
@@ -222,48 +221,32 @@ const AttendantTransactions: React.FC<AttendantTransactionsProps> = ({ onSelectT
           {data.transactions.map((transaction) => (
             <div 
               key={transaction.payment_id}
-              className="transaction-card"
+              className="list-card"
               onClick={() => onSelectTransaction?.(transaction)}
             >
-              <div className="transaction-main">
-                <div className="transaction-customer">
-                  <div className="customer-avatar">
-                    <User size={16} />
-                  </div>
-                  <div className="customer-info">
-                    <span className="customer-name">{transaction.customer.name}</span>
-                    <span className="customer-phone">{transaction.customer.phone}</span>
+              <div className="list-card-body">
+                <div className="list-card-content">
+                  <div className="list-card-primary">{transaction.customer.name}</div>
+                  {transaction.reference && (
+                    <div className="list-card-secondary">
+                      {transaction.reference}
+                    </div>
+                  )}
+                  <div className="list-card-meta">
+                    <Clock size={10} />
+                    <span>{formatDate(transaction.payment_date)}</span>
+                    <span className="list-card-dot">&middot;</span>
+                    <CreditCard size={10} />
+                    <span>{transaction.payment_method}</span>
+                    <span className="list-card-dot">&middot;</span>
+                    <span className="list-card-meta-mono list-card-meta-bold">{formatAmount(transaction.amount, transaction.currency)}</span>
                   </div>
                 </div>
-                <div className="transaction-amount">
-                  <span className="amount">{formatAmount(transaction.amount, transaction.currency)}</span>
-                  <span className={`transaction-badge ${getStateBadgeClass(transaction.state)}`}>
+                <div className="list-card-actions">
+                  <span className={`list-card-badge ${getStateBadgeClass(transaction.state)}`}>
                     {transaction.state.charAt(0).toUpperCase() + transaction.state.slice(1)}
                   </span>
                 </div>
-              </div>
-              
-              <div className="transaction-details">
-                <div className="detail-row">
-                  <span className="detail-label">{t('attendant.transactions.date') || 'Date'}</span>
-                  <span className="detail-value">{formatDate(transaction.payment_date)}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">{t('attendant.transactions.method') || 'Method'}</span>
-                  <span className="detail-value">{transaction.payment_method}</span>
-                </div>
-                {transaction.order && (
-                  <div className="detail-row">
-                    <span className="detail-label">{t('attendant.transactions.order') || 'Order'}</span>
-                    <span className="detail-value">{transaction.order.name}</span>
-                  </div>
-                )}
-                {transaction.reference && (
-                  <div className="detail-row">
-                    <span className="detail-label">{t('attendant.transactions.reference') || 'Reference'}</span>
-                    <span className="detail-value reference">{transaction.reference}</span>
-                  </div>
-                )}
               </div>
             </div>
           ))}
