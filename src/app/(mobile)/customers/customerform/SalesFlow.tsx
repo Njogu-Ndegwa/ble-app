@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut, History, Eye, X } from 'lucide-react';
+import { Globe, LogOut, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
@@ -43,7 +43,7 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionResumePrompt, SessionsHistory } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionsHistory } from '@/components/shared';
 import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -383,12 +383,10 @@ export default function SalesFlow({
     createSalesSession,
     updateSession,
     updateSessionWithProducts,
-    restoreSession: restoreBackendSession,
     discardPendingSession,
     clearSession,
     setOrderId: setSessionOrderId,
     checkForPendingSession,
-    isLoading: isSessionLoading,
   } = useWorkflowSession({
     workflowType: 'salesperson',
     onSessionRestored: (sessionData, orderId) => {
@@ -432,9 +430,7 @@ export default function SalesFlow({
   });
 
   // Session restoration UI state (backend sessions only)
-  const [showSessionPrompt, setShowSessionPrompt] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
-  const [sessionRestored, setSessionRestored] = useState(false);
   
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
@@ -462,7 +458,6 @@ export default function SalesFlow({
     // If we have an initialSession, skip the pending session check entirely
     // The session will be restored via the initialSession effect
     if (initialSession) {
-      setShowSessionPrompt(false);
       discardPendingSession();
       setSessionCheckComplete(true);
       onInitialSessionCheckComplete?.();
@@ -479,40 +474,16 @@ export default function SalesFlow({
     const checkSession = async () => {
       // Check backend for pending session (localStorage sessions removed)
       const hasPending = await checkForPendingSession();
-      if (hasPending) {
-        setShowSessionPrompt(true);
-      } else {
-        // Clean up any leftover localStorage session from previous versions
+      if (!hasPending) {
         clearSalesSession();
       }
       setSessionCheckComplete(true);
-      // Notify parent that the initial session check is complete
-      // This prevents the modal from showing on subsequent navigations
       onInitialSessionCheckComplete?.();
     };
     
     checkSession();
   }, [checkForPendingSession, initialSession, discardPendingSession, skipSessionCheck, onInitialSessionCheckComplete]);
 
-  // Handle session resume from backend
-  const handleResumeSession = useCallback(async () => {
-    const sessionData = await restoreBackendSession();
-    if (sessionData) {
-      setShowSessionPrompt(false);
-      setSessionRestored(true);
-    }
-  }, [restoreBackendSession]);
-  
-  // Handle discard session from backend
-  const handleDiscardSession = useCallback(() => {
-    discardPendingSession();
-    setShowSessionPrompt(false);
-    setSessionRestored(true);
-    // Clean up any leftover localStorage session
-    clearSalesSession();
-    toast(t('session.startNew') || 'Starting a new registration');
-  }, [discardPendingSession, t]);
-  
   // Handle selecting a session from history
   const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
     if (!order.session?.session_data) {
@@ -2105,8 +2076,6 @@ export default function SalesFlow({
         setCustomerPassword(null);
         // Reset read-only mode when starting new registration
         setIsReadOnlySession(false);
-        // Reset session restored flag to allow new session tracking
-        setSessionRestored(true);
         break;
     }
   }, [
@@ -2220,8 +2189,6 @@ export default function SalesFlow({
     setRegistrationId('');
     // Reset read-only mode
     setIsReadOnlySession(false);
-    // Reset session restored flag to allow new session tracking
-    setSessionRestored(true);
   }, [availablePackages, availableProducts, availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment]);
 
   // Handle back to roles
@@ -2413,14 +2380,6 @@ export default function SalesFlow({
           <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ThemeToggle />
             <button
-              className="flow-header-history"
-              onClick={() => setShowSessionsHistory(true)}
-              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
-              title={t('sessions.historyTitle') || 'Past Sessions'}
-            >
-              <History size={16} />
-            </button>
-            <button
               className="flow-header-lang"
               onClick={toggleLocale}
               aria-label={t('role.switchLanguage')}
@@ -2531,15 +2490,6 @@ export default function SalesFlow({
           </div>
         </div>
       )}
-
-      {/* Backend Session Resume Prompt - Uses shared SessionResumePrompt component */}
-      <SessionResumePrompt
-        isVisible={showSessionPrompt && !!pendingSession}
-        session={pendingSession}
-        onResume={handleResumeSession}
-        onDiscard={handleDiscardSession}
-        isLoading={isSessionLoading}
-      />
 
       {/* Sessions History Modal - Shows past sessions for browsing/resuming */}
       <SessionsHistory
