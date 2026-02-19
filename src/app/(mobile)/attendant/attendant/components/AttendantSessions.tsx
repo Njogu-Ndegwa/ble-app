@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getAttendantRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, Clock, User, FileText, Play, Search, X, ChevronLeft, ChevronRight, Hash, Eye } from 'lucide-react';
+import { RefreshCw, Clock, FileText, Play, Search, X, ChevronLeft, ChevronRight, Hash, Eye } from 'lucide-react';
 
 interface AttendantSessionsProps {
   onSelectSession?: (order: OrderListItem, isReadOnly: boolean) => void;
@@ -161,24 +161,25 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
     });
   };
 
-  const getStatusBadge = (order: OrderListItem) => {
+  const getStatusInfo = (order: OrderListItem) => {
     const session = order.session;
-    if (!session) return null;
+    if (!session) return { label: '', badgeClass: 'list-card-badge--default' };
     
-    // Use session_data.status for the actual workflow status
-    // session.state is the backend state (usually "active")
-    // session.session_data.status is "completed" or "in_progress"
     const workflowStatus = session.session_data?.status;
     const isCompleted = workflowStatus === 'completed';
     const isPending = workflowStatus === 'in_progress';
     
-    return (
-      <span className={`session-status-badge ${isCompleted ? 'completed' : isPending ? 'pending' : 'default'}`}>
-        {isCompleted ? (t('sessions.completed') || 'Completed') : 
+    const badgeClass = isCompleted
+      ? 'list-card-badge--completed'
+      : isPending
+        ? 'list-card-badge--progress'
+        : 'list-card-badge--default';
+
+    const label = isCompleted ? (t('sessions.completed') || 'Completed') : 
          isPending ? (t('attendant.sessions.inProgress') || 'In Progress') : 
-         (workflowStatus || session.state)}
-      </span>
-    );
+         (workflowStatus || session.state);
+
+    return { label, badgeClass };
   };
 
   const canResume = (order: OrderListItem) => {
@@ -296,63 +297,48 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
               const session = order.session;
               const sessionData = session?.session_data;
               const isResumable = canResume(order);
+              const isCompleted = sessionData?.status === 'completed';
               
-              // Extract relevant info from session data
               const subscriptionCode = sessionData?.dynamicPlanId || 
                                        sessionData?.customerData?.subscriptionId ||
                                        sessionData?.manualSubscriptionId;
               const currentStep = sessionData?.currentStep || 1;
-              const hasPaymentInfo = order.amount_total > 0;
+              const hasPaymentInfo = order.amount_total > 0 && order.paid_amount > 0;
+              const { label: statusLabel, badgeClass } = getStatusInfo(order);
               
               return (
                 <div 
                   key={order.id}
-                  className={`session-card-item ${isResumable ? 'resumable' : ''}`}
+                  className={`list-card ${isResumable ? 'list-card--resumable' : ''} ${isCompleted ? 'list-card--completed' : ''}`}
                   onClick={() => onSelectSession?.(order, !isResumable)}
                 >
-                  {/* Main Row: Customer Name + Status */}
-                  <div className="session-card-main">
-                    <div className="session-card-left">
-                      <div className="session-avatar">
-                        <User size={18} />
+                  <div className="list-card-accent" />
+                  <div className="list-card-body">
+                    <div className="list-card-content">
+                      <div className="list-card-primary">
+                        {order.partner_name || t('common.unknown') || 'Unknown'}
                       </div>
-                      <div className="session-info">
-                        <span className="session-customer-name">
-                          {order.partner_name || t('common.unknown') || 'Unknown'}
-                        </span>
-                        {/* Subscription Code - Important identifier */}
-                        {subscriptionCode && subscriptionCode.toString().trim() && (
-                          <span className="session-subscription-code">
-                            <Hash size={11} />
-                            {subscriptionCode.toString().trim()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="session-card-right">
-                      {getStatusBadge(order)}
-                      <div className={`session-action-icon ${isResumable ? 'active' : 'completed'}`}>
-                        {isResumable ? <Play size={16} /> : <Eye size={16} />}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  
-                  {/* Footer: Time + Progress + Amount */}
-                  <div className="session-card-footer">
-                    <div className="session-time">
-                      <Clock size={12} />
-                      <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
-                    </div>
-                    <div className="session-card-meta">
-                      <span className="session-step">
-                        {t('attendant.sessions.step') || 'Step'} {currentStep}/6
-                      </span>
-                      {hasPaymentInfo && order.paid_amount > 0 && (
-                        <span className="session-amount">
-                          {order.currency} {order.paid_amount.toLocaleString()}
-                        </span>
+                      {subscriptionCode && subscriptionCode.toString().trim() && (
+                        <div className="list-card-secondary">
+                          <Hash size={10} />
+                          {subscriptionCode.toString().trim()}
+                        </div>
                       )}
+                      <div className="list-card-meta">
+                        <Clock size={10} />
+                        <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
+                        <span className="list-card-dot">&middot;</span>
+                        <span>{t('attendant.sessions.step') || 'Step'} {currentStep}/6</span>
+                      </div>
+                    </div>
+                    <div className="list-card-actions">
+                      <span className={`list-card-badge ${badgeClass}`}>{statusLabel}</span>
+                      {hasPaymentInfo && (
+                        <span className="list-card-amount">{order.currency} {order.paid_amount.toLocaleString()}</span>
+                      )}
+                      <div className={`list-card-action-icon ${isResumable ? 'list-card-action-icon--active' : 'list-card-action-icon--muted'}`}>
+                        {isResumable ? <Play size={12} /> : <Eye size={12} />}
+                      </div>
                     </div>
                   </div>
                 </div>

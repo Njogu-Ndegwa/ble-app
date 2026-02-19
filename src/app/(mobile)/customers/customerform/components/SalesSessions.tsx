@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { Clock, User, FileText, Play, Phone, Mail, Eye } from 'lucide-react';
+import { Clock, FileText, Play, Phone, Mail, Eye, Hash } from 'lucide-react';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 
 interface SalesSessionsProps {
@@ -135,27 +135,25 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
     });
   };
 
-  const getStatusBadge = (order: OrderListItem) => {
+  const getStatusInfo = (order: OrderListItem) => {
     const session = order.session;
-    if (!session) return null;
+    if (!session) return { label: '', badgeClass: 'list-card-badge--default' };
     
     const workflowStatus = session.session_data?.status;
     const isCompleted = workflowStatus === 'completed';
     const isPending = workflowStatus === 'in_progress';
     
     const badgeClass = isCompleted
-      ? 'bg-success-soft text-success'
+      ? 'list-card-badge--completed'
       : isPending
-        ? 'bg-warning-soft text-warning'
-        : 'bg-bg-elevated text-text-secondary';
+        ? 'list-card-badge--progress'
+        : 'list-card-badge--default';
 
-    return (
-      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeClass}`}>
-        {isCompleted ? (t('sessions.completed') || 'Completed') : 
+    const label = isCompleted ? (t('sessions.completed') || 'Completed') : 
          isPending ? (t('sales.sessions.inProgress') || 'In Progress') : 
-         (workflowStatus || session.state)}
-      </span>
-    );
+         (workflowStatus || session.state);
+
+    return { label, badgeClass };
   };
 
   const canResume = (order: OrderListItem) => {
@@ -211,57 +209,49 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
         const session = order.session;
         const sessionData = session?.session_data;
         const isResumable = canResume(order);
+        const isCompleted = sessionData?.status === 'completed';
         const customerPhone = sessionData?.formData?.phone;
         const customerEmail = sessionData?.formData?.email;
         const currentStep = sessionData?.currentStep || 1;
         const amountPaid = sessionData?.payment?.amountPaid || order.paid_amount || 0;
-        const hasPaymentInfo = order.amount_total > 0;
+        const hasPaymentInfo = order.amount_total > 0 && amountPaid > 0;
+        const { label: statusLabel, badgeClass } = getStatusInfo(order);
+        const contactInfo = (customerPhone && customerPhone.toString().trim()) || (customerEmail && customerEmail.toString().trim()) || '';
 
         return (
           <div 
             key={order.id}
-            className={`rounded-xl border bg-bg-tertiary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40 cursor-pointer ${
-              isResumable ? 'border-primary/30' : 'border-border'
-            }`}
+            className={`list-card ${isResumable ? 'list-card--resumable' : ''} ${isCompleted ? 'list-card--completed' : ''}`}
             onClick={() => onSelectSession?.(order, !isResumable)}
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary flex-shrink-0">
-                <User size={16} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-medium text-text-primary truncate">
+            <div className="list-card-accent" />
+            <div className="list-card-body">
+              <div className="list-card-content">
+                <div className="list-card-primary">
                   {order.partner_name || t('common.unknown') || 'Unknown'}
-                </h4>
-                <div className="flex items-center gap-3 mt-0.5">
-                  {customerPhone && customerPhone.toString().trim() ? (
-                    <span className="flex items-center gap-1 text-xs text-text-muted truncate">
-                      <Phone size={11} /> {customerPhone.toString().trim()}
-                    </span>
-                  ) : customerEmail && customerEmail.toString().trim() ? (
-                    <span className="flex items-center gap-1 text-xs text-text-muted truncate">
-                      <Mail size={11} /> {customerEmail.toString().trim()}
-                    </span>
-                  ) : null}
-                  <span className="flex items-center gap-1 text-xs text-text-muted">
-                    <Clock size={11} />
-                    {session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}
-                  </span>
                 </div>
-                <span className="text-xs text-text-muted mt-0.5 block">
-                  {t('sales.sessions.step') || 'Step'} {currentStep}/8
-                </span>
-              </div>
-              <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-2">
-                {getStatusBadge(order)}
-                {hasPaymentInfo && amountPaid > 0 && (
-                  <span className="text-sm font-semibold text-text-primary">
-                    {order.currency} {amountPaid.toLocaleString()}
-                  </span>
+                {contactInfo && (
+                  <div className="list-card-secondary">
+                    {customerPhone && customerPhone.toString().trim() ? (
+                      <><Phone size={10} /> {customerPhone.toString().trim()}</>
+                    ) : (
+                      <><Mail size={10} /> {customerEmail?.toString().trim()}</>
+                    )}
+                  </div>
                 )}
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                  isResumable ? 'bg-primary/15 text-primary' : 'bg-bg-elevated text-text-muted'
-                }`}>
+                <div className="list-card-meta">
+                  <Clock size={10} />
+                  <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
+                  <span className="list-card-dot">&middot;</span>
+                  <span>{t('sales.sessions.step') || 'Step'} {currentStep}/8</span>
+                </div>
+              </div>
+              <div className="list-card-actions">
+                <span className={`list-card-badge ${badgeClass}`}>{statusLabel}</span>
+                {hasPaymentInfo && (
+                  <span className="list-card-amount">{order.currency} {amountPaid.toLocaleString()}</span>
+                )}
+                <div className={`list-card-action-icon ${isResumable ? 'list-card-action-icon--active' : 'list-card-action-icon--muted'}`}>
                   {isResumable ? <Play size={12} /> : <Eye size={12} />}
                 </div>
               </div>

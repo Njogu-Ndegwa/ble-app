@@ -23,14 +23,15 @@ interface MobileListViewProps {
 }
 
 const DeviceItemSkeleton = () => (
-  <div className="flex items-start p-3 rounded-lg animate-pulse" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-    <div className="w-12 h-12 rounded-full mr-3" style={{ background: 'var(--bg-tertiary)' }}></div>
-    <div className="flex-1">
-      <div className="h-4 rounded w-2/3 mb-2" style={{ background: 'var(--bg-tertiary)' }}></div>
-      <div className="h-3 rounded w-1/2 mb-2" style={{ background: 'var(--bg-tertiary)' }}></div>
-      <div className="h-3 rounded w-1/3" style={{ background: 'var(--bg-tertiary)' }}></div>
+  <div className="list-card animate-pulse">
+    <div className="list-card-body list-card-body--with-avatar">
+      <div className="w-12 h-12 rounded-lg flex-shrink-0" style={{ background: 'var(--bg-tertiary)' }} />
+      <div className="flex-1 flex flex-col gap-2">
+        <div className="h-4 rounded w-2/3" style={{ background: 'var(--bg-tertiary)' }} />
+        <div className="h-3 rounded w-1/2" style={{ background: 'var(--bg-tertiary)' }} />
+      </div>
+      <div className="w-5 h-5 rounded-full" style={{ background: 'var(--bg-tertiary)' }} />
     </div>
-    <div className="w-5 h-5 rounded-full" style={{ background: 'var(--bg-tertiary)' }}></div>
   </div>
 );
 
@@ -149,45 +150,43 @@ const MobileListView: React.FC<MobileListViewProps> = ({
         </div> */}
 
         {/* List Items or Skeleton Loaders */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {items.length === 0 && isScanning ? (
             renderSkeletons()
           ) : filteredItems.length > 0 ? (
-            filteredItems.map((item) => (
-              <div
-                key={item.macAddress}
-                className="flex items-start p-3 rounded-lg cursor-pointer transition-colors"
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-tertiary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-secondary)';
-                }}
-                onClick={() => handleDeviceClick(item.macAddress)}
-              >
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-12 h-12 rounded-full mr-3"
-                />
-                <div className="flex-1">
-                  <h3 className="text-[14px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</h3>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-secondary)' }}>{item.macAddress}</p>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{item.rssi}</p>
+            filteredItems.map((item) => {
+              const isConnected = item.macAddress === connectedDevice;
+              return (
+                <div
+                  key={item.macAddress}
+                  className={`list-card ${isConnected ? 'list-card--resumable' : ''}`}
+                  onClick={() => handleDeviceClick(item.macAddress)}
+                >
+                  <div className="list-card-body list-card-body--with-avatar">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="list-card-image"
+                    />
+                    <div className="list-card-content">
+                      <div className="list-card-primary">{item.name}</div>
+                      <div className="list-card-meta">
+                        <span>{item.macAddress}</span>
+                        <span className="list-card-dot">&middot;</span>
+                        <span>{item.rssi}</span>
+                      </div>
+                    </div>
+                    <div className={`list-card-device-status ${isConnected ? 'list-card-device-status--connected' : ''}`}>
+                      {isConnected ? (
+                        <BluetoothConnected size={20} />
+                      ) : (
+                        <BluetoothSearching size={20} />
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <span className="text-lg">
-                  {item.macAddress === connectedDevice ? (
-                    <BluetoothConnected style={{ color: 'var(--accent)' }} />
-                  ) : (
-                    <BluetoothSearching style={{ color: 'var(--text-secondary)' }} />
-                  )}
-                </span>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-6" style={{ color: 'var(--text-secondary)' }}>
               {searchQuery ? t('No devices match your search.') : t('No devices found. Try scanning again.')}

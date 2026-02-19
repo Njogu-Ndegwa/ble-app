@@ -15,7 +15,6 @@ import {
   X, 
   Search, 
   Clock, 
-  User, 
   ChevronLeft, 
   ChevronRight, 
   Play, 
@@ -23,8 +22,6 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Zap,
-  Calendar,
 } from 'lucide-react';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
 import { colors, spacing, fontSize, radius } from '@/styles';
@@ -347,68 +344,57 @@ export default function SessionsHistory({
                 const currentStep = order.session?.session_data?.currentStep || 1;
                 const maxStep = workflowType === 'attendant' ? 6 : 8;
                 const isReadOnly = !statusInfo.canEdit;
-                // Consider clickable if it has a session (with session_data for workflow restoration)
-                // or if it's viewable (statusInfo.canView) even without full session data
                 const hasSession = !!order.session;
                 const hasSessionData = !!order.session?.session_data;
                 const isClickable = hasSession && (hasSessionData || statusInfo.canView);
                 
+                const cardModifier = statusInfo.canEdit
+                  ? 'list-card--resumable'
+                  : (order.state === 'done' || order.state === 'sale')
+                    ? 'list-card--completed'
+                    : '';
+
                 return (
                   <div
                     key={order.id}
-                    className={`session-card ${statusInfo.canEdit ? 'session-card-resumable' : isClickable ? 'session-card-viewable' : 'session-card-locked'}`}
+                    className={`list-card ${cardModifier} ${!isClickable ? 'session-card-locked' : ''}`}
                     onClick={() => isClickable && handleSelectOrder(order, isReadOnly)}
                     role={isClickable ? 'button' : undefined}
                     tabIndex={isClickable ? 0 : undefined}
                   >
-                    {/* Left - Avatar/Icon */}
-                    <div className="session-card-avatar">
-                      <User size={20} />
-                    </div>
-                    
-                    {/* Middle - Info */}
-                    <div className="session-card-info">
-                      <div className="session-card-name">
-                        {customerName}
-                      </div>
-                      
-                      {subscriptionId && (
-                        <div className="session-card-subscription">
-                          {subscriptionId}
+                    <div className="list-card-accent" />
+                    <div className="list-card-body">
+                      <div className="list-card-content">
+                        <div className="list-card-primary">{customerName}</div>
+                        {subscriptionId && (
+                          <div className="list-card-secondary">{subscriptionId}</div>
+                        )}
+                        <div className="list-card-meta">
+                          <span>{order.name}</span>
+                          <span className="list-card-dot">&middot;</span>
+                          <span>{getRelativeTime(order.date_order)}</span>
+                          {hasSessionData && (
+                            <>
+                              <span className="list-card-dot">&middot;</span>
+                              <span>{currentStep}/{maxStep}</span>
+                            </>
+                          )}
                         </div>
-                      )}
-                      
-                      <div className="session-card-meta">
-                        <span className="session-card-order">{order.name}</span>
-                        <span className="session-card-dot">•</span>
-                        <span className="session-card-time">{getRelativeTime(order.date_order)}</span>
                       </div>
-                    </div>
-                    
-                    {/* Right - Status & Action */}
-                    <div className="session-card-right">
-                      <div 
-                        className="session-card-status"
-                        style={{ 
-                          backgroundColor: statusInfo.bgColor,
-                          color: statusInfo.color,
-                        }}
-                      >
-                        <StatusIcon size={12} />
-                        <span>{statusInfo.label}</span>
+                      <div className="list-card-actions">
+                        <div 
+                          className="list-card-badge"
+                          style={{ backgroundColor: statusInfo.bgColor, color: statusInfo.color }}
+                        >
+                          <StatusIcon size={10} />
+                          <span>{statusInfo.label}</span>
+                        </div>
+                        {isClickable && (
+                          <div className={`list-card-action-icon ${isReadOnly ? 'list-card-action-icon--muted' : 'list-card-action-icon--active'}`}>
+                            {isReadOnly ? <Eye size={12} /> : <Play size={12} />}
+                          </div>
+                        )}
                       </div>
-                      
-                      {isClickable && (
-                        <div className={`session-card-action ${isReadOnly ? 'session-card-action-view' : ''}`}>
-                          {isReadOnly ? <Eye size={14} /> : <Play size={14} />}
-                        </div>
-                      )}
-                      
-                      {hasSessionData && (
-                        <div className="session-card-progress">
-                          <span>{currentStep}/{maxStep}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );

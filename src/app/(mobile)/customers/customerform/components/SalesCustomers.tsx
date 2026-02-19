@@ -315,33 +315,34 @@ export default function SalesCustomers() {
           <button
             key={customer.id}
             onClick={() => openDetail(customer)}
-            className="w-full text-left rounded-xl border border-border bg-bg-tertiary p-3.5 transition-all active:scale-[0.98] hover:border-primary/40"
+            className="list-card w-full text-left"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-sm font-semibold text-primary flex-shrink-0">
+            <div className="list-card-body list-card-body--with-avatar">
+              <div className="list-card-avatar list-card-avatar--primary">
                 {customer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-medium text-text-primary truncate">
-                  {customer.name}
-                </h4>
-                <div className="flex items-center gap-3 mt-0.5">
-                  {customer.phone && (
-                    <span className="flex items-center gap-1 text-xs text-text-muted truncate">
-                      <Phone size={11} /> {formatPhone(customer.phone)}
-                    </span>
-                  )}
+              <div className="list-card-content">
+                <div className="list-card-primary">{customer.name}</div>
+                {customer.phone && (
+                  <div className="list-card-secondary">
+                    <Phone size={10} /> {formatPhone(customer.phone)}
+                  </div>
+                )}
+                <div className="list-card-meta">
                   {customer.email && (
-                    <span className="flex items-center gap-1 text-xs text-text-muted truncate">
-                      <Mail size={11} /> {customer.email}
-                    </span>
+                    <>
+                      <Mail size={10} />
+                      <span>{customer.email}</span>
+                    </>
+                  )}
+                  {customer.email && customer.city && <span className="list-card-dot">&middot;</span>}
+                  {customer.city && (
+                    <>
+                      <MapPin size={10} />
+                      <span>{customer.city}</span>
+                    </>
                   )}
                 </div>
-                {customer.city && (
-                  <span className="flex items-center gap-1 text-xs text-text-muted mt-0.5">
-                    <MapPin size={11} /> {customer.city}
-                  </span>
-                )}
               </div>
             </div>
           </button>
