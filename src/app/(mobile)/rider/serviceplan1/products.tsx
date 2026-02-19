@@ -130,7 +130,7 @@ const Products: React.FC<ProductsProps> = ({
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-info animate-spin" />
             <span className="ml-3 text-text-secondary">{t('Loading products...')}</span>
           </div>
         ) : (

@@ -76,9 +76,9 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="fixed inset-0 bg-gradient-page flex flex-col items-center justify-center z-50 p-6">
           {/* Error Icon */}
           <div className="mb-6">
-            <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-error-soft flex items-center justify-center">
               <svg 
-                className="w-10 h-10 text-red-400" 
+                className="w-10 h-10 text-error" 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -110,7 +110,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 View error details
               </summary>
               <div className="mt-2 p-3 bg-bg-surface rounded-lg overflow-auto max-h-32">
-                <code className="text-xs text-red-300 whitespace-pre-wrap break-words">
+                <code className="text-xs text-error whitespace-pre-wrap break-words">
                   {this.state.error.message}
                 </code>
               </div>

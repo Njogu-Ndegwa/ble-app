@@ -114,7 +114,7 @@ export default function BridgeGate({
       {/* Timeout message */}
       {showTimeout && !isReady && (
         <div className="mt-8 px-6 text-center">
-          <p className="text-amber-400 text-sm mb-2">
+          <p className="text-warning text-sm mb-2">
             Taking longer than expected...
           </p>
           <p className="text-text-muted text-xs">

@@ -161,7 +161,7 @@ const SettingsPage: React.FC = () => {
               </button>
             </div>
             {errors.currentPassword && (
-              <p className="mt-1 text-sm text-red-400">{errors.currentPassword}</p>
+              <p className="mt-1 text-sm text-error">{errors.currentPassword}</p>
             )}
           </div>
 
@@ -191,7 +191,7 @@ const SettingsPage: React.FC = () => {
               </button>
             </div>
             {errors.newPassword && (
-              <p className="mt-1 text-sm text-red-400">{errors.newPassword}</p>
+              <p className="mt-1 text-sm text-error">{errors.newPassword}</p>
             )}
           </div>
 
@@ -221,7 +221,7 @@ const SettingsPage: React.FC = () => {
               </button>
             </div>
             {errors.confirmPassword && (
-              <p className="mt-1 text-sm text-red-400">{errors.confirmPassword}</p>
+              <p className="mt-1 text-sm text-error">{errors.confirmPassword}</p>
             )}
           </div>
 

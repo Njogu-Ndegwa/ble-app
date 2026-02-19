@@ -1925,7 +1925,7 @@ const AppContainer: React.FC = () => {
               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Pay via Attendant")}</h2>
               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
               <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
-              <p className="text-green-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
+              <p className="text-success text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
 
             {/* Transaction ID Input Section */}
@@ -1940,7 +1940,7 @@ const AppContainer: React.FC = () => {
                 onChange={(e) => setTransactionId(e.target.value)}
                 placeholder={t("Enter transaction ID from your text messages")}
                 disabled={isProcessingPayment}
-                className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-success focus:border-success transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <p className="text-xs text-text-muted mt-1">
                 {t("Enter the transaction ID you received via text message from the attendant.")}
@@ -2002,7 +2002,7 @@ const AppContainer: React.FC = () => {
               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Top Up")}</h2>
               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
               <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
-              <p className="text-blue-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
+              <p className="text-info text-xl font-bold mt-2">${selectedPlan?.price}</p>
             </div>
 
             {/* Transaction ID Input Section */}
@@ -3953,7 +3953,7 @@ export default AppContainer;
 //               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Pay via Attendant")}</h2>
 //               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
 //               <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
-//               <p className="text-green-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
+//               <p className="text-success text-xl font-bold mt-2">${selectedPlan?.price}</p>
 //             </div>
 
 //             {/* Transaction ID Input Section */}
@@ -4030,7 +4030,7 @@ export default AppContainer;
 //               <h2 className="text-2xl font-bold text-text-primary mb-2">{t("Top Up")}</h2>
 //               <p className="text-text-secondary text-sm">{selectedPlan?.name}</p>
 //               <p className="text-text-secondary text-sm mt-1">{t("Code:")} {selectedPlan?.default_code}</p>
-//               <p className="text-blue-400 text-xl font-bold mt-2">${selectedPlan?.price}</p>
+//               <p className="text-info text-xl font-bold mt-2">${selectedPlan?.price}</p>
 //             </div>
 
 //             {/* Transaction ID Input Section */}

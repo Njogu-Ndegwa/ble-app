@@ -144,9 +144,9 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
     const isPending = workflowStatus === 'in_progress';
     
     const badgeClass = isCompleted
-      ? 'bg-green-500/15 text-green-400'
+      ? 'bg-success-soft text-success'
       : isPending
-        ? 'bg-yellow-500/15 text-yellow-400'
+        ? 'bg-warning-soft text-warning'
         : 'bg-bg-elevated text-text-secondary';
 
     return (

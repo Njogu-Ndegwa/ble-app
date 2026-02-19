@@ -92,9 +92,9 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
 
   const getStateBadgeClass = (state: string) => {
     switch (state) {
-      case 'paid': return 'bg-green-500/15 text-green-400';
-      case 'pending': return 'bg-yellow-500/15 text-yellow-400';
-      case 'cancelled': return 'bg-red-500/15 text-red-400';
+      case 'paid': return 'bg-success-soft text-success';
+      case 'pending': return 'bg-warning-soft text-warning';
+      case 'cancelled': return 'bg-error-soft text-error';
       default: return 'bg-bg-elevated text-text-secondary';
     }
   };

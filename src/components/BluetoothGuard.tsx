@@ -147,9 +147,9 @@ export function BluetoothGuard({ children, onBluetoothError }: BluetoothGuardPro
           <div className="bg-bg-secondary rounded-2xl p-6 max-w-sm w-full border border-border-subtle">
             {/* Bluetooth Icon */}
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-info-soft flex items-center justify-center">
                 <svg 
-                  className="w-8 h-8 text-blue-400" 
+                  className="w-8 h-8 text-info" 
                   fill="currentColor" 
                   viewBox="0 0 24 24"
                 >

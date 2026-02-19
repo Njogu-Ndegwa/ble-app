@@ -317,11 +317,11 @@ const ChargingStationFinder = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "available":
-        return "text-green-400";
+        return "text-success";
       case "limited":
-        return "text-yellow-400";
+        return "text-warning";
       case "busy":
-        return "text-red-400";
+        return "text-error";
       default:
         return "text-text-secondary";
     }
@@ -432,7 +432,7 @@ const ChargingStationFinder = ({
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-bg-secondary">
               <div className="text-center">
-                <MapPin size={48} className="text-blue-400 mx-auto mb-2" />
+                <MapPin size={48} className="text-info mx-auto mb-2" />
                 <p className="text-text-secondary text-sm">Waiting for location...</p>
               </div>
             </div>
@@ -499,7 +499,7 @@ const ChargingStationFinder = ({
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="text-blue-400 text-sm font-medium">{station.distance}</span>
+                      <span className="text-info text-sm font-medium">{station.distance}</span>
                     </div>
                   </div>
 

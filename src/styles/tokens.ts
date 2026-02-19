@@ -56,6 +56,12 @@ export const colors = {
   infoLight: 'var(--color-info-light)',
   infoSoft: 'var(--color-info-soft)',
 
+  // Semantic borders
+  infoBorder: 'var(--color-info-border)',
+  successBorder: 'var(--color-success-border)',
+  errorBorder: 'var(--color-error-border)',
+  warningBorder: 'var(--color-warning-border)',
+
   // Overlay
   overlay: 'var(--overlay)',
   overlayLight: 'var(--overlay-light)',

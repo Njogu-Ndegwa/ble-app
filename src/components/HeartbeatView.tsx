@@ -221,9 +221,9 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
         </div>
       </div>
       {error && (
-        <div className="flex items-center space-x-2 p-4 bg-red-900 rounded-lg">
-          <AlertTriangle size={18} className="text-red-400" />
-          <p className="text-sm text-red-400">{error}</p>
+        <div className="flex items-center space-x-2 p-4 bg-error-soft rounded-lg">
+          <AlertTriangle size={18} className="text-error" />
+          <p className="text-sm text-error">{error}</p>
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

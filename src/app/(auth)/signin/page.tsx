@@ -247,7 +247,7 @@ const LoginPage = () => {
 
         <p className="login-help">
           {t('auth.noAccount')}{' '}
-          <a href="#" className="text-blue-500 hover:text-blue-400">
+          <a href="#" className="text-brand hover:text-brand-light">
             {t('auth.contactSupport')}
           </a>
         </p>

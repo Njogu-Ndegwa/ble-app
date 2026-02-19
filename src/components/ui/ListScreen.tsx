@@ -243,7 +243,7 @@ export default function ListScreen({
         {/* Error state */}
         {!isLoading && error && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm text-red-400 mb-3">{error}</p>
+            <p className="text-sm text-error mb-3">{error}</p>
             <button
               onClick={onRetry || onRefresh}
               className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium active:scale-95 transition-transform"

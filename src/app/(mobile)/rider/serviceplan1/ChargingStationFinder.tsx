@@ -1253,11 +1253,11 @@ const ChargingStationFinder = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "available":
-        return "text-green-400";
+        return "text-success";
       case "limited":
-        return "text-yellow-400";
+        return "text-warning";
       case "busy":
-        return "text-red-400";
+        return "text-error";
       default:
         return "text-text-secondary";
     }
@@ -1299,7 +1299,7 @@ const ChargingStationFinder = ({
               <div className="text-center">
                 <MapPin
                   size={48}
-                  className="text-blue-400 mx-auto mb-2 animate-pulse"
+                  className="text-info mx-auto mb-2 animate-pulse"
                 />
                 <p className="text-text-secondary text-sm">Loading map...</p>
               </div>
@@ -1323,7 +1323,7 @@ const ChargingStationFinder = ({
             <button
               onClick={handleFindStationsClick}
               disabled={isFindingStations || propIsLoadingStations}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-75 text-white font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-lg disabled:cursor-not-allowed"
+              className="w-full bg-brand hover:bg-brand-dark disabled:bg-bg-elevated disabled:opacity-75 text-text-inverse font-semibold py-3 px-6 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 shadow-lg disabled:cursor-not-allowed"
             >
               {isFindingStations || propIsLoadingStations ? (
                 <>
@@ -1374,7 +1374,7 @@ const ChargingStationFinder = ({
             </div>
             {propIsLoadingStations && (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-400 mr-2" />
+                <Loader2 className="w-6 h-6 animate-spin text-info mr-2" />
                 <p className="text-text-secondary">Loading stations...</p>
               </div>
             )}
@@ -1396,7 +1396,7 @@ const ChargingStationFinder = ({
                         {station.name}
                       </h3>
                     </div>
-                    <span className="text-blue-400 text-sm font-medium ml-2 flex-shrink-0">
+                    <span className="text-info text-sm font-medium ml-2 flex-shrink-0">
                       {station.distance}
                     </span>
                   </div>
@@ -1674,7 +1674,7 @@ const ChargingStationFinder = ({
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                        <Battery className="w-6 h-6 text-blue-400" />
+                        <Battery className="w-6 h-6 text-info" />
                       </div>
                       <div className="text-left">
                         <p className="text-text-primary font-semibold">Battery Swap</p>
@@ -1684,7 +1684,7 @@ const ChargingStationFinder = ({
                       </div>
                     </div>
                     {processingId === selectedStation.id ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                      <Loader2 className="w-5 h-5 animate-spin text-info" />
                     ) : selectedService === "battery_swap" ? (
                       <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                         <svg
@@ -1798,20 +1798,20 @@ const ChargingStationFinder = ({
                     {selectedStation.name}
                   </h3>
                   <button className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center">
-                    <MapPin className="w-4 h-4 text-blue-400" />
+                    <MapPin className="w-4 h-4 text-info" />
                   </button>
                 </div>
                 <p className="text-text-secondary text-sm mb-4">Service Location</p>
 
                 <div className="space-y-3 mb-6">
                   <div className="flex items-center gap-3 text-text-primary">
-                    <Navigation className="w-4 h-4 text-blue-400" />
+                    <Navigation className="w-4 h-4 text-info" />
                     <span className="text-sm">
                       {selectedStation.distance} from your location
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-text-primary">
-                    <Zap className="w-4 h-4 text-green-400" />
+                    <Zap className="w-4 h-4 text-success" />
                     <span className="text-sm">
                       {selectedStation.availableChargers}{" "}
                       batteries available

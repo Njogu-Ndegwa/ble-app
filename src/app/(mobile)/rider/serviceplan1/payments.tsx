@@ -19,11 +19,11 @@ const Payments: React.FC<PaymentsProps> = ({ paymentHistory }) => {
   const getStatusStyles = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-600/20 text-green-400 border-green-600/30';
+        return 'bg-success-soft text-success border-success-border';
       case 'pending':
-        return 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30';
+        return 'bg-warning-soft text-warning border-warning-border';
       case 'failed':
-        return 'bg-red-600/20 text-red-400 border-red-600/30';
+        return 'bg-error-soft text-error border-error-border';
       default:
         return 'bg-bg-elevated/20 text-text-secondary border-border/30';
     }

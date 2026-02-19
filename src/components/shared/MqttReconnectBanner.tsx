@@ -88,7 +88,7 @@ export default function MqttReconnectBanner({
   if (showSuccess && isMqttConnected) {
     return (
       <div 
-        className={`flex items-center gap-2 px-4 py-2 bg-green-500/90 text-white text-sm rounded-lg shadow-lg ${className}`}
+        className={`flex items-center gap-2 px-4 py-2 text-white text-sm rounded-lg shadow-lg ${className}`}
         style={{ backgroundColor: colors.success }}
       >
         <CheckCircle className="w-4 h-4" />
@@ -103,7 +103,7 @@ export default function MqttReconnectBanner({
     
     return (
       <div 
-        className={`flex items-center justify-between gap-2 px-4 py-2 bg-amber-500/90 text-white text-sm rounded-lg shadow-lg ${className}`}
+        className={`flex items-center justify-between gap-2 px-4 py-2 text-white text-sm rounded-lg shadow-lg ${className}`}
         style={{ backgroundColor: colors.warning }}
       >
         <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export default function MqttReconnectBanner({
   if (mqttReconnectionState.lastError?.includes('Max') || mqttReconnectionState.attemptCount >= 10) {
     return (
       <div 
-        className={`flex items-center justify-between gap-2 px-4 py-2 bg-red-500/90 text-white text-sm rounded-lg shadow-lg ${className}`}
+        className={`flex items-center justify-between gap-2 px-4 py-2 text-white text-sm rounded-lg shadow-lg ${className}`}
         style={{ backgroundColor: colors.error }}
       >
         <div className="flex items-center gap-2">
@@ -150,7 +150,7 @@ export default function MqttReconnectBanner({
   if (!isMqttConnected) {
     return (
       <div 
-        className={`flex items-center justify-between gap-2 px-4 py-2 bg-red-500/90 text-white text-sm rounded-lg shadow-lg ${className}`}
+        className={`flex items-center justify-between gap-2 px-4 py-2 text-white text-sm rounded-lg shadow-lg ${className}`}
         style={{ backgroundColor: colors.error }}
       >
         <div className="flex items-center gap-2">
@@ -170,7 +170,7 @@ export default function MqttReconnectBanner({
   // Show connected status (if showOnlyWhenDisconnected is false)
   return (
     <div 
-      className={`flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 text-sm rounded-lg ${className}`}
+      className={`flex items-center gap-2 px-4 py-2 bg-success-soft text-success text-sm rounded-lg ${className}`}
     >
       <Wifi className="w-4 h-4" />
       <span>{t('common.connected') || 'Connected'}</span>
