@@ -375,7 +375,7 @@ export default function SessionsHistory({
                           {hasSessionData && (
                             <>
                               <span className="list-card-dot">&middot;</span>
-                              <span>{currentStep}/{maxStep}</span>
+                              <span className="list-card-meta-bold">{currentStep}/{maxStep}</span>
                             </>
                           )}
                         </div>

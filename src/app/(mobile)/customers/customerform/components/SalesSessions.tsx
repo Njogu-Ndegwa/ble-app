@@ -242,14 +242,17 @@ const SalesSessions: React.FC<SalesSessionsProps> = ({ onSelectSession }) => {
                   <Clock size={10} />
                   <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
                   <span className="list-card-dot">&middot;</span>
-                  <span>{t('sales.sessions.step') || 'Step'} {currentStep}/8</span>
+                  <span className="list-card-meta-bold">{t('sales.sessions.step') || 'Step'} {currentStep}/8</span>
+                  {hasPaymentInfo && (
+                    <>
+                      <span className="list-card-dot">&middot;</span>
+                      <span className="list-card-meta-mono list-card-meta-bold">{order.currency} {amountPaid.toLocaleString()}</span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="list-card-actions">
                 <span className={`list-card-badge ${badgeClass}`}>{statusLabel}</span>
-                {hasPaymentInfo && (
-                  <span className="list-card-amount">{order.currency} {amountPaid.toLocaleString()}</span>
-                )}
                 <div className={`list-card-action-icon ${isResumable ? 'list-card-action-icon--active' : 'list-card-action-icon--muted'}`}>
                   {isResumable ? <Play size={12} /> : <Eye size={12} />}
                 </div>

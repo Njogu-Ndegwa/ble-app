@@ -12286,17 +12286,27 @@ html.theme-transition *::after {
   align-items: center;
   gap: 6px;
   font-size: var(--font-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   line-height: 1.3;
 }
 
 .list-card-meta svg {
   flex-shrink: 0;
+  opacity: 0.6;
 }
 
 .list-card-dot {
-  opacity: 0.4;
+  opacity: 0.35;
   font-size: 8px;
+}
+
+/* Weight/font variations within meta (no extra colors) */
+.list-card-meta-bold {
+  font-weight: 600;
+}
+
+.list-card-meta-mono {
+  font-family: 'DM Mono', monospace;
 }
 
 /* Right column (status badge + action icon) */
@@ -12334,13 +12344,6 @@ html.theme-transition *::after {
 .list-card-badge--default {
   background: var(--bg-elevated);
   color: var(--text-muted);
-}
-
-.list-card-amount {
-  font-family: 'DM Mono', monospace;
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 .list-card-action-icon {

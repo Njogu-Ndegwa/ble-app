@@ -171,7 +171,7 @@ const MobileListView: React.FC<MobileListViewProps> = ({
                     <div className="list-card-content">
                       <div className="list-card-primary">{item.name}</div>
                       <div className="list-card-meta">
-                        <span>{item.macAddress}</span>
+                        <span className="list-card-meta-mono">{item.macAddress}</span>
                         <span className="list-card-dot">&middot;</span>
                         <span>{item.rssi}</span>
                       </div>

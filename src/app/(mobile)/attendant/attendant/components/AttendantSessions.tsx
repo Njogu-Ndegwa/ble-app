@@ -327,14 +327,17 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
                         <Clock size={10} />
                         <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
                         <span className="list-card-dot">&middot;</span>
-                        <span>{t('attendant.sessions.step') || 'Step'} {currentStep}/6</span>
+                        <span className="list-card-meta-bold">{t('attendant.sessions.step') || 'Step'} {currentStep}/6</span>
+                        {hasPaymentInfo && (
+                          <>
+                            <span className="list-card-dot">&middot;</span>
+                            <span className="list-card-meta-mono list-card-meta-bold">{order.currency} {order.paid_amount.toLocaleString()}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="list-card-actions">
                       <span className={`list-card-badge ${badgeClass}`}>{statusLabel}</span>
-                      {hasPaymentInfo && (
-                        <span className="list-card-amount">{order.currency} {order.paid_amount.toLocaleString()}</span>
-                      )}
                       <div className={`list-card-action-icon ${isResumable ? 'list-card-action-icon--active' : 'list-card-action-icon--muted'}`}>
                         {isResumable ? <Play size={12} /> : <Eye size={12} />}
                       </div>
