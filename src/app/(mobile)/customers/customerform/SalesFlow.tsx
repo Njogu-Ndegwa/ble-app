@@ -452,6 +452,11 @@ export default function SalesFlow({
     // Set read-only mode based on whether the session can be edited
     setIsReadOnlySession(isReadOnly);
     
+    // Set the session order ID so auto-save works correctly on resumed sessions
+    if (!isReadOnly) {
+      setSessionOrderId(order.id);
+    }
+    
     // Extract state from session data and restore
     const sessionData = order.session.session_data;
     const restoredState = extractSalesStateFromSession(sessionData);
@@ -494,7 +499,7 @@ export default function SalesFlow({
     } else {
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
-  }, [t, restoreCatalogSelections]);
+  }, [t, restoreCatalogSelections, setSessionOrderId]);
   
   // Effect to automatically restore initial session from props (from sessions screen)
   useEffect(() => {

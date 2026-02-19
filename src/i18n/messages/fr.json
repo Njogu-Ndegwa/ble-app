@@ -1290,6 +1290,11 @@
   "attendant.transactions.method": "Méthode",
   "attendant.transactions.order": "Commande",
   "attendant.transactions.reference": "Référence",
+  "attendant.transactions.searchPlaceholder": "Rechercher par nom, référence...",
+  "attendant.transactions.noSearchResults": "Aucune transaction ne correspond à votre recherche",
+  "attendant.transactions.tryDifferentSearch": "Essayez un autre terme de recherche",
+  "attendant.transactions.singular": "transaction",
+  "attendant.transactions.plural": "transactions",
 
   "attendant.profile.accountInfo": "Informations du compte",
   "attendant.profile.employeeId": "ID Employé",
@@ -1309,6 +1314,8 @@
   "attendant.sessions.showing": "Affichage",
   "attendant.sessions.of": "sur",
   "attendant.sessions.inProgress": "En cours",
+  "attendant.sessions.singular": "session",
+  "attendant.sessions.plural": "sessions",
 
   "sales.selectBatteryManually": "Sélectionner la batterie",
   "sales.selectFromNearbyDevices": "Choisir parmi les appareils à proximité",

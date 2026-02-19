@@ -1299,6 +1299,11 @@
   "attendant.transactions.method": "Method",
   "attendant.transactions.order": "Order",
   "attendant.transactions.reference": "Reference",
+  "attendant.transactions.searchPlaceholder": "Search by name, reference...",
+  "attendant.transactions.noSearchResults": "No transactions match your search",
+  "attendant.transactions.tryDifferentSearch": "Try a different search term",
+  "attendant.transactions.singular": "transaction",
+  "attendant.transactions.plural": "transactions",
 
   "attendant.profile.accountInfo": "Account Information",
   "attendant.profile.employeeId": "Employee ID",
@@ -1318,6 +1323,8 @@
   "attendant.sessions.showing": "Showing",
   "attendant.sessions.of": "of",
   "attendant.sessions.inProgress": "In Progress",
+  "attendant.sessions.singular": "session",
+  "attendant.sessions.plural": "sessions",
 
   "sales.selectBatteryManually": "Select Battery",
   "sales.selectFromNearbyDevices": "Choose from nearby devices",

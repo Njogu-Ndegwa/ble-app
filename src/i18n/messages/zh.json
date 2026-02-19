@@ -1202,6 +1202,11 @@
   "attendant.transactions.method": "支付方式",
   "attendant.transactions.order": "订单",
   "attendant.transactions.reference": "参考号",
+  "attendant.transactions.searchPlaceholder": "按名称、参考号搜索...",
+  "attendant.transactions.noSearchResults": "没有符合您搜索的交易",
+  "attendant.transactions.tryDifferentSearch": "尝试不同的搜索词",
+  "attendant.transactions.singular": "笔交易",
+  "attendant.transactions.plural": "笔交易",
 
   "attendant.profile.accountInfo": "账户信息",
   "attendant.profile.employeeId": "员工ID",
@@ -1221,6 +1226,8 @@
   "attendant.sessions.showing": "显示",
   "attendant.sessions.of": "共",
   "attendant.sessions.inProgress": "进行中",
+  "attendant.sessions.singular": "个会话",
+  "attendant.sessions.plural": "个会话",
 
   "sales.selectBatteryManually": "选择电池",
   "sales.selectFromNearbyDevices": "从附近设备中选择",
