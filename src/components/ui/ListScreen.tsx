@@ -246,7 +246,7 @@ export default function ListScreen({
             <p className="text-sm text-error mb-3">{error}</p>
             <button
               onClick={onRetry || onRefresh}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium active:scale-95 transition-transform"
+              className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium active:scale-95 transition-transform"
             >
               {t('common.tryAgain') || 'Try Again'}
             </button>

@@ -139,7 +139,7 @@ export default function Step1CustomerForm({
             onClick={() => onModeChange('new')}
             className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
               customerMode === 'new'
-                ? 'bg-primary text-white shadow-sm'
+                ? 'bg-brand text-white shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
@@ -150,7 +150,7 @@ export default function Step1CustomerForm({
             onClick={() => onModeChange('existing')}
             className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
               customerMode === 'existing'
-                ? 'bg-primary text-white shadow-sm'
+                ? 'bg-brand text-white shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >

@@ -432,7 +432,7 @@ export default function SalesCustomers() {
       </div>
 
       <div className="px-4 py-3 border-t border-border">
-        <button onClick={handleSave} disabled={isSaving} className="w-full py-3 rounded-xl bg-primary text-white font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50">
+        <button onClick={handleSave} disabled={isSaving} className="w-full py-3 rounded-xl bg-brand text-white font-medium text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50">
           {isSaving ? (
             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t('common.saving') || 'Saving...'}</>
           ) : (
