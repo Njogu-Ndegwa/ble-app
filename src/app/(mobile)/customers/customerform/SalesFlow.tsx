@@ -106,10 +106,6 @@ interface SalesFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback when initial session is consumed */
   onInitialSessionConsumed?: () => void;
-  /** Skip the pending session check (e.g., when navigating via bottom nav, not from Roles page) */
-  skipSessionCheck?: boolean;
-  /** Callback when the initial session check is complete (whether or not a session was found) */
-  onInitialSessionCheckComplete?: () => void;
 }
 
 export default function SalesFlow({ 
@@ -119,8 +115,6 @@ export default function SalesFlow({
   initialSession,
   initialSessionReadOnly,
   onInitialSessionConsumed,
-  skipSessionCheck,
-  onInitialSessionCheckComplete,
 }: SalesFlowProps) {
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
@@ -379,14 +373,11 @@ export default function SalesFlow({
   const {
     status: sessionStatus,
     orderId: sessionOrderId,
-    pendingSession,
     createSalesSession,
     updateSession,
     updateSessionWithProducts,
-    discardPendingSession,
     clearSession,
     setOrderId: setSessionOrderId,
-    checkForPendingSession,
   } = useWorkflowSession({
     workflowType: 'salesperson',
     onSessionRestored: (sessionData, orderId) => {
@@ -429,8 +420,6 @@ export default function SalesFlow({
     },
   });
 
-  // Session restoration UI state (backend sessions only)
-  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
@@ -449,40 +438,6 @@ export default function SalesFlow({
     setCurrentStep(step);
     setMaxStepReached(prev => Math.max(prev, step) as SalesStep);
   }, []);
-
-  // Check for pending session from backend on mount
-  // Skip the check if:
-  // 1. We have an initialSession (user selected from sessions list)
-  // 2. skipSessionCheck is true (user navigated via bottom nav, not from Roles page)
-  useEffect(() => {
-    // If we have an initialSession, skip the pending session check entirely
-    // The session will be restored via the initialSession effect
-    if (initialSession) {
-      discardPendingSession();
-      setSessionCheckComplete(true);
-      onInitialSessionCheckComplete?.();
-      return;
-    }
-    
-    // If skipSessionCheck is true, user is navigating via bottom nav (not from Roles page)
-    // Don't show the session resume modal - just mark check as complete
-    if (skipSessionCheck) {
-      setSessionCheckComplete(true);
-      return;
-    }
-    
-    const checkSession = async () => {
-      // Check backend for pending session (localStorage sessions removed)
-      const hasPending = await checkForPendingSession();
-      if (!hasPending) {
-        clearSalesSession();
-      }
-      setSessionCheckComplete(true);
-      onInitialSessionCheckComplete?.();
-    };
-    
-    checkSession();
-  }, [checkForPendingSession, initialSession, discardPendingSession, skipSessionCheck, onInitialSessionCheckComplete]);
 
   // Handle selecting a session from history
   const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
@@ -2499,20 +2454,6 @@ export default function SalesFlow({
         authToken={getSalesRoleToken() || ''}
         workflowType="salesperson"
       />
-
-      {/* Note: Legacy localStorage session prompt removed - using backend sessions only */}
-
-      {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
-      {!sessionCheckComplete && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="loading-spinner"></div>
-            <div className="text-text-inverse text-sm opacity-80">
-              {t('session.checkingForSession') || 'Checking for pending session...'}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* BLE Connection Progress Modal - Reusable component for connection/reading progress */}
       <BleProgressModal

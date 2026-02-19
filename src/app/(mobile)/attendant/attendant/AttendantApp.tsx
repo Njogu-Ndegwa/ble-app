@@ -34,10 +34,6 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<AttendantScreen>('swap');
   
-  // Track if we've completed the initial session check (from Roles Page)
-  // This flag prevents the session resume modal from showing when just navigating via bottom nav
-  const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
-  
   // Selected session to restore (from sessions screen)
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
@@ -125,13 +121,6 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
     setSelectedSessionReadOnly(false);
   }, []);
   
-  // Callback to mark initial session check as complete
-  // This is called by AttendantFlow after the first session check (whether or not a session was found)
-  // Once called, subsequent navigations to swap screen won't show the session resume modal
-  const handleInitialSessionCheckComplete = useCallback(() => {
-    setHasCompletedInitialSessionCheck(true);
-  }, []);
-
   // For swap screen, render AttendantFlow with integrated bottom nav
   if (currentScreen === 'swap') {
     return (
@@ -147,8 +136,6 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
         initialSession={selectedSession}
         initialSessionReadOnly={selectedSessionReadOnly}
         onInitialSessionConsumed={handleSessionConsumed}
-        skipSessionCheck={hasCompletedInitialSessionCheck}
-        onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
       />
     );
   }

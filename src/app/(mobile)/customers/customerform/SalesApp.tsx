@@ -32,10 +32,6 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
   const [currentScreen, setCurrentScreen] = useState<SalesScreen>('sales');
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   
-  // Track if we've completed the initial session check (from Roles Page)
-  // This flag prevents the session resume modal from showing when just navigating via bottom nav
-  const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
-  
   // Session management for resuming
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
@@ -101,13 +97,6 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
     setSelectedSessionReadOnly(false);
   }, []);
   
-  // Callback to mark initial session check as complete
-  // This is called by SalesFlow after the first session check (whether or not a session was found)
-  // Once called, subsequent navigations to sales screen won't show the session resume modal
-  const handleInitialSessionCheckComplete = useCallback(() => {
-    setHasCompletedInitialSessionCheck(true);
-  }, []);
-
   // If on 'sales' screen, show SalesFlow with full control
   if (currentScreen === 'sales') {
     return (
@@ -122,8 +111,6 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
         initialSession={selectedSession}
         initialSessionReadOnly={selectedSessionReadOnly}
         onInitialSessionConsumed={handleSessionConsumed}
-        skipSessionCheck={hasCompletedInitialSessionCheck}
-        onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
       />
     );
   }
