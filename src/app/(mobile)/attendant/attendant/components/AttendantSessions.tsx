@@ -312,7 +312,6 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
                   className={`list-card ${isResumable ? 'list-card--resumable' : ''} ${isCompleted ? 'list-card--completed' : ''}`}
                   onClick={() => onSelectSession?.(order, !isResumable)}
                 >
-                  <div className="list-card-accent" />
                   <div className="list-card-body">
                     <div className="list-card-content">
                       <div className="list-card-primary">

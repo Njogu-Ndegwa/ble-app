@@ -12199,7 +12199,7 @@ html.theme-transition *::after {
 .list-card {
   position: relative;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -12219,23 +12219,6 @@ html.theme-transition *::after {
 
 .list-card:active {
   transform: scale(0.985);
-}
-
-/* Left accent bar (status indicator replacing avatars) */
-.list-card-accent {
-  width: 3px;
-  flex-shrink: 0;
-  background: var(--border);
-  border-radius: 3px 0 0 3px;
-  transition: background 0.15s ease;
-}
-
-.list-card--resumable .list-card-accent {
-  background: var(--accent);
-}
-
-.list-card--completed .list-card-accent {
-  background: var(--success);
 }
 
 .list-card--resumable {

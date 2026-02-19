@@ -362,7 +362,6 @@ export default function SessionsHistory({
                     role={isClickable ? 'button' : undefined}
                     tabIndex={isClickable ? 0 : undefined}
                   >
-                    <div className="list-card-accent" />
                     <div className="list-card-body">
                       <div className="list-card-content">
                         <div className="list-card-primary">{customerName}</div>
