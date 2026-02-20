@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import { useKeyboardVisible } from '@/lib/useKeyboardVisible';
 
 // Import components
 import {
@@ -121,6 +122,7 @@ export default function SalesFlow({
   // This leverages the auto-reconnection mechanism for unstable networks
   const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
   const { locale, setLocale, t } = useI18n();
+  useKeyboardVisible();
   
   // Lock body overflow for fixed container
   useEffect(() => {

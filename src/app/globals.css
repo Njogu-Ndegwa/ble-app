@@ -12377,3 +12377,46 @@ html.theme-transition *::after {
     font-size: var(--font-lg);
   }
 }
+
+/* =============================================
+   Keyboard-open: hide non-essential chrome
+   when the mobile virtual keyboard is visible
+   ============================================= */
+
+html.keyboard-open .flow-header {
+  display: none;
+}
+
+html.keyboard-open .flow-timeline {
+  display: none;
+}
+
+html.keyboard-open .customer-panel-unified {
+  display: none !important;
+}
+
+html.keyboard-open .attendant-bottom-fixed {
+  display: none;
+}
+
+html.keyboard-open .sales-bottom-fixed {
+  display: none;
+}
+
+html.keyboard-open .action-bar {
+  display: none;
+}
+
+html.keyboard-open .bottom-nav {
+  display: none;
+}
+
+html.keyboard-open .readonly-banner {
+  display: none;
+}
+
+html.keyboard-open .attendant-main,
+html.keyboard-open .sales-main,
+html.keyboard-open .rider-main {
+  padding-bottom: 16px;
+}

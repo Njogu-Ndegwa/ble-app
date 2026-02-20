@@ -8,6 +8,7 @@ import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useBridge } from '@/app/context/bridgeContext';
+import { useKeyboardVisible } from '@/lib/useKeyboardVisible';
 import { absApolloClient } from '@/lib/apollo-client';
 import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
 import {
@@ -83,6 +84,7 @@ const RiderApp: React.FC = () => {
   const router = useRouter();
   const { t, locale, setLocale } = useI18n();
   const { bridge } = useBridge();
+  useKeyboardVisible();
   const stationsSubscriptionRef = useRef<(() => void) | null>(null);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
   

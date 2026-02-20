@@ -10,6 +10,7 @@ import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } 
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import { useKeyboardVisible } from '@/lib/useKeyboardVisible';
 
 // Import components
 import {
@@ -86,6 +87,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
+  useKeyboardVisible();
   
   // Attendant info from login
   const [attendantInfo, setAttendantInfo] = useState<{ id: string; station: string }>({
