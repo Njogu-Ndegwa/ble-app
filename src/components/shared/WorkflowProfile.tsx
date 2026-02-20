@@ -83,9 +83,10 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
         </p>
       </div>
 
-      {/* Role Card */}
-      <div className="bg-bg-secondary border border-border rounded-xl p-4 mb-4">
-        <div className="flex items-center gap-3 mb-4">
+      {/* Details Card */}
+      <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden mb-4">
+        {/* Role header */}
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle">
           <div className="w-10 h-10 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
             <RoleIcon size={20} className="text-text-inverse" />
           </div>
@@ -100,38 +101,31 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
           </div>
         </div>
 
-        {/* Info Rows */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-info-soft border border-brand/20">
-            <div className="w-9 h-9 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
-              <IdCard size={18} className="text-text-inverse" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-text-primary">ID #{employee?.id || 'N/A'}</p>
-              <p className="text-xs text-text-muted">{idLabel}</p>
+        {/* Employee ID */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border-subtle">
+          <IdCard size={18} className="text-text-muted flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-text-muted">{idLabel}</p>
+            <p className="text-sm font-medium text-text-primary">#{employee?.id || 'N/A'}</p>
+          </div>
+        </div>
+
+        {/* Email */}
+        {employee?.email && (
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Mail size={18} className="text-text-muted flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-text-muted">{t('profile.emailAddress') || 'Email Address'}</p>
+              <p className="text-sm text-text-primary break-all">{employee.email}</p>
             </div>
           </div>
-
-          {employee?.email && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-bg-tertiary">
-              <div className="w-9 h-9 rounded-full bg-bg-elevated flex items-center justify-center flex-shrink-0 border border-border">
-                <Mail size={16} className="text-brand" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm text-text-primary break-all">{employee.email}</p>
-                <p className="text-xs text-text-muted">{t('profile.emailAddress') || 'Email Address'}</p>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Menu */}
       <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
         <button className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-colors hover:bg-bg-tertiary active:bg-bg-tertiary border-b border-border-subtle">
-          <div className="w-9 h-9 rounded-full bg-bg-tertiary flex items-center justify-center flex-shrink-0">
-            <HelpCircle size={18} className="text-text-secondary" />
-          </div>
+          <HelpCircle size={18} className="text-text-muted flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-text-primary">{t('rider.helpSupport') || 'Help & Support'}</p>
             <p className="text-xs text-text-muted">{t('rider.supportDesc') || 'FAQs, contact support'}</p>
@@ -143,12 +137,8 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
           onClick={onLogout}
           className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-colors hover:bg-error-soft active:bg-error-soft"
         >
-          <div className="w-9 h-9 rounded-full bg-error-soft flex items-center justify-center flex-shrink-0">
-            <LogOut size={18} className="text-error" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-error">{t('common.logout') || 'Log Out'}</p>
-          </div>
+          <LogOut size={18} className="text-error flex-shrink-0" />
+          <p className="text-sm font-medium text-error">{t('common.logout') || 'Log Out'}</p>
         </button>
       </div>
     </div>
