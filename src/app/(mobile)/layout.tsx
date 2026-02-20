@@ -8,6 +8,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n';
 import Image from 'next/image';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import { useKeyboardVisible } from '@/lib/useKeyboardVisible';
 
 function MobileLayout({
   children,
@@ -15,6 +16,7 @@ function MobileLayout({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  useKeyboardVisible();
 
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--bg-primary)' }}>

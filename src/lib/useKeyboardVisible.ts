@@ -2,32 +2,30 @@
 
 import { useEffect } from 'react';
 
-const KEYBOARD_THRESHOLD = 150;
+const INPUT_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
+const BLUR_DELAY = 80;
+const NO_KEYBOARD_TYPES = new Set([
+  'checkbox', 'radio', 'file', 'range', 'color', 'hidden', 'submit', 'reset', 'button', 'image',
+]);
 
 /**
- * Detects mobile virtual keyboard visibility via the VisualViewport API.
- * Toggles `.keyboard-open` on <html> and sets `--vvh` CSS variable.
- * Hides non-essential fixed/sticky chrome (header, timeline, nav, action bar)
- * so the user has room to see and interact with input fields.
+ * Detects mobile virtual keyboard visibility by tracking input focus.
+ * When any text-entry input receives focus, `.keyboard-open` is toggled
+ * on <html> so CSS can hide non-essential fixed/sticky chrome (header,
+ * timeline, nav, action bar) to maximise typing space.
+ *
+ * Uses focusin/focusout rather than VisualViewport because many mobile
+ * browsers (Android WebViews, PWA shells) resize both the layout and
+ * visual viewports together, making viewport-height diffing unreliable.
  */
 export function useKeyboardVisible() {
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
+    let blurTimer: ReturnType<typeof setTimeout> | null = null;
     let isOpen = false;
 
-    function onResize() {
-      if (!vv) return;
-
-      const diff = window.innerHeight - vv.height;
-      const keyboardNow = diff > KEYBOARD_THRESHOLD;
-
-      document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
-
-      if (keyboardNow === isOpen) return;
-      isOpen = keyboardNow;
-
+    function setKeyboardOpen(open: boolean) {
+      if (open === isOpen) return;
+      isOpen = open;
       document.documentElement.classList.toggle('keyboard-open', isOpen);
 
       if (isOpen) {
@@ -40,13 +38,41 @@ export function useKeyboardVisible() {
       }
     }
 
-    vv.addEventListener('resize', onResize);
-    onResize();
+    function onFocusIn(e: FocusEvent) {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches(INPUT_SELECTOR)) return;
+
+      if (target instanceof HTMLInputElement && NO_KEYBOARD_TYPES.has(target.type)) {
+        return;
+      }
+
+      if (blurTimer) {
+        clearTimeout(blurTimer);
+        blurTimer = null;
+      }
+      setKeyboardOpen(true);
+    }
+
+    function onFocusOut() {
+      if (blurTimer) clearTimeout(blurTimer);
+      blurTimer = setTimeout(() => {
+        const active = document.activeElement;
+        const stillInInput = active instanceof HTMLElement && active.matches(INPUT_SELECTOR);
+        if (!stillInInput) {
+          setKeyboardOpen(false);
+        }
+      }, BLUR_DELAY);
+    }
+
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('focusout', onFocusOut, true);
 
     return () => {
-      vv.removeEventListener('resize', onResize);
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('focusout', onFocusOut, true);
+      if (blurTimer) clearTimeout(blurTimer);
       document.documentElement.classList.remove('keyboard-open');
-      document.documentElement.style.removeProperty('--vvh');
     };
   }, []);
 }
