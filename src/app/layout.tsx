@@ -28,7 +28,7 @@ import { ThemeProvider } from './context/themeContext';
 
 // VConsole for mobile debugging - disabled
 // Set to true to enable for debugging
-const ENABLE_VCONSOLE = true;
+const ENABLE_VCONSOLE = false;
 
 export default function RootLayout({
   children,
