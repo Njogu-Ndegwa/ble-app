@@ -301,6 +301,7 @@ export default function PhoneInputWithCountry({
             aria-label="Select country"
             aria-expanded={isDropdownOpen}
             aria-haspopup="listbox"
+            data-keyboard-keep=""
           >
             <FlagImage iso2={country.iso2} size="18px" />
             <span className="dial-code">+{country.dialCode}</span>
