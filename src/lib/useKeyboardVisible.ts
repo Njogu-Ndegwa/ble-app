@@ -15,6 +15,14 @@ const INPUT_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
  */
 const BLUR_DELAY = 300;
 
+/**
+ * Minimum viewport height increase (px) that signals the keyboard was
+ * dismissed while an input still has focus (e.g. Android back-arrow or
+ * iOS swipe-down). Set below the smallest keyboard height (~200px on
+ * compact devices) but above URL-bar fluctuations (~60px).
+ */
+const VIEWPORT_GROW_THRESHOLD = 100;
+
 const NO_KEYBOARD_TYPES = new Set([
   'checkbox', 'radio', 'file', 'range', 'color', 'hidden', 'submit', 'reset', 'button', 'image',
 ]);
@@ -27,19 +35,26 @@ const NO_KEYBOARD_TYPES = new Set([
 const KEEP_KEYBOARD_ATTR = 'data-keyboard-keep';
 
 /**
- * Detects mobile virtual keyboard visibility by tracking input focus.
- * When any text-entry input receives focus, `.keyboard-open` is toggled
- * on <html> so CSS can hide non-essential fixed/sticky chrome (header,
- * timeline, nav, action bar) to maximise typing space.
+ * Detects mobile virtual keyboard visibility using two complementary signals:
  *
- * Uses focusin/focusout rather than VisualViewport because many mobile
- * browsers (Android WebViews, PWA shells) resize both the layout and
- * visual viewports together, making viewport-height diffing unreliable.
+ * 1. **focusin / focusout** (primary) — toggles `.keyboard-open` when a
+ *    text-entry input gains or loses focus. Works on every mobile browser.
+ *
+ * 2. **VisualViewport resize** (secondary) — catches the edge case where
+ *    the user dismisses the keyboard without blurring the input (Android
+ *    dismiss arrow, iOS swipe-down). When the viewport height grows back
+ *    significantly while we think the keyboard is open, we know it was
+ *    dismissed and remove `.keyboard-open`.
  */
 export function useKeyboardVisible() {
   useEffect(() => {
+    const vv = window.visualViewport;
+
     let blurTimer: ReturnType<typeof setTimeout> | null = null;
     let isOpen = false;
+    /** Viewport height recorded when keyboard opened; used by the
+     *  VisualViewport watcher to detect keyboard dismiss without blur. */
+    let heightAtOpen = 0;
 
     function setKeyboardOpen(open: boolean) {
       if (open === isOpen) return;
@@ -47,6 +62,9 @@ export function useKeyboardVisible() {
       document.documentElement.classList.toggle('keyboard-open', isOpen);
 
       if (isOpen) {
+        // Snapshot the viewport height so we can detect a later grow-back.
+        heightAtOpen = vv ? vv.height : window.innerHeight;
+
         requestAnimationFrame(() => {
           const el = document.activeElement;
           if (el && el instanceof HTMLElement) {
@@ -69,6 +87,8 @@ export function useKeyboardVisible() {
       return true;
     }
 
+    // ---- Primary: focus tracking ----
+
     function onFocusIn(e: FocusEvent) {
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
@@ -79,9 +99,6 @@ export function useKeyboardVisible() {
         return;
       }
 
-      // If the focused element (or an ancestor) has data-keyboard-keep,
-      // keep the keyboard state alive so chrome doesn't flash back during
-      // transitions like phone-input → country-dropdown-search.
       if (isOpen && target.closest(`[${KEEP_KEYBOARD_ATTR}]`)) {
         clearBlurTimer();
       }
@@ -97,12 +114,26 @@ export function useKeyboardVisible() {
       }, BLUR_DELAY);
     }
 
+    // ---- Secondary: VisualViewport resize ----
+    // Catches keyboard dismiss without blur (Android arrow / iOS swipe).
+
+    function onViewportResize() {
+      if (!isOpen || !vv) return;
+
+      const grew = vv.height - heightAtOpen;
+      if (grew > VIEWPORT_GROW_THRESHOLD) {
+        setKeyboardOpen(false);
+      }
+    }
+
     document.addEventListener('focusin', onFocusIn, true);
     document.addEventListener('focusout', onFocusOut, true);
+    vv?.addEventListener('resize', onViewportResize);
 
     return () => {
       document.removeEventListener('focusin', onFocusIn, true);
       document.removeEventListener('focusout', onFocusOut, true);
+      vv?.removeEventListener('resize', onViewportResize);
       clearBlurTimer();
       document.documentElement.classList.remove('keyboard-open');
     };
