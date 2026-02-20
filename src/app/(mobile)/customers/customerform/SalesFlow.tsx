@@ -914,15 +914,16 @@ export default function SalesFlow({
 
   // Auto-navigate to step 7 (battery assignment) when vehicle is scanned on step 6
   // This removes the need for user to click "Continue" after scanning vehicle QR
+  // Skip in read-only mode so users can freely browse completed session steps
   useEffect(() => {
-    if (currentStep === 6 && scannedVehicleId) {
+    if (currentStep === 6 && scannedVehicleId && !isReadOnlySession) {
       // Small delay to allow toast to show before navigation
       const timer = setTimeout(() => {
         advanceToStep(7);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, scannedVehicleId, advanceToStep]);
+  }, [currentStep, scannedVehicleId, advanceToStep, isReadOnlySession]);
 
   // Safety net: Auto-trigger customer identification when entering step 6 or 7
   // This handles edge cases like session restore where the payment callback didn't run
