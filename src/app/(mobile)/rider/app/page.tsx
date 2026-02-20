@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
 import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
 import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
@@ -1193,7 +1194,7 @@ const RiderApp: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 24px',
-                border: '2px solid rgba(255, 255, 255, 0.2)'
+                border: '2px solid var(--border-default)'
               }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -1215,7 +1216,7 @@ const RiderApp: React.FC = () => {
               {/* Welcome Message */}
               <p style={{
                 fontSize: '14px',
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'var(--text-secondary)',
                 textAlign: 'center',
                 marginBottom: '32px'
               }}>
@@ -1260,7 +1261,7 @@ const RiderApp: React.FC = () => {
                   <div style={{ 
                     fontSize: '13px', 
                     fontWeight: '400', 
-                    color: 'rgba(255, 255, 255, 0.6)'
+                    color: 'var(--text-secondary)'
                   }}>
                     {t('role.rider') || 'Rider'}
                   </div>
@@ -1426,7 +1427,8 @@ const RiderApp: React.FC = () => {
                 <Image src="/assets/Logo-Oves.png" alt="Omnivoltaic" width={100} height={28} style={{ objectFit: 'contain' }} priority />
               </div>
             </div>
-            <div className="flow-header-right">
+            <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ThemeToggle />
               <button className="flow-header-lang" onClick={toggleLocale} aria-label={t('role.switchLanguage') || 'Switch Language'}>
                 <Globe size={14} />
                 <span className="flow-header-lang-label">{locale.toUpperCase()}</span>

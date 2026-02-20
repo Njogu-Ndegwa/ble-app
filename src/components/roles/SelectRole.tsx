@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface RoleConfig {
   id: string;
@@ -90,7 +91,8 @@ export default function SelectRole() {
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}

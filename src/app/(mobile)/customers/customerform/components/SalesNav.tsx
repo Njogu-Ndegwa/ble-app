@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { useI18n } from '@/i18n';
 import BottomNav, { NavItem, NavIcons } from '@/components/ui/BottomNav';
 
-export type SalesScreen = 'sales' | 'sessions' | 'transactions' | 'profile';
+export type SalesScreen = 'sales' | 'customers' | 'sessions' | 'transactions' | 'profile';
 
 interface SalesNavProps {
   currentScreen: SalesScreen;
@@ -25,6 +25,11 @@ const SalesNav: React.FC<SalesNavProps> = ({ currentScreen, onNavigate }) => {
       key: 'sales',
       label: t('sales.nav.sales') || 'Sales',
       icon: NavIcons.sales,
+    },
+    {
+      key: 'customers',
+      label: t('sales.nav.customers') || 'Customers',
+      icon: NavIcons.customers,
     },
     {
       key: 'transactions',

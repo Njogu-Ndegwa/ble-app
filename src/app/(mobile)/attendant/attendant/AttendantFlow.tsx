@@ -3,12 +3,13 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, History, Eye, X } from 'lucide-react';
+import { Globe, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } from '@/lib/attendant-auth';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 // Import components
 import {
@@ -30,7 +31,7 @@ import {
   PaymentInitiation,
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
-import { BleProgressModal, SessionResumePrompt, SessionsHistory } from '@/components/shared';
+import { BleProgressModal, SessionsHistory } from '@/components/shared';
 import { getCustomerDashboard, getOrdersList, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
@@ -79,13 +80,9 @@ interface AttendantFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback to clear the initial session after it's been consumed */
   onInitialSessionConsumed?: () => void;
-  /** Skip the pending session check (e.g., when navigating via bottom nav, not from Roles page) */
-  skipSessionCheck?: boolean;
-  /** Callback when the initial session check is complete (whether or not a session was found) */
-  onInitialSessionCheckComplete?: () => void;
 }
 
-export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, skipSessionCheck, onInitialSessionCheckComplete }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { locale, setLocale, t } = useI18n();
@@ -177,9 +174,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Flow error state - tracks failures that end the process
   const [flowError, setFlowError] = useState<FlowError | null>(null);
   
-  // Session restoration UI state
-  const [showSessionPrompt, setShowSessionPrompt] = useState(false);
-  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
@@ -205,16 +199,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   const {
     status: sessionStatus,
     orderId: sessionOrderId,
-    pendingSession,
     createSession,
     updateSession,
     updateSessionWithPayment,
-    restoreSession,
-    discardPendingSession,
     clearSession,
-    checkForPendingSession,
     setOrderId: setSessionOrderId,
-    isLoading: isSessionLoading,
   } = useWorkflowSession({
     workflowType: 'attendant',
     onSessionRestored: (sessionData, orderId) => {
@@ -257,60 +246,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     },
   });
   
-  // Check for pending session on mount
-  // Note: We always call checkSession() immediately - the hook handles auth verification
-  // internally via getEmployeeToken(). This avoids race conditions with attendantInfo state.
-  // Skip the check if:
-  // 1. We have an initialSession (user selected from sessions list)
-  // 2. skipSessionCheck is true (user navigated via bottom nav, not from Roles page)
-  useEffect(() => {
-    // If we have an initialSession, skip the pending session check entirely
-    // The session will be restored via the initialSession effect
-    // Also discard any pending session and hide the prompt to prevent the modal from showing
-    if (initialSession) {
-      setShowSessionPrompt(false);
-      discardPendingSession();
-      setSessionCheckComplete(true);
-      onInitialSessionCheckComplete?.();
-      return;
-    }
-    
-    // If skipSessionCheck is true, user is navigating via bottom nav (not from Roles page)
-    // Don't show the session resume modal - just mark check as complete
-    if (skipSessionCheck) {
-      setSessionCheckComplete(true);
-      return;
-    }
-    
-    const checkSession = async () => {
-      const hasPending = await checkForPendingSession();
-      if (hasPending) {
-        setShowSessionPrompt(true);
-      }
-      setSessionCheckComplete(true);
-      // Notify parent that the initial session check is complete
-      // This prevents the modal from showing on subsequent navigations
-      onInitialSessionCheckComplete?.();
-    };
-    
-    checkSession();
-  }, [checkForPendingSession, initialSession, discardPendingSession, skipSessionCheck, onInitialSessionCheckComplete]);
-  
-  // Handle session resume
-  const handleResumeSession = useCallback(async () => {
-    const sessionData = await restoreSession();
-    if (sessionData) {
-      setShowSessionPrompt(false);
-    }
-  }, [restoreSession]);
-  
-  // Handle discard session
-  const handleDiscardSession = useCallback(() => {
-    discardPendingSession();
-    setShowSessionPrompt(false);
-    toast(t('session.startNew') || 'Starting a new swap');
-  }, [discardPendingSession, t]);
-  
   // Handle selecting a session from history
   const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
     if (!order.session?.session_data) {
@@ -318,9 +253,8 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       return;
     }
     
-    // Close the history modal and hide any session resume prompt
+    // Close the history modal
     setShowSessionsHistory(false);
-    setShowSessionPrompt(false);
     
     // Set read-only mode based on whether the session can be edited
     setIsReadOnlySession(isReadOnly);
@@ -2037,17 +1971,8 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
               />
             </div>
           </div>
-          <div className="flow-header-right">
-            {!hideHeaderActions && (
-              <button
-                className="flow-header-history"
-                onClick={() => setShowSessionsHistory(true)}
-                aria-label={t('sessions.historyTitle') || 'Past Sessions'}
-                title={t('sessions.historyTitle') || 'Past Sessions'}
-              >
-                <History size={16} />
-              </button>
-            )}
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -2110,20 +2035,17 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
       {/* Bottom Fixed Area - Action Bar + Navigation */}
       <div className="attendant-bottom-fixed">
-        {/* Action Bar - Only show after session check is complete */}
-        {sessionCheckComplete && (
-          <ActionBar
-            currentStep={currentStep}
-            onBack={handleBack}
-            onMainAction={handleMainAction}
-            isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
-            inputMode={inputMode}
-            paymentInputMode={paymentInputMode}
-            hasSufficientQuota={hasSufficientQuota}
-            swapCost={swapData.cost}
-            readOnly={isReadOnlySession}
-          />
-        )}
+        <ActionBar
+          currentStep={currentStep}
+          onBack={handleBack}
+          onMainAction={handleMainAction}
+          isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
+          inputMode={inputMode}
+          paymentInputMode={paymentInputMode}
+          hasSufficientQuota={hasSufficientQuota}
+          swapCost={swapData.cost}
+          readOnly={isReadOnlySession}
+        />
 
         {/* Bottom Navigation - rendered by parent when using menu system */}
         {renderBottomNav && renderBottomNav()}
@@ -2155,15 +2077,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         onCancel={cancelBleOperation}
       />
 
-      {/* Session Resume Prompt - Shows when there's a pending session from backend */}
-      <SessionResumePrompt
-        isVisible={showSessionPrompt && !!pendingSession}
-        session={pendingSession}
-        onResume={handleResumeSession}
-        onDiscard={handleDiscardSession}
-        isLoading={isSessionLoading}
-      />
-
       {/* Sessions History Modal - Shows past sessions for browsing/resuming */}
       <SessionsHistory
         isVisible={showSessionsHistory}
@@ -2173,17 +2086,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         workflowType="attendant"
       />
 
-      {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
-      {!sessionCheckComplete && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="loading-spinner"></div>
-            <div className="text-white text-sm opacity-80">
-              {t('session.checkingForSession') || 'Checking for pending session...'}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

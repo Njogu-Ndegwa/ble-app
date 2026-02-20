@@ -71,18 +71,18 @@ interface ProgressiveLoadingProps {
   }, [displayProgress, loadingSteps, initialMessage, completionMessage, onLoadingComplete]);
   
   return (
-    <div className="flex flex-col items-center justify-center max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] p-4 min-h-screen">
-      <div className="w-full bg-[#2A2F33] rounded-lg p-4 shadow-lg">
+    <div className="flex flex-col items-center justify-center max-w-md mx-auto bg-gradient-page p-4 min-h-screen">
+      <div className="w-full bg-bg-tertiary rounded-lg p-4 shadow-lg">
         {/* Header with percentage */}
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-medium text-base">{t('Loading')}</h3>
-          <span className="text-white font-bold text-base">{displayProgress}%</span>
+          <h3 className="text-text-primary font-medium text-base">{t('Loading')}</h3>
+          <span className="text-text-primary font-bold text-base">{displayProgress}%</span>
         </div>
         
         {/* Progress bar */}
-        <div className="w-full bg-[#1c1f22] rounded-full h-2 mb-4">
+        <div className="w-full bg-bg-secondary rounded-full h-2 mb-4">
           <div 
-            className="bg-gradient-to-r from-[#2d4c6d] to-[#52545c] h-2 rounded-full transition-all duration-300 ease-out" 
+            className="bg-gradient-page h-2 rounded-full transition-all duration-300 ease-out" 
             style={{ width: `${displayProgress}%` }}
           ></div>
         </div>
@@ -90,11 +90,11 @@ interface ProgressiveLoadingProps {
         {/* Loading message */}
         <div className="flex items-center mb-4">
           {!isComplete ? (
-            <Loader2 className="animate-spin text-gray-400 mr-2" size={16} />
+            <Loader2 className="animate-spin text-text-secondary mr-2" size={16} />
           ) : (
-            <CheckCircle className="text-gray-400 mr-2" size={16} />
+            <CheckCircle className="text-text-secondary mr-2" size={16} />
           )}
-          <p className="text-gray-400 text-sm">{t(currentMessage)}</p>
+          <p className="text-text-secondary text-sm">{t(currentMessage)}</p>
         </div>
         
         {/* Step indicators */}

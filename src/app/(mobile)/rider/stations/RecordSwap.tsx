@@ -29,16 +29,16 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
   if (!selectedSwap) return null;
 
   return (
-<div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 p-4 flex items-center justify-center">
+<div className="min-h-screen p-4 flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
           <div className="w-full max-w-md">
         {/* Main Card */}
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden mb-8">
           {/* Header */}
-          <div className="bg-gray-50 px-6 py-4 flex items-center justify-between">
+          <div className="bg-bg-secondary px-6 py-4 flex items-center justify-between">
             <button onClick={onBack}>
-              <ArrowLeft className="w-6 h-6 text-gray-600" />
+              <ArrowLeft className="w-6 h-6 text-text-muted" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-800">Record Swap</h1>
+            <h1 className="text-lg font-semibold text-text-primary">Record Swap</h1>
             <div className="w-6 h-6"></div>
           </div>
 
@@ -50,13 +50,13 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                     step.id <= currentStep 
                       ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-200 text-gray-500'
+                      : 'bg-bg-elevated text-text-muted'
                   }`}>
                     {step.id}
                   </div>
                   {index < steps.length - 1 && (
                     <div className={`w-16 h-0.5 mx-2 ${
-                      step.id < currentStep ? 'bg-blue-600' : 'bg-gray-200'
+                      step.id < currentStep ? 'bg-blue-600' : 'bg-bg-elevated'
                     }`}></div>
                   )}
                 </div>
@@ -65,20 +65,20 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
 
             {/* Swap Review Section */}
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-800">Swap Review</h2>
+              <h2 className="text-xl font-bold text-text-primary">Swap Review</h2>
               
               {/* Swap Details */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Swap ID:</span>
+                  <span className="text-text-muted">Swap ID:</span>
                   <span className="font-medium">{selectedSwap.id}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Date:</span>
+                  <span className="text-text-muted">Date:</span>
                   <span className="font-medium">{selectedSwap.date}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Rider Name:</span>
+                  <span className="text-text-muted">Rider Name:</span>
                   <span className="font-medium">{selectedSwap.riderName}</span>
                 </div>
               </div>
@@ -87,7 +87,7 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
               <div className="space-y-4">
                 {/* Depleted Battery */}
                 <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">Returned Battery status</h3>
+                  <h3 className="font-semibold text-text-primary mb-2">Returned Battery status</h3>
                   <div className="flex items-center space-x-3 p-3 bg-red-50 rounded-lg">
                     <div className="w-12 h-6 bg-red-500 rounded-sm relative overflow-hidden">
                       <div 
@@ -99,7 +99,7 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
                       <div className="text-red-600 font-semibold">
                         {selectedSwap.depletedBattery.percentage}% Remaining Battery
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-text-muted">
                         {selectedSwap.depletedBattery.range}
                       </div>
                     </div>
@@ -108,7 +108,7 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
 
                 {/* New Battery */}
                 <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">New Battery status</h3>
+                  <h3 className="font-semibold text-text-primary mb-2">New Battery status</h3>
                   <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
                     <div className="w-12 h-6 bg-green-500 rounded-sm relative overflow-hidden">
                       <div 
@@ -120,7 +120,7 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
                       <div className="text-green-600 font-semibold">
                         {selectedSwap.newBattery.percentage}% Remaining Battery
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-text-muted">
                         {selectedSwap.newBattery.range}
                       </div>
                     </div>
@@ -130,14 +130,14 @@ export default function RecordSwap({ selectedSwap, onBack }: RecordSwapProps) {
 
               {/* Pricing Details */}
               <div>
-                <h3 className="font-semibold text-gray-800 mb-3">Pricing Details</h3>
+                <h3 className="font-semibold text-text-primary mb-3">Pricing Details</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Battery Charges</span>
+                    <span className="text-text-muted">Battery Charges</span>
                     <span className="font-medium">{selectedSwap.pricing.currencySymbol} {selectedSwap.pricing.batteryCharges}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Convenience Fee</span>
+                    <span className="text-text-muted">Convenience Fee</span>
                     <span className="font-medium">{selectedSwap.pricing.currencySymbol} {selectedSwap.pricing.convenienceFee}</span>
                   </div>
                   <div className="border-t pt-2 mt-2">

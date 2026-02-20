@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Globe } from 'lucide-react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { 
   getSalesRoleUser, 
   clearSalesRoleLogin,
@@ -16,6 +17,7 @@ import SalesNav, { type SalesScreen } from './components/SalesNav';
 import SalesProfile from './components/SalesProfile';
 import SalesSessions from './components/SalesSessions';
 import SalesTransactions from './components/SalesTransactions';
+import SalesCustomers from './components/SalesCustomers';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface SalesAppProps {
@@ -29,10 +31,6 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<SalesScreen>('sales');
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
-  
-  // Track if we've completed the initial session check (from Roles Page)
-  // This flag prevents the session resume modal from showing when just navigating via bottom nav
-  const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
   
   // Session management for resuming
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
@@ -99,13 +97,6 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
     setSelectedSessionReadOnly(false);
   }, []);
   
-  // Callback to mark initial session check as complete
-  // This is called by SalesFlow after the first session check (whether or not a session was found)
-  // Once called, subsequent navigations to sales screen won't show the session resume modal
-  const handleInitialSessionCheckComplete = useCallback(() => {
-    setHasCompletedInitialSessionCheck(true);
-  }, []);
-
   // If on 'sales' screen, show SalesFlow with full control
   if (currentScreen === 'sales') {
     return (
@@ -120,8 +111,6 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
         initialSession={selectedSession}
         initialSessionReadOnly={selectedSessionReadOnly}
         onInitialSessionConsumed={handleSessionConsumed}
-        skipSessionCheck={hasCompletedInitialSessionCheck}
-        onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
       />
     );
   }
@@ -156,7 +145,8 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -171,6 +161,11 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
 
       {/* Main Content */}
       <main className="sales-main sales-main-screen">
+        {currentScreen === 'customers' && (
+          <div className="sales-screen-container">
+            <SalesCustomers />
+          </div>
+        )}
         {currentScreen === 'sessions' && (
           <div className="sales-screen-container">
             <SalesSessions onSelectSession={handleSelectSession} />

@@ -93,6 +93,12 @@ export {
 export type { NetworkStatusBannerProps } from './NetworkStatusBanner';
 
 // ============================================
+// WORKFLOW PROFILE COMPONENT
+// ============================================
+export { default as WorkflowProfile } from './WorkflowProfile';
+export type { WorkflowProfileProps } from './WorkflowProfile';
+
+// ============================================
 // SESSION MANAGEMENT COMPONENTS
 // ============================================
 export { 

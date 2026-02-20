@@ -927,6 +927,7 @@ import { useI18n } from "@/i18n";
 import Image from 'next/image';
 import { Globe, User } from 'lucide-react';
 import Sidebar from '@/components/sidebar/sidebar';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 let bridgeHasBeenInitialized = false;
 // Define interfaces and types
 export interface BleDevice {
@@ -1748,7 +1749,8 @@ const AppContainer = () => {
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -1767,21 +1769,21 @@ const AppContainer = () => {
           // Customize default toast options
           duration: 3000,
           style: {
-            background: "#333",
-            color: "#fff",
+            background: "var(--toast-bg)",
+            color: "var(--toast-text)",
             padding: "16px",
             borderRadius: "8px",
           },
           // Configure different types of toasts
           success: {
             iconTheme: {
-              primary: "#10B981",
+              primary: "var(--color-success)",
               secondary: "white",
             },
           },
           error: {
             iconTheme: {
-              primary: "#EF4444",
+              primary: "var(--color-error)",
               secondary: "white",
             },
           },

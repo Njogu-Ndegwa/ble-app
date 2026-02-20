@@ -400,7 +400,7 @@ const RiderStations: React.FC<RiderStationsProps> = ({
         [userLocation.lat, userLocation.lng],
         [targetStation.lat, targetStation.lng],
       ], {
-        color: '#00e5e5',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#00e5e5',
         weight: 4,
         opacity: 0.9,
       }).addTo(mapInstanceRef.current);

@@ -975,8 +975,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           <button
             onClick={handleDisconnect}
             className="p-2 rounded-lg transition-colors"
-            style={{ color: '#EF4444' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+            style={{ color: 'var(--color-error)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             title={t('Disconnect Device')}
           >

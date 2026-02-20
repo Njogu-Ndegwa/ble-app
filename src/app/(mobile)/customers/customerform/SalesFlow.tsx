@@ -3,10 +3,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut, History, Eye, X } from 'lucide-react';
+import { Globe, LogOut, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 // Import components
 import {
@@ -33,13 +34,16 @@ import {
 } from './components';
 // ProgressiveLoading removed - using simple loading overlay like Attendant flow
 
+// Import customer service for existing customer selection
+import type { ExistingCustomer } from '@/lib/services/customer-service';
+
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
 import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionResumePrompt, SessionsHistory } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionsHistory } from '@/components/shared';
 import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -102,10 +106,6 @@ interface SalesFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback when initial session is consumed */
   onInitialSessionConsumed?: () => void;
-  /** Skip the pending session check (e.g., when navigating via bottom nav, not from Roles page) */
-  skipSessionCheck?: boolean;
-  /** Callback when the initial session check is complete (whether or not a session was found) */
-  onInitialSessionCheckComplete?: () => void;
 }
 
 export default function SalesFlow({ 
@@ -115,8 +115,6 @@ export default function SalesFlow({
   initialSession,
   initialSessionReadOnly,
   onInitialSessionConsumed,
-  skipSessionCheck,
-  onInitialSessionCheckComplete,
 }: SalesFlowProps) {
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
@@ -158,6 +156,10 @@ export default function SalesFlow({
     zip: '',
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
+
+  // Customer mode: 'new' for creating from scratch, 'existing' for selecting a pre-existing customer
+  const [customerMode, setCustomerMode] = useState<'new' | 'existing'>('new');
+  const [selectedExistingCustomer, setSelectedExistingCustomer] = useState<ExistingCustomer | null>(null);
 
   // Product catalog hook - fetches products, packages, and plans from Odoo
   // Using workflowType: 'sales' to ensure we use the correct sales role token
@@ -376,16 +378,11 @@ export default function SalesFlow({
   const {
     status: sessionStatus,
     orderId: sessionOrderId,
-    pendingSession,
     createSalesSession,
     updateSession,
     updateSessionWithProducts,
-    restoreSession: restoreBackendSession,
-    discardPendingSession,
     clearSession,
     setOrderId: setSessionOrderId,
-    checkForPendingSession,
-    isLoading: isSessionLoading,
   } = useWorkflowSession({
     workflowType: 'salesperson',
     onSessionRestored: (sessionData, orderId) => {
@@ -446,10 +443,6 @@ export default function SalesFlow({
     },
   });
 
-  // Session restoration UI state (backend sessions only)
-  const [showSessionPrompt, setShowSessionPrompt] = useState(false);
-  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
-  const [sessionRestored, setSessionRestored] = useState(false);
   
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
@@ -478,65 +471,6 @@ export default function SalesFlow({
     console.info(`🔵 [SalesFlow] advanceToStep(${step}) — setState calls dispatched (will apply on next render)`);
   }, []);
 
-  // Check for pending session from backend on mount
-  // Skip the check if:
-  // 1. We have an initialSession (user selected from sessions list)
-  // 2. skipSessionCheck is true (user navigated via bottom nav, not from Roles page)
-  useEffect(() => {
-    // If we have an initialSession, skip the pending session check entirely
-    // The session will be restored via the initialSession effect
-    if (initialSession) {
-      setShowSessionPrompt(false);
-      discardPendingSession();
-      setSessionCheckComplete(true);
-      onInitialSessionCheckComplete?.();
-      return;
-    }
-    
-    // If skipSessionCheck is true, user is navigating via bottom nav (not from Roles page)
-    // Don't show the session resume modal - just mark check as complete
-    if (skipSessionCheck) {
-      setSessionCheckComplete(true);
-      return;
-    }
-    
-    const checkSession = async () => {
-      // Check backend for pending session (localStorage sessions removed)
-      const hasPending = await checkForPendingSession();
-      if (hasPending) {
-        setShowSessionPrompt(true);
-      } else {
-        // Clean up any leftover localStorage session from previous versions
-        clearSalesSession();
-      }
-      setSessionCheckComplete(true);
-      // Notify parent that the initial session check is complete
-      // This prevents the modal from showing on subsequent navigations
-      onInitialSessionCheckComplete?.();
-    };
-    
-    checkSession();
-  }, [checkForPendingSession, initialSession, discardPendingSession, skipSessionCheck, onInitialSessionCheckComplete]);
-
-  // Handle session resume from backend
-  const handleResumeSession = useCallback(async () => {
-    const sessionData = await restoreBackendSession();
-    if (sessionData) {
-      setShowSessionPrompt(false);
-      setSessionRestored(true);
-    }
-  }, [restoreBackendSession]);
-  
-  // Handle discard session from backend
-  const handleDiscardSession = useCallback(() => {
-    discardPendingSession();
-    setShowSessionPrompt(false);
-    setSessionRestored(true);
-    // Clean up any leftover localStorage session
-    clearSalesSession();
-    toast(t('session.startNew') || 'Starting a new registration');
-  }, [discardPendingSession, t]);
-  
   // Handle selecting a session from history
   const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
     if (!order.session?.session_data) {
@@ -549,6 +483,11 @@ export default function SalesFlow({
     
     // Set read-only mode based on whether the session can be edited
     setIsReadOnlySession(isReadOnly);
+    
+    // Set the session order ID so auto-save works correctly on resumed sessions
+    if (!isReadOnly) {
+      setSessionOrderId(order.id);
+    }
     
     // Extract state from session data and restore
     const sessionData = order.session.session_data;
@@ -600,7 +539,7 @@ export default function SalesFlow({
     } else {
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
-  }, [t, restoreCatalogSelections]);
+  }, [t, restoreCatalogSelections, setSessionOrderId]);
   
   // Effect to automatically restore initial session from props (from sessions screen)
   useEffect(() => {
@@ -1122,15 +1061,16 @@ export default function SalesFlow({
 
   // Auto-navigate to step 7 (battery assignment) when vehicle is scanned on step 6
   // This removes the need for user to click "Continue" after scanning vehicle QR
+  // Skip in read-only mode so users can freely browse completed session steps
   useEffect(() => {
-    if (currentStep === 6 && scannedVehicleId) {
+    if (currentStep === 6 && scannedVehicleId && !isReadOnlySession) {
       // Small delay to allow toast to show before navigation
       const timer = setTimeout(() => {
         advanceToStep(7);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [currentStep, scannedVehicleId, advanceToStep]);
+  }, [currentStep, scannedVehicleId, advanceToStep, isReadOnlySession]);
 
   // Safety net: Auto-trigger customer identification when entering step 6 or 7
   // This handles edge cases like session restore where the payment callback didn't run
@@ -1256,6 +1196,7 @@ export default function SalesFlow({
       
       // Log full response for debugging
       console.log('Odoo registration response:', JSON.stringify(response, null, 2));
+      console.info('[SalesFlow] Customer creation response:', response);
 
       if (response.success && response.session) {
         const { session } = response;
@@ -2097,11 +2038,90 @@ export default function SalesFlow({
     
     switch (currentStep) {
       case 1:
-        // Validate and create customer in Odoo
-        if (validateForm()) {
-          const customerCreated = await createCustomerInOdoo();
-          if (customerCreated) {
+        if (customerMode === 'existing') {
+          // Use an already-registered customer
+          if (!selectedExistingCustomer) {
+            toast.error(t('sales.pleaseSelectCustomer') || 'Please select a customer');
+            return;
+          }
+          setIsProcessing(true);
+          try {
+            // Populate IDs from the selected customer (skip Odoo registration)
+            setCreatedCustomerId(selectedExistingCustomer.id);
+            setCreatedPartnerId(selectedExistingCustomer.partnerId);
+            // Populate form data from the selected customer for display in later steps
+            const nameParts = selectedExistingCustomer.name.split(' ');
+            const existingFormData = {
+              firstName: nameParts[0] || '',
+              lastName: nameParts.slice(1).join(' ') || '',
+              phone: selectedExistingCustomer.phone || '',
+              email: selectedExistingCustomer.email || '',
+              street: selectedExistingCustomer.street || '',
+              city: selectedExistingCustomer.city || '',
+              zip: selectedExistingCustomer.zip || '',
+            };
+            setFormData(existingFormData);
+            // Create backend session for the existing customer
+            try {
+              const initialSessionData = buildSalesSessionData({
+                currentStep: 2,
+                maxStepReached: 2,
+                actor: {
+                  id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
+                  station: SALESPERSON_STATION,
+                },
+                formData: existingFormData,
+                selectedPackageId,
+                selectedPlanId,
+                createdCustomerId: selectedExistingCustomer.id,
+                createdPartnerId: selectedExistingCustomer.partnerId,
+                customerSessionToken: null,
+                subscriptionData: null,
+                paymentState: {
+                  initiated: false,
+                  confirmed: false,
+                  reference: '',
+                  amountPaid: 0,
+                  amountExpected: 0,
+                  amountRemaining: 0,
+                  incomplete: false,
+                  inputMode: 'scan',
+                  manualPaymentId: '',
+                  requestOrderId: null,
+                },
+                confirmedSubscriptionCode: null,
+                scannedBatteryPending: null,
+                assignedBattery: null,
+                customerIdentification: {
+                  identified: false,
+                  rate: null,
+                  currencySymbol: null,
+                },
+                scannedVehicleId: null,
+                registrationId: '',
+                customerPassword: null,
+              });
+              
+              await createSalesSession(
+                selectedExistingCustomer.partnerId,
+                DEFAULT_COMPANY_ID,
+                initialSessionData
+              );
+            } catch (err) {
+              console.error('[SalesFlow] Failed to create backend session for existing customer (non-blocking):', err);
+            }
+            toast.success(t('sales.customerSelected') || 'Customer selected successfully!');
             advanceToStep(2);
+          } finally {
+            setIsProcessing(false);
+          }
+        } else {
+          // Validate and create customer in Odoo
+          if (validateForm()) {
+            const customerCreated = await createCustomerInOdoo();
+            if (customerCreated) {
+              advanceToStep(2);
+            }
           }
         }
         break;
@@ -2208,6 +2228,9 @@ export default function SalesFlow({
           zip: '',
         });
         setFormErrors({});
+        // Reset customer mode
+        setCustomerMode('new');
+        setSelectedExistingCustomer(null);
         // Reset to first available package if any
         if (availablePackages.length > 0) {
           setSelectedPackageId(availablePackages[0].id);
@@ -2256,8 +2279,6 @@ export default function SalesFlow({
         setCustomerPassword(null);
         // Reset read-only mode when starting new registration
         setIsReadOnlySession(false);
-        // Reset session restored flag to allow new session tracking
-        setSessionRestored(true);
         break;
     }
   }, [
@@ -2285,6 +2306,10 @@ export default function SalesFlow({
     resetPaymentAndService,
     resetVehicleAssignment,
     isReadOnlySession,
+    customerMode,
+    selectedExistingCustomer,
+    t,
+    createSalesSession,
   ]);
 
   // Handle step click in timeline
@@ -2317,6 +2342,9 @@ export default function SalesFlow({
       zip: '',
     });
     setFormErrors({});
+    // Reset customer mode
+    setCustomerMode('new');
+    setSelectedExistingCustomer(null);
     // Reset to first available package if any
     if (availablePackages.length > 0) {
       setSelectedPackageId(availablePackages[0].id);
@@ -2364,8 +2392,6 @@ export default function SalesFlow({
     setRegistrationId('');
     // Reset read-only mode
     setIsReadOnlySession(false);
-    // Reset session restored flag to allow new session tracking
-    setSessionRestored(true);
   }, [availablePackages, availableProducts, availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment]);
 
   // Handle back to roles
@@ -2402,6 +2428,10 @@ export default function SalesFlow({
             formData={formData}
             onFormChange={handleFormChange}
             errors={formErrors}
+            customerMode={customerMode}
+            onModeChange={setCustomerMode}
+            onSelectExistingCustomer={setSelectedExistingCustomer}
+            selectedExistingCustomer={selectedExistingCustomer}
           />
         );
       case 2:
@@ -2550,15 +2580,8 @@ export default function SalesFlow({
               />
             </div>
           </div>
-          <div className="flow-header-right">
-            <button
-              className="flow-header-history"
-              onClick={() => setShowSessionsHistory(true)}
-              aria-label={t('sessions.historyTitle') || 'Past Sessions'}
-              title={t('sessions.historyTitle') || 'Past Sessions'}
-            >
-              <History size={16} />
-            </button>
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <button
               className="flow-header-lang"
               onClick={toggleLocale}
@@ -2671,15 +2694,6 @@ export default function SalesFlow({
         </div>
       )}
 
-      {/* Backend Session Resume Prompt - Uses shared SessionResumePrompt component */}
-      <SessionResumePrompt
-        isVisible={showSessionPrompt && !!pendingSession}
-        session={pendingSession}
-        onResume={handleResumeSession}
-        onDiscard={handleDiscardSession}
-        isLoading={isSessionLoading}
-      />
-
       {/* Sessions History Modal - Shows past sessions for browsing/resuming */}
       <SessionsHistory
         isVisible={showSessionsHistory}
@@ -2688,20 +2702,6 @@ export default function SalesFlow({
         authToken={getSalesRoleToken() || ''}
         workflowType="salesperson"
       />
-
-      {/* Note: Legacy localStorage session prompt removed - using backend sessions only */}
-
-      {/* Session Check Loading Overlay - Shows while checking for pending sessions */}
-      {!sessionCheckComplete && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="loading-spinner"></div>
-            <div className="text-white text-sm opacity-80">
-              {t('session.checkingForSession') || 'Checking for pending session...'}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* BLE Connection Progress Modal - Reusable component for connection/reading progress */}
       <BleProgressModal

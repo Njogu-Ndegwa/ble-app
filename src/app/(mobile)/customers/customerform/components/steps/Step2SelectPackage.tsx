@@ -106,7 +106,7 @@ export default function Step2SelectPackage({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    backgroundColor: 'var(--bg-surface)',
                     borderRadius: '8px',
                   }}>
                     {hasImage ? (
@@ -119,7 +119,7 @@ export default function Step2SelectPackage({
                         unoptimized
                       />
                     ) : (
-                      <PackageIcon size={28} color="rgba(255, 255, 255, 0.4)" />
+                      <PackageIcon size={28} color="var(--text-muted)" />
                     )}
                   </div>
                   
@@ -136,7 +136,7 @@ export default function Step2SelectPackage({
                     {pkg.mainProduct && pkg.mainProduct.name !== pkg.name && (
                       <div style={{ 
                         fontSize: '11px', 
-                        color: 'rgba(255, 255, 255, 0.5)',
+                        color: 'var(--text-muted)',
                         marginBottom: '4px',
                       }}>
                         {pkg.mainProduct.name}
@@ -154,7 +154,7 @@ export default function Step2SelectPackage({
                     {/* Show what's included - subtle fineprint */}
                     <div style={{ 
                       fontSize: '10px', 
-                      color: 'rgba(255, 255, 255, 0.4)',
+                      color: 'var(--text-muted)',
                       marginTop: '2px',
                     }}>
                       {pkg.componentCount} {pkg.componentCount === 1 ? 'item' : 'items'} included

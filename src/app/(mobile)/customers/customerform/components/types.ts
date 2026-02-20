@@ -1,5 +1,8 @@
 // Shared types for Sales Rep Flow
 
+// Re-export ExistingCustomer from customer service for use in step components
+export type { ExistingCustomer } from '@/lib/services/customer-service';
+
 export interface CustomerFormData {
   // Personal Information (required by Odoo /api/auth/register)
   // name, email, phone, street, city, zip are accepted by the endpoint

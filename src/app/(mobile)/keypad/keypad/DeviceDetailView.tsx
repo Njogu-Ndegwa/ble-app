@@ -402,8 +402,8 @@ useEffect(() => {
         <button
           onClick={handleDisconnect}
           className="p-2 rounded-lg transition-colors"
-          style={{ color: '#EF4444' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+          style={{ color: 'var(--color-error)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           title={t('Disconnect Device')}
         >
@@ -580,7 +580,7 @@ useEffect(() => {
             background: okDisabled 
               ? 'var(--bg-tertiary)' 
               : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
-            color: '#ffffff',
+            color: 'var(--text-primary)',
             opacity: okDisabled ? 0.5 : 1,
             border: okDisabled ? '1px solid var(--border)' : 'none',
           }}

@@ -238,7 +238,7 @@ import { LogIn } from 'lucide-react';
 // Dynamically import ChargingStationFinder to avoid SSR issues
 const ChargingStationFinder = dynamic(() => import('./ChargingStationFinder'), {
   ssr: false,
-  loading: () => <div className="text-white">Loading...</div>
+  loading: () => <div className="text-text-primary">Loading...</div>
 });
 
 // Define interfaces and types
@@ -438,33 +438,33 @@ const AppContainer = () => {
   // Show loading state during SSR
   if (!isClient) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center">
+        <div className="text-text-primary">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center">
       <Toaster
         position="top-center"
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#333',
-            color: '#fff',
+            background: 'var(--toast-bg)',
+            color: 'var(--toast-text)',
             padding: '16px',
             borderRadius: '8px',
           },
           success: {
             iconTheme: {
-              primary: '#10B981',
+              primary: 'var(--color-success)',
               secondary: 'white',
             },
           },
           error: {
             iconTheme: {
-              primary: '#EF4444',
+              primary: 'var(--color-error)',
               secondary: 'white',
             },
           },
@@ -473,7 +473,7 @@ const AppContainer = () => {
       {!isSignedIn ? (
         <button
           onClick={handleSignIn}
-          className="bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 transition-colors duration-200"
+          className="bg-bg-secondary text-text-primary font-semibold py-3 px-6 rounded-lg shadow-lg hover:bg-bg-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2 transition-colors duration-200"
         >
           <LogIn className="w-6 h-6" />
           Sign in

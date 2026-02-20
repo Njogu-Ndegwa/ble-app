@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface FlowHeaderProps {
   showBack?: boolean;
@@ -62,14 +63,17 @@ export default function FlowHeader({ showBack = true, backPath, onBack, title }:
         
         {title && <h1 className="flow-header-title">{title}</h1>}
         
-        <button
-          className="flow-header-lang"
-          onClick={toggleLocale}
-          aria-label={t('Switch language')}
-        >
-          <Globe size={16} />
-          <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ThemeToggle />
+          <button
+            className="flow-header-lang"
+            onClick={toggleLocale}
+            aria-label={t('Switch language')}
+          >
+            <Globe size={16} />
+            <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+          </button>
+        </div>
       </div>
     </header>
   );

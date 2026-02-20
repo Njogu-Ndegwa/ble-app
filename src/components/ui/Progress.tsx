@@ -185,11 +185,11 @@ export function QuotaBar({
           width: 'var(--icon-xl)',
           height: 'var(--icon-xl)',
           borderRadius: 'var(--radius-md)',
-          backgroundColor: type === 'energy' ? 'var(--color-warning-soft)' : 'rgba(6, 182, 212, 0.15)',
+          backgroundColor: type === 'energy' ? 'var(--color-warning-soft)' : 'var(--color-info-soft)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: type === 'energy' ? 'var(--color-warning)' : '#06b6d4',
+          color: type === 'energy' ? 'var(--color-warning)' : 'var(--color-info)',
           flexShrink: 0,
         }}>
           {displayIcon}

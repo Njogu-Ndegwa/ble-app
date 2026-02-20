@@ -7,6 +7,7 @@ import { isAuth } from '@/lib/auth';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n';
 import Image from 'next/image';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 function MobileLayout({
   children,
@@ -48,7 +49,8 @@ function MobileLayout({
               />
             </div>
           </div>
-          <div className="flow-header-right">
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ThemeToggle />
             <LanguageSwitcher />
           </div>
         </div>

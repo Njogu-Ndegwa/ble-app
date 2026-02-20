@@ -55,11 +55,11 @@ const getPriorityColor = (priority: string, t: any) => {
   const prio = getPriorityName(priority, t);
   switch (prio) {
     case t("Urgent"):
-      return { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.3)' };
+      return { bg: 'var(--color-error-soft)', text: 'var(--color-error)', border: 'var(--color-error-soft)' };
     case t("High"):
-      return { bg: 'rgba(249, 115, 22, 0.15)', text: '#f97316', border: 'rgba(249, 115, 22, 0.3)' };
+      return { bg: 'var(--color-warning-soft)', text: 'var(--color-warning)', border: 'var(--color-warning-soft)' };
     case t("Medium"):
-      return { bg: 'rgba(234, 179, 8, 0.15)', text: '#eab308', border: 'rgba(234, 179, 8, 0.3)' };
+      return { bg: 'var(--color-warning-soft)', text: 'var(--color-warning)', border: 'var(--color-warning-soft)' };
     case t("Low"):
       return { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)', border: 'var(--border)' };
     default:

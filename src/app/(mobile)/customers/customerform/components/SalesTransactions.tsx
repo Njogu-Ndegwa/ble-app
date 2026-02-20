@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { 
@@ -10,28 +10,20 @@ import {
   type TransactionPeriod 
 } from '@/lib/odoo-api';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { RefreshCw, ChevronRight, User, Receipt, Calendar } from 'lucide-react';
+import { Receipt, Clock, CreditCard } from 'lucide-react';
+import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 
 interface SalesTransactionsProps {
   onSelectTransaction?: (transaction: AttendantTransaction) => void;
 }
-
-const PERIOD_OPTIONS: { value: TransactionPeriod; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: '3days', label: 'Last 3 Days' },
-  { value: '5days', label: 'Last 5 Days' },
-  { value: '7days', label: 'Last 7 Days' },
-  { value: '14days', label: 'Last 14 Days' },
-  { value: '30days', label: 'Last 30 Days' },
-];
 
 const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransaction }) => {
   const { t } = useI18n();
   const [data, setData] = useState<AttendantTransactionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<TransactionPeriod>('7days');
-  const [showPeriodPicker, setShowPeriodPicker] = useState(false);
+  const [period, setPeriod] = useState<ListPeriod>('7days');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchTransactions = useCallback(async () => {
     const authToken = getSalesRoleToken();
@@ -46,7 +38,7 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
     setError(null);
 
     try {
-      const response = await getAttendantTransactions(period, authToken);
+      const response = await getAttendantTransactions(period as TransactionPeriod, authToken);
       
       if (response && response.success !== false) {
         setData(response);
@@ -67,14 +59,23 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
     fetchTransactions();
   }, [fetchTransactions]);
 
-  const handleRefresh = () => {
-    fetchTransactions();
-  };
+  // Client-side search filter
+  const filteredTransactions = useMemo(() => {
+    if (!data?.transactions) return [];
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return data.transactions;
+    return data.transactions.filter(
+      (tx) =>
+        tx.customer.name.toLowerCase().includes(q) ||
+        tx.customer.phone?.toLowerCase().includes(q) ||
+        tx.reference?.toLowerCase().includes(q) ||
+        tx.order?.name?.toLowerCase().includes(q)
+    );
+  }, [data?.transactions, searchQuery]);
 
-  const handlePeriodChange = (newPeriod: TransactionPeriod) => {
+  const handlePeriodChange = useCallback((newPeriod: ListPeriod) => {
     setPeriod(newPeriod);
-    setShowPeriodPicker(false);
-  };
+  }, []);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -91,174 +92,95 @@ const SalesTransactions: React.FC<SalesTransactionsProps> = ({ onSelectTransacti
 
   const getStateBadgeClass = (state: string) => {
     switch (state) {
-      case 'paid': return 'transaction-badge-success';
-      case 'pending': return 'transaction-badge-warning';
-      case 'cancelled': return 'transaction-badge-error';
-      default: return 'transaction-badge-default';
+      case 'paid': return 'list-card-badge--completed';
+      case 'pending': return 'list-card-badge--progress';
+      default: return 'list-card-badge--default';
     }
   };
 
-  const getPeriodLabel = () => {
-    return PERIOD_OPTIONS.find(p => p.value === period)?.label || period;
-  };
+  // Summary cards rendered between filter and list
+  const summaryCards = data?.summary && !isLoading ? (
+    <div className="flex gap-2 mb-3">
+      <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-3 text-center">
+        <span className="text-xs text-text-muted block">{t('sales.transactions.totalAmount') || 'Total'}</span>
+        <span className="text-sm font-semibold text-text-primary">
+          {data.transactions[0]?.currency || ''} {data.summary.total_amount.toLocaleString()}
+        </span>
+      </div>
+      <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-3 text-center">
+        <span className="text-xs text-text-muted block">{t('sales.transactions.count') || 'Transactions'}</span>
+        <span className="text-sm font-semibold text-text-primary">{data.summary.total_transactions}</span>
+      </div>
+      <div className="flex-1 rounded-xl border border-border bg-bg-tertiary p-3 text-center">
+        <span className="text-xs text-text-muted block">{t('sales.transactions.customers') || 'Customers'}</span>
+        <span className="text-sm font-semibold text-text-primary">{data.summary.unique_customers}</span>
+      </div>
+    </div>
+  ) : undefined;
 
   return (
-    <div className="attendant-transactions">
-      {/* Header */}
-      <div className="transactions-header">
-        <div className="transactions-header-top">
-          <h2 className="transactions-title">
-            {t('sales.transactions.title') || 'My Transactions'}
-          </h2>
-          <button 
-            className="transactions-refresh-btn"
-            onClick={handleRefresh}
-            disabled={isLoading}
-            aria-label={t('common.refresh') || 'Refresh'}
-          >
-            <RefreshCw size={18} className={isLoading ? 'spinning' : ''} />
-          </button>
-        </div>
-        
-        {/* Period Filter */}
-        <div className="transactions-filter">
-          <button 
-            className="period-selector"
-            onClick={() => setShowPeriodPicker(!showPeriodPicker)}
-          >
-            <Calendar size={14} />
-            <span>{getPeriodLabel()}</span>
-            <ChevronRight size={14} className={`chevron ${showPeriodPicker ? 'open' : ''}`} />
-          </button>
-          
-          {showPeriodPicker && (
-            <div className="period-dropdown">
-              {PERIOD_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  className={`period-option ${period === option.value ? 'active' : ''}`}
-                  onClick={() => handlePeriodChange(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      {data?.summary && !isLoading && (
-        <div className="transactions-summary">
-          <div className="summary-card">
-            <span className="summary-label">{t('sales.transactions.totalAmount') || 'Total'}</span>
-            <span className="summary-value">
-              {data.transactions[0]?.currency || ''} {data.summary.total_amount.toLocaleString()}
-            </span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-label">{t('sales.transactions.count') || 'Transactions'}</span>
-            <span className="summary-value">{data.summary.total_transactions}</span>
-          </div>
-          <div className="summary-card">
-            <span className="summary-label">{t('sales.transactions.customers') || 'Customers'}</span>
-            <span className="summary-value">{data.summary.unique_customers}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="transactions-loading">
-          <div className="loading-spinner"></div>
-          <p>{t('common.loading') || 'Loading...'}</p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {error && !isLoading && (
-        <div className="transactions-error">
-          <p>{error}</p>
-          <button onClick={handleRefresh} className="retry-btn">
-            {t('common.tryAgain') || 'Try Again'}
-          </button>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!isLoading && !error && data?.transactions.length === 0 && (
-        <div className="transactions-empty">
-          <Receipt size={48} strokeWidth={1} />
-          <p>{t('sales.transactions.noTransactions') || 'No transactions found'}</p>
-          <span className="empty-hint">
-            {t('sales.transactions.noTransactionsHint') || 'Transactions will appear here after completing sales'}
-          </span>
-        </div>
-      )}
-
-      {/* Transactions List */}
-      {!isLoading && !error && data && data.transactions.length > 0 && (
-        <div className="transactions-list">
-          {data.transactions.map((transaction) => (
-            <div 
-              key={transaction.payment_id}
-              className="transaction-card"
-              onClick={() => onSelectTransaction?.(transaction)}
-            >
-              <div className="transaction-main">
-                <div className="transaction-customer">
-                  <div className="customer-avatar">
-                    <User size={16} />
-                  </div>
-                  <div className="customer-info">
-                    <span className="customer-name">{transaction.customer.name}</span>
-                    <span className="customer-phone">{transaction.customer.phone}</span>
-                  </div>
+    <ListScreen
+      title={t('sales.transactions.title') || 'My Transactions'}
+      searchPlaceholder={t('sales.transactions.searchPlaceholder') || 'Search by name, reference...'}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      period={period}
+      onPeriodChange={handlePeriodChange}
+      isLoading={isLoading}
+      error={error}
+      onRefresh={fetchTransactions}
+      isEmpty={filteredTransactions.length === 0}
+      emptyIcon={<Receipt size={28} className="text-text-muted" />}
+      emptyMessage={
+        searchQuery.trim()
+          ? (t('sales.transactions.noSearchResults') || 'No transactions match your search')
+          : (t('sales.transactions.noTransactions') || 'No transactions found')
+      }
+      emptyHint={
+        searchQuery.trim()
+          ? (t('sales.transactions.tryDifferentSearch') || 'Try a different search term')
+          : (t('sales.transactions.noTransactionsHint') || 'Transactions will appear here after completing sales')
+      }
+      itemCount={filteredTransactions.length}
+      itemLabel={filteredTransactions.length === 1
+        ? (t('sales.transactions.singular') || 'transaction')
+        : (t('sales.transactions.plural') || 'transactions')
+      }
+      headerExtra={summaryCards}
+    >
+      {filteredTransactions.map((transaction) => (
+        <div 
+          key={transaction.payment_id}
+          className="list-card"
+          onClick={() => onSelectTransaction?.(transaction)}
+        >
+          <div className="list-card-body">
+            <div className="list-card-content">
+              <div className="list-card-primary">{transaction.customer.name}</div>
+              {transaction.reference && (
+                <div className="list-card-secondary">
+                  {transaction.reference}
                 </div>
-                <div className="transaction-amount">
-                  <span className="amount">{formatAmount(transaction.amount, transaction.currency)}</span>
-                  <span className={`transaction-badge ${getStateBadgeClass(transaction.state)}`}>
-                    {transaction.state.charAt(0).toUpperCase() + transaction.state.slice(1)}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="transaction-details">
-                <div className="detail-row">
-                  <span className="detail-label">{t('sales.transactions.date') || 'Date'}</span>
-                  <span className="detail-value">{formatDate(transaction.payment_date)}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">{t('sales.transactions.method') || 'Method'}</span>
-                  <span className="detail-value">{transaction.payment_method}</span>
-                </div>
-                {transaction.order && (
-                  <div className="detail-row">
-                    <span className="detail-label">{t('sales.transactions.order') || 'Order'}</span>
-                    <span className="detail-value">{transaction.order.name}</span>
-                  </div>
-                )}
-                {transaction.reference && (
-                  <div className="detail-row">
-                    <span className="detail-label">{t('sales.transactions.reference') || 'Reference'}</span>
-                    <span className="detail-value reference">{transaction.reference}</span>
-                  </div>
-                )}
+              )}
+              <div className="list-card-meta">
+                <Clock size={10} />
+                <span>{formatDate(transaction.payment_date)}</span>
+                <span className="list-card-dot">&middot;</span>
+                <CreditCard size={10} />
+                <span>{transaction.payment_method}</span>
+                <span className="list-card-dot">&middot;</span>
+                <span className="list-card-meta-mono list-card-meta-bold">{formatAmount(transaction.amount, transaction.currency)}</span>
               </div>
             </div>
-          ))}
+            <div className="list-card-actions">
+              <span className={`list-card-badge ${getStateBadgeClass(transaction.state)}`}>
+                {transaction.state.charAt(0).toUpperCase() + transaction.state.slice(1)}
+              </span>
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Date Range Info */}
-      {data?.date_range && !isLoading && (
-        <div className="transactions-date-range">
-          <span>
-            {data.date_range.from} — {data.date_range.to}
-          </span>
-        </div>
-      )}
-    </div>
+      ))}
+    </ListScreen>
   );
 };
 

@@ -108,8 +108,8 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
         width: 300,
         margin: 2,
         color: {
-          dark: "#000000",
-          light: "#FFFFFF",
+          dark: typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#000000' : '#000000',
+          light: typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue('--qr-bg').trim() || '#ffffff' : '#ffffff',
         },
       });
 
@@ -216,7 +216,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
         {/* QR Code Display */}
         {qrDataUrl && (
           <div className="mt-6 text-center space-y-4">
-            <div className="inline-block rounded-2xl shadow-lg p-4" style={{ background: '#FFFFFF' }}>
+            <div className="inline-block rounded-2xl shadow-lg p-4" style={{ background: 'var(--qr-bg)' }}>
               <img
                 src={qrDataUrl}
                 alt={t("Payment QR Code")}

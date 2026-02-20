@@ -233,8 +233,8 @@ function PartialPaymentBanner({
   
   return (
     <div className="partial-payment-warning" style={{
-      background: 'linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%)',
-      border: '1px solid #ffc107',
+      background: 'var(--color-warning-soft)',
+      border: '1px solid var(--color-warning)',
       borderRadius: '12px',
       padding: '16px',
       margin: '0 16px 16px 16px',
@@ -248,7 +248,7 @@ function PartialPaymentBanner({
         marginBottom: '8px' 
       }}>
         <WarningIcon />
-        <span style={{ fontWeight: '600', color: '#856404', fontSize: '14px' }}>
+        <span style={{ fontWeight: '600', color: 'var(--color-warning)', fontSize: '14px' }}>
           {t('attendant.partialPayment') || 'Partial Payment Received'}
         </span>
       </div>
@@ -259,24 +259,24 @@ function PartialPaymentBanner({
         gap: '16px' 
       }}>
         <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ fontSize: '12px', color: '#856404', marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-warning)', marginBottom: '4px' }}>
             {t('attendant.amountPaid') || 'Paid'}
           </div>
-          <div style={{ fontSize: '18px', fontWeight: '700', color: '#155724' }}>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-success)' }}>
             {currencySymbol} {amountPaid.toLocaleString()}
           </div>
         </div>
-        <div style={{ width: '1px', height: '40px', background: '#ffc107' }} />
+        <div style={{ width: '1px', height: '40px', background: 'var(--color-warning)' }} />
         <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ fontSize: '12px', color: '#856404', marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-warning)', marginBottom: '4px' }}>
             {t('attendant.amountRemaining') || 'Remaining'}
           </div>
-          <div style={{ fontSize: '18px', fontWeight: '700', color: '#dc3545' }}>
+          <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-error)' }}>
             {currencySymbol} {amountRemaining.toLocaleString()}
           </div>
         </div>
       </div>
-      <p style={{ fontSize: '12px', color: '#856404', marginTop: '12px', marginBottom: 0 }}>
+      <p style={{ fontSize: '12px', color: 'var(--color-warning)', marginTop: '12px', marginBottom: 0 }}>
         {t('attendant.collectRemainingAmount') || 'Please collect the remaining amount before continuing.'}
       </p>
     </div>
@@ -308,7 +308,7 @@ function WarningIcon() {
     <svg 
       viewBox="0 0 24 24" 
       fill="none" 
-      stroke="#856404" 
+      stroke="currentColor" 
       strokeWidth="2" 
       strokeLinecap="round" 
       strokeLinejoin="round" 

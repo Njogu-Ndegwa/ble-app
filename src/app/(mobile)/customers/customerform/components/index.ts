@@ -5,6 +5,7 @@ export { default as SalesNav, type SalesScreen} from './SalesNav';
 export { default as SalesProfile } from './SalesProfile';
 export { default as SalesSessions } from './SalesSessions';
 export { default as SalesTransactions } from './SalesTransactions';
+export { default as SalesCustomers } from './SalesCustomers';
 
 // Export step components
 export * from './steps';

@@ -24,6 +24,7 @@ import apolloClient from "@/lib/apollo-client";
 import { ApolloProvider } from "@apollo/client";
 import { I18nProvider } from "@/i18n";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ThemeProvider } from './context/themeContext';
 
 // VConsole for mobile debugging - disabled
 // Set to true to enable for debugging
@@ -65,15 +66,17 @@ export default function RootLayout({
         className={`${outfit.variable} ${dmMono.variable} antialiased`}
       >
         <ErrorBoundary>
-          <ApolloProvider client={apolloClient}>
-            <BridgeProvider>
-              <AuthProvider>
-                <I18nProvider>
-                  {children}
-                </I18nProvider>
-              </AuthProvider>
-            </BridgeProvider>
-          </ApolloProvider>
+          <ThemeProvider>
+            <ApolloProvider client={apolloClient}>
+              <BridgeProvider>
+                <AuthProvider>
+                  <I18nProvider>
+                    {children}
+                  </I18nProvider>
+                </AuthProvider>
+              </BridgeProvider>
+            </ApolloProvider>
+          </ThemeProvider>
         </ErrorBoundary>
       </body>
     </html>

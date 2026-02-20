@@ -56,21 +56,37 @@ export default {
           DEFAULT: "var(--color-success)",
           light: "var(--color-success-light)",
           soft: "var(--color-success-soft)",
+          border: "var(--color-success-border)",
         },
         warning: {
           DEFAULT: "var(--color-warning)",
           light: "var(--color-warning-light)",
           soft: "var(--color-warning-soft)",
+          border: "var(--color-warning-border)",
         },
         error: {
           DEFAULT: "var(--color-error)",
           light: "var(--color-error-light)",
           soft: "var(--color-error-soft)",
+          border: "var(--color-error-border)",
         },
         info: {
           DEFAULT: "var(--color-info)",
           light: "var(--color-info-light)",
           soft: "var(--color-info-soft)",
+          border: "var(--color-info-border)",
+        },
+        
+        // Gradient stops (for from-*, to-* classes)
+        gradient: {
+          from: "var(--gradient-page-from)",
+          to: "var(--gradient-page-to)",
+        },
+        
+        // Toast / snackbar
+        toast: {
+          bg: "var(--toast-bg)",
+          text: "var(--toast-text)",
         },
       },
       

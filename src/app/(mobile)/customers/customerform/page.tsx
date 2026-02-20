@@ -84,13 +84,13 @@ export default function CustomerFormPage() {
           },
           success: {
             iconTheme: {
-              primary: "#00d9a0",
+              primary: "var(--color-success)",
               secondary: "white",
             },
           },
           error: {
             iconTheme: {
-              primary: "#ff5a5a",
+              primary: "var(--color-error)",
               secondary: "white",
             },
           },

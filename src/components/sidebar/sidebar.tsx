@@ -385,17 +385,17 @@ export default function Sidebar({ onClose }: Props) {
                                         onClick={click}
                                         className="btn btn-secondary flex items-center w-full px-4 py-2 rounded-md transition-colors"
                                         style={{ 
-                                            background: 'rgba(239, 68, 68, 0.15)',
-                                            color: '#ef4444',
-                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            background: 'var(--color-error-soft)',
+                                            color: 'var(--color-error)',
+                                            border: '1px solid var(--color-error-soft)',
                                         }}
                                         onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
-                                            e.currentTarget.style.borderColor = '#ef4444';
+                                            e.currentTarget.style.background = 'var(--color-error-soft)';
+                                            e.currentTarget.style.borderColor = 'var(--color-error)';
                                         }}
                                         onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
-                                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                                            e.currentTarget.style.background = 'var(--color-error-soft)';
+                                            e.currentTarget.style.borderColor = 'var(--color-error-soft)';
                                         }}
                                     >
                                         <span className="mr-3">

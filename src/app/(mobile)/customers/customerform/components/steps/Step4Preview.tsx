@@ -63,7 +63,7 @@ export default function Step4Preview({
           padding: '8px 12px',
           borderRadius: '8px',
         }}>
-          <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 500 }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500 }}>
             {t('sales.totalAmount') || 'Total'}
           </div>
           <div style={{ 
@@ -83,11 +83,11 @@ export default function Step4Preview({
           <Avatar initials={initials} size="md" variant="primary" />
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: '15px' }}>{customerName}</div>
-            <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)', fontFamily: 'var(--font-mono)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
               {formData.phone}
             </div>
             {formData.email && (
-              <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                 {formData.email}
               </div>
             )}
@@ -125,7 +125,7 @@ export default function Step4Preview({
                 )}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                   {t('sales.package') || 'Package'}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: '14px' }}>
@@ -144,7 +144,7 @@ export default function Step4Preview({
             {/* Compact Components List */}
             {selectedPackage.components && selectedPackage.components.length > 0 && (
               <div style={{
-                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                borderTop: '1px solid var(--border-subtle)',
                 paddingTop: '8px',
               }}>
                 {selectedPackage.components.map((component, index) => (
@@ -168,16 +168,16 @@ export default function Step4Preview({
                 width: '40px',
                 height: '40px',
                 borderRadius: '8px',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                backgroundColor: 'var(--color-success-soft)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <CalendarIcon size={20} color="#10b981" />
+                <CalendarIcon size={20} color="var(--color-success)" />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                   {t('sales.subscription') || 'Plan'}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: '14px' }}>
@@ -204,9 +204,9 @@ export default function Step4Preview({
         gap: '8px',
         marginTop: '20px',
         padding: '12px',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        backgroundColor: 'var(--color-success-soft)',
         borderRadius: '10px',
-        color: '#10b981',
+        color: 'var(--color-success)',
         fontSize: '13px',
         fontWeight: 500,
       }}>

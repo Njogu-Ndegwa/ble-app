@@ -498,7 +498,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       ];
 
       routeLineRef.current = window.L.polyline(routeCoordinates, {
-        color: "#3b82f6",
+        color: getComputedStyle(document.documentElement).getPropertyValue('--color-info').trim() || '#3b82f6',
         weight: 5,
         opacity: 0.8,
         smoothFactor: 1,

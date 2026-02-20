@@ -628,20 +628,20 @@ const AppContainer = () => {
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#333',
-            color: '#fff',
+            background: 'var(--toast-bg)',
+            color: 'var(--toast-text)',
             padding: '16px',
             borderRadius: '8px',
           },
           success: {
             iconTheme: {
-              primary: '#10B981',
+              primary: 'var(--color-success)',
               secondary: 'white',
             },
           },
           error: {
             iconTheme: {
-              primary: '#EF4444',
+              primary: 'var(--color-error)',
               secondary: 'white',
             },
           },
