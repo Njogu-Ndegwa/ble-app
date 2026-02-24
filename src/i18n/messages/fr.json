@@ -551,6 +551,8 @@
   "Duration": "Durée",
   "1 Day": "1 Jour",
   "3 Days": "3 Jours",
+  "Custom": "Personnalisé",
+  "Enter number of days": "Entrez le nombre de jours",
   "Generating...": "Génération...",
   "Retrieving...": "Récupération...",
   "CMD Service": "Service CMD",

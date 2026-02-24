@@ -154,8 +154,26 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     });
   };
 
-  const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDuration(Number(e.target.value));
+  const [isCustomDuration, setIsCustomDuration] = useState(false);
+  const [customDaysInput, setCustomDaysInput] = useState('');
+
+  const handlePresetSelect = (days: number) => {
+    setIsCustomDuration(false);
+    setCustomDaysInput('');
+    setDuration(days);
+  };
+
+  const handleCustomSelect = () => {
+    setIsCustomDuration(true);
+    const parsed = parseInt(customDaysInput, 10);
+    setDuration(parsed > 0 ? parsed : null);
+  };
+
+  const handleCustomDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '');
+    setCustomDaysInput(val);
+    const parsed = parseInt(val, 10);
+    setDuration(parsed > 0 ? parsed : null);
   };
 
   const handleSubmit = async () => {
@@ -626,47 +644,79 @@ const translateDescription = (desc: string): string => {
           <div className="flex items-center space-x-2 mb-3">
             <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Duration')}</label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {[
               { value: 1, label: t('1 Day') },
               { value: 3, label: t('3 Days') },
-            ].map((option) => (
-              <label
-                key={option.value}
-                className={`relative cursor-pointer transition-all duration-200 ${
-                  duration === option.value
-                    ? 'transform scale-105'
-                    : 'hover:scale-102'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="duration"
-                  value={option.value}
-                  checked={duration === option.value}
-                  onChange={handleDurationChange}
-                  className="sr-only"
-                />
+            ].map((option) => {
+              const isSelected = !isCustomDuration && duration === option.value;
+              return (
                 <div
-                  className="p-4 rounded-xl border-2 transition-all duration-200"
-                  style={{
-                    border: duration === option.value ? '2px solid var(--accent)' : '2px solid var(--border)',
-                    background: duration === option.value ? 'var(--accent-soft)' : 'var(--bg-secondary)',
-                    boxShadow: duration === option.value ? '0 0 20px -5px var(--accent-glow)' : 'none',
-                  }}
+                  key={option.value}
+                  className="relative cursor-pointer transition-all duration-200"
+                  style={{ transform: isSelected ? 'scale(1.05)' : 'scale(1)' }}
+                  onClick={() => handlePresetSelect(option.value)}
                 >
-                  <div className="text-center">
-                    <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>{option.label}</div>
+                  <div
+                    className="p-3 rounded-xl transition-all duration-200 text-center"
+                    style={{
+                      border: isSelected ? '2px solid var(--accent)' : '2px solid var(--border)',
+                      background: isSelected ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+                      boxShadow: isSelected ? '0 0 20px -5px var(--accent-glow)' : 'none',
+                    }}
+                  >
+                    <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{option.label}</div>
                   </div>
-                  {duration === option.value && (
+                  {isSelected && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
                       <Check className="w-3 h-3 text-white" />
                     </div>
                   )}
                 </div>
-              </label>
-            ))}
+              );
+            })}
+            <div
+              className="relative cursor-pointer transition-all duration-200"
+              style={{ transform: isCustomDuration ? 'scale(1.05)' : 'scale(1)' }}
+              onClick={handleCustomSelect}
+            >
+              <div
+                className="p-3 rounded-xl transition-all duration-200 text-center"
+                style={{
+                  border: isCustomDuration ? '2px solid var(--accent)' : '2px solid var(--border)',
+                  background: isCustomDuration ? 'var(--accent-soft)' : 'var(--bg-secondary)',
+                  boxShadow: isCustomDuration ? '0 0 20px -5px var(--accent-glow)' : 'none',
+                }}
+              >
+                <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{t('Custom')}</div>
+              </div>
+              {isCustomDuration && (
+                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+                  <Check className="w-3 h-3 text-white" />
+                </div>
+              )}
+            </div>
           </div>
+          {isCustomDuration && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="form-input flex-1"
+                  style={{ textAlign: 'center', fontSize: '15px', fontWeight: 600 }}
+                  placeholder={t('Enter number of days') || 'Enter number of days'}
+                  value={customDaysInput}
+                  onChange={handleCustomDaysChange}
+                  autoFocus
+                />
+                <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  {t('Days')}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="space-y-3 mb-6">
           <button

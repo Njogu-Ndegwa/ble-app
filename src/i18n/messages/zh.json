@@ -515,6 +515,8 @@
   "Duration": "时长",
   "1 Day": "1天",
   "3 Days": "3天",
+  "Custom": "自定义",
+  "Enter number of days": "输入天数",
   "Generating...": "生成中...",
   "Retrieving...": "获取中...",
   "CMD Service": "CMD服务",

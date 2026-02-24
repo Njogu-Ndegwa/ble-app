@@ -561,6 +561,8 @@
   "Duration": "Duration",
   "1 Day": "1 Day",
   "3 Days": "3 Days",
+  "Custom": "Custom",
+  "Enter number of days": "Enter number of days",
   "Generating...": "Generating...",
   "Retrieving...": "Retrieving...",
   "CMD Service": "CMD Service",
