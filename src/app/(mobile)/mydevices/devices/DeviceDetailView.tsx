@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from '../../../utils';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, Share2, Clipboard, Check, RefreshCw, Power } from 'lucide-react';
+import { ArrowLeft, Share2, Clipboard, Check, RefreshCw, Power, Calendar } from 'lucide-react';
 import { AsciiStringModal } from '../../../modals';
 import { apiUrl } from '@/lib/apollo-client';
 import { useI18n } from '@/i18n';
@@ -113,23 +113,23 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     fetchItemId();
   }, [router, attributeList]);
 
-  // New useEffect to auto-load CMD service
-  useEffect(() => {
-    const cmdService = attributeList.find(
-      (service) => service.serviceNameEnum === 'CMD_SERVICE'
-    );
-    if (!cmdService && isLoadingService !== 'CMD' && onRequestServiceData) {
-      console.log('Auto-loading CMD service');
-      onRequestServiceData('CMD');
-    }
-  }, [attributeList, isLoadingService, onRequestServiceData]);
+  const { cmdService, pubkCharacteristic, stsService, rcrdCharacteristic } = useMemo(() => {
+    const foundCmd = attributeList.find((s) => s.serviceNameEnum === 'CMD_SERVICE');
+    const foundSts = attributeList.find((s) => s.serviceNameEnum === 'STS_SERVICE');
+    return {
+      cmdService: foundCmd ?? null,
+      pubkCharacteristic: foundCmd?.characteristicList?.find((c: any) => c.name.toLowerCase() === 'pubk') ?? null,
+      stsService: foundSts ?? null,
+      rcrdCharacteristic: foundSts?.characteristicList?.find((c: any) => c.name.toLowerCase() === 'rcrd') ?? null,
+    };
+  }, [attributeList]);
 
-  const cmdService = attributeList.find(
-    (service) => service.serviceNameEnum === 'CMD_SERVICE'
-  );
-  const pubkCharacteristic = cmdService?.characteristicList.find(
-    (char: any) => char.name.toLowerCase().includes('pubk')
-  );
+  useEffect(() => {
+    if (!onRequestServiceData) return;
+    if (!cmdService) onRequestServiceData('CMD');
+    if (!stsService) onRequestServiceData('STS');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleBack = () => (onBack ? onBack() : router.back());
 
@@ -323,11 +323,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
               
               if (writeSuccess) {
                 toast.success(t(`Code written to device successfully`), { duration: 2000 });
-                // Read back the value after a delay to confirm it was written
                 setTimeout(() => {
                   const stillConnected = sessionStorage.getItem('connectedDeviceMac');
                   if (stillConnected === device.macAddress) {
                     handleRead();
+                    readRcrd();
                   } else {
                     toast.error(t('Device disconnected. Please reconnect.'), { duration: 2000 });
                   }
@@ -495,11 +495,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 
                 if (writeSuccess) {
                   toast.success(t(`Code written to device successfully`), { duration: 2000 });
-                  // Read back the value after a delay to confirm it was written
                   setTimeout(() => {
                     const stillConnected = sessionStorage.getItem('connectedDeviceMac');
                     if (stillConnected === device.macAddress) {
                       handleRead();
+                      readRcrd();
                     } else {
                       toast.error(t('Device disconnected. Please reconnect.'), { duration: 2000 });
                     }
@@ -551,6 +551,23 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     );
   };
 
+  const readRcrd = () => {
+    if (!stsService || !rcrdCharacteristic) return;
+    readBleCharacteristic(
+      stsService.uuid,
+      rcrdCharacteristic.uuid,
+      device.macAddress,
+      (data: any) => {
+        if (data) {
+          setUpdatedValues((prev) => ({
+            ...prev,
+            [rcrdCharacteristic.uuid]: data.realVal,
+          }));
+        }
+      }
+    );
+  };
+
   const handleWriteClick = () => {
     if (!pubkCharacteristic) return;
     setActiveCharacteristic(pubkCharacteristic);
@@ -569,6 +586,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           toast.success(t(`Value written to ${activeCharacteristic.name}`));
           setTimeout(() => {
             handleRead();
+            readRcrd();
           }, 1000);
         } else {
           console.error('Error Writing Characteristics');
@@ -899,6 +917,24 @@ const translateDescription = (desc: string): string => {
             )}
           </div>
         )}
+        <div
+          className="mt-4 rounded-lg p-4 flex items-center justify-between"
+          style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
+        >
+          <div className="flex items-center gap-2">
+            <Calendar size={16} style={{ color: 'var(--accent)' }} />
+            <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Remaining Days')}</span>
+          </div>
+          {rcrdCharacteristic ? (
+            <span className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {updatedValues[rcrdCharacteristic.uuid] ?? rcrdCharacteristic.realVal ?? t('N/A')}
+            </span>
+          ) : (
+            <span className="animate-pulse text-sm" style={{ color: 'var(--text-muted)' }}>
+              {t('Loading...')}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
