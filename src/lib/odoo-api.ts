@@ -663,12 +663,15 @@ export async function getSubscriptionProducts(
     let packageProducts: SubscriptionProduct[] = [];
 
     if (rawData.categories) {
-      // physical → mainServiceProducts (bikes, tuks, physical items)
       mainServiceProducts = rawData.categories.physical || [];
-      // service → subscriptionProducts (recurring subscription plans)
       subscriptionProducts = rawData.categories.service || [];
-      // contract → batterySwapProducts (privilege contracts)
       batterySwapProducts = rawData.categories.contract || [];
+    } else {
+      // API returned old format (no categories) — typically means auth token is missing/expired.
+      // The response includes a message like "No company found. Please authenticate..."
+      const apiMessage = (rawData as any).message;
+      console.error('[ODOO API] No categories in response. API message:', apiMessage);
+      throw new Error(apiMessage || 'Authentication required. Please log out and log back in.');
     }
 
     return {
