@@ -67,7 +67,7 @@ export interface RegisterCustomerResponse {
 }
 
 // Product Types - matches actual Odoo API response
-// Used for all product categories: subscription, battery_swap, main_service, packages
+// Used for all product categories: physical, service, contract, digital, other
 export interface SubscriptionProduct {
   id: number;
   name: string;
@@ -81,17 +81,22 @@ export interface SubscriptionProduct {
   category_name?: string;
   recurring_invoice?: boolean;
   is_package?: boolean;
+  pu_category?: string | false;    // "physical" | "service" | "contract" | false
+  pu_metric?: string | false;      // "piece" | "duration" | false
+  service_type?: string | false;   // "access" | false
+  contract_type?: string | false;  // "privilege" | false
   image_url?: string | null;  // Cloudinary URL for product images
   company_id?: number;
   company_name: string;
 }
 
-// Categorized products from API response
+// Categorized products from API response (new format)
 export interface ProductCategories {
-  subscription: SubscriptionProduct[];
-  battery_swap: SubscriptionProduct[];
-  main_service: SubscriptionProduct[];
-  packages: SubscriptionProduct[];
+  physical: SubscriptionProduct[];
+  service: SubscriptionProduct[];
+  contract: SubscriptionProduct[];
+  digital: SubscriptionProduct[];
+  other: SubscriptionProduct[];
 }
 
 // Raw API response structure - products are now categorized
@@ -611,16 +616,22 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 
 /**
  * Fetch available subscription products/plans
- * Note: Odoo API returns products categorized by type (subscription, main_service, battery_swap, packages)
+ * Note: Odoo API returns products categorized by type: physical, service, contract, digital, other
+ * 
+ * Mapping to internal format:
+ *   - categories.physical  → mainServiceProducts (physical products like bikes)
+ *   - categories.service   → products (subscription plans, recurring_invoice=true)
+ *   - categories.contract  → batterySwapProducts (privilege contracts)
+ *   - packages are no longer a separate API category
  * 
  * @param page - Page number for pagination (default: 1)
- * @param limit - Number of items per page (default: 20)
+ * @param limit - Number of items per page (default: 100)
  * @param authToken - Optional employee/salesperson token to filter plans by company
  *                    When provided, includes Authorization: Bearer header
  */
 export async function getSubscriptionProducts(
   page: number = 1,
-  limit: number = 20,
+  limit: number = 100,
   authToken?: string
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
   const endpoint = `/api/products/subscription?page=${page}&limit=${limit}`;
@@ -635,7 +646,6 @@ export async function getSubscriptionProducts(
     'X-API-KEY': ODOO_API_KEY,
   };
 
-  // Add Authorization header if token is provided (for company-specific plans)
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
@@ -645,37 +655,32 @@ export async function getSubscriptionProducts(
     const response = await fetchWithRetry(url, { method: 'GET', headers });
     console.log('[ODOO API] Fetch completed, status:', response.status);
     
-    // Use shared response parser for consistent error handling
     const rawData = await parseOdooResponse<SubscriptionProductsRawResponse>(response, endpoint);
 
-    // Handle both old format (products array) and new format (categories object)
     let subscriptionProducts: SubscriptionProduct[] = [];
     let mainServiceProducts: SubscriptionProduct[] = [];
     let batterySwapProducts: SubscriptionProduct[] = [];
     let packageProducts: SubscriptionProduct[] = [];
 
     if (rawData.categories) {
-      // New format: products are categorized
-      subscriptionProducts = rawData.categories.subscription || [];
-      mainServiceProducts = rawData.categories.main_service || [];
-      batterySwapProducts = rawData.categories.battery_swap || [];
-      packageProducts = rawData.categories.packages || [];
-    } else if ((rawData as any).products) {
-      // Legacy format: flat products array (backward compatibility)
-      subscriptionProducts = (rawData as any).products || [];
+      // physical → mainServiceProducts (bikes, tuks, physical items)
+      mainServiceProducts = rawData.categories.physical || [];
+      // service → subscriptionProducts (recurring subscription plans)
+      subscriptionProducts = rawData.categories.service || [];
+      // contract → batterySwapProducts (privilege contracts)
+      batterySwapProducts = rawData.categories.contract || [];
     }
 
-    // Transform to normalized format with data wrapper
     return {
       success: rawData.success,
       data: {
-        products: subscriptionProducts,  // Subscription plans
-        mainServiceProducts,  // Physical products (bikes, tuks, etc.)
-        batterySwapProducts,  // Battery swap privileges
-        packageProducts,  // Product packages
+        products: subscriptionProducts,
+        mainServiceProducts,
+        batterySwapProducts,
+        packageProducts,
         pagination: {
           page: rawData.pagination?.current_page || 1,
-          limit: rawData.pagination?.per_page || 20,
+          limit: rawData.pagination?.per_page || 100,
           total: rawData.pagination?.total_records || 0,
           pages: rawData.pagination?.total_pages || 1,
         },

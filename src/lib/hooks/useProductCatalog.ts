@@ -333,13 +333,13 @@ export function useProductCatalog(
       }
 
       console.log('[PRODUCT CATALOG] Calling getSubscriptionProducts API...');
-      const response = await getSubscriptionProducts(1, 50, authToken || undefined);
+      const response = await getSubscriptionProducts(1, 100, authToken || undefined);
       console.log('[PRODUCT CATALOG] API Response:', {
         success: response.success,
         hasData: !!response.data,
-        productCount: response.data?.products?.length ?? 0,
-        mainServiceCount: response.data?.mainServiceProducts?.length ?? 0,
-        batterySwapCount: response.data?.batterySwapProducts?.length ?? 0,
+        planCount: response.data?.products?.length ?? 0,
+        physicalCount: response.data?.mainServiceProducts?.length ?? 0,
+        contractCount: response.data?.batterySwapProducts?.length ?? 0,
         packageCount: response.data?.packageProducts?.length ?? 0,
       });
 
@@ -362,50 +362,62 @@ export function useProductCatalog(
           setErrors(prev => ({ ...prev, products: 'No physical products available' }));
         }
 
-        // Process packages - with detailed logging for debugging
-        const rawPackages = data.packageProducts || [];
-        if (rawPackages.length > 0) {
-          console.log('[PRODUCT CATALOG] Raw packages from API:', rawPackages.length);
-          
-          // Log each package's eligibility for debugging
-          const packageDebug = rawPackages.map((pkg: any) => ({
-            id: pkg.id,
-            name: pkg.name,
-            is_package: pkg.is_package,
-            has_components: !!pkg.components?.length,
-            component_count: pkg.components?.length || 0,
-          }));
-          console.log('[PRODUCT CATALOG] Package eligibility check:', packageDebug);
-          
-          const validPackages = rawPackages
-            .filter((pkg: any) => pkg.is_package && pkg.components?.length > 0);
-          
-          console.log('[PRODUCT CATALOG] Valid packages after filtering:', validPackages.length);
-          
-          if (validPackages.length > 0) {
-            const transformedPackages = validPackages.map(transformPackage);
-            setPackages(transformedPackages);
-            setErrors(prev => ({ ...prev, packages: null }));
-            
-            // Set default selection if not already set
-            if (transformedPackages.length > 0) {
-              setSelectedPackageId(prev => prev || transformedPackages[0].id);
-            }
-          } else {
-            // Packages exist but none are valid - this is a data issue
-            console.warn('[PRODUCT CATALOG] No valid packages found after filtering. Raw packages:', 
-              rawPackages.map((p: any) => ({ id: p.id, name: p.name, is_package: p.is_package, components: p.components?.length || 0 }))
-            );
-            setPackages([]);
-            setErrors(prev => ({ 
-              ...prev, 
-              packages: `${rawPackages.length} packages found but none are configured correctly (missing components). Please contact support.` 
-            }));
+        // Build packages from physical products
+        // Each physical product becomes a selectable "package" in the UI.
+        // Contract/privilege products are handled separately by the backend.
+        const physicalProducts = data.mainServiceProducts || [];
+        console.log('[PRODUCT CATALOG] Physical products:', physicalProducts.length);
+
+        if (physicalProducts.length > 0) {
+          const synthesizedPackages: PackageData[] = physicalProducts.map((physical: SubscriptionProduct) => {
+            const component: PackageComponent = {
+              id: physical.id,
+              name: physical.name,
+              default_code: physical.default_code || '',
+              description: physical.description || '',
+              list_price: physical.list_price,
+              price_unit: physical.list_price,
+              quantity: 1,
+              currency_id: physical.currency_id || 0,
+              currency_name: physical.currency_name,
+              currencySymbol: physical.currencySymbol,
+              category_id: 0,
+              category_name: 'physical',
+              image_url: physical.image_url || null,
+              is_main_service: true,
+              is_battery_swap: false,
+            };
+
+            return {
+              id: physical.id.toString(),
+              odooPackageId: physical.id,
+              name: physical.name,
+              description: physical.description || '',
+              price: physical.list_price,
+              currency: physical.currency_name,
+              currencySymbol: physical.currencySymbol,
+              imageUrl: physical.image_url || null,
+              defaultCode: physical.default_code || '',
+              isPackage: true,
+              componentCount: 1,
+              components: [component],
+              mainProduct: component,
+            };
+          });
+
+          console.log('[PRODUCT CATALOG] Synthesized packages:', synthesizedPackages.map(p => ({
+            id: p.id, name: p.name,
+          })));
+
+          setPackages(synthesizedPackages);
+          setErrors(prev => ({ ...prev, packages: null }));
+          if (synthesizedPackages.length > 0) {
+            setSelectedPackageId(prev => prev || synthesizedPackages[0].id);
           }
         } else {
-          console.warn('[PRODUCT CATALOG] No packages returned from API');
+          console.warn('[PRODUCT CATALOG] No physical products to build packages from');
           setPackages([]);
-          setErrors(prev => ({ ...prev, packages: 'No packages available from server. Please try again or contact support.' }));
+          setErrors(prev => ({ ...prev, packages: 'No products available from server. Please try again or contact support.' }));
         }
 
         // Process plans
