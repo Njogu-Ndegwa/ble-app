@@ -43,7 +43,7 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner, NetworkStatusBanner, SessionsHistory } from '@/components/shared';
+import { BleProgressModal, MqttReconnectBanner, SessionsHistory } from '@/components/shared';
 import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -2360,9 +2360,8 @@ export default function SalesFlow({
         </div>
       </header>
 
-      {/* Network Status Banners - show when connection is lost */}
+      {/* MQTT Reconnect Banner */}
       <div className="px-4 pt-2 flex flex-col gap-2">
-        <NetworkStatusBanner />
         <MqttReconnectBanner />
       </div>
 

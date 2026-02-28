@@ -652,10 +652,47 @@ export async function getSubscriptionProducts(
 
   try {
     console.log('[ODOO API] Making fetch request...');
+    console.error('[PRODUCTS DEBUG] URL:', url);
+    console.error('[PRODUCTS DEBUG] Auth token present:', !!authToken);
+    console.error('[PRODUCTS DEBUG] Auth token preview:', authToken ? authToken.substring(0, 40) + '...' : 'NONE');
+
     const response = await fetchWithRetry(url, { method: 'GET', headers });
-    console.log('[ODOO API] Fetch completed, status:', response.status);
-    
-    const rawData = await parseOdooResponse<SubscriptionProductsRawResponse>(response, endpoint);
+    console.error('[PRODUCTS DEBUG] HTTP status:', response.status);
+    console.error('[PRODUCTS DEBUG] Content-Type:', response.headers.get('content-type'));
+
+    // Read raw text first so we can log it before parsing
+    const rawText = await response.text();
+    console.error('[PRODUCTS DEBUG] Raw response length:', rawText.length);
+    console.error('[PRODUCTS DEBUG] Raw response (first 500 chars):', rawText.substring(0, 500));
+
+    // Parse JSON manually (parseOdooResponse already consumed the body)
+    let rawData: any;
+    try {
+      rawData = JSON.parse(rawText);
+    } catch (parseErr) {
+      console.error('[PRODUCTS DEBUG] JSON parse failed:', parseErr);
+      console.error('[PRODUCTS DEBUG] Full raw text:', rawText.substring(0, 2000));
+      throw new Error('Server returned invalid JSON. Check VConsole for details.');
+    }
+
+    // Check for API-level errors
+    if (rawData.success === false) {
+      const errorMessage = rawData.error || rawData.message || 'Request failed';
+      console.error('[PRODUCTS DEBUG] API error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    console.error('[PRODUCTS DEBUG] success:', rawData.success);
+    console.error('[PRODUCTS DEBUG] has categories:', !!rawData.categories);
+    console.error('[PRODUCTS DEBUG] has products (old format):', !!(rawData as any).products);
+    console.error('[PRODUCTS DEBUG] message:', (rawData as any).message || 'none');
+
+    if (rawData.categories) {
+      const cats = rawData.categories;
+      console.error('[PRODUCTS DEBUG] physical count:', cats.physical?.length ?? 0);
+      console.error('[PRODUCTS DEBUG] service count:', cats.service?.length ?? 0);
+      console.error('[PRODUCTS DEBUG] contract count:', cats.contract?.length ?? 0);
+    }
 
     let subscriptionProducts: SubscriptionProduct[] = [];
     let mainServiceProducts: SubscriptionProduct[] = [];
@@ -667,10 +704,8 @@ export async function getSubscriptionProducts(
       subscriptionProducts = rawData.categories.service || [];
       batterySwapProducts = rawData.categories.contract || [];
     } else {
-      // API returned old format (no categories) — typically means auth token is missing/expired.
-      // The response includes a message like "No company found. Please authenticate..."
       const apiMessage = (rawData as any).message;
-      console.error('[ODOO API] No categories in response. API message:', apiMessage);
+      console.error('[PRODUCTS DEBUG] No categories! API message:', apiMessage);
       throw new Error(apiMessage || 'Authentication required. Please log out and log back in.');
     }
 
@@ -690,7 +725,9 @@ export async function getSubscriptionProducts(
       },
     };
   } catch (error: any) {
-    console.error('Odoo API Request Failed:', error);
+    console.error('[PRODUCTS DEBUG] FETCH FAILED:', error?.message || error);
+    console.error('[PRODUCTS DEBUG] Error type:', error?.constructor?.name);
+    console.error('[PRODUCTS DEBUG] Stack:', error?.stack);
     throw error;
   }
 }
