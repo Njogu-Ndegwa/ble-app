@@ -67,7 +67,7 @@ export interface RegisterCustomerResponse {
 }
 
 // Product Types - matches actual Odoo API response
-// Used for all product categories: subscription, battery_swap, main_service, packages
+// Used for all product categories: physical, service, contract, digital, other
 export interface SubscriptionProduct {
   id: number;
   name: string;
@@ -81,17 +81,22 @@ export interface SubscriptionProduct {
   category_name?: string;
   recurring_invoice?: boolean;
   is_package?: boolean;
+  pu_category?: string | false;    // "physical" | "service" | "contract" | false
+  pu_metric?: string | false;      // "piece" | "duration" | false
+  service_type?: string | false;   // "access" | false
+  contract_type?: string | false;  // "privilege" | false
   image_url?: string | null;  // Cloudinary URL for product images
   company_id?: number;
   company_name: string;
 }
 
-// Categorized products from API response
+// Categorized products from API response (new format)
 export interface ProductCategories {
-  subscription: SubscriptionProduct[];
-  battery_swap: SubscriptionProduct[];
-  main_service: SubscriptionProduct[];
-  packages: SubscriptionProduct[];
+  physical: SubscriptionProduct[];
+  service: SubscriptionProduct[];
+  contract: SubscriptionProduct[];
+  digital: SubscriptionProduct[];
+  other: SubscriptionProduct[];
 }
 
 // Raw API response structure - products are now categorized
@@ -631,16 +636,22 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
 
 /**
  * Fetch available subscription products/plans
- * Note: Odoo API returns products categorized by type (subscription, main_service, battery_swap, packages)
+ * Note: Odoo API returns products categorized by type: physical, service, contract, digital, other
+ * 
+ * Mapping to internal format:
+ *   - categories.physical  → mainServiceProducts (physical products like bikes)
+ *   - categories.service   → products (subscription plans, recurring_invoice=true)
+ *   - categories.contract  → batterySwapProducts (privilege contracts)
+ *   - packages are no longer a separate API category
  * 
  * @param page - Page number for pagination (default: 1)
- * @param limit - Number of items per page (default: 20)
+ * @param limit - Number of items per page (default: 100)
  * @param authToken - Optional employee/salesperson token to filter plans by company
  *                    When provided, includes Authorization: Bearer header
  */
 export async function getSubscriptionProducts(
   page: number = 1,
-  limit: number = 20,
+  limit: number = 100,
   authToken?: string
 ): Promise<OdooApiResponse<SubscriptionProductsResponse>> {
   const endpoint = `/api/products/subscription?page=${page}&limit=${limit}`;
@@ -655,54 +666,88 @@ export async function getSubscriptionProducts(
     'X-API-KEY': ODOO_API_KEY,
   };
 
-  // Add Authorization header if token is provided (for company-specific plans)
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   try {
     console.log('[ODOO API] Making fetch request...');
-    const response = await fetchWithRetry(url, { method: 'GET', headers });
-    console.log('[ODOO API] Fetch completed, status:', response.status);
-    
-    // Use shared response parser for consistent error handling
-    const rawData = await parseOdooResponse<SubscriptionProductsRawResponse>(response, endpoint);
+    console.error('[PRODUCTS DEBUG] URL:', url);
+    console.error('[PRODUCTS DEBUG] Auth token present:', !!authToken);
+    console.error('[PRODUCTS DEBUG] Auth token preview:', authToken ? authToken.substring(0, 40) + '...' : 'NONE');
 
-    // Handle both old format (products array) and new format (categories object)
+    const response = await fetchWithRetry(url, { method: 'GET', headers });
+    console.error('[PRODUCTS DEBUG] HTTP status:', response.status);
+    console.error('[PRODUCTS DEBUG] Content-Type:', response.headers.get('content-type'));
+
+    // Read raw text first so we can log it before parsing
+    const rawText = await response.text();
+    console.error('[PRODUCTS DEBUG] Raw response length:', rawText.length);
+    console.error('[PRODUCTS DEBUG] Raw response (first 500 chars):', rawText.substring(0, 500));
+
+    // Parse JSON manually (parseOdooResponse already consumed the body)
+    let rawData: any;
+    try {
+      rawData = JSON.parse(rawText);
+    } catch (parseErr) {
+      console.error('[PRODUCTS DEBUG] JSON parse failed:', parseErr);
+      console.error('[PRODUCTS DEBUG] Full raw text:', rawText.substring(0, 2000));
+      throw new Error('Server returned invalid JSON. Check VConsole for details.');
+    }
+
+    // Check for API-level errors
+    if (rawData.success === false) {
+      const errorMessage = rawData.error || rawData.message || 'Request failed';
+      console.error('[PRODUCTS DEBUG] API error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    console.error('[PRODUCTS DEBUG] success:', rawData.success);
+    console.error('[PRODUCTS DEBUG] has categories:', !!rawData.categories);
+    console.error('[PRODUCTS DEBUG] has products (old format):', !!(rawData as any).products);
+    console.error('[PRODUCTS DEBUG] message:', (rawData as any).message || 'none');
+
+    if (rawData.categories) {
+      const cats = rawData.categories;
+      console.error('[PRODUCTS DEBUG] physical count:', cats.physical?.length ?? 0);
+      console.error('[PRODUCTS DEBUG] service count:', cats.service?.length ?? 0);
+      console.error('[PRODUCTS DEBUG] contract count:', cats.contract?.length ?? 0);
+    }
+
     let subscriptionProducts: SubscriptionProduct[] = [];
     let mainServiceProducts: SubscriptionProduct[] = [];
     let batterySwapProducts: SubscriptionProduct[] = [];
-    let packageProducts: SubscriptionProduct[] = [];
+    const packageProducts: SubscriptionProduct[] = [];
 
     if (rawData.categories) {
-      // New format: products are categorized
-      subscriptionProducts = rawData.categories.subscription || [];
-      mainServiceProducts = rawData.categories.main_service || [];
-      batterySwapProducts = rawData.categories.battery_swap || [];
-      packageProducts = rawData.categories.packages || [];
-    } else if ((rawData as any).products) {
-      // Legacy format: flat products array (backward compatibility)
-      subscriptionProducts = (rawData as any).products || [];
+      mainServiceProducts = rawData.categories.physical || [];
+      subscriptionProducts = rawData.categories.service || [];
+      batterySwapProducts = rawData.categories.contract || [];
+    } else {
+      const apiMessage = (rawData as any).message;
+      console.error('[PRODUCTS DEBUG] No categories! API message:', apiMessage);
+      throw new Error(apiMessage || 'Authentication required. Please log out and log back in.');
     }
 
-    // Transform to normalized format with data wrapper
     return {
       success: rawData.success,
       data: {
-        products: subscriptionProducts,  // Subscription plans
-        mainServiceProducts,  // Physical products (bikes, tuks, etc.)
-        batterySwapProducts,  // Battery swap privileges
-        packageProducts,  // Product packages
+        products: subscriptionProducts,
+        mainServiceProducts,
+        batterySwapProducts,
+        packageProducts,
         pagination: {
           page: rawData.pagination?.current_page || 1,
-          limit: rawData.pagination?.per_page || 20,
+          limit: rawData.pagination?.per_page || 100,
           total: rawData.pagination?.total_records || 0,
           pages: rawData.pagination?.total_pages || 1,
         },
       },
     };
   } catch (error: any) {
-    console.error('Odoo API Request Failed:', error);
+    console.error('[PRODUCTS DEBUG] FETCH FAILED:', error?.message || error);
+    console.error('[PRODUCTS DEBUG] Error type:', error?.constructor?.name);
+    console.error('[PRODUCTS DEBUG] Stack:', error?.stack);
     throw error;
   }
 }
