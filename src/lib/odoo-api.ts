@@ -697,7 +697,7 @@ export async function getSubscriptionProducts(
     let subscriptionProducts: SubscriptionProduct[] = [];
     let mainServiceProducts: SubscriptionProduct[] = [];
     let batterySwapProducts: SubscriptionProduct[] = [];
-    let packageProducts: SubscriptionProduct[] = [];
+    const packageProducts: SubscriptionProduct[] = [];
 
     if (rawData.categories) {
       mainServiceProducts = rawData.categories.physical || [];
