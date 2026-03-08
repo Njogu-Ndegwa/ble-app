@@ -158,9 +158,9 @@ export function useMqtt(): UseMqttReturn {
 
   // Cleanup subscriptions on unmount
   useEffect(() => {
-    // Copy refs inside effect for cleanup
     const mqttService = mqttServiceRef.current;
     const subscriptions = subscriptionsRef.current;
+    const subscriptionInfo = subscriptionInfoRef.current;
     
     return () => {
       if (mqttService) {
@@ -169,8 +169,7 @@ export function useMqtt(): UseMqttReturn {
         });
         mqttService.clearAllHandlers();
       }
-      // Clear subscription info on unmount
-      subscriptionInfoRef.current.clear();
+      subscriptionInfo.clear();
     };
   }, []);
 
