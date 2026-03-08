@@ -27,7 +27,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider } from './context/themeContext';
 
 // VConsole for mobile debugging - enabled for product fetch debugging
-const ENABLE_VCONSOLE = true;
+const ENABLE_VCONSOLE = false;
 
 export default function RootLayout({
   children,
