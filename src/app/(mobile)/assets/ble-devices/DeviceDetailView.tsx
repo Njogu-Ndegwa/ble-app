@@ -519,7 +519,7 @@
 //                             {t("Current Value")}
 //                           </p>
 //                           <p className="text-sm font-mono" style={{ color: 'var(--text-primary)' }}>
-//                             {getDisplayValue(char) || t("N/A")}
+//                             {getDisplayValue(char) ?? t("N/A")}
 //                           </p>
 //                         </div>
 //                         <button
@@ -698,11 +698,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const formatValue = (characteristic: any) => {
     if (!characteristic) return t("N/A");
-    if (typeof characteristic.realVal === "number") {
-      // Return just the numerical value without units for consistency
-      return characteristic.realVal;
-    }
-    return characteristic.realVal || t("N/A");
+    const val = characteristic.realVal;
+    if (val === null || val === undefined || val === "") return t("N/A");
+    return val;
   };
 
   // Get display value
@@ -1102,7 +1100,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                             {t("Current Value")}
                           </p>
                           <p className="text-sm font-mono" style={{ color: 'var(--text-primary)' }}>
-                            {getDisplayValue(char) || t("N/A")}
+                            {getDisplayValue(char) ?? t("N/A")}
                           </p>
                         </div>
                         <button
