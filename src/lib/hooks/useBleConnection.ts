@@ -630,6 +630,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectSuccessCallBack',
         (macAddress: string, resp: (r: unknown) => void) => {
+          console.info('[BLE DEBUG] bleConnectSuccessCallBack raw:', macAddress);
           log('Connection successful:', macAddress);
           sessionStorage.setItem('connectedDeviceMac', macAddress);
           sessionStorage.removeItem('pendingBleMac'); // Clear pending since we're now connected
@@ -691,6 +692,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleConnectFailCallBack',
         (data: string, resp: (r: unknown) => void) => {
+          console.info('[BLE DEBUG] bleConnectFailCallBack raw:', data);
           log('Connection failed:', data);
           
           clearOperationTimeout();
@@ -772,6 +774,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnProgressCallBack',
         (data: string, resp: (r: unknown) => void) => {
+          console.info('[BLE DEBUG] bleInitServiceDataOnProgressCallBack raw:', data);
           try {
             const p = JSON.parse(data);
             const progress = Math.round((p.progress / p.total) * 100);
@@ -793,8 +796,10 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnCompleteCallBack',
         (data: string, resp: (r: unknown) => void) => {
+          console.info('[BLE DEBUG] bleInitServiceDataOnCompleteCallBack raw:', data);
           try {
             const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+            console.info('[BLE DEBUG] bleInitServiceDataOnCompleteCallBack parsed:', JSON.stringify(parsedData, null, 2));
             
             // Check for error response
             const respCode = parsedData?.respCode || parsedData?.responseData?.respCode;
@@ -852,6 +857,11 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
               }
             }
             
+            console.info('[BLE DEBUG] serviceNameEnum:', parsedData?.serviceNameEnum);
+            if (parsedData?.characteristicList) {
+              console.info('[BLE DEBUG] characteristicList:', JSON.stringify(parsedData.characteristicList, null, 2));
+            }
+
             // Only process DTA_SERVICE responses
             if (parsedData?.serviceNameEnum === 'DTA_SERVICE') {
               log('DTA service data received');
@@ -859,6 +869,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
               clearOperationTimeout();
               
               const energyData = extractEnergyFromDta(parsedData);
+              console.info('[BLE DEBUG] DTA extractedEnergy:', JSON.stringify(energyData, null, 2));
               const batteryId = pendingBatteryIdRef.current;
               const scanType = pendingScanTypeRef.current;
               const connectedMac = sessionStorage.getItem('connectedDeviceMac');
@@ -975,6 +986,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataFailureCallBack',
         (data: string, resp: (r: unknown) => void) => {
+          console.info('[BLE DEBUG] bleInitServiceDataFailureCallBack raw:', data);
           log('DTA service failure:', data);
           
           let errorMessage = 'Failed to read energy data';
