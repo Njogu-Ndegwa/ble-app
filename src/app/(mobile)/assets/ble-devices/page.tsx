@@ -1022,7 +1022,6 @@ const AppContainer = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-  console.error(connectedDeviceRef, "The Connected Device Reference---92---");
   // Update the ref whenever detectedDevices changes
   useEffect(() => {
     detectedDevicesRef.current = detectedDevices;
@@ -1149,7 +1148,7 @@ const AppContainer = () => {
       try {
         bridge.init((_m, r) => r("js success!"));
       } catch (error) {
-        console.error("Error initializing bridge:", error);
+        // bridge init error silenced
       }
     }
 
@@ -1159,7 +1158,7 @@ const AppContainer = () => {
         if (parsed?.data) resp(parsed.data);
         else throw new Error("Parsed data is not in the expected format.");
       } catch (err) {
-        console.error("Error parsing JSON in 'print':", err);
+        // print parse error silenced
       }
     });
 
@@ -1195,10 +1194,9 @@ const AppContainer = () => {
 
             resp({ success: true });
           } else {
-            console.warn("Invalid device data format:", d);
+            // invalid device data, skip
           }
         } catch (err: any) {
-          console.error("Error parsing BLE device data:", err);
           resp({ success: false, error: err.message });
         }
       }
@@ -1207,6 +1205,7 @@ const AppContainer = () => {
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
+        console.warn('[BLE DevMgr] Connection FAILED raw:', data);
         setIsConnecting(false);
         setProgress(0);
         toast.error(t('Connection failed! Please try reconnecting again.'), {
@@ -1219,6 +1218,7 @@ const AppContainer = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
+        console.warn('[BLE DevMgr] Connected to device:', macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         setConnectedDevice(macAddress);
         setIsScanning(false);
@@ -1232,7 +1232,9 @@ const AppContainer = () => {
     const offInitComplete = reg(
       "bleInitDataOnCompleteCallBack",
       (data: string, resp: any) => {
+        console.warn('[BLE DevMgr] bleInitDataOnCompleteCallBack raw:', data);
         const r = JSON.parse(data);
+        console.warn('[BLE DevMgr] bleInitDataOnCompleteCallBack parsed:', JSON.stringify(r, null, 2));
         setServiceAttrList(
           r.dataList.map((s: any, i: any) => ({ ...s, index: i }))
         );
@@ -1247,10 +1249,7 @@ const AppContainer = () => {
           const p = JSON.parse(data);
           resp(p);
         } catch (err) {
-          console.error(
-            "Error parsing JSON data from 'bleInitDataCallBack' handler:",
-            err
-          );
+          // bleInitDataCallBack parse error silenced
         }
       }
     );
@@ -1261,7 +1260,7 @@ const AppContainer = () => {
         const qrVal = p.respData.value || "";
         handleQrCode(qrVal.slice(-6).toLowerCase());
       } catch (err) {
-        console.error("Error processing QR code data:", err);
+        // QR code parse error silenced
       }
       resp(data);
     });
@@ -1273,7 +1272,7 @@ const AppContainer = () => {
           const p = JSON.parse(data);
           resp(p);
         } catch (err) {
-          console.error("Error parsing MQTT message:", err);
+          // MQTT message parse error silenced
         }
       }
     );
@@ -1283,7 +1282,7 @@ const AppContainer = () => {
         const p = JSON.parse(data);
         setProgress(Math.round((p.progress / p.total) * 100));
       } catch (err) {
-        console.error("Progress callback error:", err);
+        // progress parse error silenced
       }
     });
 
@@ -1296,7 +1295,6 @@ const AppContainer = () => {
           resp("Received MQTT Connection Callback");
         } catch (err) {
           setIsMqttConnected(false);
-          console.error("Error parsing MQTT connection callback:", err);
         }
       }
     );
@@ -1312,7 +1310,13 @@ const AppContainer = () => {
     const offSvcComplete = reg(
       "bleInitServiceDataOnCompleteCallBack",
       (data: string, resp: any) => {
+        console.warn('[BLE DevMgr] Service complete raw:', data);
         const parsedData = JSON.parse(data);
+        console.warn('[BLE DevMgr] Service complete parsed:', JSON.stringify(parsedData, null, 2));
+        console.warn('[BLE DevMgr] serviceNameEnum:', parsedData?.serviceNameEnum);
+        if (parsedData?.characteristicList) {
+          console.warn('[BLE DevMgr] characteristicList:', JSON.stringify(parsedData.characteristicList, null, 2));
+        }
         setServiceAttrList((prev: any) => {
           if (!prev || prev.length === 0) return [parsedData];
           const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
@@ -1328,9 +1332,10 @@ const AppContainer = () => {
       }
     );
 
-    const offSvcFail = reg("bleInitServiceDataFailureCallBack", () =>
-      setLoadingService(null)
-    );
+    const offSvcFail = reg("bleInitServiceDataFailureCallBack", (data: string) => {
+      console.warn('[BLE DevMgr] Service FAILURE raw:', data);
+      setLoadingService(null);
+    });
 
     // Generate unique client ID to avoid MQTT broker kicking off other connections
     const generateClientId = () => {
@@ -1349,10 +1354,9 @@ const AppContainer = () => {
 
     bridge.callHandler("connectMqtt", mqttConfig, (resp: string) => {
       try {
-        const p = JSON.parse(resp);
-        if (p.error) console.error("MQTT connection error:", p.error.message);
+        JSON.parse(resp);
       } catch (err) {
-        console.error("Error parsing MQTT response:", err);
+        // MQTT response parse error silenced
       }
     });
 
@@ -1391,19 +1395,12 @@ const AppContainer = () => {
     }
   }, [bridge]);
 
-  // console.error(bridgeInitialized, "bridgeInitialized-----466-----")
-  // console.error(bridgeHasBeenInitialized, "bridgeHasBeenInitialized-----467-----")
-  console.error(detectedDevices, "Detected Devices-----468");
-
   const startQrCodeScan = () => {
-    console.info("Start QR Code Scan");
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler(
         "startQrCodeScan",
         999,
-        (responseData) => {
-          console.info(responseData);
-        }
+        () => {}
       );
     }
   };
@@ -1422,7 +1419,6 @@ const AppContainer = () => {
     initServiceBleData(data);
   };
 
-  console.info(isMqttConnected, "Is Mqtt Connected");
   useEffect(() => {
     if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false); // Connection process complete
@@ -1458,20 +1454,10 @@ const AppContainer = () => {
         "startBleScan",
         "",
         (responseData: string) => {
-          try {
-            const jsonData = JSON.parse(responseData);
-            console.log("BLE Data:", jsonData);
-          } catch (error) {
-            console.error(
-              "Error parsing JSON data from 'startBleScan' response:",
-              error
-            );
-          }
+          // scan response silenced
         }
       );
       setIsScanning(true);
-    } else {
-      console.error("WebViewJavascriptBridge is not initialized.");
     }
   };
 
@@ -1499,17 +1485,14 @@ const AppContainer = () => {
 
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
-      console.error("WebViewJavascriptBridge is not initialized.");
       return;
     }
 
-    // First, ensure we have attributeList and it's an array
     if (
       !attributeList ||
       !Array.isArray(attributeList) ||
       attributeList.length === 0
     ) {
-      console.error("AttributeList is empty or invalid");
       toast.error(t('Error: Device data not available yet'));
       return;
     }
@@ -1520,7 +1503,6 @@ const AppContainer = () => {
     );
 
     if (!attService) {
-      console.error("ATT_SERVICE not found in attributeList.");
       toast.error(t('ATT service data is required but not available yet'));
       // Queue this publish for retry after ATT service is loaded
       return;
@@ -1532,9 +1514,6 @@ const AppContainer = () => {
     );
 
     if (!opidChar || !opidChar.realVal) {
-      console.error(
-        "opid characteristic not found or has no value in ATT_SERVICE."
-      );
       toast.error(t('Device ID not available'));
       return;
     }
@@ -1558,8 +1537,6 @@ const AppContainer = () => {
     );
 
     if (!requestedService) {
-      console.error(`${serviceNameEnum} not found in attributeList.`);
-      // toast.error(`${serviceType} service data not available yet`);
       return;
     }
 
@@ -1577,7 +1554,6 @@ const AppContainer = () => {
 
     // Check if we have data to publish
     if (Object.keys(serviceData).length === 0) {
-      console.error(`No valid data found in ${serviceType} service.`);
       toast.error(t('No data available to publish for {service}', { service: serviceType }));
       return;
     }
@@ -1594,23 +1570,14 @@ const AppContainer = () => {
       },
     };
 
-    console.info(dataToPublish, `Data to Publish for ${serviceType} service`);
-    // toast(`Preparing to publish ${serviceType} data`, {
-    //   duration: 2000, // Show for 2 seconds
-    // });
-    // Try to publish via MQTT
     try {
       window.WebViewJavascriptBridge.callHandler(
         "mqttPublishMsg",
         JSON.stringify(dataToPublish),
-        (response) => {
-          console.info(`MQTT Response for ${serviceType}:`, response);
-          // toast.success(t('{service} data published successfully', { service: serviceType }));
-        }
+        () => {}
       );
     } catch (error) {
-      console.error(`Error publishing ${serviceType} data:`, error);
-      // toast.error(t('Error publishing {service} data', { service: serviceType }));
+      // publish error silenced
     }
   };
   const readDeviceInfo = () => {
@@ -1622,7 +1589,6 @@ const AppContainer = () => {
         "readDeviceInfo",
         "",
         (response) => {
-          console.warn(response, "Response");
           const jsonData = JSON.parse(response);
           if (
             jsonData.respCode === "200" &&
@@ -1631,12 +1597,10 @@ const AppContainer = () => {
           ) {
             const androidId = jsonData.respData.ANDROID_ID;
             setAndroidId(androidId);
-            console.warn(androidId, "765---");
           }
         }
       );
     } catch (error) {
-      console.error(`Error :`, error);
       toast.error(t('Error reading device info data'));
     }
   };
@@ -1648,18 +1612,15 @@ const AppContainer = () => {
       !Array.isArray(attributeList) ||
       attributeList.length === 0
     ) {
-      console.error("AttributeList is empty or invalid");
       toast.error(t('Error: Device data not available yet'));
       return;
     }
 
-    // Check if ATT service is available (required for all publishes)
     const hasAttService = attributeList.some(
       (service) => service.serviceNameEnum === "ATT_SERVICE"
     );
 
     if (!hasAttService) {
-      console.error("ATT_SERVICE not found - required for publishing");
       toast.error(t('ATT service data is required but not available yet'));
       return;
     }
@@ -1684,10 +1645,8 @@ const AppContainer = () => {
     availableServices.forEach((serviceType, index) => {
       setTimeout(() => {
         handlePublish(attributeList, serviceType);
-      }, index * 500); // 500ms delay between each publish
+      }, index * 500);
     });
-
-    console.info("Publishing services:", availableServices);
   };
 
   const bleLoadingSteps = [

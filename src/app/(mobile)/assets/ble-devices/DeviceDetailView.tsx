@@ -625,7 +625,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       const stored = localStorage.getItem(storageKey);
       return stored ? JSON.parse(stored) : {};
     } catch (e) {
-      console.error('Error loading user-written values from localStorage:', e);
       return {};
     }
   });
@@ -636,7 +635,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     try {
       localStorage.setItem(storageKey, JSON.stringify(userWrittenValues));
     } catch (e) {
-      console.error('Error saving user-written values to localStorage:', e);
+      // save error silenced
     }
   }, [userWrittenValues, storageKey]);
   
@@ -759,27 +758,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
-          console.info({
-            action: "read",
-            characteristicName: name,
-            value: data.realVal,
-            valueType: typeof data.realVal,
-          }, "Value of Field");
-          
-          // Store exactly what's read from device (only if user hasn't written a value)
-          // If user has written, we keep showing their value
           if (userWrittenValues[characteristicUuid] === undefined) {
             toast.success(`${name} read successfully`);
             setUpdatedValues((prev) => ({
               ...prev,
               [characteristicUuid]: data.realVal,
             }));
-          } else {
-            // User has written a value, don't update from device read
-            console.info('[READ] User has written value, keeping user-written value instead of device read');
           }
         } else {
-          console.error("Error Reading Characteristics");
           toast.error(`Failed to read ${name}`);
         }
       }
@@ -822,18 +808,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       [activeCharacteristic.uuid]: value,
     }));
     
-    console.info({
-      action: "write",
-      serviceUuid: activeService.uuid,
-      characteristicUuid: activeCharacteristic.uuid,
-      macAddress: device.macAddress,
-      name: device.name,
-      characteristicName: activeCharacteristic.name,
-      value: value,
-      isNapn: isNapn,
-      userWrittenValue: value,
-    });
-    
     // Set loading state
     setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: true }));
     
@@ -844,7 +818,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       device.macAddress,
       (responseData: any) => {
         setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: false }));
-        console.info({ writeResponse: responseData });
         
         // Parse response to check if write succeeded
         let writeSuccess = false;
@@ -886,7 +859,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             }
           }
         } catch (e) {
-          console.error("Error parsing write response:", e);
           errorMessage = "Unknown write response format";
         }
         
@@ -905,7 +877,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             }
           }, 2000); // Increased to 2000ms for better reliability with multiple devices
         } else {
-          console.error("Write failed:", errorMessage || "Unknown error");
           toast.error(
             t("Failed to write {name}: {error}", {
               name: activeCharacteristic.name,

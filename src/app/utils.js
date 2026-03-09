@@ -1,6 +1,5 @@
 export const connBleByMacAddress = (macAddress, callback) => {
     window.WebViewJavascriptBridge.callHandler('connBleByMacAddress', macAddress, (responseData) => {
-        console.info(responseData);
         if (callback) callback(responseData);
     });
 };
@@ -8,13 +7,11 @@ export const connBleByMacAddress = (macAddress, callback) => {
 
 export const disconnBleByMacAddress = (macAddress, callback) => {
     window.WebViewJavascriptBridge.callHandler('disconnBleByMacAddress', macAddress, (responseData) => {
-        console.info('disconnBleByMacAddress response:', responseData);
         if (callback) callback(responseData);
     });
 };
 export const initBleData = (macAddress, callback) => {
     window.WebViewJavascriptBridge.callHandler('initBleData', macAddress, (responseData) => {
-        console.info("initBleData:" + responseData);
         if (callback) callback(responseData);
     });
 };
@@ -25,14 +22,12 @@ export const initServiceBleData = (data, callback) => {
       'initServiceBleData', 
       data,
       (responseData) => {
-          console.info("initServiceBleData:" + responseData);
           if (callback) callback(responseData);
       }
   );
 };
 export const readBleCharacteristicByNames = (macAddress, names, callback) => {
   if (!window.WebViewJavascriptBridge) {
-    console.error("WebViewJavascriptBridge is not available");
     if (callback) callback(null, "WebView bridge not initialized");
     return;
   }
@@ -46,12 +41,11 @@ export const readBleCharacteristicByNames = (macAddress, names, callback) => {
     'readBleCharacteristicByNames',
     JSON.stringify(data),
     (responseData) => {
-      console.info("readBleCharacteristicByNames response:", responseData);
       let parsed = responseData;
       try {
         parsed = typeof responseData === 'string' ? JSON.parse(responseData) : responseData;
       } catch (e) {
-        console.error("Error parsing readBleCharacteristicByNames response:", e);
+        // parse error silenced
       }
       if (callback) callback(parsed);
     }
@@ -81,21 +75,13 @@ export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddres
       data,
       (responseData) => {
         try {
-          // Parse the response
           const response = JSON.parse(responseData);
-          console.info(response, "Response Data readBleCharacteristic")
           if (response.respData) {
-            // Call the callback with the retrieved data
             callback(response.respData);
-            console.info(response.respData, "Response Data readBleCharacteristic")
           } else {
-            // Handle failure in reading the characteristic
-            console.error("Read failed:", response.respDesc);
             callback(null, response.respDesc);
           }
         } catch (e) {
-          // Handle error parsing the response
-          console.error("Error parsing read response:", e);
           callback(null, "Error parsing response");
         }
       }
@@ -105,9 +91,7 @@ export const readBleCharacteristic = (serviceUUID, characteristicUUID, macAddres
 
   // Common Bridge Functions
 export const writeBleCharacteristic = (serviceUUID, characteristicUUID, value, macAddress, callback) => {
-    // Verify WebView bridge is available
     if (!window.WebViewJavascriptBridge) {
-      console.error("WebViewJavascriptBridge is not available");
       if (callback) {
         callback(null, "WebView bridge not initialized");
       }
@@ -121,32 +105,9 @@ export const writeBleCharacteristic = (serviceUUID, characteristicUUID, value, m
       macAddress: macAddress,
     };
   
-    console.info("Initiating BLE write operation:", {
-      serviceUUID,
-      characteristicUUID,
-      macAddress,
-      valueLength: typeof value === 'string' ? value.length : 'number',
-      valueType: typeof value
-    });
-  
     window.WebViewJavascriptBridge.callHandler(
       'writeBleCharacteristic', data,
       (responseData) => {
-        console.warn("Write response received:", responseData);
-        console.info("Write response type:", typeof responseData);
-        
-        // Enhanced logging for debugging
-        if (typeof responseData === 'string') {
-          try {
-            const parsed = JSON.parse(responseData);
-            console.info("Parsed write response:", parsed);
-          } catch (e) {
-            console.info("Write response is plain string:", responseData);
-          }
-        } else {
-          console.info("Write response is object:", responseData);
-        }
-        
         if (callback) {
           callback(responseData);
         }

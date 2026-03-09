@@ -59,9 +59,9 @@ export interface UseBleServiceReaderOptions {
 export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
   const { onServiceData, onError, debug = false } = options;
 
-  const log = useCallback((...args: unknown[]) => {
-    if (debug) console.info('[BLE Service]', ...args);
-  }, [debug]);
+  const log = useCallback((..._args: unknown[]) => {
+    // silenced — use [BLE SvcReader DEBUG] console.info lines instead
+  }, []);
 
   // ============================================
   // STATE
@@ -200,11 +200,11 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
     // IMPORTANT: Handle synchronous error responses from native layer
     // The native layer may return errors directly in this callback,
     // rather than through the async bridge handlers
-    console.info('[BLE SvcReader DEBUG] Requesting service:', serviceName, 'mac:', macAddress);
+    console.warn('[BLE SvcReader DEBUG] Requesting service:', serviceName, 'mac:', macAddress);
     initServiceBleData(
       { serviceName, macAddress },
       (responseData: string) => {
-        console.info('[BLE SvcReader DEBUG] initServiceBleData sync response:', responseData);
+        console.warn('[BLE SvcReader DEBUG] initServiceBleData sync response:', responseData);
         log('Service request response:', responseData);
         
         // Use centralized error handling for synchronous responses
@@ -282,7 +282,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnProgressCallBack',
         (data: string, resp: (r: unknown) => void) => {
-          console.info('[BLE SvcReader DEBUG] progressCallBack raw:', data);
+          console.warn('[BLE SvcReader DEBUG] progressCallBack raw:', data);
           try {
             const p = JSON.parse(data);
             const progress = Math.round((p.progress / p.total) * 100);
@@ -302,7 +302,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataOnCompleteCallBack',
         (data: string, resp: (r: unknown) => void) => {
-          console.info('[BLE SvcReader DEBUG] completeCallBack raw:', data);
+          console.warn('[BLE SvcReader DEBUG] completeCallBack raw:', data);
           // Use centralized error handling
           const result = parseBleResponse(data);
           
@@ -345,10 +345,10 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
             // Get service name from response
             const serviceName = (parsedData?.serviceNameEnum as string) || pendingServiceRef.current || 'unknown';
             
-            console.info('[BLE SvcReader DEBUG] completeCallBack parsed:', JSON.stringify(parsedData, null, 2));
-            console.info('[BLE SvcReader DEBUG] serviceName:', serviceName);
+            console.warn('[BLE SvcReader DEBUG] completeCallBack parsed:', JSON.stringify(parsedData, null, 2));
+            console.warn('[BLE SvcReader DEBUG] serviceName:', serviceName);
             if ((parsedData as Record<string, unknown>)?.characteristicList) {
-              console.info('[BLE SvcReader DEBUG] characteristicList:', JSON.stringify((parsedData as Record<string, unknown>).characteristicList, null, 2));
+              console.warn('[BLE SvcReader DEBUG] characteristicList:', JSON.stringify((parsedData as Record<string, unknown>).characteristicList, null, 2));
             }
             log('Service data received:', serviceName);
             clearReadTimeout();
@@ -395,7 +395,7 @@ export function useBleServiceReader(options: UseBleServiceReaderOptions = {}) {
       window.WebViewJavascriptBridge.registerHandler(
         'bleInitServiceDataFailureCallBack',
         (data: string, resp: (r: unknown) => void) => {
-          console.info('[BLE SvcReader DEBUG] failureCallBack raw:', data);
+          console.warn('[BLE SvcReader DEBUG] failureCallBack raw:', data);
           log('Service read failed (failure callback):', data);
           
           // Use centralized error handling
