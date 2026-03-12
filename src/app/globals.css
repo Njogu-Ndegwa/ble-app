@@ -12422,36 +12422,9 @@ html.keyboard-open .customer-panel-unified {
   border-width: 0;
 }
 
-/* --- Bottom chrome: slide down + fade out --- */
-.attendant-bottom-fixed,
-.sales-bottom-fixed,
-.action-bar,
-.bottom-nav {
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-html.keyboard-open .attendant-bottom-fixed,
-html.keyboard-open .sales-bottom-fixed {
-  transform: translateY(100%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-html.keyboard-open .action-bar {
-  transform: translateY(100%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-html.keyboard-open .bottom-nav {
-  transform: translateY(100%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* --- Main content: reclaim bottom padding --- */
-html.keyboard-open .attendant-main,
-html.keyboard-open .sales-main,
-html.keyboard-open .rider-main {
-  padding-bottom: 16px;
-}
+/* --- Bottom chrome: keep footer visible during keyboard open --- */
+/* Footer elements (.attendant-bottom-fixed, .sales-bottom-fixed,
+   .action-bar, .bottom-nav) are NO LONGER hidden when the keyboard
+   opens. This avoids the problem where the keyboard dismisses via
+   means we can't detect (Android back gesture, iOS swipe, etc.)
+   and the footer never reappears. */
