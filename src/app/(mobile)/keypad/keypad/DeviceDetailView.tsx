@@ -339,9 +339,13 @@ useEffect(() => {
     if (!pubkCharacteristic) return toast.error(t('Public key characteristic not found'));
     const rawCode = buildRawCode(digitInput);
     writeCharacteristic(pubkCharacteristic, formatInputCode(rawCode), () => {
-      setTimeout(() =>
-        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name),
-      1000);
+      // Refresh both Last Code and Days - delay gives device time to process the write
+      setTimeout(() => {
+        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name);
+        if (stsService && rcrdCharacteristic) {
+          handleRead(stsService.uuid, rcrdCharacteristic.uuid, rcrdCharacteristic.name);
+        }
+      }, 1500);
     });
     setDigitInput('');
   };
