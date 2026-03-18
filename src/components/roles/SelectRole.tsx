@@ -61,6 +61,17 @@ export default function SelectRole() {
     };
   }, []);
 
+  // Prefetch all role routes so the SW caches them for offline use.
+  // Without this, only visited pages are in the runtime cache and
+  // navigating to an unvisited role while offline hits the offline fallback.
+  useEffect(() => {
+    for (const role of roles) {
+      if (!role.disabled) {
+        router.prefetch(role.path);
+      }
+    }
+  }, [router]);
+
   const handleRoleClick = (role: RoleConfig) => {
     if (role.disabled) return;
     router.push(role.path);
