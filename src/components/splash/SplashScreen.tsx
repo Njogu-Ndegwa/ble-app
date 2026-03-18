@@ -55,29 +55,26 @@ export default function SplashScreen({
       setStatus(`Retrying connection... (${retryCount})`);
     } else if (!isBridgeReady) {
       setStatus('Connecting to device...');
-    } else if (!isMqttConnected) {
-      setStatus('Connecting to server...');
     } else {
       setStatus('Ready!');
-      setShowRetry(false); // Hide retry button when connection succeeds
+      setShowRetry(false);
     }
-  }, [isBridgeReady, isMqttConnected, isRetrying, retryCount]);
+  }, [isBridgeReady, isRetrying, retryCount]);
 
-  // Complete when everything is ready AND minimum time has passed
+  // Complete when bridge is ready AND minimum time has passed.
+  // MQTT connects in the background — no need to block the user on it.
   useEffect(() => {
     if (hasCompletedRef.current) return;
 
-    const isReady = isBridgeReady && isMqttConnected;
-    
-    if (isReady && minTimeElapsed) {
+    if (isBridgeReady && minTimeElapsed) {
       hasCompletedRef.current = true;
-      console.info('=== Splash Complete: Bridge and MQTT ready ===');
+      console.info('=== Splash Complete: Bridge ready ===');
       setShowRetry(false);
       setIsRetrying(false);
       setIsHidden(true);
       setTimeout(onComplete, 600);
     }
-  }, [isBridgeReady, isMqttConnected, minTimeElapsed, onComplete]);
+  }, [isBridgeReady, minTimeElapsed, onComplete]);
 
   // Handle retry logic
   const handleRetry = useCallback(() => {
@@ -100,7 +97,6 @@ export default function SplashScreen({
 
     retryTimerRef.current = setTimeout(() => {
       if (!hasCompletedRef.current && !isBridgeReady) {
-        // Bridge not ready after max wait - show retry button
         console.warn('=== Bridge connection failed after max wait time ===', {
           isBridgeReady,
           isMqttConnected
@@ -108,21 +104,6 @@ export default function SplashScreen({
         setShowRetry(true);
         setIsRetrying(false);
         setStatus('Connection failed');
-      } else if (!hasCompletedRef.current && isBridgeReady && !isMqttConnected) {
-        // Bridge ready but MQTT not connected - still allow proceeding after showing warning
-        // MQTT may reconnect later, and bridge is the critical component
-        console.warn('=== MQTT not connected but bridge is ready, proceeding ===', {
-          isBridgeReady,
-          isMqttConnected
-        });
-        // Give MQTT a bit more time, then proceed
-        setTimeout(() => {
-          if (!hasCompletedRef.current) {
-            hasCompletedRef.current = true;
-            setIsHidden(true);
-            setTimeout(onComplete, 600);
-          }
-        }, 3000);
       }
     }, maxWaitTime);
 
