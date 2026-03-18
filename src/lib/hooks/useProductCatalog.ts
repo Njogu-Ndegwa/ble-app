@@ -11,7 +11,7 @@
  * Used by the Sales workflow for customer registration.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   getSubscriptionProducts,
   type SubscriptionProduct,
@@ -139,6 +139,7 @@ export interface UseProductCatalogReturn {
   products: ProductData[];
   packages: PackageData[];
   plans: PlanData[];
+  filteredPlans: PlanData[];
   
   // Loading states
   isLoading: CatalogLoadingState;
@@ -164,6 +165,52 @@ export interface UseProductCatalogReturn {
   
   // For session restore
   restoreSelections: (productId?: string, packageId?: string, planId?: string) => void;
+}
+
+// ============================================
+// Product-to-Service Mapping
+// ============================================
+
+interface ProductServiceMapping {
+  productPatterns: string[];
+  servicePatterns: string[];
+}
+
+const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
+  {
+    productPatterns: ['S6', 'M3'],
+    servicePatterns: ['B30-0.9', 'B30-409', 'B30-10', 'B30-400', 'B30-50', 'B30-385'],
+  },
+  {
+    productPatterns: ['E-3H', 'E-3 Plus'],
+    servicePatterns: ['B45-1.2', 'B45-364', 'B45-20', 'B45-351', 'B45-68', 'B45-340'],
+  },
+  {
+    productPatterns: ['CET-3 B', 'PET-3-SRS', 'PET-3-DRS'],
+    servicePatterns: ['B100-2.6', 'B100-342', 'B100-40', 'B100-333', 'B100-145', 'B100-322'],
+  },
+];
+
+/**
+ * Filters plans based on the selected package name.
+ * If the package matches a known product pattern, only associated services are shown.
+ * Otherwise returns all plans unfiltered.
+ */
+function getFilteredPlans(packageName: string | undefined, allPlans: PlanData[]): PlanData[] {
+  if (!packageName) return allPlans;
+
+  const nameLower = packageName.toLowerCase();
+
+  const matchedMapping = PRODUCT_SERVICE_MAP.find((mapping) =>
+    mapping.productPatterns.some((pattern) => nameLower.includes(pattern.toLowerCase()))
+  );
+
+  if (!matchedMapping) return allPlans;
+
+  return allPlans.filter((plan) => {
+    const planNameLower = plan.name.toLowerCase();
+    return matchedMapping.servicePatterns.some((sp) => planNameLower.includes(sp.toLowerCase()));
+  });
 }
 
 // ============================================
@@ -296,6 +343,17 @@ export function useProductCatalog(
   const selectedProduct = products.find(p => p.id === selectedProductId) || null;
   const selectedPackage = packages.find(p => p.id === selectedPackageId) || null;
   const selectedPlan = plans.find(p => p.id === selectedPlanId) || null;
+
+  const filteredPlans = useMemo(
+    () => getFilteredPlans(selectedPackage?.name, plans),
+    [selectedPackage?.name, plans]
+  );
+
+  useEffect(() => {
+    if (filteredPlans.length > 0 && !filteredPlans.some(p => p.id === selectedPlanId)) {
+      setSelectedPlanId(filteredPlans[0].id);
+    }
+  }, [filteredPlans, selectedPlanId]);
 
   // Fetch all catalog data
   const refetch = useCallback(async () => {
@@ -505,6 +563,7 @@ export function useProductCatalog(
     products,
     packages,
     plans,
+    filteredPlans,
     
     // Loading
     isLoading,
