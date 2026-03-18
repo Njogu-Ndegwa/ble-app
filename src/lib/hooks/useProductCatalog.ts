@@ -186,7 +186,7 @@ const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
     servicePatterns: ['B45-1.2', 'B45-364 kWh', 'B45-20', 'B45-351 kWh', 'B45-68', 'B45-340 kWh'],
   },
   {
-    productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS'],
+    productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS', 'PET-3DRS'],
     servicePatterns: ['B100-2.6', 'B100-342 kWh', 'B100-40', 'B100-333 kWh', 'B100-145', 'B100-322 kWh'],
   },
 ];
