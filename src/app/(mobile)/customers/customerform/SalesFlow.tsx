@@ -167,6 +167,7 @@ export default function SalesFlow({
     products: availableProducts,
     packages: availablePackages,
     plans: availablePlans,
+    filteredPlans,
     isLoading: catalogLoading,
     errors: catalogErrors,
     selectedProductId,
@@ -2447,12 +2448,12 @@ export default function SalesFlow({
           />
         );
       case 3:
-        // Subscription selection
+        // Subscription selection (filtered by selected package when a mapping exists)
         return (
           <Step3SelectSubscription 
             selectedPlan={selectedPlanId}
             onPlanSelect={handlePlanSelect}
-            plans={availablePlans}
+            plans={filteredPlans}
             isLoadingPlans={isLoadingPlans}
             loadError={plansLoadError}
             onRetryLoad={fetchProductsAndPlans}

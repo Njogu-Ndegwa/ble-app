@@ -1558,6 +1558,8 @@
   "rider.lastSwap": "Last Swap",
   "rider.justNow": "Just now",
   "rider.ago": "ago",
+  "rider.hoursAgo": "{count}h ago",
+  "rider.daysAgo": "{count}d ago",
   "rider.yesterday": "Yesterday",
   "rider.paymentQrCode": "Payment QR Code",
   "rider.subscriptionCode": "Subscription Code",
