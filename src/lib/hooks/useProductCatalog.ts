@@ -179,15 +179,15 @@ interface ProductServiceMapping {
 const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['S6', 'M3'],
-    servicePatterns: ['B30-0.9', 'B30-409', 'B30-10', 'B30-400', 'B30-50', 'B30-385'],
+    servicePatterns: ['B30-0.9', 'B30-409 kWh', 'B30-10', 'B30-400 kWh', 'B30-50', 'B30-385 kWh'],
   },
   {
     productPatterns: ['E-3H', 'E-3 Plus'],
-    servicePatterns: ['B45-1.2', 'B45-364', 'B45-20', 'B45-351', 'B45-68', 'B45-340'],
+    servicePatterns: ['B45-1.2', 'B45-364 kWh', 'B45-20', 'B45-351 kWh', 'B45-68', 'B45-340 kWh'],
   },
   {
     productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS'],
-    servicePatterns: ['B100-2.6', 'B100-342', 'B100-40', 'B100-333', 'B100-145', 'B100-322'],
+    servicePatterns: ['B100-2.6', 'B100-342 kWh', 'B100-40', 'B100-333 kWh', 'B100-145', 'B100-322 kWh'],
   },
 ];
 
