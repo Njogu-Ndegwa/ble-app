@@ -8,57 +8,72 @@ interface SplashScreenProps {
   duration?: number;
 }
 
-const needsSwRefresh = () => {
-  if (typeof window === 'undefined') return false;
-  return 'serviceWorker' in navigator && !sessionStorage.getItem('sw-activated');
-};
+type Phase = 'init' | 'animating' | 'hiding';
+
+function dismissHtmlSplash() {
+  const el = document.getElementById('html-splash');
+  if (!el) return;
+  el.style.opacity = '0';
+  setTimeout(() => el.remove(), 350);
+}
 
 export default function SplashScreen({ 
   onComplete, 
   duration = 3000,
 }: SplashScreenProps) {
-  const [isHidden, setIsHidden] = useState(false);
-  const [waitingForSw, setWaitingForSw] = useState(needsSwRefresh);
+  // Always start in 'init' — identical on server and client, avoids hydration
+  // mismatch. The init phase renders a static logo that matches the HTML splash
+  // in layout.tsx, so the user sees one unbroken screen.
+  const [phase, setPhase] = useState<Phase>('init');
   const hasCompletedRef = useRef(false);
 
-  // If the SW hasn't been activated yet, wait for it and reload once.
-  // We only render the static logo (no animations) during this phase so the
-  // reload doesn't look like the splash is restarting.
+  // After hydration: check if the SW needs its first-activation reload.
+  // If yes, the reload fires while the user still sees the static logo
+  // (the HTML splash in layout.tsx re-appears instantly on reload).
+  // If no, we move straight to the battery animation.
   useEffect(() => {
-    if (!waitingForSw) return;
+    const swSupported = 'serviceWorker' in navigator;
+    const alreadyActivated = sessionStorage.getItem('sw-activated') === 'true';
 
-    if (!('serviceWorker' in navigator)) {
-      setWaitingForSw(false);
+    if (!swSupported || alreadyActivated) {
+      dismissHtmlSplash();
+      setPhase('animating');
       return;
     }
 
+    // SW supported but hasn't been activated this session yet — wait for it.
     navigator.serviceWorker.ready.then((registration) => {
       if (registration.active) {
         sessionStorage.setItem('sw-activated', 'true');
+        // Reload while the static logo / HTML splash is still showing.
+        // The HTML splash in layout.tsx renders before React, so the user
+        // sees no gap or flash during the reload.
         window.location.reload();
       } else {
-        setWaitingForSw(false);
+        // SW not active (unexpected), skip the reload and animate.
+        dismissHtmlSplash();
+        setPhase('animating');
       }
     });
-  }, [waitingForSw]);
+  }, []);
 
-  // 3-second timer only starts after the SW check is done (or skipped).
+  // Animation timer — only runs once phase becomes 'animating'.
   useEffect(() => {
-    if (waitingForSw) return;
+    if (phase !== 'animating') return;
 
     const timer = setTimeout(() => {
       if (hasCompletedRef.current) return;
       hasCompletedRef.current = true;
-      setIsHidden(true);
+      setPhase('hiding');
       setTimeout(onComplete, 600);
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [waitingForSw, duration, onComplete]);
+  }, [phase, duration, onComplete]);
 
-  // Pre-refresh: show only the static background + logo (no animation).
-  // This way the reload is near-invisible — same screen before and after.
-  if (waitingForSw) {
+  // Init phase: static logo only — matches the HTML splash in layout.tsx
+  // exactly, so SSR → hydration → possible reload all look the same.
+  if (phase === 'init') {
     return (
       <div className="splash-screen">
         <div className="splash-content">
@@ -76,7 +91,7 @@ export default function SplashScreen({
   }
 
   return (
-    <div className={`splash-screen ${isHidden ? 'hidden' : ''}`}>
+    <div className={`splash-screen ${phase === 'hiding' ? 'hidden' : ''}`}>
       <div className="splash-content">
         {/* Battery Swap Animation */}
         <div className="splash-animation">

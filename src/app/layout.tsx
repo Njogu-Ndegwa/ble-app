@@ -62,15 +62,31 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              html,body{background:#0a0f0f;margin:0}
+              html[data-theme="light"],html[data-theme="light"] body{background:#f5fafa}
+              #html-splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#0a0f0f;transition:opacity .3s ease}
+              html[data-theme="light"] #html-splash{background:#f5fafa}
+              #html-splash img{height:48px;width:auto}
+              html.splash-done #html-splash{display:none}
+            `,
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('oves-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('oves-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}try{if(sessionStorage.getItem('oves-splash-shown')==='true')document.documentElement.classList.add('splash-done');}catch(e){}})();`,
           }}
         />
       </head>
       <body
         className={`${outfit.variable} ${dmMono.variable} antialiased`}
       >
+        <div id="html-splash" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/Logo-Oves.png" alt="" />
+        </div>
         <ThemeProvider>
           <ApolloProvider client={apolloClient}>
             <BridgeProvider>
