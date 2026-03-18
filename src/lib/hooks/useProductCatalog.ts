@@ -186,7 +186,7 @@ const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
     servicePatterns: ['B45-1.2', 'B45-364', 'B45-20', 'B45-351', 'B45-68', 'B45-340'],
   },
   {
-    productPatterns: ['CET-3 B', 'PET-3-SRS', 'PET-3-DRS'],
+    productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS'],
     servicePatterns: ['B100-2.6', 'B100-342', 'B100-40', 'B100-333', 'B100-145', 'B100-322'],
   },
 ];
