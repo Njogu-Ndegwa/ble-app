@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Toaster } from 'react-hot-toast';
 import SalesApp from './SalesApp';
 import Login from '../../attendant/attendant/login';
@@ -12,60 +12,41 @@ import {
 } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
 
-export default function CustomerFormPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
-  const [user, setUser] = useState<EmployeeUser | null>(null);
-
-  // Check login status on mount - specifically for sales role
-  // Note: Attendant and Sales are now separate roles with separate sessions
-  // Also clears sales session if token has expired
-  useEffect(() => {
+function getInitialAuth(): { loggedIn: boolean; user: EmployeeUser | null } {
+  if (typeof window === 'undefined') return { loggedIn: false, user: null };
+  try {
     const loggedIn = isSalesRoleLoggedIn();
-    
-    setIsLoggedIn(loggedIn);
-    if (loggedIn) {
-      setUser(getSalesRoleUser());
-    } else {
-      // Token has expired or user is not logged in
-      // Clear any stored sales session to start fresh when they log in again
-      clearSalesSession();
-    }
-  }, []);
+    if (loggedIn) return { loggedIn: true, user: getSalesRoleUser() };
+    clearSalesSession();
+    return { loggedIn: false, user: null };
+  } catch {
+    clearSalesRoleLogin();
+    clearSalesSession();
+    return { loggedIn: false, user: null };
+  }
+}
+
+export default function CustomerFormPage() {
+  const [{ loggedIn: isLoggedIn, user }, setAuth] = useState(getInitialAuth);
 
   const handleLoginSuccess = useCallback((customerData: any) => {
-    setUser({
-      id: customerData.id,
-      name: customerData.name,
-      email: customerData.email,
-      phone: customerData.phone,
-      userType: 'sales',
+    setAuth({
+      loggedIn: true,
+      user: {
+        id: customerData.id,
+        name: customerData.name,
+        email: customerData.email,
+        phone: customerData.phone,
+        userType: 'sales',
+      },
     });
-    setIsLoggedIn(true);
   }, []);
 
-  // Handle logout - reset login state and clear sales role session
-  // Note: Attendant and Sales are now separate roles with separate sessions
   const handleLogout = useCallback(() => {
     clearSalesRoleLogin();
     clearSalesSession();
-    setUser(null);
-    setIsLoggedIn(false);
+    setAuth({ loggedIn: false, user: null });
   }, []);
-
-  // Show loading state while checking auth
-  if (isLoggedIn === null) {
-    return (
-      <div className="splash-screen">
-        <div className="splash-loading">
-          <div className="splash-loading-dots">
-            <div className="splash-loading-dot"></div>
-            <div className="splash-loading-dot"></div>
-            <div className="splash-loading-dot"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>

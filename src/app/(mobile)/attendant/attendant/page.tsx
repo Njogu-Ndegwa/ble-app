@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
 import AttendantApp from "./AttendantApp";
 import Login from "./login";
@@ -10,50 +10,36 @@ import {
   type EmployeeUser 
 } from "@/lib/attendant-auth";
 
-export default function AttendantPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = checking
-  const [customer, setCustomer] = useState<EmployeeUser | null>(null);
-
-  // Check login status on mount - specifically for attendant role
-  useEffect(() => {
+function getInitialAuth(): { loggedIn: boolean; user: EmployeeUser | null } {
+  if (typeof window === 'undefined') return { loggedIn: false, user: null };
+  try {
     const loggedIn = isAttendantRoleLoggedIn();
-    setIsLoggedIn(loggedIn);
-    if (loggedIn) {
-      setCustomer(getAttendantRoleUser());
-    }
-  }, []);
+    if (loggedIn) return { loggedIn: true, user: getAttendantRoleUser() };
+    return { loggedIn: false, user: null };
+  } catch {
+    return { loggedIn: false, user: null };
+  }
+}
+
+export default function AttendantPage() {
+  const [{ loggedIn: isLoggedIn, user: customer }, setAuth] = useState(getInitialAuth);
 
   const handleLoginSuccess = useCallback((customerData: any) => {
-    setCustomer({
-      id: customerData.id,
-      name: customerData.name,
-      email: customerData.email,
-      phone: customerData.phone,
-      userType: 'attendant',
+    setAuth({
+      loggedIn: true,
+      user: {
+        id: customerData.id,
+        name: customerData.name,
+        email: customerData.email,
+        phone: customerData.phone,
+        userType: 'attendant',
+      },
     });
-    setIsLoggedIn(true);
   }, []);
 
-  // Handle logout - reset login state to show login screen
   const handleLogout = useCallback(() => {
-    setCustomer(null);
-    setIsLoggedIn(false);
+    setAuth({ loggedIn: false, user: null });
   }, []);
-
-  // Show nothing while checking auth status
-  if (isLoggedIn === null) {
-    return (
-      <div className="splash-screen">
-        <div className="splash-loading">
-          <div className="splash-loading-dots">
-            <div className="splash-loading-dot"></div>
-            <div className="splash-loading-dot"></div>
-            <div className="splash-loading-dot"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
