@@ -1,53 +1,24 @@
 // app/page.tsx
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import SplashScreen from '@/components/splash/SplashScreen';
 import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
-import { useBridge } from '@/app/context/bridgeContext';
 
 type AppState = 'splash' | 'onboarding' | 'selectRole';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 
 export default function Index() {
-  const { isBridgeReady } = useBridge();
-  
-  // Determine initial state: skip splash if bridge is already connected
-  // (e.g., when returning from a role via "Change Role" button)
   const getInitialState = (): AppState => {
-    if (isBridgeReady) {
-      if (typeof window !== 'undefined' && localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true') {
-        return 'selectRole';
-      }
-      return 'onboarding';
+    if (typeof window !== 'undefined' && localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true') {
+      return 'splash';
     }
     return 'splash';
   };
 
   const [appState, setAppState] = useState<AppState>(getInitialState);
-
-  // Update state if bridge becomes ready while still on splash
-  // This handles the case where initial render had it as false but it's quickly ready
-  useEffect(() => {
-    if (appState === 'splash' && isBridgeReady) {
-      if (typeof window !== 'undefined' && localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true') {
-        setAppState('selectRole');
-      } else {
-        setAppState('onboarding');
-      }
-    }
-  }, [appState, isBridgeReady]);
-
-  // If user is on selectRole but bridge becomes disconnected, go back to splash
-  // This ensures the app doesn't operate without a working bridge connection
-  useEffect(() => {
-    if (appState === 'selectRole' && !isBridgeReady) {
-      console.warn('Bridge disconnected while on selectRole, returning to splash');
-      setAppState('splash');
-    }
-  }, [appState, isBridgeReady]);
 
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;
@@ -59,18 +30,12 @@ export default function Index() {
   };
 
   const handleSplashComplete = useCallback(() => {
-    // Only proceed if bridge is ready
-    if (!isBridgeReady) {
-      console.warn('Splash complete called but bridge not ready, staying on splash');
-      return;
-    }
-    
     if (hasSeenOnboarding()) {
       setAppState('selectRole');
     } else {
       setAppState('onboarding');
     }
-  }, [isBridgeReady]);
+  }, []);
 
   const handleOnboardingComplete = useCallback(() => {
     markOnboardingComplete();
