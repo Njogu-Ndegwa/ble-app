@@ -191,6 +191,8 @@ const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   },
 ];
 
+const HIDDEN_PRODUCT_PATTERNS: string[] = ['PET1'];
+
 /**
  * Filters plans based on the selected package name.
  * If the package matches a known product pattern, only associated services are shown.
@@ -463,14 +465,19 @@ export function useProductCatalog(
             };
           });
 
-          console.log('[PRODUCT CATALOG] Synthesized packages:', synthesizedPackages.map(p => ({
+          const visiblePackages = synthesizedPackages.filter((pkg) => {
+            const nameLower = pkg.name.toLowerCase();
+            return !HIDDEN_PRODUCT_PATTERNS.some((p) => nameLower.includes(p.toLowerCase()));
+          });
+
+          console.log('[PRODUCT CATALOG] Synthesized packages:', visiblePackages.map(p => ({
             id: p.id, name: p.name,
           })));
 
-          setPackages(synthesizedPackages);
+          setPackages(visiblePackages);
           setErrors(prev => ({ ...prev, packages: null }));
-          if (synthesizedPackages.length > 0) {
-            setSelectedPackageId(prev => prev || synthesizedPackages[0].id);
+          if (visiblePackages.length > 0) {
+            setSelectedPackageId(prev => prev || visiblePackages[0].id);
           }
         } else {
           console.warn('[PRODUCT CATALOG] No physical products to build packages from');
