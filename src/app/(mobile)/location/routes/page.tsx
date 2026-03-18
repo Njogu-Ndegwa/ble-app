@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react';
-import LocationView from './LocationView';
 import dynamic from 'next/dynamic';
+
+const LocationView = dynamic(() => import('./LocationView'), { ssr: false });
 import ProgressiveLoading from '../../../../components/loader/progressiveLoading';
 import { connBleByMacAddress, initServiceBleData } from "../../../utils"
 import { Toaster, toast } from 'react-hot-toast';
