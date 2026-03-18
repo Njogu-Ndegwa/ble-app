@@ -9,12 +9,18 @@ import SelectRole from '@/components/roles/SelectRole';
 type AppState = 'splash' | 'onboarding' | 'selectRole';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
+const SPLASH_SHOWN_KEY = 'oves-splash-shown';
 
 export default function Index() {
   const getInitialState = (): AppState => {
-    if (typeof window !== 'undefined' && localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true') {
-      return 'splash';
+    if (typeof window === 'undefined') return 'splash';
+
+    // If the splash already played this session (e.g. user navigated back from
+    // a role), skip straight to role selection.
+    if (sessionStorage.getItem(SPLASH_SHOWN_KEY) === 'true') {
+      return 'selectRole';
     }
+
     return 'splash';
   };
 
@@ -30,6 +36,7 @@ export default function Index() {
   };
 
   const handleSplashComplete = useCallback(() => {
+    sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
     if (hasSeenOnboarding()) {
       setAppState('selectRole');
     } else {
