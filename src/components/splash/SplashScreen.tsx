@@ -25,6 +25,21 @@ export default function SplashScreen({
   const hasCompletedRef = useRef(false);
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // One-time masked refresh so the service worker can take control and cache assets.
+  // On first visit the SW installs in the background but can't serve the current page load.
+  // Reloading while the splash is visible lets the SW intercept requests and populate caches.
+  // sessionStorage resets each WebView session, so a fresh app open re-triggers caching.
+  useEffect(() => {
+    if ('serviceWorker' in navigator && !sessionStorage.getItem('sw-activated')) {
+      navigator.serviceWorker.ready.then((registration) => {
+        if (registration.active) {
+          sessionStorage.setItem('sw-activated', 'true');
+          window.location.reload();
+        }
+      });
+    }
+  }, []);
+
   // Track minimum display time
   useEffect(() => {
     const timer = setTimeout(() => {
