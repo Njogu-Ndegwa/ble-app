@@ -1458,6 +1458,8 @@
   "rider.lastSwap": "上次换电",
   "rider.justNow": "刚刚",
   "rider.ago": "前",
+  "rider.hoursAgo": "{count}h 前",
+  "rider.daysAgo": "{count}d 前",
   "rider.yesterday": "昨天",
   "rider.paymentQrCode": "支付二维码",
   "rider.subscriptionCode": "订阅代码",

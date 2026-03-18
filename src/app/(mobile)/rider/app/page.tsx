@@ -521,11 +521,11 @@ const RiderApp: React.FC = () => {
               if (diffHours < 1) {
                 lastSwapText = t('rider.justNow') || 'Just now';
               } else if (diffHours < 24) {
-                lastSwapText = `${diffHours}h ${t('rider.ago') || 'ago'}`;
+                lastSwapText = t('rider.hoursAgo', { count: diffHours });
               } else if (diffDays === 1) {
                 lastSwapText = t('rider.yesterday') || 'Yesterday';
               } else if (diffDays < 7) {
-                lastSwapText = `${diffDays}d ${t('rider.ago') || 'ago'}`;
+                lastSwapText = t('rider.daysAgo', { count: diffDays });
               } else {
                 lastSwapText = lastSwapDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               }
