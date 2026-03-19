@@ -14,7 +14,10 @@ function dismissHtmlSplash() {
   const el = document.getElementById('html-splash');
   if (!el) return;
   el.style.opacity = '0';
-  setTimeout(() => el.remove(), 350);
+  el.style.pointerEvents = 'none';
+  setTimeout(() => {
+    el.style.display = 'none';
+  }, 350);
 }
 
 export default function SplashScreen({ 
@@ -41,20 +44,30 @@ export default function SplashScreen({
       return;
     }
 
-    // SW supported but hasn't been activated this session yet — wait for it.
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      dismissHtmlSplash();
+      setPhase('animating');
+    }, 4000);
+
     navigator.serviceWorker.ready.then((registration) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+
       if (registration.active) {
         sessionStorage.setItem('sw-activated', 'true');
-        // Reload while the static logo / HTML splash is still showing.
-        // The HTML splash in layout.tsx renders before React, so the user
-        // sees no gap or flash during the reload.
         window.location.reload();
       } else {
-        // SW not active (unexpected), skip the reload and animate.
         dismissHtmlSplash();
         setPhase('animating');
       }
     });
+
+    return () => clearTimeout(timeout);
   }, []);
 
   // Animation timer — only runs once phase becomes 'animating'.
