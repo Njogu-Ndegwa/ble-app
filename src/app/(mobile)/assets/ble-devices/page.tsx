@@ -1026,23 +1026,24 @@ const AppContainer = () => {
   useEffect(() => {
     detectedDevicesRef.current = detectedDevices;
   }, [detectedDevices]);
-  useEffect(() => {
-    // 1) Push a dummy history entry when we open the detail view
-    if (selectedDevice) {
-      window.history.pushState(
-        { bleDetail: true },
-        "",
-        window.location.pathname
-      );
-    }
 
-    // 2) Intercept the hardware back key
+  const selectedDeviceRef = useRef(selectedDevice);
+  useEffect(() => {
+    selectedDeviceRef.current = selectedDevice;
+  }, [selectedDevice]);
+
+  useEffect(() => {
+    if (!selectedDevice) return;
+    window.history.pushState(
+      { bleDetail: true },
+      "",
+      window.location.pathname
+    );
+
     const handlePopState = () => {
-      if (selectedDevice) {
+      if (selectedDeviceRef.current) {
         // Prevent the browser’s default back navigation
-        handleBackToList(); // go back to MobileListView
-        // Optionally: stop browser from popping again.
-        window.history.pushState(null, "", window.location.pathname);
+        handleBackToList();
       }
     };
 
@@ -1069,6 +1070,9 @@ const AppContainer = () => {
     setServiceAttrList([]);
     setAtrrList([]);
     setLoadingService(null);
+    setProgress(0);
+    setConnectingDeviceId(null);
+    setIsConnecting(false);
   };
 
   const startConnection = (macAddress: string) => {
@@ -1420,12 +1424,10 @@ const AppContainer = () => {
   };
 
   useEffect(() => {
-    if (progress === 100 && attributeList.length > 0) {
-      setIsConnecting(false); // Connection process complete
+    if (progress === 100 && attributeList.length > 0 && connectingDeviceId) {
+      setIsConnecting(false);
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList);
-      // console.info(attributeList, "Attribute List -----441----")
-
       handlePublish(attributeList, loadingService);
     }
   }, [progress, attributeList]);
