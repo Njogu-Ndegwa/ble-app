@@ -1651,5 +1651,16 @@
   "sessions.viewNext": "Voir Suivant",
   "sessions.readOnlyMode": "Affichage de la session terminée (lecture seule)",
   "sessions.viewingReadOnly": "Affichage de la session (lecture seule)",
-  "sessions.exitReview": "Quitter"
+  "sessions.exitReview": "Quitter",
+
+  "sa.selectAccount": "Sélectionner un compte de service",
+  "sa.welcome": "Bienvenue, {name}. Choisissez votre compte de service.",
+  "sa.noAccessTitle": "Aucun accès",
+  "sa.noAccessDescription": "Vous n'avez accès à aucun compte de service.",
+  "sa.noAccessHint": "Contactez votre administrateur pour obtenir l'accès.",
+  "sa.tryAgain": "Réessayer",
+  "sa.signOut": "Se déconnecter",
+  "sa.lastUsed": "Dernier utilisé",
+  "sa.loadingAccounts": "Chargement des comptes...",
+  "sa.loadFailed": "Échec du chargement des comptes de service"
 }

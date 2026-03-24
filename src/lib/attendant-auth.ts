@@ -23,11 +23,19 @@ const STORAGE_KEYS = {
   ATTENDANT_ACCESS_TOKEN: 'oves-attendant-token',
   ATTENDANT_TOKEN_EXPIRES: 'oves-attendant-token-expires',
   
+  // Attendant service account
+  ATTENDANT_SA_ID: 'oves-attendant-sa-id',
+  ATTENDANT_SA_DATA: 'oves-attendant-sa-data',
+
   // Sales auth (role: salesrep)
   SALES_USER_EMAIL: 'oves-sales-email',
   SALES_USER_DATA: 'oves-sales-data',
   SALES_ACCESS_TOKEN: 'oves-sales-token',
   SALES_TOKEN_EXPIRES: 'oves-sales-token-expires',
+
+  // Sales service account
+  SALES_SA_ID: 'oves-sales-sa-id',
+  SALES_SA_DATA: 'oves-sales-sa-data',
   
   // Legacy keys (deprecated - kept for backwards compatibility during migration)
   EMPLOYEE_USER_EMAIL: 'oves-employee-email',
@@ -615,6 +623,8 @@ export function clearAttendantRoleLogin(): void {
   localStorage.removeItem(STORAGE_KEYS.ATTENDANT_USER_DATA);
   localStorage.removeItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES);
+  localStorage.removeItem(STORAGE_KEYS.ATTENDANT_SA_ID);
+  localStorage.removeItem(STORAGE_KEYS.ATTENDANT_SA_DATA);
   
   console.log('[EmployeeAuth] Cleared Attendant login');
 }
@@ -629,6 +639,8 @@ export function clearSalesRoleLogin(): void {
   localStorage.removeItem(STORAGE_KEYS.SALES_USER_DATA);
   localStorage.removeItem(STORAGE_KEYS.SALES_ACCESS_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES);
+  localStorage.removeItem(STORAGE_KEYS.SALES_SA_ID);
+  localStorage.removeItem(STORAGE_KEYS.SALES_SA_DATA);
   
   console.log('[EmployeeAuth] Cleared Sales login');
 }

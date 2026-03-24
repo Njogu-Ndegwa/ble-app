@@ -1661,5 +1661,16 @@
   "sessions.viewNext": "View Next",
   "sessions.readOnlyMode": "Viewing completed session (read-only)",
   "sessions.viewingReadOnly": "Viewing session (read-only)",
-  "sessions.exitReview": "Exit"
+  "sessions.exitReview": "Exit",
+
+  "sa.selectAccount": "Select Service Account",
+  "sa.welcome": "Welcome, {name}. Choose your service account.",
+  "sa.noAccessTitle": "No Access",
+  "sa.noAccessDescription": "You don't have access to any service accounts.",
+  "sa.noAccessHint": "Contact your administrator to get access.",
+  "sa.tryAgain": "Try Again",
+  "sa.signOut": "Sign Out",
+  "sa.lastUsed": "Last Used",
+  "sa.loadingAccounts": "Loading accounts...",
+  "sa.loadFailed": "Failed to load service accounts"
 }

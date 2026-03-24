@@ -1564,5 +1564,16 @@
   "sessions.viewNext": "查看下一步",
   "sessions.readOnlyMode": "查看已完成会话（只读）",
   "sessions.viewingReadOnly": "查看会话（只读）",
-  "sessions.exitReview": "退出"
+  "sessions.exitReview": "退出",
+
+  "sa.selectAccount": "选择服务账户",
+  "sa.welcome": "欢迎，{name}。请选择您的服务账户。",
+  "sa.noAccessTitle": "无访问权限",
+  "sa.noAccessDescription": "您没有任何服务账户的访问权限。",
+  "sa.noAccessHint": "请联系管理员获取访问权限。",
+  "sa.tryAgain": "重试",
+  "sa.signOut": "退出登录",
+  "sa.lastUsed": "上次使用",
+  "sa.loadingAccounts": "加载账户中...",
+  "sa.loadFailed": "加载服务账户失败"
 }

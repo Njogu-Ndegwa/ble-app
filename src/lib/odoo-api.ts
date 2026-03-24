@@ -13,6 +13,37 @@ const ODOO_BASE_URL = process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omniv
 const ODOO_API_KEY = process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024';
 const DEFAULT_COMPANY_ID = 14; // OV Kenya (Test)
 
+/**
+ * Read the currently-selected Service Account ID from localStorage.
+ * Checks both attendant and sales SA keys (attendant first).
+ */
+function getActiveSAId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return (
+    localStorage.getItem('oves-attendant-sa-id') ||
+    localStorage.getItem('oves-sales-sa-id') ||
+    null
+  );
+}
+
+/**
+ * Build standard Odoo headers with optional auth token and SA ID.
+ */
+export function buildOdooHeaders(authToken?: string): HeadersInit {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'X-API-KEY': ODOO_API_KEY,
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  const saId = getActiveSAId();
+  if (saId) {
+    headers['X-SA-ID'] = saId;
+  }
+  return headers;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -551,8 +582,7 @@ async function apiRequest<T>(
   const url = `${ODOO_BASE_URL}${endpoint}`;
   
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
+    ...buildOdooHeaders(),
     ...options.headers,
   };
 
@@ -661,14 +691,7 @@ export async function getSubscriptionProducts(
   console.log('[ODOO API] URL:', url);
   console.log('[ODOO API] Has auth token:', !!authToken);
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
     console.log('[ODOO API] Making fetch request...');
@@ -770,15 +793,7 @@ export async function purchaseSubscription(
 ): Promise<OdooApiResponse<PurchaseSubscriptionResponse>> {
   const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-
-  // Add Authorization header if token is provided
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
     const response = await fetchWithRetry(url, {
@@ -845,15 +860,7 @@ export async function purchaseMultiProducts(
 ): Promise<OdooApiResponse<PurchaseSubscriptionResponse>> {
   const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-
-  // Add Authorization header if token is provided
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   // Log the request payload for debugging
   console.info('=== PURCHASE MULTI PRODUCTS (CREATE ORDER) - PAYLOAD ===');
@@ -1014,15 +1021,7 @@ export async function createPaymentRequest(
 ): Promise<CreatePaymentRequestResponse> {
   const url = `${ODOO_BASE_URL}/api/payment-request/create`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  // Add Authorization header if token is provided
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   // Log the request payload for debugging
   console.info('=== CREATE PAYMENT REQUEST - PAYLOAD ===');
@@ -1502,14 +1501,7 @@ export async function createWorkflowSession(
 ): Promise<CreateSessionResponse> {
   const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== CREATE WORKFLOW SESSION - PAYLOAD ===');
   console.info('URL:', url);
@@ -1561,14 +1553,7 @@ export async function updateWorkflowSession(
 ): Promise<UpdateSessionResponse> {
   const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   const requestBody = JSON.stringify(payload);
   console.info('=== UPDATE WORKFLOW SESSION - REQUEST ===');
@@ -1636,14 +1621,7 @@ export async function updateWorkflowSessionWithPayment(
 ): Promise<UpdateSessionResponse> {
   const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== UPDATE SESSION WITH PAYMENT - PAYLOAD ===');
   console.info('URL:', url);
@@ -1689,11 +1667,7 @@ export async function getLatestPendingSession(
 ): Promise<LatestPendingSessionResponse> {
   const url = `${ODOO_BASE_URL}/api/orders?latest_updated=true&limit=1`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-    'Authorization': `Bearer ${authToken}`,
-  };
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== GET LATEST SESSION (latest_updated endpoint) ===');
   console.info('URL:', url);
@@ -1774,14 +1748,7 @@ export async function createSalesWorkflowSession(
 ): Promise<CreateSessionResponse> {
   const url = `${ODOO_BASE_URL}/api/subscription/purchase`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== CREATE SALES WORKFLOW SESSION - PAYLOAD ===');
   console.info('URL:', url);
@@ -1836,14 +1803,7 @@ export async function updateWorkflowSessionWithProducts(
 ): Promise<UpdateSessionResponse> {
   const url = `${ODOO_BASE_URL}/api/sessions/by-order/${orderId}`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== UPDATE SESSION WITH PRODUCTS - PAYLOAD ===');
   console.info('URL:', url);
@@ -1910,15 +1870,7 @@ export async function changePassword(
 ): Promise<ChangePasswordResponse> {
   const url = `${ODOO_BASE_URL}/api/auth/change-password`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  // Add Authorization header if token is provided
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   const response = await fetch(url, {
     method: 'POST',
@@ -2079,11 +2031,7 @@ export async function getOrdersList(
   const queryString = queryParams.toString();
   const url = `${ODOO_BASE_URL}/api/orders${queryString ? `?${queryString}` : ''}`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-    'Authorization': `Bearer ${authToken}`,
-  };
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== GET ORDERS LIST ===');
   console.info('URL:', url);
@@ -2215,15 +2163,7 @@ export async function getCustomerDashboard(
 ): Promise<CustomerDashboardResponse> {
   const url = `${ODOO_BASE_URL}/api/customers/${customerId}/dashboard`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  
-  // Add Authorization header if token is provided
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== GET CUSTOMER DASHBOARD ===');
   console.info('URL:', url);
@@ -2380,11 +2320,7 @@ export async function getAttendantTransactions(
   
   const url = `${ODOO_BASE_URL}/api/payments/my-transactions?${params.toString()}`;
   
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-    'Authorization': `Bearer ${authToken}`,
-  };
+  const headers: HeadersInit = buildOdooHeaders(authToken);
   
   console.info('=== GET ATTENDANT TRANSACTIONS ===');
   console.info('URL:', url);
@@ -2550,13 +2486,7 @@ export async function getContacts(
   const endpoint = `/api/contacts${qs ? `?${qs}` : ''}`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
@@ -2579,13 +2509,7 @@ export async function getContactById(
   const endpoint = `/api/contacts/${contactId}`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
@@ -2609,13 +2533,7 @@ export async function updateContact(
   const endpoint = `/api/contacts/${contactId}`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
     const response = await fetchWithRetry(url, {
@@ -2642,13 +2560,7 @@ export async function createContact(
   const endpoint = '/api/contacts';
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-  };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
     const response = await fetchWithRetry(url, {

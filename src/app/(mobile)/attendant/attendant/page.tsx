@@ -4,41 +4,134 @@ import React, { useState, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
 import AttendantApp from "./AttendantApp";
 import Login from "./login";
-import { 
-  isAttendantRoleLoggedIn, 
+import SelectServiceAccount from "@/components/ui/SelectServiceAccount";
+import {
+  isAttendantRoleLoggedIn,
   getAttendantRoleUser,
-  type EmployeeUser 
+  getAttendantRoleToken,
+  clearAttendantRoleLogin,
+  type EmployeeUser,
 } from "@/lib/attendant-auth";
+import {
+  fetchMyServiceAccounts,
+  saveSelectedSA,
+  getSelectedSAId,
+  hasSASelected,
+  clearSelectedSA,
+} from "@/lib/sa-auth";
+import type { ServiceAccount } from "@/lib/sa-types";
 
-function getInitialAuth(): { loggedIn: boolean; user: EmployeeUser | null } {
-  if (typeof window === 'undefined') return { loggedIn: false, user: null };
+type Screen = "login" | "selectSA" | "app";
+
+function getInitialScreen(): {
+  screen: Screen;
+  user: EmployeeUser | null;
+} {
+  if (typeof window === "undefined") return { screen: "login", user: null };
   try {
-    const loggedIn = isAttendantRoleLoggedIn();
-    if (loggedIn) return { loggedIn: true, user: getAttendantRoleUser() };
-    return { loggedIn: false, user: null };
+    if (!isAttendantRoleLoggedIn()) return { screen: "login", user: null };
+    const user = getAttendantRoleUser();
+    if (!user) return { screen: "login", user: null };
+    if (hasSASelected("attendant")) return { screen: "app", user };
+    return { screen: "selectSA", user };
   } catch {
-    return { loggedIn: false, user: null };
+    return { screen: "login", user: null };
   }
 }
 
 export default function AttendantPage() {
-  const [{ loggedIn: isLoggedIn, user: customer }, setAuth] = useState(getInitialAuth);
+  const [screen, setScreen] = useState<Screen>(() => getInitialScreen().screen);
+  const [user, setUser] = useState<EmployeeUser | null>(
+    () => getInitialScreen().user,
+  );
 
-  const handleLoginSuccess = useCallback((customerData: any) => {
-    setAuth({
-      loggedIn: true,
-      user: {
+  const [saAccounts, setSaAccounts] = useState<ServiceAccount[]>([]);
+  const [saLoading, setSaLoading] = useState(false);
+  const [saErrorKind, setSaErrorKind] = useState<
+    "noAccounts" | "loadFailed" | null
+  >(null);
+
+  const loadServiceAccounts = useCallback(
+    async (token: string) => {
+      setSaLoading(true);
+      setSaErrorKind(null);
+      try {
+        const res = await fetchMyServiceAccounts(token);
+        const accounts = res.service_accounts ?? [];
+        setSaAccounts(accounts);
+
+        if (accounts.length === 0) {
+          setSaErrorKind("noAccounts");
+          setScreen("selectSA");
+          return;
+        }
+
+        if (accounts.length === 1 && res.auto_selected) {
+          saveSelectedSA("attendant", accounts[0]);
+          setScreen("app");
+          return;
+        }
+
+        setScreen("selectSA");
+      } catch (err) {
+        console.error("[AttendantPage] Failed to load SAs:", err);
+        setSaErrorKind("loadFailed");
+        setScreen("selectSA");
+      } finally {
+        setSaLoading(false);
+      }
+    },
+    [],
+  );
+
+  const handleLoginSuccess = useCallback(
+    (customerData: any) => {
+      const employeeUser: EmployeeUser = {
         id: customerData.id,
         name: customerData.name,
         email: customerData.email,
         phone: customerData.phone,
-        userType: 'attendant',
-      },
-    });
+        userType: "attendant",
+      };
+      setUser(employeeUser);
+
+      const token = getAttendantRoleToken();
+      if (token) {
+        loadServiceAccounts(token);
+      } else {
+        setScreen("app");
+      }
+    },
+    [loadServiceAccounts],
+  );
+
+  const handleSASelect = useCallback((sa: ServiceAccount) => {
+    saveSelectedSA("attendant", sa);
+    setScreen("app");
+  }, []);
+
+  const handleSARetry = useCallback(() => {
+    const token = getAttendantRoleToken();
+    if (token) {
+      loadServiceAccounts(token);
+    }
+  }, [loadServiceAccounts]);
+
+  const handleSignOut = useCallback(() => {
+    clearAttendantRoleLogin();
+    clearSelectedSA("attendant");
+    setUser(null);
+    setSaAccounts([]);
+    setSaErrorKind(null);
+    setScreen("login");
   }, []);
 
   const handleLogout = useCallback(() => {
-    setAuth({ loggedIn: false, user: null });
+    clearAttendantRoleLogin();
+    clearSelectedSA("attendant");
+    setUser(null);
+    setSaAccounts([]);
+    setScreen("login");
   }, []);
 
   return (
@@ -70,11 +163,23 @@ export default function AttendantPage() {
           },
         }}
       />
-      {isLoggedIn ? (
-        <AttendantApp onLogout={handleLogout} />
-      ) : (
+      {screen === "login" && (
         <Login onLoginSuccess={handleLoginSuccess} userType="attendant" />
       )}
+      {screen === "selectSA" && (
+        <SelectServiceAccount
+          accounts={saAccounts}
+          loading={saLoading}
+          errorKind={saErrorKind}
+          userName={user?.name ?? ""}
+          userType="attendant"
+          lastSAId={getSelectedSAId("attendant")}
+          onSelect={handleSASelect}
+          onSignOut={handleSignOut}
+          onRetry={handleSARetry}
+        />
+      )}
+      {screen === "app" && <AttendantApp onLogout={handleLogout} />}
     </>
   );
 }

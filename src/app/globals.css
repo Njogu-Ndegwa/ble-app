@@ -2734,6 +2734,178 @@ html.theme-transition *::after {
   height: 14px;
 }
 
+/* ===================== */
+/* SERVICE ACCOUNT SELECT */
+/* ===================== */
+
+.sa-grid {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 420px;
+}
+
+@media (min-width: 480px) {
+  .sa-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 520px;
+  }
+}
+
+.sa-card {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+  color: inherit;
+}
+
+.sa-card:hover {
+  border-color: var(--accent-dark);
+  box-shadow: 0 2px 12px -4px rgba(0, 229, 229, 0.15);
+  background: var(--bg-elevated);
+}
+
+.sa-card:active {
+  transform: scale(0.98);
+}
+
+.sa-card-last-used {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.sa-card-last-used-pill {
+  position: absolute;
+  top: -9px;
+  right: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  letter-spacing: 0.01em;
+}
+
+.sa-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.sa-card:hover .sa-card-name {
+  color: var(--accent);
+}
+
+.sa-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sa-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+}
+
+.sa-badge-admin {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sa-badge-staff {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.sa-badge-agent {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.sa-badge-class {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .sa-badge-class {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.sa-error-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+}
+
+.sa-error-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--error-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.sa-error-icon svg {
+  width: 28px;
+  height: 28px;
+  color: var(--error);
+}
+
+.sa-error-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.sa-error-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.sa-error-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.sa-error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (min-width: 400px) {
+  .sa-error-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+}
+
 /* Loading Overlay */
 .loading-overlay {
   position: fixed;
