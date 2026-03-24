@@ -78,7 +78,7 @@ export default function Step2SelectPackage({
         />
       ) : (
         <Grid columns={2} gap={12}>
-          {packages.map((pkg) => {
+          {[...packages].sort((a, b) => a.price - b.price).map((pkg) => {
             const currencySymbol = pkg.currencySymbol || 'KES';
             // Get image from main product component or package itself
             const imageUrl = pkg.imageUrl || pkg.mainProduct?.image_url;

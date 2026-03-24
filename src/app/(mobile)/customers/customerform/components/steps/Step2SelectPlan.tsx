@@ -78,7 +78,7 @@ export default function Step2SelectPlan({
         />
       ) : (
         <Grid columns={1} gap={8}>
-          {plans.map((plan) => {
+          {[...plans].sort((a, b) => a.price - b.price).map((plan) => {
             const period = plan.period || getPeriodFromName(plan.name);
             const currencySymbol = plan.currencySymbol || 'KES';
             

@@ -2,8 +2,6 @@
 
 import React from 'react';
 import { useI18n } from '@/i18n';
-import ScannerArea from './ScannerArea';
-import InputModeToggle from './InputModeToggle';
 import { InputMode } from './types';
 
 interface CustomerInfo {
@@ -120,27 +118,12 @@ export default function PaymentCollection({
       <div className="payment-scan">
         <h2 className="payment-title">{displayTitle}</h2>
         
-        <InputModeToggle
-          mode={inputMode}
-          onModeChange={onInputModeChange}
-          scanLabel={t('attendant.scanQr') || 'Scan QR'}
-          manualLabel={t('attendant.enterId') || 'Enter ID'}
-          disabled={isProcessing}
+        <ManualModeContent
+          paymentId={paymentId}
+          onPaymentIdChange={onPaymentIdChange}
+          placeholder={displayPlaceholder}
+          isProcessing={isProcessing}
         />
-        
-        {inputMode === 'scan' ? (
-          <ScanModeContent
-            onScan={onScan}
-            isScannerOpening={isScannerOpening}
-          />
-        ) : (
-          <ManualModeContent
-            paymentId={paymentId}
-            onPaymentIdChange={onPaymentIdChange}
-            placeholder={displayPlaceholder}
-            isProcessing={isProcessing}
-          />
-        )}
       </div>
     </div>
   );
