@@ -4,6 +4,7 @@ This directory contains reusable components organized by their purpose and abstr
 
 > **Note**: All components use the [Design System](/src/styles/README.md) for consistent styling.
 
+
 ## Directory Structure
 
 ```
