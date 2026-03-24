@@ -264,7 +264,7 @@ export default function Step1CustomerForm({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('sales.searchCustomerPlaceholder') || 'Search by name, email, or phone...'}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-all"
             />
             {searchQuery && (
               <button
@@ -309,23 +309,27 @@ export default function Step1CustomerForm({
                     onClick={() => onSelectExistingCustomer(isSelected ? null : customer)}
                     className={`w-full text-left rounded-xl border-2 p-3.5 transition-all active:scale-[0.98] ${
                       isSelected
-                        ? 'border-primary bg-primary/8'
+                        ? 'border-brand'
                         : 'border-transparent bg-bg-tertiary hover:border-border'
                     }`}
+                    style={isSelected ? { backgroundColor: 'color-mix(in srgb, var(--color-brand) 8%, transparent)' } : undefined}
                   >
                     <div className="flex items-center gap-3">
                       {/* Radio-style indicator */}
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         isSelected
-                          ? 'border-primary bg-primary'
+                          ? 'border-brand bg-brand'
                           : 'border-text-muted bg-transparent'
                       }`}>
-                        {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+                        {isSelected && <Check size={12} className="text-text-inverse" strokeWidth={3} />}
                       </div>
                       {/* Avatar */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
-                        isSelected ? 'bg-primary/20 text-primary' : 'bg-bg-elevated text-text-secondary'
-                      }`}>
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${
+                          isSelected ? 'text-brand' : 'bg-bg-elevated text-text-secondary'
+                        }`}
+                        style={isSelected ? { backgroundColor: 'color-mix(in srgb, var(--color-brand) 20%, transparent)' } : undefined}
+                      >
                         {customer.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       {/* Info */}
