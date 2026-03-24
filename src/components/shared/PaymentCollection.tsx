@@ -133,36 +133,6 @@ export default function PaymentCollection({
 // SUB-COMPONENTS
 // ============================================
 
-function ScanModeContent({
-  onScan,
-  isScannerOpening,
-}: {
-  onScan?: () => void;
-  isScannerOpening: boolean;
-}) {
-  const { t } = useI18n();
-  
-  return (
-    <div className="payment-input-mode">
-      <p className="payment-subtitle">
-        {t('attendant.scanPaymentQrCode') || 'Scan payment QR code'}
-      </p>
-      
-      <ScannerArea 
-        onClick={onScan || (() => {})} 
-        type="qr" 
-        disabled={isScannerOpening}
-        label={t('common.tapToScan') || 'Tap to scan'}
-      />
-      
-      <p className="scan-hint">
-        <InfoIcon />
-        {t('sales.scanPaymentQrCode') || 'Scan the payment QR code'}
-      </p>
-    </div>
-  );
-}
-
 function ManualModeContent({
   paymentId,
   onPaymentIdChange,
