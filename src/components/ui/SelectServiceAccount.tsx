@@ -51,6 +51,8 @@ export default function SelectServiceAccount({
   }, [router]);
 
   const hasError = errorKind !== null;
+  // Treat "no accounts, no error, not loading" as still loading (fetch hasn't started yet)
+  const showLoading = loading || (!hasError && accounts.length === 0);
 
   return (
     <div className="login-page-container">
@@ -109,7 +111,7 @@ export default function SelectServiceAccount({
 
       <div className="login-container">
         {/* Title — only when there are accounts to pick */}
-        {!hasError && !loading && (
+        {!hasError && !showLoading && (
           <div className="login-header">
             <div className="login-icon">
               <svg
@@ -134,7 +136,7 @@ export default function SelectServiceAccount({
         )}
 
         {/* Loading spinner */}
-        {loading && (
+        {showLoading && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
             <div
               className="loading-spinner"
@@ -147,7 +149,7 @@ export default function SelectServiceAccount({
         )}
 
         {/* Error / no-access state */}
-        {hasError && !loading && (
+        {hasError && !showLoading && (
           <div className="sa-error-card">
             <div className="sa-error-icon">
               <svg
@@ -199,7 +201,7 @@ export default function SelectServiceAccount({
         )}
 
         {/* Account cards */}
-        {!loading && !hasError && (
+        {!showLoading && !hasError && (
           <div className="sa-grid">
             {accounts.map((sa) => {
               const isLast = lastSAId === sa.id;

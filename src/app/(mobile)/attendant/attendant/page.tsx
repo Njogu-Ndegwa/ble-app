@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import AttendantApp from "./AttendantApp";
 import Login from "./login";
@@ -83,6 +83,17 @@ export default function AttendantPage() {
     },
     [],
   );
+
+  // When mounting into selectSA (already logged in, no SA chosen yet), fetch SAs
+  useEffect(() => {
+    if (screen === "selectSA" && saAccounts.length === 0 && !saLoading) {
+      const token = getAttendantRoleToken();
+      if (token) {
+        loadServiceAccounts(token);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLoginSuccess = useCallback(
     (customerData: any) => {

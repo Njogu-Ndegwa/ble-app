@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import SalesApp from './SalesApp';
 import Login from '../../attendant/attendant/login';
@@ -85,6 +85,17 @@ export default function CustomerFormPage() {
     } finally {
       setSaLoading(false);
     }
+  }, []);
+
+  // When mounting into selectSA (already logged in, no SA chosen yet), fetch SAs
+  useEffect(() => {
+    if (screen === 'selectSA' && saAccounts.length === 0 && !saLoading) {
+      const token = getSalesRoleToken();
+      if (token) {
+        loadServiceAccounts(token);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLoginSuccess = useCallback(
