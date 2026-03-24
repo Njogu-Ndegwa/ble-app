@@ -228,7 +228,7 @@ function transformProduct(product: SubscriptionProduct): ProductData {
     odooProductId: product.id,
     name: product.name,
     description: product.description || '',
-    price: product.list_price,
+    price: Number(product.list_price) || 0,
     currency: product.currency_name,
     currencySymbol: product.currencySymbol,
     imageUrl: product.image_url || null,
@@ -289,7 +289,7 @@ function transformPlan(product: SubscriptionProduct): PlanData {
     odooProductId: product.id,
     name: product.name,
     description: product.description || '',
-    price: product.list_price,
+    price: Number(product.list_price) || 0,
     period: '', // Will be determined from name by UI
     currency: product.currency_name,
     currencySymbol: product.currencySymbol,
@@ -347,7 +347,7 @@ export function useProductCatalog(
   const selectedPlan = plans.find(p => p.id === selectedPlanId) || null;
 
   const filteredPlans = useMemo(
-    () => getFilteredPlans(selectedPackage?.name, plans),
+    () => getFilteredPlans(selectedPackage?.name, plans).sort((a, b) => Number(a.price) - Number(b.price)),
     [selectedPackage?.name, plans]
   );
 
@@ -430,13 +430,14 @@ export function useProductCatalog(
 
         if (physicalProducts.length > 0) {
           const synthesizedPackages: PackageData[] = physicalProducts.map((physical: SubscriptionProduct) => {
+            const numericPrice = Number(physical.list_price) || 0;
             const component: PackageComponent = {
               id: physical.id,
               name: physical.name,
               default_code: physical.default_code || '',
               description: physical.description || '',
-              list_price: physical.list_price,
-              price_unit: physical.list_price,
+              list_price: numericPrice,
+              price_unit: numericPrice,
               quantity: 1,
               currency_id: physical.currency_id || 0,
               currency_name: physical.currency_name,
@@ -453,7 +454,7 @@ export function useProductCatalog(
               odooPackageId: physical.id,
               name: physical.name,
               description: physical.description || '',
-              price: physical.list_price,
+              price: numericPrice,
               currency: physical.currency_name,
               currencySymbol: physical.currencySymbol,
               imageUrl: physical.image_url || null,
@@ -474,6 +475,7 @@ export function useProductCatalog(
             id: p.id, name: p.name,
           })));
 
+          visiblePackages.sort((a, b) => Number(a.price) - Number(b.price));
           setPackages(visiblePackages);
           setErrors(prev => ({ ...prev, packages: null }));
           if (visiblePackages.length > 0) {
@@ -488,6 +490,7 @@ export function useProductCatalog(
         // Process plans
         if (data.products?.length > 0) {
           const transformedPlans = data.products.map(transformPlan);
+          transformedPlans.sort((a, b) => Number(a.price) - Number(b.price));
           setPlans(transformedPlans);
           setErrors(prev => ({ ...prev, plans: null }));
           
