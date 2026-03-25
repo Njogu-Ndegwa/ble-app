@@ -1996,6 +1996,10 @@ html.theme-transition *::after {
   white-space: nowrap;
 }
 
+.payment-amount-large:only-child {
+  margin: 0 auto;
+}
+
 /* Manual entry mode optimizations for keyboard visibility */
 .payment-input-mode-manual {
   padding-bottom: 0;
