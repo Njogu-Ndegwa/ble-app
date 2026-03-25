@@ -1015,8 +1015,8 @@ html.theme-transition *::after {
 }
 
 .role-grad-keypad .role-app-icon-img {
-  width: 70%;
-  height: 70%;
+  width: 100%;
+  height: 100%;
 }
 
 /* Lucide fallback (BLE icon) */
