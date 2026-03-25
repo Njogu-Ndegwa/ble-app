@@ -34,7 +34,7 @@ const roles: RoleConfig[] = [
   {
     id: 'rider',
     labelKey: 'role.rider',
-    icon: { type: 'image', src: '/assets/Rider.svg', gradient: 'role-grad-rider' },
+    icon: { type: 'image', src: '/assets/Rider2.svg', gradient: 'role-grad-rider' },
     path: '/rider/app',
   },
   {

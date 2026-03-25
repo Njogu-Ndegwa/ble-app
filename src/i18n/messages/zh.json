@@ -879,7 +879,7 @@
   "role.salesRep": "销售代表",
   "role.keypad": "键盘",
   "role.rider": "骑手",
-  "role.bleDeviceManager": "BLE设备管理器",
+  "role.bleDeviceManager": "设备管理",
   "role.attendantDesc": "换电站运营",
   "role.salesRepDesc": "客户销售",
   "role.riderDesc": "骑行导航",

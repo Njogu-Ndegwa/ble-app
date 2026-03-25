@@ -965,7 +965,7 @@
   "role.salesRep": "Commercial",
   "role.keypad": "Clavier",
   "role.rider": "Conducteur",
-  "role.bleDeviceManager": "Gestionnaire BLE",
+  "role.bleDeviceManager": "Gestionnaire",
   "role.attendantDesc": "Opérations de station",
   "role.salesRepDesc": "Ventes clients",
   "role.riderDesc": "Rouler & Naviguer",

@@ -974,7 +974,7 @@
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",
   "role.rider": "Rider",
-  "role.bleDeviceManager": "BLE Device Manager",
+  "role.bleDeviceManager": "Device Manager",
   "role.attendantDesc": "Station Operations",
   "role.salesRepDesc": "Customer Sales",
   "role.riderDesc": "Ride & Navigate",
