@@ -987,7 +987,9 @@ html.theme-transition *::after {
   transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Custom SVG/image icons — white symbols on the gradient background */
+/* Custom SVG/image icons — white symbols on the gradient background.
+   Most SVGs have large transparent padding, so we scale up to crop it.
+   Keypad has minimal padding, so it gets its own size. */
 .role-app-icon-img {
   width: 140%;
   height: 140%;
@@ -995,6 +997,11 @@ html.theme-transition *::after {
   display: block;
   position: relative;
   z-index: 2;
+}
+
+.role-grad-keypad .role-app-icon-img {
+  width: 70%;
+  height: 70%;
 }
 
 /* Lucide fallback icons (SVG elements, not img tags) */
