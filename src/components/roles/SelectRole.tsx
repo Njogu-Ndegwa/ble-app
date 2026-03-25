@@ -18,7 +18,6 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 interface RoleConfig {
   id: string;
   labelKey: string;
-  descKey: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
   gradient: string;
   path: string;
@@ -30,7 +29,6 @@ const roles: RoleConfig[] = [
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    descKey: 'role.attendantDesc',
     icon: BatteryCharging,
     gradient: 'role-grad-attendant',
     path: '/attendant/attendant',
@@ -38,7 +36,6 @@ const roles: RoleConfig[] = [
   {
     id: 'sales',
     labelKey: 'role.salesRep',
-    descKey: 'role.salesRepDesc',
     icon: BadgeDollarSign,
     gradient: 'role-grad-sales',
     path: '/customers/customerform',
@@ -46,7 +43,6 @@ const roles: RoleConfig[] = [
   {
     id: 'rider',
     labelKey: 'role.rider',
-    descKey: 'role.riderDesc',
     icon: Bike,
     gradient: 'role-grad-rider',
     path: '/rider/app',
@@ -54,7 +50,6 @@ const roles: RoleConfig[] = [
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    descKey: 'role.keypadDesc',
     icon: KeyRound,
     gradient: 'role-grad-keypad',
     path: '/keypad/keypad',
@@ -62,7 +57,6 @@ const roles: RoleConfig[] = [
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    descKey: 'role.bleDeviceManagerDesc',
     icon: Bluetooth,
     gradient: 'role-grad-ble',
     path: '/assets/ble-devices',
@@ -132,7 +126,7 @@ export default function SelectRole() {
 
       <main className="select-role-main">
         <div className="role-selection">
-          {/* Hero banner -- iOS "featured" widget style */}
+          {/* Hero banner */}
           <div className="role-hero-card">
             <div className="role-hero-card-bg" />
             <div className="role-hero-card-img">
@@ -156,27 +150,24 @@ export default function SelectRole() {
             </div>
           </div>
 
+          {/* App icon grid */}
           <div className="role-grid">
             {roles.map((role, i) => {
               const Icon = role.icon;
               return (
                 <div
                   key={role.id}
-                  className={`role-applet ${role.gradient} ${role.disabled ? 'disabled' : ''}`}
+                  className={`role-app ${role.disabled ? 'disabled' : ''}`}
                   onClick={() => handleRoleClick(role)}
-                  style={{ animationDelay: `${i * 80}ms` }}
+                  style={{ animationDelay: `${i * 70}ms` }}
                 >
-                  <div className="role-applet-icon">
-                    <Icon strokeWidth={1.8} />
+                  <div className={`role-app-icon ${role.gradient}`}>
+                    <Icon strokeWidth={1.7} />
+                    {role.badgeKey && (
+                      <span className="role-app-badge">{t(role.badgeKey)}</span>
+                    )}
                   </div>
-                  <div className="role-applet-text">
-                    <span className="role-applet-label">{t(role.labelKey)}</span>
-                    <span className="role-applet-desc">{t(role.descKey)}</span>
-                  </div>
-
-                  {role.badgeKey && (
-                    <span className="role-applet-badge">{t(role.badgeKey)}</span>
-                  )}
+                  <span className="role-app-label">{t(role.labelKey)}</span>
                 </div>
               );
             })}
