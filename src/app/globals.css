@@ -987,6 +987,17 @@ html.theme-transition *::after {
   transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
+/* Custom SVG/image icons — white symbols on the gradient background */
+.role-app-icon-img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+/* Lucide fallback icons (SVG elements, not img tags) */
 .role-app-icon svg {
   width: 36px;
   height: 36px;

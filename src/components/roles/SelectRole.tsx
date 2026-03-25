@@ -3,61 +3,54 @@
 import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import {
-  Globe,
-  Zap,
-  Users,
-  Bike,
-  Hash,
-  Bluetooth,
-} from 'lucide-react';
+import { Globe, Bluetooth, Zap } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface RoleConfig {
   id: string;
   labelKey: string;
-  iconEl: React.ReactNode;
-  gradient: string;
   path: string;
   disabled?: boolean;
   badgeKey?: string;
+  icon:
+    | { type: 'image'; src: string; gradient: string }
+    | { type: 'lucide'; el: React.ReactNode; gradient: string };
 }
 
 const roles: RoleConfig[] = [
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    iconEl: <Zap fill="white" stroke="white" strokeWidth={0.5} />,
-    gradient: 'role-grad-attendant',
+    icon: { type: 'image', src: '/assets/Attendant.svg', gradient: 'role-grad-attendant' },
     path: '/attendant/attendant',
   },
   {
     id: 'sales',
     labelKey: 'role.salesRep',
-    iconEl: <Users strokeWidth={2.2} />,
-    gradient: 'role-grad-sales',
+    icon: { type: 'image', src: '/assets/Salesperson.svg', gradient: 'role-grad-sales' },
     path: '/customers/customerform',
   },
   {
     id: 'rider',
     labelKey: 'role.rider',
-    iconEl: <Bike strokeWidth={2} />,
-    gradient: 'role-grad-rider',
+    icon: { type: 'image', src: '/assets/Rider.svg', gradient: 'role-grad-rider' },
     path: '/rider/app',
   },
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    iconEl: <Hash strokeWidth={2.8} />,
-    gradient: 'role-grad-keypad',
+    icon: { type: 'image', src: '/assets/Keypad.svg', gradient: 'role-grad-keypad' },
     path: '/keypad/keypad',
   },
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    iconEl: <Bluetooth strokeWidth={2.4} />,
-    gradient: 'role-grad-ble',
+    icon: {
+      type: 'lucide',
+      el: <Bluetooth strokeWidth={2.4} />,
+      gradient: 'role-grad-ble',
+    },
     path: '/assets/ble-devices',
   },
 ];
@@ -125,7 +118,6 @@ export default function SelectRole() {
 
       <main className="select-role-main">
         <div className="role-selection">
-          {/* Hero banner */}
           <div className="role-hero-card">
             <div className="role-hero-card-bg" />
             <div className="role-hero-card-img">
@@ -149,7 +141,6 @@ export default function SelectRole() {
             </div>
           </div>
 
-          {/* App icon grid */}
           <div className="role-grid">
             {roles.map((role, i) => (
               <div
@@ -158,8 +149,20 @@ export default function SelectRole() {
                 onClick={() => handleRoleClick(role)}
                 style={{ animationDelay: `${i * 60}ms` }}
               >
-                <div className={`role-app-icon ${role.gradient}`}>
-                  {role.iconEl}
+                <div className={`role-app-icon ${role.icon.gradient}`}>
+                  {role.icon.type === 'image' ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={role.icon.src}
+                        alt={t(role.labelKey)}
+                        className="role-app-icon-img"
+                        draggable={false}
+                      />
+                    </>
+                  ) : (
+                    role.icon.el
+                  )}
                   {role.badgeKey && (
                     <span className="role-app-badge">{t(role.badgeKey)}</span>
                   )}
