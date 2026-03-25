@@ -339,7 +339,7 @@
   "Code:": "Code :",
   "Transactions": "Transactions",
   "Transaction ID": "ID de transaction",
-  "Plan": "Plan",
+  "Plan": "Energy Bundle",
   "Amount": "Montant",
   "Date": "Date",
   "No Payment History": "Aucun historique de paiement",
@@ -976,7 +976,7 @@
   
   "sales.step.customer": "Client",
   "sales.step.package": "Véhicule",
-  "sales.step.subscription": "Plan",
+  "sales.step.subscription": "Energy Bundle",
   "sales.step.preview": "Aperçu",
   "sales.step.payment": "Paiement",
   "sales.step.vehicle": "Assignation",
@@ -1025,7 +1025,7 @@
   "sales.processing": "Traitement...",
   "sales.back": "Retour",
   
-  "sales.selectPlan": "Sélectionner un plan",
+  "sales.selectPlan": "Sélectionner un forfait énergie",
   "sales.choosePlan": "Choisissez un plan pour le client",
   "sales.dailyPass": "Pass journalier",
   "sales.dailyDesc": "Échanges illimités pendant 24 heures",
@@ -1119,7 +1119,7 @@
   "sales.scanDifferentBattery": "Scanner une autre batterie",
   "sales.purchasedItems": "Articles achetés",
   "sales.package": "Véhicule",
-  "sales.subscription": "Plan",
+  "sales.subscription": "Energy Bundle",
   
   "sales.nav.sales": "Ventes",
   "sales.nav.sessions": "Sessions",
