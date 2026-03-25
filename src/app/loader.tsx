@@ -13,6 +13,7 @@ interface ProgressiveLoadingProps {
 }
 
 
+
  const ProgressiveLoading: React.FC<ProgressiveLoadingProps> = ({
   initialMessage = "Initializing...",
   completionMessage = "Loading complete!",
