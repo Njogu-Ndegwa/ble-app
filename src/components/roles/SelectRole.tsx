@@ -1,16 +1,15 @@
 'use client';
 
-import { useEffect, type ComponentType } from 'react';
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   Globe,
-  BatteryCharging,
-  BadgeDollarSign,
-  Bike,
-  KeyRound,
-  Bluetooth,
   Zap,
+  Users,
+  Bike,
+  Hash,
+  Bluetooth,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -18,7 +17,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 interface RoleConfig {
   id: string;
   labelKey: string;
-  icon: ComponentType<{ size?: number; strokeWidth?: number }>;
+  iconEl: React.ReactNode;
   gradient: string;
   path: string;
   disabled?: boolean;
@@ -29,35 +28,35 @@ const roles: RoleConfig[] = [
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    icon: BatteryCharging,
+    iconEl: <Zap fill="white" stroke="white" strokeWidth={0.5} />,
     gradient: 'role-grad-attendant',
     path: '/attendant/attendant',
   },
   {
     id: 'sales',
     labelKey: 'role.salesRep',
-    icon: BadgeDollarSign,
+    iconEl: <Users strokeWidth={2.2} />,
     gradient: 'role-grad-sales',
     path: '/customers/customerform',
   },
   {
     id: 'rider',
     labelKey: 'role.rider',
-    icon: Bike,
+    iconEl: <Bike strokeWidth={2} />,
     gradient: 'role-grad-rider',
     path: '/rider/app',
   },
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    icon: KeyRound,
+    iconEl: <Hash strokeWidth={2.8} />,
     gradient: 'role-grad-keypad',
     path: '/keypad/keypad',
   },
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    icon: Bluetooth,
+    iconEl: <Bluetooth strokeWidth={2.4} />,
     gradient: 'role-grad-ble',
     path: '/assets/ble-devices',
   },
@@ -152,25 +151,22 @@ export default function SelectRole() {
 
           {/* App icon grid */}
           <div className="role-grid">
-            {roles.map((role, i) => {
-              const Icon = role.icon;
-              return (
-                <div
-                  key={role.id}
-                  className={`role-app ${role.disabled ? 'disabled' : ''}`}
-                  onClick={() => handleRoleClick(role)}
-                  style={{ animationDelay: `${i * 70}ms` }}
-                >
-                  <div className={`role-app-icon ${role.gradient}`}>
-                    <Icon strokeWidth={1.7} />
-                    {role.badgeKey && (
-                      <span className="role-app-badge">{t(role.badgeKey)}</span>
-                    )}
-                  </div>
-                  <span className="role-app-label">{t(role.labelKey)}</span>
+            {roles.map((role, i) => (
+              <div
+                key={role.id}
+                className={`role-app ${role.disabled ? 'disabled' : ''}`}
+                onClick={() => handleRoleClick(role)}
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <div className={`role-app-icon ${role.gradient}`}>
+                  {role.iconEl}
+                  {role.badgeKey && (
+                    <span className="role-app-badge">{t(role.badgeKey)}</span>
+                  )}
                 </div>
-              );
-            })}
+                <span className="role-app-label">{t(role.labelKey)}</span>
+              </div>
+            ))}
           </div>
         </div>
       </main>
