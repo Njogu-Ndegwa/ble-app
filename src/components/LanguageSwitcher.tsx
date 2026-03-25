@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n";
 export default function LanguageSwitcher() {
   const { locale, setLocale, t } = useI18n();
 
+  
   return (
     <div className="ml-auto flex items-center gap-2 text-sm text-text-secondary">
       <label className="sr-only" htmlFor="lang-select">Language</label>
