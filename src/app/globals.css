@@ -946,14 +946,14 @@ html.theme-transition *::after {
  *   Icon→label: ~5pt gap
  *   Shadow:     subtle neutral
  *
- * Our adaptation: 3 cols, 60px icons, explicit gaps,
+ * Our adaptation: 4 cols (matching iOS), 60px icons, explicit gaps,
  * centered grid so spacing is even on all screen widths.
  */
 .role-grid {
   display: grid;
-  grid-template-columns: repeat(3, 60px);
+  grid-template-columns: repeat(4, 60px);
   justify-content: center;
-  gap: 26px 30px;
+  gap: 24px 26px;
   padding: 4px 0 16px;
 }
 
@@ -1177,20 +1177,20 @@ html.theme-transition *::after {
     gap: 10px;
   }
   .role-grid {
-    grid-template-columns: repeat(3, 52px);
-    gap: 18px 26px;
+    grid-template-columns: repeat(4, 50px);
+    gap: 16px 18px;
   }
   .role-app-icon {
-    width: 52px;
-    height: 52px;
+    width: 50px;
+    height: 50px;
   }
   .role-app-icon svg {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
   }
   .role-app-label {
     font-size: 10px;
-    max-width: 64px;
+    max-width: 58px;
   }
 }
 
@@ -1203,8 +1203,8 @@ html.theme-transition *::after {
     width: 230px;
   }
   .role-grid {
-    grid-template-columns: repeat(3, 64px);
-    gap: 30px 34px;
+    grid-template-columns: repeat(4, 64px);
+    gap: 28px 30px;
   }
   .role-app-icon {
     width: 64px;
