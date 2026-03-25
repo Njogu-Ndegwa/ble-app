@@ -74,11 +74,7 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', ha
       // Preview step - Review order before payment
       return { showBack: true, mainTextKey: 'sales.proceedToPayment', mainIcon: 'arrow' };
     case 5:
-      // Payment step - Show "Confirm Payment" when in manual mode, "Scan Payment QR" when in scan mode
-      if (paymentInputMode === 'manual') {
-        return { showBack: true, mainTextKey: 'sales.confirmPayment', mainIcon: 'check' };
-      }
-      return { showBack: true, mainTextKey: 'sales.scanPaymentQr', mainIcon: 'scan' };
+      return { showBack: true, mainTextKey: 'sales.confirmPayment', mainIcon: 'check' };
     case 6:
       // Vehicle scan step - Show "Continue" if vehicle scanned, "Scan Vehicle" otherwise
       if (hasVehicleScanned) {

@@ -271,19 +271,11 @@ export function getSalesActionConfig(
         icon: 'arrow' 
       };
     case 5:
-      if (paymentInputMode === 'manual') {
-        return { 
-          showBack: true, 
-          textKey: 'sales.confirmPayment', 
-          fallbackText: 'Confirm Payment',
-          icon: 'check' 
-        };
-      }
       return { 
         showBack: true, 
-        textKey: 'sales.scanPaymentQr', 
-        fallbackText: 'Scan Payment',
-        icon: 'scan' 
+        textKey: 'sales.confirmPayment', 
+        fallbackText: 'Confirm Payment',
+        icon: 'check' 
       };
     case 6:
       return { 

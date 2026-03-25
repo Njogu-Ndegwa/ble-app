@@ -2182,18 +2182,11 @@ export default function SalesFlow({
           paymentInitiated,
           paymentRequestOrderId,
         });
-        // Handle payment based on input mode (like Attendant flow)
-        if (paymentInputMode === 'scan') {
-          console.info('[SalesFlow] Using scan mode for payment confirmation');
-          handlePaymentQrScan();
+        if (manualPaymentId.trim()) {
+          console.info('[SalesFlow] Confirming payment with transaction ID:', manualPaymentId.trim());
+          handleManualPayment(manualPaymentId.trim());
         } else {
-          // Manual mode - call backend with manual payment ID
-          if (manualPaymentId.trim()) {
-            console.info('[SalesFlow] Using manual mode, receipt:', manualPaymentId.trim());
-            handleManualPayment(manualPaymentId.trim());
-          } else {
-            console.info('[SalesFlow] Manual mode but no paymentId entered');
-          }
+          console.info('[SalesFlow] No transaction ID entered');
         }
         break;
       case 6:
