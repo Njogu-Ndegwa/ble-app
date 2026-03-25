@@ -1,16 +1,26 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, type ComponentType } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe } from 'lucide-react';
+import {
+  Globe,
+  BatteryCharging,
+  BadgeDollarSign,
+  Bike,
+  KeyRound,
+  Bluetooth,
+  Zap,
+} from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface RoleConfig {
   id: string;
   labelKey: string;
-  image: string;
+  descKey: string;
+  icon: ComponentType<{ size?: number; strokeWidth?: number }>;
+  gradient: string;
   path: string;
   disabled?: boolean;
   badgeKey?: string;
@@ -20,31 +30,41 @@ const roles: RoleConfig[] = [
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    image: '/assets/Attendant.png',
+    descKey: 'role.attendantDesc',
+    icon: BatteryCharging,
+    gradient: 'role-grad-attendant',
     path: '/attendant/attendant',
   },
   {
     id: 'sales',
     labelKey: 'role.salesRep',
-    image: '/assets/Sales.png',
+    descKey: 'role.salesRepDesc',
+    icon: BadgeDollarSign,
+    gradient: 'role-grad-sales',
     path: '/customers/customerform',
   },
   {
     id: 'rider',
     labelKey: 'role.rider',
-    image: '/assets/Rider.png',
+    descKey: 'role.riderDesc',
+    icon: Bike,
+    gradient: 'role-grad-rider',
     path: '/rider/app',
   },
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    image: '/assets/Keypad.png',
+    descKey: 'role.keypadDesc',
+    icon: KeyRound,
+    gradient: 'role-grad-keypad',
     path: '/keypad/keypad',
   },
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    image: '/assets/Ble-Device-Attendant.png',
+    descKey: 'role.bleDeviceManagerDesc',
+    icon: Bluetooth,
+    gradient: 'role-grad-ble',
     path: '/assets/ble-devices',
   },
 ];
@@ -53,7 +73,6 @@ export default function SelectRole() {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
 
-  // Lock body overflow for fixed container
   useEffect(() => {
     document.body.classList.add('overflow-locked');
     return () => {
@@ -61,9 +80,6 @@ export default function SelectRole() {
     };
   }, []);
 
-  // Prefetch all role routes so the SW caches them for offline use.
-  // Without this, only visited pages are in the runtime cache and
-  // navigating to an unvisited role while offline hits the offline fallback.
   useEffect(() => {
     for (const role of roles) {
       if (!role.disabled) {
@@ -84,10 +100,8 @@ export default function SelectRole() {
 
   return (
     <div className="select-role-container">
-      {/* Background gradient */}
       <div className="select-role-bg-gradient" />
 
-      {/* Header with Logo on left, Language Switcher on right */}
       <header className="flow-header">
         <div className="flow-header-inner">
           <div className="flow-header-left">
@@ -118,9 +132,10 @@ export default function SelectRole() {
 
       <main className="select-role-main">
         <div className="role-selection">
-          {/* Hero Section with Bikes */}
-          <div className="role-hero">
-            <div className="role-hero-image">
+          {/* Hero banner -- iOS "featured" widget style */}
+          <div className="role-hero-card">
+            <div className="role-hero-card-bg" />
+            <div className="role-hero-card-img">
               <Image
                 src="/assets/Bikes Oves.png"
                 alt="Electric Bikes"
@@ -129,43 +144,42 @@ export default function SelectRole() {
                 priority
               />
             </div>
-            {/* Atmospheric effects */}
-            <div className="role-hero-atmosphere" />
-            <div className="role-hero-mist" />
-            <div className="role-hero-reflect" />
-          </div>
-
-          {/* Title Section */}
-          <div className="role-header">
-            <h1 className="role-title">{t('role.selectTitle')}</h1>
-            <p className="role-description">
-              {t('role.selectDescription')}
-            </p>
-          </div>
-
-          {/* Applet Grid */}
-          <div className="role-grid">
-            {roles.map((role) => (
-              <div
-                key={role.id}
-                className={`role-applet ${role.disabled ? 'disabled' : ''}`}
-                onClick={() => handleRoleClick(role)}
-              >
-                <div className="role-applet-image">
-                  <Image
-                    src={role.image}
-                    alt={t(role.labelKey)}
-                    width={100}
-                    height={100}
-                  />
-                </div>
-                <span className="role-applet-label">{t(role.labelKey)}</span>
-                
-                {role.badgeKey && (
-                  <span className="role-applet-badge">{t(role.badgeKey)}</span>
-                )}
+            <div className="role-hero-card-content">
+              <div className="role-hero-card-pill">
+                <Zap size={10} />
+                <span>E-Mobility</span>
               </div>
-            ))}
+              <h1 className="role-title">{t('role.selectTitle')}</h1>
+              <p className="role-description">
+                {t('role.selectDescription')}
+              </p>
+            </div>
+          </div>
+
+          <div className="role-grid">
+            {roles.map((role, i) => {
+              const Icon = role.icon;
+              return (
+                <div
+                  key={role.id}
+                  className={`role-applet ${role.gradient} ${role.disabled ? 'disabled' : ''}`}
+                  onClick={() => handleRoleClick(role)}
+                  style={{ animationDelay: `${i * 80}ms` }}
+                >
+                  <div className="role-applet-icon">
+                    <Icon strokeWidth={1.8} />
+                  </div>
+                  <div className="role-applet-text">
+                    <span className="role-applet-label">{t(role.labelKey)}</span>
+                    <span className="role-applet-desc">{t(role.descKey)}</span>
+                  </div>
+
+                  {role.badgeKey && (
+                    <span className="role-applet-badge">{t(role.badgeKey)}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </main>

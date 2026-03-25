@@ -975,6 +975,11 @@
   "role.keypad": "Keypad",
   "role.rider": "Rider",
   "role.bleDeviceManager": "BLE Device Manager",
+  "role.attendantDesc": "Station Operations",
+  "role.salesRepDesc": "Customer Sales",
+  "role.riderDesc": "Ride & Navigate",
+  "role.keypadDesc": "Quick Access",
+  "role.bleDeviceManagerDesc": "Device Control",
   "role.comingSoon": "Coming Soon",
   "role.switchLanguage": "Switch language",
   

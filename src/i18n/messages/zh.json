@@ -880,6 +880,11 @@
   "role.keypad": "键盘",
   "role.rider": "骑手",
   "role.bleDeviceManager": "BLE设备管理器",
+  "role.attendantDesc": "换电站运营",
+  "role.salesRepDesc": "客户销售",
+  "role.riderDesc": "骑行导航",
+  "role.keypadDesc": "快速访问",
+  "role.bleDeviceManagerDesc": "设备控制",
   "role.comingSoon": "即将推出",
   "role.switchLanguage": "切换语言",
   

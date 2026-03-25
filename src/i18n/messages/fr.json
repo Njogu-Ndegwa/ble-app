@@ -966,6 +966,11 @@
   "role.keypad": "Clavier",
   "role.rider": "Conducteur",
   "role.bleDeviceManager": "Gestionnaire BLE",
+  "role.attendantDesc": "Opérations de station",
+  "role.salesRepDesc": "Ventes clients",
+  "role.riderDesc": "Rouler & Naviguer",
+  "role.keypadDesc": "Accès rapide",
+  "role.bleDeviceManagerDesc": "Contrôle appareils",
   "role.comingSoon": "Bientôt",
   "role.switchLanguage": "Changer de langue",
   
