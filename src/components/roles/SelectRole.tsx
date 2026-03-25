@@ -40,7 +40,7 @@ const roles: RoleConfig[] = [
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    icon: { type: 'image', src: '/assets/Keypad.svg', gradient: 'role-grad-keypad' },
+    icon: { type: 'image', src: '/assets/Keypad2.svg', gradient: 'role-grad-keypad' },
     path: '/keypad/keypad',
   },
   {
