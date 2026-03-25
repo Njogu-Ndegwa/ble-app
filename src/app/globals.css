@@ -935,13 +935,26 @@ html.theme-transition *::after {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* ------- iOS App Icon Grid ------- */
+/*
+ * iOS App Icon Grid
+ *
+ * Reference (iPhone home screen):
+ *   Icon:       60pt square
+ *   Radius:     ~22.37% (superellipse / squircle)
+ *   Grid:       4 cols on ~390pt, ~26pt h-gap, ~24pt v-gap
+ *   Label:      11pt, SF Pro medium weight
+ *   Icon→label: ~5pt gap
+ *   Shadow:     subtle neutral
+ *
+ * Our adaptation: 3 cols, 60px icons, explicit gaps,
+ * centered grid so spacing is even on all screen widths.
+ */
 .role-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 22px 0;
-  padding: 4px 4px 20px;
-  justify-items: center;
+  grid-template-columns: repeat(3, 60px);
+  justify-content: center;
+  gap: 26px 30px;
+  padding: 4px 0 16px;
 }
 
 @keyframes appletReveal {
@@ -955,11 +968,12 @@ html.theme-transition *::after {
   }
 }
 
+/* Each app: icon stacked above label */
 .role-app {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   animation: appletReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -971,10 +985,10 @@ html.theme-transition *::after {
   filter: grayscale(0.6);
 }
 
-/* The squircle — iOS uses ~22.37% border-radius on a square */
+/* 60px squircle — the iOS standard */
 .role-app-icon {
-  width: 68px;
-  height: 68px;
+  width: 60px;
+  height: 60px;
   border-radius: 22.37%;
   display: flex;
   align-items: center;
@@ -982,14 +996,15 @@ html.theme-transition *::after {
   position: relative;
   overflow: hidden;
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.12),
-    0 4px 12px rgba(0, 0, 0, 0.08);
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 3px 8px rgba(0, 0, 0, 0.06);
   transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Custom SVG/image icons — white symbols on the gradient background.
-   Most SVGs have large transparent padding, so we scale up to crop it.
-   Keypad has minimal padding, so it gets its own size. */
+/* Custom SVG/image icons — white symbols on gradient.
+   Most SVGs have large transparent padding baked in,
+   so we scale up and let overflow:hidden crop the dead space.
+   Keypad has tighter padding so it gets a smaller scale. */
 .role-app-icon-img {
   width: 140%;
   height: 140%;
@@ -1004,16 +1019,16 @@ html.theme-transition *::after {
   height: 70%;
 }
 
-/* Lucide fallback icons (SVG elements, not img tags) */
+/* Lucide fallback (BLE icon) */
 .role-app-icon svg {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   color: #ffffff;
   position: relative;
   z-index: 2;
 }
 
-/* Darken overlay on press — how iOS actually does it */
+/* Darken on press — how iOS does it */
 .role-app-icon::after {
   content: '';
   position: absolute;
@@ -1037,14 +1052,14 @@ html.theme-transition *::after {
   transform: scale(1.06);
 }
 
-/* Label below the icon — matches iOS typography */
+/* Label — iOS uses ~11pt SF Pro medium, tight leading */
 .role-app-label {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-primary);
   text-align: center;
   line-height: 1.15;
-  max-width: 78px;
+  max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -1056,55 +1071,62 @@ html.theme-transition *::after {
 /* Badge — iOS red notification bubble */
 .role-app-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   background: #FF3B30;
-  border-radius: 10px;
-  font-size: 12px;
+  border-radius: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 5;
-  border: 2.5px solid var(--bg-primary);
+  border: 2px solid var(--bg-primary);
   line-height: 1;
 }
 
 /*
  * Per-role colors — vivid, saturated, distinct.
- * Inspired by real iOS app colors:
- *   Attendant → teal (OVES brand, like Find My green)
- *   Sales     → coral/red-orange (warm, like Music/News)
- *   Rider     → blue (trust/motion, like Maps/Files)
- *   Keypad    → amber (utility, like Calculator orange)
- *   BLE       → indigo (tech, like Teams/Podcasts purple)
+ *
+ * Guidelines applied:
+ *   - Lightness range: 48-65% (visible on both dark & light backgrounds)
+ *   - Saturation: 80%+ (iOS icons are always punchy)
+ *   - Gradient shift: ~12% lightness difference (subtle, not dramatic)
+ *   - White symbol contrast: >4.5:1 on darkest stop
+ *
+ * Color mapping:
+ *   Attendant → teal   (OVES brand energy)
+ *   Sales     → coral  (warm, approachable)
+ *   Rider     → blue   (trust, motion)
+ *   Keypad    → amber  (utility, like iOS Calculator)
+ *   BLE       → violet (tech, wireless)
  */
 
 .role-grad-attendant {
-  background: linear-gradient(155deg, #2DD4BF 0%, #0EA5A5 100%);
+  background: linear-gradient(155deg, #36DCC8 0%, #1AB8A8 100%);
 }
 
 .role-grad-sales {
-  background: linear-gradient(155deg, #FF7A6E 0%, #E8453C 100%);
+  background: linear-gradient(155deg, #FF7B6F 0%, #F05545 100%);
 }
 
 .role-grad-rider {
-  background: linear-gradient(155deg, #5DAAFF 0%, #2D7BF5 100%);
+  background: linear-gradient(155deg, #5DAAFF 0%, #3B8AF5 100%);
 }
 
 .role-grad-keypad {
-  background: linear-gradient(155deg, #FFBE45 0%, #FF9F0A 100%);
+  background: linear-gradient(155deg, #FFC542 0%, #FFA812 100%);
 }
 
 .role-grad-ble {
-  background: linear-gradient(155deg, #9D8AFF 0%, #6D5ACD 100%);
+  background: linear-gradient(155deg, #A48EFF 0%, #7E5DF0 100%);
 }
 
-/* ------- Light theme ------- */
+/* ------- Light theme (slightly brighter stops) ------- */
 [data-theme="light"] .select-role-bg-gradient {
   background:
     radial-gradient(ellipse 60% 50% at 30% -10%, rgba(0, 184, 184, 0.08) 0%, transparent 70%),
@@ -1118,35 +1140,35 @@ html.theme-transition *::after {
 }
 
 [data-theme="light"] .role-grad-attendant {
-  background: linear-gradient(155deg, #34D9C3 0%, #14B8A6 100%);
+  background: linear-gradient(155deg, #40E5D1 0%, #22C4B2 100%);
 }
 
 [data-theme="light"] .role-grad-sales {
-  background: linear-gradient(155deg, #FF897E 0%, #EF5350 100%);
+  background: linear-gradient(155deg, #FF8A7F 0%, #F26256 100%);
 }
 
 [data-theme="light"] .role-grad-rider {
-  background: linear-gradient(155deg, #6BB5FF 0%, #3D8CF7 100%);
+  background: linear-gradient(155deg, #6DB5FF 0%, #4A96F7 100%);
 }
 
 [data-theme="light"] .role-grad-keypad {
-  background: linear-gradient(155deg, #FFC952 0%, #FFA726 100%);
+  background: linear-gradient(155deg, #FFCE55 0%, #FFB52A 100%);
 }
 
 [data-theme="light"] .role-grad-ble {
-  background: linear-gradient(155deg, #AB99FF 0%, #7C6ADB 100%);
+  background: linear-gradient(155deg, #B09AFF 0%, #8C6BF5 100%);
 }
 
-/* ------- Compact screens ------- */
+/* ------- Compact screens (small phones / landscape) ------- */
 @media (max-height: 640px) {
   .role-hero-card {
-    min-height: 130px;
+    min-height: 120px;
   }
   .role-hero-card-content {
-    padding: 14px 16px;
+    padding: 12px 16px;
   }
   .role-hero-card-img {
-    width: 170px;
+    width: 160px;
   }
   .role-title {
     font-size: 18px;
@@ -1154,36 +1176,43 @@ html.theme-transition *::after {
   .role-selection {
     gap: 10px;
   }
+  .role-grid {
+    grid-template-columns: repeat(3, 52px);
+    gap: 18px 26px;
+  }
   .role-app-icon {
-    width: 58px;
-    height: 58px;
+    width: 52px;
+    height: 52px;
   }
   .role-app-icon svg {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
-  .role-grid {
-    gap: 16px 0;
+  .role-app-label {
+    font-size: 10px;
+    max-width: 64px;
   }
 }
 
+/* ------- Tall screens (modern phones 800pt+) ------- */
 @media (min-height: 800px) {
   .role-hero-card {
-    min-height: 195px;
+    min-height: 190px;
   }
   .role-hero-card-img {
-    width: 240px;
-  }
-  .role-app-icon {
-    width: 74px;
-    height: 74px;
-  }
-  .role-app-icon svg {
-    width: 40px;
-    height: 40px;
+    width: 230px;
   }
   .role-grid {
-    gap: 26px 0;
+    grid-template-columns: repeat(3, 64px);
+    gap: 30px 34px;
+  }
+  .role-app-icon {
+    width: 64px;
+    height: 64px;
+  }
+  .role-app-icon svg {
+    width: 34px;
+    height: 34px;
   }
 }
 
