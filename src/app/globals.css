@@ -1014,6 +1014,11 @@ html.theme-transition *::after {
   z-index: 2;
 }
 
+.role-grad-attendant .role-app-icon-img {
+  width: 85%;
+  height: 85%;
+}
+
 .role-grad-keypad .role-app-icon-img {
   width: 85%;
   height: 85%;

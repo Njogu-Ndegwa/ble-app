@@ -22,7 +22,7 @@ const roles: RoleConfig[] = [
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    icon: { type: 'image', src: '/assets/Attendant.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
     path: '/attendant/attendant',
   },
   {
