@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, Bluetooth, Zap } from 'lucide-react';
+import { Globe, Bluetooth, Zap, Power } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
@@ -42,6 +42,16 @@ const roles: RoleConfig[] = [
     labelKey: 'role.keypad',
     icon: { type: 'image', src: '/assets/Keypad2.svg', gradient: 'role-grad-keypad' },
     path: '/keypad/keypad',
+  },
+  {
+    id: 'activator',
+    labelKey: 'role.activator',
+    icon: {
+      type: 'lucide',
+      el: <Power strokeWidth={2.4} />,
+      gradient: 'role-grad-activator',
+    },
+    path: '/activator',
   },
   {
     id: 'bleDeviceManager',

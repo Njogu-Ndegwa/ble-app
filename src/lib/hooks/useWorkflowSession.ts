@@ -41,7 +41,7 @@ export type SessionStatus =
 // Hook configuration
 export interface UseWorkflowSessionConfig {
   /** Type of workflow - determines session behavior */
-  workflowType: 'attendant' | 'salesperson';
+  workflowType: 'attendant' | 'salesperson' | 'activator';
   /** Enable auto-save on session data changes */
   autoSave?: boolean;
   /** Debounce delay for auto-save (ms) */
@@ -61,7 +61,7 @@ export interface SessionSummary {
   customerName?: string;
   subscriptionCode?: string;
   savedAt?: string;
-  workflowType: 'attendant' | 'salesperson';
+  workflowType: 'attendant' | 'salesperson' | 'activator';
 }
 
 // Product item for sales workflow
@@ -149,8 +149,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   
   // Get auth token based on workflow type
   const getAuthToken = useCallback((): string | undefined => {
-    // Use the appropriate token based on workflow type
-    if (workflowType === 'salesperson') {
+    if (workflowType === 'salesperson' || workflowType === 'activator') {
       return getSalesRoleToken() || undefined;
     }
     return getEmployeeToken() || undefined;
@@ -656,7 +655,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
  */
 function isSessionEffectivelyComplete(
   sessionData: WorkflowSessionData | null | undefined,
-  workflowType: 'attendant' | 'salesperson'
+  workflowType: 'attendant' | 'salesperson' | 'activator'
 ): boolean {
   if (!sessionData) return false;
   
@@ -669,30 +668,20 @@ function isSessionEffectivelyComplete(
   const maxStepReached = sessionData.maxStepReached || 1;
   
   if (workflowType === 'attendant') {
-    // For attendant workflow:
-    // - Steps 1-3: Customer/Battery scanning - safe to resume
-    // - Step 4 (Review): Safe to resume - usage not yet reported
-    // - Step 5 (Payment): Safe to resume - usage not yet reported
-    // - Step 6 (Success): Complete - swap recorded and usage reported
-    //
-    // CRITICAL: Only Step 6 is considered complete because that's when
-    // the service completion and usage reporting happens. Even if payment
-    // is skipped (quota-based or zero cost), the session must reach Step 6
-    // to report the swap to the backend.
-    
-    // Step 6 is the success step - usage has been reported, definitely complete
     if (currentStep >= 6 || maxStepReached >= 6) {
       return true;
     }
-    
-    // All other steps (1-5) are NOT complete - session can be resumed
     return false;
   }
   
-  // For salesperson workflow, Step 8 is the success/completion step
   if (workflowType === 'salesperson') {
-    // Step 8 is the success step for salesperson
     if (currentStep >= 8 || maxStepReached >= 8) {
+      return true;
+    }
+  }
+
+  if (workflowType === 'activator') {
+    if (currentStep >= 5 || maxStepReached >= 5) {
       return true;
     }
   }
@@ -1273,6 +1262,173 @@ export function extractSalesStateFromSession(sessionData: WorkflowSessionData): 
     scannedVehicleId: sessionData.scannedVehicleId || null,
     registrationId: sessionData.registrationId || '',
     customerPassword: sessionData.customerPassword || null,
+  };
+}
+
+// ============================================
+// ACTIVATOR WORKFLOW HELPERS
+// ============================================
+
+export interface ActivatorWorkflowState {
+  currentStep: number;
+  maxStepReached: number;
+  actor?: { id: string; station: string };
+  formData: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    street: string;
+    city: string;
+    zip: string;
+  };
+  selectedPlanId: string;
+  createdCustomerId: number | null;
+  createdPartnerId: number | null;
+  confirmedSubscriptionCode: string | null;
+  scannedBatteryPending: {
+    id: string;
+    shortId?: string;
+    actualBatteryId?: string;
+    chargeLevel?: number;
+    energy?: number;
+    macAddress?: string;
+  } | null;
+  assignedBattery: {
+    id: string;
+    shortId?: string;
+    actualBatteryId?: string;
+    chargeLevel?: number;
+    energy?: number;
+    macAddress?: string;
+  } | null;
+  customerIdentification?: {
+    identified: boolean;
+    rate: number | null;
+    currencySymbol: string | null;
+  };
+  scannedVehicleId: string | null;
+  registrationId: string;
+}
+
+export function buildActivatorSessionData(state: ActivatorWorkflowState): WorkflowSessionData {
+  const isCompleted = state.currentStep >= 5;
+
+  return {
+    status: isCompleted ? 'completed' : 'in_progress',
+    workflowType: 'activator',
+    currentStep: state.currentStep,
+    maxStepReached: state.maxStepReached,
+    actor: state.actor ? {
+      employeeId: parseInt(state.actor.id.replace(/\D/g, '')) || undefined,
+      station: state.actor.station,
+    } : undefined,
+    formData: {
+      firstName: state.formData.firstName,
+      lastName: state.formData.lastName,
+      phone: state.formData.phone,
+      email: state.formData.email,
+      street: state.formData.street,
+      city: state.formData.city,
+      zip: state.formData.zip,
+    },
+    selectedPlanId: state.selectedPlanId,
+    createdCustomerId: state.createdCustomerId,
+    createdPartnerId: state.createdPartnerId,
+    confirmedSubscriptionCode: state.confirmedSubscriptionCode,
+    scannedBatteryPending: state.scannedBatteryPending ? {
+      id: state.scannedBatteryPending.id,
+      shortId: state.scannedBatteryPending.shortId,
+      actualBatteryId: state.scannedBatteryPending.actualBatteryId,
+      chargeLevel: state.scannedBatteryPending.chargeLevel,
+      energy: state.scannedBatteryPending.energy,
+      macAddress: state.scannedBatteryPending.macAddress,
+    } : null,
+    assignedBattery: state.assignedBattery ? {
+      id: state.assignedBattery.id,
+      shortId: state.assignedBattery.shortId,
+      actualBatteryId: state.assignedBattery.actualBatteryId,
+      chargeLevel: state.assignedBattery.chargeLevel,
+      energy: state.assignedBattery.energy,
+      macAddress: state.assignedBattery.macAddress,
+    } : null,
+    customerIdentification: state.customerIdentification ? {
+      identified: state.customerIdentification.identified,
+      rate: state.customerIdentification.rate,
+      currencySymbol: state.customerIdentification.currencySymbol,
+    } : undefined,
+    scannedVehicleId: state.scannedVehicleId,
+    registrationId: state.registrationId,
+    savedAt: Date.now(),
+    version: 1,
+  };
+}
+
+export interface ExtractedActivatorState {
+  currentStep: number;
+  maxStepReached: number;
+  formData: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    street: string;
+    city: string;
+    zip: string;
+  };
+  selectedPlanId: string;
+  createdCustomerId: number | null;
+  createdPartnerId: number | null;
+  confirmedSubscriptionCode: string | null;
+  scannedBatteryPending: ExtractedBatteryData | null;
+  assignedBattery: ExtractedBatteryData | null;
+  customerIdentification: {
+    identified: boolean;
+    rate: number | null;
+    currencySymbol: string | null;
+  };
+  scannedVehicleId: string | null;
+  registrationId: string;
+}
+
+export function extractActivatorStateFromSession(sessionData: WorkflowSessionData): ExtractedActivatorState {
+  const toBatteryData = (battery: WorkflowSessionData['scannedBatteryPending']): ExtractedBatteryData | null => {
+    if (!battery || !battery.id) return null;
+    return {
+      id: battery.id,
+      shortId: battery.shortId || battery.id.substring(0, 8),
+      chargeLevel: battery.chargeLevel ?? 0,
+      energy: battery.energy ?? 0,
+      macAddress: battery.macAddress,
+      actualBatteryId: battery.actualBatteryId,
+    };
+  };
+
+  return {
+    currentStep: sessionData.currentStep || 1,
+    maxStepReached: sessionData.maxStepReached || 1,
+    formData: {
+      firstName: sessionData.formData?.firstName || '',
+      lastName: sessionData.formData?.lastName || '',
+      phone: sessionData.formData?.phone || '',
+      email: sessionData.formData?.email || '',
+      street: sessionData.formData?.street || '',
+      city: sessionData.formData?.city || '',
+      zip: sessionData.formData?.zip || '',
+    },
+    selectedPlanId: sessionData.selectedPlanId || '',
+    createdCustomerId: sessionData.createdCustomerId || null,
+    createdPartnerId: sessionData.createdPartnerId || null,
+    confirmedSubscriptionCode: sessionData.confirmedSubscriptionCode || null,
+    scannedBatteryPending: toBatteryData(sessionData.scannedBatteryPending),
+    assignedBattery: toBatteryData(sessionData.assignedBattery),
+    customerIdentification: {
+      identified: sessionData.customerIdentification?.identified || false,
+      rate: sessionData.customerIdentification?.rate || null,
+      currencySymbol: sessionData.customerIdentification?.currencySymbol || null,
+    },
+    scannedVehicleId: sessionData.scannedVehicleId || null,
+    registrationId: sessionData.registrationId || '',
   };
 }
 

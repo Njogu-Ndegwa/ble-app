@@ -1128,6 +1128,10 @@ html.theme-transition *::after {
   background: linear-gradient(155deg, #FFC542 0%, #FFA812 100%);
 }
 
+.role-grad-activator {
+  background: linear-gradient(155deg, #4ECDC4 0%, #2BA89E 100%);
+}
+
 .role-grad-ble {
   background: linear-gradient(155deg, #A48EFF 0%, #7E5DF0 100%);
 }
@@ -1159,6 +1163,10 @@ html.theme-transition *::after {
 
 [data-theme="light"] .role-grad-keypad {
   background: linear-gradient(155deg, #FFCE55 0%, #FFB52A 100%);
+}
+
+[data-theme="light"] .role-grad-activator {
+  background: linear-gradient(155deg, #5CDAD2 0%, #35B5AA 100%);
 }
 
 [data-theme="light"] .role-grad-ble {

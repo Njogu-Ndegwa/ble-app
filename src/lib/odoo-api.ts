@@ -1140,7 +1140,7 @@ export function getCycleUnitFromPeriod(period: string): { interval: number; unit
  */
 export interface WorkflowSessionData {
   status: 'in_progress' | 'completed' | 'cancelled';
-  workflowType: 'attendant' | 'salesperson';
+  workflowType: 'attendant' | 'salesperson' | 'activator';
   currentStep: number;
   maxStepReached: number;
   
