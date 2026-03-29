@@ -21,6 +21,8 @@ interface Step2Props {
   isLoadingPlans?: boolean;
   loadError?: string | null;  // Error message if plans failed to load
   onRetryLoad?: () => void;  // Callback to retry loading plans
+  /** When true, hides plan prices (used for non-purchase flows like Activator) */
+  hidePrice?: boolean;
 }
 
 // Helper to determine period display from plan name
@@ -40,6 +42,7 @@ export default function Step2SelectPlan({
   isLoadingPlans = false,
   loadError = null,
   onRetryLoad,
+  hidePrice = false,
 }: Step2Props) {
   const { t } = useI18n();
   
@@ -128,24 +131,26 @@ export default function Step2SelectPlan({
                       </div>
                     )}
                   </div>
-                  <div style={{ 
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: 'var(--color-brand, #00e5e5)',
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {currencySymbol} {plan.price.toLocaleString()}
-                    <span style={{ 
-                      fontSize: '9px', 
-                      color: 'var(--text-muted, #5a8080)',
-                      fontWeight: 400,
-                      marginLeft: '2px',
+                  {!hidePrice && (
+                    <div style={{ 
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--color-brand, #00e5e5)',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
                     }}>
-                      {period}
-                    </span>
-                  </div>
+                      {currencySymbol} {plan.price.toLocaleString()}
+                      <span style={{ 
+                        fontSize: '9px', 
+                        color: 'var(--text-muted, #5a8080)',
+                        fontWeight: 400,
+                        marginLeft: '2px',
+                      }}>
+                        {period}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </SelectableCard>
             );

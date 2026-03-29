@@ -28,6 +28,8 @@ interface Step1Props {
   onSelectExistingCustomer: (customer: ExistingCustomer | null) => void;
   /** Currently selected existing customer (null if none) */
   selectedExistingCustomer: ExistingCustomer | null;
+  /** When true, hides the new/existing toggle and locks to existing customer mode */
+  existingOnly?: boolean;
 }
 
 export default function Step1CustomerForm({ 
@@ -38,8 +40,10 @@ export default function Step1CustomerForm({
   onModeChange,
   onSelectExistingCustomer,
   selectedExistingCustomer,
+  existingOnly = false,
 }: Step1Props) {
   const { t, locale } = useI18n();
+  const showToggle = !existingOnly;
   
   // Search state for existing customer mode
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,41 +127,46 @@ export default function Step1CustomerForm({
   return (
     <Screen>
       <PageHeader 
-        title={t('sales.newCustomer') || 'Customer'} 
-        subtitle={customerMode === 'new' 
+        title={existingOnly
+          ? (t('activator.selectCustomer') || 'Select Customer')
+          : (t('sales.newCustomer') || 'Customer')
+        }
+        subtitle={customerMode === 'new' && !existingOnly
           ? (t('sales.enterCustomerDetails') || 'Enter customer details')
           : (t('sales.selectExistingCustomer') || 'Search and select a customer')
         }
         align="center"
       />
 
-      {/* Mode Toggle - Pill style */}
-      <div className="flex items-center justify-center mb-4 px-1">
-        <div className="flex w-full rounded-xl overflow-hidden border border-border bg-bg-tertiary">
-          <button
-            type="button"
-            onClick={() => onModeChange('new')}
-            className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
-              customerMode === 'new'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {t('sales.newCustomer') || 'New Customer'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onModeChange('existing')}
-            className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
-              customerMode === 'existing'
-                ? 'bg-brand text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {t('sales.existingCustomer') || 'Existing Customer'}
-          </button>
+      {/* Mode Toggle - Pill style (hidden in existingOnly mode) */}
+      {showToggle && (
+        <div className="flex items-center justify-center mb-4 px-1">
+          <div className="flex w-full rounded-xl overflow-hidden border border-border bg-bg-tertiary">
+            <button
+              type="button"
+              onClick={() => onModeChange('new')}
+              className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
+                customerMode === 'new'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t('sales.newCustomer') || 'New Customer'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange('existing')}
+              className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
+                customerMode === 'existing'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t('sales.existingCustomer') || 'Existing Customer'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* NEW CUSTOMER MODE - existing form */}
       {customerMode === 'new' && (

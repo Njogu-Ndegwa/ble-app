@@ -877,6 +877,7 @@ export default function ActivatorFlow({
             onModeChange={() => {}}
             onSelectExistingCustomer={setSelectedExistingCustomer}
             selectedExistingCustomer={selectedExistingCustomer}
+            existingOnly
           />
         );
       case 2:
@@ -888,6 +889,7 @@ export default function ActivatorFlow({
             isLoadingPlans={isLoadingPlans}
             loadError={plansLoadError}
             onRetryLoad={fetchPlans}
+            hidePrice
           />
         );
       case 3:

@@ -1671,6 +1671,7 @@
   "sa.loadingAccounts": "Chargement des comptes...",
   "sa.loadFailed": "Échec du chargement des comptes de service",
 
+  "activator.selectCustomer": "Sélectionner un client",
   "activator.nav.activate": "Activer",
   "activator.nav.sessions": "Sessions",
   "activator.nav.profile": "Profil",

@@ -1681,6 +1681,7 @@
   "sa.loadingAccounts": "Loading accounts...",
   "sa.loadFailed": "Failed to load service accounts",
 
+  "activator.selectCustomer": "Select Customer",
   "activator.nav.activate": "Activate",
   "activator.nav.sessions": "Sessions",
   "activator.nav.profile": "Profile",
