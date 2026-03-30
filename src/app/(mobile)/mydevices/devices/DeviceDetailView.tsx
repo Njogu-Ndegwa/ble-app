@@ -59,6 +59,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [result, setResult] = useState<ResultState>(INITIAL_RESULT);
 
   const isBusy = result.status === 'generating' || result.status === 'writing';
+  const isReady = !!itemId;
 
   useEffect(() => {
     const fetchItemId = async () => {
@@ -635,21 +636,26 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           <button
             className="w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200"
             style={{
-              background: isBusy || !duration
+              background: isBusy || !duration || !isReady
                 ? 'var(--bg-tertiary)'
                 : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
-              color: isBusy || !duration ? 'var(--text-muted)' : '#fff',
-              opacity: isBusy || !duration ? 0.5 : 1,
-              border: isBusy || !duration ? '1px solid var(--border)' : 'none',
-              cursor: isBusy || !duration ? 'not-allowed' : 'pointer',
+              color: isBusy || !duration || !isReady ? 'var(--text-muted)' : '#fff',
+              opacity: isBusy || !duration || !isReady ? 0.5 : 1,
+              border: isBusy || !duration || !isReady ? '1px solid var(--border)' : 'none',
+              cursor: isBusy || !duration || !isReady ? 'not-allowed' : 'pointer',
             }}
             onClick={handleGenerateDaysCode}
-            disabled={isBusy || !duration}
+            disabled={isBusy || !duration || !isReady}
           >
             {isBusy && result.codeType === 'days' ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 size={16} className="animate-spin" />
                 {result.status === 'writing' ? t('Writing to device...') : t('Generating...')}
+              </span>
+            ) : !isReady ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 size={16} className="animate-spin" />
+                {t('Loading device...')}
               </span>
             ) : (
               t('Generate Days Code')
@@ -676,14 +682,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             <button
               className="w-full py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-200"
               style={{
-                background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: isBusy ? 'var(--text-muted)' : '#fff',
-                opacity: isBusy ? 0.5 : 1,
-                border: isBusy ? '1px solid var(--border)' : 'none',
-                cursor: isBusy ? 'not-allowed' : 'pointer',
+                background: isBusy || !isReady ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: isBusy || !isReady ? 'var(--text-muted)' : '#fff',
+                opacity: isBusy || !isReady ? 0.5 : 1,
+                border: isBusy || !isReady ? '1px solid var(--border)' : 'none',
+                cursor: isBusy || !isReady ? 'not-allowed' : 'pointer',
               }}
               onClick={handleGenerateFreeCode}
-              disabled={isBusy}
+              disabled={isBusy || !isReady}
             >
               {isBusy && result.codeType === 'free' ? (
                 <span className="flex items-center justify-center gap-1.5">
@@ -713,14 +719,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             <button
               className="w-full py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-200"
               style={{
-                background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                color: isBusy ? 'var(--text-muted)' : '#fff',
-                opacity: isBusy ? 0.5 : 1,
-                border: isBusy ? '1px solid var(--border)' : 'none',
-                cursor: isBusy ? 'not-allowed' : 'pointer',
+                background: isBusy || !isReady ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: isBusy || !isReady ? 'var(--text-muted)' : '#fff',
+                opacity: isBusy || !isReady ? 0.5 : 1,
+                border: isBusy || !isReady ? '1px solid var(--border)' : 'none',
+                cursor: isBusy || !isReady ? 'not-allowed' : 'pointer',
               }}
               onClick={handleGenerateResetCode}
-              disabled={isBusy}
+              disabled={isBusy || !isReady}
             >
               {isBusy && result.codeType === 'reset' ? (
                 <span className="flex items-center justify-center gap-1.5">
@@ -891,27 +897,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           className="w-full py-2.5 px-4 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 mb-6"
           style={{
             background: 'transparent',
-            color: isBusy ? 'var(--text-muted)' : 'var(--text-secondary)',
+            color: isBusy || !isReady ? 'var(--text-muted)' : 'var(--text-secondary)',
             border: '1px dashed var(--border)',
-            cursor: isBusy ? 'not-allowed' : 'pointer',
-            opacity: isBusy ? 0.5 : 1,
+            cursor: isBusy || !isReady ? 'not-allowed' : 'pointer',
+            opacity: isBusy || !isReady ? 0.5 : 1,
           }}
           onMouseEnter={(e) => {
-            if (!isBusy) {
+            if (!isBusy && isReady) {
               e.currentTarget.style.borderColor = 'var(--accent)';
               e.currentTarget.style.color = 'var(--accent)';
               e.currentTarget.style.background = 'var(--bg-secondary)';
             }
           }}
           onMouseLeave={(e) => {
-            if (!isBusy) {
+            if (!isBusy && isReady) {
               e.currentTarget.style.borderColor = 'var(--border)';
               e.currentTarget.style.color = 'var(--text-secondary)';
               e.currentTarget.style.background = 'transparent';
             }
           }}
           onClick={handleRetrieveCodes}
-          disabled={isBusy}
+          disabled={isBusy || !isReady}
         >
           {isBusy && result.codeType === 'retrieve' ? (
             <>
