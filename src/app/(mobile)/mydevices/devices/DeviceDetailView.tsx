@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from '../../../utils';
 import { toast } from 'react-hot-toast';
 import {
-  ArrowLeft, Share2, Clipboard, Check, RefreshCw, Power, Calendar,
+  ArrowLeft, Share2, Clipboard, RefreshCw, Power, Calendar,
   Unlock, RotateCcw, Clock, CheckCircle, AlertCircle, Loader2, Download,
 } from 'lucide-react';
 import { AsciiStringModal } from '../../../modals';
@@ -59,7 +59,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [result, setResult] = useState<ResultState>(INITIAL_RESULT);
 
   const isBusy = result.status === 'generating' || result.status === 'writing';
-  const isReady = !!itemId;
 
   useEffect(() => {
     const fetchItemId = async () => {
@@ -262,24 +261,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     );
   }, [attributeList, device.macAddress, handleRead, readRcrd, t]);
 
-  const [isCustomDuration, setIsCustomDuration] = useState(false);
-  const [customDaysInput, setCustomDaysInput] = useState('');
+  const [daysInput, setDaysInput] = useState('');
 
-  const handlePresetSelect = (days: number) => {
-    setIsCustomDuration(false);
-    setCustomDaysInput('');
-    setDuration(days);
-  };
-
-  const handleCustomSelect = () => {
-    setIsCustomDuration(true);
-    const parsed = parseInt(customDaysInput, 10);
-    setDuration(parsed > 0 ? parsed : null);
-  };
-
-  const handleCustomDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDaysInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '');
-    setCustomDaysInput(val);
+    setDaysInput(val);
     const parsed = parseInt(val, 10);
     setDuration(parsed > 0 ? parsed : null);
   };
@@ -325,9 +311,16 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleGenerateDaysCode = () => {
-    if (!itemId || !duration) return;
+    if (!duration) {
+      toast.error(t('Please select a duration'));
+      return;
+    }
     if (!Number.isInteger(duration) || duration < 0) {
       toast.error(t('Duration must be a positive integer'));
+      return;
+    }
+    if (!itemId) {
+      setResult({ status: 'error', codeType: 'days', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
       return;
     }
     runCodeOperation('days', async () => {
@@ -347,7 +340,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleGenerateFreeCode = () => {
-    if (!itemId) return;
+    if (!itemId) {
+      setResult({ status: 'error', codeType: 'free', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      return;
+    }
     runCodeOperation('free', async () => {
       const query = `
         mutation GenerateFreeCode($generateFreeCodeInput: GenerateCodeInput!) {
@@ -365,7 +361,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleGenerateResetCode = () => {
-    if (!itemId) return;
+    if (!itemId) {
+      setResult({ status: 'error', codeType: 'reset', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      return;
+    }
     runCodeOperation('reset', async () => {
       const query = `
         mutation GenerateResetCode($generateResetCodeInput: GenerateCodeInput!) {
@@ -383,7 +382,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleRetrieveCodes = () => {
-    if (!itemId) return;
+    if (!itemId) {
+      setResult({ status: 'error', codeType: 'retrieve', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      return;
+    }
     const distributorId = localStorage.getItem('distributorId');
     if (!distributorId) {
       toast.error(t('Distributor ID not available. Please sign in.'));
@@ -557,186 +559,136 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           </div>
         </div>
 
-        {/* Days Code Card */}
-        <div
-          className="rounded-xl p-4 mb-4"
-          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <Clock size={18} style={{ color: 'var(--accent)' }} />
-            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Days Code')}</h3>
-          </div>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {[
-              { value: 1, label: t('1 Day') },
-              { value: 3, label: t('3 Days') },
-            ].map((option) => {
-              const isSelected = !isCustomDuration && duration === option.value;
-              return (
-                <div
-                  key={option.value}
-                  className="relative cursor-pointer transition-all duration-200"
-                  onClick={() => handlePresetSelect(option.value)}
-                >
-                  <div
-                    className="p-2.5 rounded-lg transition-all duration-200 text-center"
-                    style={{
-                      border: isSelected ? '2px solid var(--accent)' : '2px solid var(--border)',
-                      background: isSelected ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
-                    }}
-                  >
-                    <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{option.label}</div>
-                  </div>
-                  {isSelected && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
-                      <Check className="w-2.5 h-2.5 text-white" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            <div
-              className="relative cursor-pointer transition-all duration-200"
-              onClick={handleCustomSelect}
-            >
-              <div
-                className="p-2.5 rounded-lg transition-all duration-200 text-center"
-                style={{
-                  border: isCustomDuration ? '2px solid var(--accent)' : '2px solid var(--border)',
-                  background: isCustomDuration ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
-                }}
-              >
-                <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{t('Custom')}</div>
-              </div>
-              {isCustomDuration && (
-                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
-                  <Check className="w-2.5 h-2.5 text-white" />
-                </div>
-              )}
-            </div>
-          </div>
-          {isCustomDuration && (
-            <div className="flex items-center gap-2 mb-3">
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                className="form-input flex-1"
-                style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600 }}
-                placeholder={t('Enter number of days') || 'Enter number of days'}
-                value={customDaysInput}
-                onChange={handleCustomDaysChange}
-                autoFocus
-              />
-              <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                {t('Days')}
-              </span>
-            </div>
-          )}
-          <button
-            className="w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200"
-            style={{
-              background: isBusy || !duration || !isReady
-                ? 'var(--bg-tertiary)'
-                : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
-              color: isBusy || !duration || !isReady ? 'var(--text-muted)' : '#fff',
-              opacity: isBusy || !duration || !isReady ? 0.5 : 1,
-              border: isBusy || !duration || !isReady ? '1px solid var(--border)' : 'none',
-              cursor: isBusy || !duration || !isReady ? 'not-allowed' : 'pointer',
-            }}
-            onClick={handleGenerateDaysCode}
-            disabled={isBusy || !duration || !isReady}
-          >
-            {isBusy && result.codeType === 'days' ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 size={16} className="animate-spin" />
-                {result.status === 'writing' ? t('Writing to device...') : t('Generating...')}
-              </span>
-            ) : !isReady ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 size={16} className="animate-spin" />
-                {t('Loading device...')}
-              </span>
-            ) : (
-              t('Generate Days Code')
-            )}
-          </button>
-        </div>
-
-        {/* Quick Actions: Free + Reset side by side */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {/* Free Code */}
+        {/* Code Operations */}
+        <div className="space-y-3 mb-4">
+          {/* Days Code */}
           <div
-            className="rounded-xl p-4 flex flex-col"
+            className="rounded-xl p-4"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#10b98118' }}>
-                <Unlock size={15} style={{ color: '#10b981' }} />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent-soft)' }}>
+                <Clock size={18} style={{ color: 'var(--accent)' }} />
               </div>
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Free Code')}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Days Code')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Time-limited access')}</p>
+              </div>
             </div>
-            <p className="text-xs mb-3 flex-1" style={{ color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-              {t('Unlock without time limit')}
-            </p>
-            <button
-              className="w-full py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-200"
-              style={{
-                background: isBusy || !isReady ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: isBusy || !isReady ? 'var(--text-muted)' : '#fff',
-                opacity: isBusy || !isReady ? 0.5 : 1,
-                border: isBusy || !isReady ? '1px solid var(--border)' : 'none',
-                cursor: isBusy || !isReady ? 'not-allowed' : 'pointer',
-              }}
-              onClick={handleGenerateFreeCode}
-              disabled={isBusy || !isReady}
-            >
-              {isBusy && result.codeType === 'free' ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 size={14} className="animate-spin" />
-                  {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+            <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-1.5 flex-1">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="form-input"
+                  style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600, width: '70px', flexShrink: 0 }}
+                  placeholder="0"
+                  value={daysInput}
+                  onChange={handleDaysInputChange}
+                />
+                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  {t('days')}
                 </span>
-              ) : (
-                t('Generate')
-              )}
-            </button>
+              </div>
+              <button
+                className="py-2 px-4 rounded-lg font-semibold text-xs transition-all duration-200 flex-shrink-0"
+                style={{
+                  background: isBusy || !duration
+                    ? 'var(--bg-tertiary)'
+                    : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
+                  color: isBusy || !duration ? 'var(--text-muted)' : '#fff',
+                  opacity: isBusy || !duration ? 0.5 : 1,
+                  border: isBusy || !duration ? '1px solid var(--border)' : 'none',
+                  cursor: isBusy || !duration ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleGenerateDaysCode}
+                disabled={isBusy || !duration}
+              >
+                {isBusy && result.codeType === 'days' ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+                  </span>
+                ) : (
+                  t('Generate')
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Free Code */}
+          <div
+            className="rounded-xl p-4"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#10b98118' }}>
+                <Unlock size={18} style={{ color: '#10b981' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Free Code')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Unlock without time limit')}</p>
+              </div>
+              <button
+                className="py-2 px-4 rounded-lg font-semibold text-xs transition-all duration-200 flex-shrink-0"
+                style={{
+                  background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: isBusy ? 'var(--text-muted)' : '#fff',
+                  opacity: isBusy ? 0.5 : 1,
+                  border: isBusy ? '1px solid var(--border)' : 'none',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleGenerateFreeCode}
+                disabled={isBusy}
+              >
+                {isBusy && result.codeType === 'free' ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+                  </span>
+                ) : (
+                  t('Generate')
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Reset Code */}
           <div
-            className="rounded-xl p-4 flex flex-col"
+            className="rounded-xl p-4"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#f59e0b18' }}>
-                <RotateCcw size={15} style={{ color: '#f59e0b' }} />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#f59e0b18' }}>
+                <RotateCcw size={18} style={{ color: '#f59e0b' }} />
               </div>
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Reset Code')}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Reset Code')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Restore to default state')}</p>
+              </div>
+              <button
+                className="py-2 px-4 rounded-lg font-semibold text-xs transition-all duration-200 flex-shrink-0"
+                style={{
+                  background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: isBusy ? 'var(--text-muted)' : '#fff',
+                  opacity: isBusy ? 0.5 : 1,
+                  border: isBusy ? '1px solid var(--border)' : 'none',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleGenerateResetCode}
+                disabled={isBusy}
+              >
+                {isBusy && result.codeType === 'reset' ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+                  </span>
+                ) : (
+                  t('Generate')
+                )}
+              </button>
             </div>
-            <p className="text-xs mb-3 flex-1" style={{ color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-              {t('Restore to default state')}
-            </p>
-            <button
-              className="w-full py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-200"
-              style={{
-                background: isBusy || !isReady ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                color: isBusy || !isReady ? 'var(--text-muted)' : '#fff',
-                opacity: isBusy || !isReady ? 0.5 : 1,
-                border: isBusy || !isReady ? '1px solid var(--border)' : 'none',
-                cursor: isBusy || !isReady ? 'not-allowed' : 'pointer',
-              }}
-              onClick={handleGenerateResetCode}
-              disabled={isBusy || !isReady}
-            >
-              {isBusy && result.codeType === 'reset' ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 size={14} className="animate-spin" />
-                  {result.status === 'writing' ? t('Writing...') : t('Generating...')}
-                </span>
-              ) : (
-                t('Generate')
-              )}
-            </button>
           </div>
         </div>
 
@@ -897,27 +849,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           className="w-full py-2.5 px-4 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 mb-6"
           style={{
             background: 'transparent',
-            color: isBusy || !isReady ? 'var(--text-muted)' : 'var(--text-secondary)',
+            color: isBusy ? 'var(--text-muted)' : 'var(--text-secondary)',
             border: '1px dashed var(--border)',
-            cursor: isBusy || !isReady ? 'not-allowed' : 'pointer',
-            opacity: isBusy || !isReady ? 0.5 : 1,
+            cursor: isBusy ? 'not-allowed' : 'pointer',
+            opacity: isBusy ? 0.5 : 1,
           }}
           onMouseEnter={(e) => {
-            if (!isBusy && isReady) {
+            if (!isBusy) {
               e.currentTarget.style.borderColor = 'var(--accent)';
               e.currentTarget.style.color = 'var(--accent)';
               e.currentTarget.style.background = 'var(--bg-secondary)';
             }
           }}
           onMouseLeave={(e) => {
-            if (!isBusy && isReady) {
+            if (!isBusy) {
               e.currentTarget.style.borderColor = 'var(--border)';
               e.currentTarget.style.color = 'var(--text-secondary)';
               e.currentTarget.style.background = 'transparent';
             }
           }}
           onClick={handleRetrieveCodes}
-          disabled={isBusy || !isReady}
+          disabled={isBusy}
         >
           {isBusy && result.codeType === 'retrieve' ? (
             <>
