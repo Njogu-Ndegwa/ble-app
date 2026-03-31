@@ -55,61 +55,84 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [itemId, setItemId] = useState<string | null>(null);
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
+  const [isIdentifying, setIsIdentifying] = useState(false);
 
   const [result, setResult] = useState<ResultState>(INITIAL_RESULT);
 
   const isBusy = result.status === 'generating' || result.status === 'writing';
 
-  useEffect(() => {
-    const fetchItemId = async () => {
-      const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
-      if (!attService) return;
+  const fetchItemId = useCallback(async () => {
+    const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
+    if (!attService) return;
 
-      const oemItemId = attService.characteristicList.find((char: any) => char.name === 'opid')?.realVal || null;
-      if (!oemItemId) return;
-
-      try {
-        const authToken = localStorage.getItem('access_token');
-        if (!authToken) {
-          toast.error(t('Please sign in to fetch item data'), { duration: 5000 });
-          router.push('/signin');
-          return;
-        }
-
-        const query = `
-          query GetItemByOemItemId($oemItemId: ID!) {
-            getItembyOemItemId(oemItemId: $oemItemId) {
-              _id
-            }
-          }
-        `;
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ query, variables: { oemItemId } }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-        if (data.errors) throw new Error(data.errors.map((e: { message: string }) => e.message).join(', '));
-
-        const fetchedItemId = data.data.getItembyOemItemId._id;
-        if (fetchedItemId) {
-          setItemId(fetchedItemId);
-        } else {
-          throw new Error('No item ID returned');
-        }
-      } catch (error) {
-        console.error('Error fetching item ID:', error);
-      }
+    const getCharValue = (name: string) => {
+      const char = attService.characteristicList.find(
+        (c: any) => c.name?.toLowerCase() === name.toLowerCase()
+      );
+      const val = char?.realVal;
+      return (val !== null && val !== undefined && String(val).trim() !== '') ? String(val).trim() : null;
     };
 
-    fetchItemId();
-  }, [router, attributeList, t]);
+    // Match Sales/Attendant pattern: try opid first, then ppid as fallback
+    const oemItemId = getCharValue('opid') || getCharValue('ppid');
+    if (!oemItemId) return;
+
+    setIsIdentifying(true);
+    setIdentifyError(null);
+
+    try {
+      const authToken = localStorage.getItem('access_token');
+      if (!authToken) {
+        toast.error(t('Please sign in to fetch item data'), { duration: 5000 });
+        router.push('/signin');
+        return;
+      }
+
+      const query = `
+        query GetItemByOemItemId($oemItemId: ID!) {
+          getItembyOemItemId(oemItemId: $oemItemId) {
+            _id
+          }
+        }
+      `;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ query, variables: { oemItemId } }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+      if (data.errors) throw new Error(data.errors.map((e: { message: string }) => e.message).join(', '));
+
+      const fetchedItemId = data.data?.getItembyOemItemId?._id;
+      if (fetchedItemId) {
+        setItemId(fetchedItemId);
+        setIdentifyError(null);
+      } else {
+        const msg = t('Device not found in system for OEM ID: ') + oemItemId;
+        setIdentifyError(msg);
+        console.error('getItembyOemItemId returned null for oemItemId:', oemItemId);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      setIdentifyError(msg);
+      console.error('Error fetching item ID:', error);
+    } finally {
+      setIsIdentifying(false);
+    }
+  }, [attributeList, router, t]);
+
+  useEffect(() => {
+    if (!itemId) {
+      fetchItemId();
+    }
+  }, [fetchItemId, itemId]);
 
   const { cmdService, pubkCharacteristic, stsService, rcrdCharacteristic } = useMemo(() => {
     const foundCmd = attributeList.find((s) => s.serviceNameEnum === 'CMD_SERVICE');
@@ -320,7 +343,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       return;
     }
     if (!itemId) {
-      setResult({ status: 'error', codeType: 'days', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'days', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'days', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
       return;
     }
     runCodeOperation('days', async () => {
@@ -341,7 +371,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleGenerateFreeCode = () => {
     if (!itemId) {
-      setResult({ status: 'error', codeType: 'free', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'free', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'free', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
       return;
     }
     runCodeOperation('free', async () => {
@@ -362,7 +399,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleGenerateResetCode = () => {
     if (!itemId) {
-      setResult({ status: 'error', codeType: 'reset', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'reset', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'reset', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
       return;
     }
     runCodeOperation('reset', async () => {
@@ -383,7 +427,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleRetrieveCodes = () => {
     if (!itemId) {
-      setResult({ status: 'error', codeType: 'retrieve', codeDec: null, error: t('Device not identified yet. Please wait for device data to load.') });
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'retrieve', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'retrieve', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
       return;
     }
     const distributorId = localStorage.getItem('distributorId');
@@ -558,6 +609,41 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             )}
           </div>
         </div>
+
+        {/* Device Identification Status */}
+        {!itemId && (
+          <div
+            className="rounded-xl p-3 mb-4 flex items-center gap-3"
+            style={{
+              background: identifyError ? 'var(--color-error-soft, rgba(239,68,68,0.08))' : 'var(--bg-secondary)',
+              border: `1px solid ${identifyError ? 'var(--color-error)' : 'var(--border)'}`,
+            }}
+          >
+            {isIdentifying ? (
+              <>
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs flex-1" style={{ color: 'var(--text-secondary)' }}>{t('Identifying device...')}</span>
+              </>
+            ) : identifyError ? (
+              <>
+                <AlertCircle size={16} style={{ color: 'var(--color-error)' }} />
+                <span className="text-xs flex-1" style={{ color: 'var(--color-error)' }}>{identifyError}</span>
+                <button
+                  className="text-xs font-semibold px-3 py-1 rounded-lg flex-shrink-0"
+                  style={{ color: 'var(--accent)', background: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}
+                  onClick={fetchItemId}
+                >
+                  {t('Retry')}
+                </button>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={16} style={{ color: 'var(--text-muted)' }} />
+                <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>{t('Waiting for device identification...')}</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Code Operations */}
         <div className="space-y-3 mb-4">

@@ -129,6 +129,8 @@ export interface UseProductCatalogConfig {
    * undefined (default) uses getEmployeeToken() for backward compatibility.
    */
   workflowType?: 'sales' | 'attendant';
+  /** Whether to auto-select the first plan when plans are loaded (default: true) */
+  autoSelectFirstPlan?: boolean;
 }
 
 /**
@@ -309,6 +311,7 @@ export function useProductCatalog(
     initialPackageId = '',
     initialPlanId = '',
     workflowType,
+    autoSelectFirstPlan = true,
   } = config;
 
   // Log hook initialization
@@ -352,10 +355,10 @@ export function useProductCatalog(
   );
 
   useEffect(() => {
-    if (filteredPlans.length > 0 && !filteredPlans.some(p => p.id === selectedPlanId)) {
+    if (autoSelectFirstPlan && filteredPlans.length > 0 && !filteredPlans.some(p => p.id === selectedPlanId)) {
       setSelectedPlanId(filteredPlans[0].id);
     }
-  }, [filteredPlans, selectedPlanId]);
+  }, [autoSelectFirstPlan, filteredPlans, selectedPlanId]);
 
   // Fetch all catalog data
   const refetch = useCallback(async () => {
@@ -494,8 +497,7 @@ export function useProductCatalog(
           setPlans(transformedPlans);
           setErrors(prev => ({ ...prev, plans: null }));
           
-          // Set default selection if not already set
-          if (transformedPlans.length > 0) {
+          if (autoSelectFirstPlan && transformedPlans.length > 0) {
             setSelectedPlanId(prev => prev || transformedPlans[0].id);
           }
         } else {

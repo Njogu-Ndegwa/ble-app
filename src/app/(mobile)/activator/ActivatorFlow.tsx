@@ -114,7 +114,7 @@ export default function ActivatorFlow({
     setSelectedPlanId,
     refetch: fetchPlans,
     restoreSelections: restoreCatalogSelections,
-  } = useProductCatalog({ autoFetch: true, workflowType: 'sales' });
+  } = useProductCatalog({ autoFetch: true, workflowType: 'sales', autoSelectFirstPlan: false });
 
   const isLoadingPlans = catalogLoading.plans;
   const plansLoadError = catalogErrors.plans;
@@ -717,7 +717,7 @@ export default function ActivatorFlow({
                 station: ACTIVATOR_STATION,
               },
               formData: existingFormData,
-              selectedPlanId,
+              selectedPlanId: '',
               createdCustomerId: selectedExistingCustomer.id,
               createdPartnerId: selectedExistingCustomer.partnerId,
               confirmedSubscriptionCode: null,
@@ -773,11 +773,7 @@ export default function ActivatorFlow({
         setFormData({ firstName: '', lastName: '', phone: '', email: '', street: '', city: '', zip: '' });
         setFormErrors({});
         setSelectedExistingCustomer(null);
-        if (availablePlans.length > 0) {
-          setSelectedPlanId(availablePlans[0].id);
-        } else {
-          setSelectedPlanId('');
-        }
+        setSelectedPlanId('');
         setCreatedCustomerId(null);
         setCreatedPartnerId(null);
         setConfirmedSubscriptionCode(null);
@@ -797,7 +793,7 @@ export default function ActivatorFlow({
     currentStep, selectedExistingCustomer, selectedPlanId, selectedPlan,
     scannedVehicleId, scannedBatteryPending, isReadOnlySession,
     advanceToStep, handleScanVehicle, handleScanBattery, handleCompleteService,
-    availablePlans, resetCustomerIdentification, resetPaymentAndService,
+    resetCustomerIdentification, resetPaymentAndService,
     resetVehicleAssignment, createSalesSession, buildActivatorSessionData,
     t, setSelectedPlanId,
   ]);
@@ -818,11 +814,7 @@ export default function ActivatorFlow({
     setFormData({ firstName: '', lastName: '', phone: '', email: '', street: '', city: '', zip: '' });
     setFormErrors({});
     setSelectedExistingCustomer(null);
-    if (availablePlans.length > 0) {
-      setSelectedPlanId(availablePlans[0].id);
-    } else {
-      setSelectedPlanId('');
-    }
+    setSelectedPlanId('');
     setCreatedCustomerId(null);
     setCreatedPartnerId(null);
     setConfirmedSubscriptionCode(null);
@@ -835,7 +827,7 @@ export default function ActivatorFlow({
     resetVehicleAssignment();
     setRegistrationId('');
     setIsReadOnlySession(false);
-  }, [availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPlanId]);
+  }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPlanId]);
 
   const handleBackToRoles = useCallback(() => {
     if (onBack) {
