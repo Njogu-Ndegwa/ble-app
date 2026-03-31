@@ -251,6 +251,7 @@ export default function ActivatorFlow({
     orderId: sessionOrderId,
     createSalesSession,
     updateSession,
+    updateSessionWithProducts,
     clearSession,
     setOrderId: setSessionOrderId,
   } = useWorkflowSession({
@@ -742,15 +743,38 @@ export default function ActivatorFlow({
         }
         break;
       }
-      case 2:
+      case 2: {
         if (!selectedPlanId) {
           toast.error(t('activator.pleaseSelectPlan') || 'Please select a plan');
           return;
         }
-        // Set the selected plan as the confirmed subscription code for vehicle/battery assignment
-        setConfirmedSubscriptionCode(selectedPlan?.id || selectedPlanId);
-        advanceToStep(3);
+        if (!selectedPlan) {
+          toast.error('Selected plan data not found');
+          return;
+        }
+        setIsProcessing(true);
+        try {
+          const products = [{
+            product_id: selectedPlan.odooProductId,
+            quantity: 1,
+            price_unit: selectedPlan.price,
+          }];
+          const sessionData = buildActivatorSessionData(buildCurrentSessionState());
+          const result = await updateSessionWithProducts(sessionData, products);
+          if (result.success && result.subscriptionCode) {
+            setConfirmedSubscriptionCode(result.subscriptionCode);
+            advanceToStep(3);
+          } else {
+            toast.error('Failed to add plan to order. Please try again.');
+          }
+        } catch (err) {
+          console.error('[ActivatorFlow] Failed to update session with products:', err);
+          toast.error('Failed to add plan to order. Please try again.');
+        } finally {
+          setIsProcessing(false);
+        }
         break;
+      }
       case 3:
         if (scannedVehicleId) {
           advanceToStep(4);
@@ -795,6 +819,7 @@ export default function ActivatorFlow({
     advanceToStep, handleScanVehicle, handleScanBattery, handleCompleteService,
     resetCustomerIdentification, resetPaymentAndService,
     resetVehicleAssignment, createSalesSession, buildActivatorSessionData,
+    buildCurrentSessionState, updateSessionWithProducts,
     t, setSelectedPlanId,
   ]);
 

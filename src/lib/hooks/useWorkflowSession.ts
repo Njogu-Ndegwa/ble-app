@@ -544,7 +544,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       // Ensure metadata is updated
       const sessionPayload: WorkflowSessionData = {
         ...data,
-        workflowType: 'salesperson',
+        workflowType,
         savedAt: Date.now(),
       };
       
