@@ -1692,5 +1692,8 @@
   "activator.sessions.searchPlaceholder": "Rechercher par code d'abonnement...",
   "activator.sessions.noSearchResults": "Aucune session ne correspond à votre recherche",
   "activator.sessions.noSessions": "Aucune session d'activation trouvée",
-  "activator.sessions.noSessionsHint": "Les sessions apparaîtront ici après les activations"
+  "activator.sessions.noSessionsHint": "Les sessions apparaîtront ici après les activations",
+  "activator.vehicleAssigned": "Véhicule attribué avec succès !",
+  "activator.vehicleAlreadyAssigned": "Véhicule déjà attribué !",
+  "activator.vehicleAssignFailed": "Échec de l'attribution du véhicule. Veuillez réessayer."
 }

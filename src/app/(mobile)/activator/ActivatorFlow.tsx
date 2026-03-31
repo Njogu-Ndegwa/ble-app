@@ -231,12 +231,12 @@ export default function ActivatorFlow({
   } = useVehicleAssignment({
     onSuccess: (isIdempotent) => {
       toast.success(isIdempotent
-        ? (t('sales.vehicleAlreadyAssigned') || 'Vehicle already assigned!')
-        : (t('sales.vehicleAssigned') || 'Vehicle assigned successfully!'));
+        ? (t('activator.vehicleAlreadyAssigned') || 'Vehicle already assigned!')
+        : (t('activator.vehicleAssigned') || 'Vehicle assigned successfully!'));
     },
     onError: (errorMsg) => {
       console.error('[Activator] Vehicle assignment failed:', errorMsg);
-      toast.error(errorMsg || 'Failed to assign vehicle. Please try again.');
+      toast.error(errorMsg || t('activator.vehicleAssignFailed') || 'Failed to assign vehicle. Please try again.');
       setScannedVehicleId(null);
     },
   });

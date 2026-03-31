@@ -1702,5 +1702,8 @@
   "activator.sessions.searchPlaceholder": "Search by subscription code...",
   "activator.sessions.noSearchResults": "No sessions match your search",
   "activator.sessions.noSessions": "No activation sessions found",
-  "activator.sessions.noSessionsHint": "Sessions will appear here after activations"
+  "activator.sessions.noSessionsHint": "Sessions will appear here after activations",
+  "activator.vehicleAssigned": "Vehicle assigned successfully!",
+  "activator.vehicleAlreadyAssigned": "Vehicle already assigned!",
+  "activator.vehicleAssignFailed": "Failed to assign vehicle. Please try again."
 }

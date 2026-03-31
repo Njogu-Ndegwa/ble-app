@@ -1605,5 +1605,8 @@
   "activator.sessions.searchPlaceholder": "按订阅代码搜索...",
   "activator.sessions.noSearchResults": "没有匹配的会话",
   "activator.sessions.noSessions": "未找到激活会话",
-  "activator.sessions.noSessionsHint": "激活后会话将显示在此处"
+  "activator.sessions.noSessionsHint": "激活后会话将显示在此处",
+  "activator.vehicleAssigned": "车辆分配成功！",
+  "activator.vehicleAlreadyAssigned": "车辆已分配！",
+  "activator.vehicleAssignFailed": "车辆分配失败，请重试。"
 }
