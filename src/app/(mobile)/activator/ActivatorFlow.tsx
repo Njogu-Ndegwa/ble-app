@@ -873,6 +873,17 @@ export default function ActivatorFlow({
     }
   }, [onLogout, router, t]);
 
+  // Auto-advance to step 4 (battery assignment) when vehicle is successfully assigned on step 3
+  // Skip in read-only mode so users can freely browse completed session steps
+  useEffect(() => {
+    if (currentStep === 3 && scannedVehicleId && !isReadOnlySession) {
+      const timer = setTimeout(() => {
+        advanceToStep(4);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, scannedVehicleId, advanceToStep, isReadOnlySession]);
+
   // Trigger customer identification after vehicle scan (step 3 -> 4 transition)
   // so pricing is ready by the time battery is scanned
   useEffect(() => {
