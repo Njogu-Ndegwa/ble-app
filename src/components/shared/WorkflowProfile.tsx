@@ -12,8 +12,10 @@ export interface WorkflowProfileProps {
     phone?: string;
   } | null;
   onLogout: () => void;
-  /** Icon shown in the role card header */
-  roleIcon: LucideIcon;
+  /** Lucide icon shown in the role card header */
+  roleIcon?: LucideIcon;
+  /** Image source for a custom SVG/PNG role icon (takes precedence over roleIcon) */
+  roleIconSrc?: string;
   /** Display label for the role (e.g. "Swap Attendant", "Sales Representative") */
   roleLabel: string;
   /** Label under the employee ID row */
@@ -51,6 +53,7 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
   employee,
   onLogout,
   roleIcon: RoleIcon,
+  roleIconSrc,
   roleLabel,
   employeeIdLabel,
   fallbackInitials = '??',
@@ -88,7 +91,12 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
         {/* Role header */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle">
           <div className="w-10 h-10 rounded-lg bg-brand flex items-center justify-center flex-shrink-0">
-            <RoleIcon size={20} className="text-text-inverse" />
+            {roleIconSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={roleIconSrc} alt="" width={20} height={20} style={{ objectFit: 'contain' }} draggable={false} />
+            ) : RoleIcon ? (
+              <RoleIcon size={20} className="text-text-inverse" />
+            ) : null}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-text-primary">{roleLabel}</p>

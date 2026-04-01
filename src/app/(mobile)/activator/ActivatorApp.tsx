@@ -15,7 +15,6 @@ import { clearSalesSession } from '@/lib/sales-session';
 import ActivatorFlow from './ActivatorFlow';
 import ActivatorNav, { type ActivatorScreen } from './components/ActivatorNav';
 import ActivatorSessions from './components/ActivatorSessions';
-import { Zap } from 'lucide-react';
 import { WorkflowProfile } from '@/components/shared';
 import type { OrderListItem } from '@/lib/odoo-api';
 
@@ -153,7 +152,7 @@ export default function ActivatorApp({ onLogout }: ActivatorAppProps) {
             <WorkflowProfile
               employee={employee}
               onLogout={handleLogout}
-              roleIcon={Zap}
+              roleIconSrc="/assets/Activator.svg"
               roleLabel={t('role.activator') || 'Activator'}
               employeeIdLabel={t('sales.profile.employeeId') || 'Employee ID'}
               fallbackInitials="AC"
