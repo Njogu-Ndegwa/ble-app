@@ -936,7 +936,7 @@ const AppContainer = () => {
         <DeviceDetailView
           // @ts-ignore
           device={deviceDetails}
-          attributeList={attrList}
+          attributeList={attributeList}
           onBack={handleBackToList}
           onRequestServiceData={handleServiceDataRequest}
           isLoadingService={loadingService}

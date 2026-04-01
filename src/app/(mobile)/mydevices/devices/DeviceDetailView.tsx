@@ -11,6 +11,7 @@ import {
 import { AsciiStringModal } from '../../../modals';
 import { apiUrl } from '@/lib/apollo-client';
 import { useI18n } from '@/i18n';
+import { cleanBatteryId } from '@/lib/hooks/ble/energyUtils';
 
 type CodeType = 'days' | 'free' | 'reset' | 'retrieve';
 type ResultStatus = 'idle' | 'generating' | 'generated' | 'writing' | 'written' | 'writeFailed' | 'error';
@@ -64,7 +65,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const fetchItemId = useCallback(async () => {
     const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
-    if (!attService) return;
+    if (!attService) {
+      console.info('[DeviceDetail] ATT_SERVICE not found in attributeList, skipping identification');
+      return;
+    }
 
     const getCharValue = (name: string) => {
       const char = attService.characteristicList.find(
@@ -74,9 +78,20 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       return (val !== null && val !== undefined && String(val).trim() !== '') ? String(val).trim() : null;
     };
 
-    // Match Sales/Attendant pattern: try opid first, then ppid as fallback
-    const oemItemId = getCharValue('opid') || getCharValue('ppid');
-    if (!oemItemId) return;
+    const rawOpid = getCharValue('opid');
+    const rawPpid = getCharValue('ppid');
+    const rawValue = rawOpid || rawPpid;
+    if (!rawValue) {
+      console.info('[DeviceDetail] No opid/ppid value found in ATT_SERVICE (values may still be loading)',
+        { opid: rawOpid, ppid: rawPpid });
+      return;
+    }
+
+    // Clean arrow characters ("<", ">") that BLE ppid/opid values sometimes contain
+    const oemItemId = cleanBatteryId(rawValue);
+    console.info('[DeviceDetail] Identifying device:', {
+      rawOpid, rawPpid, cleaned: oemItemId, source: rawOpid ? 'opid' : 'ppid'
+    });
 
     setIsIdentifying(true);
     setIdentifyError(null);
@@ -108,21 +123,28 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
       const data = await response.json();
       if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-      if (data.errors) throw new Error(data.errors.map((e: { message: string }) => e.message).join(', '));
+      if (data.errors) {
+        const errMsg = data.errors.map((e: { message: string }) => e.message).join(', ');
+        if (errMsg.includes('Cannot return null') || errMsg.includes('non-nullable')) {
+          throw new Error(t('Device not found in system for OEM ID: ') + oemItemId);
+        }
+        throw new Error(errMsg);
+      }
 
       const fetchedItemId = data.data?.getItembyOemItemId?._id;
       if (fetchedItemId) {
         setItemId(fetchedItemId);
         setIdentifyError(null);
+        console.info('[DeviceDetail] Item identified:', fetchedItemId);
       } else {
         const msg = t('Device not found in system for OEM ID: ') + oemItemId;
         setIdentifyError(msg);
-        console.error('getItembyOemItemId returned null for oemItemId:', oemItemId);
+        console.error('[DeviceDetail] getItembyOemItemId returned null for oemItemId:', oemItemId);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       setIdentifyError(msg);
-      console.error('Error fetching item ID:', error);
+      console.error('[DeviceDetail] Error fetching item ID:', error);
     } finally {
       setIsIdentifying(false);
     }
