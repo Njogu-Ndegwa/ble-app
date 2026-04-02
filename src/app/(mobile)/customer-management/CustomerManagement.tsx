@@ -467,7 +467,7 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           sections={detailSections}
           headerActions={[
             {
-              icon: <Trash2 size={18} />,
+              icon: <Trash2 size={18} style={{ color: 'var(--color-error)' }} />,
               label: t('customerMgmt.deleteCustomer') || 'Delete Customer',
               onClick: () => setShowDeleteConfirm(true),
             },

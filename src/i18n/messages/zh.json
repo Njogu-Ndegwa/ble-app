@@ -873,8 +873,8 @@
   "Togo": "多哥",
   "Shenzhen": "深圳",
   
-  "role.selectTitle": "选择您的角色",
-  "role.selectDescription": "选择您的角色以访问适合您日常任务的工具。",
+  "role.selectTitle": "您想做什么？",
+  "role.selectDescription": "选择一个应用以开始您的任务。",
   "role.attendant": "换电服务员",
   "role.salesRep": "销售代表",
   "role.keypad": "键盘",

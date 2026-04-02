@@ -968,8 +968,8 @@
   "Togo": "Togo",
   "Shenzhen": "Shenzhen",
   
-  "role.selectTitle": "Select Your Role",
-  "role.selectDescription": "Choose your role to access the right tools for your daily tasks.",
+  "role.selectTitle": "What would you like to do?",
+  "role.selectDescription": "Pick an applet to get started with your task.",
   "role.attendant": "Swap Attendant",
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",

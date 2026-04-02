@@ -959,8 +959,8 @@
   "Togo": "Togo",
   "Shenzhen": "Shenzhen",
   
-  "role.selectTitle": "Sélectionnez votre rôle",
-  "role.selectDescription": "Choisissez votre rôle pour accéder aux outils adaptés à vos tâches quotidiennes.",
+  "role.selectTitle": "Que souhaitez-vous faire ?",
+  "role.selectDescription": "Choisissez une applet pour commencer votre tâche.",
   "role.attendant": "Operateur de station",
   "role.salesRep": "Commercial",
   "role.keypad": "Clavier",
