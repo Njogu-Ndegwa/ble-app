@@ -1349,6 +1349,8 @@
   "sales.free": "GRATUIT",
   "sales.waitingForPricing": "Veuillez patienter, récupération des tarifs...",
   "sales.pricingRequired": "Tarification requise. Veuillez réessayer.",
+  "sales.invalidPricing": "Données de tarification invalides. Veuillez appuyer sur « Obtenir le tarif » pour réessayer.",
+  "sales.energyServiceNotFound": "Service énergétique introuvable. Veuillez appuyer sur « Obtenir le tarif » pour réessayer.",
   "sales.pricingUnavailable": "Tarification indisponible",
   "sales.pricingUnavailableHint": "Impossible de récupérer le tarif. Appuyez pour réessayer.",
   "sales.fetchPricing": "Récupérer les tarifs",
@@ -1641,6 +1643,7 @@
   "session.restoreFailed": "Échec de restauration de la session",
   "session.checkingForSession": "Vérification de session en attente...",
   "common.of": "de",
+  "common.unknown": "Inconnu",
   "common.found": "trouvée(s)",
   
   "phone.selectCountry": "Sélectionner le pays",
@@ -1685,6 +1688,7 @@
   "activator.nav.sessions": "Sessions",
   "activator.nav.profile": "Profil",
   "activator.step.customer": "Client",
+  "activator.step.package": "Forfait",
   "activator.step.plan": "Plan",
   "activator.step.vehicle": "Véhicule",
   "activator.step.battery": "Batterie",
@@ -1697,6 +1701,7 @@
   "activator.processing": "Traitement...",
   "activator.fetchingPricing": "Récupération des tarifs...",
   "activator.pleaseSelectPlan": "Veuillez sélectionner un plan",
+  "activator.pleaseSelectPackage": "Veuillez sélectionner un forfait",
   "activator.sessions.title": "Sessions d'activation",
   "activator.sessions.searchPlaceholder": "Rechercher par code d'abonnement...",
   "activator.sessions.noSearchResults": "Aucune session ne correspond à votre recherche",
@@ -1704,5 +1709,6 @@
   "activator.sessions.noSessionsHint": "Les sessions apparaîtront ici après les activations",
   "activator.vehicleAssigned": "Véhicule attribué avec succès !",
   "activator.vehicleAlreadyAssigned": "Véhicule déjà attribué !",
-  "activator.vehicleAssignFailed": "Échec de l'attribution du véhicule. Veuillez réessayer."
+  "activator.vehicleAssignFailed": "Échec de l'attribution du véhicule. Veuillez réessayer.",
+  "activator.mqttNotConnected": "MQTT non connecté. Veuillez patienter un instant et réessayer."
 }

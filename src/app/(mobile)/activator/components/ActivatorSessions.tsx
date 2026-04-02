@@ -238,7 +238,7 @@ const ActivatorSessions: React.FC<ActivatorSessionsProps> = ({ onSelectSession }
                   <Clock size={10} />
                   <span>{session?.start_date ? formatDate(session.start_date) : formatDate(order.date_order)}</span>
                   <span className="list-card-dot">&middot;</span>
-                  <span className="list-card-meta-bold">{t('sales.sessions.step') || 'Step'} {currentStep}/5</span>
+                  <span className="list-card-meta-bold">{t('sales.sessions.step') || 'Step'} {currentStep}/6</span>
                 </div>
               </div>
               <div className="list-card-actions">

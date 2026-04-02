@@ -584,7 +584,7 @@ export default function ActivatorFlow({
   // Complete service - report via MQTT
   const handleCompleteService = useCallback(async () => {
     if (!isMqttConnected) {
-      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      toast.error(t('activator.mqttNotConnected') || 'MQTT not connected. Please wait a moment and try again.');
       return;
     }
     if (!scannedBatteryPending) {
@@ -757,7 +757,7 @@ export default function ActivatorFlow({
       }
       case 2: {
         if (!selectedPackageId) {
-          toast.error(t('sales.pleaseSelectPackage') || 'Please select a package');
+          toast.error(t('activator.pleaseSelectPackage') || 'Please select a package');
           return;
         }
         advanceToStep(3);

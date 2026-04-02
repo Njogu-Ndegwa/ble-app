@@ -1358,6 +1358,8 @@
   "sales.free": "FREE",
   "sales.waitingForPricing": "Please wait, fetching pricing...",
   "sales.pricingRequired": "Pricing info required. Please retry.",
+  "sales.invalidPricing": "Invalid pricing data. Please tap \"Fetch Pricing\" to retry.",
+  "sales.energyServiceNotFound": "Energy service not found. Please tap \"Fetch Pricing\" to retry.",
   "sales.pricingUnavailable": "Pricing unavailable",
   "sales.pricingUnavailableHint": "Could not fetch energy rate. Tap to retry.",
   "sales.fetchPricing": "Fetch Pricing",
@@ -1651,6 +1653,7 @@
   "session.restoreFailed": "Failed to restore session",
   "session.checkingForSession": "Checking for pending session...",
   "common.of": "of",
+  "common.unknown": "Unknown",
   "common.found": "found",
   
   "phone.selectCountry": "Select Country",
@@ -1695,6 +1698,7 @@
   "activator.nav.sessions": "Sessions",
   "activator.nav.profile": "Profile",
   "activator.step.customer": "Customer",
+  "activator.step.package": "Package",
   "activator.step.plan": "Plan",
   "activator.step.vehicle": "Vehicle",
   "activator.step.battery": "Battery",
@@ -1707,6 +1711,7 @@
   "activator.processing": "Processing...",
   "activator.fetchingPricing": "Fetching pricing...",
   "activator.pleaseSelectPlan": "Please select a plan",
+  "activator.pleaseSelectPackage": "Please select a package",
   "activator.sessions.title": "Activation Sessions",
   "activator.sessions.searchPlaceholder": "Search by subscription code...",
   "activator.sessions.noSearchResults": "No sessions match your search",
@@ -1714,5 +1719,6 @@
   "activator.sessions.noSessionsHint": "Sessions will appear here after activations",
   "activator.vehicleAssigned": "Vehicle assigned successfully!",
   "activator.vehicleAlreadyAssigned": "Vehicle already assigned!",
-  "activator.vehicleAssignFailed": "Failed to assign vehicle. Please try again."
+  "activator.vehicleAssignFailed": "Failed to assign vehicle. Please try again.",
+  "activator.mqttNotConnected": "MQTT not connected. Please wait a moment and try again."
 }
