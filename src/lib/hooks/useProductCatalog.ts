@@ -181,15 +181,27 @@ interface ProductServiceMapping {
 const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['S6', 'M3'],
-    servicePatterns: ['B30-0.9', 'B30-409 kWh', 'B30-10', 'B30-400 kWh', 'B30-50', 'B30-385 kWh'],
+    servicePatterns: [
+      'B30-0.9', 'B30-409 kWh', 'B30-2.2 kWh (1 swp)',
+      'B30-10', 'B30-400 kWh', 'B30-25 kWh (15 swp)',
+      'B30-50', 'B30-385 kWh', 'B30-130 kWh (60 swp)',
+    ],
   },
   {
     productPatterns: ['E-3H', 'E-3 Plus'],
-    servicePatterns: ['B45-1.2', 'B45-364 kWh', 'B45-20', 'B45-351 kWh', 'B45-68', 'B45-340 kWh'],
+    servicePatterns: [
+      'B45-1.2', 'B45-364 kWh', 'B45-3.3 kWh(1 swp)',
+      'B45-20', 'B45-351 kWh', 'B45-57 kWh(15 swp)',
+      'B45-68', 'B45-340 kWh', 'B45-200 kWh(60 swp)',
+    ],
   },
   {
     productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS', 'PET-3DRS'],
-    servicePatterns: ['B100-2.6', 'B100-342 kWh', 'B100-40', 'B100-333 kWh', 'B100-145', 'B100-322 kWh'],
+    servicePatterns: [
+      'B100-2.6', 'B100-342 kWh', 'B100-7.6 kWh(1 swp)',
+      'B100-40', 'B100-333 kWh', 'B100-120 kWh(15 swp)',
+      'B100-145', 'B100-322 kWh', 'B100-450 kWh(60 swp)',
+    ],
   },
 ];
 
