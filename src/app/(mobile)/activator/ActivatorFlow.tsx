@@ -11,6 +11,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 
 import {
   Step1CustomerForm,
+  Step2SelectPackage,
   Step3SelectSubscription,
   Step6ScanVehicle,
   Step7AssignBattery,
@@ -92,7 +93,7 @@ export default function ActivatorFlow({
     setLocale(nextLocale);
   }, [locale, setLocale]);
 
-  // Step management (5 steps)
+  // Step management (6 steps)
   const [currentStep, setCurrentStep] = useState<ActivatorStep>(1);
   const [maxStepReached, setMaxStepReached] = useState<ActivatorStep>(1);
 
@@ -103,19 +104,24 @@ export default function ActivatorFlow({
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormData, string>>>({});
   const [selectedExistingCustomer, setSelectedExistingCustomer] = useState<ExistingCustomer | null>(null);
 
-  // Plan selection
+  // Package and plan selection
   const {
+    packages: availablePackages,
     plans: availablePlans,
     filteredPlans,
     isLoading: catalogLoading,
     errors: catalogErrors,
+    selectedPackageId,
     selectedPlanId,
     selectedPlan,
+    setSelectedPackageId,
     setSelectedPlanId,
-    refetch: fetchPlans,
+    refetch: fetchProductsAndPlans,
     restoreSelections: restoreCatalogSelections,
   } = useProductCatalog({ autoFetch: true, workflowType: 'sales', autoSelectFirstPlan: false });
 
+  const isLoadingPackages = catalogLoading.packages;
+  const packagesLoadError = catalogErrors.packages;
   const isLoadingPlans = catalogLoading.plans;
   const plansLoadError = catalogErrors.plans;
 
@@ -211,7 +217,7 @@ export default function ActivatorFlow({
       setScannedBatteryPending(null);
       setRegistrationId(generateRegistrationId());
       clearSalesSession();
-      advanceToStep(5);
+      advanceToStep(6);
       toast.success(isIdempotent ? 'Activation completed! (already recorded)' : 'Activation completed! Assets assigned successfully.');
     },
     onError: (errorMsg) => {
@@ -261,7 +267,7 @@ export default function ActivatorFlow({
       setCurrentStep(restoredState.currentStep as ActivatorStep);
       setMaxStepReached(restoredState.maxStepReached as ActivatorStep);
       setFormData(restoredState.formData);
-      setSelectedPlanId(restoredState.selectedPlanId);
+      restoreCatalogSelections(undefined, restoredState.selectedPackageId, restoredState.selectedPlanId);
       setCreatedCustomerId(restoredState.createdCustomerId);
       setCreatedPartnerId(restoredState.createdPartnerId);
       setConfirmedSubscriptionCode(restoredState.confirmedSubscriptionCode);
@@ -308,9 +314,9 @@ export default function ActivatorFlow({
     const restoredState = extractActivatorStateFromSession(sessionData);
 
     setCurrentStep(restoredState.currentStep as ActivatorStep);
-    setMaxStepReached(isReadOnly ? 5 : restoredState.maxStepReached as ActivatorStep);
+    setMaxStepReached(isReadOnly ? 6 : restoredState.maxStepReached as ActivatorStep);
     setFormData(restoredState.formData);
-    restoreCatalogSelections('', restoredState.selectedPlanId);
+    restoreCatalogSelections(undefined, restoredState.selectedPackageId, restoredState.selectedPlanId);
     setCreatedCustomerId(restoredState.createdCustomerId);
     setCreatedPartnerId(restoredState.createdPartnerId);
     setConfirmedSubscriptionCode(restoredState.confirmedSubscriptionCode);
@@ -346,6 +352,7 @@ export default function ActivatorFlow({
         station: ACTIVATOR_STATION,
       },
       formData,
+      selectedPackageId,
       selectedPlanId,
       createdCustomerId,
       createdPartnerId,
@@ -361,7 +368,7 @@ export default function ActivatorFlow({
       registrationId,
     };
   }, [
-    currentStep, maxStepReached, formData, selectedPlanId,
+    currentStep, maxStepReached, formData, selectedPackageId, selectedPlanId,
     createdCustomerId, createdPartnerId, confirmedSubscriptionCode,
     scannedBatteryPending, assignedBattery, customerIdentified,
     customerRate, customerCurrencySymbol, scannedVehicleId, registrationId,
@@ -387,7 +394,7 @@ export default function ActivatorFlow({
       return;
     }
 
-    if (currentStep === 5) {
+    if (currentStep === 6) {
       prevStepRef.current = currentStep;
       saveSessionToBackend().then(() => {
         clearSession();
@@ -669,6 +676,10 @@ export default function ActivatorFlow({
     }
   }, [formErrors]);
 
+  const handlePackageSelect = useCallback((packageId: string) => {
+    setSelectedPackageId(packageId);
+  }, [setSelectedPackageId]);
+
   const handlePlanSelect = useCallback((planId: string) => {
     setSelectedPlanId(planId);
   }, [setSelectedPlanId]);
@@ -682,7 +693,7 @@ export default function ActivatorFlow({
 
   // Handle main action button
   const handleMainAction = useCallback(async () => {
-    if (isReadOnlySession && currentStep < 5) {
+    if (isReadOnlySession && currentStep < 6) {
       advanceToStep((currentStep + 1) as ActivatorStep);
       return;
     }
@@ -718,6 +729,7 @@ export default function ActivatorFlow({
                 station: ACTIVATOR_STATION,
               },
               formData: existingFormData,
+              selectedPackageId: '',
               selectedPlanId: '',
               createdCustomerId: selectedExistingCustomer.id,
               createdPartnerId: selectedExistingCustomer.partnerId,
@@ -744,6 +756,14 @@ export default function ActivatorFlow({
         break;
       }
       case 2: {
+        if (!selectedPackageId) {
+          toast.error(t('sales.pleaseSelectPackage') || 'Please select a package');
+          return;
+        }
+        advanceToStep(3);
+        break;
+      }
+      case 3: {
         if (!selectedPlanId) {
           toast.error(t('activator.pleaseSelectPlan') || 'Please select a plan');
           return;
@@ -763,7 +783,7 @@ export default function ActivatorFlow({
           const result = await updateSessionWithProducts(sessionData, products);
           if (result.success && result.subscriptionCode) {
             setConfirmedSubscriptionCode(result.subscriptionCode);
-            advanceToStep(3);
+            advanceToStep(4);
           } else {
             toast.error('Failed to add plan to order. Please try again.');
           }
@@ -775,21 +795,21 @@ export default function ActivatorFlow({
         }
         break;
       }
-      case 3:
+      case 4:
         if (scannedVehicleId) {
-          advanceToStep(4);
+          advanceToStep(5);
         } else {
           handleScanVehicle();
         }
         break;
-      case 4:
+      case 5:
         if (scannedBatteryPending) {
           handleCompleteService();
         } else {
           handleScanBattery();
         }
         break;
-      case 5: {
+      case 6: {
         // Reset everything for new activation
         clearSalesSession();
         setCurrentStep(1);
@@ -797,6 +817,7 @@ export default function ActivatorFlow({
         setFormData({ firstName: '', lastName: '', phone: '', email: '', street: '', city: '', zip: '' });
         setFormErrors({});
         setSelectedExistingCustomer(null);
+        setSelectedPackageId('');
         setSelectedPlanId('');
         setCreatedCustomerId(null);
         setCreatedPartnerId(null);
@@ -814,19 +835,19 @@ export default function ActivatorFlow({
       }
     }
   }, [
-    currentStep, selectedExistingCustomer, selectedPlanId, selectedPlan,
+    currentStep, selectedExistingCustomer, selectedPackageId, selectedPlanId, selectedPlan,
     scannedVehicleId, scannedBatteryPending, isReadOnlySession,
     advanceToStep, handleScanVehicle, handleScanBattery, handleCompleteService,
     resetCustomerIdentification, resetPaymentAndService,
     resetVehicleAssignment, createSalesSession, buildActivatorSessionData,
     buildCurrentSessionState, updateSessionWithProducts,
-    t, setSelectedPlanId,
+    t, setSelectedPackageId, setSelectedPlanId,
   ]);
 
   // Handle step click in timeline
   const handleStepClick = useCallback((step: ActivatorStep) => {
     if (step <= maxStepReached && step !== currentStep) {
-      if (!isReadOnlySession && step === 5) return;
+      if (!isReadOnlySession && step === 6) return;
       setCurrentStep(step);
     }
   }, [maxStepReached, currentStep, isReadOnlySession]);
@@ -839,6 +860,7 @@ export default function ActivatorFlow({
     setFormData({ firstName: '', lastName: '', phone: '', email: '', street: '', city: '', zip: '' });
     setFormErrors({});
     setSelectedExistingCustomer(null);
+    setSelectedPackageId('');
     setSelectedPlanId('');
     setCreatedCustomerId(null);
     setCreatedPartnerId(null);
@@ -852,7 +874,7 @@ export default function ActivatorFlow({
     resetVehicleAssignment();
     setRegistrationId('');
     setIsReadOnlySession(false);
-  }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPlanId]);
+  }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPackageId, setSelectedPlanId]);
 
   const handleBackToRoles = useCallback(() => {
     if (onBack) {
@@ -873,21 +895,21 @@ export default function ActivatorFlow({
     }
   }, [onLogout, router, t]);
 
-  // Auto-advance to step 4 (battery assignment) when vehicle is successfully assigned on step 3
+  // Auto-advance to step 5 (battery assignment) when vehicle is successfully assigned on step 4
   // Skip in read-only mode so users can freely browse completed session steps
   useEffect(() => {
-    if (currentStep === 3 && scannedVehicleId && !isReadOnlySession) {
+    if (currentStep === 4 && scannedVehicleId && !isReadOnlySession) {
       const timer = setTimeout(() => {
-        advanceToStep(4);
+        advanceToStep(5);
       }, 500);
       return () => clearTimeout(timer);
     }
   }, [currentStep, scannedVehicleId, advanceToStep, isReadOnlySession]);
 
-  // Trigger customer identification after vehicle scan (step 3 -> 4 transition)
+  // Trigger customer identification after vehicle scan (step 4 -> 5 transition)
   // so pricing is ready by the time battery is scanned
   useEffect(() => {
-    if (currentStep === 4 && confirmedSubscriptionCode && !customerIdentified && !isIdentifying) {
+    if (currentStep === 5 && confirmedSubscriptionCode && !customerIdentified && !isIdentifying) {
       identifyCustomer({ subscriptionCode: confirmedSubscriptionCode, source: 'manual' });
     }
   }, [currentStep, confirmedSubscriptionCode, customerIdentified, isIdentifying, identifyCustomer]);
@@ -910,17 +932,28 @@ export default function ActivatorFlow({
         );
       case 2:
         return (
+          <Step2SelectPackage
+            selectedPackage={selectedPackageId}
+            onPackageSelect={handlePackageSelect}
+            packages={availablePackages}
+            isLoadingPackages={isLoadingPackages}
+            loadError={packagesLoadError}
+            onRetryLoad={fetchProductsAndPlans}
+            hidePrice
+          />
+        );
+      case 3:
+        return (
           <Step3SelectSubscription
             selectedPlan={selectedPlanId}
             onPlanSelect={handlePlanSelect}
             plans={filteredPlans}
             isLoadingPlans={isLoadingPlans}
             loadError={plansLoadError}
-            onRetryLoad={fetchPlans}
-            hidePrice
+            onRetryLoad={fetchProductsAndPlans}
           />
         );
-      case 3:
+      case 4:
         return (
           <Step6ScanVehicle
             formData={formData}
@@ -930,7 +963,7 @@ export default function ActivatorFlow({
             subscriptionCode={confirmedSubscriptionCode || ''}
           />
         );
-      case 4:
+      case 5:
         return (
           <Step7AssignBattery
             formData={formData}
@@ -956,7 +989,7 @@ export default function ActivatorFlow({
             onManualIdentify={handleManualIdentify}
           />
         );
-      case 5:
+      case 6:
         return (
           <Step8Success
             formData={formData}

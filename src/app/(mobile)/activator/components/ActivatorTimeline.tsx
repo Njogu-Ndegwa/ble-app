@@ -13,6 +13,7 @@ interface ActivatorTimelineProps {
 
 const STEP_LABEL_KEYS: Record<string, string> = {
   customer: 'activator.step.customer',
+  package: 'activator.step.package',
   plan: 'activator.step.plan',
   vehicle: 'activator.step.vehicle',
   battery: 'activator.step.battery',
@@ -24,6 +25,14 @@ const StepIcons: Record<string, React.ReactNode> = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
       <circle cx="12" cy="7" r="4"/>
+    </svg>
+  ),
+  package: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16.5 9.4l-9-5.19"/>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
     </svg>
   ),
   plan: (
@@ -62,9 +71,9 @@ export default function ActivatorTimeline({ currentStep, maxStepReached = curren
   const getStepClass = (step: number): string => {
     if (step === currentStep) {
       if (readOnly) {
-        return step === 5 ? 'readonly-success' : 'readonly-active';
+        return step === 6 ? 'readonly-success' : 'readonly-active';
       }
-      return step === 5 ? 'success' : 'active';
+      return step === 6 ? 'success' : 'active';
     }
     if (step < currentStep) return readOnly ? 'readonly-completed' : 'completed';
     if (step <= maxStepReached) return readOnly ? 'readonly-reachable' : 'reachable';

@@ -22,6 +22,8 @@ interface Step2Props {
   isLoadingPackages?: boolean;
   loadError?: string | null;
   onRetryLoad?: () => void;
+  /** When true, hides package prices (used for non-purchase flows like Activator) */
+  hidePrice?: boolean;
 }
 
 export default function Step2SelectPackage({ 
@@ -31,6 +33,7 @@ export default function Step2SelectPackage({
   isLoadingPackages = false,
   loadError = null,
   onRetryLoad,
+  hidePrice = false,
 }: Step2Props) {
   const { t } = useI18n();
   
@@ -143,14 +146,16 @@ export default function Step2SelectPackage({
                       </div>
                     )}
                     {/* Package price */}
-                    <div style={{ 
-                      fontWeight: 700, 
-                      fontSize: '14px',
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--color-primary, #6366f1)',
-                    }}>
-                      {currencySymbol} {pkg.price.toLocaleString()}
-                    </div>
+                    {!hidePrice && (
+                      <div style={{ 
+                        fontWeight: 700, 
+                        fontSize: '14px',
+                        fontFamily: 'var(--font-mono)',
+                        color: 'var(--color-primary, #6366f1)',
+                      }}>
+                        {currencySymbol} {pkg.price.toLocaleString()}
+                      </div>
+                    )}
                     {/* Show what's included - subtle fineprint */}
                     <div style={{ 
                       fontSize: '10px', 

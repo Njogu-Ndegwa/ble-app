@@ -681,7 +681,7 @@ function isSessionEffectivelyComplete(
   }
 
   if (workflowType === 'activator') {
-    if (currentStep >= 5 || maxStepReached >= 5) {
+    if (currentStep >= 6 || maxStepReached >= 6) {
       return true;
     }
   }
@@ -1282,6 +1282,7 @@ export interface ActivatorWorkflowState {
     city: string;
     zip: string;
   };
+  selectedPackageId: string;
   selectedPlanId: string;
   createdCustomerId: number | null;
   createdPartnerId: number | null;
@@ -1312,7 +1313,7 @@ export interface ActivatorWorkflowState {
 }
 
 export function buildActivatorSessionData(state: ActivatorWorkflowState): WorkflowSessionData {
-  const isCompleted = state.currentStep >= 5;
+  const isCompleted = state.currentStep >= 6;
 
   return {
     status: isCompleted ? 'completed' : 'in_progress',
@@ -1332,6 +1333,7 @@ export function buildActivatorSessionData(state: ActivatorWorkflowState): Workfl
       city: state.formData.city,
       zip: state.formData.zip,
     },
+    selectedPackageId: state.selectedPackageId,
     selectedPlanId: state.selectedPlanId,
     createdCustomerId: state.createdCustomerId,
     createdPartnerId: state.createdPartnerId,
@@ -1376,6 +1378,7 @@ export interface ExtractedActivatorState {
     city: string;
     zip: string;
   };
+  selectedPackageId: string;
   selectedPlanId: string;
   createdCustomerId: number | null;
   createdPartnerId: number | null;
@@ -1416,6 +1419,7 @@ export function extractActivatorStateFromSession(sessionData: WorkflowSessionDat
       city: sessionData.formData?.city || '',
       zip: sessionData.formData?.zip || '',
     },
+    selectedPackageId: sessionData.selectedPackageId || '',
     selectedPlanId: sessionData.selectedPlanId || '',
     createdCustomerId: sessionData.createdCustomerId || null,
     createdPartnerId: sessionData.createdPartnerId || null,

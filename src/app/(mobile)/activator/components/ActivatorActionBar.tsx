@@ -60,16 +60,18 @@ const getStepConfig = (step: ActivatorStep, hasVehicleScanned?: boolean, hasBatt
     case 2:
       return { showBack: true, mainTextKey: 'activator.continue', mainIcon: 'arrow' };
     case 3:
+      return { showBack: true, mainTextKey: 'activator.continue', mainIcon: 'arrow' };
+    case 4:
       if (hasVehicleScanned) {
         return { showBack: true, mainTextKey: 'activator.continue', mainIcon: 'arrow' };
       }
       return { showBack: true, mainTextKey: 'activator.scanVehicleBtn', mainIcon: 'scan' };
-    case 4:
+    case 5:
       if (hasBatteryScanned) {
         return { showBack: true, mainTextKey: 'activator.completeService', mainIcon: 'check' };
       }
       return { showBack: true, mainTextKey: 'activator.scanBattery', mainIcon: 'scan' };
-    case 5:
+    case 6:
       return { showBack: false, mainTextKey: 'activator.newActivation', mainIcon: 'plus', mainClass: 'btn-success' };
     default:
       return { showBack: false, mainTextKey: 'activator.continue', mainIcon: 'arrow' };
@@ -91,7 +93,7 @@ export default function ActivatorActionBar({
   const { t } = useI18n();
   const config = getStepConfig(currentStep, hasVehicleScanned, hasBatteryScanned);
 
-  const isCompleteServiceStep = currentStep === 4 && hasBatteryScanned;
+  const isCompleteServiceStep = currentStep === 5 && hasBatteryScanned;
   const waitingForIdentification = isCompleteServiceStep && !customerIdentified;
   const buttonDisabled = isLoading || isDisabled || (waitingForIdentification && isIdentifying);
 
@@ -132,13 +134,13 @@ export default function ActivatorActionBar({
               {t('sales.back')}
             </button>
           )}
-          {currentStep < 5 && (
+          {currentStep < 6 && (
             <button className="btn btn-secondary" onClick={onMainAction}>
               <span>{t('sessions.viewNext') || 'View Next'}</span>
               {ActionIcons.arrow}
             </button>
           )}
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <button className="btn btn-primary" onClick={onMainAction}>
               {ActionIcons.plus}
               <span>{t('activator.newActivation') || 'New Activation'}</span>
