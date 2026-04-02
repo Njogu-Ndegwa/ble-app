@@ -2575,6 +2575,34 @@ export async function createContact(
   }
 }
 
+export interface ContactDeleteApiResponse {
+  success: boolean;
+  message?: string;
+}
+
+/**
+ * Delete (archive) a contact by ID.
+ *
+ * DELETE /api/contacts/:id
+ */
+export async function deleteContact(
+  contactId: number,
+  authToken?: string
+): Promise<ContactDeleteApiResponse> {
+  const endpoint = `/api/contacts/${contactId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const headers: HeadersInit = buildOdooHeaders(authToken);
+
+  try {
+    const response = await fetchWithRetry(url, { method: 'DELETE', headers });
+    return await parseOdooResponse<ContactDeleteApiResponse>(response, endpoint);
+  } catch (error) {
+    console.error('[Odoo API] deleteContact failed:', error);
+    throw error;
+  }
+}
+
 // ============================================================================
 // Export default company ID for convenience
 // ============================================================================

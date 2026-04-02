@@ -982,8 +982,17 @@
   "role.activator": "Activator",
   "role.activatorDesc": "Asset Activation",
   "role.bleDeviceManagerDesc": "Device Control",
+  "role.customerManagement": "Customers",
+  "role.customerManagementDesc": "Customer Management",
   "role.comingSoon": "Coming Soon",
   "role.switchLanguage": "Switch language",
+
+  "customerMgmt.title": "Customer Management",
+  "customerMgmt.deleteCustomer": "Delete Customer",
+  "customerMgmt.customerDeleted": "Customer deleted",
+  "customerMgmt.deleteCustomerError": "Failed to delete customer",
+  "customerMgmt.deleteConfirmTitle": "Delete Customer?",
+  "customerMgmt.deleteConfirmMessage": "Are you sure you want to delete this customer? This action cannot be undone.",
   
   "attendant.changeRole": "Change Role",
   "sales.changeRole": "Change Role",

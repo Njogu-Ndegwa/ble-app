@@ -10,6 +10,7 @@ import {
   getContactById as apiGetContactById,
   updateContact as apiUpdateContact,
   createContact as apiCreateContact,
+  deleteContact as apiDeleteContact,
   type OdooContact,
   type ContactWritePayload,
 } from '@/lib/odoo-api';
@@ -193,5 +194,30 @@ export async function createCustomer(
   return {
     success: true,
     customer: mapContact(result.contact),
+  };
+}
+
+// ============================================================================
+// Delete
+// ============================================================================
+
+export interface CustomerDeleteResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Delete (archive) a customer by ID.
+ * Uses DELETE /api/contacts/:id
+ */
+export async function deleteCustomer(
+  id: number,
+  authToken: string
+): Promise<CustomerDeleteResponse> {
+  const result = await apiDeleteContact(id, authToken);
+
+  return {
+    success: true,
+    message: result.message || 'Customer deleted successfully',
   };
 }

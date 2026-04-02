@@ -973,8 +973,17 @@
   "role.activator": "Activateur",
   "role.activatorDesc": "Activation des actifs",
   "role.bleDeviceManagerDesc": "Contrôle appareils",
+  "role.customerManagement": "Clients",
+  "role.customerManagementDesc": "Gestion des clients",
   "role.comingSoon": "Bientôt",
   "role.switchLanguage": "Changer de langue",
+
+  "customerMgmt.title": "Gestion des clients",
+  "customerMgmt.deleteCustomer": "Supprimer le client",
+  "customerMgmt.customerDeleted": "Client supprimé",
+  "customerMgmt.deleteCustomerError": "Échec de la suppression du client",
+  "customerMgmt.deleteConfirmTitle": "Supprimer le client ?",
+  "customerMgmt.deleteConfirmMessage": "Êtes-vous sûr de vouloir supprimer ce client ? Cette action est irréversible.",
   
   "attendant.changeRole": "Changer de rôle",
   "sales.changeRole": "Changer de rôle",

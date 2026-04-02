@@ -887,8 +887,17 @@
   "role.activator": "激活器",
   "role.activatorDesc": "资产激活",
   "role.bleDeviceManagerDesc": "设备控制",
+  "role.customerManagement": "客户",
+  "role.customerManagementDesc": "客户管理",
   "role.comingSoon": "即将推出",
   "role.switchLanguage": "切换语言",
+
+  "customerMgmt.title": "客户管理",
+  "customerMgmt.deleteCustomer": "删除客户",
+  "customerMgmt.customerDeleted": "客户已删除",
+  "customerMgmt.deleteCustomerError": "删除客户失败",
+  "customerMgmt.deleteConfirmTitle": "删除客户？",
+  "customerMgmt.deleteConfirmMessage": "您确定要删除此客户吗？此操作无法撤消。",
   
   "attendant.changeRole": "更改角色",
   "sales.changeRole": "更改角色",

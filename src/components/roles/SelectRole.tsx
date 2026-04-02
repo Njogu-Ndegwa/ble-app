@@ -50,6 +50,12 @@ const roles: RoleConfig[] = [
     path: '/activator',
   },
   {
+    id: 'customerManagement',
+    labelKey: 'role.customerManagement',
+    icon: { type: 'image', src: '/assets/Customer.svg', gradient: 'role-grad-customer' },
+    path: '/customer-management',
+  },
+  {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
     icon: {

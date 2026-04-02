@@ -1024,6 +1024,11 @@ html.theme-transition *::after {
   height: 85%;
 }
 
+.role-grad-customer .role-app-icon-img {
+  width: 85%;
+  height: 85%;
+}
+
 
 /* Lucide fallback (BLE icon) */
 .role-app-icon svg {
@@ -1136,6 +1141,10 @@ html.theme-transition *::after {
   background: linear-gradient(155deg, #A48EFF 0%, #7E5DF0 100%);
 }
 
+.role-grad-customer {
+  background: linear-gradient(155deg, #4DD0A1 0%, #2BA87A 100%);
+}
+
 /* ------- Light theme (slightly brighter stops) ------- */
 [data-theme="light"] .select-role-bg-gradient {
   background:
@@ -1171,6 +1180,10 @@ html.theme-transition *::after {
 
 [data-theme="light"] .role-grad-ble {
   background: linear-gradient(155deg, #B09AFF 0%, #8C6BF5 100%);
+}
+
+[data-theme="light"] .role-grad-customer {
+  background: linear-gradient(155deg, #5BDCAD 0%, #36B88A 100%);
 }
 
 /* ------- Compact screens (small phones / landscape) ------- */
