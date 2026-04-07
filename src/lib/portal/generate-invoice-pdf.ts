@@ -39,11 +39,8 @@ export async function generateInvoicePdf(
   type: 'proforma' | 'invoice',
   logoSrc?: string,
 ) {
-  const [{ jsPDF }, autoTableModule] = await Promise.all([
-    import('jspdf'),
-    import('jspdf-autotable'),
-  ]);
-  const autoTable = (autoTableModule as any).default;
+  const { jsPDF } = await import('jspdf');
+  await import('jspdf-autotable');
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = 210;
@@ -195,7 +192,7 @@ export async function generateInvoicePdf(
     fmt(line.priceSubtotal),
   ]);
 
-  autoTable(pdf, {
+  (pdf as any).autoTable({
     startY: y,
     head: tableHead,
     body: tableBody,
@@ -292,5 +289,42 @@ export async function generateInvoicePdf(
     pdf.text(`Amount Due: ${fmt(0)}`, pageWidth - margin, y, { align: 'right' });
   }
 
-  pdf.save(`${ref}.pdf`);
+  const filename = `${ref}.pdf`;
+  const blob = pdf.output('blob');
+  const file = new File([blob], filename, { type: 'application/pdf' });
+
+  // Mobile-first: use Web Share API if available (native share sheet on phones)
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // user cancelled share
+    }
+  }
+
+  // Fallback: open as data URL in new tab (works on most mobile browsers)
+  const dataUrl = pdf.output('datauristring');
+  const newTab = window.open('', '_blank');
+  if (newTab) {
+    newTab.document.write(
+      `<html><head><title>${filename}</title></head>` +
+      `<body style="margin:0"><iframe src="${dataUrl}" style="border:none;width:100%;height:100%"></iframe></body></html>`,
+    );
+    newTab.document.close();
+    return;
+  }
+
+  // Last resort: anchor download (desktop browsers)
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 250);
 }
