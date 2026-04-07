@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <g opacity="0.95">
+    <!-- Main box -->
+    <path d="M100 35L155 65V135L100 165L45 135V65L100 35Z" fill="white" fill-opacity="0.15" stroke="white" stroke-opacity="0.4" stroke-width="2"/>
+    
+    <!-- Top face -->
+    <path d="M100 35L155 65L100 95L45 65L100 35Z" fill="white" fill-opacity="0.3"/>
+    
+    <!-- Center line -->
+    <line x1="100" y1="95" x2="100" y2="165" stroke="white" stroke-opacity="0.3" stroke-width="2"/>
+    
+    <!-- Box detail lines -->
+    <line x1="45" y1="65" x2="100" y2="95" stroke="white" stroke-opacity="0.4" stroke-width="2"/>
+    <line x1="155" y1="65" x2="100" y2="95" stroke="white" stroke-opacity="0.4" stroke-width="2"/>
+    
+    <!-- Tag/label -->
+    <rect x="108" y="110" width="32" height="20" rx="4" fill="white" fill-opacity="0.3"/>
+    <rect x="114" y="116" width="20" height="3" rx="1.5" fill="white" fill-opacity="0.6"/>
+    <rect x="114" y="122" width="14" height="3" rx="1.5" fill="white" fill-opacity="0.4"/>
+    
+    <!-- Star/quality badge -->
+    <circle cx="72" cy="118" r="14" fill="white" fill-opacity="0.2"/>
+    <path d="M72 107L74.5 112.5L80.5 113L76 117.5L77 123.5L72 121L67 123.5L68 117.5L63.5 113L69.5 112.5L72 107Z" fill="white" fill-opacity="0.7"/>
+  </g>
+</svg>

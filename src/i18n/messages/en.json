@@ -984,6 +984,10 @@
   "role.bleDeviceManagerDesc": "Device Control",
   "role.customerManagement": "Customers",
   "role.customerManagementDesc": "Customer Management",
+  "role.orders": "Orders",
+  "role.ordersDesc": "Order Management",
+  "role.products": "Products",
+  "role.productsDesc": "Product Catalog",
   "role.comingSoon": "Coming Soon",
   "role.switchLanguage": "Switch language",
 

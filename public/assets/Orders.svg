@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <g opacity="0.95">
+    <!-- Clipboard body -->
+    <rect x="52" y="40" width="96" height="130" rx="12" fill="white" fill-opacity="0.95"/>
+    <rect x="52" y="40" width="96" height="130" rx="12" stroke="white" stroke-opacity="0.3" stroke-width="2"/>
+    
+    <!-- Clipboard clip -->
+    <rect x="78" y="30" width="44" height="20" rx="6" fill="white"/>
+    <circle cx="100" cy="40" r="5" fill="white" fill-opacity="0.5"/>
+    
+    <!-- Lines on clipboard -->
+    <rect x="70" y="70" width="45" height="6" rx="3" fill="white" fill-opacity="0.4"/>
+    <rect x="70" y="88" width="60" height="6" rx="3" fill="white" fill-opacity="0.3"/>
+    <rect x="70" y="106" width="50" height="6" rx="3" fill="white" fill-opacity="0.3"/>
+    <rect x="70" y="124" width="55" height="6" rx="3" fill="white" fill-opacity="0.25"/>
+    
+    <!-- Checkmarks -->
+    <circle cx="130" cy="73" r="8" fill="white" fill-opacity="0.25"/>
+    <path d="M126 73L129 76L134 70" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="130" cy="91" r="8" fill="white" fill-opacity="0.25"/>
+    <path d="M126 91L129 94L134 88" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Dollar/currency accent -->
+    <circle cx="150" cy="148" r="22" fill="white" fill-opacity="0.2"/>
+    <text x="150" y="155" text-anchor="middle" font-family="system-ui" font-size="22" font-weight="700" fill="white" fill-opacity="0.9">$</text>
+  </g>
+</svg>

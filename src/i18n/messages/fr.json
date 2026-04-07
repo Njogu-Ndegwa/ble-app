@@ -975,6 +975,10 @@
   "role.bleDeviceManagerDesc": "Contrôle appareils",
   "role.customerManagement": "Clients",
   "role.customerManagementDesc": "Gestion des clients",
+  "role.orders": "Commandes",
+  "role.ordersDesc": "Gestion des commandes",
+  "role.products": "Produits",
+  "role.productsDesc": "Catalogue produits",
   "role.comingSoon": "Bientôt",
   "role.switchLanguage": "Changer de langue",
 

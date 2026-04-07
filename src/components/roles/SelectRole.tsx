@@ -61,6 +61,18 @@ const roles: RoleConfig[] = [
     icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
     path: '/assets/ble-devices',
   },
+  {
+    id: 'orders',
+    labelKey: 'role.orders',
+    icon: { type: 'image', src: '/assets/Orders.svg', gradient: 'role-grad-orders' },
+    path: '/orders',
+  },
+  {
+    id: 'products',
+    labelKey: 'role.products',
+    icon: { type: 'image', src: '/assets/Products.svg', gradient: 'role-grad-products' },
+    path: '/products',
+  },
 ];
 
 export default function SelectRole() {

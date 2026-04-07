@@ -889,6 +889,10 @@
   "role.bleDeviceManagerDesc": "设备控制",
   "role.customerManagement": "客户",
   "role.customerManagementDesc": "客户管理",
+  "role.orders": "订单",
+  "role.ordersDesc": "订单管理",
+  "role.products": "产品",
+  "role.productsDesc": "产品目录",
   "role.comingSoon": "即将推出",
   "role.switchLanguage": "切换语言",
 

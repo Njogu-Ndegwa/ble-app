@@ -1145,6 +1145,14 @@ html.theme-transition *::after {
   background: linear-gradient(155deg, #4DD0A1 0%, #2BA87A 100%);
 }
 
+.role-grad-orders {
+  background: linear-gradient(155deg, #60A5FA 0%, #3B82F6 100%);
+}
+
+.role-grad-products {
+  background: linear-gradient(155deg, #F97316 0%, #EA580C 100%);
+}
+
 /* ------- Light theme (slightly brighter stops) ------- */
 [data-theme="light"] .select-role-bg-gradient {
   background:
@@ -1184,6 +1192,14 @@ html.theme-transition *::after {
 
 [data-theme="light"] .role-grad-customer {
   background: linear-gradient(155deg, #5BDCAD 0%, #36B88A 100%);
+}
+
+[data-theme="light"] .role-grad-orders {
+  background: linear-gradient(155deg, #6DB5FF 0%, #4A96F7 100%);
+}
+
+[data-theme="light"] .role-grad-products {
+  background: linear-gradient(155deg, #FB923C 0%, #F97316 100%);
 }
 
 /* ------- Compact screens (small phones / landscape) ------- */
