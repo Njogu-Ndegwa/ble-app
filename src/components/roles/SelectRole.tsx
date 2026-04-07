@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, Bluetooth, Zap } from 'lucide-react';
+import { Globe, Zap } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
@@ -58,11 +58,7 @@ const roles: RoleConfig[] = [
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    icon: {
-      type: 'lucide',
-      el: <Bluetooth strokeWidth={2.4} />,
-      gradient: 'role-grad-ble',
-    },
+    icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
     path: '/assets/ble-devices',
   },
 ];
