@@ -14,6 +14,10 @@ import {
   User,
   Package,
   ArrowLeft,
+  Pencil,
+  X,
+  Download,
+  Mail,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepProgress } from '@/components/ui/Progress';
@@ -26,6 +30,7 @@ import {
   approveOrder as restApproveOrder,
   rejectOrder as restRejectOrder,
   registerPayment as restRegisterPayment,
+  sendProformaPdf as restSendProforma,
   formatCurrency,
 } from '@/lib/portal/order-api';
 import {
@@ -33,7 +38,7 @@ import {
   getOrderStepIndex,
   STEP_ACTIONS,
 } from '@/lib/portal/order-constants';
-import type { OrderEntity, PaymentStatus } from '@/lib/portal/types';
+import type { OrderEntity, OrderLineEntity, PaymentStatus } from '@/lib/portal/types';
 
 const STEP_ICONS = [ClipboardList, RefreshCw, ShieldCheck, CreditCard, FileCheck];
 
@@ -62,10 +67,18 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const [payMemo, setPayMemo] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
 
+  // Editable lines state for the Revise & Confirm step
+  const [editableLines, setEditableLines] = useState<OrderLineEntity[]>([]);
+
+  // PDF download state
+  const [pdfLoading, setPdfLoading] = useState<'proforma' | 'invoice' | null>(null);
+  const [sendingProforma, setSendingProforma] = useState(false);
+
   const fetchOrderData = useCallback(async () => {
     try {
       const data = await getOrder(orderId);
       setOrder(data);
+      setEditableLines(data.lines.map((l) => ({ ...l })));
       const step = getOrderStepIndex(data);
       setBackendStep(step);
       setActiveStep(step);
@@ -87,6 +100,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       try {
         const fresh = await getOrder(orderId);
         setOrder(fresh);
+        setEditableLines(fresh.lines.map((l) => ({ ...l })));
         const computed = getOrderStepIndex(fresh);
         const step = minStep != null ? Math.max(minStep, computed) : computed;
         setBackendStep(step);
@@ -194,6 +208,59 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     }
   }, [backendStep, handleSend, handleConfirm, refreshOrder]);
 
+  // Editable lines handlers
+  const handleLineChange = useCallback(
+    (lineId: string, field: 'quantity' | 'priceUnit', value: number) => {
+      setEditableLines((prev) =>
+        prev.map((l) =>
+          l.id === lineId
+            ? {
+                ...l,
+                [field]: value,
+                priceSubtotal: field === 'quantity' ? l.priceUnit * value : value * l.quantity,
+              }
+            : l,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleRemoveLine = useCallback((lineId: string) => {
+    setEditableLines((prev) => prev.filter((l) => l.id !== lineId));
+  }, []);
+
+  // PDF download handlers
+  const handleDownloadPdf = useCallback(
+    async (type: 'proforma' | 'invoice') => {
+      if (!order) return;
+      setPdfLoading(type);
+      try {
+        const { generateInvoicePdf } = await import('@/lib/portal/generate-invoice-pdf');
+        await generateInvoicePdf(order, type, '/assets/Logo-Oves.png');
+        toast.success(`${type === 'proforma' ? 'Proforma invoice' : 'Invoice'} downloaded.`);
+      } catch (err: any) {
+        toast.error(`Failed to generate PDF: ${err?.message ?? 'Unknown error'}`);
+      } finally {
+        setPdfLoading(null);
+      }
+    },
+    [order],
+  );
+
+  const handleSendProforma = useCallback(async () => {
+    setSendingProforma(true);
+    try {
+      const res = await restSendProforma(orderId);
+      if (!res.success) throw new Error(res.message ?? 'Failed to send proforma');
+      toast.success('Proforma invoice sent to customer.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to send proforma.');
+    } finally {
+      setSendingProforma(false);
+    }
+  }, [orderId]);
+
   if (loading) {
     return <LoadingState message="Loading order..." />;
   }
@@ -216,6 +283,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const sa = STEP_ACTIONS[activeStep];
   const needsFullPayment = activeStep === 3 && order.paymentStatus !== 'paid';
   const nextDisabled = actionLoading || needsFullPayment;
+  const isReviseEditable = activeStep === 1 && !isViewingPastStep;
 
   return (
     <div className="flex flex-col h-full">
@@ -318,10 +386,52 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
           {activeStep === 1 && (
             <div>
-              <div className="px-4 py-3 border-b border-border">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <span className="text-sm font-semibold text-text-primary">Revise & Confirm</span>
+                {isReviseEditable && (
+                  <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.15))', color: 'var(--color-brand)' }}>
+                    <Pencil size={10} /> Editable
+                  </span>
+                )}
+                {isViewingPastStep && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full text-text-muted"
+                    style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                    Read-only
+                  </span>
+                )}
               </div>
-              <OrderLines lines={order.lines} />
+
+              {isReviseEditable && order.approvalStatus === 'rejected' && order.approval && (
+                <div className="mx-4 mt-3 rounded-lg p-3 text-xs"
+                  style={{ background: 'var(--color-error-soft)', color: 'var(--color-error)' }}>
+                  <span className="font-semibold">Rejected</span>
+                  {order.approval.approvedBy && ` by ${order.approval.approvedBy}`}.
+                  {order.approval.notes && ` Reason: "${order.approval.notes}"`}
+                  {' '}Please revise and re-confirm.
+                </div>
+              )}
+
+              {isReviseEditable && order.approvalStatus !== 'rejected' && (
+                <div className="mx-4 mt-3 rounded-lg p-3 text-xs flex items-start gap-2"
+                  style={{ background: 'var(--color-brand-soft, rgba(255,200,0,0.1))', color: 'var(--text-primary)' }}>
+                  <Pencil size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--color-brand)' }} />
+                  <span>
+                    Quotation is <strong>editable</strong>. Update quantities and prices below, then tap <strong>Confirm</strong>.
+                  </span>
+                </div>
+              )}
+
+              {isReviseEditable ? (
+                <EditableOrderLines
+                  lines={editableLines}
+                  onLineChange={handleLineChange}
+                  onRemoveLine={handleRemoveLine}
+                />
+              ) : (
+                <OrderLines lines={order.lines} />
+              )}
+
               <div className="px-4 py-3 border-t border-border">
                 <OrderSummary order={order} />
               </div>
@@ -330,7 +440,24 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
           {activeStep === 2 && (
             <div className="p-4 space-y-3">
-              <p className="text-sm font-semibold text-text-primary">Approval</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-text-primary">Approval</p>
+                {(order.approvalStatus === 'approved' || order.approvalStatus === 'pending') && (
+                  <button
+                    onClick={() => handleDownloadPdf('proforma')}
+                    disabled={!!pdfLoading}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-border text-text-secondary active:scale-[0.97] transition-transform disabled:opacity-50"
+                  >
+                    {pdfLoading === 'proforma' ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Download size={12} />
+                    )}
+                    Proforma PDF
+                  </button>
+                )}
+              </div>
+
               {order.approvalStatus === 'pending' && (
                 <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
                   Awaiting approval from manager.
@@ -346,6 +473,29 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                   Order was rejected. {order.approval?.notes && `Reason: ${order.approval.notes}`}
                 </div>
               )}
+
+              {order.approvalStatus === 'approved' && !isViewingPastStep && (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleSendProforma}
+                    disabled={sendingProforma}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-brand)' }}
+                  >
+                    {sendingProforma ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    Email to Customer
+                  </button>
+                  <button
+                    onClick={() => handleDownloadPdf('proforma')}
+                    disabled={!!pdfLoading}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary disabled:opacity-50"
+                  >
+                    {pdfLoading === 'proforma' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                    PDF
+                  </button>
+                </div>
+              )}
+
               {!isViewingPastStep && order.approvalStatus === 'pending' && (
                 <>
                   <textarea
@@ -424,7 +574,21 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
           {activeStep === 4 && (
             <div className="p-4 space-y-3">
-              <p className="text-sm font-semibold text-text-primary">Final Invoice</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-text-primary">Final Invoice</p>
+                <button
+                  onClick={() => handleDownloadPdf('invoice')}
+                  disabled={!!pdfLoading}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-border text-text-secondary active:scale-[0.97] transition-transform disabled:opacity-50"
+                >
+                  {pdfLoading === 'invoice' ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Download size={12} />
+                  )}
+                  Invoice PDF
+                </button>
+              </div>
               {order.invoices.length > 0 ? (
                 <div className="space-y-2">
                   {order.invoices.map((inv) => (
@@ -447,6 +611,17 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 </div>
               )}
               <OrderSummary order={order} />
+
+              {order.paymentStatus === 'paid' && (
+                <div className="rounded-lg p-3 border border-border text-right space-y-1">
+                  <p className="text-xs font-semibold" style={{ color: 'var(--color-success)' }}>
+                    Paid{order.payments[0]?.paymentMethod ? ` (${order.payments[0].paymentMethod})` : ''}: -{formatCurrency(order.paidAmount)}
+                  </p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>
+                    Amount Due: {formatCurrency(0)}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -539,7 +714,8 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   );
 }
 
-function OrderLines({ lines }: { lines: OrderEntity['lines'] }) {
+/* ── Read-only order lines ── */
+function OrderLines({ lines }: { lines: OrderLineEntity[] }) {
   if (lines.length === 0) {
     return (
       <div className="px-4 py-6 text-center">
@@ -580,6 +756,97 @@ function OrderLines({ lines }: { lines: OrderEntity['lines'] }) {
               <p className="text-[10px] text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
                 {line.quantity} x {formatCurrency(line.priceUnit)}
               </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Editable order lines for the Revise & Confirm step ── */
+function EditableOrderLines({
+  lines,
+  onLineChange,
+  onRemoveLine,
+}: {
+  lines: OrderLineEntity[];
+  onLineChange: (lineId: string, field: 'quantity' | 'priceUnit', value: number) => void;
+  onRemoveLine: (lineId: string) => void;
+}) {
+  if (lines.length === 0) {
+    return (
+      <div className="px-4 py-6 text-center">
+        <Package size={24} className="mx-auto mb-2 text-text-muted" />
+        <p className="text-xs text-text-muted">No product lines.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="px-4 py-2 border-b border-border flex items-center gap-2">
+        <Package size={15} className="text-text-muted" />
+        <span className="text-sm font-semibold text-text-primary">Lines ({lines.length})</span>
+      </div>
+      <div className="divide-y divide-border">
+        {lines.map((line) => (
+          <div key={line.id} className="px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-text-primary truncate">{line.productName}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {line.sku && (
+                    <span className="text-[10px] text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
+                      {line.sku}
+                    </span>
+                  )}
+                  {line.puCategory && (
+                    <span className={`list-card-badge ${line.puCategory === 'physical' ? 'list-card-badge--progress' : 'list-card-badge--default'}`}>
+                      {line.puCategory}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => onRemoveLine(line.id)}
+                className="p-1 rounded text-text-muted hover:text-red-500 transition-colors shrink-0"
+                aria-label="Remove line"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex-1">
+                <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Unit Price</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={line.priceUnit}
+                  onChange={(e) => onLineChange(line.id, 'priceUnit', parseFloat(e.target.value) || 0)}
+                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2.5 py-1.5 text-sm text-text-primary outline-none text-right"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+              </div>
+              <div style={{ width: '72px' }}>
+                <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Qty</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={line.quantity}
+                  onChange={(e) => onLineChange(line.id, 'quantity', parseInt(e.target.value) || 1)}
+                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2.5 py-1.5 text-sm text-text-primary outline-none text-right"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+              </div>
+              <div className="text-right" style={{ minWidth: '72px' }}>
+                <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Subtotal</label>
+                <p className="text-sm font-semibold text-text-primary py-1.5" style={{ fontFamily: 'var(--font-mono)' }}>
+                  {formatCurrency(line.priceUnit * line.quantity)}
+                </p>
+              </div>
             </div>
           </div>
         ))}
