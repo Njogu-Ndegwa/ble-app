@@ -14,6 +14,8 @@ export interface DetailField {
   onTap?: () => void;
   /** Render value in monospace (e.g. IDs, codes) */
   mono?: boolean;
+  /** Override the default value rendering (e.g. for password toggle) */
+  renderValue?: React.ReactNode;
 }
 
 // ============================================
@@ -151,9 +153,11 @@ export default function DetailScreen({
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-text-muted">{field.label}</p>
-                      <p className={`text-sm text-text-primary truncate ${field.mono ? 'font-mono' : ''}`}>
-                        {field.value || '--'}
-                      </p>
+                      {field.renderValue ?? (
+                        <p className={`text-sm text-text-primary truncate ${field.mono ? 'font-mono' : ''}`}>
+                          {field.value || '--'}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

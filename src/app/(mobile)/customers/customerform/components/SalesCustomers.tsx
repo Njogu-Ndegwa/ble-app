@@ -11,6 +11,9 @@ import {
   MapPin,
   Calendar,
   Edit3,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import {
@@ -69,6 +72,7 @@ export default function SalesCustomers() {
   const [formData, setFormData] = useState<CustomerFormState>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormState, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // ------------------------------------------------------------------
   // Date filter helper
@@ -130,6 +134,7 @@ export default function SalesCustomers() {
   // ------------------------------------------------------------------
   const openDetail = useCallback((customer: ExistingCustomer) => {
     setSelectedCustomer(customer);
+    setShowPassword(false);
     setSubView('detail');
   }, []);
 
@@ -370,6 +375,30 @@ export default function SalesCustomers() {
           { icon: <MapPin size={15} />, label: t('sales.street') || 'Street', value: selectedCustomer.street || '--' },
           { icon: <MapPin size={15} />, label: t('sales.city') || 'City', value: selectedCustomer.city || '--' },
           { icon: <MapPin size={15} />, label: t('sales.zip') || 'ZIP', value: selectedCustomer.zip || '--' },
+        ],
+      },
+      {
+        title: t('sales.accountInfo') || 'Account',
+        fields: [
+          {
+            icon: <Lock size={15} />,
+            label: t('sales.password') || 'Password',
+            value: selectedCustomer.password || '--',
+            renderValue: selectedCustomer.password ? (
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-text-primary font-mono truncate flex-1">
+                  {showPassword ? selectedCustomer.password : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
+                </p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowPassword((v) => !v); }}
+                  className="p-1 rounded-md hover:bg-bg-elevated transition-colors flex-shrink-0"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={14} className="text-text-muted" /> : <Eye size={14} className="text-text-muted" />}
+                </button>
+              </div>
+            ) : undefined,
+          },
         ],
       },
       {

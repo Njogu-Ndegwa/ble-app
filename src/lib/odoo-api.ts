@@ -2401,6 +2401,7 @@ export interface OdooContact {
   user_name: string | null;
   assigned_employee_id: number | null;
   assigned_employee_name: string | null;
+  plain_password?: string | null;
 }
 
 export interface ContactsListApiResponse {

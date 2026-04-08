@@ -33,6 +33,7 @@ export interface ExistingCustomer {
   isCompany: boolean;
   companyName: string;
   companyId: number | null;
+  password: string;
 }
 
 export interface CustomerListResponse {
@@ -73,6 +74,7 @@ function mapContact(c: OdooContact): ExistingCustomer {
     isCompany: c.is_company ?? false,
     companyName: c.company_name || '',
     companyId: c.company_id ?? null,
+    password: c.plain_password || '',
   };
 }
 
