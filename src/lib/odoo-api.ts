@@ -2514,7 +2514,10 @@ export async function getContactById(
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
-    return await parseOdooResponse<ContactDetailApiResponse>(response, endpoint);
+    const data = await parseOdooResponse<ContactDetailApiResponse>(response, endpoint);
+    console.info('[Odoo API] getContactById raw response keys:', Object.keys(data.contact || {}));
+    console.info('[Odoo API] getContactById plain_password:', (data.contact as any)?.plain_password);
+    return data;
   } catch (error) {
     console.error('[Odoo API] getContactById failed:', error);
     throw error;
