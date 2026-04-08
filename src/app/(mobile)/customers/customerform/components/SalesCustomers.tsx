@@ -27,6 +27,7 @@ import { getSalesRoleToken } from '@/lib/attendant-auth';
 import {
   searchCustomers,
   getAllCustomers,
+  getCustomerById,
   updateCustomer,
   createCustomer,
   type ExistingCustomer,
@@ -73,6 +74,7 @@ export default function SalesCustomers() {
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormState, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // ------------------------------------------------------------------
   // Date filter helper
@@ -132,11 +134,22 @@ export default function SalesCustomers() {
   // ------------------------------------------------------------------
   // Navigation helpers
   // ------------------------------------------------------------------
-  const openDetail = useCallback((customer: ExistingCustomer) => {
-    setSelectedCustomer(customer);
+  const openDetail = useCallback(async (customer: ExistingCustomer) => {
+    setSelectedCustomer(null);
     setShowPassword(false);
+    setIsLoadingDetail(true);
     setSubView('detail');
-  }, []);
+    try {
+      const token = getSalesRoleToken() || '';
+      const result = await getCustomerById(customer.id, token);
+      setSelectedCustomer(result.customer);
+    } catch {
+      toast.error(t('sales.fetchCustomerError') || 'Failed to load customer details');
+      setSubView('list');
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  }, [t]);
 
   const openEdit = useCallback((customer: ExistingCustomer) => {
     const nameParts = customer.name.split(' ');
@@ -349,6 +362,45 @@ export default function SalesCustomers() {
   // ------------------------------------------------------------------
   // DETAIL VIEW (uses shared DetailScreen)
   // ------------------------------------------------------------------
+  if (subView === 'detail' && isLoadingDetail) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+          <button onClick={goBackToList} className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Back">
+            <ArrowLeft size={20} className="text-text-primary" />
+          </button>
+        </div>
+        <div className="flex-1 px-4 pb-6 animate-pulse">
+          <div className="flex items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-bg-elevated flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-36 rounded bg-bg-elevated" />
+              <div className="h-3 w-20 rounded bg-bg-elevated" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 mt-1">
+            {[2, 3, 1, 1].map((rows, i) => (
+              <div key={i}>
+                <div className="h-3 w-16 rounded bg-bg-elevated mb-2 ml-1" />
+                <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden divide-y divide-border">
+                  {Array.from({ length: rows }).map((_, j) => (
+                    <div key={j} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-5 h-5 rounded bg-bg-elevated flex-shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-2.5 w-12 rounded bg-bg-elevated" />
+                        <div className="h-3.5 w-32 rounded bg-bg-elevated" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (subView === 'detail' && selectedCustomer) {
     const initials = selectedCustomer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
     const detailSections: DetailSectionType[] = [
@@ -400,16 +452,19 @@ export default function SalesCustomers() {
     ];
 
     return (
-      <DetailScreen
-        onBack={goBackToList}
-        avatar={initials}
-        title={selectedCustomer.name}
-        subtitle={`ID: ${selectedCustomer.id}`}
-        sections={detailSections}
-        fabAction={() => openEdit(selectedCustomer)}
-        fabIcon={<Edit3 size={20} strokeWidth={2.5} />}
-        fabLabel={t('sales.editCustomer') || 'Edit Customer'}
-      />
+      <div className="h-full" style={{ animation: 'fadeIn 150ms ease-out' }}>
+        <DetailScreen
+          onBack={goBackToList}
+          avatar={initials}
+          title={selectedCustomer.name}
+          subtitle={`ID: ${selectedCustomer.id}`}
+          sections={detailSections}
+          fabAction={() => openEdit(selectedCustomer)}
+          fabIcon={<Edit3 size={20} strokeWidth={2.5} />}
+          fabLabel={t('sales.editCustomer') || 'Edit Customer'}
+        />
+        <style jsx>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
+      </div>
     );
   }
 
