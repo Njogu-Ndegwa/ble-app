@@ -511,7 +511,7 @@ export default function SalesCustomers() {
           {isSaving ? (
             <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t('common.saving') || 'Saving...'}</>
           ) : (
-            subView === 'edit' ? (t('sales.saveChanges') || 'Save Changes') : (t('sales.createCustomer') || 'Create Customer')
+            subView === 'edit' ? (t('sales.saveChanges') || 'Save Changes') : (t('common.save') || 'Save')
           )}
         </button>
       </div>
