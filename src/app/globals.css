@@ -1115,14 +1115,18 @@ html.theme-transition *::after {
  *   - Lightness range: 48-65% (visible on both dark & light backgrounds)
  *   - Saturation: 80%+ (iOS icons are always punchy)
  *   - Gradient shift: ~12% lightness difference (subtle, not dramatic)
- *   - White symbol contrast: >4.5:1 on darkest stop
+ *   - 9 hues spaced ~40° apart for maximum perceptual distance
  *
- * Color mapping:
- *   Attendant → teal   (OVES brand energy)
- *   Sales     → coral  (warm, approachable)
- *   Rider     → blue   (trust, motion)
- *   Keypad    → amber  (utility, like iOS Calculator)
- *   BLE       → violet (tech, wireless)
+ * Color mapping (hue°):
+ *   Attendant → teal     ~170° (OVES brand energy)
+ *   Sales     → rose     ~350° (warm, approachable)
+ *   Rider     → blue     ~215° (trust, motion)
+ *   Keypad    → amber    ~43°  (utility, like iOS Calculator)
+ *   Activator → lime     ~85°  (fresh, action-oriented)
+ *   BLE       → violet   ~270° (tech, wireless)
+ *   Customer  → emerald  ~155° (growth, relationships)
+ *   Orders    → indigo   ~235° (structured, organized)
+ *   Products  → orange   ~25°  (tangible, inventory)
  */
 
 .role-grad-attendant {
@@ -1130,7 +1134,7 @@ html.theme-transition *::after {
 }
 
 .role-grad-sales {
-  background: linear-gradient(155deg, #FF7B6F 0%, #F05545 100%);
+  background: linear-gradient(155deg, #FB7185 0%, #F43F5E 100%);
 }
 
 .role-grad-rider {
@@ -1142,7 +1146,7 @@ html.theme-transition *::after {
 }
 
 .role-grad-activator {
-  background: linear-gradient(155deg, #FF8F5E 0%, #E86835 100%);
+  background: linear-gradient(155deg, #84CC16 0%, #65A30D 100%);
 }
 
 .role-grad-ble {
@@ -1150,11 +1154,11 @@ html.theme-transition *::after {
 }
 
 .role-grad-customer {
-  background: linear-gradient(155deg, #4DD0A1 0%, #2BA87A 100%);
+  background: linear-gradient(155deg, #34D399 0%, #10B981 100%);
 }
 
 .role-grad-orders {
-  background: linear-gradient(155deg, #60A5FA 0%, #3B82F6 100%);
+  background: linear-gradient(155deg, #818CF8 0%, #6366F1 100%);
 }
 
 .role-grad-products {
@@ -1179,7 +1183,7 @@ html.theme-transition *::after {
 }
 
 [data-theme="light"] .role-grad-sales {
-  background: linear-gradient(155deg, #FF8A7F 0%, #F26256 100%);
+  background: linear-gradient(155deg, #FDA4AF 0%, #FB7185 100%);
 }
 
 [data-theme="light"] .role-grad-rider {
@@ -1191,7 +1195,7 @@ html.theme-transition *::after {
 }
 
 [data-theme="light"] .role-grad-activator {
-  background: linear-gradient(155deg, #FF9E72 0%, #EC7845 100%);
+  background: linear-gradient(155deg, #A3E635 0%, #84CC16 100%);
 }
 
 [data-theme="light"] .role-grad-ble {
@@ -1199,11 +1203,11 @@ html.theme-transition *::after {
 }
 
 [data-theme="light"] .role-grad-customer {
-  background: linear-gradient(155deg, #5BDCAD 0%, #36B88A 100%);
+  background: linear-gradient(155deg, #6EE7B7 0%, #34D399 100%);
 }
 
 [data-theme="light"] .role-grad-orders {
-  background: linear-gradient(155deg, #6DB5FF 0%, #4A96F7 100%);
+  background: linear-gradient(155deg, #A5B4FC 0%, #818CF8 100%);
 }
 
 [data-theme="light"] .role-grad-products {
