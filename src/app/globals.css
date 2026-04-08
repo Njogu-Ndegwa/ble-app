@@ -1073,9 +1073,8 @@ html.theme-transition *::after {
   max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
+  display: block;
   letter-spacing: -0.01em;
 }
 

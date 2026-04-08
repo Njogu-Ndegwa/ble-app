@@ -40,7 +40,7 @@ export async function generateInvoicePdf(
   logoSrc?: string,
 ) {
   const { jsPDF } = await import('jspdf');
-  await import('jspdf-autotable');
+  const { autoTable } = await import('jspdf-autotable');
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = 210;
@@ -192,7 +192,7 @@ export async function generateInvoicePdf(
     fmt(line.priceSubtotal),
   ]);
 
-  (pdf as any).autoTable({
+  autoTable(pdf as any, {
     startY: y,
     head: tableHead,
     body: tableBody,
