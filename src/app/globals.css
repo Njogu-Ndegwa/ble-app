@@ -1029,6 +1029,15 @@ html.theme-transition *::after {
   height: 85%;
 }
 
+.role-grad-orders .role-app-icon-img {
+  width: 85%;
+  height: 85%;
+}
+
+.role-grad-products .role-app-icon-img {
+  width: 85%;
+  height: 85%;
+}
 
 /* Lucide fallback (BLE icon) */
 .role-app-icon svg {
