@@ -179,7 +179,7 @@ export async function updateCustomer(
  * Uses POST /api/contacts
  */
 export async function createCustomer(
-  data: Omit<ExistingCustomer, 'id' | 'partnerId' | 'createdAt' | 'isCompany' | 'companyName' | 'companyId' | 'mobile'>,
+  data: Omit<ExistingCustomer, 'id' | 'partnerId' | 'createdAt' | 'isCompany' | 'companyName' | 'companyId' | 'mobile' | 'password'>,
   authToken: string
 ): Promise<CustomerDetailResponse> {
   const payload: ContactWritePayload = {

@@ -404,25 +404,15 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
               </div>
               <div className="list-card-content">
                 <div className="list-card-primary">{customer.name}</div>
-                {customer.phone && (
-                  <div className="list-card-secondary">
-                    <Phone size={10} /> {formatPhone(customer.phone)}
-                  </div>
-                )}
+                <div className="list-card-secondary">
+                  <Phone size={10} /> {customer.phone ? formatPhone(customer.phone) : 'N/A'}
+                </div>
                 <div className="list-card-meta">
-                  {customer.email && (
-                    <>
-                      <Mail size={10} />
-                      <span>{customer.email}</span>
-                    </>
-                  )}
-                  {customer.email && customer.city && <span className="list-card-dot">&middot;</span>}
-                  {customer.city && (
-                    <>
-                      <MapPin size={10} />
-                      <span>{customer.city}</span>
-                    </>
-                  )}
+                  <Mail size={10} />
+                  <span>{customer.email || 'N/A'}</span>
+                  <span className="list-card-dot">&middot;</span>
+                  <MapPin size={10} />
+                  <span>{customer.city || 'N/A'}</span>
                 </div>
               </div>
             </div>
