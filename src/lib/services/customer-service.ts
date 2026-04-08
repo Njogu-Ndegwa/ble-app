@@ -141,13 +141,9 @@ export async function getCustomerById(
   authToken: string
 ): Promise<CustomerDetailResponse> {
   const result = await apiGetContactById(id, authToken);
-  console.info('[CustomerService] getCustomerById raw contact:', JSON.stringify(result.contact, null, 2));
-  const customer = mapContact(result.contact);
-  console.info('[CustomerService] getCustomerById mapped password:', customer.password);
-
   return {
     success: true,
-    customer,
+    customer: mapContact(result.contact),
   };
 }
 
