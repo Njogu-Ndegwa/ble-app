@@ -1,10 +1,8 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Toaster } from "react-hot-toast";
-import AttendantApp from "./AttendantApp";
-import Login from "./login";
-import SelectServiceAccount from "@/components/ui/SelectServiceAccount";
 import {
   isAttendantRoleLoggedIn,
   getAttendantRoleUser,
@@ -20,6 +18,27 @@ import {
   clearSelectedSA,
 } from "@/lib/sa-auth";
 import type { ServiceAccount } from "@/lib/sa-types";
+
+const AppLoadingFallback = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', flexDirection: 'column', gap: 16, background: 'var(--bg-primary, #0a0a0a)' }}>
+    <div className="loading-spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+  </div>
+);
+
+const AttendantApp = dynamic(() => import("./AttendantApp"), {
+  loading: AppLoadingFallback,
+  ssr: false,
+});
+
+const Login = dynamic(() => import("./login"), {
+  loading: AppLoadingFallback,
+  ssr: false,
+});
+
+const SelectServiceAccount = dynamic(() => import("@/components/ui/SelectServiceAccount"), {
+  loading: AppLoadingFallback,
+  ssr: false,
+});
 
 type Screen = "login" | "selectSA" | "app";
 

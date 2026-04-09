@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Globe, LogOut, Eye, X } from 'lucide-react';
@@ -8,15 +9,6 @@ import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-
-import {
-  Step1CustomerForm,
-  Step2SelectPackage,
-  Step3SelectSubscription,
-  Step6ScanVehicle,
-  Step7AssignBattery,
-  Step8Success,
-} from '../customers/customerform/components';
 
 import type { CustomerFormData, BatteryData, PlanData } from './components/types';
 import type { ActivatorStep } from './components/types';
@@ -30,8 +22,17 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { BleProgressModal, MqttReconnectBanner, SessionsHistory } from '@/components/shared';
+import { MqttReconnectBanner } from '@/components/shared';
 import type { OrderListItem } from '@/lib/odoo-api';
+
+const Step1CustomerForm = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step1CustomerForm })), { ssr: false });
+const Step2SelectPackage = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step2SelectPackage })), { ssr: false });
+const Step3SelectSubscription = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step3SelectSubscription })), { ssr: false });
+const Step6ScanVehicle = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step6ScanVehicle })), { ssr: false });
+const Step7AssignBattery = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step7AssignBattery })), { ssr: false });
+const Step8Success = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step8Success })), { ssr: false });
+const BleProgressModal = dynamic(() => import('@/components/shared').then(m => ({ default: m.BleProgressModal })), { ssr: false });
+const SessionsHistory = dynamic(() => import('@/components/shared').then(m => ({ default: m.SessionsHistory })), { ssr: false });
 import { calculateSwapPayment } from '@/lib/swap-payment';
 
 import {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { Globe, ArrowLeftRight } from 'lucide-react';
 import Image from 'next/image';
@@ -12,13 +13,14 @@ import {
   type EmployeeUser
 } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
-import ActivatorFlow from './ActivatorFlow';
 import ActivatorNav, { type ActivatorScreen } from './components/ActivatorNav';
-import ActivatorSessions from './components/ActivatorSessions';
-import { WorkflowProfile } from '@/components/shared';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 import type { OrderListItem } from '@/lib/odoo-api';
+
+const ActivatorFlow = dynamic(() => import('./ActivatorFlow'), { ssr: false });
+const ActivatorSessions = dynamic(() => import('./components/ActivatorSessions'), { ssr: false });
+const WorkflowProfile = dynamic(() => import('@/components/shared').then(m => ({ default: m.WorkflowProfile })), { ssr: false });
 
 interface ActivatorAppProps {
   onLogout?: () => void;
