@@ -1818,9 +1818,11 @@ export default function SalesFlow({
 
   // Handle vehicle scan (QR mode)
   const handleScanVehicle = useCallback(() => {
+    setIsScannerOpening(false);
+    clearScannerTimeout();
     scanTypeRef.current = 'vehicle';
     startQrCodeScan();
-  }, [startQrCodeScan]);
+  }, [startQrCodeScan, clearScannerTimeout]);
 
   // Handle battery scan (QR mode)
   const handleScanBattery = useCallback(() => {
@@ -2514,7 +2516,6 @@ export default function SalesFlow({
           <Step6ScanVehicle
             formData={formData}
             onScanVehicle={handleScanVehicle}
-            isScannerOpening={isScannerOpening}
             scannedVehicleId={scannedVehicleId}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}
             onRescanVehicle={handleRescanVehicle}

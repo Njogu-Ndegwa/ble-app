@@ -11,8 +11,6 @@ interface Step6ScanVehicleProps {
   formData: CustomerFormData;
   /** Callback when QR scan is triggered */
   onScanVehicle: () => void;
-  /** Whether scanner is currently opening (prevents multiple opens) */
-  isScannerOpening?: boolean;
   /** Scanned vehicle ID (null if not scanned yet) */
   scannedVehicleId?: string | null;
   /** Subscription code for context */
@@ -31,7 +29,6 @@ interface Step6ScanVehicleProps {
 export default function Step6ScanVehicle({
   formData,
   onScanVehicle,
-  isScannerOpening = false,
   scannedVehicleId = null,
   subscriptionCode = '',
   onRescanVehicle,
@@ -111,7 +108,6 @@ export default function Step6ScanVehicle({
           <ScannerArea
             onClick={handleRescanTap}
             type="qr"
-            disabled={isScannerOpening}
             label={t('common.tapToScan') || 'Tap to scan'}
           />
         </div>
@@ -128,7 +124,6 @@ export default function Step6ScanVehicle({
         <ScannerArea 
           onClick={onScanVehicle} 
           type="qr" 
-          disabled={isScannerOpening}
           label={t('common.tapToScan') || 'Tap to scan'}
         />
         

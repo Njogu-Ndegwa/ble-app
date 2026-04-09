@@ -551,9 +551,11 @@ export default function ActivatorFlow({
 
   // Action handlers
   const handleScanVehicle = useCallback(() => {
+    setIsScannerOpening(false);
+    clearScannerTimeout();
     scanTypeRef.current = 'vehicle';
     startQrCodeScan();
-  }, [startQrCodeScan]);
+  }, [startQrCodeScan, clearScannerTimeout]);
 
   const handleScanBattery = useCallback(() => {
     scanTypeRef.current = 'battery';
@@ -986,7 +988,6 @@ export default function ActivatorFlow({
           <Step6ScanVehicle
             formData={formData}
             onScanVehicle={handleScanVehicle}
-            isScannerOpening={isScannerOpening}
             scannedVehicleId={scannedVehicleId}
             subscriptionCode={confirmedSubscriptionCode || ''}
             onRescanVehicle={handleRescanVehicle}
