@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { CheckCircle, Truck, RefreshCw } from 'lucide-react';
+import React, { useCallback } from 'react';
+import { CheckCircle, Truck } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { ScannerArea } from '@/components/shared';
 import { CustomerFormData } from '../types';
@@ -24,13 +24,9 @@ interface Step6ScanVehicleProps {
 /**
  * Step6ScanVehicle - Scan vehicle QR code before battery assignment
  * 
- * This step captures the vehicle ID that the customer is purchasing.
- * It's a simple QR scan step - no BLE connection needed.
- * 
- * Flow:
- * 1. User scans vehicle QR code
- * 2. Vehicle ID is captured and stored
- * 3. User proceeds to battery assignment
+ * When no vehicle is scanned: full scan prompt with customer context.
+ * When a vehicle is already scanned: compact current-assignment card
+ * plus the scanner area so the user can rescan in a single tap.
  */
 export default function Step6ScanVehicle({
   formData,
@@ -44,11 +40,15 @@ export default function Step6ScanVehicle({
   
   const customerName = `${formData.firstName} ${formData.lastName}`;
 
-  // If vehicle has been scanned, show success state
+  const handleRescanTap = useCallback(() => {
+    onRescanVehicle?.();
+    onScanVehicle();
+  }, [onRescanVehicle, onScanVehicle]);
+
   if (scannedVehicleId) {
     return (
       <div className="screen active">
-        {/* Vehicle Scanned Success Card */}
+        {/* Current Assignment Card */}
         <div className="preview-card" style={{ 
           marginBottom: '16px',
           borderColor: 'var(--color-success)',
@@ -61,35 +61,35 @@ export default function Step6ScanVehicle({
             padding: '4px 0',
           }}>
             <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
               background: 'rgba(0, 200, 83, 0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}>
-              <Truck size={24} style={{ color: 'var(--color-success)' }} />
+              <Truck size={20} style={{ color: 'var(--color-success)' }} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '6px',
-                marginBottom: '4px',
+                marginBottom: '2px',
               }}>
-                <CheckCircle size={16} style={{ color: 'var(--color-success)' }} />
+                <CheckCircle size={14} style={{ color: 'var(--color-success)' }} />
                 <span style={{ 
                   fontWeight: 600, 
-                  fontSize: '14px',
+                  fontSize: '12px',
                   color: 'var(--color-success)',
                 }}>
-                  {t('sales.vehicleScanned') || 'Vehicle Scanned'}
+                  {t('sales.currentVehicle') || 'Current Vehicle'}
                 </span>
               </div>
               <div className="font-mono-oves" style={{ 
-                fontSize: '16px', 
+                fontSize: '15px', 
                 fontWeight: 600,
                 color: 'var(--color-text-primary)',
               }}>
@@ -99,66 +99,26 @@ export default function Step6ScanVehicle({
           </div>
         </div>
 
-        {/* Customer Context - Compact */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px',
-          padding: '8px 10px',
-          background: 'var(--color-bg-secondary)',
-          borderRadius: '6px',
-          marginBottom: '12px'
-        }}>
-          <div className="preview-avatar" style={{ width: '32px', height: '32px', fontSize: '12px' }}>
-            {formData.firstName.charAt(0)}{formData.lastName.charAt(0)}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 500, fontSize: '13px' }}>{customerName}</div>
-            {subscriptionCode && (
-              <div className="font-mono-oves" style={{ 
-                fontSize: '11px', 
-                color: 'var(--color-text-secondary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {subscriptionCode}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Scanner — single tap to replace */}
+        <div className="scan-prompt">
+          <h1 className="scan-title" style={{ fontSize: '18px', marginBottom: '4px' }}>
+            {t('sales.scanDifferentVehicle') || 'Scan Different Vehicle'}
+          </h1>
+          <p className="scan-subtitle" style={{ fontSize: '13px' }}>
+            {t('sales.scanToReplace') || 'Scan a new QR code to replace the current vehicle'}
+          </p>
 
-        {/* Rescan Vehicle Button */}
-        {onRescanVehicle && (
-          <button
-            onClick={onRescanVehicle}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              width: '100%',
-              padding: '10px 12px',
-              marginTop: '12px',
-              background: 'transparent',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
-              color: 'var(--color-text-secondary)',
-              fontSize: '13px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <RefreshCw size={14} />
-            <span>{t('sales.scanDifferentVehicle') || 'Scan Different Vehicle'}</span>
-          </button>
-        )}
+          <ScannerArea
+            onClick={handleRescanTap}
+            type="qr"
+            disabled={isScannerOpening}
+            label={t('common.tapToScan') || 'Tap to scan'}
+          />
+        </div>
       </div>
     );
   }
 
-  // Initial state - prompt to scan vehicle
   return (
     <div className="screen active">
       <div className="scan-prompt">

@@ -1138,6 +1138,8 @@
   "sales.firstBatteryPromo": "La première batterie est fournie à titre promotionnel",
   "sales.scanDifferentBattery": "Scanner une autre batterie",
   "sales.scanDifferentVehicle": "Scanner un autre véhicule",
+  "sales.scanToReplace": "Scannez un nouveau QR code pour remplacer le véhicule actuel",
+  "sales.currentVehicle": "Véhicule actuel",
   "sales.purchasedItems": "Articles achetés",
   "sales.package": "Véhicule",
   "sales.subscription": "Energy Bundle",

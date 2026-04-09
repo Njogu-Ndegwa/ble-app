@@ -1050,6 +1050,8 @@
   "sales.firstBatteryPromo": "首块电池作为促销优惠提供",
   "sales.scanDifferentBattery": "扫描其他电池",
   "sales.scanDifferentVehicle": "扫描其他车辆",
+  "sales.scanToReplace": "扫描新的二维码以替换当前车辆",
+  "sales.currentVehicle": "当前车辆",
   "sales.purchasedItems": "已购商品",
   "sales.package": "套餐",
   "sales.subscription": "计划",

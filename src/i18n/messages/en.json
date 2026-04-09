@@ -1147,6 +1147,8 @@
   "sales.firstBatteryPromo": "First battery is provided as a promotional offer",
   "sales.scanDifferentBattery": "Scan Different Battery",
   "sales.scanDifferentVehicle": "Scan Different Vehicle",
+  "sales.scanToReplace": "Scan a new QR code to replace the current vehicle",
+  "sales.currentVehicle": "Current Vehicle",
   "sales.purchasedItems": "Purchased Items",
   "sales.package": "Package",
   "sales.subscription": "Plan",
