@@ -106,7 +106,6 @@ const AppContainer = () => {
     const handlePopState = () => {
       if (selectedDevice) {
         handleBackToList();
-        window.history.pushState(null, '', window.location.pathname);
       }
     };
 

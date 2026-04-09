@@ -117,19 +117,22 @@ const RiderApp: React.FC = () => {
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
 
   // Handle browser back button
+  const currentScreenRef = useRef(currentScreen);
   useEffect(() => {
-    if (!isLoggedIn) return; // Only handle when logged in
+    currentScreenRef.current = currentScreen;
+  }, [currentScreen]);
 
-    const handlePopState = (event: PopStateEvent) => {
-      // If we're not on home, go to home
-      if (currentScreen !== 'home') {
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const handlePopState = () => {
+      if (currentScreenRef.current !== 'home') {
         setCurrentScreen('home');
-        // Prevent default back navigation by pushing state again
-        window.history.pushState(null, '', window.location.href);
+      } else {
+        router.push('/');
       }
     };
 
-    // Push initial state to history when screen changes
     if (currentScreen !== 'home') {
       window.history.pushState(null, '', window.location.href);
     }
@@ -138,7 +141,7 @@ const RiderApp: React.FC = () => {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [currentScreen, isLoggedIn]);
+  }, [currentScreen, isLoggedIn, router]);
 
   // Track if we've started prefetching
   const prefetchStartedRef = useRef(false);
@@ -1156,22 +1159,8 @@ const RiderApp: React.FC = () => {
               <div className="flow-header-left">
                 <button 
                   className="flow-header-back" 
-                  onClick={() => {
-                    if (isLoggedIn) {
-                      // If logged in and not on home, go to home
-                      if (currentScreen !== 'home') {
-                        setCurrentScreen('home');
-                      }
-                      // If already on home, do nothing (stay on home)
-                    } else if (showFoundCustomer) {
-                      // If on welcome back screen, go back to role selection
-                      window.location.href = '/';
-                    } else {
-                      // Otherwise, go back to role selection
-                      window.location.href = '/';
-                    }
-                  }} 
-                  aria-label={t('common.back') || 'Back'}
+                  onClick={handleBackToRoles}
+                  aria-label={t('attendant.changeRole') || 'Change Role'}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
                     <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -1409,15 +1398,8 @@ const RiderApp: React.FC = () => {
             <div className="flow-header-left">
               <button 
                 className="flow-header-back" 
-                onClick={() => {
-                  // If not on home, go to home. If on home, go back to role selection
-                  if (currentScreen !== 'home') {
-                    setCurrentScreen('home');
-                  } else {
-                    handleBackToRoles();
-                  }
-                }} 
-                aria-label={currentScreen !== 'home' ? (t('common.back') || 'Back') : (t('attendant.changeRole') || 'Change Role')}
+                onClick={handleBackToRoles}
+                aria-label={t('attendant.changeRole') || 'Change Role'}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
                   <path d="M19 12H5M12 19l-7-7 7-7"/>

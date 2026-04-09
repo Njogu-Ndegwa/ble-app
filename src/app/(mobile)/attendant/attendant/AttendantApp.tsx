@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Globe, LogOut, ArrowLeftRight } from 'lucide-react';
@@ -65,17 +65,20 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
   }, []);
 
   // Handle browser back button
+  const currentScreenRef = useRef(currentScreen);
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      // If we're not on swap, go to swap
-      if (currentScreen !== 'swap') {
+    currentScreenRef.current = currentScreen;
+  }, [currentScreen]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (currentScreenRef.current !== 'swap') {
         setCurrentScreen('swap');
-        // Prevent default back navigation by pushing state again
-        window.history.pushState(null, '', window.location.href);
+      } else {
+        router.push('/');
       }
     };
 
-    // Push initial state to history when screen changes
     if (currentScreen !== 'swap') {
       window.history.pushState(null, '', window.location.href);
     }
@@ -84,7 +87,7 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [currentScreen]);
+  }, [currentScreen, router]);
 
   // Toggle locale function
   const toggleLocale = useCallback(() => {
@@ -158,8 +161,8 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
           <div className="flow-header-left">
             <button 
               className="flow-header-back" 
-              onClick={() => setCurrentScreen('swap')}
-              aria-label={t('common.back') || 'Back'}
+              onClick={handleBackToRoles}
+              aria-label={t('attendant.changeRole') || 'Change Role'}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>

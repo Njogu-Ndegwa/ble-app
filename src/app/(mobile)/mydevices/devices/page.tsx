@@ -127,9 +127,7 @@ const AppContainer = () => {
     const handlePopState = () => {
       if (selectedDevice) {
         // Prevent the browser’s default back navigation
-        handleBackToList(); // go back to MobileListView
-        // Optionally: stop browser from popping again
-        window.history.pushState(null, "", window.location.pathname);
+        handleBackToList();
       }
     };
 
