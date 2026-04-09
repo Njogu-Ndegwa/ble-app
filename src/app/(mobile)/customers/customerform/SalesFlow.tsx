@@ -864,6 +864,13 @@ export default function SalesFlow({
     );
   }, [isScannerOpening, clearScannerTimeout]);
 
+  // Reset scanner state when navigating between steps so a pending
+  // scanner open from a previous visit doesn't block interaction.
+  useEffect(() => {
+    setIsScannerOpening(false);
+    clearScannerTimeout();
+  }, [currentStep, clearScannerTimeout]);
+
   // ============================================
   // BLE WRAPPER FUNCTIONS (delegate to hook)
   // ============================================

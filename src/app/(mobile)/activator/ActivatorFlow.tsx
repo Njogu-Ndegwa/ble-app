@@ -464,6 +464,13 @@ export default function ActivatorFlow({
     window.WebViewJavascriptBridge.callHandler('startQrCodeScan', 999, () => {});
   }, [isScannerOpening, clearScannerTimeout]);
 
+  // Reset scanner state when navigating between steps so a pending
+  // scanner open from a previous visit doesn't block interaction.
+  useEffect(() => {
+    setIsScannerOpening(false);
+    clearScannerTimeout();
+  }, [currentStep, clearScannerTimeout]);
+
   // BLE wrapper functions
   const startBleScan = useCallback(() => { hookStartScanning(); }, [hookStartScanning]);
   const stopBleScan = useCallback(() => { hookStopScanning(); }, [hookStopScanning]);
