@@ -19,36 +19,7 @@ interface RoleConfig {
 }
 
 const roles: RoleConfig[] = [
-  {
-    id: 'attendant',
-    labelKey: 'role.attendant',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
-    path: '/attendant/attendant',
-  },
-  {
-    id: 'sales',
-    labelKey: 'role.salesRep',
-    icon: { type: 'image', src: '/assets/Salesperson.svg', gradient: 'role-grad-sales' },
-    path: '/customers/customerform',
-  },
-  {
-    id: 'rider',
-    labelKey: 'role.rider',
-    icon: { type: 'image', src: '/assets/Rider.svg', gradient: 'role-grad-rider' },
-    path: '/rider/app',
-  },
-  {
-    id: 'keypad',
-    labelKey: 'role.keypad',
-    icon: { type: 'image', src: '/assets/Keypad2.svg', gradient: 'role-grad-keypad' },
-    path: '/keypad/keypad',
-  },
-  {
-    id: 'activator',
-    labelKey: 'role.activator',
-    icon: { type: 'image', src: '/assets/Activator.svg', gradient: 'role-grad-activator' },
-    path: '/activator',
-  },
+  // Row 1: Data & logistics
   {
     id: 'customerManagement',
     labelKey: 'role.customerManagement',
@@ -56,10 +27,10 @@ const roles: RoleConfig[] = [
     path: '/customer-management',
   },
   {
-    id: 'bleDeviceManager',
-    labelKey: 'role.bleDeviceManager',
-    icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
-    path: '/assets/ble-devices',
+    id: 'products',
+    labelKey: 'role.products',
+    icon: { type: 'image', src: '/assets/Products.svg', gradient: 'role-grad-products' },
+    path: '/products',
   },
   {
     id: 'orders',
@@ -68,10 +39,42 @@ const roles: RoleConfig[] = [
     path: '/orders',
   },
   {
-    id: 'products',
-    labelKey: 'role.products',
-    icon: { type: 'image', src: '/assets/Products.svg', gradient: 'role-grad-products' },
-    path: '/products',
+    id: 'rider',
+    labelKey: 'role.rider',
+    icon: { type: 'image', src: '/assets/Rider.svg', gradient: 'role-grad-rider' },
+    path: '/rider/app',
+  },
+  // Row 2: Field operations
+  {
+    id: 'activator',
+    labelKey: 'role.activator',
+    icon: { type: 'image', src: '/assets/Activator.svg', gradient: 'role-grad-activator' },
+    path: '/activator',
+  },
+  {
+    id: 'sales',
+    labelKey: 'role.salesRep',
+    icon: { type: 'image', src: '/assets/Salesperson.svg', gradient: 'role-grad-sales' },
+    path: '/customers/customerform',
+  },
+  {
+    id: 'attendant',
+    labelKey: 'role.attendant',
+    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    path: '/attendant/attendant',
+  },
+  {
+    id: 'keypad',
+    labelKey: 'role.keypad',
+    icon: { type: 'image', src: '/assets/Keypad2.svg', gradient: 'role-grad-keypad' },
+    path: '/keypad/keypad',
+  },
+  // Row 3: Device tools
+  {
+    id: 'bleDeviceManager',
+    labelKey: 'role.bleDeviceManager',
+    icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
+    path: '/assets/ble-devices',
   },
 ];
 
