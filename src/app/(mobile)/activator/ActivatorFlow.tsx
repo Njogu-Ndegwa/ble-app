@@ -567,6 +567,15 @@ export default function ActivatorFlow({
     toast('Ready to scan a new battery');
   }, [hookResetState, bleIsReady, startBleScan]);
 
+  const handleRescanVehicle = useCallback(() => {
+    setScannedVehicleId(null);
+    resetVehicleAssignment();
+    autoAdvancedVehicleIdRef.current = null;
+    setIsScannerOpening(false);
+    scanTypeRef.current = null;
+    toast('Ready to scan a new vehicle');
+  }, [resetVehicleAssignment]);
+
   const handleManualIdentify = useCallback(() => {
     const subscriptionId = confirmedSubscriptionCode;
     if (!subscriptionId) {
@@ -895,16 +904,28 @@ export default function ActivatorFlow({
     }
   }, [onLogout, router, t]);
 
-  // Auto-advance to step 5 (battery assignment) when vehicle is successfully assigned on step 4
-  // Skip in read-only mode so users can freely browse completed session steps
+  // Track which vehicleId already triggered auto-advance so navigating back
+  // to the vehicle step doesn't immediately kick the user forward again.
+  const autoAdvancedVehicleIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (currentStep === 4 && scannedVehicleId && !isReadOnlySession) {
+      if (autoAdvancedVehicleIdRef.current === scannedVehicleId) return;
       const timer = setTimeout(() => {
+        autoAdvancedVehicleIdRef.current = scannedVehicleId;
         advanceToStep(5);
       }, 500);
       return () => clearTimeout(timer);
     }
   }, [currentStep, scannedVehicleId, advanceToStep, isReadOnlySession]);
+
+  // Seed the ref when already past the vehicle step with a scanned vehicle
+  // (e.g. session restore) so navigating back won't trigger auto-advance
+  useEffect(() => {
+    if (scannedVehicleId && currentStep !== 4) {
+      autoAdvancedVehicleIdRef.current = scannedVehicleId;
+    }
+  }, [scannedVehicleId, currentStep]);
 
   // Trigger customer identification after vehicle scan (step 4 -> 5 transition)
   // so pricing is ready by the time battery is scanned
@@ -961,6 +982,7 @@ export default function ActivatorFlow({
             isScannerOpening={isScannerOpening}
             scannedVehicleId={scannedVehicleId}
             subscriptionCode={confirmedSubscriptionCode || ''}
+            onRescanVehicle={handleRescanVehicle}
           />
         );
       case 5:

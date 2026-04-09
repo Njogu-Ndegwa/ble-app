@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CheckCircle, Truck } from 'lucide-react';
+import { CheckCircle, Truck, RefreshCw } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { ScannerArea } from '@/components/shared';
 import { CustomerFormData } from '../types';
@@ -17,6 +17,8 @@ interface Step6ScanVehicleProps {
   scannedVehicleId?: string | null;
   /** Subscription code for context */
   subscriptionCode?: string;
+  /** Callback to clear current vehicle and rescan a different one */
+  onRescanVehicle?: () => void;
 }
 
 /**
@@ -36,6 +38,7 @@ export default function Step6ScanVehicle({
   isScannerOpening = false,
   scannedVehicleId = null,
   subscriptionCode = '',
+  onRescanVehicle,
 }: Step6ScanVehicleProps) {
   const { t } = useI18n();
   
@@ -125,11 +128,32 @@ export default function Step6ScanVehicle({
           </div>
         </div>
 
-        {/* Auto-proceed hint */}
-        <p className="scan-hint" style={{ marginTop: '8px', fontSize: '12px' }}>
-          <InfoIcon />
-          {t('sales.vehicleScannedAutoProceeding') || 'Proceeding to battery assignment...'}
-        </p>
+        {/* Rescan Vehicle Button */}
+        {onRescanVehicle && (
+          <button
+            onClick={onRescanVehicle}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              width: '100%',
+              padding: '10px 12px',
+              marginTop: '12px',
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              borderRadius: '6px',
+              color: 'var(--color-text-secondary)',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <RefreshCw size={14} />
+            <span>{t('sales.scanDifferentVehicle') || 'Scan Different Vehicle'}</span>
+          </button>
+        )}
       </div>
     );
   }

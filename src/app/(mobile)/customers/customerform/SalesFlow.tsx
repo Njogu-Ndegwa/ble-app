@@ -1060,18 +1060,28 @@ export default function SalesFlow({
     };
   }, [currentStep, bleIsReady, startBleScan, stopBleScan]);
 
-  // Auto-navigate to step 7 (battery assignment) when vehicle is scanned on step 6
-  // This removes the need for user to click "Continue" after scanning vehicle QR
-  // Skip in read-only mode so users can freely browse completed session steps
+  // Track which vehicleId already triggered auto-advance so navigating back
+  // to the vehicle step doesn't immediately kick the user forward again.
+  const autoAdvancedVehicleIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (currentStep === 6 && scannedVehicleId && !isReadOnlySession) {
-      // Small delay to allow toast to show before navigation
+      if (autoAdvancedVehicleIdRef.current === scannedVehicleId) return;
       const timer = setTimeout(() => {
+        autoAdvancedVehicleIdRef.current = scannedVehicleId;
         advanceToStep(7);
       }, 500);
       return () => clearTimeout(timer);
     }
   }, [currentStep, scannedVehicleId, advanceToStep, isReadOnlySession]);
+
+  // Seed the ref when already past the vehicle step with a scanned vehicle
+  // (e.g. session restore) so navigating back won't trigger auto-advance
+  useEffect(() => {
+    if (scannedVehicleId && currentStep !== 6) {
+      autoAdvancedVehicleIdRef.current = scannedVehicleId;
+    }
+  }, [scannedVehicleId, currentStep]);
 
   // Safety net: Auto-trigger customer identification when entering step 6 or 7
   // This handles edge cases like session restore where the payment callback didn't run
@@ -1839,6 +1849,15 @@ export default function SalesFlow({
     toast('Ready to scan a new battery');
   }, [hookResetState, bleIsReady, startBleScan]);
 
+  const handleRescanVehicle = useCallback(() => {
+    setScannedVehicleId(null);
+    resetVehicleAssignment();
+    autoAdvancedVehicleIdRef.current = null;
+    setIsScannerOpening(false);
+    scanTypeRef.current = null;
+    toast('Ready to scan a new vehicle');
+  }, [resetVehicleAssignment]);
+
   // Handle manual identification retry - wrapper that handles both:
   // 1. Normal retry (when identification was previously attempted)
   // 2. Fresh identification (when identification was never started, e.g., session restore)
@@ -2491,6 +2510,7 @@ export default function SalesFlow({
             isScannerOpening={isScannerOpening}
             scannedVehicleId={scannedVehicleId}
             subscriptionCode={confirmedSubscriptionCode || subscriptionData?.subscriptionCode || ''}
+            onRescanVehicle={handleRescanVehicle}
           />
         );
       case 7:

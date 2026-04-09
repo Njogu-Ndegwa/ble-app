@@ -1137,6 +1137,7 @@
   "sales.assigningVehicle": "Attribution du véhicule...",
   "sales.firstBatteryPromo": "La première batterie est fournie à titre promotionnel",
   "sales.scanDifferentBattery": "Scanner une autre batterie",
+  "sales.scanDifferentVehicle": "Scanner un autre véhicule",
   "sales.purchasedItems": "Articles achetés",
   "sales.package": "Véhicule",
   "sales.subscription": "Energy Bundle",
