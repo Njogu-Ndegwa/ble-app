@@ -78,9 +78,11 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
   
   // Reconnection refs to persist across renders
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
-  const wasConnectedRef = useRef<boolean>(false);  // Track if we were previously connected
-  const connectToMqttRef = useRef<(() => void) | null>(null);  // Store connect function for reconnection
+  const wasConnectedRef = useRef<boolean>(false);
+  const connectToMqttRef = useRef<(() => void) | null>(null);
+  const hiddenAtRef = useRef<number | null>(null);
 
   // Initialize Bridge - Step 1: Get the bridge object
   useEffect(() => {
@@ -126,10 +128,13 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
 
   // Schedule automatic reconnection with exponential backoff
   const scheduleReconnect = useCallback((errorMessage?: string) => {
-    // Clear any existing timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
     }
 
     const currentAttempt = reconnectAttemptRef.current;
@@ -154,9 +159,8 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       nextRetryIn: nextRetryInSeconds,
     });
 
-    // Update countdown every second
     let remainingSeconds = nextRetryInSeconds;
-    const countdownInterval = setInterval(() => {
+    countdownIntervalRef.current = setInterval(() => {
       remainingSeconds--;
       if (remainingSeconds > 0) {
         setMqttReconnectionState(prev => ({
@@ -164,12 +168,18 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
           nextRetryIn: remainingSeconds,
         }));
       } else {
-        clearInterval(countdownInterval);
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
       }
     }, 1000);
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      clearInterval(countdownInterval);
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
       reconnectAttemptRef.current++;
       
       if (connectToMqttRef.current) {
@@ -392,7 +402,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       connectToMqtt();
     }, 500);
 
-    // Cleanup function
     return () => {
       console.info('Cleaning up global MQTT connection handlers');
       mqttInitializedRef.current = false;
@@ -402,8 +411,50 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
     };
   }, [bridge, isBridgeReady, scheduleReconnect]);
+
+  // Recover from extended idle: when the user returns after the OS froze the
+  // WebView, the MQTT connection is dead and the Next.js router may be stale.
+  // A short idle (< 2 min) just retries MQTT; a long idle (>= 5 min) reloads
+  // the page entirely so every layer (router, bridge, MQTT) starts fresh.
+  useEffect(() => {
+    const MQTT_RECOVERY_MS = 2 * 60 * 1000;   // 2 minutes
+    const FULL_RELOAD_MS   = 5 * 60 * 1000;   // 5 minutes
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+
+      // Became visible
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (!hiddenAt) return;
+
+      const idleMs = Date.now() - hiddenAt;
+
+      if (idleMs >= FULL_RELOAD_MS) {
+        console.info(`App idle for ${Math.round(idleMs / 1000)}s — forcing full reload`);
+        window.location.reload();
+        return;
+      }
+
+      if (idleMs >= MQTT_RECOVERY_MS && !isMqttConnected && connectToMqttRef.current) {
+        console.info(`App idle for ${Math.round(idleMs / 1000)}s — resetting MQTT reconnection`);
+        reconnectAttemptRef.current = 0;
+        reconnectMqtt();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isMqttConnected, reconnectMqtt]);
 
   return (
     <BridgeContext.Provider value={{ 

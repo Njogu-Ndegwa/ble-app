@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Globe, Zap } from 'lucide-react';
@@ -78,15 +78,36 @@ const roles: RoleConfig[] = [
   },
 ];
 
+const IDLE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const NAV_TIMEOUT_MS = 3000;             // fallback after 3 s
+
 export default function SelectRole() {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
+  const hiddenAtRef = useRef<number | null>(null);
+  const wasIdleRef = useRef(false);
+  const navFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     document.body.classList.add('overflow-locked');
     return () => {
       document.body.classList.remove('overflow-locked');
     };
+  }, []);
+
+  // Track background duration so we know if the Next.js router is likely stale
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+      } else {
+        const hiddenAt = hiddenAtRef.current;
+        hiddenAtRef.current = null;
+        wasIdleRef.current = !!hiddenAt && (Date.now() - hiddenAt) >= IDLE_THRESHOLD_MS;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   useEffect(() => {
@@ -97,10 +118,31 @@ export default function SelectRole() {
     }
   }, [router]);
 
-  const handleRoleClick = (role: RoleConfig) => {
+  // Clear fallback timer on unmount (successful navigation)
+  useEffect(() => {
+    return () => {
+      if (navFallbackRef.current) clearTimeout(navFallbackRef.current);
+    };
+  }, []);
+
+  const handleRoleClick = useCallback((role: RoleConfig) => {
     if (role.disabled) return;
+
+    // After extended idle the Next.js soft-nav can hang because the WebView's
+    // network layer is stale. Use hard navigation directly in that case, with a
+    // timeout fallback for borderline situations.
+    if (wasIdleRef.current) {
+      window.location.href = role.path;
+      return;
+    }
+
     router.push(role.path);
-  };
+
+    if (navFallbackRef.current) clearTimeout(navFallbackRef.current);
+    navFallbackRef.current = setTimeout(() => {
+      window.location.href = role.path;
+    }, NAV_TIMEOUT_MS);
+  }, [router]);
 
   const toggleLocale = () => {
     const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';

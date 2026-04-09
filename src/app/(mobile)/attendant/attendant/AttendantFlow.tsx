@@ -1271,12 +1271,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
   // Reset scanning state when user returns to page without scanning (e.g., pressed back on QR scanner)
   useEffect(() => {
+    let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
-        // User returned to page - give a small delay to allow QR callback to fire first if scan was successful
-        const timeoutId = setTimeout(() => {
-          // If scanning state is still true after returning, reset it
-          // This happens when user pressed back on QR scanner without scanning
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => {
+          pendingTimeout = null;
           if (isScanning) {
             console.info('Resetting scanning state - user returned without scanning');
             setIsScanning(false);
@@ -1285,15 +1286,14 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             stopBleScan();
           }
           qrScanInitiatedRef.current = false;
-        }, 500); // 500ms delay to allow QR callback to fire first
-        
-        return () => clearTimeout(timeoutId);
+        }, 500);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pendingTimeout) clearTimeout(pendingTimeout);
     };
   }, [isScanning, clearScanTimeout, stopBleScan]);
 
