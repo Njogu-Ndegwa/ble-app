@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Globe, LogOut } from 'lucide-react';
+import { Globe, LogOut, ArrowLeftRight } from 'lucide-react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -12,6 +12,8 @@ import {
   type EmployeeUser,
 } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
+import { getSelectedSA } from '@/lib/sa-auth';
+import type { ServiceAccount } from '@/lib/sa-types';
 import ProductsList from './components/ProductsList';
 import ProductDetail from './components/ProductDetail';
 import EditProduct from './components/EditProduct';
@@ -21,12 +23,14 @@ type Screen = 'list' | 'detail' | 'edit';
 
 interface ProductsAppProps {
   onLogout?: () => void;
+  onSwitchSA?: () => void;
 }
 
-export default function ProductsApp({ onLogout }: ProductsAppProps) {
+export default function ProductsApp({ onLogout, onSwitchSA }: ProductsAppProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
+  const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -41,6 +45,7 @@ export default function ProductsApp({ onLogout }: ProductsAppProps) {
   useEffect(() => {
     const user = getSalesRoleUser();
     if (user) setEmployee(user);
+    setCurrentSA(getSelectedSA('sales'));
   }, []);
 
   const toggleLocale = useCallback(() => {
@@ -116,6 +121,16 @@ export default function ProductsApp({ onLogout }: ProductsAppProps) {
             </div>
           </div>
           <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {currentSA && onSwitchSA && (
+              <button
+                onClick={onSwitchSA}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-brand/10 text-brand text-xs font-medium transition-colors hover:bg-brand/20 active:bg-brand/25"
+                title={t('sa.switchAccount') || 'Switch'}
+              >
+                <ArrowLeftRight size={12} />
+                <span className="max-w-[80px] truncate">{currentSA.name}</span>
+              </button>
+            )}
             <ThemeToggle />
             <button
               className="flow-header-lang"

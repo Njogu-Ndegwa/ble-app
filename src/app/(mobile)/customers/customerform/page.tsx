@@ -150,6 +150,16 @@ export default function CustomerFormPage() {
     setScreen('login');
   }, []);
 
+  const handleSwitchSA = useCallback(() => {
+    clearSelectedSA('sales');
+    setSaAccounts([]);
+    setScreen('selectSA');
+    const token = getSalesRoleToken();
+    if (token) {
+      loadServiceAccounts(token);
+    }
+  }, [loadServiceAccounts]);
+
   return (
     <>
       <Toaster
@@ -195,7 +205,7 @@ export default function CustomerFormPage() {
           onRetry={handleSARetry}
         />
       )}
-      {screen === 'app' && <SalesApp onLogout={handleLogout} />}
+      {screen === 'app' && <SalesApp onLogout={handleLogout} onSwitchSA={handleSwitchSA} />}
     </>
   );
 }

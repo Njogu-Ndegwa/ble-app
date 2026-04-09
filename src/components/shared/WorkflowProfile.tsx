@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useI18n } from '@/i18n';
-import { IdCard, Mail, HelpCircle, LogOut, ChevronRight, type LucideIcon } from 'lucide-react';
+import { IdCard, Mail, HelpCircle, LogOut, ChevronRight, ArrowLeftRight, Building2, type LucideIcon } from 'lucide-react';
 
 export interface WorkflowProfileProps {
   employee: {
@@ -22,6 +22,10 @@ export interface WorkflowProfileProps {
   employeeIdLabel?: string;
   /** Fallback initials when employee name is unavailable */
   fallbackInitials?: string;
+  /** Currently selected Service Account (omit to hide SA section) */
+  serviceAccount?: { name: string; my_role: string; account_class: string } | null;
+  /** Called when the user wants to switch to a different Service Account */
+  onSwitchSA?: () => void;
 }
 
 function formatPhoneNumber(phone: string): string {
@@ -49,6 +53,12 @@ function formatPhoneNumber(phone: string): string {
   return cleaned;
 }
 
+const ROLE_BADGE_CLASS: Record<string, string> = {
+  admin: 'sa-badge-admin',
+  staff: 'sa-badge-staff',
+  agent: 'sa-badge-agent',
+};
+
 const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
   employee,
   onLogout,
@@ -57,6 +67,8 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
   roleLabel,
   employeeIdLabel,
   fallbackInitials = '??',
+  serviceAccount,
+  onSwitchSA,
 }) => {
   const { t } = useI18n();
 
@@ -129,6 +141,34 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
           </div>
         )}
       </div>
+
+      {/* Service Account Card */}
+      {serviceAccount && onSwitchSA && (
+        <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden mb-4">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <Building2 size={18} className="text-text-muted flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-text-muted">{t('sa.currentAccount') || 'Service Account'}</p>
+              <p className="text-sm font-medium text-text-primary truncate">{serviceAccount.name}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className={`sa-badge ${ROLE_BADGE_CLASS[serviceAccount.my_role] ?? 'sa-badge-agent'}`}>
+                  {serviceAccount.my_role}
+                </span>
+                <span className="sa-badge sa-badge-class">
+                  {serviceAccount.account_class}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={onSwitchSA}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand/10 text-brand text-xs font-medium transition-colors hover:bg-brand/20 active:bg-brand/25 flex-shrink-0"
+            >
+              <ArrowLeftRight size={13} />
+              <span>{t('sa.switchAccount') || 'Switch'}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Menu */}
       <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">

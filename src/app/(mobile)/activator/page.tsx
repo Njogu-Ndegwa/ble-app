@@ -149,6 +149,16 @@ export default function ActivatorPage() {
     setScreen('login');
   }, []);
 
+  const handleSwitchSA = useCallback(() => {
+    clearSelectedSA('sales');
+    setSaAccounts([]);
+    setScreen('selectSA');
+    const token = getSalesRoleToken();
+    if (token) {
+      loadServiceAccounts(token);
+    }
+  }, [loadServiceAccounts]);
+
   return (
     <>
       <Toaster
@@ -194,7 +204,7 @@ export default function ActivatorPage() {
           onRetry={handleSARetry}
         />
       )}
-      {screen === 'app' && <ActivatorApp onLogout={handleLogout} />}
+      {screen === 'app' && <ActivatorApp onLogout={handleLogout} onSwitchSA={handleSwitchSA} />}
     </>
   );
 }

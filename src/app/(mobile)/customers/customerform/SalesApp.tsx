@@ -18,19 +18,23 @@ import SalesProfile from './components/SalesProfile';
 import SalesSessions from './components/SalesSessions';
 import SalesTransactions from './components/SalesTransactions';
 import SalesCustomers from './components/SalesCustomers';
+import { getSelectedSA } from '@/lib/sa-auth';
+import type { ServiceAccount } from '@/lib/sa-types';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface SalesAppProps {
   onLogout?: () => void;
+  onSwitchSA?: () => void;
 }
 
-export default function SalesApp({ onLogout }: SalesAppProps) {
+export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<SalesScreen>('sales');
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
+  const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
   
   // Session management for resuming
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
@@ -44,12 +48,13 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
     };
   }, []);
 
-  // Load employee data on mount
+  // Load employee data and SA on mount
   useEffect(() => {
     const user = getSalesRoleUser();
     if (user) {
       setEmployee(user);
     }
+    setCurrentSA(getSelectedSA('sales'));
   }, []);
 
   // Toggle locale function
@@ -181,6 +186,8 @@ export default function SalesApp({ onLogout }: SalesAppProps) {
             <SalesProfile 
               employee={employee}
               onLogout={handleLogout}
+              serviceAccount={currentSA}
+              onSwitchSA={onSwitchSA}
             />
           </div>
         )}

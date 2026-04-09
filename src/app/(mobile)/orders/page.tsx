@@ -149,6 +149,16 @@ export default function OrdersPage() {
     setScreen('login');
   }, []);
 
+  const handleSwitchSA = useCallback(() => {
+    clearSelectedSA('sales');
+    setSaAccounts([]);
+    setScreen('selectSA');
+    const token = getSalesRoleToken();
+    if (token) {
+      loadServiceAccounts(token);
+    }
+  }, [loadServiceAccounts]);
+
   return (
     <>
       <Toaster
@@ -188,7 +198,7 @@ export default function OrdersPage() {
           onRetry={handleSARetry}
         />
       )}
-      {screen === 'app' && <OrdersApp onLogout={handleLogout} />}
+      {screen === 'app' && <OrdersApp onLogout={handleLogout} onSwitchSA={handleSwitchSA} />}
     </>
   );
 }

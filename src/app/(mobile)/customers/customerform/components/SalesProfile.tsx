@@ -13,9 +13,11 @@ interface SalesProfileProps {
     phone?: string;
   } | null;
   onLogout: () => void;
+  serviceAccount?: { name: string; my_role: string; account_class: string } | null;
+  onSwitchSA?: () => void;
 }
 
-const SalesProfile: React.FC<SalesProfileProps> = ({ employee, onLogout }) => {
+const SalesProfile: React.FC<SalesProfileProps> = ({ employee, onLogout, serviceAccount, onSwitchSA }) => {
   const { t } = useI18n();
 
   return (
@@ -26,6 +28,8 @@ const SalesProfile: React.FC<SalesProfileProps> = ({ employee, onLogout }) => {
       roleLabel={t('role.salesRep') || 'Sales Representative'}
       employeeIdLabel={t('sales.profile.employeeId') || 'Employee ID'}
       fallbackInitials="SR"
+      serviceAccount={serviceAccount}
+      onSwitchSA={onSwitchSA}
     />
   );
 };

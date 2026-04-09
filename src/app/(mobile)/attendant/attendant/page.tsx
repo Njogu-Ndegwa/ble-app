@@ -145,6 +145,16 @@ export default function AttendantPage() {
     setScreen("login");
   }, []);
 
+  const handleSwitchSA = useCallback(() => {
+    clearSelectedSA("attendant");
+    setSaAccounts([]);
+    setScreen("selectSA");
+    const token = getAttendantRoleToken();
+    if (token) {
+      loadServiceAccounts(token);
+    }
+  }, [loadServiceAccounts]);
+
   return (
     <>
       <Toaster
@@ -190,7 +200,7 @@ export default function AttendantPage() {
           onRetry={handleSARetry}
         />
       )}
-      {screen === "app" && <AttendantApp onLogout={handleLogout} />}
+      {screen === "app" && <AttendantApp onLogout={handleLogout} onSwitchSA={handleSwitchSA} />}
     </>
   );
 }

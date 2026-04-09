@@ -16,18 +16,22 @@ import ActivatorFlow from './ActivatorFlow';
 import ActivatorNav, { type ActivatorScreen } from './components/ActivatorNav';
 import ActivatorSessions from './components/ActivatorSessions';
 import { WorkflowProfile } from '@/components/shared';
+import { getSelectedSA } from '@/lib/sa-auth';
+import type { ServiceAccount } from '@/lib/sa-types';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface ActivatorAppProps {
   onLogout?: () => void;
+  onSwitchSA?: () => void;
 }
 
-export default function ActivatorApp({ onLogout }: ActivatorAppProps) {
+export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
 
   const [currentScreen, setCurrentScreen] = useState<ActivatorScreen>('activate');
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
+  const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
 
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
@@ -42,6 +46,7 @@ export default function ActivatorApp({ onLogout }: ActivatorAppProps) {
   useEffect(() => {
     const user = getSalesRoleUser();
     if (user) setEmployee(user);
+    setCurrentSA(getSelectedSA('sales'));
   }, []);
 
   const toggleLocale = useCallback(() => {
@@ -156,6 +161,8 @@ export default function ActivatorApp({ onLogout }: ActivatorAppProps) {
               roleLabel={t('role.activator') || 'Activator'}
               employeeIdLabel={t('sales.profile.employeeId') || 'Employee ID'}
               fallbackInitials="AC"
+              serviceAccount={currentSA}
+              onSwitchSA={onSwitchSA}
             />
           </div>
         )}

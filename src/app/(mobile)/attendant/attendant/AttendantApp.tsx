@@ -21,13 +21,16 @@ import {
   AttendantSessions,
   type AttendantScreen 
 } from './components';
+import { getSelectedSA } from '@/lib/sa-auth';
+import type { ServiceAccount } from '@/lib/sa-types';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface AttendantAppProps {
   onLogout?: () => void;
+  onSwitchSA?: () => void;
 }
 
-export default function AttendantApp({ onLogout }: AttendantAppProps) {
+export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   
@@ -40,13 +43,17 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
   
   // Employee info
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
+
+  // Current Service Account
+  const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
   
-  // Load employee info on mount
+  // Load employee info and SA on mount
   useEffect(() => {
     const user = getAttendantRoleUser();
     if (user) {
       setEmployee(user);
     }
+    setCurrentSA(getSelectedSA('attendant'));
   }, []);
 
   // Lock body overflow
@@ -208,6 +215,8 @@ export default function AttendantApp({ onLogout }: AttendantAppProps) {
             <AttendantProfile 
               employee={employee}
               onLogout={handleLogout}
+              serviceAccount={currentSA}
+              onSwitchSA={onSwitchSA}
             />
           </div>
         )}

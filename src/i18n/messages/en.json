@@ -1696,6 +1696,8 @@
   "sa.lastUsed": "Last Used",
   "sa.loadingAccounts": "Loading accounts...",
   "sa.loadFailed": "Failed to load service accounts",
+  "sa.currentAccount": "Service Account",
+  "sa.switchAccount": "Switch",
 
   "activator.selectCustomer": "Select Customer",
   "activator.nav.activate": "Activate",

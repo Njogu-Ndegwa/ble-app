@@ -1599,6 +1599,8 @@
   "sa.lastUsed": "上次使用",
   "sa.loadingAccounts": "加载账户中...",
   "sa.loadFailed": "加载服务账户失败",
+  "sa.currentAccount": "服务账户",
+  "sa.switchAccount": "切换",
 
   "activator.selectCustomer": "选择客户",
   "activator.nav.activate": "激活",

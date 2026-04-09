@@ -13,9 +13,11 @@ interface AttendantProfileProps {
     phone?: string;
   } | null;
   onLogout: () => void;
+  serviceAccount?: { name: string; my_role: string; account_class: string } | null;
+  onSwitchSA?: () => void;
 }
 
-const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout }) => {
+const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout, serviceAccount, onSwitchSA }) => {
   const { t } = useI18n();
 
   return (
@@ -26,6 +28,8 @@ const AttendantProfile: React.FC<AttendantProfileProps> = ({ employee, onLogout 
       roleLabel={t('role.attendant') || 'Swap Attendant'}
       employeeIdLabel={t('attendant.profile.employeeId') || 'Employee ID'}
       fallbackInitials="AT"
+      serviceAccount={serviceAccount}
+      onSwitchSA={onSwitchSA}
     />
   );
 };
