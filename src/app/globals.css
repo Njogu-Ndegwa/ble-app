@@ -10509,6 +10509,16 @@ html.theme-transition *::after {
   -webkit-overflow-scrolling: touch;
 }
 
+.sessions-history-content-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.sessions-content-spacer {
+  flex-grow: 1;
+}
+
 /* Loading */
 .sessions-loading {
   display: flex;

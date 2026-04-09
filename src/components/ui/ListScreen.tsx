@@ -220,93 +220,98 @@ export default function ListScreen({
 
       {/* ---- Content area ---- */}
       <div className="flex-1 overflow-y-auto px-4 pb-20">
-        {/* Loading skeletons */}
-        {isLoading && (
-          <div className="flex flex-col gap-2 mt-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-border bg-bg-tertiary p-4 animate-pulse"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-border/50" />
-                  <div className="flex-1">
-                    <div className="h-4 w-32 bg-border/50 rounded mb-2" />
-                    <div className="h-3 w-48 bg-border/50 rounded" />
+        <div className="flex flex-col min-h-full">
+          {/* Loading skeletons */}
+          {isLoading && (
+            <div className="flex flex-col gap-2 mt-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border bg-bg-tertiary p-4 animate-pulse"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-border/50" />
+                    <div className="flex-1">
+                      <div className="h-4 w-32 bg-border/50 rounded mb-2" />
+                      <div className="h-3 w-48 bg-border/50 rounded" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Error state */}
-        {!isLoading && error && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm text-error mb-3">{error}</p>
-            <button
-              onClick={onRetry || onRefresh}
-              className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium active:scale-95 transition-transform"
-            >
-              {t('common.tryAgain') || 'Try Again'}
-            </button>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !error && isEmpty && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mb-4">
-              {emptyIcon}
+              ))}
             </div>
-            <p className="text-sm text-text-secondary mb-1">{emptyMessage}</p>
-            <p className="text-xs text-text-muted">{emptyHint}</p>
-          </div>
-        )}
+          )}
 
-        {/* Item count */}
-        {!isLoading && !error && !isEmpty && itemCount !== undefined && (
-          <p className="text-xs text-text-muted mt-2 mb-2">
-            {itemCount} {itemLabel || (itemCount === 1 ? 'item' : 'items')}
-          </p>
-        )}
+          {/* Error state */}
+          {!isLoading && error && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <p className="text-sm text-error mb-3">{error}</p>
+              <button
+                onClick={onRetry || onRefresh}
+                className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium active:scale-95 transition-transform"
+              >
+                {t('common.tryAgain') || 'Try Again'}
+              </button>
+            </div>
+          )}
 
-        {/* List content */}
-        {!isLoading && !error && !isEmpty && (
-          <div className="flex flex-col gap-2">{children}</div>
-        )}
-      </div>
+          {/* Empty state */}
+          {!isLoading && !error && isEmpty && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mb-4">
+                {emptyIcon}
+              </div>
+              <p className="text-sm text-text-secondary mb-1">{emptyMessage}</p>
+              <p className="text-xs text-text-muted">{emptyHint}</p>
+            </div>
+          )}
 
-      {/* ---- Pagination ---- */}
-      {hasPagination && !isLoading && !error && !isEmpty && (
-        <div className="px-4 py-2 border-t border-border flex items-center justify-between text-xs text-text-muted">
-          <span>
-            {paginationLabel ||
-              `${t('common.showing') || 'Showing'} ${page}/${totalPages}`}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onPrevPage}
-              disabled={page! <= 1}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-bg-tertiary transition-colors"
-              aria-label={t('common.previous') || 'Previous'}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="px-2 text-text-secondary font-medium">
-              {page} / {totalPages || 1}
-            </span>
-            <button
-              onClick={onNextPage}
-              disabled={!hasNextPage}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-bg-tertiary transition-colors"
-              aria-label={t('common.next') || 'Next'}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+          {/* Item count */}
+          {!isLoading && !error && !isEmpty && itemCount !== undefined && (
+            <p className="text-xs text-text-muted mt-2 mb-2">
+              {itemCount} {itemLabel || (itemCount === 1 ? 'item' : 'items')}
+            </p>
+          )}
+
+          {/* List content */}
+          {!isLoading && !error && !isEmpty && (
+            <div className="flex flex-col gap-2">{children}</div>
+          )}
+
+          {/* Spacer pushes pagination to bottom when few items */}
+          <div className="flex-grow" />
+
+          {/* ---- Pagination ---- */}
+          {hasPagination && !isLoading && !error && !isEmpty && (
+            <div className="mt-3 py-2 border-t border-border flex items-center justify-between text-xs text-text-muted">
+              <span>
+                {paginationLabel ||
+                  `${t('common.showing') || 'Showing'} ${page}/${totalPages}`}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={onPrevPage}
+                  disabled={page! <= 1}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-bg-tertiary transition-colors"
+                  aria-label={t('common.previous') || 'Previous'}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="px-2 text-text-secondary font-medium">
+                  {page} / {totalPages || 1}
+                </span>
+                <button
+                  onClick={onNextPage}
+                  disabled={!hasNextPage}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-border disabled:opacity-30 hover:bg-bg-tertiary transition-colors"
+                  aria-label={t('common.next') || 'Next'}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* ---- FAB ---- */}
       {fabAction && (

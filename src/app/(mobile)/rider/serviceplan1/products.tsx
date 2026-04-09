@@ -118,14 +118,11 @@ const Products: React.FC<ProductsProps> = ({
   };
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="flex flex-col min-h-full p-4">
       <div className="space-y-4">
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-text-secondary" />
-            <h2 className="text-lg font-semibold text-text-primary">{t('Products')}</h2>
-          </div>
-          {renderPaginationControls()}
+        <div className="flex items-center gap-2 mb-4">
+          <Package className="w-5 h-5 text-text-secondary" />
+          <h2 className="text-lg font-semibold text-text-primary">{t('Products')}</h2>
         </div>
 
         {isLoading ? (
@@ -146,9 +143,11 @@ const Products: React.FC<ProductsProps> = ({
         )}
       </div>
 
-      {/* Bottom Pagination Controls */}
+      <div className="flex-grow" />
+
+      {/* Pagination Controls */}
       {totalPages > 1 && onPageChange && (
-        <div className="pt-3">
+        <div className="pt-6">
           {renderPaginationControls()}
         </div>
       )}

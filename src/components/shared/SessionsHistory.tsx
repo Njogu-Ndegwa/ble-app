@@ -307,124 +307,128 @@ export default function SessionsHistory({
         
         {/* Content */}
         <div className="sessions-history-content">
-          {isLoading && orders.length === 0 ? (
-            <div className="sessions-loading">
-              <RefreshCw size={24} className="animate-spin" />
-              <span>{t('sessions.loading') || 'Loading sessions...'}</span>
-            </div>
-          ) : error ? (
-            <div className="sessions-error">
-              <AlertCircle size={32} />
-              <p>{error}</p>
-              <button 
-                className="sessions-retry-btn"
-                onClick={() => fetchOrders(currentPage, searchQuery || undefined)}
-              >
-                {t('common.retry') || 'Retry'}
-              </button>
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="sessions-empty">
-              <Clock size={40} className="sessions-empty-icon" />
-              <h3>{t('sessions.noSessionsTitle') || 'No Sessions Found'}</h3>
-              <p>{searchQuery 
-                ? (t('sessions.noSearchResults') || 'No sessions match your search')
-                : (t('sessions.noSessionsDesc') || 'Your past sessions will appear here')
-              }</p>
-            </div>
-          ) : (
-            <div className="sessions-list">
-              {orders.map((order) => {
-                const statusInfo = getSessionStatusInfo(order);
-                const StatusIcon = statusInfo.icon;
-                const customerName = order.partner_name || order.session?.partner_name || 'Unknown';
-                const subscriptionId = order.session?.session_data?.dynamicPlanId || 
-                                       order.session?.session_data?.manualSubscriptionId ||
-                                       order.session?.session_data?.customerData?.subscriptionId;
-                const currentStep = order.session?.session_data?.currentStep || 1;
-                const maxStep = workflowType === 'attendant' ? 6 : 8;
-                const isReadOnly = !statusInfo.canEdit;
-                const hasSession = !!order.session;
-                const hasSessionData = !!order.session?.session_data;
-                const isClickable = hasSession && (hasSessionData || statusInfo.canView);
-                
-                return (
-                  <div
-                    key={order.id}
-                    className={`list-card ${!isClickable ? 'session-card-locked' : ''}`}
-                    onClick={() => isClickable && handleSelectOrder(order, isReadOnly)}
-                    role={isClickable ? 'button' : undefined}
-                    tabIndex={isClickable ? 0 : undefined}
-                  >
-                    <div className="list-card-body">
-                      <div className="list-card-content">
-                        <div className="list-card-primary">{customerName}</div>
-                        {subscriptionId && (
-                          <div className="list-card-secondary">{subscriptionId}</div>
-                        )}
-                        <div className="list-card-meta">
-                          <span>{order.name}</span>
-                          <span className="list-card-dot">&middot;</span>
-                          <span>{getRelativeTime(order.date_order)}</span>
-                          {hasSessionData && (
-                            <>
-                              <span className="list-card-dot">&middot;</span>
-                              <span className="list-card-meta-bold">{currentStep}/{maxStep}</span>
-                            </>
+          <div className="sessions-history-content-inner">
+            {isLoading && orders.length === 0 ? (
+              <div className="sessions-loading">
+                <RefreshCw size={24} className="animate-spin" />
+                <span>{t('sessions.loading') || 'Loading sessions...'}</span>
+              </div>
+            ) : error ? (
+              <div className="sessions-error">
+                <AlertCircle size={32} />
+                <p>{error}</p>
+                <button 
+                  className="sessions-retry-btn"
+                  onClick={() => fetchOrders(currentPage, searchQuery || undefined)}
+                >
+                  {t('common.retry') || 'Retry'}
+                </button>
+              </div>
+            ) : orders.length === 0 ? (
+              <div className="sessions-empty">
+                <Clock size={40} className="sessions-empty-icon" />
+                <h3>{t('sessions.noSessionsTitle') || 'No Sessions Found'}</h3>
+                <p>{searchQuery 
+                  ? (t('sessions.noSearchResults') || 'No sessions match your search')
+                  : (t('sessions.noSessionsDesc') || 'Your past sessions will appear here')
+                }</p>
+              </div>
+            ) : (
+              <div className="sessions-list">
+                {orders.map((order) => {
+                  const statusInfo = getSessionStatusInfo(order);
+                  const StatusIcon = statusInfo.icon;
+                  const customerName = order.partner_name || order.session?.partner_name || 'Unknown';
+                  const subscriptionId = order.session?.session_data?.dynamicPlanId || 
+                                         order.session?.session_data?.manualSubscriptionId ||
+                                         order.session?.session_data?.customerData?.subscriptionId;
+                  const currentStep = order.session?.session_data?.currentStep || 1;
+                  const maxStep = workflowType === 'attendant' ? 6 : 8;
+                  const isReadOnly = !statusInfo.canEdit;
+                  const hasSession = !!order.session;
+                  const hasSessionData = !!order.session?.session_data;
+                  const isClickable = hasSession && (hasSessionData || statusInfo.canView);
+                  
+                  return (
+                    <div
+                      key={order.id}
+                      className={`list-card ${!isClickable ? 'session-card-locked' : ''}`}
+                      onClick={() => isClickable && handleSelectOrder(order, isReadOnly)}
+                      role={isClickable ? 'button' : undefined}
+                      tabIndex={isClickable ? 0 : undefined}
+                    >
+                      <div className="list-card-body">
+                        <div className="list-card-content">
+                          <div className="list-card-primary">{customerName}</div>
+                          {subscriptionId && (
+                            <div className="list-card-secondary">{subscriptionId}</div>
+                          )}
+                          <div className="list-card-meta">
+                            <span>{order.name}</span>
+                            <span className="list-card-dot">&middot;</span>
+                            <span>{getRelativeTime(order.date_order)}</span>
+                            {hasSessionData && (
+                              <>
+                                <span className="list-card-dot">&middot;</span>
+                                <span className="list-card-meta-bold">{currentStep}/{maxStep}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="list-card-actions">
+                          <div 
+                            className="list-card-badge"
+                            style={{ backgroundColor: statusInfo.bgColor, color: statusInfo.color }}
+                          >
+                            <StatusIcon size={10} />
+                            <span>{statusInfo.label}</span>
+                          </div>
+                          {isClickable && (
+                            <div className={`list-card-action-icon ${isReadOnly ? 'list-card-action-icon--muted' : 'list-card-action-icon--active'}`}>
+                              {isReadOnly ? <Eye size={12} /> : <Play size={12} />}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <div className="list-card-actions">
-                        <div 
-                          className="list-card-badge"
-                          style={{ backgroundColor: statusInfo.bgColor, color: statusInfo.color }}
-                        >
-                          <StatusIcon size={10} />
-                          <span>{statusInfo.label}</span>
-                        </div>
-                        {isClickable && (
-                          <div className={`list-card-action-icon ${isReadOnly ? 'list-card-action-icon--muted' : 'list-card-action-icon--active'}`}>
-                            {isReadOnly ? <Eye size={12} /> : <Play size={12} />}
-                          </div>
-                        )}
-                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="sessions-content-spacer" />
+
+            {/* Pagination */}
+            {pagination && pagination.total_pages > 1 && (
+              <div className="sessions-pagination">
+                <button
+                  className="sessions-pagination-btn"
+                  disabled={!pagination.has_previous_page || isLoading}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                
+                <span className="sessions-pagination-info">
+                  {t('sessions.page') || 'Page'} {pagination.current_page} {t('common.of') || 'of'} {pagination.total_pages}
+                </span>
+                
+                <button
+                  className="sessions-pagination-btn"
+                  disabled={!pagination.has_next_page || isLoading}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+            
+            {/* Footer hint */}
+            <div className="sessions-footer-hint">
+              <AlertCircle size={14} />
+              <span>{t('sessions.viewEditHint') || 'Tap to view. Only draft sessions can be edited.'}</span>
             </div>
-          )}
-        </div>
-        
-        {/* Pagination */}
-        {pagination && pagination.total_pages > 1 && (
-          <div className="sessions-pagination">
-            <button
-              className="sessions-pagination-btn"
-              disabled={!pagination.has_previous_page || isLoading}
-              onClick={() => handlePageChange(currentPage - 1)}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <span className="sessions-pagination-info">
-              {t('sessions.page') || 'Page'} {pagination.current_page} {t('common.of') || 'of'} {pagination.total_pages}
-            </span>
-            
-            <button
-              className="sessions-pagination-btn"
-              disabled={!pagination.has_next_page || isLoading}
-              onClick={() => handlePageChange(currentPage + 1)}
-            >
-              <ChevronRight size={16} />
-            </button>
           </div>
-        )}
-        
-        {/* Footer hint */}
-        <div className="sessions-footer-hint">
-          <AlertCircle size={14} />
-          <span>{t('sessions.viewEditHint') || 'Tap to view. Only draft sessions can be edited.'}</span>
         </div>
       </div>
     </div>
