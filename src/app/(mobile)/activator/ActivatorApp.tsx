@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Globe } from 'lucide-react';
+import { Globe, ArrowLeftRight } from 'lucide-react';
 import Image from 'next/image';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -133,6 +133,16 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
             </div>
           </div>
           <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {currentSA && onSwitchSA && (
+              <button
+                onClick={onSwitchSA}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-brand/10 text-brand text-xs font-medium transition-colors hover:bg-brand/20 active:bg-brand/25"
+                title={t('sa.switchAccount') || 'Switch'}
+              >
+                <ArrowLeftRight size={12} />
+                <span className="max-w-[80px] truncate">{currentSA.name}</span>
+              </button>
+            )}
             <ThemeToggle />
             <button
               className="flow-header-lang"
