@@ -25,8 +25,8 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, subscription
         width: 180,
         margin: 2,
         color: {
-          dark: typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#000000' : '#000000',
-          light: typeof document !== 'undefined' ? getComputedStyle(document.documentElement).getPropertyValue('--qr-bg').trim() || '#ffffff' : '#ffffff',
+          dark: '#000000',
+          light: '#ffffff',
         },
       }, (error) => {
         if (error) {
