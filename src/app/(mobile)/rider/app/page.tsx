@@ -260,6 +260,7 @@ const RiderApp: React.FC = () => {
       }
 
       const response = result.data.identifyCustomer;
+      console.info('[RIDER] 🔍 RAW identifyCustomer response:', JSON.stringify(response, null, 2));
       
       if (!response.customer_identified) {
         console.warn('[RIDER] Customer not identified');
@@ -268,6 +269,7 @@ const RiderApp: React.FC = () => {
 
       // Parse metadata
       const metadata = parseIdentifyCustomerMetadata(response.metadata);
+      console.info('[RIDER] 🔍 Parsed metadata:', JSON.stringify(metadata, null, 2));
       
       if (!metadata || !metadata.service_plan_data) {
         console.warn('[RIDER] Invalid metadata or missing service_plan_data');
@@ -276,6 +278,7 @@ const RiderApp: React.FC = () => {
 
       const { service_plan_data, service_bundle, common_terms } = metadata;
       const { serviceStates, paymentState } = service_plan_data;
+      console.info('[RIDER] 🔍 serviceStates:', JSON.stringify(serviceStates, null, 2));
 
       if (!serviceStates || !Array.isArray(serviceStates)) {
         console.warn('[RIDER] serviceStates is missing or not an array');
@@ -422,6 +425,7 @@ const RiderApp: React.FC = () => {
         const result = await response.json();
         const totalElapsed = Math.round(performance.now() - startTime);
         console.info(`[PERF] 📝 ServicePlanActions GraphQL - Parsed in ${totalElapsed}ms`);
+        console.info('[RIDER] 🔍 RAW servicePlanActions response:', JSON.stringify(result.data, null, 2));
         
         if (result.data?.servicePlanActions) {
           const { paymentActions, serviceActions } = result.data.servicePlanActions;
