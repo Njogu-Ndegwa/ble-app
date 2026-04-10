@@ -652,6 +652,16 @@ export default function ActivatorFlow({
     });
     setComputedEnergyCost(paymentCalc.cost);
 
+    if (paymentCalc.cost <= 0) {
+      console.info('[ActivatorFlow] Zero-cost activation (empty battery)', {
+        batteryEnergy: scannedBatteryPending.energy,
+        energyDiff: paymentCalc.energyDiff,
+        cost: paymentCalc.cost,
+        rate,
+        note: 'payment_data will be omitted — no charge for empty battery',
+      });
+    }
+
     const paymentRef = `ACTIVATION_${subscriptionId}_${Date.now()}`;
 
     const params: PublishPaymentAndServiceParams = {

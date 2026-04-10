@@ -208,10 +208,11 @@ export function buildPaymentAndServiceInput(
   };
 
   // Determine if we should include payment_data:
+  // - paymentAmount <= 0: No payment_data (e.g. empty battery activation, promotional first battery)
   // - isQuotaBased && !isZeroCostRounding: No payment_data (true quota credit)
-  // - isZeroCostRounding: Include payment_data with original amount
+  // - isZeroCostRounding: Include payment_data with ZERO_COST_ROUNDING method
   // - Normal payment: Include payment_data
-  const shouldIncludePaymentData = !isQuotaBased || isZeroCostRounding;
+  const shouldIncludePaymentData = paymentAmount > 0 && (!isQuotaBased || isZeroCostRounding);
 
   if (shouldIncludePaymentData) {
     input.payment_data = {

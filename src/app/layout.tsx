@@ -26,7 +26,7 @@ import { I18nProvider } from "@/i18n";
 
 import { ThemeProvider } from './context/themeContext';
 
-// VConsole for mobile debugging - enabled for product fetch debugging
+// VConsole for mobile debugging
 const ENABLE_VCONSOLE = false;
 
 export default function RootLayout({
