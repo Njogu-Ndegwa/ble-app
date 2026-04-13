@@ -8,9 +8,9 @@ import Image from 'next/image';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { 
-  getAttendantRoleUser, 
-  clearAttendantRoleLogin,
-  getAttendantRoleToken,
+  getSalesRoleUser, 
+  clearSalesRoleLogin,
+  getSalesRoleToken,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
 import AttendantFlow from './AttendantFlow';
@@ -49,7 +49,7 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
   
   // Load employee info and SA on mount
   useEffect(() => {
-    const user = getAttendantRoleUser();
+    const user = getSalesRoleUser();
     if (user) {
       setEmployee(user);
     }
@@ -102,7 +102,7 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
 
   // Handle logout
   const handleLogout = useCallback(() => {
-    clearAttendantRoleLogin();
+    clearSalesRoleLogin();
     toast.success(t('common.logoutSuccess') || 'Signed out successfully');
     if (onLogout) {
       onLogout();

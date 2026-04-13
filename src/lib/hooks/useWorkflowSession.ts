@@ -148,11 +148,9 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   const lastSavedDataRef = useRef<string>('');
   
   // Get auth token based on workflow type
+  // All employee workflows (attendant, salesperson, activator) use the sales role token
   const getAuthToken = useCallback((): string | undefined => {
-    if (workflowType === 'salesperson' || workflowType === 'activator') {
-      return getSalesRoleToken() || undefined;
-    }
-    return getEmployeeToken() || undefined;
+    return getSalesRoleToken() || getEmployeeToken() || undefined;
   }, [workflowType]);
   
   // Clear auto-save timer

@@ -131,9 +131,9 @@ function mapBackendRoleToUserType(backendRole: BackendRole): UserType {
  * Login using the Employee API (for Attendant and Sales Person)
  * Endpoint: POST https://crm-omnivoltaic.odoo.com/api/employee/login
  * 
- * IMPORTANT: Attendant and Sales are now SEPARATE roles with separate sessions.
- * The backend returns role: "salesattendant" for attendants, "salesrep" for sales reps.
- * Each role has its own storage keys and must log in separately.
+ * The backend returns role: "salesattendant" or "salesrep" but the client does not
+ * enforce role matching. The expectedUserType parameter determines which storage
+ * keys are used. The backend handles role-based access control.
  * 
  * Response structure:
  * {
@@ -186,24 +186,9 @@ export async function employeeLogin(
         throw new Error('No employee data in response');
       }
 
-      // Get the role from the backend response
       const backendRole = employee.role;
-      const actualUserType = mapBackendRoleToUserType(backendRole);
       
-      console.log(`[EmployeeAuth] Backend role: ${backendRole}, mapped to userType: ${actualUserType}`);
-      console.log(`[EmployeeAuth] Expected userType: ${expectedUserType}`);
-      
-      // Check if the user's role matches the expected role for this login flow
-      if (actualUserType !== expectedUserType) {
-        const roleLabel = actualUserType === 'attendant' ? 'Attendant' : 'Sales Rep';
-        const expectedLabel = expectedUserType === 'attendant' ? 'Attendant' : 'Sales Rep';
-        console.error(`[EmployeeAuth] Role mismatch: User is ${roleLabel} but tried to log in as ${expectedLabel}`);
-        return { 
-          success: false, 
-          error: `This account is registered as ${roleLabel}. Please use the ${roleLabel} login.`,
-          wrongRole: true
-        };
-      }
+      console.log(`[EmployeeAuth] Backend role: ${backendRole}, storing as userType: ${expectedUserType}`);
 
       const user: EmployeeUser = {
         id: employee.id,
@@ -211,7 +196,7 @@ export async function employeeLogin(
         email: employee.email,
         accessToken: token,
         tokenExpiresAt: expires_at,
-        userType: actualUserType,
+        userType: expectedUserType,
         backendRole: backendRole,
         employeeId: employee.id,
         companyId: employee.company_id,
@@ -222,7 +207,7 @@ export async function employeeLogin(
       saveRoleLogin(user);
 
       console.log('[EmployeeAuth] Login successful:', user.name);
-      console.log('[EmployeeAuth] Role:', backendRole, '-> userType:', actualUserType);
+      console.log('[EmployeeAuth] Backend role:', backendRole, '-> stored as:', expectedUserType);
       console.log('[EmployeeAuth] Token expires at:', expires_at);
       return { success: true, user };
     } else {

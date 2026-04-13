@@ -9,7 +9,7 @@ import {
   type AttendantTransaction,
   type TransactionPeriod 
 } from '@/lib/odoo-api';
-import { getAttendantRoleToken } from '@/lib/attendant-auth';
+import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { Receipt, Clock, CreditCard } from 'lucide-react';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 
@@ -26,7 +26,7 @@ const AttendantTransactions: React.FC<AttendantTransactionsProps> = ({ onSelectT
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchTransactions = useCallback(async () => {
-    const authToken = getAttendantRoleToken();
+    const authToken = getSalesRoleToken();
     if (!authToken) {
       setError(t('attendant.transactions.notAuthenticated') || 'Not authenticated');
       setIsLoading(false);

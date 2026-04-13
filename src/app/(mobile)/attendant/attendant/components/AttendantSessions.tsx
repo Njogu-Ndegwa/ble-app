@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { getOrdersList, type OrderListItem, type OrdersPagination } from '@/lib/odoo-api';
-import { getAttendantRoleToken } from '@/lib/attendant-auth';
+import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { Clock, FileText, Play, Hash, Eye } from 'lucide-react';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 
@@ -25,7 +25,7 @@ const AttendantSessions: React.FC<AttendantSessionsProps> = ({ onSelectSession }
   const [period, setPeriod] = useState<ListPeriod>('30days');
 
   const fetchSessions = useCallback(async (pageNum: number = 1, subscriptionCode?: string) => {
-    const authToken = getAttendantRoleToken();
+    const authToken = getSalesRoleToken();
     if (!authToken) {
       setError(t('attendant.sessions.notAuthenticated') || 'Not authenticated');
       setIsLoading(false);

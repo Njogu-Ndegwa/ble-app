@@ -6,7 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Globe, Eye, X } from 'lucide-react';
 import Image from 'next/image';
 import { useBridge } from '@/app/context/bridgeContext';
-import { getAttendantRoleUser, clearAttendantRoleLogin, getAttendantRoleToken } from '@/lib/attendant-auth';
+import { getSalesRoleUser, clearSalesRoleLogin, getSalesRoleToken } from '@/lib/attendant-auth';
 import { LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -109,7 +109,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
   // Load attendant info on mount
   useEffect(() => {
-    const user = getAttendantRoleUser();
+    const user = getSalesRoleUser();
     if (user) {
       setAttendantInfo({
         id: `attendant-${user.id}`,
@@ -349,7 +349,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       // We need the Odoo partner_id to call the dashboard endpoint
       // Strategy: Look up partner_id via orders API using subscription_code
       const customerSubscriptionCode = result.customer.subscriptionId;
-      const authToken = getAttendantRoleToken();
+      const authToken = getSalesRoleToken();
       
       if (customerSubscriptionCode && authToken) {
         try {
@@ -1792,7 +1792,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Handle logout - clear attendant authentication and notify parent
   // Note: Attendant and Sales are now separate roles with separate sessions
   const handleLogout = useCallback(() => {
-    clearAttendantRoleLogin();
+    clearSalesRoleLogin();
     toast.success(t('Signed out successfully'));
     if (onLogout) {
       onLogout();
@@ -2082,7 +2082,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         isVisible={showSessionsHistory}
         onClose={() => setShowSessionsHistory(false)}
         onSelectSession={handleSelectHistorySession}
-        authToken={getAttendantRoleToken() || ''}
+        authToken={getSalesRoleToken() || ''}
         workflowType="attendant"
       />
 

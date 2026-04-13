@@ -4,10 +4,10 @@ import React, { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Toaster } from "react-hot-toast";
 import {
-  isAttendantRoleLoggedIn,
-  getAttendantRoleUser,
-  getAttendantRoleToken,
-  clearAttendantRoleLogin,
+  isSalesRoleLoggedIn,
+  getSalesRoleUser,
+  getSalesRoleToken,
+  clearSalesRoleLogin,
   type EmployeeUser,
 } from "@/lib/attendant-auth";
 import {
@@ -48,8 +48,8 @@ function getInitialScreen(): {
 } {
   if (typeof window === "undefined") return { screen: "login", user: null };
   try {
-    if (!isAttendantRoleLoggedIn()) return { screen: "login", user: null };
-    const user = getAttendantRoleUser();
+    if (!isSalesRoleLoggedIn()) return { screen: "login", user: null };
+    const user = getSalesRoleUser();
     if (!user) return { screen: "login", user: null };
     if (hasSASelected("attendant")) return { screen: "app", user };
     return { screen: "selectSA", user };
@@ -106,7 +106,7 @@ export default function AttendantPage() {
   // When mounting into selectSA (already logged in, no SA chosen yet), fetch SAs
   useEffect(() => {
     if (screen === "selectSA" && saAccounts.length === 0 && !saLoading) {
-      const token = getAttendantRoleToken();
+      const token = getSalesRoleToken();
       if (token) {
         loadServiceAccounts(token);
       }
@@ -121,11 +121,11 @@ export default function AttendantPage() {
         name: customerData.name,
         email: customerData.email,
         phone: customerData.phone,
-        userType: "attendant",
+        userType: "sales",
       };
       setUser(employeeUser);
 
-      const token = getAttendantRoleToken();
+      const token = getSalesRoleToken();
       if (token) {
         loadServiceAccounts(token);
       } else {
@@ -141,14 +141,14 @@ export default function AttendantPage() {
   }, []);
 
   const handleSARetry = useCallback(() => {
-    const token = getAttendantRoleToken();
+    const token = getSalesRoleToken();
     if (token) {
       loadServiceAccounts(token);
     }
   }, [loadServiceAccounts]);
 
   const handleSignOut = useCallback(() => {
-    clearAttendantRoleLogin();
+    clearSalesRoleLogin();
     clearSelectedSA("attendant");
     setUser(null);
     setSaAccounts([]);
@@ -157,7 +157,7 @@ export default function AttendantPage() {
   }, []);
 
   const handleLogout = useCallback(() => {
-    clearAttendantRoleLogin();
+    clearSalesRoleLogin();
     clearSelectedSA("attendant");
     setUser(null);
     setSaAccounts([]);
@@ -168,7 +168,7 @@ export default function AttendantPage() {
     clearSelectedSA("attendant");
     setSaAccounts([]);
     setScreen("selectSA");
-    const token = getAttendantRoleToken();
+    const token = getSalesRoleToken();
     if (token) {
       loadServiceAccounts(token);
     }
@@ -204,7 +204,7 @@ export default function AttendantPage() {
         }}
       />
       {screen === "login" && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="attendant" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
       )}
       {screen === "selectSA" && (
         <SelectServiceAccount
@@ -212,7 +212,7 @@ export default function AttendantPage() {
           loading={saLoading}
           errorKind={saErrorKind}
           userName={user?.name ?? ""}
-          userType="attendant"
+          userType="sales"
           lastSAId={getSelectedSAId("attendant")}
           onSelect={handleSASelect}
           onSignOut={handleSignOut}
