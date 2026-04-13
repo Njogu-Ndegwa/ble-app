@@ -5,6 +5,11 @@ import { Package, Tag, Building2 } from 'lucide-react';
 import DetailScreen, { type DetailSection } from '@/components/ui/DetailScreen';
 import type { OdooProduct } from '@/lib/portal/types';
 
+function parseLastSegment(completeName: string): string {
+  const parts = completeName.split('/');
+  return parts[parts.length - 1].trim();
+}
+
 interface ProductDetailProps {
   product: OdooProduct;
   onBack: () => void;
@@ -23,16 +28,12 @@ export default function ProductDetail({ product, onBack }: ProductDetailProps) {
             value: product.list_price?.toLocaleString() ?? '—',
           },
           { label: 'Type', value: product.type || '--' },
-          { label: 'PU Category', value: (product.pu_category || '--') as string },
-          { label: 'PU Metric', value: (product.pu_metric || '--') as string },
-          { label: 'Service Type', value: (product.service_type || '--') as string },
-          { label: 'Contract Type', value: (product.contract_type || '--') as string },
-        ],
-      },
-      {
-        title: 'Classification',
-        fields: [
-          { label: 'Product Category', value: product.category?.complete_name || product.category_name || '--' },
+          {
+            label: 'Category',
+            value: product.category?.complete_name
+              ? parseLastSegment(product.category.complete_name)
+              : product.category_name || '--',
+          },
           { label: 'Recurring Invoice', value: product.recurring_invoice ? 'Yes' : 'No' },
           { label: 'Available for Sale', value: product.sale_ok ? 'Yes' : 'No' },
         ],
@@ -71,9 +72,9 @@ export default function ProductDetail({ product, onBack }: ProductDetailProps) {
       avatar={initials}
       title={product.name}
       subtitle={
-        product.pu_category
-          ? `${product.pu_category} product`
-          : undefined
+        product.category?.complete_name
+          ? parseLastSegment(product.category.complete_name)
+          : product.category_name || undefined
       }
       badge={
         product.active ? (

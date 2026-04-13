@@ -12,10 +12,16 @@ import type {
 
 const DEFAULT_CATEGORY_ID = 115;
 
-function parseCatalogLabel(root: OdooCatalogRoot): string {
-  const parts = root.complete_name.split('/');
+function parseLastSegment(completeName: string): string {
+  const parts = completeName.split('/');
   return parts[parts.length - 1].trim();
 }
+
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  consu: 'Consumable',
+  service: 'Service',
+  product: 'Storable',
+};
 
 interface ProductsListProps {
   onSelect: (product: OdooProduct) => void;
@@ -84,7 +90,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
           }`}
           style={categoryId === root.id ? { backgroundColor: 'var(--color-brand)' } : undefined}
         >
-          {parseCatalogLabel(root)}
+          {root.id === DEFAULT_CATEGORY_ID ? 'All' : parseLastSegment(root.complete_name)}
         </button>
       ))}
     </div>
@@ -126,11 +132,9 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
           <div className="list-card-body">
             <div className="list-card-content">
               <div className="list-card-primary">{product.name}</div>
-              {product.default_code && (
-                <div className="list-card-secondary list-card-meta-mono">
-                  {product.default_code}
-                </div>
-              )}
+              <div className="list-card-secondary">
+                {product.description_sale || PRODUCT_TYPE_LABELS[product.type] || product.type}
+              </div>
               <div className="list-card-meta">
                 <Tag size={10} />
                 <span className="list-card-meta-bold list-card-meta-mono">
@@ -141,9 +145,9 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
               </div>
             </div>
             <div className="list-card-actions">
-              {product.pu_category && (
+              {product.category?.complete_name && (
                 <span className="list-card-badge list-card-badge--default">
-                  {product.pu_category}
+                  {parseLastSegment(product.category.complete_name)}
                 </span>
               )}
             </div>
