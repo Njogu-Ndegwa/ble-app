@@ -1,37 +1,34 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Package, Tag } from 'lucide-react';
 import ListScreen from '@/components/ui/ListScreen';
-import { portalApolloClient } from '@/lib/portal/portal-apollo-client';
-import { PRODUCT_UNITS_QUERY } from '@/lib/portal/queries';
+import { getProducts } from '@/lib/odoo-api';
 import type {
-  ProductUnitEntity,
-  ProductUnitsListResponse,
-  ProductUnitsFilterInput,
-  PaginationMeta,
+  OdooProduct,
+  OdooCatalogRoot,
+  OdooProductsPagination,
 } from '@/lib/portal/types';
 
-type CategoryFilter = 'all' | 'physical' | 'service' | 'contract' | 'digital';
+const DEFAULT_CATEGORY_ID = 115;
 
-const CATEGORY_BADGE_CLASS: Record<string, string> = {
-  physical: 'list-card-badge list-card-badge--progress',
-  service: 'list-card-badge list-card-badge--completed',
-  contract: 'list-card-badge list-card-badge--default',
-  digital: 'list-card-badge list-card-badge--progress',
-};
+function parseCatalogLabel(root: OdooCatalogRoot): string {
+  const parts = root.complete_name.split('/');
+  return parts[parts.length - 1].trim();
+}
 
 interface ProductsListProps {
-  onSelect: (product: ProductUnitEntity) => void;
+  onSelect: (product: OdooProduct) => void;
 }
 
 export default function ProductsList({ onSelect }: ProductsListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [categoryId, setCategoryId] = useState<number>(DEFAULT_CATEGORY_ID);
   const [page, setPage] = useState(1);
-  const [products, setProducts] = useState<ProductUnitEntity[]>([]);
-  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [products, setProducts] = useState<OdooProduct[]>([]);
+  const [pagination, setPagination] = useState<OdooProductsPagination | null>(null);
+  const [catalogRoots, setCatalogRoots] = useState<OdooCatalogRoot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,24 +37,21 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const filters = useMemo<ProductUnitsFilterInput>(() => {
-    const f: ProductUnitsFilterInput = { page, limit: 20 };
-    if (categoryFilter !== 'all') f.puCategory = categoryFilter;
-    if (debouncedSearch.trim()) f.search = debouncedSearch.trim();
-    return f;
-  }, [categoryFilter, debouncedSearch, page]);
-
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await portalApolloClient.query<ProductUnitsListResponse>({
-        query: PRODUCT_UNITS_QUERY,
-        variables: { filters },
-        fetchPolicy: 'network-only',
+      const data = await getProducts({
+        page,
+        limit: 20,
+        category_id: categoryId,
+        search: debouncedSearch.trim() || undefined,
       });
-      setProducts(data.productUnits.data);
-      setPagination(data.productUnits.pagination);
+      setProducts(data.products);
+      setPagination(data.pagination);
+      if (data.catalog_roots?.length) {
+        setCatalogRoots(data.catalog_roots);
+      }
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load products');
       setProducts([]);
@@ -65,7 +59,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [page, categoryId, debouncedSearch]);
 
   useEffect(() => {
     fetchData();
@@ -73,32 +67,24 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, categoryFilter]);
+  }, [debouncedSearch, categoryId]);
 
-  const total = pagination?.totalRecords ?? products.length;
-
-  const categoryPills: { key: CategoryFilter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'physical', label: 'Physical' },
-    { key: 'service', label: 'Service' },
-    { key: 'contract', label: 'Contract' },
-    { key: 'digital', label: 'Digital' },
-  ];
+  const total = pagination?.total ?? products.length;
 
   const filterChips = (
     <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-      {categoryPills.map((pill) => (
+      {catalogRoots.map((root) => (
         <button
-          key={pill.key}
-          onClick={() => setCategoryFilter(pill.key)}
+          key={root.id}
+          onClick={() => setCategoryId(root.id)}
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-            categoryFilter === pill.key
+            categoryId === root.id
               ? 'border-transparent text-text-inverse'
               : 'border-border bg-bg-tertiary text-text-secondary'
           }`}
-          style={categoryFilter === pill.key ? { backgroundColor: 'var(--color-brand)' } : undefined}
+          style={categoryId === root.id ? { backgroundColor: 'var(--color-brand)' } : undefined}
         >
-          {pill.label}
+          {parseCatalogLabel(root)}
         </button>
       ))}
     </div>
@@ -119,15 +105,15 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
       emptyHint={debouncedSearch ? 'Try a different search term' : 'Products are managed on the backend'}
       itemCount={total}
       itemLabel={total === 1 ? 'product' : 'products'}
-      headerExtra={filterChips}
-      page={pagination?.currentPage ?? page}
-      totalPages={pagination?.totalPages ?? 1}
+      headerExtra={catalogRoots.length > 0 ? filterChips : undefined}
+      page={pagination?.page ?? page}
+      totalPages={pagination?.total_pages ?? 1}
       onNextPage={() => setPage((p) => p + 1)}
       onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
-      hasNextPage={pagination?.hasNextPage ?? false}
+      hasNextPage={pagination?.has_next ?? false}
       paginationLabel={
         pagination
-          ? `Showing page ${pagination.currentPage} of ${pagination.totalPages}`
+          ? `Showing page ${pagination.page} of ${pagination.total_pages}`
           : undefined
       }
     >
@@ -140,24 +126,24 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
           <div className="list-card-body">
             <div className="list-card-content">
               <div className="list-card-primary">{product.name}</div>
-              {product.sku && (
+              {product.default_code && (
                 <div className="list-card-secondary list-card-meta-mono">
-                  {product.sku}
+                  {product.default_code}
                 </div>
               )}
               <div className="list-card-meta">
                 <Tag size={10} />
                 <span className="list-card-meta-bold list-card-meta-mono">
-                  {product.currencyName ?? ''} {product.listPrice?.toLocaleString() ?? '—'}
+                  {product.list_price?.toLocaleString() ?? '—'}
                 </span>
                 <span className="list-card-dot">&middot;</span>
-                <span>{product.recurringInvoice ? 'Recurring' : 'One-time'}</span>
+                <span>{product.recurring_invoice ? 'Recurring' : 'One-time'}</span>
               </div>
             </div>
             <div className="list-card-actions">
-              {product.puCategory && (
-                <span className={CATEGORY_BADGE_CLASS[product.puCategory] ?? 'list-card-badge list-card-badge--default'}>
-                  {product.puCategory}
+              {product.pu_category && (
+                <span className="list-card-badge list-card-badge--default">
+                  {product.pu_category}
                 </span>
               )}
             </div>

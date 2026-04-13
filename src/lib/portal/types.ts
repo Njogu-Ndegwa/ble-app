@@ -227,3 +227,65 @@ export interface UpdateProductUnitData {
 export interface DeleteProductUnitData {
   deleteProductUnit: MutationResponse;
 }
+
+// ============================================================================
+// Odoo REST Products API (GET /api/products/categories)
+// ============================================================================
+
+export interface OdooProductCategory {
+  id: number;
+  name: string;
+  complete_name: string;
+  parent_id: number | null;
+  parent_name: string | null;
+}
+
+export interface OdooProduct {
+  id: number;
+  template_id: number;
+  name: string;
+  default_code: string | null;
+  type: string;
+  list_price: number;
+  sale_ok: boolean;
+  active: boolean;
+  recurring_invoice: boolean;
+  description: string | null;
+  description_sale: string | null;
+  company_id: number | null;
+  company_name: string | null;
+  category_id: number;
+  category_name: string;
+  external_image_url: string | false;
+  pu_category: string | false;
+  pu_metric: string | false;
+  service_type: string | false;
+  contract_type: string | false;
+  category: OdooProductCategory;
+}
+
+export interface OdooCatalogRoot {
+  id: number;
+  name: string;
+  complete_name: string;
+}
+
+export interface OdooProductsPagination {
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+  offset: number;
+  returned: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface OdooProductsResponse {
+  success: boolean;
+  view: string;
+  products: OdooProduct[];
+  pagination: OdooProductsPagination;
+  catalog_root_ids: number[];
+  catalog_roots: OdooCatalogRoot[];
+}

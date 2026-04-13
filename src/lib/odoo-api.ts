@@ -8,6 +8,8 @@
  * - Subscription management
  */
 
+import type { OdooProductsResponse } from '@/lib/portal/types';
+
 // API Configuration
 const ODOO_BASE_URL = process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com';
 const ODOO_API_KEY = process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024';
@@ -658,6 +660,49 @@ export async function getCompanies(): Promise<OdooApiResponse<CompaniesResponse>
   return apiRequest<CompaniesResponse>('/api/auth/companies', {
     method: 'GET',
   });
+}
+
+// ============================================================================
+// Products Catalog API
+// ============================================================================
+
+export interface GetProductsParams {
+  page?: number;
+  limit?: number;
+  category_id?: number;
+  search?: string;
+}
+
+export async function getProducts(
+  params: GetProductsParams = {}
+): Promise<OdooProductsResponse> {
+  const { page = 1, limit = 20, category_id, search } = params;
+
+  const qs = new URLSearchParams();
+  qs.set('page', String(page));
+  qs.set('limit', String(limit));
+  if (category_id != null) qs.set('category_id', String(category_id));
+  if (search) qs.set('search', search);
+
+  const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
+
+  const response = await fetchWithRetry(url, {
+    method: 'GET',
+    headers: { 'X-API-KEY': ODOO_API_KEY },
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Products API error ${response.status}: ${text || response.statusText}`);
+  }
+
+  const data: OdooProductsResponse = await response.json();
+
+  if (!data.success) {
+    throw new Error('Products API returned success=false');
+  }
+
+  return data;
 }
 
 // ============================================================================

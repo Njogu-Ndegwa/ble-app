@@ -16,10 +16,9 @@ import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 import ProductsList from './components/ProductsList';
 import ProductDetail from './components/ProductDetail';
-import EditProduct from './components/EditProduct';
-import type { ProductUnitEntity } from '@/lib/portal/types';
+import type { OdooProduct } from '@/lib/portal/types';
 
-type Screen = 'list' | 'detail' | 'edit';
+type Screen = 'list' | 'detail';
 
 interface ProductsAppProps {
   onLogout?: () => void;
@@ -32,8 +31,7 @@ export default function ProductsApp({ onLogout, onSwitchSA }: ProductsAppProps) 
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
   const [screen, setScreen] = useState<Screen>('list');
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<OdooProduct | null>(null);
 
   useEffect(() => {
     document.body.classList.add('overflow-locked');
@@ -67,29 +65,14 @@ export default function ProductsApp({ onLogout, onSwitchSA }: ProductsAppProps) 
     router.push('/');
   }, [router]);
 
-  const handleSelectProduct = useCallback((product: ProductUnitEntity) => {
-    setSelectedProductId(product.id);
+  const handleSelectProduct = useCallback((product: OdooProduct) => {
+    setSelectedProduct(product);
     setScreen('detail');
   }, []);
 
   const handleBack = useCallback(() => {
     setScreen('list');
-    setSelectedProductId(null);
-  }, []);
-
-  const handleEdit = useCallback(() => {
-    setScreen('edit');
-  }, []);
-
-  const handleEditDone = useCallback(() => {
-    setScreen('detail');
-    setRefreshKey((k) => k + 1);
-  }, []);
-
-  const handleDeleted = useCallback(() => {
-    setScreen('list');
-    setSelectedProductId(null);
-    setRefreshKey((k) => k + 1);
+    setSelectedProduct(null);
   }, []);
 
   return (
@@ -155,21 +138,12 @@ export default function ProductsApp({ onLogout, onSwitchSA }: ProductsAppProps) 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">
           {screen === 'list' && (
-            <ProductsList key={refreshKey} onSelect={handleSelectProduct} />
+            <ProductsList onSelect={handleSelectProduct} />
           )}
-          {screen === 'detail' && selectedProductId && (
+          {screen === 'detail' && selectedProduct && (
             <ProductDetail
-              productId={selectedProductId}
+              product={selectedProduct}
               onBack={handleBack}
-              onEdit={handleEdit}
-              onDeleted={handleDeleted}
-            />
-          )}
-          {screen === 'edit' && selectedProductId && (
-            <EditProduct
-              productId={selectedProductId}
-              onDone={handleEditDone}
-              onCancel={() => setScreen('detail')}
             />
           )}
         </div>
