@@ -715,7 +715,7 @@ export async function getSubscriptionProducts(
     } catch (parseErr) {
       console.error('[PRODUCTS DEBUG] JSON parse failed:', parseErr);
       console.error('[PRODUCTS DEBUG] Full raw text:', rawText.substring(0, 2000));
-      throw new Error('Server returned invalid JSON. Check VConsole for details.');
+      throw new Error('Server returned invalid JSON. Check console for details.');
     }
 
     // Check for API-level errors
