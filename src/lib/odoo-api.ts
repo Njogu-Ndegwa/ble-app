@@ -21,11 +21,18 @@ const DEFAULT_COMPANY_ID = 14; // OV Kenya (Test)
  */
 function getActiveSAId(): string | null {
   if (typeof window === 'undefined') return null;
-  return (
-    localStorage.getItem('oves-attendant-sa-id') ||
-    localStorage.getItem('oves-sales-sa-id') ||
-    null
-  );
+  const attendantSaId = localStorage.getItem('oves-attendant-sa-id');
+  const attendantSaData = localStorage.getItem('oves-attendant-sa-data');
+  const salesSaId = localStorage.getItem('oves-sales-sa-id');
+  const salesSaData = localStorage.getItem('oves-sales-sa-data');
+  const resolved = attendantSaId || salesSaId || null;
+  console.info('[getActiveSAId] === ALL USER SAs ===');
+  console.info('[getActiveSAId] Attendant SA ID:', attendantSaId ?? 'NOT SET');
+  console.info('[getActiveSAId] Attendant SA Data:', attendantSaData ?? 'NONE');
+  console.info('[getActiveSAId] Sales SA ID:', salesSaId ?? 'NOT SET');
+  console.info('[getActiveSAId] Sales SA Data:', salesSaData ?? 'NONE');
+  console.info('[getActiveSAId] Resolved X-SA-ID:', resolved ?? 'NONE', resolved === attendantSaId ? '(from attendant)' : resolved === salesSaId ? '(from sales)' : '');
+  return resolved;
 }
 
 /**

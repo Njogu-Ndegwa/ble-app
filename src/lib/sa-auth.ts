@@ -51,6 +51,8 @@ export async function fetchMyServiceAccounts(
   }
 
   const data: MyServiceAccountsResponse = await response.json()
+  console.info('[fetchMyServiceAccounts] Available SAs:', JSON.stringify(data.service_accounts?.map(sa => ({ id: sa.id, name: sa.name })) ?? []))
+  console.info('[fetchMyServiceAccounts] auto_selected:', data.auto_selected)
   return data
 }
 
@@ -64,6 +66,8 @@ export function saveSelectedSA(
 ): void {
   if (typeof window === 'undefined') return
   const keys = storageKeys(userType)
+  console.info(`[saveSelectedSA] Saving SA for "${userType}" — id: ${sa.id}, name: ${sa.name ?? 'N/A'}, key: ${keys.id}`)
+  console.info('[saveSelectedSA] Full SA object:', JSON.stringify(sa))
   localStorage.setItem(keys.id, String(sa.id))
   localStorage.setItem(keys.data, JSON.stringify(sa))
 }
@@ -74,9 +78,14 @@ export function getSelectedSA(
   if (typeof window === 'undefined') return null
   const keys = storageKeys(userType)
   const raw = localStorage.getItem(keys.data)
-  if (!raw) return null
+  if (!raw) {
+    console.info(`[getSelectedSA] No SA data found for "${userType}" (key: ${keys.data})`)
+    return null
+  }
   try {
-    return JSON.parse(raw) as ServiceAccount
+    const sa = JSON.parse(raw) as ServiceAccount
+    console.info(`[getSelectedSA] Loaded SA for "${userType}" — id: ${sa.id}, name: ${sa.name ?? 'N/A'}`)
+    return sa
   } catch {
     return null
   }
