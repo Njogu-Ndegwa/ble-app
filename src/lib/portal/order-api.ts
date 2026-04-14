@@ -582,6 +582,30 @@ export async function getProformaPdf(
   };
 }
 
+// ============================================================================
+// Price Lists
+// ============================================================================
+
+export interface OdooPriceListItem {
+  id: number;
+  name: string;
+  currency_id?: number;
+  currency?: string;
+  active?: boolean;
+  [key: string]: unknown;
+}
+
+export async function getPriceLists(): Promise<OdooPriceListItem[]> {
+  const endpoint = '/api/pricelists';
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  const list = raw.pricelists ?? raw.data ?? raw.results ?? raw;
+  return Array.isArray(list) ? list : [];
+}
+
 export async function sendProformaPdf(orderId: number): Promise<MutationResponse> {
   const endpoint = `/api/orders/${orderId}/send-proforma`;
   const url = `${ODOO_BASE_URL}${endpoint}`;

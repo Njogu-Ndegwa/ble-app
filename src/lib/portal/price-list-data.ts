@@ -114,6 +114,25 @@ export const DEMO_PRICE_LISTS: PriceList[] = [
 ];
 
 /**
+ * Maps a raw Odoo pricelist object to the app-level PriceList shape.
+ * Rules are left empty intentionally — the backend rule data is not
+ * reliable yet, so price resolution falls back to base `list_price`.
+ */
+export function mapOdooPriceList(
+  raw: { id: number; name: string; currency_id?: number; currency?: string; active?: boolean; [key: string]: unknown },
+  index: number,
+): PriceList {
+  return {
+    id: `odoo-pl-${raw.id}`,
+    name: raw.name ?? `Price List ${raw.id}`,
+    description: '',
+    currency: raw.currency ?? 'USD',
+    isDefault: index === 0,
+    rules: [],
+  };
+}
+
+/**
  * Resolves the effective unit price for a product under a given price list.
  * Picks the most specific matching rule (product > category > all_products)
  * that satisfies the minimum quantity requirement.

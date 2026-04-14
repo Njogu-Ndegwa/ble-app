@@ -20,10 +20,11 @@ import { LoadingState } from '@/components/ui/State';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
 import type { OdooProduct, OrderEntity, CustomerEntity } from '@/lib/portal/types';
-import { createQuotation, sendOrder, formatCurrency } from '@/lib/portal/order-api';
+import { createQuotation, sendOrder, formatCurrency, getPriceLists } from '@/lib/portal/order-api';
 import {
   DEMO_PRICE_LISTS,
   resolvePrice,
+  mapOdooPriceList,
   type PriceList,
 } from '@/lib/portal/price-list-data';
 
@@ -66,6 +67,8 @@ function mapContact(c: OdooContact): CustomerEntity {
 }
 
 export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
+  const [priceLists, setPriceLists] = useState<PriceList[]>(DEMO_PRICE_LISTS);
+  const [priceListsLoading, setPriceListsLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerEntity | null>(null);
   const [selectedPriceList, setSelectedPriceList] = useState<PriceList>(
     DEMO_PRICE_LISTS.find((pl) => pl.isDefault) ?? DEMO_PRICE_LISTS[0],
@@ -85,6 +88,24 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   const [products, setProducts] = useState<OdooProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await getPriceLists();
+        if (cancelled || raw.length === 0) return;
+        const mapped = raw.map(mapOdooPriceList);
+        setPriceLists(mapped);
+        setSelectedPriceList(mapped.find((pl) => pl.isDefault) ?? mapped[0]);
+      } catch {
+        // Keep demo fallback
+      } finally {
+        if (!cancelled) setPriceListsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedCustomerSearch(customerSearch), 300);
@@ -341,7 +362,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                     {selectedPriceList.name}
                   </p>
                   <p className="text-[11px] text-text-muted truncate">
-                    {selectedPriceList.description}
+                    {selectedPriceList.description || 'Tap to choose a price list'}
                   </p>
                 </div>
               </div>
@@ -360,7 +381,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                   </p>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
-                  {DEMO_PRICE_LISTS.map((pl) => {
+                  {priceListsLoading ? (
+                    <div className="px-4 py-6">
+                      <LoadingState size="sm" inline />
+                    </div>
+                  ) : priceLists.map((pl) => {
                     const isSelected = pl.id === selectedPriceList.id;
                     const rulesCount = pl.rules.length;
                     const topDiscount = pl.rules.reduce(
@@ -409,9 +434,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-text-muted mt-0.5">
-                            {pl.description}
-                          </p>
+                          {pl.description && (
+                            <p className="text-[11px] text-text-muted mt-0.5">
+                              {pl.description}
+                            </p>
+                          )}
                           {rulesCount > 0 && (
                             <p className="text-[10px] text-text-muted mt-1">
                               {rulesCount} pricing rule{rulesCount > 1 ? 's' : ''}
