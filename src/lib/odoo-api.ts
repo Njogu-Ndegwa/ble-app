@@ -696,7 +696,10 @@ export async function getProducts(
     throw new Error(`Products API error ${response.status}: ${text || response.statusText}`);
   }
 
-  const data: OdooProductsResponse = await response.json();
+  const raw = await response.json();
+  console.info('[getProducts] raw API response:', JSON.stringify(raw));
+
+  const data: OdooProductsResponse = raw;
 
   if (!data.success) {
     throw new Error('Products API returned success=false');
