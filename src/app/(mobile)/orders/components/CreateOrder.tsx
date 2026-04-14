@@ -12,10 +12,9 @@ import {
   ChevronDown,
   Percent,
   Check,
-  Info,
+  ShoppingCart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { FormSection } from '@/components/ui';
 import { LoadingState } from '@/components/ui/State';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
@@ -310,7 +309,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* ─── Header ─── */}
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button
           onClick={onCancel}
@@ -319,451 +318,399 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         >
           <ArrowLeft size={20} className="text-text-primary" />
         </button>
-        <h2 className="text-lg font-semibold text-text-primary">New Order</h2>
-        {hasActiveDiscount && (
-          <span
-            className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
-          >
-            <Percent size={10} />
-            {selectedPriceList.name}
-          </span>
-        )}
+        <h2 className="text-lg font-semibold text-text-primary">New Quotation</h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-6">
-        {/* ─── Price List Section ─── */}
-        <FormSection title="Price List">
-          <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
+      {/* ─── Context bar: Customer + Price List as compact pills ─── */}
+      <div className="px-4 pb-2 flex gap-2">
+        <button
+          onClick={() => {
+            setShowCustomerDropdown(!showCustomerDropdown);
+            if (!showCustomerDropdown) setShowPriceListPicker(false);
+          }}
+          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
+          style={{
+            borderColor: selectedCustomer ? 'var(--color-brand)' : 'var(--border-default)',
+            backgroundColor: selectedCustomer ? 'var(--color-brand-soft, rgba(255,200,0,0.06))' : 'var(--bg-tertiary)',
+          }}
+        >
+          <User size={14} className="shrink-0" style={{ color: selectedCustomer ? 'var(--color-brand)' : 'var(--text-muted)' }} />
+          <span className="text-sm truncate" style={{ color: selectedCustomer ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            {selectedCustomer ? selectedCustomer.name : 'Customer'}
+          </span>
+          {selectedCustomer ? (
             <button
-              onClick={() => setShowPriceListPicker(!showPriceListPicker)}
-              className="w-full px-4 py-3 flex items-center justify-between transition-colors hover:bg-bg-elevated"
+              onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); }}
+              className="ml-auto shrink-0 p-0.5 rounded"
+              style={{ color: 'var(--text-muted)' }}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{
-                    backgroundColor: hasActiveDiscount
-                      ? 'var(--color-success-soft)'
-                      : 'var(--bg-elevated)',
-                  }}
-                >
-                  <Tag
-                    size={16}
-                    style={{
-                      color: hasActiveDiscount
-                        ? 'var(--color-success)'
-                        : 'var(--text-muted)',
-                    }}
-                  />
-                </div>
-                <div className="text-left min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">
-                    {selectedPriceList.name}
-                  </p>
-                  <p className="text-[11px] text-text-muted truncate">
-                    {selectedPriceList.description || 'Tap to choose a price list'}
-                  </p>
-                </div>
-              </div>
-              <ChevronDown
-                size={16}
-                className="text-text-muted shrink-0 ml-2 transition-transform"
-                style={showPriceListPicker ? { transform: 'rotate(180deg)' } : undefined}
-              />
+              <X size={13} />
             </button>
+          ) : (
+            <ChevronDown size={14} className="ml-auto shrink-0 text-text-muted" />
+          )}
+        </button>
 
-            {showPriceListPicker && (
-              <div className="border-t border-border">
-                <div className="px-3 py-2">
-                  <p className="text-[10px] uppercase font-medium text-text-muted tracking-wider mb-1.5">
-                    Available Price Lists
-                  </p>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {priceListsLoading ? (
-                    <div className="px-4 py-6">
-                      <LoadingState size="sm" inline />
+        <button
+          onClick={() => {
+            setShowPriceListPicker(!showPriceListPicker);
+            if (!showPriceListPicker) setShowCustomerDropdown(false);
+          }}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
+          style={{
+            borderColor: hasActiveDiscount ? 'var(--color-success)' : 'var(--border-default)',
+            backgroundColor: hasActiveDiscount ? 'var(--color-success-soft)' : 'var(--bg-tertiary)',
+          }}
+        >
+          <Tag size={13} style={{ color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-muted)' }} />
+          <span
+            className="text-xs font-medium max-w-[100px] truncate"
+            style={{ color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-secondary)' }}
+          >
+            {selectedPriceList.name}
+          </span>
+          <ChevronDown
+            size={12}
+            className="shrink-0 transition-transform"
+            style={{
+              color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-muted)',
+              transform: showPriceListPicker ? 'rotate(180deg)' : undefined,
+            }}
+          />
+        </button>
+      </div>
+
+      {/* ─── Customer search dropdown (expands below context bar) ─── */}
+      {showCustomerDropdown && (
+        <div className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+          <div className="p-3">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search size={14} className="text-text-muted" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search customers..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                autoFocus
+                className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+          <div className="border-t border-border">
+            {customersLoading ? (
+              <div className="py-4"><LoadingState size="sm" inline /></div>
+            ) : customers.length === 0 ? (
+              <p className="text-xs py-4 text-center text-text-muted">No customers found.</p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto">
+                {customers.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSelectCustomer(c)}
+                    className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-bg-elevated border-b border-border/30 last:border-0"
+                  >
+                    <span className="font-medium text-text-primary">{c.name}</span>
+                    {(c.email || c.phone) && (
+                      <span className="text-[11px] ml-2 text-text-muted">{c.email || c.phone}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Price list picker dropdown ─── */}
+      {showPriceListPicker && (
+        <div className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+          <div className="max-h-64 overflow-y-auto">
+            {priceListsLoading ? (
+              <div className="py-4"><LoadingState size="sm" inline /></div>
+            ) : priceLists.map((pl) => {
+              const isSelected = pl.id === selectedPriceList.id;
+              const topDiscount = pl.rules.reduce(
+                (max, r) => Math.max(max, r.discountPercent ?? 0),
+                0,
+              );
+              return (
+                <button
+                  key={pl.id}
+                  onClick={() => handleSelectPriceList(pl)}
+                  className="w-full text-left px-4 py-3 flex items-center gap-3 transition-colors border-b border-border/30 last:border-0"
+                  style={
+                    isSelected
+                      ? { backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.08))' }
+                      : undefined
+                  }
+                >
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 border"
+                    style={
+                      isSelected
+                        ? { backgroundColor: 'var(--color-brand)', borderColor: 'var(--color-brand)' }
+                        : { borderColor: 'var(--border-default)' }
+                    }
+                  >
+                    {isSelected && <Check size={12} className="text-black" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-text-primary">{pl.name}</span>
+                      {topDiscount > 0 && (
+                        <span
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                          style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                        >
+                          up to {topDiscount}% off
+                        </span>
+                      )}
                     </div>
-                  ) : priceLists.map((pl) => {
-                    const isSelected = pl.id === selectedPriceList.id;
-                    const rulesCount = pl.rules.length;
-                    const topDiscount = pl.rules.reduce(
-                      (max, r) => Math.max(max, r.discountPercent ?? 0),
-                      0,
-                    );
+                    {pl.description && (
+                      <p className="text-[11px] text-text-muted mt-0.5">{pl.description}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
+      {/* ─── Main cart area ─── */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Add product button / search */}
+        <button
+          onClick={() => {
+            setShowProductDropdown(!showProductDropdown);
+            setShowCustomerDropdown(false);
+            setShowPriceListPicker(false);
+          }}
+          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl border border-dashed border-border text-text-muted transition-colors hover:bg-bg-elevated hover:border-text-muted active:scale-[0.99] mb-3"
+        >
+          <Plus size={16} />
+          <span className="text-sm">Add product</span>
+          {hasActiveDiscount && (
+            <span
+              className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+            >
+              <Percent size={9} className="inline -mt-px mr-0.5" />
+              {selectedPriceList.name}
+            </span>
+          )}
+        </button>
+
+        {/* Product search dropdown */}
+        {showProductDropdown && (
+          <div className="mb-3 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+            <div className="p-3">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <Search size={14} className="text-text-muted" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  autoFocus
+                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+            </div>
+            <div className="border-t border-border">
+              {productsLoading ? (
+                <div className="py-4"><LoadingState size="sm" inline /></div>
+              ) : products.length === 0 ? (
+                <p className="text-xs py-4 text-center text-text-muted">No products found.</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto">
+                  {products.map((p) => {
+                    const resolved = resolvePrice(
+                      selectedPriceList,
+                      { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
+                      1,
+                    );
+                    const hasDiscount = resolved.discountPercent > 0;
                     return (
                       <button
-                        key={pl.id}
-                        onClick={() => handleSelectPriceList(pl)}
-                        className="w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-t border-border/50"
-                        style={
-                          isSelected
-                            ? { backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.08))' }
-                            : undefined
-                        }
+                        key={p.id}
+                        onClick={() => handleAddProduct(p)}
+                        className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center border-b border-border/30 last:border-0"
                       >
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 border"
-                          style={
-                            isSelected
-                              ? {
-                                  backgroundColor: 'var(--color-brand)',
-                                  borderColor: 'var(--color-brand)',
-                                }
-                              : { borderColor: 'var(--border-default)' }
-                          }
-                        >
-                          {isSelected && <Check size={12} className="text-black" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-text-primary">
-                              {pl.name}
+                        <div className="min-w-0">
+                          <span className="font-medium text-text-primary">{p.name}</span>
+                          {p.pu_category && (
+                            <span className="list-card-badge list-card-badge--progress ml-2">
+                              {p.pu_category}
                             </span>
-                            {topDiscount > 0 && (
-                              <span
-                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
-                                style={{
-                                  backgroundColor: 'var(--color-success-soft)',
-                                  color: 'var(--color-success)',
-                                }}
-                              >
-                                up to {topDiscount}% off
-                              </span>
-                            )}
-                          </div>
-                          {pl.description && (
-                            <p className="text-[11px] text-text-muted mt-0.5">
-                              {pl.description}
-                            </p>
                           )}
-                          {rulesCount > 0 && (
-                            <p className="text-[10px] text-text-muted mt-1">
-                              {rulesCount} pricing rule{rulesCount > 1 ? 's' : ''}
-                            </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          {hasDiscount && (
+                            <span
+                              className="text-[10px] line-through text-text-muted"
+                              style={{ fontFamily: 'var(--font-mono)' }}
+                            >
+                              {formatCurrency(p.list_price)}
+                            </span>
+                          )}
+                          <span
+                            className="text-xs font-semibold"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
+                            }}
+                          >
+                            {formatCurrency(resolved.unitPrice)}
+                          </span>
+                          {hasDiscount && (
+                            <span
+                              className="text-[9px] font-bold px-1 py-0.5 rounded"
+                              style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                            >
+                              -{resolved.discountPercent}%
+                            </span>
                           )}
                         </div>
                       </button>
                     );
                   })}
                 </div>
-              </div>
-            )}
-
-            {hasActiveDiscount && !showPriceListPicker && (
-              <div
-                className="px-4 py-2.5 border-t border-border flex items-center gap-2"
-                style={{ backgroundColor: 'var(--color-success-soft)' }}
-              >
-                <Info size={13} style={{ color: 'var(--color-success)' }} />
-                <span className="text-[11px] text-text-secondary">
-                  Prices will be adjusted automatically based on{' '}
-                  <strong style={{ color: 'var(--color-success)' }}>
-                    {selectedPriceList.name}
-                  </strong>{' '}
-                  rules when you add products.
-                </span>
-              </div>
-            )}
-          </div>
-        </FormSection>
-
-        {/* ─── Customer Section ─── */}
-        <FormSection title="Customer">
-          <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-              <div className="flex items-center gap-2">
-                <User size={15} className="text-text-muted" />
-                <span className="text-sm font-medium text-text-primary">
-                  {selectedCustomer ? selectedCustomer.name : 'No customer selected'}
-                </span>
-              </div>
-              <button
-                onClick={() => setShowCustomerDropdown(!showCustomerDropdown)}
-                className="text-xs font-medium px-2.5 py-1 rounded-lg border border-border"
-                style={{ color: 'var(--color-brand)' }}
-              >
-                {selectedCustomer ? 'Change' : 'Select'}
-              </button>
+              )}
             </div>
+          </div>
+        )}
 
-            {showCustomerDropdown && (
-              <div className="px-4 py-3 border-b border-border space-y-2">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Search size={14} className="text-text-muted" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search customers..."
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    autoFocus
-                    className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-                {customersLoading ? (
-                  <LoadingState size="sm" inline />
-                ) : customers.length === 0 ? (
-                  <p className="text-xs py-3 text-center text-text-muted">No customers found.</p>
-                ) : (
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {customers.map((c) => (
+        {/* Cart lines */}
+        {lines.length === 0 && !showProductDropdown ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
+              style={{ backgroundColor: 'var(--bg-elevated)' }}
+            >
+              <ShoppingCart size={24} className="text-text-muted" />
+            </div>
+            <p className="text-sm font-medium text-text-secondary mb-1">No products yet</p>
+            <p className="text-xs text-text-muted">Tap &ldquo;Add product&rdquo; above to get started</p>
+          </div>
+        ) : lines.length > 0 && (
+          <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
+            <div className="divide-y divide-border">
+              {lines.map((line) => {
+                const hasDiscount = line.discountPercent > 0;
+                return (
+                  <div key={line.tempId} className="px-3 py-3">
+                    {/* Row 1: product name + remove */}
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <p className="text-sm font-medium text-text-primary leading-tight">
+                        {line.productName}
+                      </p>
                       <button
-                        key={c.id}
-                        onClick={() => handleSelectCustomer(c)}
-                        className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated"
+                        onClick={() => handleRemoveLine(line.tempId)}
+                        className="p-0.5 shrink-0 rounded"
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        <span className="font-medium text-text-primary">{c.name}</span>
-                        {c.email && (
-                          <span className="text-xs ml-2 text-text-muted">{c.email}</span>
-                        )}
+                        <X size={14} />
                       </button>
-                    ))}
+                    </div>
+                    {/* Row 2: price × qty = subtotal */}
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 min-w-0">
+                        {hasDiscount && (
+                          <span
+                            className="text-[10px] line-through text-text-muted"
+                            style={{ fontFamily: 'var(--font-mono)' }}
+                          >
+                            {formatCurrency(line.listPrice)}
+                          </span>
+                        )}
+                        <span
+                          className="text-xs font-medium"
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          {formatCurrency(line.priceUnit)}
+                        </span>
+                        {hasDiscount && (
+                          <span
+                            className="text-[9px] font-bold px-1 py-0.5 rounded"
+                            style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                          >
+                            -{line.discountPercent}%
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-text-muted mx-0.5">&times;</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={line.quantity}
+                        onChange={(e) =>
+                          handleLineQtyChange(line.tempId, parseInt(e.target.value) || 1)
+                        }
+                        className="w-12 text-center text-xs font-medium rounded-lg border border-border py-1 outline-none bg-bg-tertiary text-text-primary"
+                      />
+                      <span className="text-xs text-text-muted mx-0.5">=</span>
+                      <span
+                        className="text-sm font-semibold text-text-primary ml-auto"
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      >
+                        {formatCurrency(line.priceUnit * line.quantity)}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
-
-            {selectedCustomer && (
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">
-                    {selectedCustomer.email || selectedCustomer.phone || 'No contact info'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedCustomer(null)}
-                  className="p-1 rounded-md"
-                  style={{ color: 'var(--color-error)' }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            )}
-          </div>
-        </FormSection>
-
-        {/* ─── Products Section ─── */}
-        <FormSection title="Products">
-          <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-              <div className="flex items-center gap-2">
-                <Package size={15} className="text-text-muted" />
-                <span className="text-sm font-medium text-text-primary">
-                  {lines.length > 0 ? `${lines.length} item${lines.length > 1 ? 's' : ''}` : 'No products added'}
-                </span>
-              </div>
-              <button
-                onClick={() => setShowProductDropdown(!showProductDropdown)}
-                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-border"
-                style={{ color: 'var(--color-brand)' }}
-              >
-                <Plus size={14} />
-                Add
-              </button>
+                );
+              })}
             </div>
 
-            {showProductDropdown && (
-              <div className="px-4 py-3 border-b border-border space-y-2">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Search size={14} className="text-text-muted" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search products..."
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    autoFocus
-                    className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-                {productsLoading ? (
-                  <LoadingState size="sm" inline />
-                ) : products.length === 0 ? (
-                  <p className="text-xs py-3 text-center text-text-muted">No products found.</p>
-                ) : (
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {products.map((p) => {
-                      const resolved = resolvePrice(
-                        selectedPriceList,
-                        { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
-                        1,
-                      );
-                      const hasDiscount = resolved.discountPercent > 0;
-                      return (
-                        <button
-                          key={p.id}
-                          onClick={() => handleAddProduct(p)}
-                          className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center"
-                        >
-                          <div>
-                            <span className="font-medium text-text-primary">{p.name}</span>
-                            {p.pu_category && (
-                              <span className="list-card-badge list-card-badge--progress ml-2">
-                                {p.pu_category}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {hasDiscount && (
-                              <span
-                                className="text-[10px] line-through text-text-muted"
-                                style={{ fontFamily: 'var(--font-mono)' }}
-                              >
-                                {formatCurrency(p.list_price)}
-                              </span>
-                            )}
-                            <span
-                              className="text-xs font-semibold"
-                              style={{
-                                fontFamily: 'var(--font-mono)',
-                                color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
-                              }}
-                            >
-                              {formatCurrency(resolved.unitPrice)}
-                            </span>
-                            {hasDiscount && (
-                              <span
-                                className="text-[9px] font-bold px-1 py-0.5 rounded"
-                                style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
-                              >
-                                -{resolved.discountPercent}%
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {lines.length === 0 ? (
-              <div className="px-4 py-8 text-center">
-                <Package size={24} className="mx-auto mb-2 text-text-muted" />
-                <p className="text-xs text-text-muted">No products added yet.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {lines.map((line) => {
-                  const hasDiscount = line.discountPercent > 0;
-                  return (
-                    <div key={line.tempId} className="px-4 py-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary truncate">
-                          {line.productName}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {hasDiscount ? (
-                            <>
-                              <span
-                                className="text-[10px] line-through text-text-muted"
-                                style={{ fontFamily: 'var(--font-mono)' }}
-                              >
-                                {formatCurrency(line.listPrice)}
-                              </span>
-                              <span
-                                className="text-xs font-semibold"
-                                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success)' }}
-                              >
-                                {formatCurrency(line.priceUnit)}
-                              </span>
-                              <span
-                                className="text-[9px] font-bold px-1 py-0.5 rounded"
-                                style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
-                              >
-                                -{line.discountPercent}%
-                              </span>
-                            </>
-                          ) : (
-                            <span
-                              className="text-xs text-text-muted"
-                              style={{ fontFamily: 'var(--font-mono)' }}
-                            >
-                              {formatCurrency(line.priceUnit)} each
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="1"
-                          value={line.quantity}
-                          onChange={(e) =>
-                            handleLineQtyChange(line.tempId, parseInt(e.target.value) || 1)
-                          }
-                          className="w-14 text-center text-sm rounded-lg border border-border py-1 outline-none bg-bg-tertiary text-text-primary"
-                        />
-                        <span
-                          className="text-sm font-semibold w-20 text-right text-text-primary"
-                          style={{ fontFamily: 'var(--font-mono)' }}
-                        >
-                          {formatCurrency(line.priceUnit * line.quantity)}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveLine(line.tempId)}
-                          className="p-1"
-                          style={{ color: 'var(--color-error)' }}
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {lines.length > 0 && (
-              <div className="px-4 py-3 border-t border-border space-y-1.5">
-                {totalSavings > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-text-muted flex items-center gap-1">
-                      <Percent size={10} />
-                      Discount savings
-                    </span>
-                    <span
-                      className="text-xs font-semibold"
-                      style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}
-                    >
-                      -{formatCurrency(totalSavings)}
-                    </span>
-                  </div>
-                )}
+            {/* Totals */}
+            <div className="px-3 py-3 border-t border-border space-y-1">
+              {totalSavings > 0 && (
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-text-primary">Total</span>
+                  <span className="text-[11px] text-text-muted flex items-center gap-1">
+                    <Percent size={9} />
+                    Savings
+                  </span>
                   <span
-                    className="text-sm font-bold"
+                    className="text-[11px] font-semibold"
                     style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}
                   >
-                    {formatCurrency(total)}
+                    -{formatCurrency(totalSavings)}
                   </span>
                 </div>
+              )}
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-sm font-bold text-text-primary">
+                  Total
+                  <span className="text-[11px] font-normal text-text-muted ml-1.5">
+                    {lines.length} item{lines.length !== 1 ? 's' : ''}
+                  </span>
+                </span>
+                <span
+                  className="text-base font-bold"
+                  style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}
+                >
+                  {formatCurrency(total)}
+                </span>
               </div>
-            )}
+            </div>
           </div>
-        </FormSection>
+        )}
       </div>
 
-      {/* ─── Bottom Actions ─── */}
-      <div className="px-4 py-3 border-t border-border flex gap-3">
-        <button
-          onClick={onCancel}
-          className="flex-1 py-3 rounded-xl border border-border text-text-primary font-medium text-sm active:scale-[0.98] transition-transform"
-        >
-          Cancel
-        </button>
+      {/* ─── Bottom action ─── */}
+      <div className="px-4 py-3 border-t border-border">
         <button
           onClick={handleSubmit}
           disabled={creating || !selectedCustomer || lines.length === 0}
           style={{ backgroundColor: 'var(--color-brand)' }}
-          className="flex-1 py-3 rounded-xl text-black font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
+          className="w-full py-3.5 rounded-xl text-black font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
         >
           {creating ? (
             <>
@@ -771,7 +718,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
               Creating...
             </>
           ) : (
-            'Create Order'
+            'Create Quotation'
           )}
         </button>
       </div>
