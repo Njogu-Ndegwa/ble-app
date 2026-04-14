@@ -215,8 +215,8 @@ export default function ListScreen({
         )}
       </div>
 
-      {/* ---- Header extra (e.g. summary cards) ---- */}
-      {headerExtra && !isLoading && !error && <div className="px-4">{headerExtra}</div>}
+      {/* ---- Header extra (e.g. filter pills, summary cards) ---- */}
+      {headerExtra && <div className="px-4">{headerExtra}</div>}
 
       {/* ---- Content area ---- */}
       <div className="flex-1 overflow-y-auto px-4 pb-20">
