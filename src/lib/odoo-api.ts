@@ -643,6 +643,10 @@ export async function registerCustomer(
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
+
+  const mergedHeaders = { ...buildOdooHeaders(authToken), ...headers } as Record<string, string>;
+  console.info('[registerCustomer] Headers:', JSON.stringify(mergedHeaders));
+  console.info('[registerCustomer] X-SA-ID:', mergedHeaders['X-SA-ID'] ?? 'NOT SET');
   
   const response = await apiRequest<RegisterCustomerResponse>('/api/auth/register', {
     method: 'POST',
@@ -687,7 +691,7 @@ export async function getProducts(
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
   const headers = buildOdooHeaders();
   console.info('[getProducts] fetching URL:', url);
-  console.info('[getProducts] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'none');
+  console.info('[getProducts] headers:', JSON.stringify(headers));
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -2222,6 +2226,8 @@ export async function getCustomerDashboard(
   console.info('=== GET CUSTOMER DASHBOARD ===');
   console.info('URL:', url);
   console.info('Customer ID:', customerId);
+  console.info('[getCustomerDashboard] Headers:', JSON.stringify(headers));
+  console.info('[getCustomerDashboard] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
   
   try {
     const response = await fetchWithRetry(url, {
@@ -2542,6 +2548,8 @@ export async function getContacts(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
+  console.info('[getContacts] Headers:', JSON.stringify(headers));
+  console.info('[getContacts] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
@@ -2565,6 +2573,8 @@ export async function getContactById(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
+  console.info('[getContactById] Headers:', JSON.stringify(headers));
+  console.info('[getContactById] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
@@ -2589,6 +2599,8 @@ export async function updateContact(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
+  console.info('[updateContact] Headers:', JSON.stringify(headers));
+  console.info('[updateContact] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, {
@@ -2616,6 +2628,8 @@ export async function createContact(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
+  console.info('[createContact] Headers:', JSON.stringify(headers));
+  console.info('[createContact] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, {
@@ -2648,6 +2662,8 @@ export async function deleteContact(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
+  console.info('[deleteContact] Headers:', JSON.stringify(headers));
+  console.info('[deleteContact] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, { method: 'DELETE', headers });
