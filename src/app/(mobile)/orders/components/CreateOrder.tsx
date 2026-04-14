@@ -6,9 +6,9 @@ import toast from 'react-hot-toast';
 import { FormSection } from '@/components/ui';
 import { LoadingState } from '@/components/ui/State';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { getContacts, type OdooContact } from '@/lib/odoo-api';
+import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
+import type { OdooProduct, OrderEntity, CustomerEntity } from '@/lib/portal/types';
 import { createQuotation, formatCurrency } from '@/lib/portal/order-api';
-import type { OrderEntity, CustomerEntity } from '@/lib/portal/types';
 
 interface CreateOrderProps {
   onCreated: (order: OrderEntity) => void;
@@ -59,7 +59,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   const [productSearch, setProductSearch] = useState('');
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<OdooProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
@@ -102,26 +102,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       setProductsLoading(true);
       try {
         const token = getSalesRoleToken();
-        const url = new URL(
-          `${process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com'}/api/products`,
+        const data = await getProducts(
+          { limit: 10, search: debouncedProductSearch || undefined },
+          token || undefined,
         );
-        url.searchParams.set('limit', '10');
-        url.searchParams.set('active', 'true');
-        if (debouncedProductSearch) url.searchParams.set('search', debouncedProductSearch);
-
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-          'X-API-KEY': process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024',
-        };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const saId =
-          typeof window !== 'undefined'
-            ? localStorage.getItem('oves-sales-sa-id')
-            : null;
-        if (saId) headers['X-SA-ID'] = saId;
-
-        const res = await fetch(url.toString(), { headers });
-        const data = await res.json();
         if (!cancelled) setProducts(data.products ?? []);
       } catch {
         if (!cancelled) setProducts([]);
@@ -139,20 +123,19 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     setCustomerSearch('');
   }, []);
 
-  const handleAddProduct = useCallback((p: any) => {
-    const pid = p.product_id ?? p.id;
+  const handleAddProduct = useCallback((p: OdooProduct) => {
     setLines((prev) => {
-      const existing = prev.find((l) => l.productId === pid);
+      const existing = prev.find((l) => l.productId === p.id);
       if (existing) {
         return prev.map((l) =>
-          l.productId === pid ? { ...l, quantity: l.quantity + 1 } : l,
+          l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l,
         );
       }
       return [
         ...prev,
         {
           tempId: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          productId: pid,
+          productId: p.id,
           productName: p.name,
           sku: p.default_code || null,
           puCategory: p.pu_category || null,
@@ -348,9 +331,9 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                   <p className="text-xs py-3 text-center text-text-muted">No products found.</p>
                 ) : (
                   <div className="max-h-40 overflow-y-auto space-y-1">
-                    {products.map((p: any) => (
+                    {products.map((p) => (
                       <button
-                        key={p.product_id ?? p.id}
+                        key={p.id}
                         onClick={() => handleAddProduct(p)}
                         className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center"
                       >

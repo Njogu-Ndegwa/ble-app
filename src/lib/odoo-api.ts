@@ -700,7 +700,8 @@ export interface GetProductsParams {
 }
 
 export async function getProducts(
-  params: GetProductsParams = {}
+  params: GetProductsParams = {},
+  authToken?: string
 ): Promise<OdooProductsResponse> {
   const { page = 1, limit = 20, category_id, search } = params;
 
@@ -711,7 +712,7 @@ export async function getProducts(
   if (search) qs.set('search', search);
 
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
-  const headers = buildOdooHeaders();
+  const headers = buildOdooHeaders(authToken);
   console.info('[getProducts] fetching URL:', url);
   console.info('[getProducts] headers:', JSON.stringify(headers));
 
