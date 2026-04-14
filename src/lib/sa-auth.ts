@@ -68,6 +68,19 @@ export function saveSelectedSA(
   const keys = storageKeys(userType)
   console.info(`[saveSelectedSA] Saving SA for "${userType}" — id: ${sa.id}, name: ${sa.name ?? 'N/A'}, key: ${keys.id}`)
   console.info('[saveSelectedSA] Full SA object:', JSON.stringify(sa))
+
+  // Clear the other role's SA to prevent stale cross-contamination.
+  // getActiveSAId() checks both roles, so a leftover SA from the other
+  // role would silently override the one the user just selected.
+  const otherRole = userType === 'attendant' ? 'sales' : 'attendant'
+  const otherKeys = storageKeys(otherRole)
+  const staleId = localStorage.getItem(otherKeys.id)
+  if (staleId) {
+    console.info(`[saveSelectedSA] Clearing stale "${otherRole}" SA (was id: ${staleId}) to avoid cross-contamination`)
+    localStorage.removeItem(otherKeys.id)
+    localStorage.removeItem(otherKeys.data)
+  }
+
   localStorage.setItem(keys.id, String(sa.id))
   localStorage.setItem(keys.data, JSON.stringify(sa))
 }

@@ -25,13 +25,28 @@ function getActiveSAId(): string | null {
   const attendantSaData = localStorage.getItem('oves-attendant-sa-data');
   const salesSaId = localStorage.getItem('oves-sales-sa-id');
   const salesSaData = localStorage.getItem('oves-sales-sa-data');
-  const resolved = attendantSaId || salesSaId || null;
+
+  // Detect which role is active based on the current page path
+  const path = window.location.pathname;
+  const isAttendantContext = path.includes('/attendant');
+  let resolved: string | null;
+  let source: string;
+
+  if (isAttendantContext) {
+    resolved = attendantSaId || salesSaId || null;
+    source = resolved === attendantSaId ? 'attendant' : resolved === salesSaId ? 'sales (fallback)' : 'NONE';
+  } else {
+    resolved = salesSaId || attendantSaId || null;
+    source = resolved === salesSaId ? 'sales' : resolved === attendantSaId ? 'attendant (fallback)' : 'NONE';
+  }
+
   console.info('[getActiveSAId] === ALL USER SAs ===');
+  console.info('[getActiveSAId] Page:', path, '| Context:', isAttendantContext ? 'ATTENDANT' : 'SALES');
   console.info('[getActiveSAId] Attendant SA ID:', attendantSaId ?? 'NOT SET');
   console.info('[getActiveSAId] Attendant SA Data:', attendantSaData ?? 'NONE');
   console.info('[getActiveSAId] Sales SA ID:', salesSaId ?? 'NOT SET');
   console.info('[getActiveSAId] Sales SA Data:', salesSaData ?? 'NONE');
-  console.info('[getActiveSAId] Resolved X-SA-ID:', resolved ?? 'NONE', resolved === attendantSaId ? '(from attendant)' : resolved === salesSaId ? '(from sales)' : '');
+  console.info('[getActiveSAId] Resolved X-SA-ID:', resolved ?? 'NONE', `(from ${source})`);
   return resolved;
 }
 
