@@ -8,7 +8,7 @@ import { LoadingState } from '@/components/ui/State';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
 import type { OdooProduct, OrderEntity, CustomerEntity } from '@/lib/portal/types';
-import { createQuotation, formatCurrency } from '@/lib/portal/order-api';
+import { createQuotation, sendOrder, formatCurrency } from '@/lib/portal/order-api';
 
 interface CreateOrderProps {
   onCreated: (order: OrderEntity) => void;
@@ -187,6 +187,12 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       if (!result.success || !result.order?.id) {
         toast.error(result.message ?? 'Failed to create order.');
         return;
+      }
+
+      try {
+        await sendOrder(Number(result.order.id));
+      } catch {
+        // Send may fail but quotation is still created; user can send from detail view
       }
 
       toast.success('Order created!');

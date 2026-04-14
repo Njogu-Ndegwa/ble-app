@@ -117,10 +117,22 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       setActionLoading(true);
       try {
         await actionFn();
-        toast.success(successMsg);
-        await refreshOrder(minStep);
       } catch (err: any) {
         toast.error(err?.message ?? 'Operation failed');
+        setActionLoading(false);
+        return;
+      }
+      toast.success(successMsg);
+      try {
+        await new Promise((r) => setTimeout(r, 800));
+        await refreshOrder(minStep);
+      } catch {
+        try {
+          await new Promise((r) => setTimeout(r, 2000));
+          await refreshOrder(minStep);
+        } catch {
+          /* action succeeded; user can pull-to-refresh or navigate back */
+        }
       } finally {
         setActionLoading(false);
       }
@@ -529,11 +541,13 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
           )}
 
           {activeStep === 3 && (
-            <div className="p-4 space-y-3">
-              <p className="text-sm font-semibold text-text-primary">Payment</p>
-              <OrderSummary order={order} />
+            <div className="space-y-3">
+              <OrderLines lines={order.lines} />
+              <div className="px-4">
+                <OrderSummary order={order} />
+              </div>
               {order.payments.length > 0 && (
-                <div className="space-y-2">
+                <div className="px-4 space-y-2">
                   <p className="text-xs font-medium text-text-secondary">Payment History</p>
                   {order.payments.map((pay) => (
                     <div key={pay.id} className="flex items-center justify-between rounded-lg p-2 border border-border text-xs">
@@ -544,7 +558,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 </div>
               )}
               {!isViewingPastStep && order.paymentStatus !== 'paid' && (
-                <div className="space-y-2 pt-2 border-t border-border">
+                <div className="px-4 pb-4 space-y-2 pt-2 border-t border-border">
                   <input
                     type="number"
                     placeholder="Payment amount"
