@@ -380,7 +380,25 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         </button>
       </div>
 
-      {/* ─── Customer search dropdown (expands below context bar) ─── */}
+      {/* ─── Selected customer brief ─── */}
+      {selectedCustomer && !showCustomerDropdown && (
+        <div className="mx-4 mb-2 flex items-center gap-2.5 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold"
+            style={{ backgroundColor: 'var(--color-brand)', color: 'var(--text-inverse, #000)' }}
+          >
+            {selectedCustomer.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-text-primary truncate">{selectedCustomer.name}</p>
+            <p className="text-[11px] text-text-muted truncate">
+              {[selectedCustomer.email, selectedCustomer.phone || selectedCustomer.mobile].filter(Boolean).join(' · ') || 'No contact info'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Customer search dropdown ─── */}
       {showCustomerDropdown && (
         <div className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
           <div className="p-3">
@@ -398,35 +416,33 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
               />
             </div>
           </div>
-          <div className="border-t border-border">
-            {customersLoading ? (
-              <div className="py-4"><LoadingState size="sm" inline /></div>
-            ) : customers.length === 0 ? (
-              <p className="text-xs py-4 text-center text-text-muted">No customers found.</p>
-            ) : (
-              <div className="max-h-48 overflow-y-auto">
-                {customers.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleSelectCustomer(c)}
-                    className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-bg-elevated border-b border-border/30 last:border-0"
-                  >
-                    <span className="font-medium text-text-primary">{c.name}</span>
-                    {(c.email || c.phone) && (
-                      <span className="text-[11px] ml-2 text-text-muted">{c.email || c.phone}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {customersLoading ? (
+            <div className="py-4"><LoadingState size="sm" inline /></div>
+          ) : customers.length === 0 ? (
+            <p className="text-xs py-4 text-center text-text-muted">No customers found.</p>
+          ) : (
+            <div className="max-h-48 overflow-y-auto px-2 pb-2 space-y-1">
+              {customers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => handleSelectCustomer(c)}
+                  className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated"
+                >
+                  <span className="font-medium text-text-primary">{c.name}</span>
+                  {(c.email || c.phone) && (
+                    <span className="text-[11px] ml-2 text-text-muted">{c.email || c.phone}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ─── Price list picker dropdown ─── */}
       {showPriceListPicker && (
         <div className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-64 overflow-y-auto p-2 space-y-1">
             {priceListsLoading ? (
               <div className="py-4"><LoadingState size="sm" inline /></div>
             ) : priceLists.map((pl) => {
@@ -439,7 +455,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                 <button
                   key={pl.id}
                   onClick={() => handleSelectPriceList(pl)}
-                  className="w-full text-left px-4 py-3 flex items-center gap-3 transition-colors border-b border-border/30 last:border-0"
+                  className="w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-colors hover:bg-bg-elevated"
                   style={
                     isSelected
                       ? { backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.08))' }
@@ -521,67 +537,65 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                 />
               </div>
             </div>
-            <div className="border-t border-border">
-              {productsLoading ? (
-                <div className="py-4"><LoadingState size="sm" inline /></div>
-              ) : products.length === 0 ? (
-                <p className="text-xs py-4 text-center text-text-muted">No products found.</p>
-              ) : (
-                <div className="max-h-48 overflow-y-auto">
-                  {products.map((p) => {
-                    const resolved = resolvePrice(
-                      selectedPriceList,
-                      { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
-                      1,
-                    );
-                    const hasDiscount = resolved.discountPercent > 0;
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => handleAddProduct(p)}
-                        className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center border-b border-border/30 last:border-0"
-                      >
-                        <div className="min-w-0">
-                          <span className="font-medium text-text-primary">{p.name}</span>
-                          {p.pu_category && (
-                            <span className="list-card-badge list-card-badge--progress ml-2">
-                              {p.pu_category}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                          {hasDiscount && (
-                            <span
-                              className="text-[10px] line-through text-text-muted"
-                              style={{ fontFamily: 'var(--font-mono)' }}
-                            >
-                              {formatCurrency(p.list_price)}
-                            </span>
-                          )}
-                          <span
-                            className="text-xs font-semibold"
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
-                            }}
-                          >
-                            {formatCurrency(resolved.unitPrice)}
+            {productsLoading ? (
+              <div className="py-4"><LoadingState size="sm" inline /></div>
+            ) : products.length === 0 ? (
+              <p className="text-xs py-4 text-center text-text-muted">No products found.</p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto px-2 pb-2 space-y-1">
+                {products.map((p) => {
+                  const resolved = resolvePrice(
+                    selectedPriceList,
+                    { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
+                    1,
+                  );
+                  const hasDiscount = resolved.discountPercent > 0;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleAddProduct(p)}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-medium text-text-primary">{p.name}</span>
+                        {p.pu_category && (
+                          <span className="list-card-badge list-card-badge--progress ml-2">
+                            {p.pu_category}
                           </span>
-                          {hasDiscount && (
-                            <span
-                              className="text-[9px] font-bold px-1 py-0.5 rounded"
-                              style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
-                            >
-                              -{resolved.discountPercent}%
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        {hasDiscount && (
+                          <span
+                            className="text-[10px] line-through text-text-muted"
+                            style={{ fontFamily: 'var(--font-mono)' }}
+                          >
+                            {formatCurrency(p.list_price)}
+                          </span>
+                        )}
+                        <span
+                          className="text-xs font-semibold"
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          {formatCurrency(resolved.unitPrice)}
+                        </span>
+                        {hasDiscount && (
+                          <span
+                            className="text-[9px] font-bold px-1 py-0.5 rounded"
+                            style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                          >
+                            -{resolved.discountPercent}%
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
