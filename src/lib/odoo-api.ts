@@ -685,11 +685,13 @@ export async function getProducts(
   if (search) qs.set('search', search);
 
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
+  const headers = buildOdooHeaders();
   console.info('[getProducts] fetching URL:', url);
+  console.info('[getProducts] X-SA-ID:', headers['X-SA-ID'] ?? 'none');
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
-    headers: { 'X-API-KEY': ODOO_API_KEY },
+    headers,
   });
 
   if (!response.ok) {
