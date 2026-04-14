@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Package, Tag, Building2 } from 'lucide-react';
 import DetailScreen, { type DetailSection } from '@/components/ui/DetailScreen';
 import type { OdooProduct } from '@/lib/portal/types';
 
@@ -9,6 +8,12 @@ function parseLastSegment(completeName: string): string {
   const parts = completeName.split('/');
   return parts[parts.length - 1].trim();
 }
+
+const TYPE_LABELS: Record<string, string> = {
+  consu: 'Consumable',
+  service: 'Service',
+  product: 'Storable',
+};
 
 interface ProductDetailProps {
   product: OdooProduct;
@@ -21,40 +26,68 @@ export default function ProductDetail({ product, onBack }: ProductDetailProps) {
       {
         title: 'Product Details',
         fields: [
-          { icon: <Tag size={15} />, label: 'SKU', value: product.default_code || '--', mono: true },
-          {
-            icon: <Package size={15} />,
-            label: 'Price',
-            value: product.list_price?.toLocaleString() ?? '—',
-          },
-          { label: 'Type', value: product.type || '--' },
+          { label: 'SKU / Code', value: product.default_code || '--' },
+          { label: 'Template ID', value: String(product.template_id) },
+          { label: 'Type', value: TYPE_LABELS[product.type] || product.type || '--' },
+          { label: 'Price', value: product.list_price?.toLocaleString() ?? '--' },
           {
             label: 'Category',
             value: product.category?.complete_name
               ? parseLastSegment(product.category.complete_name)
               : product.category_name || '--',
           },
-          { label: 'Recurring Invoice', value: product.recurring_invoice ? 'Yes' : 'No' },
+          { label: 'Full Category Path', value: product.category?.complete_name || product.category_name || '--' },
+          { label: 'Active', value: product.active ? 'Yes' : 'No' },
           { label: 'Available for Sale', value: product.sale_ok ? 'Yes' : 'No' },
+          { label: 'Recurring Invoice', value: product.recurring_invoice ? 'Yes' : 'No' },
+        ],
+      },
+      {
+        title: 'Classification',
+        fields: [
+          { label: 'PU Category', value: product.pu_category || '--' },
+          { label: 'PU Metric', value: product.pu_metric || '--' },
+          { label: 'Service Type', value: product.service_type || '--' },
+          { label: 'Contract Type', value: product.contract_type || '--' },
         ],
       },
       ...(product.company_name
-        ? [
-            {
-              title: 'Company',
-              fields: [
-                { icon: <Building2 size={15} />, label: 'Company', value: product.company_name },
-              ],
-            },
-          ]
+        ? [{
+            title: 'Company',
+            fields: [
+              { label: 'Company', value: product.company_name },
+              ...(product.company_id ? [{ label: 'Company ID', value: String(product.company_id) }] : []),
+            ],
+          }]
         : []),
-      ...(product.description_sale
-        ? [
-            {
-              title: 'Sales Description',
-              fields: [{ label: 'Description', value: product.description_sale }],
-            },
-          ]
+      ...((product.description_sale || product.description)
+        ? [{
+            title: 'Description',
+            fields: [
+              ...(product.description_sale
+                ? [{
+                    label: 'Sales Description',
+                    value: product.description_sale,
+                    renderValue: (
+                      <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
+                        {product.description_sale}
+                      </p>
+                    ),
+                  }]
+                : []),
+              ...(product.description
+                ? [{
+                    label: 'Internal Description',
+                    value: product.description,
+                    renderValue: (
+                      <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
+                        {product.description}
+                      </p>
+                    ),
+                  }]
+                : []),
+            ],
+          }]
         : []),
     ];
   }, [product]);
