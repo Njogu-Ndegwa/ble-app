@@ -1,7 +1,19 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Search, Plus, X, User, Package, ArrowLeft } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  X,
+  User,
+  Package,
+  ArrowLeft,
+  Tag,
+  ChevronDown,
+  Percent,
+  Check,
+  Info,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { FormSection } from '@/components/ui';
 import { LoadingState } from '@/components/ui/State';
@@ -9,6 +21,11 @@ import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
 import type { OdooProduct, OrderEntity, CustomerEntity } from '@/lib/portal/types';
 import { createQuotation, sendOrder, formatCurrency } from '@/lib/portal/order-api';
+import {
+  DEMO_PRICE_LISTS,
+  resolvePrice,
+  type PriceList,
+} from '@/lib/portal/price-list-data';
 
 interface CreateOrderProps {
   onCreated: (order: OrderEntity) => void;
@@ -21,7 +38,9 @@ interface OrderLine {
   productName: string;
   sku: string | null;
   puCategory: string | null;
+  listPrice: number;
   priceUnit: number;
+  discountPercent: number;
   quantity: number;
 }
 
@@ -48,6 +67,10 @@ function mapContact(c: OdooContact): CustomerEntity {
 
 export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerEntity | null>(null);
+  const [selectedPriceList, setSelectedPriceList] = useState<PriceList>(
+    DEMO_PRICE_LISTS.find((pl) => pl.isDefault) ?? DEMO_PRICE_LISTS[0],
+  );
+  const [showPriceListPicker, setShowPriceListPicker] = useState(false);
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [creating, setCreating] = useState(false);
 
@@ -123,43 +146,101 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     setCustomerSearch('');
   }, []);
 
-  const handleAddProduct = useCallback((p: OdooProduct) => {
-    setLines((prev) => {
-      const existing = prev.find((l) => l.productId === p.id);
-      if (existing) {
-        return prev.map((l) =>
-          l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l,
+  const handleSelectPriceList = useCallback(
+    (pl: PriceList) => {
+      setSelectedPriceList(pl);
+      setShowPriceListPicker(false);
+      setLines((prev) =>
+        prev.map((line) => {
+          const resolved = resolvePrice(
+            pl,
+            { id: line.productId, list_price: line.listPrice, pu_category: line.puCategory || '' },
+            line.quantity,
+          );
+          return { ...line, priceUnit: resolved.unitPrice, discountPercent: resolved.discountPercent };
+        }),
+      );
+    },
+    [],
+  );
+
+  const handleAddProduct = useCallback(
+    (p: OdooProduct) => {
+      setLines((prev) => {
+        const existing = prev.find((l) => l.productId === p.id);
+        if (existing) {
+          const newQty = existing.quantity + 1;
+          const resolved = resolvePrice(
+            selectedPriceList,
+            { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
+            newQty,
+          );
+          return prev.map((l) =>
+            l.productId === p.id
+              ? { ...l, quantity: newQty, priceUnit: resolved.unitPrice, discountPercent: resolved.discountPercent }
+              : l,
+          );
+        }
+        const resolved = resolvePrice(
+          selectedPriceList,
+          { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
+          1,
         );
-      }
-      return [
-        ...prev,
-        {
-          tempId: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          productId: p.id,
-          productName: p.name,
-          sku: p.default_code || null,
-          puCategory: p.pu_category || null,
-          priceUnit: p.list_price ?? 0,
-          quantity: 1,
-        },
-      ];
-    });
-    setShowProductDropdown(false);
-    setProductSearch('');
-  }, []);
+        return [
+          ...prev,
+          {
+            tempId: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            productId: p.id,
+            productName: p.name,
+            sku: p.default_code || null,
+            puCategory: p.pu_category || null,
+            listPrice: p.list_price ?? 0,
+            priceUnit: resolved.unitPrice,
+            discountPercent: resolved.discountPercent,
+            quantity: 1,
+          },
+        ];
+      });
+      setShowProductDropdown(false);
+      setProductSearch('');
+    },
+    [selectedPriceList],
+  );
 
   const handleRemoveLine = (tempId: string) => {
     setLines((prev) => prev.filter((l) => l.tempId !== tempId));
   };
 
-  const handleLineQtyChange = (tempId: string, qty: number) => {
-    setLines((prev) =>
-      prev.map((l) => (l.tempId === tempId ? { ...l, quantity: Math.max(1, qty) } : l)),
-    );
-  };
+  const handleLineQtyChange = useCallback(
+    (tempId: string, qty: number) => {
+      setLines((prev) =>
+        prev.map((l) => {
+          if (l.tempId !== tempId) return l;
+          const safeQty = Math.max(1, qty);
+          const resolved = resolvePrice(
+            selectedPriceList,
+            { id: l.productId, list_price: l.listPrice, pu_category: l.puCategory || '' },
+            safeQty,
+          );
+          return {
+            ...l,
+            quantity: safeQty,
+            priceUnit: resolved.unitPrice,
+            discountPercent: resolved.discountPercent,
+          };
+        }),
+      );
+    },
+    [selectedPriceList],
+  );
 
   const total = useMemo(
     () => lines.reduce((s, l) => s + l.priceUnit * l.quantity, 0),
+    [lines],
+  );
+
+  const totalSavings = useMemo(
+    () => lines.reduce((s, l) => s + (l.listPrice - l.priceUnit) * l.quantity, 0),
     [lines],
   );
 
@@ -192,7 +273,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       try {
         await sendOrder(Number(result.order.id));
       } catch {
-        // Send may fail but quotation is still created; user can send from detail view
+        // Send may fail but quotation is still created
       }
 
       toast.success('Order created!');
@@ -204,8 +285,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     }
   };
 
+  const hasActiveDiscount = !selectedPriceList.isDefault && selectedPriceList.rules.length > 0;
+
   return (
     <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button
           onClick={onCancel}
@@ -215,14 +299,153 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
           <ArrowLeft size={20} className="text-text-primary" />
         </button>
         <h2 className="text-lg font-semibold text-text-primary">New Order</h2>
+        {hasActiveDiscount && (
+          <span
+            className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+          >
+            <Percent size={10} />
+            {selectedPriceList.name}
+          </span>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
-        {/* Customer section */}
+        {/* ─── Price List Section ─── */}
+        <FormSection title="Price List">
+          <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
+            <button
+              onClick={() => setShowPriceListPicker(!showPriceListPicker)}
+              className="w-full px-4 py-3 flex items-center justify-between transition-colors hover:bg-bg-elevated"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: hasActiveDiscount
+                      ? 'var(--color-success-soft)'
+                      : 'var(--bg-elevated)',
+                  }}
+                >
+                  <Tag
+                    size={16}
+                    style={{
+                      color: hasActiveDiscount
+                        ? 'var(--color-success)'
+                        : 'var(--text-muted)',
+                    }}
+                  />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-sm font-medium text-text-primary truncate">
+                    {selectedPriceList.name}
+                  </p>
+                  <p className="text-[11px] text-text-muted truncate">
+                    {selectedPriceList.description}
+                  </p>
+                </div>
+              </div>
+              <ChevronDown
+                size={16}
+                className="text-text-muted shrink-0 ml-2 transition-transform"
+                style={showPriceListPicker ? { transform: 'rotate(180deg)' } : undefined}
+              />
+            </button>
+
+            {showPriceListPicker && (
+              <div className="border-t border-border">
+                <div className="px-3 py-2">
+                  <p className="text-[10px] uppercase font-medium text-text-muted tracking-wider mb-1.5">
+                    Available Price Lists
+                  </p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {DEMO_PRICE_LISTS.map((pl) => {
+                    const isSelected = pl.id === selectedPriceList.id;
+                    const rulesCount = pl.rules.length;
+                    const topDiscount = pl.rules.reduce(
+                      (max, r) => Math.max(max, r.discountPercent ?? 0),
+                      0,
+                    );
+
+                    return (
+                      <button
+                        key={pl.id}
+                        onClick={() => handleSelectPriceList(pl)}
+                        className="w-full text-left px-4 py-3 flex items-start gap-3 transition-colors border-t border-border/50"
+                        style={
+                          isSelected
+                            ? { backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.08))' }
+                            : undefined
+                        }
+                      >
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 border"
+                          style={
+                            isSelected
+                              ? {
+                                  backgroundColor: 'var(--color-brand)',
+                                  borderColor: 'var(--color-brand)',
+                                }
+                              : { borderColor: 'var(--border-default)' }
+                          }
+                        >
+                          {isSelected && <Check size={12} className="text-black" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-text-primary">
+                              {pl.name}
+                            </span>
+                            {topDiscount > 0 && (
+                              <span
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                                style={{
+                                  backgroundColor: 'var(--color-success-soft)',
+                                  color: 'var(--color-success)',
+                                }}
+                              >
+                                up to {topDiscount}% off
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-0.5">
+                            {pl.description}
+                          </p>
+                          {rulesCount > 0 && (
+                            <p className="text-[10px] text-text-muted mt-1">
+                              {rulesCount} pricing rule{rulesCount > 1 ? 's' : ''}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {hasActiveDiscount && !showPriceListPicker && (
+              <div
+                className="px-4 py-2.5 border-t border-border flex items-center gap-2"
+                style={{ backgroundColor: 'var(--color-success-soft)' }}
+              >
+                <Info size={13} style={{ color: 'var(--color-success)' }} />
+                <span className="text-[11px] text-text-secondary">
+                  Prices will be adjusted automatically based on{' '}
+                  <strong style={{ color: 'var(--color-success)' }}>
+                    {selectedPriceList.name}
+                  </strong>{' '}
+                  rules when you add products.
+                </span>
+              </div>
+            )}
+          </div>
+        </FormSection>
+
+        {/* ─── Customer Section ─── */}
         <FormSection title="Customer">
-          <div
-            className="rounded-xl border border-border bg-bg-tertiary overflow-hidden"
-          >
+          <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between border-b border-border">
               <div className="flex items-center gap-2">
                 <User size={15} className="text-text-muted" />
@@ -296,7 +519,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
           </div>
         </FormSection>
 
-        {/* Products section */}
+        {/* ─── Products Section ─── */}
         <FormSection title="Products">
           <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between border-b border-border">
@@ -337,25 +560,57 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                   <p className="text-xs py-3 text-center text-text-muted">No products found.</p>
                 ) : (
                   <div className="max-h-40 overflow-y-auto space-y-1">
-                    {products.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => handleAddProduct(p)}
-                        className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center"
-                      >
-                        <div>
-                          <span className="font-medium text-text-primary">{p.name}</span>
-                          {p.pu_category && (
-                            <span className="list-card-badge list-card-badge--progress ml-2">
-                              {p.pu_category}
+                    {products.map((p) => {
+                      const resolved = resolvePrice(
+                        selectedPriceList,
+                        { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
+                        1,
+                      );
+                      const hasDiscount = resolved.discountPercent > 0;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => handleAddProduct(p)}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-medium text-text-primary">{p.name}</span>
+                            {p.pu_category && (
+                              <span className="list-card-badge list-card-badge--progress ml-2">
+                                {p.pu_category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {hasDiscount && (
+                              <span
+                                className="text-[10px] line-through text-text-muted"
+                                style={{ fontFamily: 'var(--font-mono)' }}
+                              >
+                                {formatCurrency(p.list_price)}
+                              </span>
+                            )}
+                            <span
+                              className="text-xs font-semibold"
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
+                              }}
+                            >
+                              {formatCurrency(resolved.unitPrice)}
                             </span>
-                          )}
-                        </div>
-                        <span className="text-xs font-semibold text-text-secondary" style={{ fontFamily: 'var(--font-mono)' }}>
-                          {formatCurrency(p.list_price)}
-                        </span>
-                      </button>
-                    ))}
+                            {hasDiscount && (
+                              <span
+                                className="text-[9px] font-bold px-1 py-0.5 rounded"
+                                style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                              >
+                                -{resolved.discountPercent}%
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -368,60 +623,108 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {lines.map((line) => (
-                  <div key={line.tempId} className="px-4 py-3 flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-primary truncate">
-                        {line.productName}
-                      </p>
-                      <p className="text-xs text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                        {formatCurrency(line.priceUnit)} each
-                      </p>
+                {lines.map((line) => {
+                  const hasDiscount = line.discountPercent > 0;
+                  return (
+                    <div key={line.tempId} className="px-4 py-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text-primary truncate">
+                          {line.productName}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {hasDiscount ? (
+                            <>
+                              <span
+                                className="text-[10px] line-through text-text-muted"
+                                style={{ fontFamily: 'var(--font-mono)' }}
+                              >
+                                {formatCurrency(line.listPrice)}
+                              </span>
+                              <span
+                                className="text-xs font-semibold"
+                                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success)' }}
+                              >
+                                {formatCurrency(line.priceUnit)}
+                              </span>
+                              <span
+                                className="text-[9px] font-bold px-1 py-0.5 rounded"
+                                style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                              >
+                                -{line.discountPercent}%
+                              </span>
+                            </>
+                          ) : (
+                            <span
+                              className="text-xs text-text-muted"
+                              style={{ fontFamily: 'var(--font-mono)' }}
+                            >
+                              {formatCurrency(line.priceUnit)} each
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={line.quantity}
+                          onChange={(e) =>
+                            handleLineQtyChange(line.tempId, parseInt(e.target.value) || 1)
+                          }
+                          className="w-14 text-center text-sm rounded-lg border border-border py-1 outline-none bg-bg-tertiary text-text-primary"
+                        />
+                        <span
+                          className="text-sm font-semibold w-20 text-right text-text-primary"
+                          style={{ fontFamily: 'var(--font-mono)' }}
+                        >
+                          {formatCurrency(line.priceUnit * line.quantity)}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveLine(line.tempId)}
+                          className="p-1"
+                          style={{ color: 'var(--color-error)' }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          handleLineQtyChange(line.tempId, parseInt(e.target.value) || 1)
-                        }
-                        className="w-14 text-center text-sm rounded-lg border border-border py-1 outline-none bg-bg-tertiary text-text-primary"
-                      />
-                      <span
-                        className="text-sm font-semibold w-20 text-right text-text-primary"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        {formatCurrency(line.priceUnit * line.quantity)}
-                      </span>
-                      <button
-                        onClick={() => handleRemoveLine(line.tempId)}
-                        className="p-1"
-                        style={{ color: 'var(--color-error)' }}
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
             {lines.length > 0 && (
-              <div className="px-4 py-3 border-t border-border flex justify-between items-center">
-                <span className="text-sm font-bold text-text-primary">Total</span>
-                <span
-                  className="text-sm font-bold"
-                  style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}
-                >
-                  {formatCurrency(total)}
-                </span>
+              <div className="px-4 py-3 border-t border-border space-y-1.5">
+                {totalSavings > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-text-muted flex items-center gap-1">
+                      <Percent size={10} />
+                      Discount savings
+                    </span>
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      -{formatCurrency(totalSavings)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-bold text-text-primary">Total</span>
+                  <span
+                    className="text-sm font-bold"
+                    style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}
+                  >
+                    {formatCurrency(total)}
+                  </span>
+                </div>
               </div>
             )}
           </div>
         </FormSection>
       </div>
 
+      {/* ─── Bottom Actions ─── */}
       <div className="px-4 py-3 border-t border-border flex gap-3">
         <button
           onClick={onCancel}
