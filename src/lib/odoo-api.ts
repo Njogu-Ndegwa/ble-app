@@ -687,7 +687,7 @@ export async function getProducts(
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
   const headers = buildOdooHeaders();
   console.info('[getProducts] fetching URL:', url);
-  console.info('[getProducts] X-SA-ID:', headers['X-SA-ID'] ?? 'none');
+  console.info('[getProducts] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'none');
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
