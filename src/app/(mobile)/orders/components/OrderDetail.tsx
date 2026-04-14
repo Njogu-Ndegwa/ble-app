@@ -372,7 +372,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                   }
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="text-[9px] font-medium leading-tight">{step.label}</span>
+                  <span className="text-[9px] font-medium leading-tight max-w-full truncate">{step.label}</span>
                 </button>
               );
             })}
@@ -831,8 +831,8 @@ function EditableOrderLines({
               </button>
             </div>
 
-            <div className="flex items-center gap-3 mt-2">
-              <div className="flex-1">
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex-[3] min-w-0">
                 <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Unit Price</label>
                 <input
                   type="number"
@@ -840,24 +840,24 @@ function EditableOrderLines({
                   step="0.01"
                   value={line.priceUnit}
                   onChange={(e) => onLineChange(line.id, 'priceUnit', parseFloat(e.target.value) || 0)}
-                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2.5 py-1.5 text-sm text-text-primary outline-none text-right"
+                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none text-right"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 />
               </div>
-              <div style={{ width: '72px' }}>
+              <div className="flex-[2] min-w-0">
                 <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Qty</label>
                 <input
                   type="number"
                   min="1"
                   value={line.quantity}
                   onChange={(e) => onLineChange(line.id, 'quantity', parseInt(e.target.value) || 1)}
-                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2.5 py-1.5 text-sm text-text-primary outline-none text-right"
+                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none text-right"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 />
               </div>
-              <div className="text-right" style={{ minWidth: '72px' }}>
+              <div className="flex-[2] min-w-0 text-right">
                 <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Subtotal</label>
-                <p className="text-sm font-semibold text-text-primary py-1.5" style={{ fontFamily: 'var(--font-mono)' }}>
+                <p className="text-xs font-semibold text-text-primary py-1.5" style={{ fontFamily: 'var(--font-mono)' }}>
                   {formatCurrency(line.priceUnit * line.quantity)}
                 </p>
               </div>
