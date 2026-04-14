@@ -22,7 +22,7 @@ import { useProductCatalog } from '@/lib/hooks/useProductCatalog';
 import { useSalesCustomerIdentification } from '@/lib/hooks/useSalesCustomerIdentification';
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
-import { MqttReconnectBanner } from '@/components/shared';
+
 import type { OrderListItem } from '@/lib/odoo-api';
 
 const Step1CustomerForm = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step1CustomerForm })), { ssr: false });
@@ -1087,10 +1087,6 @@ export default function ActivatorFlow({
           </div>
         </div>
       </header>
-
-      <div className="px-4 pt-2 flex flex-col gap-2">
-        <MqttReconnectBanner />
-      </div>
 
       <ActivatorTimeline
         currentStep={currentStep}
