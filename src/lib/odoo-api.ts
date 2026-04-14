@@ -685,6 +685,7 @@ export async function getProducts(
   if (search) qs.set('search', search);
 
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
+  console.info('[getProducts] fetching URL:', url);
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -697,7 +698,10 @@ export async function getProducts(
   }
 
   const raw = await response.json();
-  console.info('[getProducts] raw API response:', JSON.stringify(raw));
+  console.info('[getProducts] response keys:', Object.keys(raw));
+  console.info('[getProducts] catalog_roots:', JSON.stringify(raw.catalog_roots));
+  console.info('[getProducts] catalog_root_ids:', JSON.stringify(raw.catalog_root_ids));
+  console.info('[getProducts] products count:', raw.products?.length);
 
   const data: OdooProductsResponse = raw;
 
