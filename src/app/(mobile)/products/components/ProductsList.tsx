@@ -53,10 +53,16 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
         category_id: categoryId,
         search: debouncedSearch.trim() || undefined,
       });
+      console.info('[ProductsList] API response keys:', Object.keys(data));
+      console.info('[ProductsList] catalog_roots:', JSON.stringify(data.catalog_roots));
+      console.info('[ProductsList] products count:', data.products?.length);
       setProducts(data.products);
       setPagination(data.pagination);
       if (data.catalog_roots?.length) {
+        console.info('[ProductsList] Setting catalogRoots, count:', data.catalog_roots.length);
         setCatalogRoots(data.catalog_roots);
+      } else {
+        console.info('[ProductsList] No catalog_roots in response!');
       }
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load products');
@@ -76,6 +82,8 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
   }, [debouncedSearch, categoryId]);
 
   const total = pagination?.total ?? products.length;
+
+  console.info('[ProductsList] RENDER - catalogRoots.length:', catalogRoots.length, 'loading:', loading, 'error:', error);
 
   return (
     <div className="flex flex-col h-full">

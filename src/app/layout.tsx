@@ -1,6 +1,7 @@
 
 'use client'
 // import type { Metadata } from "next";
+import { useEffect, useRef } from "react";
 import { Outfit, DM_Mono } from "next/font/google";
 import "./globals.css";
 // Oves Design System fonts
@@ -24,11 +25,25 @@ import { I18nProvider } from "@/i18n";
 
 import { ThemeProvider } from './context/themeContext';
 
+// ── vConsole toggle (set to true to enable, false to disable) ──
+const ENABLE_VCONSOLE = true;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const vcRef = useRef(false);
+  useEffect(() => {
+    if (ENABLE_VCONSOLE && !vcRef.current && typeof window !== 'undefined') {
+      vcRef.current = true;
+      import('vconsole').then((mod) => {
+        const VConsole = mod.default;
+        new VConsole();
+      });
+    }
+  }, []);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
