@@ -10,7 +10,7 @@ import type {
   OdooProductsPagination,
 } from '@/lib/portal/types';
 
-const DEFAULT_CATEGORY_ID = 115;
+const ALL_CATEGORY_ID = null;
 
 function parseLastSegment(completeName: string): string {
   const parts = completeName.split('/');
@@ -30,7 +30,7 @@ interface ProductsListProps {
 export default function ProductsList({ onSelect }: ProductsListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [categoryId, setCategoryId] = useState<number>(DEFAULT_CATEGORY_ID);
+  const [categoryId, setCategoryId] = useState<number | null>(ALL_CATEGORY_ID);
   const [page, setPage] = useState(1);
   const [products, setProducts] = useState<OdooProduct[]>([]);
   const [pagination, setPagination] = useState<OdooProductsPagination | null>(null);
@@ -50,7 +50,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
       const data = await getProducts({
         page,
         limit: 20,
-        category_id: categoryId,
+        category_id: categoryId ?? undefined,
         search: debouncedSearch.trim() || undefined,
       });
       console.info('[ProductsList] catalog_roots:', JSON.stringify(data.catalog_roots));
@@ -80,6 +80,17 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
 
   const filterChips = catalogRoots.length > 0 ? (
     <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
+      <button
+        onClick={() => setCategoryId(null)}
+        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+          categoryId === null
+            ? 'border-transparent text-text-inverse'
+            : 'border-border bg-bg-tertiary text-text-secondary'
+        }`}
+        style={categoryId === null ? { backgroundColor: 'var(--color-brand)' } : undefined}
+      >
+        All
+      </button>
       {catalogRoots.map((root) => (
         <button
           key={root.id}
@@ -91,7 +102,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
           }`}
           style={categoryId === root.id ? { backgroundColor: 'var(--color-brand)' } : undefined}
         >
-          {root.id === DEFAULT_CATEGORY_ID ? 'All' : parseLastSegment(root.complete_name)}
+          {parseLastSegment(root.complete_name)}
         </button>
       ))}
     </div>
