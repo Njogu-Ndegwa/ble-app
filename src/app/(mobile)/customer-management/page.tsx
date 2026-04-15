@@ -208,7 +208,7 @@ export default function CustomerManagementPage() {
         }}
       />
       {screen === 'login' && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/customer-management" />
       )}
       {screen === 'selectSA' && (
         <SelectServiceAccount

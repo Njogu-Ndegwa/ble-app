@@ -31,7 +31,7 @@ interface LoginProps {
   onLoginSuccess: (customer: Customer) => void;
   /** User type for authentication - 'attendant' or 'sales'. Defaults to 'attendant' */
   userType?: 'attendant' | 'sales';
-  /** Path to redirect back to after Microsoft OAuth. Defaults to '/attendant/attendant' */
+  /** Path to redirect back to after Microsoft OAuth. Defaults to '/' */
   microsoftReturnPath?: string;
 }
 
@@ -58,7 +58,7 @@ interface FormErrors {
 // Keep API_BASE for registration (still uses Odoo)
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
-const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', microsoftReturnPath = '/attendant/attendant' }) => {
+const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', microsoftReturnPath = '/' }) => {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [email, setEmail] = useState<string>("");

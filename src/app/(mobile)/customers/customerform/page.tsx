@@ -209,7 +209,7 @@ export default function CustomerFormPage() {
         }}
       />
       {screen === 'login' && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/customers/customerform" />
       )}
       {screen === 'selectSA' && (
         <SelectServiceAccount

@@ -71,7 +71,7 @@ export default function Index() {
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
       const userType = pendingContext?.userType ?? 'sales';
-      const returnPath = pendingContext?.returnPath ?? '/attendant/attendant';
+      const returnPath = pendingContext?.returnPath ?? '/';
       console.info('[RootPage] Processing Microsoft callback → userType:', userType, 'returnPath:', returnPath);
 
       const result = parseMicrosoftCallback(params, userType);
@@ -99,7 +99,7 @@ export default function Index() {
       }
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
-      const returnPath = pendingContext.returnPath ?? '/attendant/attendant';
+      const returnPath = pendingContext.returnPath ?? '/';
       console.info('[RootPage] No tokens but has pendingContext. Redirecting to', returnPath);
       window.history.replaceState({}, '', '/');
       router.replace(returnPath);

@@ -219,7 +219,7 @@ export default function AttendantPage() {
         }}
       />
       {screen === "login" && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/attendant/attendant" />
       )}
       {screen === "selectSA" && (
         <SelectServiceAccount

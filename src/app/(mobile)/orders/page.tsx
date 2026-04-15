@@ -202,7 +202,7 @@ export default function OrdersPage() {
         }}
       />
       {screen === 'login' && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/orders" />
       )}
       {screen === 'selectSA' && (
         <SelectServiceAccount

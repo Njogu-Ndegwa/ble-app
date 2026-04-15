@@ -202,7 +202,7 @@ export default function ProductsPage() {
         }}
       />
       {screen === 'login' && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/products" />
       )}
       {screen === 'selectSA' && (
         <SelectServiceAccount
