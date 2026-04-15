@@ -752,7 +752,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
         <button
           className="btn btn-secondary"
           onClick={() => {
-            window.location.href = getMicrosoftAuthUrl(window.location.origin);
+            window.location.href = getMicrosoftAuthUrl();
           }}
           disabled={isSigningIn}
           style={{ width: '100%' }}

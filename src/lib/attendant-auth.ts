@@ -65,6 +65,7 @@ const EMPLOYEE_API = {
 } as const;
 
 const MICROSOFT_AUTH_BASE = 'https://crm-omnivoltaic.odoo.com/auth/microsoft';
+const MICROSOFT_AUTH_CALLBACK = 'https://wvapp.omnivoltaic.com';
 
 export interface EmployeeUser {
   id: string | number;
@@ -230,8 +231,8 @@ export async function employeeLogin(
 // Microsoft OAuth
 // ============================================================================
 
-export function getMicrosoftAuthUrl(callbackUrl: string): string {
-  return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(callbackUrl)}`;
+export function getMicrosoftAuthUrl(): string {
+  return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(MICROSOFT_AUTH_CALLBACK)}`;
 }
 
 /**
