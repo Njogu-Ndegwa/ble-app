@@ -9,6 +9,7 @@ import Image from "next/image";
 import { 
   employeeLogin, 
   getStoredRoleEmail,
+  getMicrosoftAuthUrl,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -736,6 +737,33 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
             <path d="M20 8v6M23 11h-6"/>
           </svg>
           <span>{t('Create New Account')}</span>
+        </button>
+
+        {/* Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {t('Or continue with')}
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
+
+        {/* Microsoft Sign-In */}
+        <button
+          className="btn btn-secondary"
+          onClick={() => {
+            window.location.href = getMicrosoftAuthUrl(window.location.origin);
+          }}
+          disabled={isSigningIn}
+          style={{ width: '100%' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
+            <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+            <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+            <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+            <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+          </svg>
+          <span>{t('Sign in with Microsoft')}</span>
         </button>
 
         <p className="login-help">

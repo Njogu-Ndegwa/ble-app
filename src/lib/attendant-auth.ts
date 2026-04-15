@@ -64,6 +64,8 @@ const EMPLOYEE_API = {
   API_KEY: 'abs_connector_secret_key_2024',
 } as const;
 
+const MICROSOFT_AUTH_BASE = 'https://crm-omnivoltaic.odoo.com/auth/microsoft';
+
 export interface EmployeeUser {
   id: string | number;
   name: string;
@@ -222,6 +224,50 @@ export async function employeeLogin(
       error: error.message || 'Network error. Please try again.' 
     };
   }
+}
+
+// ============================================================================
+// Microsoft OAuth
+// ============================================================================
+
+export function getMicrosoftAuthUrl(callbackUrl: string): string {
+  return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(callbackUrl)}`;
+}
+
+/**
+ * Parse Microsoft OAuth callback query params into an EmployeeUser and save the session.
+ * The callback URL looks like: ?token=JWT&expires_at=ISO&employee_id=N&employee_name=X&employee_email=Y
+ */
+export function parseMicrosoftCallback(
+  searchParams: URLSearchParams,
+  userType: 'attendant' | 'sales' = 'sales',
+): { success: true; user: EmployeeUser } | { success: false; error: string } {
+  const token = searchParams.get('token');
+  const expiresAt = searchParams.get('expires_at');
+  const employeeId = searchParams.get('employee_id');
+  const employeeName = searchParams.get('employee_name');
+  const employeeEmail = searchParams.get('employee_email');
+
+  if (!token || !employeeId || !employeeName || !employeeEmail) {
+    return { success: false, error: 'Missing required parameters from Microsoft sign-in.' };
+  }
+
+  const jwt = decodeJwtPayload(token);
+  const companyId = jwt?.company_id as number | undefined;
+
+  const user: EmployeeUser = {
+    id: Number(employeeId),
+    name: employeeName,
+    email: employeeEmail,
+    accessToken: token,
+    tokenExpiresAt: expiresAt ?? undefined,
+    userType,
+    employeeId: Number(employeeId),
+    companyId,
+  };
+
+  saveRoleLogin(user);
+  return { success: true, user };
 }
 
 /**
