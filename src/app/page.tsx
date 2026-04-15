@@ -25,10 +25,26 @@ export default function Index() {
     console.info('[RootPage] search:', window.location.search);
     console.info('[RootPage] hash:', window.location.hash);
 
-    // 1. Check for Microsoft OAuth callback tokens in URL query string
-    const params = new URLSearchParams(window.location.search);
-    const tokenVal = params.get('token');
-    const employeeIdVal = params.get('employee_id');
+    // 1. Check for Microsoft OAuth callback tokens in URL query string OR hash fragment
+    //    Odoo may return tokens in either format depending on configuration
+    let params = new URLSearchParams(window.location.search);
+    let tokenVal = params.get('token');
+    let employeeIdVal = params.get('employee_id');
+
+    // Fallback: check hash fragment (e.g. #token=...&employee_id=...)
+    if (!tokenVal && window.location.hash) {
+      console.info('[RootPage] No token in query string, checking hash fragment');
+      const hashStr = window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : window.location.hash;
+      const hashParams = new URLSearchParams(hashStr);
+      if (hashParams.get('token')) {
+        params = hashParams;
+        tokenVal = hashParams.get('token');
+        employeeIdVal = hashParams.get('employee_id');
+      }
+    }
+
     const employeeNameVal = params.get('employee_name');
     const employeeEmailVal = params.get('employee_email');
     const expiresAtVal = params.get('expires_at');
@@ -47,6 +63,13 @@ export default function Index() {
     console.info('[RootPage] pendingContext:', JSON.stringify(pendingContext));
 
     if (hasTokenParams) {
+      // Dismiss the HTML splash overlay immediately so it doesn't block the UI
+      const htmlSplash = document.getElementById('html-splash');
+      if (htmlSplash) {
+        htmlSplash.style.display = 'none';
+      }
+      sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
+
       const userType = pendingContext?.userType ?? 'sales';
       const returnPath = pendingContext?.returnPath ?? '/attendant/attendant';
       console.info('[RootPage] Processing Microsoft callback → userType:', userType, 'returnPath:', returnPath);
@@ -69,6 +92,13 @@ export default function Index() {
     }
 
     if (pendingContext) {
+      // Dismiss the HTML splash overlay so it doesn't block navigation
+      const htmlSplash = document.getElementById('html-splash');
+      if (htmlSplash) {
+        htmlSplash.style.display = 'none';
+      }
+      sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
+
       const returnPath = pendingContext.returnPath ?? '/attendant/attendant';
       console.info('[RootPage] No tokens but has pendingContext. Redirecting to', returnPath);
       window.history.replaceState({}, '', '/');

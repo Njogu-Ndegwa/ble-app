@@ -208,7 +208,7 @@ export default function ActivatorPage() {
         }}
       />
       {screen === 'login' && (
-        <Login onLoginSuccess={handleLoginSuccess} userType="sales" />
+        <Login onLoginSuccess={handleLoginSuccess} userType="sales" microsoftReturnPath="/activator" />
       )}
       {screen === 'selectSA' && (
         <SelectServiceAccount

@@ -31,6 +31,8 @@ interface LoginProps {
   onLoginSuccess: (customer: Customer) => void;
   /** User type for authentication - 'attendant' or 'sales'. Defaults to 'attendant' */
   userType?: 'attendant' | 'sales';
+  /** Path to redirect back to after Microsoft OAuth. Defaults to '/attendant/attendant' */
+  microsoftReturnPath?: string;
 }
 
 interface FormData {
@@ -56,7 +58,7 @@ interface FormErrors {
 // Keep API_BASE for registration (still uses Odoo)
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
-const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' }) => {
+const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', microsoftReturnPath = '/attendant/attendant' }) => {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [email, setEmail] = useState<string>("");
@@ -754,8 +756,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
           className="btn btn-secondary"
           onClick={async () => {
             const authUrl = getMicrosoftAuthUrl();
-            console.info('[Login] Microsoft button clicked. userType:', userType);
-            saveMicrosoftPendingContext('/attendant/attendant', userType);
+            console.info('[Login] Microsoft button clicked. userType:', userType, 'returnPath:', microsoftReturnPath);
+            saveMicrosoftPendingContext(microsoftReturnPath, userType);
             console.info('[Login] Pending context saved.');
 
             // Unregister service worker so the redirect from Odoo
