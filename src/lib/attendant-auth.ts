@@ -279,10 +279,12 @@ export function parseMicrosoftCallback(
   searchParams: URLSearchParams,
   userType: 'attendant' | 'sales' = 'sales',
 ): { success: true; user: EmployeeUser } | { success: false; error: string } {
+  console.info('[EmployeeAuth] parseMicrosoftCallback called. userType:', userType);
   let params = searchParams;
 
   // Fallback: check hash fragment if query params are empty
   if (!params.get('token') && typeof window !== 'undefined' && window.location.hash) {
+    console.info('[EmployeeAuth] No token in query, checking hash fragment');
     const hashStr = window.location.hash.startsWith('#')
       ? window.location.hash.slice(1)
       : window.location.hash;
@@ -295,11 +297,18 @@ export function parseMicrosoftCallback(
   const employeeName = params.get('employee_name');
   const employeeEmail = params.get('employee_email');
 
+  console.info('[EmployeeAuth] parseMicrosoftCallback params → token:', token ? `${token.slice(0, 20)}...` : 'NULL');
+  console.info('[EmployeeAuth] parseMicrosoftCallback params → employee_id:', employeeId, 'name:', employeeName, 'email:', employeeEmail);
+  console.info('[EmployeeAuth] parseMicrosoftCallback params → expires_at:', expiresAt);
+
   if (!token || !employeeId || !employeeName || !employeeEmail) {
-    return { success: false, error: 'Missing required parameters from Microsoft sign-in.' };
+    const missing = [!token && 'token', !employeeId && 'employee_id', !employeeName && 'employee_name', !employeeEmail && 'employee_email'].filter(Boolean);
+    console.info('[EmployeeAuth] parseMicrosoftCallback: MISSING params:', missing.join(', '));
+    return { success: false, error: `Missing required parameters from Microsoft sign-in: ${missing.join(', ')}` };
   }
 
   const jwt = decodeJwtPayload(token);
+  console.info('[EmployeeAuth] JWT decoded → company_id:', jwt?.company_id, 'exp:', jwt?.exp, 'sub:', jwt?.sub);
   const companyId = jwt?.company_id as number | undefined;
 
   const user: EmployeeUser = {
@@ -313,7 +322,9 @@ export function parseMicrosoftCallback(
     companyId,
   };
 
+  console.info('[EmployeeAuth] Saving user via saveRoleLogin...');
   saveRoleLogin(user);
+  console.info('[EmployeeAuth] parseMicrosoftCallback → SUCCESS');
   return { success: true, user };
 }
 
@@ -352,26 +363,25 @@ function decodeJwtPayload(token: string): Record<string, any> | null {
  * @returns true if expired or invalid, false if still valid
  */
 export function isJwtTokenExpired(token?: string | null): boolean {
-  if (!token) return true;
+  if (!token) {
+    console.info('[EmployeeAuth] isJwtTokenExpired: no token provided');
+    return true;
+  }
   
   try {
     const payload = decodeJwtPayload(token);
+    console.info('[EmployeeAuth] isJwtTokenExpired: decoded payload:', payload ? JSON.stringify({ exp: payload.exp, iat: payload.iat, sub: payload.sub, type: payload.type }) : 'NULL');
     if (!payload || !payload.exp) {
-      console.warn('[EmployeeAuth] JWT has no exp claim');
+      console.warn('[EmployeeAuth] JWT has no exp claim, treating as expired');
       return true;
     }
     
-    // JWT exp is in seconds (Unix timestamp), convert to milliseconds
     const expMs = payload.exp * 1000;
     const now = Date.now();
-    
-    // Add a 1-minute buffer to avoid edge cases
     const bufferMs = 60 * 1000;
     const isExpired = now >= (expMs - bufferMs);
     
-    if (isExpired) {
-      console.log('[EmployeeAuth] Token expired. Exp:', new Date(expMs).toISOString(), 'Now:', new Date(now).toISOString());
-    }
+    console.info('[EmployeeAuth] isJwtTokenExpired: exp:', new Date(expMs).toISOString(), 'now:', new Date(now).toISOString(), 'expired:', isExpired);
     
     return isExpired;
   } catch (error) {
@@ -487,13 +497,16 @@ export function isSalesRoleLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
   
   const userData = localStorage.getItem(STORAGE_KEYS.SALES_USER_DATA);
+  console.info('[EmployeeAuth] isSalesRoleLoggedIn → SALES_USER_DATA:', userData ? 'exists' : 'NULL');
   if (!userData) return false;
   
   const token = localStorage.getItem(STORAGE_KEYS.SALES_ACCESS_TOKEN);
+  console.info('[EmployeeAuth] isSalesRoleLoggedIn → SALES_ACCESS_TOKEN:', token ? `${token.slice(0, 20)}...` : 'NULL');
   if (!token) return false;
   
-  // Check if JWT token is expired by decoding and checking exp claim
-  if (isJwtTokenExpired(token)) {
+  const expired = isJwtTokenExpired(token);
+  console.info('[EmployeeAuth] isSalesRoleLoggedIn → isJwtTokenExpired:', expired);
+  if (expired) {
     console.log('[EmployeeAuth] Sales JWT token expired, clearing session');
     clearSalesRoleLogin();
     return false;
@@ -662,6 +675,10 @@ export function getEmployeeUserType(): UserType | null {
 export function saveRoleLogin(user: EmployeeUser): void {
   if (typeof window === 'undefined') return;
   
+  console.info('[EmployeeAuth] saveRoleLogin called. userType:', user.userType, 'name:', user.name, 'email:', user.email);
+  console.info('[EmployeeAuth] saveRoleLogin: accessToken:', user.accessToken ? `${user.accessToken.slice(0, 20)}...` : 'NONE');
+  console.info('[EmployeeAuth] saveRoleLogin: tokenExpiresAt:', user.tokenExpiresAt ?? 'NONE');
+  
   if (user.userType === 'attendant') {
     localStorage.setItem(STORAGE_KEYS.ATTENDANT_USER_EMAIL, user.email);
     localStorage.setItem(STORAGE_KEYS.ATTENDANT_USER_DATA, JSON.stringify(user));
@@ -674,7 +691,7 @@ export function saveRoleLogin(user: EmployeeUser): void {
       localStorage.setItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES, user.tokenExpiresAt);
     }
     
-    console.log('[EmployeeAuth] Saved Attendant login to role-specific storage');
+    console.info('[EmployeeAuth] Saved Attendant login. Verify → data:', !!localStorage.getItem(STORAGE_KEYS.ATTENDANT_USER_DATA), 'token:', !!localStorage.getItem(STORAGE_KEYS.ATTENDANT_ACCESS_TOKEN));
   } else if (user.userType === 'sales') {
     localStorage.setItem(STORAGE_KEYS.SALES_USER_EMAIL, user.email);
     localStorage.setItem(STORAGE_KEYS.SALES_USER_DATA, JSON.stringify(user));
@@ -687,7 +704,9 @@ export function saveRoleLogin(user: EmployeeUser): void {
       localStorage.setItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES, user.tokenExpiresAt);
     }
     
-    console.log('[EmployeeAuth] Saved Sales login to role-specific storage');
+    console.info('[EmployeeAuth] Saved Sales login. Verify → data:', !!localStorage.getItem(STORAGE_KEYS.SALES_USER_DATA), 'token:', !!localStorage.getItem(STORAGE_KEYS.SALES_ACCESS_TOKEN));
+  } else {
+    console.info('[EmployeeAuth] saveRoleLogin: unknown userType:', user.userType);
   }
 }
 

@@ -753,8 +753,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
         <button
           className="btn btn-secondary"
           onClick={() => {
+            const authUrl = getMicrosoftAuthUrl();
+            console.info('[Login] Microsoft button clicked. userType:', userType);
+            console.info('[Login] Saving pending context: returnPath=/attendant/attendant, userType:', userType);
             saveMicrosoftPendingContext('/attendant/attendant', userType);
-            window.location.href = getMicrosoftAuthUrl();
+            console.info('[Login] Pending context saved. Stored value:', localStorage.getItem('oves-microsoft-pending'));
+            console.info('[Login] Navigating to:', authUrl);
+            window.location.href = authUrl;
           }}
           disabled={isSigningIn}
           style={{ width: '100%' }}

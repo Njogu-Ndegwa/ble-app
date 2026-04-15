@@ -46,14 +46,29 @@ function getInitialScreen(): {
   screen: Screen;
   user: EmployeeUser | null;
 } {
-  if (typeof window === "undefined") return { screen: "login", user: null };
+  if (typeof window === "undefined") {
+    console.info('[AttendantPage] getInitialScreen: SSR (window undefined) → login');
+    return { screen: "login", user: null };
+  }
   try {
-    if (!isSalesRoleLoggedIn()) return { screen: "login", user: null };
+    console.info('[AttendantPage] getInitialScreen: checking localStorage...');
+    console.info('[AttendantPage] oves-sales-data:', localStorage.getItem('oves-sales-data')?.slice(0, 100) ?? 'NULL');
+    console.info('[AttendantPage] oves-sales-token:', localStorage.getItem('oves-sales-token')?.slice(0, 30) ?? 'NULL');
+
+    const loggedIn = isSalesRoleLoggedIn();
+    console.info('[AttendantPage] isSalesRoleLoggedIn():', loggedIn);
+    if (!loggedIn) return { screen: "login", user: null };
+
     const user = getSalesRoleUser();
+    console.info('[AttendantPage] getSalesRoleUser():', user ? `${user.name} (${user.email})` : 'NULL');
     if (!user) return { screen: "login", user: null };
-    if (hasSASelected("attendant")) return { screen: "app", user };
+
+    const hasSA = hasSASelected("attendant");
+    console.info('[AttendantPage] hasSASelected("attendant"):', hasSA);
+    if (hasSA) return { screen: "app", user };
     return { screen: "selectSA", user };
-  } catch {
+  } catch (err) {
+    console.info('[AttendantPage] ERROR: getInitialScreen error:', err);
     return { screen: "login", user: null };
   }
 }

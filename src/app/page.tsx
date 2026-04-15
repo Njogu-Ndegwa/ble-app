@@ -21,42 +21,65 @@ export default function Index() {
 
   // Runs once on the client after mount — determines real state
   useEffect(() => {
+    console.info('[RootPage] useEffect fired. Full URL:', window.location.href);
+    console.info('[RootPage] search:', window.location.search);
+    console.info('[RootPage] hash:', window.location.hash);
+
     // 1. Check for Microsoft OAuth callback tokens in URL query string
     const params = new URLSearchParams(window.location.search);
-    const hasTokenParams = !!(params.get('token') && params.get('employee_id'));
+    const tokenVal = params.get('token');
+    const employeeIdVal = params.get('employee_id');
+    const employeeNameVal = params.get('employee_name');
+    const employeeEmailVal = params.get('employee_email');
+    const expiresAtVal = params.get('expires_at');
+
+    console.info('[RootPage] URL params → token:', tokenVal ? `${tokenVal.slice(0, 20)}...` : null);
+    console.info('[RootPage] URL params → employee_id:', employeeIdVal);
+    console.info('[RootPage] URL params → employee_name:', employeeNameVal);
+    console.info('[RootPage] URL params → employee_email:', employeeEmailVal);
+    console.info('[RootPage] URL params → expires_at:', expiresAtVal);
+
+    const hasTokenParams = !!(tokenVal && employeeIdVal);
+    console.info('[RootPage] hasTokenParams:', hasTokenParams);
 
     // 2. Check for the pending context we saved before redirecting to Odoo
     const pendingContext = consumeMicrosoftPendingContext();
+    console.info('[RootPage] pendingContext:', JSON.stringify(pendingContext));
 
     if (hasTokenParams) {
-      // Tokens in URL — parse, save session, redirect to the app
       const userType = pendingContext?.userType ?? 'sales';
       const returnPath = pendingContext?.returnPath ?? '/attendant/attendant';
+      console.info('[RootPage] Processing Microsoft callback → userType:', userType, 'returnPath:', returnPath);
 
       const result = parseMicrosoftCallback(params, userType);
+      console.info('[RootPage] parseMicrosoftCallback result:', JSON.stringify(result));
+
       window.history.replaceState({}, '', '/');
 
       if (result.success) {
-        console.log('[MicrosoftCallback] Login successful, redirecting to', returnPath);
+        console.info('[RootPage] Login SUCCESS. Checking localStorage after save...');
+        console.info('[RootPage] oves-sales-data:', localStorage.getItem('oves-sales-data')?.slice(0, 100));
+        console.info('[RootPage] oves-sales-token:', localStorage.getItem('oves-sales-token')?.slice(0, 30));
+        console.info('[RootPage] Redirecting to', returnPath);
       } else {
-        console.error('[MicrosoftCallback]', result.error);
+        console.info('[RootPage] ERROR: Login FAILED:', result.error);
       }
       router.replace(returnPath);
       return;
     }
 
     if (pendingContext) {
-      // No tokens in URL but we know user just came back from Microsoft
-      // (flag was saved before leaving). Redirect to the original page.
       const returnPath = pendingContext.returnPath ?? '/attendant/attendant';
-      console.log('[MicrosoftCallback] No token params, redirecting to', returnPath);
+      console.info('[RootPage] No tokens but has pendingContext. Redirecting to', returnPath);
       window.history.replaceState({}, '', '/');
       router.replace(returnPath);
       return;
     }
 
     // 3. Normal app launch — determine splash / onboarding / selectRole
-    if (sessionStorage.getItem(SPLASH_SHOWN_KEY) === 'true') {
+    const splashShown = sessionStorage.getItem(SPLASH_SHOWN_KEY);
+    console.info('[RootPage] Normal launch. splashShown:', splashShown);
+    if (splashShown === 'true') {
       setAppState('selectRole');
     } else {
       setAppState('splash');
