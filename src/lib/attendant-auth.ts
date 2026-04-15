@@ -65,7 +65,11 @@ const EMPLOYEE_API = {
 } as const;
 
 const MICROSOFT_AUTH_BASE = 'https://crm-omnivoltaic.odoo.com/auth/microsoft';
-const MICROSOFT_AUTH_CALLBACK = 'https://wvapp.omnivoltaic.com';
+
+function getMicrosoftCallbackUrl(): string {
+  if (typeof window !== 'undefined') return window.location.origin;
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://wvapp.omnivoltaic.com';
+}
 
 export interface EmployeeUser {
   id: string | number;
@@ -268,7 +272,8 @@ export function consumeMicrosoftPendingContext(): MicrosoftPendingContext | null
 }
 
 export function getMicrosoftAuthUrl(): string {
-  return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(MICROSOFT_AUTH_CALLBACK)}`;
+  const callbackUrl = getMicrosoftCallbackUrl();
+  return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(callbackUrl)}`;
 }
 
 /**
