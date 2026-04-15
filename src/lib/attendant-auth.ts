@@ -273,7 +273,7 @@ export function consumeMicrosoftPendingContext(): MicrosoftPendingContext | null
 
 export function getMicrosoftAuthUrl(): string {
   const callbackUrl = getMicrosoftCallbackUrl();
-  return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(callbackUrl)}`;
+  return `${MICROSOFT_AUTH_BASE}?next=${callbackUrl}`;
 }
 
 /**
