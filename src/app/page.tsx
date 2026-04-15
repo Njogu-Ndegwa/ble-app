@@ -8,91 +8,60 @@ import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
 
-type AppState = 'splash' | 'onboarding' | 'selectRole' | 'microsoftCallback';
+type AppState = 'initializing' | 'splash' | 'onboarding' | 'selectRole' | 'microsoftCallback';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 const SPLASH_SHOWN_KEY = 'oves-splash-shown';
 
-/**
- * Detect whether this page load is a Microsoft OAuth return.
- * Checks URL query params, hash fragment, AND the localStorage pending flag.
- */
-function detectMicrosoftReturn(): {
-  hasTokenParams: boolean;
-  pendingContext: ReturnType<typeof consumeMicrosoftPendingContext>;
-} {
-  if (typeof window === 'undefined') return { hasTokenParams: false, pendingContext: null };
-
-  const params = new URLSearchParams(window.location.search);
-  let hasTokenParams = !!(params.get('token') && params.get('employee_id'));
-
-  // Also check hash fragment (Odoo may redirect with tokens in the hash)
-  if (!hasTokenParams && window.location.hash) {
-    const hashStr = window.location.hash.startsWith('#')
-      ? window.location.hash.slice(1)
-      : window.location.hash;
-    const hashParams = new URLSearchParams(hashStr);
-    hasTokenParams = !!(hashParams.get('token') && hashParams.get('employee_id'));
-  }
-
-  const pendingContext = consumeMicrosoftPendingContext();
-  return { hasTokenParams, pendingContext };
-}
-
 export default function Index() {
   const router = useRouter();
 
-  const [msReturn] = useState(() => detectMicrosoftReturn());
+  // Start as 'initializing' — all browser-dependent detection happens in useEffect
+  const [appState, setAppState] = useState<AppState>('initializing');
 
-  const getInitialState = (): AppState => {
-    if (typeof window === 'undefined') return 'splash';
-
-    // Microsoft callback: either we have token params, or we have a pending context flag
-    if (msReturn.hasTokenParams || msReturn.pendingContext) {
-      return 'microsoftCallback';
-    }
-
-    if (sessionStorage.getItem(SPLASH_SHOWN_KEY) === 'true') {
-      return 'selectRole';
-    }
-
-    return 'splash';
-  };
-
-  const [appState, setAppState] = useState<AppState>(getInitialState);
-
+  // Runs once on the client after mount — determines real state
   useEffect(() => {
-    if (appState !== 'microsoftCallback') return;
+    // 1. Check for Microsoft OAuth callback tokens in URL query string
+    const params = new URLSearchParams(window.location.search);
+    const hasTokenParams = !!(params.get('token') && params.get('employee_id'));
 
-    const userType = msReturn.pendingContext?.userType ?? 'sales';
-    const returnPath = msReturn.pendingContext?.returnPath ?? '/attendant/attendant';
+    // 2. Check for the pending context we saved before redirecting to Odoo
+    const pendingContext = consumeMicrosoftPendingContext();
 
-    if (msReturn.hasTokenParams) {
-      // Odoo appended token params — parse and save the session
-      const params = new URLSearchParams(window.location.search);
+    if (hasTokenParams) {
+      // Tokens in URL — parse, save session, redirect to the app
+      const userType = pendingContext?.userType ?? 'sales';
+      const returnPath = pendingContext?.returnPath ?? '/attendant/attendant';
+
       const result = parseMicrosoftCallback(params, userType);
-
       window.history.replaceState({}, '', '/');
 
       if (result.success) {
         console.log('[MicrosoftCallback] Login successful, redirecting to', returnPath);
-        router.replace(returnPath);
       } else {
         console.error('[MicrosoftCallback]', result.error);
-        // Tokens were present but invalid — redirect to the login page
-        // so user can retry, rather than showing splash/onboarding
-        router.replace(returnPath);
       }
-    } else {
-      // No token params in URL, but we know this IS a Microsoft redirect
-      // (the pending context flag was set before leaving).
-      // Odoo may have set a session cookie instead of URL params.
-      // Redirect the user back to where they started so they can proceed.
-      console.log('[MicrosoftCallback] No token params in URL, redirecting to', returnPath);
+      router.replace(returnPath);
+      return;
+    }
+
+    if (pendingContext) {
+      // No tokens in URL but we know user just came back from Microsoft
+      // (flag was saved before leaving). Redirect to the original page.
+      const returnPath = pendingContext.returnPath ?? '/attendant/attendant';
+      console.log('[MicrosoftCallback] No token params, redirecting to', returnPath);
       window.history.replaceState({}, '', '/');
       router.replace(returnPath);
+      return;
     }
-  }, [appState, router, msReturn]);
+
+    // 3. Normal app launch — determine splash / onboarding / selectRole
+    if (sessionStorage.getItem(SPLASH_SHOWN_KEY) === 'true') {
+      setAppState('selectRole');
+    } else {
+      setAppState('splash');
+    }
+  }, [router]);
 
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;
@@ -117,11 +86,11 @@ export default function Index() {
     setAppState('selectRole');
   }, []);
 
-  if (appState === 'microsoftCallback') {
+  // Show a brief loading screen while determining state (SSR + first client frame)
+  if (appState === 'initializing') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', flexDirection: 'column', gap: 16, background: 'var(--bg-primary, #0a0a0a)' }}>
         <div className="loading-spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
-        <p style={{ fontSize: 13, color: 'var(--text-muted, #888)' }}>Signing in with Microsoft…</p>
       </div>
     );
   }
