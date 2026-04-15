@@ -231,23 +231,69 @@ export async function employeeLogin(
 // Microsoft OAuth
 // ============================================================================
 
+const MICROSOFT_PENDING_KEY = 'oves-microsoft-pending';
+const MICROSOFT_PENDING_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
+interface MicrosoftPendingContext {
+  returnPath: string;
+  userType: 'attendant' | 'sales';
+  timestamp: number;
+}
+
+/**
+ * Save context before navigating to Microsoft OAuth so the app can
+ * restore the session when Odoo redirects back to the root URL.
+ */
+export function saveMicrosoftPendingContext(returnPath: string, userType: 'attendant' | 'sales'): void {
+  if (typeof window === 'undefined') return;
+  const ctx: MicrosoftPendingContext = { returnPath, userType, timestamp: Date.now() };
+  localStorage.setItem(MICROSOFT_PENDING_KEY, JSON.stringify(ctx));
+}
+
+/**
+ * Read and consume the pending Microsoft context. Returns null if absent or expired.
+ */
+export function consumeMicrosoftPendingContext(): MicrosoftPendingContext | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(MICROSOFT_PENDING_KEY);
+  if (!raw) return null;
+  localStorage.removeItem(MICROSOFT_PENDING_KEY);
+  try {
+    const ctx = JSON.parse(raw) as MicrosoftPendingContext;
+    if (Date.now() - ctx.timestamp > MICROSOFT_PENDING_MAX_AGE_MS) return null;
+    return ctx;
+  } catch {
+    return null;
+  }
+}
+
 export function getMicrosoftAuthUrl(): string {
   return `${MICROSOFT_AUTH_BASE}?next=${encodeURIComponent(MICROSOFT_AUTH_CALLBACK)}`;
 }
 
 /**
  * Parse Microsoft OAuth callback query params into an EmployeeUser and save the session.
- * The callback URL looks like: ?token=JWT&expires_at=ISO&employee_id=N&employee_name=X&employee_email=Y
+ * Checks both URL query string and hash fragment (Odoo may use either).
  */
 export function parseMicrosoftCallback(
   searchParams: URLSearchParams,
   userType: 'attendant' | 'sales' = 'sales',
 ): { success: true; user: EmployeeUser } | { success: false; error: string } {
-  const token = searchParams.get('token');
-  const expiresAt = searchParams.get('expires_at');
-  const employeeId = searchParams.get('employee_id');
-  const employeeName = searchParams.get('employee_name');
-  const employeeEmail = searchParams.get('employee_email');
+  let params = searchParams;
+
+  // Fallback: check hash fragment if query params are empty
+  if (!params.get('token') && typeof window !== 'undefined' && window.location.hash) {
+    const hashStr = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    params = new URLSearchParams(hashStr);
+  }
+
+  const token = params.get('token');
+  const expiresAt = params.get('expires_at');
+  const employeeId = params.get('employee_id');
+  const employeeName = params.get('employee_name');
+  const employeeEmail = params.get('employee_email');
 
   if (!token || !employeeId || !employeeName || !employeeEmail) {
     return { success: false, error: 'Missing required parameters from Microsoft sign-in.' };

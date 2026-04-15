@@ -10,6 +10,7 @@ import {
   employeeLogin, 
   getStoredRoleEmail,
   getMicrosoftAuthUrl,
+  saveMicrosoftPendingContext,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -752,6 +753,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
         <button
           className="btn btn-secondary"
           onClick={() => {
+            saveMicrosoftPendingContext('/attendant/attendant', userType);
             window.location.href = getMicrosoftAuthUrl();
           }}
           disabled={isSigningIn}
