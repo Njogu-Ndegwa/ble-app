@@ -752,12 +752,22 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant' })
         {/* Microsoft Sign-In */}
         <button
           className="btn btn-secondary"
-          onClick={() => {
+          onClick={async () => {
             const authUrl = getMicrosoftAuthUrl();
             console.info('[Login] Microsoft button clicked. userType:', userType);
-            console.info('[Login] Saving pending context: returnPath=/attendant/attendant, userType:', userType);
             saveMicrosoftPendingContext('/attendant/attendant', userType);
-            console.info('[Login] Pending context saved. Stored value:', localStorage.getItem('oves-microsoft-pending'));
+            console.info('[Login] Pending context saved.');
+
+            // Unregister service worker so the redirect from Odoo
+            // hits the network instead of a stale SW cache
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              for (const reg of regs) {
+                await reg.unregister();
+                console.info('[Login] Unregistered service worker:', reg.scope);
+              }
+            }
+
             console.info('[Login] Navigating to:', authUrl);
             window.location.href = authUrl;
           }}
