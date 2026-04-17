@@ -17,6 +17,8 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react';
 import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import {
@@ -85,6 +87,7 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
   const [showPassword, setShowPassword] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [lastResetPassword, setLastResetPassword] = useState<string | null>(null);
+  const [isPasswordCopied, setIsPasswordCopied] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // ------------------------------------------------------------------
@@ -147,6 +150,7 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
     setSelectedCustomer(null);
     setShowPassword(false);
     setLastResetPassword(null);
+    setIsPasswordCopied(false);
     setIsLoadingDetail(true);
     setSubView('detail');
     try {
@@ -307,11 +311,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
     const phone = selectedCustomer.phone;
     const email = selectedCustomer.email;
     if (!phone && !email) {
-      toast.error(t('sales.noContactForPassword') || 'Customer has no phone or email to reset password');
+      toast.error(t('customerMgmt.noContactForPassword') || 'Customer has no phone or email to reset password');
       return;
     }
 
     setIsResettingPassword(true);
+    setIsPasswordCopied(false);
     try {
       const token = getSalesRoleToken() || undefined;
       const payload: { email?: string; phone?: string; new_password?: string } = {};
@@ -327,14 +332,37 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
       const newPw = phone || res.new_password || '';
       setLastResetPassword(newPw);
       setShowPassword(true);
-      toast.success(t('sales.passwordResetSuccess') || 'Password has been reset to the phone number');
+      toast.success(t('customerMgmt.passwordResetSuccess') || 'Password has been reset to the phone number');
     } catch (err: any) {
       console.error('[CustomerManagement] RESET PASSWORD - Failed:', err);
-      toast.error(err.message || t('sales.passwordResetFailed') || 'Failed to reset password');
+      toast.error(err.message || t('customerMgmt.passwordResetFailed') || 'Failed to reset password');
     } finally {
       setIsResettingPassword(false);
     }
   }, [selectedCustomer, t]);
+
+  const handleCopyPassword = useCallback(async () => {
+    if (!lastResetPassword) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(lastResetPassword);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = lastResetPassword;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setIsPasswordCopied(true);
+      toast.success(t('customerMgmt.passwordCopied') || 'Password copied to clipboard');
+      setTimeout(() => setIsPasswordCopied(false), 1800);
+    } catch (err) {
+      console.error('[CustomerManagement] COPY PASSWORD - Failed:', err);
+    }
+  }, [lastResetPassword, t]);
 
   // ------------------------------------------------------------------
   // Format helpers
@@ -543,35 +571,52 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           {
             icon: <Lock size={15} />,
             label: t('sales.password') || 'Password',
-            value: lastResetPassword ? lastResetPassword : (t('sales.passwordHidden') || 'Password is hidden — reset to reveal'),
+            value: lastResetPassword || (t('customerMgmt.passwordHidden') || 'Password is hidden — reset to reveal'),
             renderValue: (
               <div className="flex flex-col gap-2">
                 {lastResetPassword ? (
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-mono truncate flex-1" style={{ color: 'var(--primary, #2563eb)' }}>
+                    <p className="text-sm font-mono truncate flex-1 text-text-primary">
                       {showPassword ? lastResetPassword : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
                     </p>
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowPassword((v) => !v); }}
                       className="p-1 rounded-md hover:bg-bg-elevated transition-colors flex-shrink-0"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? (t('customerMgmt.hidePassword') || 'Hide password') : (t('customerMgmt.showPassword') || 'Show password')}
                     >
                       {showPassword ? <EyeOff size={14} className="text-text-muted" /> : <Eye size={14} className="text-text-muted" />}
                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleCopyPassword(); }}
+                      className="p-1 rounded-md hover:bg-bg-elevated transition-colors flex-shrink-0"
+                      aria-label={t('customerMgmt.copyPassword') || 'Copy password'}
+                      title={t('customerMgmt.copyPassword') || 'Copy password'}
+                    >
+                      {isPasswordCopied
+                        ? <Check size={14} className="text-brand" />
+                        : <Copy size={14} className="text-text-muted" />}
+                    </button>
                   </div>
                 ) : (
-                  <p className="text-sm text-text-muted italic">{t('sales.passwordHidden') || 'Password is hidden — reset to reveal'}</p>
+                  <p className="text-sm text-text-muted italic">
+                    {t('customerMgmt.passwordHidden') || 'Password is hidden \u2014 reset to reveal'}
+                  </p>
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleResetPassword(); }}
                   disabled={isResettingPassword}
-                  className="flex items-center justify-center gap-2 w-full py-2 rounded-lg text-xs font-medium text-white transition-all active:scale-[0.97] disabled:opacity-50"
-                  style={{ background: 'var(--brand, #2563eb)' }}
+                  className="flex items-center justify-center gap-2 w-full py-2 rounded-lg bg-brand text-white text-xs font-medium active:scale-[0.97] transition-transform disabled:opacity-50"
                 >
                   {isResettingPassword ? (
-                    <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t('sales.resettingPassword') || 'Resetting...'}</>
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {t('customerMgmt.resettingPassword') || 'Resetting...'}
+                    </>
                   ) : (
-                    <><KeyRound size={13} />{t('sales.resetPasswordPhone') || 'Reset Password (Phone)'}</>
+                    <>
+                      <KeyRound size={13} />
+                      {t('customerMgmt.resetPasswordPhone') || 'Reset Password (Phone)'}
+                    </>
                   )}
                 </button>
               </div>
