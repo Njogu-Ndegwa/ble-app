@@ -1308,6 +1308,7 @@ export interface ActivatorWorkflowState {
   };
   scannedVehicleId: string | null;
   registrationId: string;
+  customerPassword?: string | null;
 }
 
 export function buildActivatorSessionData(state: ActivatorWorkflowState): WorkflowSessionData {
@@ -1359,6 +1360,7 @@ export function buildActivatorSessionData(state: ActivatorWorkflowState): Workfl
     } : undefined,
     scannedVehicleId: state.scannedVehicleId,
     registrationId: state.registrationId,
+    customerPassword: state.customerPassword || null,
     savedAt: Date.now(),
     version: 1,
   };
@@ -1390,6 +1392,7 @@ export interface ExtractedActivatorState {
   };
   scannedVehicleId: string | null;
   registrationId: string;
+  customerPassword: string | null;
 }
 
 export function extractActivatorStateFromSession(sessionData: WorkflowSessionData): ExtractedActivatorState {
@@ -1431,6 +1434,7 @@ export function extractActivatorStateFromSession(sessionData: WorkflowSessionDat
     },
     scannedVehicleId: sessionData.scannedVehicleId || null,
     registrationId: sessionData.registrationId || '',
+    customerPassword: sessionData.customerPassword || null,
   };
 }
 

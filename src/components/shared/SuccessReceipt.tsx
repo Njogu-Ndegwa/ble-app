@@ -390,12 +390,15 @@ export function buildRegistrationReceiptRows(
     mono: true 
   });
 
-  // Password row
-  rows.push({ 
-    label: t('sales.password') || 'Password', 
-    value: data.password || 'N/A',
-    mono: true
-  });
+  if (data.password) {
+    rows.push({ 
+      label: t('sales.password') || 'Password', 
+      value: data.password,
+      mono: true,
+      copyable: true,
+      color: 'var(--primary, #2563eb)',
+    });
+  }
 
   return rows;
 }

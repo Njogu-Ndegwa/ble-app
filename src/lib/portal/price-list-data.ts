@@ -15,6 +15,7 @@ export interface PriceListRule {
 
 export interface PriceList {
   id: string;
+  odooId: number | null;
   name: string;
   description: string;
   currency: string;
@@ -25,6 +26,7 @@ export interface PriceList {
 export const DEMO_PRICE_LISTS: PriceList[] = [
   {
     id: 'pl-default',
+    odooId: null,
     name: 'Standard Pricing',
     description: 'Default catalog prices with no adjustments',
     currency: 'USD',
@@ -33,6 +35,7 @@ export const DEMO_PRICE_LISTS: PriceList[] = [
   },
   {
     id: 'pl-wholesale',
+    odooId: null,
     name: 'Wholesale',
     description: '15% off all products for bulk buyers',
     currency: 'USD',
@@ -49,6 +52,7 @@ export const DEMO_PRICE_LISTS: PriceList[] = [
   },
   {
     id: 'pl-partner',
+    odooId: null,
     name: 'Channel Partner',
     description: '20% discount on physical products, 10% on services',
     currency: 'USD',
@@ -74,6 +78,7 @@ export const DEMO_PRICE_LISTS: PriceList[] = [
   },
   {
     id: 'pl-promo-q2',
+    odooId: null,
     name: 'Q2 2026 Promo',
     description: 'Seasonal promotion — flat 25% off all products',
     currency: 'USD',
@@ -90,6 +95,7 @@ export const DEMO_PRICE_LISTS: PriceList[] = [
   },
   {
     id: 'pl-vip',
+    odooId: null,
     name: 'VIP Customer',
     description: '30% off all products, extra 5% for orders of 5+ units',
     currency: 'USD',
@@ -124,6 +130,7 @@ export function mapOdooPriceList(
 ): PriceList {
   return {
     id: `odoo-pl-${raw.id}`,
+    odooId: raw.id,
     name: raw.name ?? `Price List ${raw.id}`,
     description: '',
     currency: raw.currency ?? 'USD',

@@ -24,6 +24,7 @@ import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 
 import type { OrderListItem } from '@/lib/odoo-api';
+import { resetPassword, updateWorkflowSession } from '@/lib/odoo-api';
 
 const Step1CustomerForm = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step1CustomerForm })), { ssr: false });
 const Step2SelectPackage = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step2SelectPackage })), { ssr: false });
@@ -146,6 +147,9 @@ export default function ActivatorFlow({
   // Registration ID
   const [registrationId, setRegistrationId] = useState<string>('');
 
+  // Customer password (generated via reset-password API at end of activation)
+  const [customerPassword, setCustomerPassword] = useState<string | null>(null);
+
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
   const [isScannerOpening, setIsScannerOpening] = useState(false);
@@ -220,6 +224,53 @@ export default function ActivatorFlow({
       clearSalesSession();
       advanceToStep(6);
       toast.success(isIdempotent ? 'Activation completed! (already recorded)' : 'Activation completed! Assets assigned successfully.');
+
+      // Capture order ID before the hook clears it at step 6
+      completedOrderIdRef.current = sessionOrderId;
+
+      // Set the customer's phone number as their password in the background
+      const customerEmail = formData.email;
+      const customerPhone = formData.phone;
+      console.warn('[ActivatorFlow] PASSWORD GEN - Starting', { customerEmail, customerPhone });
+
+      if (customerPhone || customerEmail) {
+        const payload: { email?: string; phone?: string; new_password?: string } = {};
+        if (customerEmail) payload.email = customerEmail;
+        if (customerPhone) payload.phone = customerPhone;
+        if (customerPhone) payload.new_password = customerPhone;
+
+        const authToken = getSalesRoleToken() || undefined;
+        const passwordToShow = customerPhone || null;
+
+        console.warn('[ActivatorFlow] PASSWORD GEN - Payload:', JSON.stringify(payload));
+        console.warn('[ActivatorFlow] PASSWORD GEN - Password to show on receipt:', passwordToShow);
+
+        if (passwordToShow) setCustomerPassword(passwordToShow);
+
+        resetPassword(payload, authToken)
+          .then((res) => {
+            console.warn('[ActivatorFlow] PASSWORD GEN - API SUCCESS', JSON.stringify(res));
+
+            const savedOrderId = completedOrderIdRef.current;
+            if (savedOrderId && passwordToShow) {
+              const currentState = buildCurrentSessionState();
+              currentState.customerPassword = passwordToShow;
+              const sessionData = buildActivatorSessionData(currentState);
+              updateWorkflowSession(savedOrderId, { session_data: sessionData }, authToken)
+                .then(() => {
+                  console.warn('[ActivatorFlow] PASSWORD GEN - Persisted to session', { orderId: savedOrderId });
+                })
+                .catch((err) => {
+                  console.error('[ActivatorFlow] PASSWORD GEN - Failed to persist to session:', err);
+                });
+            }
+          })
+          .catch((err) => {
+            console.error('[ActivatorFlow] PASSWORD GEN - API FAILED:', err?.message || err);
+          });
+      } else {
+        console.warn('[ActivatorFlow] PASSWORD GEN - Skipped (no phone or email)');
+      }
     },
     onError: (errorMsg) => {
       console.error('[Activator] Service completion failed:', errorMsg);
@@ -247,6 +298,9 @@ export default function ActivatorFlow({
       setScannedVehicleId(null);
     },
   });
+
+  // Ref to keep the session order ID for post-completion saves (e.g. password)
+  const completedOrderIdRef = useRef<number | null>(null);
 
   // Refs
   const scanTypeRef = useRef<'battery' | 'vehicle' | null>(null);
@@ -276,6 +330,7 @@ export default function ActivatorFlow({
       setScannedBatteryPending(restoredState.scannedBatteryPending);
       setAssignedBattery(restoredState.assignedBattery);
       setRegistrationId(restoredState.registrationId);
+      setCustomerPassword(restoredState.customerPassword);
       clearSalesSession();
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     },
@@ -325,6 +380,7 @@ export default function ActivatorFlow({
     setScannedBatteryPending(restoredState.scannedBatteryPending);
     setAssignedBattery(restoredState.assignedBattery);
     setRegistrationId(restoredState.registrationId);
+    setCustomerPassword(restoredState.customerPassword);
     setSessionOrderId(order.id);
     clearSalesSession();
 
@@ -367,12 +423,14 @@ export default function ActivatorFlow({
       },
       scannedVehicleId,
       registrationId,
+      customerPassword,
     };
   }, [
     currentStep, maxStepReached, formData, selectedPackageId, selectedPlanId,
     createdCustomerId, createdPartnerId, confirmedSubscriptionCode,
     scannedBatteryPending, assignedBattery, customerIdentified,
     customerRate, customerCurrencySymbol, scannedVehicleId, registrationId,
+    customerPassword,
   ]);
 
   // Save session to backend
@@ -859,6 +917,7 @@ export default function ActivatorFlow({
         resetPaymentAndService();
         resetVehicleAssignment();
         setRegistrationId('');
+        setCustomerPassword(null);
         setIsReadOnlySession(false);
         break;
       }
@@ -902,6 +961,7 @@ export default function ActivatorFlow({
     resetPaymentAndService();
     resetVehicleAssignment();
     setRegistrationId('');
+    setCustomerPassword(null);
     setIsReadOnlySession(false);
   }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPackageId, setSelectedPlanId]);
 
@@ -1040,6 +1100,7 @@ export default function ActivatorFlow({
             plans={availablePlans}
             subscriptionCode={confirmedSubscriptionCode || undefined}
             vehicleId={scannedVehicleId}
+            customerPassword={customerPassword}
           />
         );
       default:

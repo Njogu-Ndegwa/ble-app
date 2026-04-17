@@ -606,6 +606,49 @@ export async function getPriceLists(): Promise<OdooPriceListItem[]> {
   return Array.isArray(list) ? list : [];
 }
 
+export interface PricePreviewResult {
+  unit_price: number;
+  applied_rule_id: number | null;
+}
+
+export async function getPriceListPrice(
+  pricelistId: number,
+  productId: number,
+  quantity: number = 1,
+): Promise<PricePreviewResult> {
+  const endpoint = `/api/pricelists/${pricelistId}/price?product_id=${productId}&quantity=${quantity}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  return {
+    unit_price: raw.unit_price ?? 0,
+    applied_rule_id: raw.applied_rule_id ?? null,
+  };
+}
+
+export interface PriceListValidationResult {
+  rule_matched: boolean;
+  orphaned_count: number;
+}
+
+export async function validatePriceListProduct(
+  pricelistId: number,
+  productId: number,
+): Promise<PriceListValidationResult> {
+  const endpoint = `/api/pricelists/${pricelistId}/validate?product_id=${productId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  return {
+    rule_matched: raw.rule_matched ?? false,
+    orphaned_count: raw.orphaned_count ?? 0,
+  };
+}
+
 export async function sendProformaPdf(orderId: number): Promise<MutationResponse> {
   const endpoint = `/api/orders/${orderId}/send-proforma`;
   const url = `${ODOO_BASE_URL}${endpoint}`;

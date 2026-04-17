@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -13,13 +13,21 @@ import {
   Percent,
   Check,
   ShoppingCart,
+  Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingState } from '@/components/ui/State';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
 import type { OdooProduct, OrderEntity, CustomerEntity } from '@/lib/portal/types';
-import { createQuotation, sendOrder, formatCurrency, getPriceLists } from '@/lib/portal/order-api';
+import {
+  createQuotation,
+  sendOrder,
+  formatCurrency,
+  getPriceLists,
+  getPriceListPrice,
+  validatePriceListProduct,
+} from '@/lib/portal/order-api';
 import {
   DEMO_PRICE_LISTS,
   resolvePrice,
@@ -42,6 +50,7 @@ interface OrderLine {
   priceUnit: number;
   discountPercent: number;
   quantity: number;
+  priceLoading: boolean;
 }
 
 function mapContact(c: OdooContact): CustomerEntity {
@@ -87,6 +96,52 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   const [products, setProducts] = useState<OdooProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const selectedPriceListRef = useRef(selectedPriceList);
+  selectedPriceListRef.current = selectedPriceList;
+  const qtyTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(qtyTimers.current).forEach(clearTimeout);
+    };
+  }, []);
+
+  const computeDiscount = (listPrice: number, unitPrice: number): number => {
+    if (listPrice <= 0) return 0;
+    return Math.max(0, Math.round(((listPrice - unitPrice) / listPrice) * 10000) / 100);
+  };
+
+  const fetchPrice = useCallback(
+    async (
+      priceList: PriceList,
+      productId: number,
+      quantity: number,
+      listPrice: number,
+      puCategory: string | null,
+    ): Promise<{ unitPrice: number; discountPercent: number }> => {
+      if (priceList.odooId) {
+        try {
+          const result = await getPriceListPrice(priceList.odooId, productId, quantity);
+          return {
+            unitPrice: result.unit_price,
+            discountPercent: computeDiscount(listPrice, result.unit_price),
+          };
+        } catch {
+          return { unitPrice: listPrice, discountPercent: 0 };
+        }
+      }
+      const resolved = resolvePrice(
+        priceList,
+        { id: productId, list_price: listPrice, pu_category: puCategory || '' },
+        quantity,
+      );
+      return { unitPrice: resolved.unitPrice, discountPercent: resolved.discountPercent };
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -167,64 +222,112 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   }, []);
 
   const handleSelectPriceList = useCallback(
-    (pl: PriceList) => {
+    async (pl: PriceList) => {
       setSelectedPriceList(pl);
       setShowPriceListPicker(false);
-      setLines((prev) =>
-        prev.map((line) => {
-          const resolved = resolvePrice(
+
+      Object.values(qtyTimers.current).forEach(clearTimeout);
+      qtyTimers.current = {};
+
+      const currentLines = linesRef.current;
+      if (currentLines.length === 0) return;
+
+      setLines((prev) => prev.map((l) => ({ ...l, priceLoading: true })));
+
+      const priceMap = new Map<string, { unitPrice: number; discountPercent: number }>();
+
+      await Promise.allSettled(
+        currentLines.map(async (line) => {
+          const result = await fetchPrice(
             pl,
-            { id: line.productId, list_price: line.listPrice, pu_category: line.puCategory || '' },
+            line.productId,
             line.quantity,
+            line.listPrice,
+            line.puCategory,
           );
-          return { ...line, priceUnit: resolved.unitPrice, discountPercent: resolved.discountPercent };
+          priceMap.set(line.tempId, result);
+        }),
+      );
+
+      setLines((prev) =>
+        prev.map((l) => {
+          const price = priceMap.get(l.tempId);
+          if (price) {
+            return { ...l, priceUnit: price.unitPrice, discountPercent: price.discountPercent, priceLoading: false };
+          }
+          return { ...l, priceLoading: false };
         }),
       );
     },
-    [],
+    [fetchPrice],
   );
 
   const handleAddProduct = useCallback(
-    (p: OdooProduct) => {
-      setLines((prev) => {
-        const existing = prev.find((l) => l.productId === p.id);
-        if (existing) {
-          const newQty = existing.quantity + 1;
-          const resolved = resolvePrice(
-            selectedPriceList,
-            { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
-            newQty,
-          );
-          return prev.map((l) =>
-            l.productId === p.id
-              ? { ...l, quantity: newQty, priceUnit: resolved.unitPrice, discountPercent: resolved.discountPercent }
-              : l,
-          );
-        }
-        const resolved = resolvePrice(
-          selectedPriceList,
-          { id: p.id, list_price: p.list_price, pu_category: p.pu_category },
-          1,
+    async (p: OdooProduct) => {
+      const existingLine = linesRef.current.find((l) => l.productId === p.id);
+
+      if (existingLine) {
+        const newQty = existingLine.quantity + 1;
+        setLines((prev) =>
+          prev.map((l) =>
+            l.productId === p.id ? { ...l, quantity: newQty, priceLoading: true } : l,
+          ),
         );
-        return [
+
+        const { unitPrice, discountPercent } = await fetchPrice(
+          selectedPriceListRef.current,
+          p.id,
+          newQty,
+          existingLine.listPrice,
+          existingLine.puCategory,
+        );
+        setLines((prev) =>
+          prev.map((l) =>
+            l.productId === p.id
+              ? { ...l, priceUnit: unitPrice, discountPercent, priceLoading: false }
+              : l,
+          ),
+        );
+      } else {
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const listPrice = p.list_price ?? 0;
+
+        setLines((prev) => [
           ...prev,
           {
-            tempId: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            tempId,
             productId: p.id,
             productName: p.name,
             sku: p.default_code || null,
             puCategory: p.pu_category || null,
-            listPrice: p.list_price ?? 0,
-            priceUnit: resolved.unitPrice,
-            discountPercent: resolved.discountPercent,
+            listPrice,
+            priceUnit: listPrice,
+            discountPercent: 0,
             quantity: 1,
+            priceLoading: true,
           },
-        ];
-      });
+        ]);
+
+        const { unitPrice, discountPercent } = await fetchPrice(
+          selectedPriceListRef.current,
+          p.id,
+          1,
+          listPrice,
+          p.pu_category || null,
+        );
+        setLines((prev) =>
+          prev.map((l) =>
+            l.tempId === tempId
+              ? { ...l, priceUnit: unitPrice, discountPercent, priceLoading: false }
+              : l,
+          ),
+        );
+      }
+
       setShowProductDropdown(false);
       setProductSearch('');
     },
-    [selectedPriceList],
+    [fetchPrice],
   );
 
   const handleRemoveLine = (tempId: string) => {
@@ -233,25 +336,39 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   const handleLineQtyChange = useCallback(
     (tempId: string, qty: number) => {
+      const safeQty = Math.max(1, qty);
+
       setLines((prev) =>
-        prev.map((l) => {
-          if (l.tempId !== tempId) return l;
-          const safeQty = Math.max(1, qty);
-          const resolved = resolvePrice(
-            selectedPriceList,
-            { id: l.productId, list_price: l.listPrice, pu_category: l.puCategory || '' },
-            safeQty,
-          );
-          return {
-            ...l,
-            quantity: safeQty,
-            priceUnit: resolved.unitPrice,
-            discountPercent: resolved.discountPercent,
-          };
-        }),
+        prev.map((l) =>
+          l.tempId === tempId ? { ...l, quantity: safeQty, priceLoading: true } : l,
+        ),
       );
+
+      if (qtyTimers.current[tempId]) {
+        clearTimeout(qtyTimers.current[tempId]);
+      }
+
+      qtyTimers.current[tempId] = setTimeout(async () => {
+        const line = linesRef.current.find((l) => l.tempId === tempId);
+        if (!line) return;
+
+        const { unitPrice, discountPercent } = await fetchPrice(
+          selectedPriceListRef.current,
+          line.productId,
+          safeQty,
+          line.listPrice,
+          line.puCategory,
+        );
+        setLines((prev) =>
+          prev.map((l) =>
+            l.tempId === tempId
+              ? { ...l, priceUnit: unitPrice, discountPercent, priceLoading: false }
+              : l,
+          ),
+        );
+      }, 500);
     },
-    [selectedPriceList],
+    [fetchPrice],
   );
 
   const total = useMemo(
@@ -276,6 +393,31 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
     setCreating(true);
     try {
+      if (selectedPriceList.odooId) {
+        const validations = await Promise.allSettled(
+          lines.map((line) =>
+            validatePriceListProduct(selectedPriceList.odooId!, line.productId),
+          ),
+        );
+
+        const warnings: string[] = [];
+        validations.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            const { rule_matched, orphaned_count } = result.value;
+            if (!rule_matched || orphaned_count > 0) {
+              warnings.push(lines[i].productName);
+            }
+          }
+        });
+
+        if (warnings.length > 0) {
+          toast(
+            `No specific pricelist rule for: ${warnings.join(', ')}. List price will be used.`,
+            { icon: '\u26A0\uFE0F', duration: 5000 },
+          );
+        }
+      }
+
       const result = await createQuotation({
         customer_id: Number(selectedCustomer.id),
         products: lines.map((l) => ({
@@ -305,7 +447,9 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     }
   };
 
-  const hasActiveDiscount = !selectedPriceList.isDefault && selectedPriceList.rules.length > 0;
+  const anyLineLoading = lines.some((l) => l.priceLoading);
+  const hasActiveDiscount =
+    totalSavings > 0 || (!selectedPriceList.isDefault && (selectedPriceList.rules.length > 0 || selectedPriceList.odooId !== null));
 
   return (
     <div className="flex flex-col h-full">
@@ -634,30 +778,36 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                     {/* Row 2: price × qty = subtotal */}
                     <div className="flex items-center gap-1.5">
                       <div className="flex items-center gap-1 min-w-0">
-                        {hasDiscount && (
-                          <span
-                            className="text-[10px] line-through text-text-muted"
-                            style={{ fontFamily: 'var(--font-mono)' }}
-                          >
-                            {formatCurrency(line.listPrice)}
-                          </span>
-                        )}
-                        <span
-                          className="text-xs font-medium"
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          {formatCurrency(line.priceUnit)}
-                        </span>
-                        {hasDiscount && (
-                          <span
-                            className="text-[9px] font-bold px-1 py-0.5 rounded"
-                            style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
-                          >
-                            -{line.discountPercent}%
-                          </span>
+                        {line.priceLoading ? (
+                          <Loader2 size={12} className="animate-spin text-text-muted" />
+                        ) : (
+                          <>
+                            {hasDiscount && (
+                              <span
+                                className="text-[10px] line-through text-text-muted"
+                                style={{ fontFamily: 'var(--font-mono)' }}
+                              >
+                                {formatCurrency(line.listPrice)}
+                              </span>
+                            )}
+                            <span
+                              className="text-xs font-medium"
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
+                              }}
+                            >
+                              {formatCurrency(line.priceUnit)}
+                            </span>
+                            {hasDiscount && (
+                              <span
+                                className="text-[9px] font-bold px-1 py-0.5 rounded"
+                                style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                              >
+                                -{line.discountPercent}%
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                       <span className="text-xs text-text-muted mx-0.5">&times;</span>
@@ -672,7 +822,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                       />
                       <span className="text-xs text-text-muted mx-0.5">=</span>
                       <span
-                        className="text-sm font-semibold text-text-primary ml-auto"
+                        className={`text-sm font-semibold text-text-primary ml-auto ${line.priceLoading ? 'opacity-40' : ''}`}
                         style={{ fontFamily: 'var(--font-mono)' }}
                       >
                         {formatCurrency(line.priceUnit * line.quantity)}
@@ -722,7 +872,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       <div className="px-4 py-3 border-t border-border">
         <button
           onClick={handleSubmit}
-          disabled={creating || !selectedCustomer || lines.length === 0}
+          disabled={creating || !selectedCustomer || lines.length === 0 || anyLineLoading}
           style={{ backgroundColor: 'var(--color-brand)' }}
           className="w-full py-3.5 rounded-xl text-black font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
         >

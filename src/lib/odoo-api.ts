@@ -1918,6 +1918,87 @@ export async function updateWorkflowSessionWithProducts(
 }
 
 // ============================================================================
+// Reset Password API (Generate password for customer)
+// ============================================================================
+
+/**
+ * Payload for resetting/generating a customer password.
+ * Identify the account by one of: email, phone, or mobile.
+ * Optionally provide a custom password.
+ */
+export interface ResetPasswordPayload {
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  new_password?: string;
+}
+
+/**
+ * Response from the reset-password endpoint
+ */
+export interface ResetPasswordResponse {
+  success: boolean;
+  message?: string;
+  new_password?: string;
+  error?: string;
+}
+
+/**
+ * Reset / generate a password for a customer account.
+ *
+ * POST /api/auth/reset-password
+ *
+ * The account is identified by email, phone, or mobile.
+ * If new_password is omitted the backend auto-generates one.
+ *
+ * @returns The generated/set password in `new_password`
+ */
+export async function resetPassword(
+  payload: ResetPasswordPayload,
+  authToken?: string
+): Promise<ResetPasswordResponse> {
+  const url = `${ODOO_BASE_URL}/api/auth/reset-password`;
+
+  const headers: HeadersInit = buildOdooHeaders(authToken);
+
+  console.info('=== RESET PASSWORD - REQUEST ===');
+  console.info('URL:', url);
+  console.info('Payload (redacted):', JSON.stringify({
+    email: payload.email || undefined,
+    phone: payload.phone || undefined,
+    mobile: payload.mobile || undefined,
+    has_custom_password: !!payload.new_password,
+  }));
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    console.warn('=== RESET PASSWORD - RESPONSE ===');
+    console.warn('HTTP Status:', response.status);
+    console.warn('Success:', data.success);
+    console.warn('Full response:', JSON.stringify(data, null, 2));
+
+    if (!response.ok || data.success === false) {
+      const errMsg = data.message || data.error || `HTTP ${response.status}`;
+      console.error('[resetPassword] Error:', errMsg);
+      throw new Error(errMsg);
+    }
+
+    return data as ResetPasswordResponse;
+  } catch (error: any) {
+    console.error('=== RESET PASSWORD - ERROR ===');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Change Password API
 // ============================================================================
 
