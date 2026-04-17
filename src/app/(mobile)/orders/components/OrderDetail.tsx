@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2,
   ChevronLeft,
@@ -18,6 +18,9 @@ import {
   X,
   Download,
   Mail,
+  Tag,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepProgress } from '@/components/ui/Progress';
@@ -32,12 +35,15 @@ import {
   registerPayment as restRegisterPayment,
   sendProformaPdf as restSendProforma,
   formatCurrency,
+  getPriceLists,
+  getPriceListPrice,
 } from '@/lib/portal/order-api';
 import {
   PIPELINE_STEPS,
   getOrderStepIndex,
   STEP_ACTIONS,
 } from '@/lib/portal/order-constants';
+import { mapOdooPriceList, type PriceList } from '@/lib/portal/price-list-data';
 import type { OrderEntity, OrderLineEntity, PaymentStatus } from '@/lib/portal/types';
 
 const STEP_ICONS = [ClipboardList, RefreshCw, ShieldCheck, CreditCard, FileCheck];
@@ -70,6 +76,19 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   // Editable lines state for the Revise & Confirm step
   const [editableLines, setEditableLines] = useState<OrderLineEntity[]>([]);
 
+  // Pricelist state for the Revise & Confirm step
+  const [revisePriceLists, setRevisePriceLists] = useState<PriceList[]>([]);
+  const [revisePLLoading, setRevisePLLoading] = useState(true);
+  const [selectedRevisePL, setSelectedRevisePL] = useState<PriceList | null>(null);
+  const [showRevisePLPicker, setShowRevisePLPicker] = useState(false);
+  const [linePriceLoadingIds, setLinePriceLoadingIds] = useState<Set<string>>(new Set());
+
+  const editableLinesRef = useRef(editableLines);
+  editableLinesRef.current = editableLines;
+  const selectedRevisePLRef = useRef(selectedRevisePL);
+  selectedRevisePLRef.current = selectedRevisePL;
+  const reviseQtyTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   // PDF download state
   const [pdfLoading, setPdfLoading] = useState<'proforma' | 'invoice' | null>(null);
   const [sendingProforma, setSendingProforma] = useState(false);
@@ -94,6 +113,26 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   useEffect(() => {
     fetchOrderData();
   }, [fetchOrderData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await getPriceLists();
+        if (cancelled || raw.length === 0) return;
+        setRevisePriceLists(raw.map(mapOdooPriceList));
+      } catch { /* ignore */ } finally {
+        if (!cancelled) setRevisePLLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(reviseQtyTimers.current).forEach(clearTimeout);
+    };
+  }, []);
 
   const refreshOrder = useCallback(
     async (minStep?: number) => {
@@ -220,26 +259,90 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     }
   }, [backendStep, handleSend, handleConfirm, refreshOrder]);
 
-  // Editable lines handlers
-  const handleLineChange = useCallback(
-    (lineId: string, field: 'quantity' | 'priceUnit', value: number) => {
-      setEditableLines((prev) =>
-        prev.map((l) =>
-          l.id === lineId
-            ? {
-                ...l,
-                [field]: value,
-                priceSubtotal: field === 'quantity' ? l.priceUnit * value : value * l.quantity,
-              }
-            : l,
-        ),
-      );
-    },
-    [],
-  );
+  // Pricelist selection handler — re-compute all line prices
+  const handleRevisePLSelect = useCallback(async (pl: PriceList) => {
+    setSelectedRevisePL(pl);
+    setShowRevisePLPicker(false);
+
+    Object.values(reviseQtyTimers.current).forEach(clearTimeout);
+    reviseQtyTimers.current = {};
+
+    const currentLines = editableLinesRef.current;
+    if (currentLines.length === 0 || !pl.odooId) return;
+
+    setLinePriceLoadingIds(new Set(currentLines.map((l) => l.id)));
+
+    const priceMap = new Map<string, number>();
+
+    await Promise.allSettled(
+      currentLines.map(async (line) => {
+        try {
+          const result = await getPriceListPrice(pl.odooId!, line.productId, line.quantity);
+          priceMap.set(line.id, result.unit_price);
+        } catch { /* keep existing price */ }
+      }),
+    );
+
+    setEditableLines((prev) =>
+      prev.map((l) => {
+        const newPrice = priceMap.get(l.id);
+        if (newPrice !== undefined) {
+          return { ...l, priceUnit: newPrice, priceSubtotal: newPrice * l.quantity };
+        }
+        return l;
+      }),
+    );
+    setLinePriceLoadingIds(new Set());
+  }, []);
+
+  // Qty-only handler — calls pricelist API when a pricelist is selected
+  const handleLineQtyChange = useCallback((lineId: string, quantity: number) => {
+    const safeQty = Math.max(1, quantity);
+
+    setEditableLines((prev) =>
+      prev.map((l) =>
+        l.id === lineId ? { ...l, quantity: safeQty, priceSubtotal: l.priceUnit * safeQty } : l,
+      ),
+    );
+
+    const pl = selectedRevisePLRef.current;
+    if (!pl?.odooId) return;
+
+    setLinePriceLoadingIds((prev) => new Set(prev).add(lineId));
+
+    if (reviseQtyTimers.current[lineId]) {
+      clearTimeout(reviseQtyTimers.current[lineId]);
+    }
+
+    reviseQtyTimers.current[lineId] = setTimeout(async () => {
+      const line = editableLinesRef.current.find((l) => l.id === lineId);
+      if (!line) return;
+
+      try {
+        const result = await getPriceListPrice(pl.odooId!, line.productId, safeQty);
+        setEditableLines((prev) =>
+          prev.map((l) =>
+            l.id === lineId
+              ? { ...l, priceUnit: result.unit_price, priceSubtotal: result.unit_price * safeQty }
+              : l,
+          ),
+        );
+      } catch { /* keep existing price */ }
+
+      setLinePriceLoadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(lineId);
+        return next;
+      });
+    }, 500);
+  }, []);
 
   const handleRemoveLine = useCallback((lineId: string) => {
     setEditableLines((prev) => prev.filter((l) => l.id !== lineId));
+    if (reviseQtyTimers.current[lineId]) {
+      clearTimeout(reviseQtyTimers.current[lineId]);
+      delete reviseQtyTimers.current[lineId];
+    }
   }, []);
 
   // PDF download handlers
@@ -414,6 +517,66 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 )}
               </div>
 
+              {/* Pricelist picker */}
+              {isReviseEditable && (
+                <div className="px-4 pt-3">
+                  <button
+                    onClick={() => setShowRevisePLPicker(!showRevisePLPicker)}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
+                    style={{
+                      borderColor: selectedRevisePL ? 'var(--color-success)' : 'var(--border-default)',
+                      backgroundColor: selectedRevisePL ? 'var(--color-success-soft)' : 'var(--bg-tertiary)',
+                    }}
+                  >
+                    <Tag size={13} style={{ color: selectedRevisePL ? 'var(--color-success)' : 'var(--text-muted)' }} />
+                    <span
+                      className="text-xs font-medium truncate"
+                      style={{ color: selectedRevisePL ? 'var(--color-success)' : 'var(--text-secondary)' }}
+                    >
+                      {selectedRevisePL ? selectedRevisePL.name : 'Select Pricelist'}
+                    </span>
+                    <ChevronDown
+                      size={12}
+                      className="ml-auto shrink-0 transition-transform"
+                      style={{
+                        color: selectedRevisePL ? 'var(--color-success)' : 'var(--text-muted)',
+                        transform: showRevisePLPicker ? 'rotate(180deg)' : undefined,
+                      }}
+                    />
+                  </button>
+
+                  {showRevisePLPicker && (
+                    <div className="mt-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+                      <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                        {revisePLLoading ? (
+                          <div className="py-4"><LoadingState size="sm" inline /></div>
+                        ) : revisePriceLists.map((pl) => {
+                          const isSelected = pl.id === selectedRevisePL?.id;
+                          return (
+                            <button
+                              key={pl.id}
+                              onClick={() => handleRevisePLSelect(pl)}
+                              className="w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-colors hover:bg-bg-elevated"
+                              style={isSelected ? { backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.08))' } : undefined}
+                            >
+                              <div
+                                className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 border"
+                                style={isSelected
+                                  ? { backgroundColor: 'var(--color-brand)', borderColor: 'var(--color-brand)' }
+                                  : { borderColor: 'var(--border-default)' }}
+                              >
+                                {isSelected && <Check size={12} className="text-black" />}
+                              </div>
+                              <span className="text-sm font-medium text-text-primary">{pl.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isReviseEditable && order.approvalStatus === 'rejected' && order.approval && (
                 <div className="mx-4 mt-3 rounded-lg p-3 text-xs"
                   style={{ background: 'var(--color-error-soft)', color: 'var(--color-error)' }}>
@@ -429,7 +592,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                   style={{ background: 'var(--color-brand-soft, rgba(255,200,0,0.1))', color: 'var(--text-primary)' }}>
                   <Pencil size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--color-brand)' }} />
                   <span>
-                    Quotation is <strong>editable</strong>. Update quantities and prices below, then tap <strong>Confirm</strong>.
+                    Quotation is <strong>editable</strong>. Update quantities below{selectedRevisePL ? ' or change the pricelist' : ''}, then tap <strong>Confirm</strong>.
                   </span>
                 </div>
               )}
@@ -437,8 +600,9 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               {isReviseEditable ? (
                 <EditableOrderLines
                   lines={editableLines}
-                  onLineChange={handleLineChange}
+                  onQtyChange={handleLineQtyChange}
                   onRemoveLine={handleRemoveLine}
+                  loadingLineIds={linePriceLoadingIds}
                 />
               ) : (
                 <OrderLines lines={order.lines} />
@@ -781,12 +945,14 @@ function OrderLines({ lines }: { lines: OrderLineEntity[] }) {
 /* ── Editable order lines for the Revise & Confirm step ── */
 function EditableOrderLines({
   lines,
-  onLineChange,
+  onQtyChange,
   onRemoveLine,
+  loadingLineIds,
 }: {
   lines: OrderLineEntity[];
-  onLineChange: (lineId: string, field: 'quantity' | 'priceUnit', value: number) => void;
+  onQtyChange: (lineId: string, quantity: number) => void;
   onRemoveLine: (lineId: string) => void;
+  loadingLineIds: Set<string>;
 }) {
   if (lines.length === 0) {
     return (
@@ -804,61 +970,49 @@ function EditableOrderLines({
         <span className="text-sm font-semibold text-text-primary">Lines ({lines.length})</span>
       </div>
       <div className="divide-y divide-border">
-        {lines.map((line) => (
-          <div key={line.id} className="px-4 py-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-text-primary truncate">{line.productName}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {line.sku && (
-                    <span className="text-[10px] text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
-                      {line.sku}
-                    </span>
-                  )}
-                  {line.puCategory && (
-                    <span className={`list-card-badge ${line.puCategory === 'physical' ? 'list-card-badge--progress' : 'list-card-badge--default'}`}>
-                      {line.puCategory}
+        {lines.map((line) => {
+          const isLoading = loadingLineIds.has(line.id);
+          return (
+            <div key={line.id} className="px-4 py-3">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-text-primary truncate">{line.productName}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {line.sku && (
+                      <span className="text-[10px] text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {line.sku}
+                      </span>
+                    )}
+                    {line.puCategory && (
+                      <span className={`list-card-badge ${line.puCategory === 'physical' ? 'list-card-badge--progress' : 'list-card-badge--default'}`}>
+                        {line.puCategory}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => onRemoveLine(line.id)}
+                  className="p-1 rounded text-text-muted hover:text-red-500 transition-colors shrink-0"
+                  aria-label="Remove line"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 min-w-0">
+                  {isLoading ? (
+                    <Loader2 size={12} className="animate-spin text-text-muted" />
+                  ) : (
+                    <span
+                      className="text-xs font-medium text-text-secondary"
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {formatCurrency(line.priceUnit)}
                     </span>
                   )}
                 </div>
-              </div>
-              <button
-                onClick={() => onRemoveLine(line.id)}
-                className="p-1 rounded text-text-muted hover:text-red-500 transition-colors shrink-0"
-                aria-label="Remove line"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 mt-2">
-              <div className="flex-[3] min-w-0">
-                <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Unit Price</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={line.priceUnit === 0 ? '' : line.priceUnit}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === '') {
-                      onLineChange(line.id, 'priceUnit', 0);
-                      return;
-                    }
-                    const n = parseFloat(raw);
-                    if (!Number.isNaN(n)) onLineChange(line.id, 'priceUnit', n);
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '') {
-                      onLineChange(line.id, 'priceUnit', 0);
-                    }
-                  }}
-                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none text-right"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                />
-              </div>
-              <div className="flex-[2] min-w-0">
-                <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Qty</label>
+                <span className="text-xs text-text-muted">&times;</span>
                 <input
                   type="number"
                   min="1"
@@ -866,31 +1020,32 @@ function EditableOrderLines({
                   onChange={(e) => {
                     const raw = e.target.value;
                     if (raw === '') {
-                      onLineChange(line.id, 'quantity', 0);
+                      onQtyChange(line.id, 0);
                       return;
                     }
                     const n = parseInt(raw, 10);
-                    if (!Number.isNaN(n)) onLineChange(line.id, 'quantity', n);
+                    if (!Number.isNaN(n)) onQtyChange(line.id, n);
                   }}
                   onBlur={(e) => {
                     const n = parseInt(e.target.value, 10);
                     if (e.target.value === '' || Number.isNaN(n) || n < 1) {
-                      onLineChange(line.id, 'quantity', 1);
+                      onQtyChange(line.id, 1);
                     }
                   }}
-                  className="w-full rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none text-right"
+                  className="w-14 text-center text-xs font-medium rounded-lg border border-border py-1.5 outline-none bg-bg-tertiary text-text-primary"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 />
-              </div>
-              <div className="flex-[2] min-w-0 text-right">
-                <label className="text-[9px] uppercase font-medium text-text-muted block mb-0.5">Subtotal</label>
-                <p className="text-xs font-semibold text-text-primary py-1.5" style={{ fontFamily: 'var(--font-mono)' }}>
+                <span className="text-xs text-text-muted">=</span>
+                <span
+                  className={`text-sm font-semibold text-text-primary ml-auto ${isLoading ? 'opacity-40' : ''}`}
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
                   {formatCurrency(line.priceUnit * line.quantity)}
-                </p>
+                </span>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
