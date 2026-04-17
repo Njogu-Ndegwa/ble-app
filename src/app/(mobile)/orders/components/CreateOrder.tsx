@@ -103,11 +103,43 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   selectedPriceListRef.current = selectedPriceList;
   const qtyTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  const customerTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const customerDropdownRef = useRef<HTMLDivElement | null>(null);
+  const priceListTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const priceListDropdownRef = useRef<HTMLDivElement | null>(null);
+  const productTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     return () => {
       Object.values(qtyTimers.current).forEach(clearTimeout);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showCustomerDropdown && !showPriceListPicker && !showProductDropdown) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const isInside = (ref: React.RefObject<HTMLElement | null>) =>
+        ref.current?.contains(target) ?? false;
+
+      if (showCustomerDropdown && !isInside(customerTriggerRef) && !isInside(customerDropdownRef)) {
+        setShowCustomerDropdown(false);
+      }
+      if (showPriceListPicker && !isInside(priceListTriggerRef) && !isInside(priceListDropdownRef)) {
+        setShowPriceListPicker(false);
+      }
+      if (showProductDropdown && !isInside(productTriggerRef) && !isInside(productDropdownRef)) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [showCustomerDropdown, showPriceListPicker, showProductDropdown]);
 
   const computeDiscount = (listPrice: number, unitPrice: number): number => {
     if (listPrice <= 0) return 0;
@@ -468,6 +500,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       {/* ─── Context bar: Customer + Price List as compact pills ─── */}
       <div className="px-4 pb-2 flex gap-2">
         <button
+          ref={customerTriggerRef}
           onClick={() => {
             setShowCustomerDropdown(!showCustomerDropdown);
             if (!showCustomerDropdown) setShowPriceListPicker(false);
@@ -496,6 +529,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         </button>
 
         <button
+          ref={priceListTriggerRef}
           onClick={() => {
             setShowPriceListPicker(!showPriceListPicker);
             if (!showPriceListPicker) setShowCustomerDropdown(false);
@@ -544,7 +578,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
       {/* ─── Customer search dropdown ─── */}
       {showCustomerDropdown && (
-        <div className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+        <div
+          ref={customerDropdownRef}
+          className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg"
+        >
           <div className="p-3">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -585,7 +622,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
       {/* ─── Price list picker dropdown ─── */}
       {showPriceListPicker && (
-        <div className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+        <div
+          ref={priceListDropdownRef}
+          className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg"
+        >
           <div className="max-h-64 overflow-y-auto p-2 space-y-1">
             {priceListsLoading ? (
               <div className="py-4"><LoadingState size="sm" inline /></div>
@@ -643,6 +683,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {/* Add product button / search */}
         <button
+          ref={productTriggerRef}
           onClick={() => {
             setShowProductDropdown(!showProductDropdown);
             setShowCustomerDropdown(false);
@@ -665,7 +706,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
         {/* Product search dropdown */}
         {showProductDropdown && (
-          <div className="mb-3 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+          <div
+            ref={productDropdownRef}
+            className="mb-3 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg"
+          >
             <div className="p-3">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
