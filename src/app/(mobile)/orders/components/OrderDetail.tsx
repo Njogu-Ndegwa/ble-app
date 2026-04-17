@@ -261,6 +261,11 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
   // Pricelist selection handler — re-compute all line prices
   const handleRevisePLSelect = useCallback(async (pl: PriceList) => {
+    console.info('[Orders][Rules] Revise — pricelist selected, re-pricing all lines', {
+      pricelist: { id: pl.id, odooId: pl.odooId, name: pl.name, ruleCount: pl.rules.length },
+      lineCount: editableLinesRef.current.length,
+      path: pl.odooId ? 'odoo-api' : 'skip (no odooId)',
+    });
     setSelectedRevisePL(pl);
     setShowRevisePLPicker(false);
 
@@ -278,8 +283,26 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       currentLines.map(async (line) => {
         try {
           const result = await getPriceListPrice(pl.odooId!, line.productId, line.quantity);
+          console.info('[Orders][Rules] Revise — line repriced', {
+            lineId: line.id,
+            productId: line.productId,
+            productName: line.productName,
+            quantity: line.quantity,
+            previousUnitPrice: line.priceUnit,
+            newUnitPrice: result.unit_price,
+            appliedRuleId: result.applied_rule_id,
+            pricelistOdooId: pl.odooId,
+            fellBackToList: result.applied_rule_id == null,
+          });
           priceMap.set(line.id, result.unit_price);
-        } catch { /* keep existing price */ }
+        } catch (err) {
+          console.info('[Orders][Rules] Revise — line reprice error (kept existing)', {
+            lineId: line.id,
+            productId: line.productId,
+            productName: line.productName,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }),
     );
 
@@ -320,6 +343,17 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
       try {
         const result = await getPriceListPrice(pl.odooId!, line.productId, safeQty);
+        console.info('[Orders][Rules] Revise — qty change repriced line', {
+          lineId,
+          productId: line.productId,
+          productName: line.productName,
+          newQuantity: safeQty,
+          previousUnitPrice: line.priceUnit,
+          newUnitPrice: result.unit_price,
+          appliedRuleId: result.applied_rule_id,
+          pricelistOdooId: pl.odooId,
+          fellBackToList: result.applied_rule_id == null,
+        });
         setEditableLines((prev) =>
           prev.map((l) =>
             l.id === lineId
@@ -327,7 +361,15 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               : l,
           ),
         );
-      } catch { /* keep existing price */ }
+      } catch (err) {
+        console.info('[Orders][Rules] Revise — qty change reprice error (kept existing)', {
+          lineId,
+          productId: line.productId,
+          productName: line.productName,
+          newQuantity: safeQty,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
 
       setLinePriceLoadingIds((prev) => {
         const next = new Set(prev);

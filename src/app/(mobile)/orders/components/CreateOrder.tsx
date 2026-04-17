@@ -154,22 +154,69 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       listPrice: number,
       puCategory: string | null,
     ): Promise<{ unitPrice: number; discountPercent: number }> => {
+      console.info('[Orders][Rules] fetchPrice input', {
+        pricelist: { id: priceList.id, odooId: priceList.odooId, name: priceList.name, ruleCount: priceList.rules.length },
+        productId,
+        quantity,
+        listPrice,
+        puCategory,
+        path: priceList.odooId ? 'odoo-api' : 'local-resolvePrice',
+      });
+
       if (priceList.odooId) {
         try {
           const result = await getPriceListPrice(priceList.odooId, productId, quantity);
-          return {
+          const discountPercent = computeDiscount(listPrice, result.unit_price);
+          console.info('[Orders][Rules] fetchPrice odoo result', {
+            productId,
+            quantity,
+            pricelistOdooId: priceList.odooId,
+            listPrice,
             unitPrice: result.unit_price,
-            discountPercent: computeDiscount(listPrice, result.unit_price),
-          };
-        } catch {
+            appliedRuleId: result.applied_rule_id,
+            discountPercent,
+            fellBackToList: result.applied_rule_id == null,
+          });
+          return { unitPrice: result.unit_price, discountPercent };
+        } catch (err) {
+          console.info('[Orders][Rules] fetchPrice odoo error — falling back to list_price', {
+            productId,
+            quantity,
+            pricelistOdooId: priceList.odooId,
+            listPrice,
+            error: err instanceof Error ? err.message : String(err),
+          });
           return { unitPrice: listPrice, discountPercent: 0 };
         }
       }
+
       const resolved = resolvePrice(
         priceList,
         { id: productId, list_price: listPrice, pu_category: puCategory || '' },
         quantity,
       );
+      console.info('[Orders][Rules] fetchPrice local result', {
+        productId,
+        quantity,
+        pricelistId: priceList.id,
+        listPrice,
+        puCategory,
+        candidateRules: priceList.rules.map((r) => ({
+          id: r.id,
+          appliesTo: r.appliesTo,
+          productId: r.productId,
+          categoryName: r.categoryName,
+          computeMethod: r.computeMethod,
+          discountPercent: r.discountPercent,
+          fixedPrice: r.fixedPrice,
+          minQuantity: r.minQuantity,
+          eligibleForQty: r.minQuantity <= quantity,
+        })),
+        appliedRuleId: resolved.ruleApplied,
+        unitPrice: resolved.unitPrice,
+        discountPercent: resolved.discountPercent,
+        fellBackToList: resolved.ruleApplied == null,
+      });
       return { unitPrice: resolved.unitPrice, discountPercent: resolved.discountPercent };
     },
     [],
@@ -255,6 +302,17 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   const handleSelectPriceList = useCallback(
     async (pl: PriceList) => {
+      console.info('[Orders][Rules] Pricelist selected — re-pricing all cart lines', {
+        pricelist: {
+          id: pl.id,
+          odooId: pl.odooId,
+          name: pl.name,
+          isDefault: pl.isDefault,
+          currency: pl.currency,
+          rules: pl.rules,
+        },
+        affectedLineCount: linesRef.current.length,
+      });
       setSelectedPriceList(pl);
       setShowPriceListPicker(false);
 
@@ -426,6 +484,12 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     setCreating(true);
     try {
       if (selectedPriceList.odooId) {
+        console.info('[Orders][Rules] Submit — validating pricelist rules per line', {
+          pricelistOdooId: selectedPriceList.odooId,
+          pricelistName: selectedPriceList.name,
+          lineCount: lines.length,
+        });
+
         const validations = await Promise.allSettled(
           lines.map((line) =>
             validatePriceListProduct(selectedPriceList.odooId!, line.productId),
@@ -434,11 +498,29 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
         const warnings: string[] = [];
         validations.forEach((result, i) => {
+          const line = lines[i];
           if (result.status === 'fulfilled') {
             const { rule_matched, orphaned_count } = result.value;
+            console.info('[Orders][Rules] Submit — line validation result', {
+              productId: line.productId,
+              productName: line.productName,
+              quantity: line.quantity,
+              priceUnit: line.priceUnit,
+              listPrice: line.listPrice,
+              discountPercent: line.discountPercent,
+              rule_matched,
+              orphaned_count,
+              willShowWarning: !rule_matched || orphaned_count > 0,
+            });
             if (!rule_matched || orphaned_count > 0) {
-              warnings.push(lines[i].productName);
+              warnings.push(line.productName);
             }
+          } else {
+            console.info('[Orders][Rules] Submit — line validation failed', {
+              productId: line.productId,
+              productName: line.productName,
+              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            });
           }
         });
 
