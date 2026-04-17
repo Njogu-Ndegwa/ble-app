@@ -14,6 +14,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  KeyRound,
 } from 'lucide-react';
 import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import {
@@ -32,6 +33,7 @@ import {
   createCustomer,
   type ExistingCustomer,
 } from '@/lib/services/customer-service';
+import { resetPassword } from '@/lib/odoo-api';
 
 type SubView = 'list' | 'detail' | 'edit' | 'create';
 
@@ -74,6 +76,8 @@ export default function SalesCustomers() {
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CustomerFormState, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [lastResetPassword, setLastResetPassword] = useState<string | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // ------------------------------------------------------------------
@@ -137,6 +141,7 @@ export default function SalesCustomers() {
   const openDetail = useCallback(async (customer: ExistingCustomer) => {
     setSelectedCustomer(null);
     setShowPassword(false);
+    setLastResetPassword(null);
     setIsLoadingDetail(true);
     setSubView('detail');
     try {
@@ -267,6 +272,43 @@ export default function SalesCustomers() {
       setIsSaving(false);
     }
   }, [validateForm, formData, subView, selectedCustomer, fetchCustomers, searchQuery, goBackToList, t]);
+
+  // ------------------------------------------------------------------
+  // Reset password (set phone number as password)
+  // ------------------------------------------------------------------
+  const handleResetPassword = useCallback(async () => {
+    if (!selectedCustomer) return;
+    const phone = selectedCustomer.phone;
+    const email = selectedCustomer.email;
+    if (!phone && !email) {
+      toast.error(t('sales.noContactForPassword') || 'Customer has no phone or email to reset password');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const token = getSalesRoleToken() || undefined;
+      const payload: { email?: string; phone?: string; new_password?: string } = {};
+      if (email) payload.email = email;
+      if (phone) payload.phone = phone;
+      if (phone) payload.new_password = phone;
+
+      console.warn('[SalesCustomers] RESET PASSWORD - Payload:', JSON.stringify(payload));
+
+      const res = await resetPassword(payload, token);
+      console.warn('[SalesCustomers] RESET PASSWORD - Response:', JSON.stringify(res));
+
+      const newPw = phone || res.new_password || '';
+      setLastResetPassword(newPw);
+      setShowPassword(true);
+      toast.success(t('sales.passwordResetSuccess') || 'Password has been reset to the phone number');
+    } catch (err: any) {
+      console.error('[SalesCustomers] RESET PASSWORD - Failed:', err);
+      toast.error(err.message || t('sales.passwordResetFailed') || 'Failed to reset password');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }, [selectedCustomer, t]);
 
   // ------------------------------------------------------------------
   // Format helpers
@@ -425,21 +467,42 @@ export default function SalesCustomers() {
           {
             icon: <Lock size={15} />,
             label: t('sales.password') || 'Password',
-            value: selectedCustomer.password || '--',
-            renderValue: selectedCustomer.password ? (
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-text-primary font-mono truncate flex-1">
-                  {showPassword ? selectedCustomer.password : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
-                </p>
+            value: lastResetPassword || '--',
+            renderValue: (
+              <div className="flex flex-col gap-2">
+                {lastResetPassword ? (
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-text-primary font-mono truncate flex-1">
+                      {showPassword ? lastResetPassword : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
+                    </p>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowPassword((v) => !v); }}
+                      className="p-1 rounded-md hover:bg-bg-elevated transition-colors flex-shrink-0"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={14} className="text-text-muted" /> : <Eye size={14} className="text-text-muted" />}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-muted">{t('sales.passwordHidden') || 'Password is hidden — reset to reveal'}</p>
+                )}
                 <button
-                  onClick={(e) => { e.stopPropagation(); setShowPassword((v) => !v); }}
-                  className="p-1 rounded-md hover:bg-bg-elevated transition-colors flex-shrink-0"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onClick={(e) => { e.stopPropagation(); handleResetPassword(); }}
+                  disabled={isResettingPassword}
+                  className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition-colors self-start disabled:opacity-50"
                 >
-                  {showPassword ? <EyeOff size={14} className="text-text-muted" /> : <Eye size={14} className="text-text-muted" />}
+                  {isResettingPassword ? (
+                    <div className="w-3 h-3 border-2 border-brand/30 border-t-brand rounded-full animate-spin" />
+                  ) : (
+                    <KeyRound size={12} />
+                  )}
+                  {isResettingPassword
+                    ? (t('sales.resettingPassword') || 'Resetting...')
+                    : (t('sales.resetPassword') || 'Reset Password (Phone)')
+                  }
                 </button>
               </div>
-            ) : undefined,
+            ),
           },
         ],
       },
