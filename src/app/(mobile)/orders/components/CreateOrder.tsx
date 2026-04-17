@@ -814,10 +814,35 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                       <input
                         type="number"
                         min="1"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          handleLineQtyChange(line.tempId, parseInt(e.target.value) || 1)
-                        }
+                        value={line.quantity === 0 ? '' : line.quantity}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === '') {
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.tempId === line.tempId ? { ...l, quantity: 0 } : l,
+                              ),
+                            );
+                            return;
+                          }
+                          const n = parseInt(raw, 10);
+                          if (Number.isNaN(n)) return;
+                          if (n < 1) {
+                            setLines((prev) =>
+                              prev.map((l) =>
+                                l.tempId === line.tempId ? { ...l, quantity: n } : l,
+                              ),
+                            );
+                            return;
+                          }
+                          handleLineQtyChange(line.tempId, n);
+                        }}
+                        onBlur={(e) => {
+                          const n = parseInt(e.target.value, 10);
+                          if (e.target.value === '' || Number.isNaN(n) || n < 1) {
+                            handleLineQtyChange(line.tempId, 1);
+                          }
+                        }}
                         className="w-12 text-center text-xs font-medium rounded-lg border border-border py-1 outline-none bg-bg-tertiary text-text-primary"
                       />
                       <span className="text-xs text-text-muted mx-0.5">=</span>

@@ -838,8 +838,21 @@ function EditableOrderLines({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={line.priceUnit}
-                  onChange={(e) => onLineChange(line.id, 'priceUnit', parseFloat(e.target.value) || 0)}
+                  value={line.priceUnit === 0 ? '' : line.priceUnit}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      onLineChange(line.id, 'priceUnit', 0);
+                      return;
+                    }
+                    const n = parseFloat(raw);
+                    if (!Number.isNaN(n)) onLineChange(line.id, 'priceUnit', n);
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') {
+                      onLineChange(line.id, 'priceUnit', 0);
+                    }
+                  }}
                   className="w-full rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none text-right"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 />
@@ -849,8 +862,22 @@ function EditableOrderLines({
                 <input
                   type="number"
                   min="1"
-                  value={line.quantity}
-                  onChange={(e) => onLineChange(line.id, 'quantity', parseInt(e.target.value) || 1)}
+                  value={line.quantity === 0 ? '' : line.quantity}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      onLineChange(line.id, 'quantity', 0);
+                      return;
+                    }
+                    const n = parseInt(raw, 10);
+                    if (!Number.isNaN(n)) onLineChange(line.id, 'quantity', n);
+                  }}
+                  onBlur={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    if (e.target.value === '' || Number.isNaN(n) || n < 1) {
+                      onLineChange(line.id, 'quantity', 1);
+                    }
+                  }}
                   className="w-full rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none text-right"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 />
