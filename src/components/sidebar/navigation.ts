@@ -198,7 +198,7 @@ export const menuConfig: {
       labelKey: 'nav.rider',
       icon: 'rider',
       children: [
-        { id: 'serviceplan1', labelKey: 'nav.rider.serviceplan1', href: '/rider/serviceplan1'}
+        { id: 'app', labelKey: 'nav.rider.app', href: '/rider/app'}
       ],
     },
     {

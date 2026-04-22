@@ -12658,6 +12658,53 @@ html.theme-transition *::after {
   color: var(--text-muted);
 }
 
+.list-card-badge--overdue {
+  background: var(--color-error-soft, rgba(239, 68, 68, 0.12));
+  color: var(--color-error, #ef4444);
+}
+
+.list-card-badge--info {
+  background: var(--accent-soft, rgba(0, 229, 229, 0.12));
+  color: var(--color-brand, #00e5e5);
+}
+
+.list-card-selected {
+  border-color: var(--color-brand, #00e5e5) !important;
+  background: var(--accent-soft, rgba(0, 229, 229, 0.06)) !important;
+}
+
+/* Summary tile for ListScreen headers */
+.rm-summary-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.rm-summary-tile > svg {
+  color: var(--color-brand, #00e5e5);
+  flex-shrink: 0;
+}
+
+.rm-summary-tile-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.rm-summary-tile-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+
 .list-card-action-icon {
   width: 28px;
   height: 28px;
@@ -12785,3 +12832,356 @@ html.keyboard-open .customer-panel-unified {
    opens. This avoids the problem where the keyboard dismisses via
    means we can't detect (Android back gesture, iOS swipe, etc.)
    and the footer never reappears. */
+
+/* =================================================================
+ * Rider Map (new) — world-class map styling
+ * ================================================================= */
+
+.rm-map-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.rm-map-wrap.rm-map-preview {
+  min-height: 200px;
+}
+
+.rm-map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+}
+
+/* Station marker pin */
+.rm-station-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.rm-station-marker {
+  position: relative;
+  width: var(--rm-size, 36px);
+  height: var(--rm-size, 36px);
+  border-radius: 50%;
+  background: var(--rm-fill, #10b981);
+  border: 3px solid var(--rm-ring, rgba(0,0,0,0.25));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rm-station-marker:hover {
+  transform: scale(1.05);
+}
+
+.rm-station-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+/* User location chevron */
+.rm-user-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.rm-user-marker {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.rm-user-pulse {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: rgba(0, 229, 229, 0.25);
+  animation: rm-pulse 2s ease-in-out infinite;
+}
+
+.rm-user-chevron {
+  position: absolute;
+  inset: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-brand, #00e5e5);
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+}
+
+@keyframes rm-pulse {
+  0% { transform: scale(0.85); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 0.15; }
+  100% { transform: scale(0.85); opacity: 0.8; }
+}
+
+/* Bottom sheet */
+.rm-bottom-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-secondary);
+  border-top-left-radius: var(--radius-xl, 20px);
+  border-top-right-radius: var(--radius-xl, 20px);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  z-index: 500;
+  touch-action: none;
+}
+
+.rm-sheet-header {
+  padding: 10px 16px 4px;
+  cursor: grab;
+  user-select: none;
+}
+
+.rm-sheet-header:active {
+  cursor: grabbing;
+}
+
+.rm-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-default);
+  margin: 0 auto 8px;
+}
+
+.rm-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 16px 20px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Map FABs (locate me, re-center route) */
+.rm-fab {
+  position: absolute;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  z-index: 450;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.rm-fab:active {
+  transform: scale(0.95);
+}
+
+.rm-fab.rm-fab-primary {
+  background: var(--color-brand, #00e5e5);
+  color: #000;
+  border-color: transparent;
+}
+
+/* Filter pills (map + list screens) */
+.rm-filter-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 0;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  scrollbar-width: none;
+}
+
+.rm-filter-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.rm-filter-pill {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.rm-filter-pill.active {
+  background: var(--color-brand, #00e5e5);
+  color: #000;
+  border-color: transparent;
+}
+
+/* Station detail card (shown at top of bottom-sheet when a station is selected) */
+.rm-station-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.rm-station-detail-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rm-station-detail-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rm-station-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rm-station-detail-actions .btn {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+/* Search bar overlayed on map */
+.rm-map-search {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 450;
+}
+
+.rm-map-search input {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.rm-map-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Rider profile subscription chip */
+.rm-sub-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+}
+
+.rm-sub-chip-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft, rgba(0, 229, 229, 0.12));
+  color: var(--color-brand, #00e5e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rm-sub-chip-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rm-sub-chip-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.rm-sub-chip-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rm-sub-chip-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.rm-sub-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft, rgba(0, 229, 229, 0.12));
+  color: var(--color-brand, #00e5e5);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rm-sub-chip-btn:hover {
+  background: var(--accent-soft-hover, rgba(0, 229, 229, 0.18));
+}

@@ -16,12 +16,18 @@ import {
   RiderActivity,
   RiderStations,
   RiderProfile,
+  RiderPlans,
+  RiderTransactions,
+  RiderTickets,
+  SelectSubscription,
   QRCodeModal,
   TopUpModal,
 } from './components';
 import AccountDetailsModal from './components/AccountDetailsModal';
 import type { ActivityItem, Station } from './components';
-import Login from '../serviceplan1/login';
+import Login from './components/Login';
+
+const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 const API_KEY = "abs_connector_secret_key_2024";
@@ -106,7 +112,26 @@ const RiderApp: React.FC = () => {
   const [customer, setCustomer] = useState<Customer | null>(null);
   
   // UI state
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'stations' | 'activity' | 'profile'>('home');
+  const [currentScreen, setCurrentScreen] = useState<
+    | 'home'
+    | 'stations'
+    | 'activity'
+    | 'profile'
+    | 'selectSubscription'
+    | 'transactions'
+    | 'plans'
+    | 'tickets'
+  >('home');
+  const [previousScreen, setPreviousScreen] = useState<
+    | 'home'
+    | 'stations'
+    | 'activity'
+    | 'profile'
+    | 'selectSubscription'
+    | 'transactions'
+    | 'plans'
+    | 'tickets'
+  >('home');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showAccountDetailsModal, setShowAccountDetailsModal] = useState(false);
@@ -128,6 +153,9 @@ const RiderApp: React.FC = () => {
     currentBatteryId: undefined,
   });
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
   const [showFoundCustomer, setShowFoundCustomer] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
 
@@ -657,10 +685,13 @@ const RiderApp: React.FC = () => {
     }
     const startTime = performance.now();
     console.warn('[PERF] 📦 Subscriptions API - Starting...');
+    setSubscriptionsLoading(true);
+    setSubscriptionsError(null);
     const loadingFailSafeTimer = window.setTimeout(() => {
       console.warn('[PERF] ⏱️ Subscription timeout guard triggered, stopping loaders');
       setIsLoadingBike(false);
       setIsLoadingStations(false);
+      setSubscriptionsLoading(false);
     }, LOAD_FAILSAFE_TIMEOUT_MS);
     try {
       const response = await fetch(`${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`, {
@@ -681,28 +712,64 @@ const RiderApp: React.FC = () => {
         if (data.success && data.subscriptions && data.subscriptions.length > 0) {
           console.info('=== Subscription Data ===');
           console.info('All subscriptions:', JSON.stringify(data.subscriptions, null, 2));
-          
-          // Find active subscription or use the first one
-          const activeSubscription = data.subscriptions.find((sub: Subscription) => sub.status === 'active') || data.subscriptions[0];
+
+          setSubscriptions(data.subscriptions);
+
+          // Restore persisted active subscription if still in list
+          let activeSubscription: Subscription | null = null;
+          try {
+            const stored = localStorage.getItem(ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY);
+            if (stored) {
+              activeSubscription =
+                data.subscriptions.find(
+                  (s: Subscription) => s.subscription_code === stored,
+                ) || null;
+            }
+          } catch {}
+
+          if (!activeSubscription) {
+            activeSubscription =
+              data.subscriptions.find((sub: Subscription) => sub.status === 'active') ||
+              data.subscriptions[0] ||
+              null;
+          }
+
+          if (!activeSubscription) {
+            console.warn('No subscriptions available to activate');
+            setSubscription(null);
+            setIsBikeDataResolved(true);
+            setIsLoadingBike(false);
+            setIsLoadingStations(false);
+            return;
+          }
+
+          const active = activeSubscription as Subscription;
+
+          try {
+            localStorage.setItem(
+              ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY,
+              active.subscription_code,
+            );
+          } catch {}
           const subElapsed = Math.round(performance.now() - startTime);
           console.warn(`[PERF] 📦 Subscription found in ${subElapsed}ms - Now starting identity + activity fetches`);
           console.info('Selected subscription:', {
-            subscription_code: activeSubscription.subscription_code,
-            product_name: activeSubscription.product_name,
-            status: activeSubscription.status,
-            full_data: activeSubscription
+            subscription_code: active.subscription_code,
+            product_name: active.product_name,
+            status: active.status,
+            full_data: active
           });
-          setSubscription(activeSubscription);
-          
+          setSubscription(active);
+
           // Update bike payment state with subscription status
           setBike(prev => ({
             ...prev,
-            paymentState: activeSubscription.status === 'active' ? 'active' : activeSubscription.status,
+            paymentState: active.status === 'active' ? 'active' : active.status,
           }));
 
           // Fetch activity data and bike data IN PARALLEL (not sequential)
-          if (activeSubscription.subscription_code) {
-            const subscriptionCode = activeSubscription.subscription_code;
+          if (active.subscription_code) {
+            const subscriptionCode = active.subscription_code;
             console.log('[PERF] 🚀 Starting PARALLEL fetch: Activity + IdentifyCustomer');
             const usedCache = hydrateIdentificationCache(subscriptionCode);
             if (!usedCache) {
@@ -738,6 +805,9 @@ const RiderApp: React.FC = () => {
         setIsBikeDataResolved(true);
         setIsLoadingBike(false);
         setIsLoadingStations(false);
+        setSubscriptionsError(
+          t('rider.selectSubscription.error') || 'Failed to load subscriptions',
+        );
       }
     } catch (error) {
       console.error('Error fetching subscription data:', error);
@@ -745,8 +815,12 @@ const RiderApp: React.FC = () => {
       setIsBikeDataResolved(true);
       setIsLoadingBike(false);
       setIsLoadingStations(false);
+      setSubscriptionsError(
+        t('rider.selectSubscription.error') || 'Failed to load subscriptions',
+      );
     } finally {
       window.clearTimeout(loadingFailSafeTimer);
+      setSubscriptionsLoading(false);
     }
   };
 
@@ -1198,6 +1272,32 @@ const RiderApp: React.FC = () => {
     }
   };
 
+  const openSelectSubscription = () => {
+    setPreviousScreen(currentScreen === 'selectSubscription' ? 'home' : currentScreen);
+    setCurrentScreen('selectSubscription');
+  };
+
+  const handleSelectSubscription = (sub: Subscription) => {
+    if (sub.subscription_code === subscription?.subscription_code) {
+      setCurrentScreen(previousScreen);
+      return;
+    }
+    setSubscription(sub);
+    try {
+      localStorage.setItem(ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY, sub.subscription_code);
+    } catch {}
+    setFleetIds([]);
+    lastStationsFleetKeyRef.current = null;
+    setStations([]);
+    setIsLoadingStations(true);
+    setIsBikeDataResolved(false);
+    setIsLoadingBike(true);
+    fetchActivityData(sub.subscription_code);
+    fetchCustomerIdentificationData(sub.subscription_code);
+    toast.success(t('rider.switchedPlan') || 'Plan switched');
+    setCurrentScreen(previousScreen);
+  };
+
   const handleLogout = () => {
     // Clear all credentials from localStorage on logout
     localStorage.removeItem('authToken_rider');
@@ -1516,6 +1616,43 @@ const RiderApp: React.FC = () => {
     );
   }
 
+  // Select Subscription is a dedicated full-screen flow (SA-style picker)
+  if (currentScreen === 'selectSubscription') {
+    return (
+      <>
+        <Toaster position="top-center" />
+        <SelectSubscription
+          subscriptions={subscriptions.map((s) => ({
+            id: s.id,
+            subscription_code: s.subscription_code,
+            status: s.status,
+            product_id: s.product_id,
+            product_name: s.product_name,
+            price_at_signup: s.price_at_signup,
+            currency: s.currency,
+            start_date: s.start_date,
+            next_cycle_date: s.next_cycle_date,
+          }))}
+          activeCode={subscription?.subscription_code || null}
+          loading={subscriptionsLoading}
+          error={subscriptionsError}
+          userName={customer?.name || ''}
+          onSelect={(sub) => {
+            const full = subscriptions.find((s) => s.subscription_code === sub.subscription_code);
+            if (full) handleSelectSubscription(full);
+          }}
+          onBack={() => setCurrentScreen(previousScreen)}
+          onRetry={() => {
+            if (customer?.partner_id) {
+              const token = localStorage.getItem('authToken_rider');
+              if (token) fetchSubscriptionData(customer.partner_id, token);
+            }
+          }}
+        />
+      </>
+    );
+  }
+
   // Main app
   return (
     <>
@@ -1544,7 +1681,7 @@ const RiderApp: React.FC = () => {
             <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
                 className="flow-header-lang"
-                onClick={() => router.push('/rider/serviceplan1')}
+                onClick={openSelectSubscription}
                 aria-label={t('rider.switchPlan') || 'Switch plan'}
                 title={t('rider.switchPlan') || 'Switch plan'}
               >
@@ -1600,9 +1737,45 @@ const RiderApp: React.FC = () => {
             <RiderStations
               stations={stations}
               isLoading={isLoadingStations}
-              onNavigateToStation={handleNavigateToStation}
               initialSelectedStationId={selectedStationId}
               onStationDeselected={() => setSelectedStationId(null)}
+            />
+          )}
+
+          {currentScreen === 'transactions' && (
+            <RiderTransactions
+              partnerId={customer?.partner_id}
+              token={localStorage.getItem('authToken_rider')}
+              defaultCurrency={currency}
+              seedTransactions={activities
+                .filter((a) => a.type === 'payment' || a.type === 'topup')
+                .map((a) => ({
+                  id: a.id,
+                  reference: a.subtitle,
+                  planName: a.title,
+                  amount: a.amount,
+                  currency: a.currency,
+                  date: `${a.date} ${a.time}`,
+                  status: a.isPositive ? 'completed' : 'completed',
+                }))}
+            />
+          )}
+
+          {currentScreen === 'plans' && (
+            <RiderPlans
+              token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
+              onSelectPlan={(plan) => {
+                toast.success(t('rider.plans.selected', { name: plan.name }) || `Selected ${plan.name}`);
+              }}
+              defaultCurrency={currency}
+            />
+          )}
+
+          {currentScreen === 'tickets' && (
+            <RiderTickets
+              partnerId={customer?.partner_id ?? null}
+              customer={customer}
+              activeSubscriptionId={subscription?.id ?? null}
             />
           )}
           
@@ -1626,18 +1799,30 @@ const RiderApp: React.FC = () => {
               bikeImageUrl="/assets/E-3-one.png"
               onAccountDetails={() => setShowAccountDetailsModal(true)}
               onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
-              onPlanDetails={() => router.push('/rider/serviceplan1')}
+              onPlanDetails={openSelectSubscription}
               onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
-              onSupport={() => router.push('/rider/serviceplan1?page=support')}
+              onSupport={() => setCurrentScreen('tickets')}
               onLogout={handleLogout}
+              onSwitchSubscription={openSelectSubscription}
+              onTransactions={() => setCurrentScreen('transactions')}
+              onPlans={() => setCurrentScreen('plans')}
+              onTickets={() => setCurrentScreen('tickets')}
+              subscriptionCode={subscription?.subscription_code}
+              subscriptionStatus={subscription?.status}
             />
           )}
         </main>
 
         {/* Bottom Navigation */}
         <RiderNav
-          currentScreen={currentScreen}
-          onNavigate={setCurrentScreen}
+          currentScreen={
+            (['home', 'stations', 'activity', 'profile'] as const).includes(
+              currentScreen as any,
+            )
+              ? (currentScreen as 'home' | 'stations' | 'activity' | 'profile')
+              : 'profile'
+          }
+          onNavigate={(s) => setCurrentScreen(s)}
         />
       </div>
 

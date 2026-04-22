@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import { CreditCard, ArrowLeftRight, Receipt, Package, HelpCircle } from "lucide-react";
 import { useI18n } from "@/i18n";
 
 interface ProfileData {
@@ -28,6 +29,12 @@ interface RiderProfileProps {
   onPaymentMethods: () => void;
   onSupport: () => void;
   onLogout: () => void;
+  onSwitchSubscription?: () => void;
+  onTransactions?: () => void;
+  onPlans?: () => void;
+  onTickets?: () => void;
+  subscriptionCode?: string | null;
+  subscriptionStatus?: string | null;
 }
 
 const RiderProfile: React.FC<RiderProfileProps> = ({
@@ -39,6 +46,12 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
   onPaymentMethods,
   onSupport,
   onLogout,
+  onSwitchSubscription,
+  onTransactions,
+  onPlans,
+  onTickets,
+  subscriptionCode,
+  subscriptionStatus,
 }) => {
   const { t } = useI18n();
 
@@ -225,6 +238,37 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
         </div>
       </div>
 
+      {/* Subscription chip — SA-style switcher */}
+      {onSwitchSubscription && (
+        <div className="rm-sub-chip">
+          <div className="rm-sub-chip-icon">
+            <CreditCard size={18} />
+          </div>
+          <div className="rm-sub-chip-body">
+            <p className="rm-sub-chip-label">
+              {t("rider.currentPlan") || "Current plan"}
+            </p>
+            <p className="rm-sub-chip-name">{profile.planName}</p>
+            <div className="rm-sub-chip-badges">
+              <span className="sa-badge sa-badge-staff">
+                {getPaymentStateLabel(subscriptionStatus || profile.paymentState)}
+              </span>
+              {subscriptionCode && (
+                <span className="sa-badge sa-badge-class">{subscriptionCode}</span>
+              )}
+            </div>
+          </div>
+          <button
+            className="rm-sub-chip-btn"
+            onClick={onSwitchSubscription}
+            aria-label={t("rider.switchPlan") || "Switch plan"}
+          >
+            <ArrowLeftRight size={13} />
+            <span>{t("rider.switchPlan") || "Switch"}</span>
+          </button>
+        </div>
+      )}
+
       {/* Menu List - matching abs-design.vercel.app exactly */}
       <div className="menu-list">
         {/* Account Details */}
@@ -340,6 +384,93 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </svg>
           </div>
         </div>
+
+        {/* Browse Plans */}
+        {onPlans && (
+          <div className="menu-item" onClick={onPlans}>
+            <div className="menu-item-icon">
+              <Package size={20} />
+            </div>
+            <div className="menu-item-content">
+              <div className="menu-item-title">
+                {t("rider.plans.title") || "Plans"}
+              </div>
+              <div className="menu-item-subtitle">
+                {t("rider.plans.menuSubtitle") || "Browse and subscribe"}
+              </div>
+            </div>
+            <div className="menu-item-arrow">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {/* Transactions */}
+        {onTransactions && (
+          <div className="menu-item" onClick={onTransactions}>
+            <div className="menu-item-icon">
+              <Receipt size={20} />
+            </div>
+            <div className="menu-item-content">
+              <div className="menu-item-title">
+                {t("rider.transactions.title") || "Transactions"}
+              </div>
+              <div className="menu-item-subtitle">
+                {t("rider.transactions.menuSubtitle") || "Payment history"}
+              </div>
+            </div>
+            <div className="menu-item-arrow">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {/* Tickets */}
+        {onTickets && (
+          <div className="menu-item" onClick={onTickets}>
+            <div className="menu-item-icon">
+              <HelpCircle size={20} />
+            </div>
+            <div className="menu-item-content">
+              <div className="menu-item-title">
+                {t("rider.tickets.title") || "Tickets"}
+              </div>
+              <div className="menu-item-subtitle">
+                {t("rider.tickets.menuSubtitle") || "Support requests"}
+              </div>
+            </div>
+            <div className="menu-item-arrow">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </div>
+          </div>
+        )}
 
         {/* Payment Methods */}
         <div className="menu-item" onClick={onPaymentMethods}>

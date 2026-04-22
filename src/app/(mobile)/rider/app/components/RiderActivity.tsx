@@ -1,154 +1,209 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { useI18n } from '@/i18n';
+import React, { useMemo, useState } from "react";
+import { Activity as ActivityIcon, Clock, Zap, Wallet, CreditCard } from "lucide-react";
+import { useI18n } from "@/i18n";
+import ListScreen from "@/components/ui/ListScreen";
+import type { RiderActivityItem } from "../types";
 
-export interface ActivityItem {
-  id: string;
-  type: 'swap' | 'topup' | 'payment';
-  title: string;
-  subtitle: string;
-  amount: number;
-  currency?: string;
-  isPositive?: boolean;
-  time: string;
-  date: string;
-}
+// Keep export compat for the orchestrator that imported it from here.
+export type ActivityItem = RiderActivityItem;
 
 interface RiderActivityProps {
-  activities: ActivityItem[];
+  activities: RiderActivityItem[];
+  isLoading?: boolean;
+  onRefresh?: () => void;
+  currency?: string;
 }
 
-const RiderActivity: React.FC<RiderActivityProps> = ({ activities }) => {
+type FilterKey = "all" | "swap" | "payment" | "topup";
+
+/**
+ * Activity feed — migrated to the shared `ListScreen` + `.list-card` pattern
+ * so it matches Customer/Activator/Sales.
+ */
+export default function RiderActivity({
+  activities,
+  isLoading,
+  onRefresh,
+  currency = "XOF",
+}: RiderActivityProps) {
   const { t } = useI18n();
-  const [filter, setFilter] = useState<'all' | 'swaps' | 'payments'>('all');
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
 
-  const filteredActivities = useMemo(() => {
-    if (filter === 'all') return activities;
-    const typeMap: Record<string, string> = {
-      'swaps': 'swap',
-      'payments': 'payment',
-    };
-    return activities.filter(a => a.type === typeMap[filter]);
-  }, [activities, filter]);
-
-  const groupedActivities = useMemo(() => {
-    const groups: Record<string, ActivityItem[]> = {};
-    
-    filteredActivities.forEach(activity => {
-      const dateKey = activity.date;
-      const today = new Date().toISOString().split('T')[0];
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      
-      let displayDate: string;
-      if (dateKey === today) {
-        displayDate = t('rider.today') || 'Today';
-      } else if (dateKey === yesterday) {
-        displayDate = t('rider.yesterday') || 'Yesterday';
-      } else {
-        displayDate = new Date(dateKey).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        });
-      }
-      
-      if (!groups[displayDate]) {
-        groups[displayDate] = [];
-      }
-      groups[displayDate].push(activity);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return activities.filter((a) => {
+      if (filter === "swap" && a.type !== "swap") return false;
+      if (filter === "topup" && a.type !== "topup") return false;
+      if (filter === "payment" && a.type !== "payment") return false;
+      if (!q) return true;
+      return (
+        a.title.toLowerCase().includes(q) || a.subtitle.toLowerCase().includes(q)
+      );
     });
-    
+  }, [activities, query, filter]);
+
+  const grouped = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().split("T")[0];
+    const groups = new Map<string, RiderActivityItem[]>();
+    filtered.forEach((a) => {
+      const key =
+        a.date === today
+          ? t("rider.today") || "Today"
+          : a.date === yesterday
+            ? t("rider.yesterday") || "Yesterday"
+            : new Date(a.date).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+      const arr = groups.get(key) || [];
+      arr.push(a);
+      groups.set(key, arr);
+    });
     return groups;
-  }, [filteredActivities, t]);
+  }, [filtered, t]);
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'swap':
-        return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
-          </svg>
-        );
-      case 'topup':
-        return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-          </svg>
-        );
-      case 'payment':
-        return (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="1" y="4" width="22" height="16" rx="2"/>
-            <path d="M1 10h22"/>
-          </svg>
-        );
-      default:
-        return null;
-    }
-  };
+  const summary = useMemo(() => {
+    const swaps = activities.filter((a) => a.type === "swap").length;
+    const totalSpent = activities
+      .filter((a) => a.type === "payment" && !a.isPositive)
+      .reduce((s, a) => s + a.amount, 0);
+    return { swaps, totalSpent };
+  }, [activities]);
 
-  return (
-    <div className="rider-screen active">
-      <h2 className="scan-title" style={{ marginBottom: '4px' }}>{t('rider.activity') || 'Activity'}</h2>
-      <p className="scan-subtitle" style={{ marginBottom: '16px' }}>{t('rider.activitySubtitle') || 'Your swaps and payments'}</p>
-
-      <div className="activity-filters">
-        <button 
-          className={`activity-filter ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          {t('rider.all') || 'All'}
-        </button>
-        <button 
-          className={`activity-filter ${filter === 'swaps' ? 'active' : ''}`}
-          onClick={() => setFilter('swaps')}
-        >
-          {t('rider.swaps') || 'Swaps'}
-        </button>
-        <button 
-          className={`activity-filter ${filter === 'payments' ? 'active' : ''}`}
-          onClick={() => setFilter('payments')}
-        >
-          {t('rider.payments') || 'Payments'}
-        </button>
-      </div>
-
-      <div className="activity-list">
-        {Object.entries(groupedActivities).map(([date, items]) => (
-          <React.Fragment key={date}>
-            <div className="activity-date-header">{date}</div>
-            {items.map((activity) => (
-              <div key={activity.id} className="activity-item">
-                <div className={`activity-item-icon ${activity.type}`}>
-                  {getActivityIcon(activity.type)}
-                </div>
-                <div className="activity-item-content">
-                  <div className="activity-item-title">{activity.title}</div>
-                  <div className="activity-item-subtitle">{activity.subtitle}</div>
-                </div>
-                <div className="activity-item-meta">
-                  <div className={`activity-item-amount ${activity.isPositive ? 'positive' : 'negative'}`}>
-                    {activity.isPositive ? '+' : '-'}{activity.currency || 'XOF'} {Math.abs(activity.amount).toLocaleString()}
-                  </div>
-                  <div className="activity-item-time">{activity.time}</div>
-                </div>
-              </div>
-            ))}
-          </React.Fragment>
-        ))}
-        
-        {filteredActivities.length === 0 && (
-          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-              {t('rider.noActivities') || 'No activities found'}
-            </p>
+  const renderHeaderExtra = () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="rm-summary-tile">
+          <Zap size={14} />
+          <div>
+            <div className="rm-summary-tile-value">{summary.swaps}</div>
+            <div className="rm-summary-tile-label">
+              {t("rider.swaps") || "Swaps"}
+            </div>
           </div>
-        )}
+        </div>
+        <div className="rm-summary-tile">
+          <Wallet size={14} />
+          <div>
+            <div className="rm-summary-tile-value">
+              {currency} {summary.totalSpent.toLocaleString()}
+            </div>
+            <div className="rm-summary-tile-label">
+              {t("rider.totalSpent") || "Total spent"}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="rm-filter-pills">
+        <button
+          className={`rm-filter-pill${filter === "all" ? " active" : ""}`}
+          onClick={() => setFilter("all")}
+        >
+          {t("rider.all") || "All"}
+        </button>
+        <button
+          className={`rm-filter-pill${filter === "swap" ? " active" : ""}`}
+          onClick={() => setFilter("swap")}
+        >
+          {t("rider.swaps") || "Swaps"}
+        </button>
+        <button
+          className={`rm-filter-pill${filter === "topup" ? " active" : ""}`}
+          onClick={() => setFilter("topup")}
+        >
+          {t("rider.topUps") || "Top-ups"}
+        </button>
+        <button
+          className={`rm-filter-pill${filter === "payment" ? " active" : ""}`}
+          onClick={() => setFilter("payment")}
+        >
+          {t("rider.payments") || "Payments"}
+        </button>
       </div>
     </div>
   );
-};
 
-export default RiderActivity;
+  const typeIcon = (type: RiderActivityItem["type"]) => {
+    if (type === "swap") return <Zap size={14} />;
+    if (type === "topup") return <Wallet size={14} />;
+    return <CreditCard size={14} />;
+  };
 
+  return (
+    <ListScreen
+      title={t("rider.activity") || "Activity"}
+      searchPlaceholder={t("rider.activity.search") || "Search activity..."}
+      searchQuery={query}
+      onSearchChange={setQuery}
+      isLoading={!!isLoading}
+      onRefresh={onRefresh || (() => {})}
+      isEmpty={filtered.length === 0}
+      emptyIcon={<ActivityIcon size={28} />}
+      emptyMessage={t("rider.noActivities") || "No activities found"}
+      emptyHint={t("rider.activity.emptyHint") || "Your swaps and payments appear here"}
+      itemCount={filtered.length}
+      itemLabel={
+        filtered.length === 1
+          ? t("rider.activity.itemSingular") || "activity"
+          : t("rider.activity.itemPlural") || "activities"
+      }
+      headerExtra={renderHeaderExtra()}
+    >
+      {Array.from(grouped.entries()).map(([date, items]) => (
+        <React.Fragment key={date}>
+          <div
+            style={{
+              padding: "10px 2px 4px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            {date}
+          </div>
+          {items.map((a) => (
+            <div key={a.id} className="list-card">
+              <div className="list-card-body">
+                <div className="list-card-content">
+                  <div className="list-card-primary">{a.title}</div>
+                  {a.subtitle && (
+                    <div className="list-card-secondary">{a.subtitle}</div>
+                  )}
+                  <div className="list-card-meta">
+                    {typeIcon(a.type)}
+                    <Clock size={10} />
+                    <span>{a.time}</span>
+                  </div>
+                </div>
+                <div className="list-card-actions">
+                  <span
+                    className={
+                      a.isPositive
+                        ? "list-card-badge--completed"
+                        : "list-card-badge--default"
+                    }
+                    style={{
+                      color: a.isPositive
+                        ? "var(--color-success)"
+                        : "var(--text-primary)",
+                    }}
+                  >
+                    {a.isPositive ? "+" : "-"}
+                    {a.currency || currency} {Math.abs(a.amount).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </React.Fragment>
+      ))}
+    </ListScreen>
+  );
+}

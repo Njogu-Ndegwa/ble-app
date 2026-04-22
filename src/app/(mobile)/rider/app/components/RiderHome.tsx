@@ -1,22 +1,17 @@
 "use client";
 
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback,
-  useMemo,
-} from "react";
+import React, { useMemo } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useI18n } from "@/i18n";
 import { toast } from "react-hot-toast";
+import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeolocation";
+import type { RiderStation } from "../types";
+import { googleMapsUrl, openExternalMap } from "../map/deepLinks";
 
-// Declare Leaflet types
-declare global {
-  interface Window {
-    L: any;
-  }
-}
+// react-leaflet map is client-only; load dynamically to avoid SSR errors and
+// reuse the same component used by the full-screen Stations screen.
+const RiderMap = dynamic(() => import("../map/RiderMap"), { ssr: false });
 
 interface Station {
   id: number;
@@ -67,65 +62,35 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   onViewAllStations,
 }) => {
   const { t } = useI18n();
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const userLocationMarkerRef = useRef<any>(null);
-  const routeLineRef = useRef<any>(null);
-  const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
+  const { location: userLocation } = useGeolocation();
 
-  // Calculate distance between two coordinates using Haversine formula
-  const calculateDistance = useCallback(
-    (lat1: number, lon1: number, lat2: number, lon2: number): string => {
-      const R = 6371; // Earth's radius in km
-      const dLat = (lat2 - lat1) * (Math.PI / 180);
-      const dLon = (lon2 - lon1) * (Math.PI / 180);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * (Math.PI / 180)) *
-          Math.cos(lat2 * (Math.PI / 180)) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
-
-      // Format distance: show meters if less than 1km, otherwise show km
-      if (distance < 1) {
-        return `${Math.round(distance * 1000)} m`;
-      }
-      return `${distance.toFixed(1)} km`;
-    },
-    []
-  );
-
-  // Calculate distances for all stations
   const stationsWithDistance = useMemo(() => {
-    if (!userLocation) {
-      return nearbyStations.map((station) => ({
-        ...station,
-        calculatedDistance: null,
-      }));
-    }
-
     return nearbyStations.map((station) => {
-      if (!station.lat || !station.lng) {
-        return { ...station, calculatedDistance: null };
+      if (!userLocation || station.lat == null || station.lng == null) {
+        return { ...station, calculatedDistance: null as string | null };
       }
-
-      const distance = calculateDistance(
-        userLocation.lat,
-        userLocation.lng,
-        station.lat,
-        station.lng
-      );
-
-      return { ...station, calculatedDistance: distance };
+      const km = haversineKm(userLocation, {
+        lat: station.lat,
+        lng: station.lng,
+      });
+      return { ...station, calculatedDistance: formatDistance(km) };
     });
-  }, [nearbyStations, userLocation, calculateDistance]);
+  }, [nearbyStations, userLocation]);
+
+  const mapStations: RiderStation[] = useMemo(
+    () =>
+      nearbyStations.slice(0, 5).map((s) => ({
+        id: s.id,
+        name: s.name,
+        address: "",
+        distance: s.distance,
+        batteries: s.batteries,
+        waitTime: "~5 min",
+        lat: s.lat,
+        lng: s.lng,
+      })),
+    [nearbyStations],
+  );
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -170,352 +135,21 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     }
   };
 
-  // Load Leaflet and initialize map
-  useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current || isLoadingStations)
-      return;
-
-    const loadLeaflet = async () => {
-      if (!window.L) {
-        // Load Leaflet CSS
-        const cssLink = document.createElement("link");
-        cssLink.rel = "stylesheet";
-        cssLink.href =
-          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-        document.head.appendChild(cssLink);
-
-        // Load Leaflet JS
-        const script = document.createElement("script");
-        script.src =
-          "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-        script.onload = () => {
-          initializeMap();
-        };
-        script.onerror = () => {
-          console.error("[HOME MAP] Failed to load Leaflet library");
-        };
-        document.head.appendChild(script);
-      } else {
-        initializeMap();
-      }
-    };
-
-    const initializeMap = () => {
-      if (!mapContainerRef.current || !window.L) return;
-
-      // Default center (Nairobi, Kenya)
-      const defaultCenter: [number, number] = [-1.2921, 36.8219];
-
-      // Calculate center from stations if available
-      let center: [number, number] = defaultCenter;
-      const validStations = nearbyStations.filter((s) => s.lat && s.lng);
-      if (validStations.length > 0) {
-        const avgLat =
-          validStations.reduce((sum, s) => sum + (s.lat || 0), 0) /
-          validStations.length;
-        const avgLng =
-          validStations.reduce((sum, s) => sum + (s.lng || 0), 0) /
-          validStations.length;
-        center = [avgLat, avgLng];
-      }
-
-      // Initialize map
-      mapInstanceRef.current = window.L.map(mapContainerRef.current, {
-        center: center,
-        zoom: 13,
-        zoomControl: true,
-      });
-
-      // Add OpenStreetMap tile layer
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors",
-        maxZoom: 19,
-      }).addTo(mapInstanceRef.current);
-
-      setIsMapLoaded(true);
-    };
-
-    if (nearbyStations.length > 0) {
-      loadLeaflet();
-    }
-
-    return () => {
-      if (routeLineRef.current && mapInstanceRef.current) {
-        mapInstanceRef.current.removeLayer(routeLineRef.current);
-        routeLineRef.current = null;
-      }
-      if (userLocationMarkerRef.current && mapInstanceRef.current) {
-        mapInstanceRef.current.removeLayer(userLocationMarkerRef.current);
-        userLocationMarkerRef.current = null;
-      }
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-      markersRef.current.forEach((marker) => {
-        if (marker && mapInstanceRef.current) {
-          mapInstanceRef.current.removeLayer(marker);
-        }
-      });
-      markersRef.current = [];
-    };
-  }, [nearbyStations.length, isLoadingStations]);
-
-  // Get user location (independent of map loading)
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      console.warn("Geolocation is not supported by this browser");
-      return;
-    }
-
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ lat: latitude, lng: longitude });
-      },
-      (error) => {
-        console.error("Error getting location:", error);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000,
-      }
-    );
-
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, []);
-
-  // Update user location marker on map when location changes and map is loaded
-  useEffect(() => {
-    if (!userLocation || !mapInstanceRef.current || !window.L || !isMapLoaded)
-      return;
-
-    // Add or update user location marker
-    if (userLocationMarkerRef.current) {
-      userLocationMarkerRef.current.setLatLng([
-        userLocation.lat,
-        userLocation.lng,
-      ]);
-    } else {
-      const userIcon = window.L.divIcon({
-        className: 'custom-user-marker',
-        html: `<div class="leaflet-user-marker">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-            <circle cx="12" cy="12" r="8"/>
-          </svg>
-        </div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28],
-        popupAnchor: [0, -28],
-      });
-
-      userLocationMarkerRef.current = window.L.marker(
-        [userLocation.lat, userLocation.lng],
-        { icon: userIcon }
-      ).addTo(mapInstanceRef.current);
-      userLocationMarkerRef.current.bindPopup(
-        t("rider.yourLocation") || "My Location"
-      );
-    }
-  }, [userLocation, isMapLoaded, t]);
-
-  // Update markers when stations change
-  useEffect(() => {
-    if (!mapInstanceRef.current || !window.L || !isMapLoaded) return;
-
-    // Clear existing markers
-    markersRef.current.forEach((marker) => {
-      if (marker && mapInstanceRef.current) {
-        mapInstanceRef.current.removeLayer(marker);
-      }
-    });
-    markersRef.current = [];
-
-    // Get first 5 stations to match the list
-    const stationsToShow = nearbyStations.slice(0, 5);
-    const validStations: typeof stationsToShow = [];
-
-    // Add markers for each station
-    stationsToShow.forEach((station, index) => {
-      // Check if station has valid coordinates
-      if (
-        typeof station.lat !== "number" ||
-        typeof station.lng !== "number" ||
-        isNaN(station.lat) ||
-        isNaN(station.lng) ||
-        station.lat === 0 ||
-        station.lng === 0
-      ) {
-        console.warn(
-          `[HOME MAP] Station ${station.id} (${station.name}) has invalid coordinates:`,
-          { lat: station.lat, lng: station.lng }
-        );
-        return;
-      }
-
-      // Add small offset for markers at exact same location to prevent overlap
-      // This ensures all markers are visible even if stations are very close
-      const offsetLat = station.lat + index * 0.0001; // ~11 meters per 0.0001 degree
-      const offsetLng = station.lng + index * 0.0001;
-
-      const stationIcon = window.L.divIcon({
-        className: 'custom-station-marker',
-        html: `<div class="leaflet-station-marker">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-        </div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28],
-        popupAnchor: [0, -28],
-      });
-
-      const marker = window.L.marker([offsetLat, offsetLng], {
-        icon: stationIcon,
-      }).addTo(mapInstanceRef.current);
-
-      marker.bindPopup(`
-        <div style="color: #000; font-family: system-ui; min-width: 120px;">
-          <h3 style="margin: 0 0 4px 0; font-size: 13px; font-weight: 600;">${station.name}</h3>
-          <p style="margin: 0; font-size: 11px;">Batteries: ${station.batteries}</p>
-        </div>
-      `);
-
-      marker.on("click", () => {
-        onSelectStation(station.id);
-      });
-
-      markersRef.current.push(marker);
-      validStations.push(station);
-    });
-
-    console.info(
-      `[HOME MAP] Created ${markersRef.current.length} markers out of ${stationsToShow.length} stations`
-    );
-
-    // Fit map bounds to show all stations (using original coordinates, not offset)
-    if (validStations.length > 0) {
-      const bounds = window.L.latLngBounds(
-        validStations.map((s) => [s.lat!, s.lng!])
-      );
-      // Use larger padding and set maxZoom to ensure all markers are visible even if close
-      mapInstanceRef.current.fitBounds(bounds, {
-        padding: [50, 50],
-        maxZoom: 18, // Prevent zooming in too much so all markers stay visible
-      });
-
-      // If all stations are at the same location, ensure minimum zoom
-      const boundsSize = bounds
-        .getNorthEast()
-        .distanceTo(bounds.getSouthWest());
-      if (boundsSize < 100) {
-        // Less than 100 meters apart
-        mapInstanceRef.current.setZoom(15, { animate: false });
-      }
-    }
-  }, [nearbyStations, isMapLoaded, onSelectStation]);
-
-  // Handle clicking on a station - zoom to it on the map
-  const handleStationClick = (
-    station: Station & { calculatedDistance: string | null }
-  ) => {
-    if (!mapInstanceRef.current || !window.L) {
-      // Map not ready, just select the station
-      onSelectStation(station.id);
-      return;
-    }
-
-    if (!station.lat || !station.lng) {
-      toast.error(
-        t("rider.stationLocationMissing") || "Station location is missing."
-      );
-      return;
-    }
-
-    // Remove existing route line if any
-    if (routeLineRef.current && mapInstanceRef.current) {
-      mapInstanceRef.current.removeLayer(routeLineRef.current);
-      routeLineRef.current = null;
-    }
-
-    // Zoom to the station marker
-    mapInstanceRef.current.setView([station.lat, station.lng], 16, {
-      animate: true,
-      duration: 0.5,
-    });
-
-    // Find and open the popup for this station marker
-    markersRef.current.forEach((marker) => {
-      const markerLatLng = marker.getLatLng();
-      if (
-        Math.abs(markerLatLng.lat - station.lat!) < 0.0001 &&
-        Math.abs(markerLatLng.lng - station.lng!) < 0.0001
-      ) {
-        marker.openPopup();
-      }
-    });
+  const handleStationClick = (station: Station) => {
+    onSelectStation(station.id);
   };
 
   const handleNavigate = (station: Station, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering handleStationClick
-
-    if (!userLocation) {
+    e.stopPropagation();
+    if (station.lat == null || station.lng == null) {
       toast.error(
-        t("rider.locationRequired") ||
-          "Location is required for navigation. Please enable location services."
+        t("rider.stationLocationMissing") || "Station location is missing.",
       );
       return;
     }
-
-    if (!mapInstanceRef.current || !window.L) {
-      toast.error(
-        t("rider.mapNotReady") || "Map is not ready. Please wait a moment."
-      );
-      return;
-    }
-
-    if (!station.lat || !station.lng) {
-      toast.error(
-        t("rider.stationLocationMissing") || "Station location is missing."
-      );
-      return;
-    }
-
-    try {
-      // Remove existing route line if any
-      if (routeLineRef.current && mapInstanceRef.current) {
-        mapInstanceRef.current.removeLayer(routeLineRef.current);
-        routeLineRef.current = null;
-      }
-
-      // Draw a simple straight line route from user location to station
-      const routeCoordinates = [
-        [userLocation.lat, userLocation.lng],
-        [station.lat, station.lng],
-      ];
-
-      routeLineRef.current = window.L.polyline(routeCoordinates, {
-        color: getComputedStyle(document.documentElement).getPropertyValue('--color-info').trim() || '#3b82f6',
-        weight: 5,
-        opacity: 0.8,
-        smoothFactor: 1,
-      }).addTo(mapInstanceRef.current);
-
-      // Fit map to show both locations
-      const bounds = window.L.latLngBounds([
-        [userLocation.lat, userLocation.lng],
-        [station.lat, station.lng],
-      ]);
-      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
-    } catch (error: any) {
-      console.error("Error drawing route:", error);
-      toast.error(
-        t("rider.routingError") || "Failed to draw route. Please try again."
-      );
-    }
+    openExternalMap(
+      googleMapsUrl({ lat: station.lat, lng: station.lng }, station.name),
+    );
   };
 
   return (
@@ -533,11 +167,10 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             <div className="rider-bike-label">
               {t("rider.myBike") || "My Bike"}
             </div>
-            {/* <div className="rider-bike-model">{bike.model}</div> */}
           </div>
           <span
             className={`rider-bike-status ${getPaymentStateClass(
-              bike.paymentState
+              bike.paymentState,
             )}`}
           >
             {getPaymentStateLabel(bike.paymentState)}
@@ -545,23 +178,13 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
         <div className="rider-bike-content">
           <div className="rider-bike-image">
-            {bike.imageUrl ? (
-              <Image
-                src={bike.imageUrl}
-                alt={bike.model}
-                width={140}
-                height={100}
-                style={{ objectFit: "contain" }}
-              />
-            ) : (
-              <Image
-                src="/assets/E-3-one.png"
-                alt={bike.model}
-                width={140}
-                height={100}
-                style={{ objectFit: "contain" }}
-              />
-            )}
+            <Image
+              src={bike.imageUrl || "/assets/E-3-one.png"}
+              alt={bike.model}
+              width={140}
+              height={100}
+              style={{ objectFit: "contain" }}
+            />
           </div>
           <div className="rider-bike-info">
             <div className="rider-bike-detail">
@@ -645,10 +268,9 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              stroke-width="2"
+              strokeWidth="2"
             >
               <circle cx="12" cy="12" r="10"></circle>
-
               <path d="M12 6v12M8 10h8M8 14h8"></path>
             </svg>
           </div>
@@ -751,7 +373,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             {t("common.loading") || "Loading stations..."}
           </p>
         </div>
-      ) : !isLoadingStations && nearbyStations.length === 0 ? (
+      ) : nearbyStations.length === 0 ? (
         <div
           style={{
             background: "var(--bg-secondary)",
@@ -805,21 +427,30 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
       ) : (
         <div className="stations-map-container">
-          {/* OpenStreetMap */}
+          {/* Map preview (react-leaflet + CARTO) */}
           <div
-            ref={mapContainerRef}
             style={{
               width: "100%",
-              height: "250px",
+              aspectRatio: "16 / 10",
               borderRadius: "var(--radius-lg)",
               overflow: "hidden",
               border: "1px solid var(--border)",
               background: "var(--bg-tertiary)",
               marginBottom: "12px",
+              cursor: "pointer",
             }}
-          />
+            onClick={onViewAllStations}
+          >
+            <RiderMap
+              stations={mapStations}
+              userLocation={userLocation}
+              selectedStationId={null}
+              onSelectStation={(id) => id != null && onSelectStation(id)}
+              preview
+            />
+          </div>
 
-          {/* Station List - matching design from abs-design.vercel.app */}
+          {/* Station List */}
           <div className="stations-list">
             {stationsWithDistance.slice(0, 5).map((station) => (
               <div
@@ -835,7 +466,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <div className="station-info">
                   <div className="station-name">{station.name}</div>
                   <div className="station-details">
-                    {/* Distance with marker icon - matching abs-design.vercel.app */}
                     <span className="station-distance-info">
                       <svg
                         viewBox="0 0 24 24"
@@ -847,15 +477,14 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                       </svg>
                       {station.calculatedDistance || station.distance}
                     </span>
-                    {/* Batteries with colored availability dot */}
                     <span className="station-availability">
                       <span
                         className={`station-availability-dot ${
                           station.batteries === 0
                             ? "empty"
                             : station.batteries <= 3
-                            ? "low"
-                            : ""
+                              ? "low"
+                              : ""
                         }`}
                       ></span>
                       {station.batteries}{" "}
@@ -868,6 +497,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <button
                   className="station-nav-btn"
                   onClick={(e) => handleNavigate(station, e)}
+                  aria-label={t("rider.map.navigate") || "Navigate"}
                 >
                   <svg
                     viewBox="0 0 24 24"
