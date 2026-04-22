@@ -97,6 +97,7 @@ const RiderApp: React.FC = () => {
   const { t, locale, setLocale } = useI18n();
   const { bridge } = useBridge();
   const stationsSubscriptionRef = useRef<(() => void) | null>(null);
+  const lastStationsFleetKeyRef = useRef<string | null>(null);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
   
   // Auth state
@@ -117,6 +118,7 @@ const RiderApp: React.FC = () => {
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
   const [isLoadingBike, setIsLoadingBike] = useState(false);
+  const [isBikeDataResolved, setIsBikeDataResolved] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
     model: 'E-Trike 3X',
     vehicleId: null,
@@ -197,10 +199,12 @@ const RiderApp: React.FC = () => {
   useEffect(() => {
     if (isLoggedIn) {
       // Set loading states immediately when logged in, before any data is fetched
-      setIsLoadingBike(true);
+      if (!isBikeDataResolved) {
+        setIsLoadingBike(true);
+      }
       setIsLoadingStations(true);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, isBikeDataResolved]);
 
   // Fetch dashboard data from API
   const fetchDashboardData = async (token: string) => {
@@ -274,6 +278,7 @@ const RiderApp: React.FC = () => {
       totalSwaps: Math.floor(cached.totalSwaps || 0),
       paymentState: cached.paymentState || prev.paymentState,
     }));
+    setIsBikeDataResolved(true);
     setIsLoadingBike(false);
     console.info('[PERF] ⚡ Hydrated rider identification from local cache');
     return true;
@@ -447,6 +452,7 @@ const RiderApp: React.FC = () => {
       console.error('[RIDER] Error fetching customer identification data:', error);
     } finally {
       window.clearTimeout(loadingFailSafeTimer);
+      setIsBikeDataResolved(true);
       const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
       console.warn(`[PERF] ✅ BIKE LOADING COMPLETE - Setting isLoadingBike=false after ${totalElapsed}ms from data load start`);
       if (!keepLoading) {
@@ -700,6 +706,7 @@ const RiderApp: React.FC = () => {
             console.log('[PERF] 🚀 Starting PARALLEL fetch: Activity + IdentifyCustomer');
             const usedCache = hydrateIdentificationCache(subscriptionCode);
             if (!usedCache) {
+              setIsBikeDataResolved(false);
               setIsLoadingBike(true);
             }
             
@@ -715,23 +722,27 @@ const RiderApp: React.FC = () => {
             });
           } else {
             console.warn('No subscription_code found in subscription data');
+            setIsBikeDataResolved(true);
             setIsLoadingBike(false);
           }
         } else {
           console.warn('No subscriptions found in response');
           setSubscription(null);
+          setIsBikeDataResolved(true);
           setIsLoadingBike(false);
           setIsLoadingStations(false);
         }
       } else {
         console.warn('[PERF] Subscriptions API returned non-OK status, stopping loaders');
         setSubscription(null);
+        setIsBikeDataResolved(true);
         setIsLoadingBike(false);
         setIsLoadingStations(false);
       }
     } catch (error) {
       console.error('Error fetching subscription data:', error);
       setSubscription(null);
+      setIsBikeDataResolved(true);
       setIsLoadingBike(false);
       setIsLoadingStations(false);
     } finally {
@@ -744,6 +755,7 @@ const RiderApp: React.FC = () => {
   useEffect(() => {
     // Allow MQTT to start if either: logged in, OR prefetch has started (welcome screen visible)
     const canFetch = isLoggedIn || prefetchStartedRef.current;
+    const hasFleetIds = fleetIds.length > 0;
     
     if (!canFetch || !subscription?.subscription_code || !customer) {
       if (canFetch) {
@@ -752,6 +764,13 @@ const RiderApp: React.FC = () => {
           hasCustomer: !!customer,
           isPrefetch: prefetchStartedRef.current && !isLoggedIn,
         });
+      }
+      return;
+    }
+    // Fleet IDs already resolved, avoid re-subscribing and re-entering loading state.
+    if (hasFleetIds) {
+      if (isLoggedIn) {
+        setIsLoadingStations(false);
       }
       return;
     }
@@ -937,12 +956,19 @@ const RiderApp: React.FC = () => {
         stationsSubscriptionRef.current = null;
       }
     };
-  }, [isLoggedIn, subscription?.subscription_code, customer, bridge]);
+  }, [isLoggedIn, subscription?.subscription_code, customer, bridge, fleetIds.length]);
 
   // Fetch stations from GraphQL when fleet IDs are available from MQTT response
   useEffect(() => {
     if (!fleetIds || fleetIds.length === 0) {
       console.info('[STATIONS] Waiting for fleet IDs from MQTT response...');
+      return;
+    }
+
+    const normalizedFleetIds = [...fleetIds].sort();
+    const fleetKey = normalizedFleetIds.join('|');
+    if (lastStationsFleetKeyRef.current === fleetKey && stations.length > 0) {
+      setIsLoadingStations(false);
       return;
     }
 
@@ -1091,22 +1117,25 @@ const RiderApp: React.FC = () => {
           const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
           console.warn(`[PERF] 📍 STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
           setStations(allStations);
+          lastStationsFleetKeyRef.current = fleetKey;
         } else {
           console.warn('[STATIONS] No stations found in GraphQL response');
           setStations([]);
+          lastStationsFleetKeyRef.current = null;
         }
         setIsLoadingStations(false);
       } catch (error) {
         console.error('[STATIONS] Error fetching stations from GraphQL:', error);
         setIsLoadingStations(false);
         setStations([]);
+        lastStationsFleetKeyRef.current = null;
       } finally {
         window.clearTimeout(loadingFailSafeTimer);
       }
     };
 
     fetchStationsFromGraphQL();
-  }, [fleetIds]);
+  }, [fleetIds, stations.length]);
 
   // Set stations to empty if no subscription
   useEffect(() => {
@@ -1139,6 +1168,7 @@ const RiderApp: React.FC = () => {
     console.warn('[PERF] ⏱️ LOGIN START - Beginning data load sequence');
     
     setCustomer(customerData);
+    setIsBikeDataResolved(false);
     // Set loading states immediately before fetching data
     setIsLoadingBike(true);
     setIsLoadingStations(true);
@@ -1388,7 +1418,7 @@ const RiderApp: React.FC = () => {
                       
                       // Set loading states - if prefetch already completed, these will show briefly then clear
                       // If prefetch still in progress, show loading until it completes
-                      if (!bike.vehicleId) {
+                      if (!isBikeDataResolved) {
                         setIsLoadingBike(true);
                       }
                       if (stations.length === 0) {
@@ -1399,6 +1429,7 @@ const RiderApp: React.FC = () => {
                       // Only fetch if prefetch wasn't started
                       if (!wasPrefetched) {
                         dataLoadStartRef.current = performance.now();
+                        setIsBikeDataResolved(false);
                         console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions (no prefetch)');
                         fetchDashboardData(token);
                         if (customer.partner_id) {
@@ -1511,6 +1542,18 @@ const RiderApp: React.FC = () => {
               </div>
             </div>
             <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                className="flow-header-lang"
+                onClick={() => router.push('/rider/serviceplan1')}
+                aria-label={t('rider.switchPlan') || 'Switch plan'}
+                title={t('rider.switchPlan') || 'Switch plan'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                  <path d="M4 7h16M4 12h10M4 17h16" />
+                  <path d="M17 9l3 3-3 3" />
+                </svg>
+                <span className="flow-header-lang-label">{t('rider.switchPlan') || 'Plan'}</span>
+              </button>
               <ThemeToggle />
               <button className="flow-header-lang" onClick={toggleLocale} aria-label={t('role.switchLanguage') || 'Switch Language'}>
                 <Globe size={14} />
@@ -1583,7 +1626,7 @@ const RiderApp: React.FC = () => {
               bikeImageUrl="/assets/E-3-one.png"
               onAccountDetails={() => setShowAccountDetailsModal(true)}
               onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
-              onPlanDetails={() => toast.success(t('rider.planDetailsSoon') || 'Plan details coming soon')}
+              onPlanDetails={() => router.push('/rider/serviceplan1')}
               onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
               onSupport={() => router.push('/rider/serviceplan1?page=support')}
               onLogout={handleLogout}
