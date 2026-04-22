@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -156,7 +156,6 @@ const RiderApp: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
-  const [showFoundCustomer, setShowFoundCustomer] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
 
   // Handle browser back button
@@ -189,8 +188,7 @@ const RiderApp: React.FC = () => {
   // Track if we've started prefetching
   const prefetchStartedRef = useRef(false);
   
-  // Check authentication on mount - show found customer screen if credentials exist
-  // AND start prefetching data immediately so it's ready when user clicks Continue
+  // Check authentication on mount - if credentials exist, auto-login and go directly to home
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('authToken_rider');
@@ -200,15 +198,19 @@ const RiderApp: React.FC = () => {
         try {
           const customerData = JSON.parse(storedCustomerData);
           setCustomer(customerData);
-          setShowFoundCustomer(true); // Show found customer screen instead of auto-login
-          
-          // 🚀 PREFETCH: Start loading data immediately while user sees welcome screen
+
+          // Auto-login: skip the welcome screen and go directly into the app
+          setIsBikeDataResolved(false);
+          setIsLoadingBike(true);
+          setIsLoadingStations(true);
+          setIsLoggedIn(true);
+
+          // Start loading data immediately
           if (!prefetchStartedRef.current && customerData.partner_id) {
             prefetchStartedRef.current = true;
             dataLoadStartRef.current = performance.now();
-            console.warn('[PERF] 🚀 PREFETCH - Starting data load while showing welcome screen');
-            
-            // Start fetching in background - don't set loading states yet (user hasn't clicked Continue)
+            console.warn('[PERF] ðŸš€ AUTO-LOGIN - Starting data load');
+
             fetchDashboardData(token);
             fetchSubscriptionData(customerData.partner_id, token);
           }
@@ -237,7 +239,7 @@ const RiderApp: React.FC = () => {
   // Fetch dashboard data from API
   const fetchDashboardData = async (token: string) => {
     const startTime = performance.now();
-    console.info('[PERF] 📊 Dashboard API - Starting...');
+    console.info('[PERF] ðŸ“Š Dashboard API - Starting...');
     try {
       const response = await fetch(`${API_BASE}/customer/dashboard`, {
         method: 'GET',
@@ -249,12 +251,12 @@ const RiderApp: React.FC = () => {
       });
 
       const elapsed = Math.round(performance.now() - startTime);
-      console.info(`[PERF] 📊 Dashboard API - Response received in ${elapsed}ms (Status: ${response.status})`);
+      console.info(`[PERF] ðŸ“Š Dashboard API - Response received in ${elapsed}ms (Status: ${response.status})`);
 
       if (response.ok) {
         const data = await response.json();
         const totalElapsed = Math.round(performance.now() - startTime);
-        console.info(`[PERF] 📊 Dashboard API - Parsed in ${totalElapsed}ms`);
+        console.info(`[PERF] ðŸ“Š Dashboard API - Parsed in ${totalElapsed}ms`);
         
         if (data.summary) {
           setBalance(data.summary.total_paid || 0);
@@ -265,7 +267,7 @@ const RiderApp: React.FC = () => {
       }
     } catch (error) {
       const elapsed = Math.round(performance.now() - startTime);
-      console.error(`[PERF] 📊 Dashboard API - Error after ${elapsed}ms:`, error);
+      console.error(`[PERF] ðŸ“Š Dashboard API - Error after ${elapsed}ms:`, error);
     }
   };
 
@@ -308,7 +310,7 @@ const RiderApp: React.FC = () => {
     }));
     setIsBikeDataResolved(true);
     setIsLoadingBike(false);
-    console.info('[PERF] ⚡ Hydrated rider identification from local cache');
+    console.info('[PERF] âš¡ Hydrated rider identification from local cache');
     return true;
   };
 
@@ -317,11 +319,11 @@ const RiderApp: React.FC = () => {
     const startTime = performance.now();
     const loadingFailSafeTimer = window.setTimeout(() => {
       if (!keepLoading) {
-        console.warn('[PERF] ⏱️ IdentifyCustomer timeout guard triggered, stopping bike loader');
+        console.warn('[PERF] â±ï¸ IdentifyCustomer timeout guard triggered, stopping bike loader');
         setIsLoadingBike(false);
       }
     }, LOAD_FAILSAFE_TIMEOUT_MS);
-    console.info('[PERF] 🆔 IdentifyCustomer GraphQL - Starting...');
+    console.info('[PERF] ðŸ†” IdentifyCustomer GraphQL - Starting...');
     try {
       // Generate unique correlation ID
       const correlationId = `rider-app-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -341,7 +343,7 @@ const RiderApp: React.FC = () => {
       });
       
       const elapsed = Math.round(performance.now() - startTime);
-      console.info(`[PERF] 🆔 IdentifyCustomer GraphQL - Response received in ${elapsed}ms`);
+      console.info(`[PERF] ðŸ†” IdentifyCustomer GraphQL - Response received in ${elapsed}ms`);
 
       if (result.errors && result.errors.length > 0) {
         console.error('[RIDER] GraphQL errors:', result.errors);
@@ -354,7 +356,7 @@ const RiderApp: React.FC = () => {
       }
 
       const response = result.data.identifyCustomer;
-      console.info('[RIDER] 🔍 RAW identifyCustomer response:', JSON.stringify(response, null, 2));
+      console.info('[RIDER] ðŸ” RAW identifyCustomer response:', JSON.stringify(response, null, 2));
       
       if (!response.customer_identified) {
         console.warn('[RIDER] Customer not identified');
@@ -363,7 +365,7 @@ const RiderApp: React.FC = () => {
 
       // Parse metadata
       const metadata = parseIdentifyCustomerMetadata(response.metadata);
-      console.info('[RIDER] 🔍 Parsed metadata:', JSON.stringify(metadata, null, 2));
+      console.info('[RIDER] ðŸ” Parsed metadata:', JSON.stringify(metadata, null, 2));
       
       if (!metadata || !metadata.service_plan_data) {
         console.warn('[RIDER] Invalid metadata or missing service_plan_data');
@@ -372,7 +374,7 @@ const RiderApp: React.FC = () => {
 
       const { service_plan_data, service_bundle, common_terms } = metadata;
       const { serviceStates, paymentState } = service_plan_data;
-      console.info('[RIDER] 🔍 serviceStates:', JSON.stringify(serviceStates, null, 2));
+      console.info('[RIDER] ðŸ” serviceStates:', JSON.stringify(serviceStates, null, 2));
 
       if (!serviceStates || !Array.isArray(serviceStates)) {
         console.warn('[RIDER] serviceStates is missing or not an array');
@@ -422,14 +424,14 @@ const RiderApp: React.FC = () => {
       const billingCurrency = common_terms?.billingCurrency || service_plan_data?.currency || 'XOF';
 
       // Log account balance calculation details
-      console.warn('[RIDER] 💰 ACCOUNT BALANCE CALCULATION:', {
+      console.warn('[RIDER] ðŸ’° ACCOUNT BALANCE CALCULATION:', {
         energyServiceId: energyServiceState?.service_id || 'NOT FOUND',
         energyQuota,
         energyUsed,
         energyRemaining: `${energyRemaining} kWh`,
         energyUnitPrice: `${energyUnitPrice} per kWh`,
         accountBalance: `${billingCurrency} ${energyValue}`,
-        formula: `${energyRemaining} kWh × ${energyUnitPrice} = ${energyValue}`,
+        formula: `${energyRemaining} kWh Ã— ${energyUnitPrice} = ${energyValue}`,
       });
 
       console.info('[RIDER] Extracted data:', { 
@@ -462,7 +464,7 @@ const RiderApp: React.FC = () => {
           paymentState: paymentState || prev.paymentState,
         };
         const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
-        console.warn(`[PERF] 🏍️ BIKE DATA READY - Total time from login: ${totalElapsed}ms`, updated);
+        console.warn(`[PERF] ðŸï¸ BIKE DATA READY - Total time from login: ${totalElapsed}ms`, updated);
         return updated;
       });
 
@@ -482,7 +484,7 @@ const RiderApp: React.FC = () => {
       window.clearTimeout(loadingFailSafeTimer);
       setIsBikeDataResolved(true);
       const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
-      console.warn(`[PERF] ✅ BIKE LOADING COMPLETE - Setting isLoadingBike=false after ${totalElapsed}ms from data load start`);
+      console.warn(`[PERF] âœ… BIKE LOADING COMPLETE - Setting isLoadingBike=false after ${totalElapsed}ms from data load start`);
       if (!keepLoading) {
         setIsLoadingBike(false);
       }
@@ -492,7 +494,7 @@ const RiderApp: React.FC = () => {
   // Fetch activity data from GraphQL
   const fetchActivityData = async (subscriptionCode: string) => {
     const startTime = performance.now();
-    console.info('[PERF] 📝 ServicePlanActions GraphQL - Starting...');
+    console.info('[PERF] ðŸ“ ServicePlanActions GraphQL - Starting...');
     try {
       const graphqlEndpoint = 'https://abs-platform-dev.omnivoltaic.com/graphql';
       
@@ -527,13 +529,13 @@ const RiderApp: React.FC = () => {
       });
 
       const elapsed = Math.round(performance.now() - startTime);
-      console.info(`[PERF] 📝 ServicePlanActions GraphQL - Response received in ${elapsed}ms (Status: ${response.status})`);
+      console.info(`[PERF] ðŸ“ ServicePlanActions GraphQL - Response received in ${elapsed}ms (Status: ${response.status})`);
 
       if (response.ok) {
         const result = await response.json();
         const totalElapsed = Math.round(performance.now() - startTime);
-        console.info(`[PERF] 📝 ServicePlanActions GraphQL - Parsed in ${totalElapsed}ms`);
-        console.info('[RIDER] 🔍 RAW servicePlanActions response:', JSON.stringify(result.data, null, 2));
+        console.info(`[PERF] ðŸ“ ServicePlanActions GraphQL - Parsed in ${totalElapsed}ms`);
+        console.info('[RIDER] ðŸ” RAW servicePlanActions response:', JSON.stringify(result.data, null, 2));
         
         if (result.data?.servicePlanActions) {
           const { paymentActions, serviceActions } = result.data.servicePlanActions;
@@ -684,11 +686,11 @@ const RiderApp: React.FC = () => {
       dataLoadStartRef.current = performance.now();
     }
     const startTime = performance.now();
-    console.warn('[PERF] 📦 Subscriptions API - Starting...');
+    console.warn('[PERF] ðŸ“¦ Subscriptions API - Starting...');
     setSubscriptionsLoading(true);
     setSubscriptionsError(null);
     const loadingFailSafeTimer = window.setTimeout(() => {
-      console.warn('[PERF] ⏱️ Subscription timeout guard triggered, stopping loaders');
+      console.warn('[PERF] â±ï¸ Subscription timeout guard triggered, stopping loaders');
       setIsLoadingBike(false);
       setIsLoadingStations(false);
       setSubscriptionsLoading(false);
@@ -704,7 +706,7 @@ const RiderApp: React.FC = () => {
       });
 
       const elapsed = Math.round(performance.now() - startTime);
-      console.info(`[PERF] 📦 Subscriptions API - Response received in ${elapsed}ms (Status: ${response.status})`);
+      console.info(`[PERF] ðŸ“¦ Subscriptions API - Response received in ${elapsed}ms (Status: ${response.status})`);
 
       if (response.ok) {
         const data = await response.json();
@@ -752,7 +754,7 @@ const RiderApp: React.FC = () => {
             );
           } catch {}
           const subElapsed = Math.round(performance.now() - startTime);
-          console.warn(`[PERF] 📦 Subscription found in ${subElapsed}ms - Now starting identity + activity fetches`);
+          console.warn(`[PERF] ðŸ“¦ Subscription found in ${subElapsed}ms - Now starting identity + activity fetches`);
           console.info('Selected subscription:', {
             subscription_code: active.subscription_code,
             product_name: active.product_name,
@@ -770,7 +772,7 @@ const RiderApp: React.FC = () => {
           // Fetch activity data and bike data IN PARALLEL (not sequential)
           if (active.subscription_code) {
             const subscriptionCode = active.subscription_code;
-            console.log('[PERF] 🚀 Starting PARALLEL fetch: Activity + IdentifyCustomer');
+            console.log('[PERF] ðŸš€ Starting PARALLEL fetch: Activity + IdentifyCustomer');
             const usedCache = hydrateIdentificationCache(subscriptionCode);
             if (!usedCache) {
               setIsBikeDataResolved(false);
@@ -783,7 +785,7 @@ const RiderApp: React.FC = () => {
               fetchActivityData(subscriptionCode),
               fetchCustomerIdentificationData(subscriptionCode, { keepLoading: usedCache }),
             ]).then(() => {
-              console.log('[PERF] ✅ Both Activity and IdentifyCustomer completed');
+              console.log('[PERF] âœ… Both Activity and IdentifyCustomer completed');
             }).catch((err) => {
               console.error('[PERF] Error in parallel fetch:', err);
             });
@@ -833,7 +835,7 @@ const RiderApp: React.FC = () => {
     
     if (!canFetch || !subscription?.subscription_code || !customer) {
       if (canFetch) {
-        console.warn('[PERF] 📡 MQTT - Waiting for dependencies:', {
+        console.warn('[PERF] ðŸ“¡ MQTT - Waiting for dependencies:', {
           hasSubscription: !!subscription?.subscription_code,
           hasCustomer: !!customer,
           isPrefetch: prefetchStartedRef.current && !isLoggedIn,
@@ -849,7 +851,7 @@ const RiderApp: React.FC = () => {
       return;
     }
     if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) {
-      console.warn('[PERF] 📡 MQTT - Bridge NOT ready:', {
+      console.warn('[PERF] ðŸ“¡ MQTT - Bridge NOT ready:', {
         bridge: !!bridge,
         webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
       });
@@ -869,10 +871,10 @@ const RiderApp: React.FC = () => {
     const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
 
     const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 0;
-    console.warn(`[PERF] 📡 MQTT - Starting at ${totalElapsed}ms from data load start`);
+    console.warn(`[PERF] ðŸ“¡ MQTT - Starting at ${totalElapsed}ms from data load start`);
     console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
     const mqttStartTime = performance.now();
-    console.info('[PERF] 📡 MQTT Fleet IDs Request - Starting...');
+    console.info('[PERF] ðŸ“¡ MQTT Fleet IDs Request - Starting...');
 
     // Generate unique correlation ID
     const correlationId = `asset-discovery-${Date.now()}`;
@@ -926,7 +928,7 @@ const RiderApp: React.FC = () => {
           console.info('[STATIONS MQTT] Topic match:', topic === responseTopic);
 
           if (topic === responseTopic) {
-            console.info('[STATIONS MQTT] ✅ Response received from rtrn topic!');
+            console.info('[STATIONS MQTT] âœ… Response received from rtrn topic!');
             console.info('[STATIONS MQTT] Full message:', JSON.stringify(message, null, 2));
             
             let responseData;
@@ -945,8 +947,8 @@ const RiderApp: React.FC = () => {
 
             if (swapStationFleetIds && Array.isArray(swapStationFleetIds) && swapStationFleetIds.length > 0) {
               const mqttElapsed = Math.round(performance.now() - mqttStartTime);
-              console.info(`[PERF] 📡 MQTT Fleet IDs - Response received in ${mqttElapsed}ms`);
-              console.info('[STATIONS MQTT] ✅ Found swap station fleet IDs:', swapStationFleetIds);
+              console.info(`[PERF] ðŸ“¡ MQTT Fleet IDs - Response received in ${mqttElapsed}ms`);
+              console.info('[STATIONS MQTT] âœ… Found swap station fleet IDs:', swapStationFleetIds);
               setFleetIds(swapStationFleetIds);
             } else {
               console.warn('[STATIONS MQTT] No swap_station_fleet IDs found in response');
@@ -988,7 +990,7 @@ const RiderApp: React.FC = () => {
         try {
           const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
           if (subResp.respCode === "200") {
-            console.info('[STATIONS MQTT] ✅ Subscribed to response topic successfully');
+            console.info('[STATIONS MQTT] âœ… Subscribed to response topic successfully');
             
             // Publish request AFTER subscription is confirmed
             console.info('[STATIONS MQTT] Publishing request:', JSON.stringify(dataToPublish, null, 2));
@@ -1001,7 +1003,7 @@ const RiderApp: React.FC = () => {
                   try {
                     const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
                     if (pubResp.respCode === "200") {
-                      console.info('[STATIONS MQTT] ✅ Successfully published request');
+                      console.info('[STATIONS MQTT] âœ… Successfully published request');
                     } else {
                       console.error('[STATIONS MQTT] Publish failed:', pubResp.respDesc || pubResp.error);
                     }
@@ -1052,10 +1054,10 @@ const RiderApp: React.FC = () => {
     const fetchStationsFromGraphQL = async () => {
       const startTime = performance.now();
       const loadingFailSafeTimer = window.setTimeout(() => {
-        console.warn('[PERF] ⏱️ Stations timeout guard triggered, stopping stations loader');
+        console.warn('[PERF] â±ï¸ Stations timeout guard triggered, stopping stations loader');
         setIsLoadingStations(false);
       }, LOAD_FAILSAFE_TIMEOUT_MS);
-      console.info('[PERF] 📍 Stations GraphQL (getFleetAvatarsSummary) - Starting...');
+      console.info('[PERF] ðŸ“ Stations GraphQL (getFleetAvatarsSummary) - Starting...');
       try {
         const authToken = localStorage.getItem('authToken_rider');
         if (!authToken) {
@@ -1112,7 +1114,7 @@ const RiderApp: React.FC = () => {
         });
 
         const elapsed = Math.round(performance.now() - startTime);
-        console.info(`[PERF] 📍 Stations GraphQL - Response received in ${elapsed}ms (Status: ${response.status})`);
+        console.info(`[PERF] ðŸ“ Stations GraphQL - Response received in ${elapsed}ms (Status: ${response.status})`);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -1189,7 +1191,7 @@ const RiderApp: React.FC = () => {
 
         if (allStations.length > 0) {
           const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
-          console.warn(`[PERF] 📍 STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
+          console.warn(`[PERF] ðŸ“ STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
           setStations(allStations);
           lastStationsFleetKeyRef.current = fleetKey;
         } else {
@@ -1239,7 +1241,7 @@ const RiderApp: React.FC = () => {
 
   const handleLoginSuccess = (customerData: Customer) => {
     dataLoadStartRef.current = performance.now();
-    console.warn('[PERF] ⏱️ LOGIN START - Beginning data load sequence');
+    console.warn('[PERF] â±ï¸ LOGIN START - Beginning data load sequence');
     
     setCustomer(customerData);
     setIsBikeDataResolved(false);
@@ -1249,7 +1251,7 @@ const RiderApp: React.FC = () => {
     setIsLoggedIn(true);
     const token = localStorage.getItem('authToken_rider');
     if (token) {
-      console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions');
+      console.warn('[PERF] ðŸš€ Starting parallel fetch: Dashboard + Subscriptions');
       console.warn('[PERF] Bridge status:', { 
         bridgeAvailable: !!bridge, 
         webViewBridgeAvailable: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge 
@@ -1262,13 +1264,13 @@ const RiderApp: React.FC = () => {
       if (customerData.partner_id) {
         fetchSubscriptionData(customerData.partner_id, token).then(() => {
           const elapsed = Math.round(performance.now() - dataLoadStartRef.current);
-          console.warn(`[PERF] ⏱️ Subscription chain complete in ${elapsed}ms (includes identity + activity)`);
+          console.warn(`[PERF] â±ï¸ Subscription chain complete in ${elapsed}ms (includes identity + activity)`);
         });
       } else {
-        console.warn('[PERF] ⚠️ No partner_id available - cannot fetch subscription');
+        console.warn('[PERF] âš ï¸ No partner_id available - cannot fetch subscription');
       }
     } else {
-      console.warn('[PERF] ⚠️ No auth token - cannot fetch data');
+      console.warn('[PERF] âš ï¸ No auth token - cannot fetch data');
     }
   };
 
@@ -1369,242 +1371,6 @@ const RiderApp: React.FC = () => {
     );
   }
 
-  // Found customer screen - show before login if credentials exist
-  if (!isLoggedIn && showFoundCustomer && customer) {
-    const initials = customer.name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
-
-    return (
-      <>
-        <Toaster position="top-center" />
-        <div className="rider-container">
-          <div className="rider-bg-gradient" />
-          
-          {/* Header */}
-          <header className="flow-header">
-            <div className="flow-header-inner">
-              <div className="flow-header-left">
-                <button 
-                  className="flow-header-back" 
-                  onClick={handleBackToRoles}
-                  aria-label={t('attendant.changeRole') || 'Change Role'}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
-                    <path d="M19 12H5M12 19l-7-7 7-7"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </header>
-
-          {/* Main Content */}
-          <main className="rider-main" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="rider-screen active" style={{ width: '100%', maxWidth: '100%' }}>
-              {/* Large Profile Icon */}
-              <div style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                background: 'var(--accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 24px',
-                border: '2px solid var(--border-default)'
-              }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-              </div>
-
-              {/* Title */}
-              <h2 style={{
-                fontSize: '24px',
-                fontWeight: '700',
-                color: 'white',
-                textAlign: 'center',
-                marginBottom: '8px'
-              }}>
-                {t('rider.loginTitle') || 'Rider Login'}
-              </h2>
-
-              {/* Welcome Message */}
-              <p style={{
-                fontSize: '14px',
-                color: 'var(--text-secondary)',
-                textAlign: 'center',
-                marginBottom: '32px'
-              }}>
-                {t('rider.welcomeBack') || 'Welcome back!'}
-              </p>
-
-              {/* Account Card */}
-              <div style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-                padding: '16px',
-                marginBottom: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <div style={{ 
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  background: 'var(--accent)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '18px',
-                  fontWeight: '600',
-                  color: 'white',
-                  flexShrink: 0
-                }}>
-                  {initials}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ 
-                    marginBottom: '4px',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: 'white'
-                  }}>
-                    {customer.name}
-                  </div>
-                  <div style={{ 
-                    fontSize: '13px', 
-                    fontWeight: '400', 
-                    color: 'var(--text-secondary)'
-                  }}>
-                    {t('role.rider') || 'Rider'}
-                  </div>
-                </div>
-                <div style={{ 
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '11px',
-                  fontWeight: '500',
-                  color: 'white',
-                  padding: '4px 10px',
-                  background: 'var(--success)',
-                  borderRadius: 'var(--radius-md)',
-                  flexShrink: 0
-                }}>
-                  {t('common.active') || 'Active'}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-                <button
-                  onClick={() => {
-                    const token = localStorage.getItem('authToken_rider');
-                    if (token && customer) {
-                      // Check if data was already prefetched
-                      const wasPrefetched = prefetchStartedRef.current;
-                      const prefetchElapsed = dataLoadStartRef.current > 0 
-                        ? Math.round(performance.now() - dataLoadStartRef.current) 
-                        : 0;
-                      
-                      console.warn(`[PERF] ⏱️ CONTINUE clicked - Prefetched: ${wasPrefetched}, Time since prefetch: ${prefetchElapsed}ms`);
-                      
-                      // Set loading states - if prefetch already completed, these will show briefly then clear
-                      // If prefetch still in progress, show loading until it completes
-                      if (!isBikeDataResolved) {
-                        setIsLoadingBike(true);
-                      }
-                      if (stations.length === 0) {
-                        setIsLoadingStations(true);
-                      }
-                      setIsLoggedIn(true);
-                      
-                      // Only fetch if prefetch wasn't started
-                      if (!wasPrefetched) {
-                        dataLoadStartRef.current = performance.now();
-                        setIsBikeDataResolved(false);
-                        console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions (no prefetch)');
-                        fetchDashboardData(token);
-                        if (customer.partner_id) {
-                          fetchSubscriptionData(customer.partner_id, token);
-                        }
-                      } else {
-                        console.warn('[PERF] ✅ Data was prefetched - skipping redundant API calls');
-                      }
-                    }
-                  }}
-                  style={{ 
-                    width: '100%',
-                    padding: '14px',
-                    background: 'var(--accent)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: 'white',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'opacity 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.opacity = '0.9';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.opacity = '1';
-                  }}
-                >
-                  {t('common.continue') || 'Continue'}
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    localStorage.removeItem('authToken_rider');
-                    localStorage.removeItem('customerData_rider');
-                    localStorage.removeItem('userPhone');
-                    setShowFoundCustomer(false);
-                    setCustomer(null);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '16px',
-                    fontWeight: '500',
-                    color: 'white',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-secondary)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'var(--bg-tertiary)';
-                  }}
-                >
-                  {t('rider.switchAccount') || 'Switch Account'}
-                </button>
-              </div>
-            </div>
-          </main>
-        </div>
-      </>
-    );
-  }
 
   // Login screen
   if (!isLoggedIn) {
