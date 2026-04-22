@@ -26,6 +26,13 @@ interface Ticket {
   create_date: string;
 }
 
+interface SubscriptionOption {
+  id: number;
+  subscription_code: string;
+  product_name?: string;
+  status?: string;
+}
+
 interface Message {
   id: number;
   body: string;
@@ -53,6 +60,7 @@ interface Customer {
 interface TicketingProps {
   customer: Customer | null;
   allPlans: ServicePlan[];
+  activeSubscriptionCode?: string | null;
 }
 
 // Priority mapping - using local function to access t() in context
@@ -88,9 +96,10 @@ const getPriorityColor = (priority: string, t: any) => {
   return "bg-bg-surface text-text-muted border-border-subtle";
 };
 
-const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
+const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans, activeSubscriptionCode }) => {
   const { t } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionOption[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -186,6 +195,49 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
 
     fetchTickets();
   }, [customer?.partner_id, customer?.id]);
+
+  useEffect(() => {
+    const partnerId = customer?.partner_id || null;
+    if (!partnerId) {
+      setSubscriptions([]);
+      return;
+    }
+
+    const fetchSubscriptions = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`,
+          {
+            method: "GET",
+            headers: getHeaders(),
+          }
+        );
+        const data = await response.json();
+        if (response.ok && data.success && Array.isArray(data.subscriptions)) {
+          setSubscriptions(data.subscriptions);
+        } else {
+          setSubscriptions([]);
+        }
+      } catch (error) {
+        console.error("Error fetching subscriptions for ticketing:", error);
+        setSubscriptions([]);
+      }
+    };
+
+    fetchSubscriptions();
+  }, [customer?.partner_id]);
+
+  useEffect(() => {
+    if (!activeSubscriptionCode || subscriptions.length === 0) return;
+    const matchedSubscription = subscriptions.find(
+      (subscription) => subscription.subscription_code === activeSubscriptionCode
+    );
+    if (!matchedSubscription) return;
+    setFormData((prev) => ({
+      ...prev,
+      subscription_id: String(matchedSubscription.id),
+    }));
+  }, [activeSubscriptionCode, subscriptions]);
 
   const handleFormChange = (
     e: React.ChangeEvent<
@@ -392,8 +444,11 @@ const Ticketing: React.FC<TicketingProps> = ({ customer, allPlans }) => {
                   className="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">{t('None')}</option>
-                  <option value="1">{t('Basic Plan')}</option>
-                  <option value="2">{t('Premium Plan')}</option>
+                  {subscriptions.map((subscription) => (
+                    <option key={subscription.id} value={subscription.id}>
+                      {subscription.subscription_code} - {subscription.product_name || subscription.status || t('Subscription')}
+                    </option>
+                  ))}
                 </select>
               </div>
 

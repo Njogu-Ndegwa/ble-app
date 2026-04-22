@@ -30,6 +30,8 @@ interface QRGeneratorProps {
     partner_id?: number;
   } | null;
   isMqttConnected?: boolean;
+  activeSubscriptionCode?: string | null;
+  onActiveSubscriptionChange?: (subscriptionCode: string) => void;
 }
 
 interface LocationData {
@@ -60,7 +62,12 @@ declare global {
   }
 }
 
-const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = false }) => {
+const QRGenerator: React.FC<QRGeneratorProps> = ({
+  customer,
+  isMqttConnected = false,
+  activeSubscriptionCode,
+  onActiveSubscriptionChange,
+}) => {
   const { t } = useI18n();
   const { bridge } = useBridge();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -532,6 +539,15 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
         if (data.success && Array.isArray(data.subscriptions)) {
           console.log("QR Generator: Found subscriptions:", data.subscriptions.length);
           setSubscriptions(data.subscriptions);
+          const selectedSubscription = activeSubscriptionCode
+            ? data.subscriptions.find((sub: Subscription) => sub.subscription_code === activeSubscriptionCode)
+            : null;
+          const nextActiveSubscription = selectedSubscription
+            || data.subscriptions.find((sub: Subscription) => sub.status === "active")
+            || data.subscriptions[0];
+          if (nextActiveSubscription?.subscription_code) {
+            onActiveSubscriptionChange?.(nextActiveSubscription.subscription_code);
+          }
           
           // Generate QR codes for each subscription
           const qrPromises = data.subscriptions.map(async (sub: Subscription) => {
@@ -589,7 +605,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
     };
 
     fetchSubscriptions();
-  }, [customer?.partner_id, t]);
+  }, [customer?.partner_id, t, activeSubscriptionCode, onActiveSubscriptionChange]);
 
   if (isLoading) {
     return (
@@ -652,6 +668,11 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
                 <h3 className="text-lg font-semibold text-text-primary mb-2">
                   {subscription.product_name}
                 </h3>
+                {activeSubscriptionCode === subscription.subscription_code && (
+                  <span className="inline-block mb-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-600 text-white">
+                    {t("Active")}
+                  </span>
+                )}
                 <div className="space-y-2 text-sm text-text-primary">
                   <p>
                     <span className="font-medium">{t("Subscription Code:")}</span>{" "}
@@ -672,7 +693,20 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({ customer, isMqttConnected = f
                 </div>
                 
                 {/* Location Binding Button */}
-                <div className="mt-4">
+                <div className="mt-4 flex flex-col gap-2 md:items-start">
+                  <button
+                    onClick={() => onActiveSubscriptionChange?.(subscription.subscription_code)}
+                    disabled={activeSubscriptionCode === subscription.subscription_code}
+                    className={`w-full md:w-auto px-4 py-2 rounded-lg font-medium transition-all ${
+                      activeSubscriptionCode === subscription.subscription_code
+                        ? "bg-bg-elevated text-text-secondary cursor-not-allowed"
+                        : "bg-indigo-500 hover:bg-indigo-600 text-white"
+                    }`}
+                  >
+                    {activeSubscriptionCode === subscription.subscription_code
+                      ? t("Current Subscription")
+                      : t("Use This Subscription")}
+                  </button>
                   <button
                     onClick={() => publishCustomerBinding(subscription.subscription_code, subscription.id)}
                     disabled={bindingStatus[subscription.id] === "loading"}

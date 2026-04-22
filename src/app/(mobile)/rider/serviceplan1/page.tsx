@@ -113,6 +113,7 @@ declare global {
 }
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
+const ACTIVE_SUBSCRIPTION_STORAGE_KEY = "activeSubscriptionCode_rider";
 
 const AppContainer: React.FC = () => {
   const { t } = useI18n();
@@ -146,6 +147,22 @@ const AppContainer: React.FC = () => {
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState<boolean>(false);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const updateActiveSubscription = useCallback((subscriptionCode: string | null) => {
+    setActivePlanId(subscriptionCode);
+    if (!subscriptionCode) {
+      localStorage.removeItem(ACTIVE_SUBSCRIPTION_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(ACTIVE_SUBSCRIPTION_STORAGE_KEY, subscriptionCode);
+  }, []);
+
+  useEffect(() => {
+    const savedActiveSubscription = localStorage.getItem(ACTIVE_SUBSCRIPTION_STORAGE_KEY);
+    if (savedActiveSubscription) {
+      setActivePlanId(savedActiveSubscription);
+    }
+  }, []);
+
   const bridgeInitRef = useRef(false);
   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
   const prevCustomerIdRef = useRef<number | null>(null);
@@ -391,10 +408,16 @@ const AppContainer: React.FC = () => {
           (sub: any) => sub.status === "active"
         );
 
-        if (activeSubscription) {
-          console.info("Active subscription found:", activeSubscription.subscription_code);
-          setActivePlanId(activeSubscription.subscription_code);
-          return activeSubscription.subscription_code;
+        const savedSubscriptionCode = localStorage.getItem(ACTIVE_SUBSCRIPTION_STORAGE_KEY);
+        const selectedSubscription = savedSubscriptionCode
+          ? data.subscriptions.find((sub: any) => sub.subscription_code === savedSubscriptionCode)
+          : null;
+        const nextSubscription = selectedSubscription || activeSubscription || data.subscriptions[0];
+
+        if (nextSubscription?.subscription_code) {
+          console.info("Active subscription found:", nextSubscription.subscription_code);
+          updateActiveSubscription(nextSubscription.subscription_code);
+          return nextSubscription.subscription_code;
         } else {
           // This is expected for new users who haven't purchased a product yet
           console.info("No active subscription found - user may need to purchase a product first");
@@ -413,14 +436,14 @@ const AppContainer: React.FC = () => {
       console.error("Error fetching active subscription:", error);
       return null;
     }
-  }, []);
+  }, [updateActiveSubscription]);
 
   // Reset activePlanId when customer logs out
   useEffect(() => {
     if (!customer?.id) {
-      setActivePlanId(null);
+      updateActiveSubscription(null);
     }
-  }, [customer?.id]);
+  }, [customer?.id, updateActiveSubscription]);
 
   // Fetch fleet IDs (unchanged)
   useEffect(() => {
@@ -1736,13 +1759,32 @@ const AppContainer: React.FC = () => {
       case "charging stations":
         return <ChargingStationFinder lastKnownLocation={lastKnownLocation} fleetIds={fleetIds} stations={stations} isLoadingStations={isLoadingStations} onFindStations={handleFindStations} />;
       case "support":
-        return <Ticketing customer={customer} allPlans={allPlans} />;
+        return (
+          <Ticketing
+            customer={customer}
+            allPlans={allPlans}
+            activeSubscriptionCode={activePlanId}
+          />
+        );
       case "settings":
         return <SettingsPage />;
       case "payment-qr":
-        return <PaymentQR customer={customer} />;
+        return (
+          <PaymentQR
+            customer={customer}
+            activeSubscriptionCode={activePlanId}
+            onActiveSubscriptionChange={updateActiveSubscription}
+          />
+        );
       case "qr-generator":
-        return <QRGenerator customer={customer} isMqttConnected={isMqttConnected} />;
+        return (
+          <QRGenerator
+            customer={customer}
+            isMqttConnected={isMqttConnected}
+            activeSubscriptionCode={activePlanId}
+            onActiveSubscriptionChange={updateActiveSubscription}
+          />
+        );
       default:
         return <Dashboard customer={customer} />;
     }

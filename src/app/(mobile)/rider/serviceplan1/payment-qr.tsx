@@ -11,11 +11,25 @@ interface PaymentQRProps {
     id: number;
     partner_id?: number;
   } | null;
+  activeSubscriptionCode?: string | null;
+  onActiveSubscriptionChange?: (subscriptionCode: string) => void;
 }
 
-const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
+interface SubscriptionSummary {
+  id: number;
+  subscription_code: string;
+  status: string;
+  product_name?: string;
+}
+
+const PaymentQR: React.FC<PaymentQRProps> = ({
+  customer,
+  activeSubscriptionCode,
+  onActiveSubscriptionChange,
+}) => {
   const { t } = useI18n();
   const [subscriptionCode, setSubscriptionCode] = useState<string | null>(null);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary[]>([]);
   const [transactionId, setTransactionId] = useState<string>("");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isFetchingSubscription, setIsFetchingSubscription] = useState<boolean>(false);
@@ -68,17 +82,23 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
       const data = await response.json();
       
       if (data.success && Array.isArray(data.subscriptions) && data.subscriptions.length > 0) {
-        // Get the first active subscription or the first one available
-        const activeSubscription = data.subscriptions.find(
+        setSubscriptions(data.subscriptions);
+
+        const selectedSubscription = activeSubscriptionCode
+          ? data.subscriptions.find((sub: SubscriptionSummary) => sub.subscription_code === activeSubscriptionCode)
+          : null;
+        const activeSubscription = selectedSubscription || data.subscriptions.find(
           (sub: any) => sub.status === "active"
         ) || data.subscriptions[0];
         
         if (activeSubscription?.subscription_code) {
           setSubscriptionCode(activeSubscription.subscription_code);
+          onActiveSubscriptionChange?.(activeSubscription.subscription_code);
         } else {
           toast.error(t("No subscription code found"));
         }
       } else {
+        setSubscriptions([]);
         toast.error(t("No subscriptions found"));
       }
     } catch (error) {
@@ -87,7 +107,14 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
     } finally {
       setIsFetchingSubscription(false);
     }
-  }, [customer, t]);
+  }, [customer, t, activeSubscriptionCode, onActiveSubscriptionChange]);
+
+  useEffect(() => {
+    if (!activeSubscriptionCode) return;
+    if (subscriptions.some((sub) => sub.subscription_code === activeSubscriptionCode)) {
+      setSubscriptionCode(activeSubscriptionCode);
+    }
+  }, [activeSubscriptionCode, subscriptions]);
 
   const handleGenerateQR = useCallback(async () => {
     if (!subscriptionCode || !transactionId.trim() || !authToken) {
@@ -139,6 +166,24 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ customer }) => {
         {/* Subscription Code */}
         <div>
           <label className="form-label">{t("Subscription Code")}</label>
+          {!isFetchingSubscription && subscriptions.length > 1 && (
+            <select
+              value={subscriptionCode || ""}
+              onChange={(e) => {
+                const nextCode = e.target.value;
+                setSubscriptionCode(nextCode);
+                setQrDataUrl(null);
+                onActiveSubscriptionChange?.(nextCode);
+              }}
+              className="form-input mb-3"
+            >
+              {subscriptions.map((sub) => (
+                <option key={sub.id} value={sub.subscription_code}>
+                  {sub.subscription_code} - {sub.product_name || sub.status}
+                </option>
+              ))}
+            </select>
+          )}
           {isFetchingSubscription ? (
             <div className="flex items-center gap-2" style={{ color: 'var(--accent)' }}>
               <Loader2 className="w-4 h-4 animate-spin" />
