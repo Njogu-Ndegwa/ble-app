@@ -160,7 +160,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <div className="rider-name">{userName}</div>
       </div>
 
-      {/* My Bike Card */}
+      {/* My Bike Card (includes Account Balance) */}
       <div className="rider-bike-card">
         <div className="rider-bike-header">
           <div>
@@ -192,18 +192,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 {t("rider.vehicleId") || "Vehicle ID"}
               </span>
               {isLoadingBike ? (
-                <span
-                  className="rider-bike-detail-value"
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <div
-                    className="loading-spinner"
-                    style={{ width: 14, height: 14, borderWidth: 2 }}
-                  ></div>
-                  <span style={{ opacity: 0.6 }}>
-                    {t("common.loading") || "Loading..."}
-                  </span>
-                </span>
+                <span className="rider-skeleton rider-skeleton-value" />
               ) : (
                 <span className="rider-bike-detail-value">
                   {bike.vehicleId || "N/A"}
@@ -215,18 +204,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 {t("rider.lastSwap") || "Last Swap"}
               </span>
               {isLoadingBike ? (
-                <span
-                  className="rider-bike-detail-value"
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <div
-                    className="loading-spinner"
-                    style={{ width: 14, height: 14, borderWidth: 2 }}
-                  ></div>
-                  <span style={{ opacity: 0.6 }}>
-                    {t("common.loading") || "Loading..."}
-                  </span>
-                </span>
+                <span className="rider-skeleton rider-skeleton-value" />
               ) : (
                 <span className="rider-bike-detail-value">
                   {bike.lastSwap || "N/A"}
@@ -238,18 +216,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 {t("rider.totalSwaps") || "Total Swaps"}
               </span>
               {isLoadingBike ? (
-                <span
-                  className="rider-bike-detail-value"
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <div
-                    className="loading-spinner"
-                    style={{ width: 14, height: 14, borderWidth: 2 }}
-                  ></div>
-                  <span style={{ opacity: 0.6 }}>
-                    {t("common.loading") || "Loading..."}
-                  </span>
-                </span>
+                <span className="rider-skeleton rider-skeleton-value rider-skeleton-value-sm" />
               ) : (
                 <span className="rider-bike-detail-value">
                   {bike.totalSwaps}
@@ -258,40 +225,51 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Account Balance Card */}
-      <div className="account-balance-card">
-        <div className="account-balance-info">
-          <div className="account-balance-icon">
+        {/* Account Balance - integrated into the bike card */}
+        <div className="rider-bike-balance">
+          <div className="rider-bike-balance-info">
+            <div className="rider-bike-balance-label">
+              {t("rider.accountBalance") || "Account Balance"}
+            </div>
+            {isLoadingBike ? (
+              <span className="rider-skeleton rider-skeleton-balance" />
+            ) : (
+              <div className="rider-bike-balance-value">
+                {currency} {balance.toLocaleString()}
+              </div>
+            )}
+          </div>
+          <button
+            className="rider-bike-balance-action"
+            onClick={onTopUp}
+            aria-label={t("rider.topUp") || "Top Up"}
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M12 6v12M8 10h8M8 14h8"></path>
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-          </div>
-          <div>
-            <div className="account-balance-label">
-              {t("rider.accountBalance") || "Account Balance"}
-            </div>
-            <div className="account-balance-value">
-              {currency} {balance.toLocaleString()}
-            </div>
-          </div>
+            <span>{t("rider.topUp") || "Top Up"}</span>
+          </button>
         </div>
-        <button className="account-balance-action" onClick={onTopUp}>
-          {t("rider.topUp") || "Top Up"}
-        </button>
       </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <div className="quick-action" onClick={onFindStation}>
-          <div className="quick-action-icon">
+      {/* Quick Actions - compact action pills */}
+      <div className="rider-quick-pills">
+        <button
+          type="button"
+          className="rider-quick-pill"
+          onClick={onFindStation}
+        >
+          <span className="rider-quick-pill-icon">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -299,17 +277,34 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
-          </div>
-          <span className="quick-action-label">
+          </span>
+          <span className="rider-quick-pill-label">
             {t("rider.findStation") || "Find Station"}
           </span>
-        </div>
-        <div className="quick-action" onClick={onShowQRCode}>
-          <div className="quick-action-icon">
+          <svg
+            className="rider-quick-pill-chevron"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="rider-quick-pill"
+          onClick={onShowQRCode}
+        >
+          <span className="rider-quick-pill-icon">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -317,17 +312,30 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <rect x="3" y="3" width="7" height="7" />
               <rect x="14" y="3" width="7" height="7" />
               <rect x="14" y="14" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" />
             </svg>
-          </div>
-          <span className="quick-action-label">
+          </span>
+          <span className="rider-quick-pill-label">
             {t("rider.myQrCode") || "My QR Code"}
           </span>
-        </div>
+          <svg
+            className="rider-quick-pill-chevron"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
       </div>
 
       {/* Nearby Stations Section */}
@@ -343,35 +351,19 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       </div>
 
       {isLoadingStations ? (
-        <div
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "40px 20px",
-            textAlign: "center",
-            marginTop: "12px",
-          }}
-        >
-          <div
-            className="loading-spinner"
-            style={{
-              width: 32,
-              height: 32,
-              borderWidth: 3,
-              margin: "0 auto 16px",
-            }}
-          ></div>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "var(--text-muted)",
-              lineHeight: "1.5",
-              margin: 0,
-            }}
-          >
-            {t("common.loading") || "Loading stations..."}
-          </p>
+        <div className="rider-stations-skeleton">
+          <div className="rider-skeleton rider-skeleton-map" />
+          <div className="rider-stations-skeleton-list">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rider-skeleton-station">
+                <div className="rider-skeleton rider-skeleton-station-icon" />
+                <div className="rider-skeleton-station-body">
+                  <div className="rider-skeleton rider-skeleton-station-name" />
+                  <div className="rider-skeleton rider-skeleton-station-meta" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : nearbyStations.length === 0 ? (
         <div

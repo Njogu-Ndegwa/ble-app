@@ -7489,120 +7489,239 @@ html.theme-transition *::after {
   text-align: right;
 }
 
-/* Account Balance Card */
-.account-balance-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  margin-bottom: 16px;
+/* Account Balance - integrated into the My Bike card */
+.rider-bike-balance {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
 }
 
-.account-balance-info {
+.rider-bike-balance-info {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.account-balance-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  background: var(--accent-soft);
-}
-
-.account-balance-icon svg {
-  width: 20px;
-  height: 20px;
-  color: var(--accent);
-}
-
-.account-balance-label {
-  font-size: 11px;
+.rider-bike-balance-label {
+  font-size: 10px;
+  font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 2px;
-  text-transform: capitalize;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.account-balance-value {
+.rider-bike-balance-value {
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
   font-family: 'DM Mono', monospace;
+  letter-spacing: -0.01em;
 }
 
-.account-balance-action {
-  padding: 10px 20px;
+.rider-bike-balance-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
   background: var(--accent);
   border: none;
   border-radius: var(--radius-md);
   color: #000;
   font-family: 'Outfit', sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-.account-balance-action:hover {
+.rider-bike-balance-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rider-bike-balance-action:hover {
   opacity: 0.9;
   transform: translateY(-1px);
 }
 
-/* Quick Actions */
-.quick-actions {
+.rider-bike-balance-action:active {
+  transform: translateY(0);
+}
+
+/* Quick action pills - compact horizontal buttons (Find Station / My QR Code) */
+.rider-quick-pills {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 20px;
 }
 
-.quick-action {
+.rider-quick-pill {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px 12px;
+  gap: 10px;
+  padding: 10px 12px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s ease;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
 }
 
-.quick-action:hover {
+.rider-quick-pill:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px -4px var(--accent-glow);
+  background: var(--bg-tertiary);
 }
 
-.quick-action-icon {
-  width: 44px;
-  height: 44px;
+.rider-quick-pill:active {
+  transform: scale(0.98);
+}
+
+.rider-quick-pill-icon {
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
+  flex-shrink: 0;
 }
 
-.quick-action-icon svg {
-  width: 22px;
-  height: 22px;
+.rider-quick-pill-icon svg {
+  width: 16px;
+  height: 16px;
   color: var(--accent);
 }
 
-.quick-action-label {
-  font-size: 11px;
-  font-weight: 500;
+.rider-quick-pill-label {
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rider-quick-pill-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.rider-quick-pill:hover .rider-quick-pill-chevron {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+/* Rider skeleton loading bars */
+.rider-skeleton {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.rider-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--border) 50%,
+    transparent 100%
+  );
+  animation: rider-skeleton-shimmer 1.4s infinite;
+}
+
+@keyframes rider-skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.rider-skeleton-value {
+  width: 80px;
+  height: 12px;
+}
+
+.rider-skeleton-value-sm {
+  width: 36px;
+}
+
+.rider-skeleton-balance {
+  width: 140px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+}
+
+/* Rider stations loading skeleton */
+.rider-stations-skeleton {
+  margin-top: 12px;
+}
+
+.rider-skeleton-map {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+}
+
+.rider-stations-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rider-skeleton-station {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.rider-skeleton-station-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rider-skeleton-station-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rider-skeleton-station-name {
+  width: 60%;
+  height: 12px;
+}
+
+.rider-skeleton-station-meta {
+  width: 40%;
+  height: 10px;
 }
 
 /* Rider Section Header */
@@ -9839,27 +9958,37 @@ html.theme-transition *::after {
     height: 85px;
   }
   
-  .account-balance-card {
-    padding: 12px;
-    margin-bottom: 12px;
+  .rider-bike-balance {
+    margin-top: 12px;
+    padding-top: 12px;
   }
-  
-  .account-balance-value {
+
+  .rider-bike-balance-value {
     font-size: 18px;
   }
-  
-  .quick-actions {
+
+  .rider-bike-balance-action {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .rider-quick-pills {
     gap: 8px;
     margin-bottom: 16px;
   }
-  
-  .quick-action {
-    padding: 12px 10px;
+
+  .rider-quick-pill {
+    padding: 10px;
+    gap: 8px;
   }
-  
-  .quick-action-icon {
-    width: 38px;
-    height: 38px;
+
+  .rider-quick-pill-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .rider-quick-pill-label {
+    font-size: 11px;
   }
   
   .stations-map {
