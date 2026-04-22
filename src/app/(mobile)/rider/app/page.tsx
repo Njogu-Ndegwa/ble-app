@@ -25,6 +25,9 @@ import Login from '../serviceplan1/login';
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 const API_KEY = "abs_connector_secret_key_2024";
+const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV1';
+const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const LOAD_FAILSAFE_TIMEOUT_MS = 15000;
 
 interface Customer {
   id: number;
@@ -56,6 +59,16 @@ interface Subscription {
   currency: string;
   cycle_interval: number;
   cycle_unit: string;
+}
+
+interface IdentificationCache {
+  subscriptionCode: string;
+  vehicleId: string | null;
+  totalSwaps: number;
+  paymentState?: string;
+  balance: number;
+  currency: string;
+  cachedAt: number;
 }
 
 interface WebViewJavascriptBridge {
@@ -225,8 +238,56 @@ const RiderApp: React.FC = () => {
   };
 
   // Fetch customer identification data to get vehicle ID and total swaps
-  const fetchCustomerIdentificationData = async (planId: string) => {
+  const getIdentificationCache = (subscriptionCode: string): IdentificationCache | null => {
+    try {
+      const rawCache = localStorage.getItem(RIDER_IDENTIFICATION_CACHE_KEY);
+      if (!rawCache) return null;
+
+      const parsed: IdentificationCache = JSON.parse(rawCache);
+      const isStale = Date.now() - parsed.cachedAt > IDENTIFICATION_CACHE_MAX_AGE_MS;
+      if (isStale || parsed.subscriptionCode !== subscriptionCode) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const setIdentificationCache = (cache: IdentificationCache) => {
+    try {
+      localStorage.setItem(RIDER_IDENTIFICATION_CACHE_KEY, JSON.stringify(cache));
+    } catch (error) {
+      console.warn('[RIDER] Failed to persist identification cache:', error);
+    }
+  };
+
+  const hydrateIdentificationCache = (subscriptionCode: string): boolean => {
+    const cached = getIdentificationCache(subscriptionCode);
+    if (!cached) return false;
+
+    setBalance(cached.balance);
+    setCurrency(cached.currency);
+    setBike((prev) => ({
+      ...prev,
+      vehicleId: cached.vehicleId,
+      totalSwaps: Math.floor(cached.totalSwaps || 0),
+      paymentState: cached.paymentState || prev.paymentState,
+    }));
+    setIsLoadingBike(false);
+    console.info('[PERF] ⚡ Hydrated rider identification from local cache');
+    return true;
+  };
+
+  const fetchCustomerIdentificationData = async (planId: string, options?: { keepLoading?: boolean }) => {
+    const keepLoading = options?.keepLoading ?? false;
     const startTime = performance.now();
+    const loadingFailSafeTimer = window.setTimeout(() => {
+      if (!keepLoading) {
+        console.warn('[PERF] ⏱️ IdentifyCustomer timeout guard triggered, stopping bike loader');
+        setIsLoadingBike(false);
+      }
+    }, LOAD_FAILSAFE_TIMEOUT_MS);
     console.info('[PERF] 🆔 IdentifyCustomer GraphQL - Starting...');
     try {
       // Generate unique correlation ID
@@ -372,12 +433,25 @@ const RiderApp: React.FC = () => {
         return updated;
       });
 
+      setIdentificationCache({
+        subscriptionCode: planId,
+        vehicleId,
+        totalSwaps: Math.floor(totalSwaps || 0),
+        paymentState: paymentState || undefined,
+        balance: energyValue,
+        currency: billingCurrency,
+        cachedAt: Date.now(),
+      });
+
     } catch (error) {
       console.error('[RIDER] Error fetching customer identification data:', error);
     } finally {
+      window.clearTimeout(loadingFailSafeTimer);
       const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
       console.warn(`[PERF] ✅ BIKE LOADING COMPLETE - Setting isLoadingBike=false after ${totalElapsed}ms from data load start`);
-      setIsLoadingBike(false);
+      if (!keepLoading) {
+        setIsLoadingBike(false);
+      }
     }
   };
 
@@ -577,6 +651,11 @@ const RiderApp: React.FC = () => {
     }
     const startTime = performance.now();
     console.warn('[PERF] 📦 Subscriptions API - Starting...');
+    const loadingFailSafeTimer = window.setTimeout(() => {
+      console.warn('[PERF] ⏱️ Subscription timeout guard triggered, stopping loaders');
+      setIsLoadingBike(false);
+      setIsLoadingStations(false);
+    }, LOAD_FAILSAFE_TIMEOUT_MS);
     try {
       const response = await fetch(`${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`, {
         method: 'GET',
@@ -609,9 +688,6 @@ const RiderApp: React.FC = () => {
           });
           setSubscription(activeSubscription);
           
-          // Set loading state immediately when we have a subscription (before fetching)
-          setIsLoadingBike(true);
-          
           // Update bike payment state with subscription status
           setBike(prev => ({
             ...prev,
@@ -622,12 +698,16 @@ const RiderApp: React.FC = () => {
           if (activeSubscription.subscription_code) {
             const subscriptionCode = activeSubscription.subscription_code;
             console.log('[PERF] 🚀 Starting PARALLEL fetch: Activity + IdentifyCustomer');
+            const usedCache = hydrateIdentificationCache(subscriptionCode);
+            if (!usedCache) {
+              setIsLoadingBike(true);
+            }
             
             // Run both fetches in parallel - each updates its own state independently
             // This way bike data shows as soon as it's ready, without waiting for activity
             Promise.all([
               fetchActivityData(subscriptionCode),
-              fetchCustomerIdentificationData(subscriptionCode),
+              fetchCustomerIdentificationData(subscriptionCode, { keepLoading: usedCache }),
             ]).then(() => {
               console.log('[PERF] ✅ Both Activity and IdentifyCustomer completed');
             }).catch((err) => {
@@ -639,21 +719,25 @@ const RiderApp: React.FC = () => {
           }
         } else {
           console.warn('No subscriptions found in response');
+          setSubscription(null);
+          setIsLoadingBike(false);
+          setIsLoadingStations(false);
         }
+      } else {
+        console.warn('[PERF] Subscriptions API returned non-OK status, stopping loaders');
+        setSubscription(null);
+        setIsLoadingBike(false);
+        setIsLoadingStations(false);
       }
     } catch (error) {
       console.error('Error fetching subscription data:', error);
+      setSubscription(null);
+      setIsLoadingBike(false);
+      setIsLoadingStations(false);
+    } finally {
+      window.clearTimeout(loadingFailSafeTimer);
     }
   };
-
-  // Refetch activity when subscription changes
-  useEffect(() => {
-    if (subscription?.subscription_code) {
-      console.log('Subscription changed, fetching activity data:', subscription.subscription_code);
-      fetchActivityData(subscription.subscription_code);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subscription?.subscription_code]);
 
   // Fetch stations via MQTT - using direct bridge calls like serviceplan1
   // Now also supports prefetching: triggers when prefetch started OR when logged in
@@ -676,6 +760,9 @@ const RiderApp: React.FC = () => {
         bridge: !!bridge,
         webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
       });
+      if (isLoggedIn) {
+        setIsLoadingStations(false);
+      }
       return;
     }
 
@@ -864,6 +951,10 @@ const RiderApp: React.FC = () => {
 
     const fetchStationsFromGraphQL = async () => {
       const startTime = performance.now();
+      const loadingFailSafeTimer = window.setTimeout(() => {
+        console.warn('[PERF] ⏱️ Stations timeout guard triggered, stopping stations loader');
+        setIsLoadingStations(false);
+      }, LOAD_FAILSAFE_TIMEOUT_MS);
       console.info('[PERF] 📍 Stations GraphQL (getFleetAvatarsSummary) - Starting...');
       try {
         const authToken = localStorage.getItem('authToken_rider');
@@ -939,6 +1030,8 @@ const RiderApp: React.FC = () => {
 
         if (result.errors) {
           console.error('[STATIONS] GraphQL errors:', result.errors);
+          setStations([]);
+          setIsLoadingStations(false);
           return;
         }
 
@@ -947,6 +1040,8 @@ const RiderApp: React.FC = () => {
 
         if (!data || !data.fleets || !Array.isArray(data.fleets)) {
           console.warn('[STATIONS] Invalid response structure from GraphQL API');
+          setStations([]);
+          setIsLoadingStations(false);
           return;
         }
 
@@ -1005,6 +1100,8 @@ const RiderApp: React.FC = () => {
         console.error('[STATIONS] Error fetching stations from GraphQL:', error);
         setIsLoadingStations(false);
         setStations([]);
+      } finally {
+        window.clearTimeout(loadingFailSafeTimer);
       }
     };
 
