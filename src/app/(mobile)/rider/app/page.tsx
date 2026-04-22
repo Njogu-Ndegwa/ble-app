@@ -876,6 +876,17 @@ const RiderApp: React.FC = () => {
     const mqttStartTime = performance.now();
     console.info('[PERF] ðŸ“¡ MQTT Fleet IDs Request - Starting...');
 
+    // Failsafe timeout: if MQTT never responds with fleet IDs, stop the loader
+    // so the user isn't stuck watching a spinner forever.
+    let fleetIdsReceived = false;
+    const mqttFailsafeTimer = window.setTimeout(() => {
+      if (fleetIdsReceived) return;
+      const waited = Math.round(performance.now() - mqttStartTime);
+      console.warn(`[PERF] â±ï¸ MQTT Fleet IDs - timeout after ${waited}ms, no response received. Stopping stations loader.`);
+      setIsLoadingStations(false);
+      setStations([]);
+    }, LOAD_FAILSAFE_TIMEOUT_MS);
+
     // Generate unique correlation ID
     const correlationId = `asset-discovery-${Date.now()}`;
     
@@ -949,6 +960,8 @@ const RiderApp: React.FC = () => {
               const mqttElapsed = Math.round(performance.now() - mqttStartTime);
               console.info(`[PERF] ðŸ“¡ MQTT Fleet IDs - Response received in ${mqttElapsed}ms`);
               console.info('[STATIONS MQTT] âœ… Found swap station fleet IDs:', swapStationFleetIds);
+              fleetIdsReceived = true;
+              window.clearTimeout(mqttFailsafeTimer);
               setFleetIds(swapStationFleetIds);
             } else {
               console.warn('[STATIONS MQTT] No swap_station_fleet IDs found in response');
@@ -959,6 +972,8 @@ const RiderApp: React.FC = () => {
                 fleetIds: responseData?.data?.metadata?.fleet_ids,
                 fullResponse: responseData,
               });
+              fleetIdsReceived = true;
+              window.clearTimeout(mqttFailsafeTimer);
               setIsLoadingStations(false);
               setStations([]);
             }
@@ -1027,6 +1042,7 @@ const RiderApp: React.FC = () => {
 
     // Cleanup on unmount or when dependencies change
     return () => {
+      window.clearTimeout(mqttFailsafeTimer);
       if (stationsSubscriptionRef.current) {
         stationsSubscriptionRef.current();
         stationsSubscriptionRef.current = null;
@@ -1489,7 +1505,6 @@ const RiderApp: React.FC = () => {
               isLoadingBike={isLoadingBike}
               onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
-              onTopUp={handleTopUp}
               onSelectStation={handleSelectStation}
               onViewAllStations={() => setCurrentScreen('stations')}
             />
