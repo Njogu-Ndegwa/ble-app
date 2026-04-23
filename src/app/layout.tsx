@@ -26,7 +26,7 @@ import { I18nProvider } from "@/i18n";
 import { ThemeProvider } from './context/themeContext';
 
 // ── vConsole toggle (set to true to enable, false to disable) ──
-const ENABLE_VCONSOLE = true;
+const ENABLE_VCONSOLE = false;
 
 export default function RootLayout({
   children,

@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import {
   Zap,
   Navigation,
-  ChevronRight,
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
@@ -78,27 +77,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const { t } = useI18n();
   const { location: userLocation } = useGeolocation();
 
-  // Debug: log what we received so we can see which branch the render picks.
-  if (typeof window !== 'undefined') {
-    const branch = nearbyStations.length > 0
-      ? 'list'
-      : isLoadingStations
-      ? 'skeleton'
-      : stationsError
-      ? 'error-card'
-      : hasSubscription
-      ? 'empty-subscribed'
-      : 'no-subscription';
-    console.info('[STATIONS] 🏠 RiderHome render', {
-      branch,
-      nearbyStationsCount: nearbyStations.length,
-      isLoadingStations,
-      stationsError,
-      hasSubscription,
-      hasUserLocation: !!userLocation,
-    });
-  }
-
   const stationsWithDistance = useMemo(() => {
     return nearbyStations.map((station) => {
       if (!userLocation || station.lat == null || station.lng == null) {
@@ -112,9 +90,12 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     });
   }, [nearbyStations, userLocation]);
 
+  // Plot the *entire* list of nearby stations — same source of truth as the
+  // full Stations screen so the two maps can never disagree. The underlying
+  // `RiderMap` handles crowding via marker clustering.
   const mapStations: RiderStation[] = useMemo(
     () =>
-      nearbyStations.slice(0, 5).map((s) => ({
+      nearbyStations.map((s) => ({
         id: s.id,
         name: s.name,
         address: "",
@@ -589,10 +570,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               onSelectStation={(id) => id != null && onSelectStation(id)}
               preview
             />
-            <div className="rm-home-map-cta">
-              <span>{t("rider.map.openFullMap") || "Open full map"}</span>
-              <ChevronRight size={14} />
-            </div>
           </div>
 
           {/* Horizontal carousel — same card as full-screen peek */}

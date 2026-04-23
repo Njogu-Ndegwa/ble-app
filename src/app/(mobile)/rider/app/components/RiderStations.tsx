@@ -76,25 +76,6 @@ export default function RiderStations({
   const { t } = useI18n();
   const { location, status: geoStatus, requestLocation } = useGeolocation();
 
-  // Debug: log what the component received so the overlay state is traceable.
-  if (typeof window !== 'undefined') {
-    const overlay = isLoading
-      ? 'loading'
-      : stationsError && stations.length === 0
-      ? 'error'
-      : stations.length === 0
-      ? 'empty'
-      : 'map-ready';
-    console.info('[STATIONS] 🗺 RiderStations render', {
-      overlay,
-      stationsCount: stations.length,
-      isLoading,
-      stationsError,
-      geoStatus,
-      hasLocation: !!location,
-    });
-  }
-
   const [view, setView] = useState<View>("map");
   const [selectedId, setSelectedId] = useState<number | null>(
     initialSelectedStationId ?? null,
