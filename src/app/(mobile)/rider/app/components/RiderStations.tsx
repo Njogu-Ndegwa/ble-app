@@ -8,7 +8,6 @@ import {
   X,
   Crosshair,
   MapPin,
-  CornerUpRight,
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
@@ -286,7 +285,7 @@ export default function RiderStations({
             aria-label={t("rider.stations.whereTo") || "Where to?"}
             title={t("rider.stations.whereTo") || "Where to?"}
           >
-            <CornerUpRight size={18} />
+            <Navigation size={18} />
           </button>
         </div>
 
