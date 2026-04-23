@@ -15,7 +15,6 @@ import {
   makeUserLocationIcon,
   makeClusterIcon,
 } from "./StationMarker";
-import { useTheme } from "@/app/context/themeContext";
 import { useRouting } from "./useRouting";
 
 // react-leaflet components are client-only and rely on `window`; load them
@@ -39,12 +38,13 @@ const MarkerClusterGroup = dynamic(
   { ssr: false },
 ) as unknown as React.ComponentType<any>;
 
-const BASEMAPS = {
-  light:
-    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-  dark:
-    "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-};
+// Single basemap for both light and dark themes. CARTO Voyager is highly
+// legible on small mobile viewports; the dark CARTO tiles (`dark_all`) are
+// too harsh and collapse labels/road contrast in practice. This matches the
+// pattern used by most operational map apps (PlugShare, ChargePoint, etc.)
+// where the map is its own always-light surface regardless of app theme.
+const BASEMAP_URL =
+  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 const ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
@@ -80,7 +80,6 @@ export default function RiderMap({
   preview = false,
   onMapReady,
 }: RiderMapProps) {
-  const { theme } = useTheme();
   const [map, setMap] = useState<LeafletMap | null>(null);
   const markerRefs = useRef<Map<number, LeafletMarker>>(new Map());
   const [leaflet, setLeaflet] = useState<typeof import("leaflet") | null>(null);
@@ -174,7 +173,7 @@ export default function RiderMap({
         }}
       >
         <TileLayer
-          url={theme === "light" ? BASEMAPS.light : BASEMAPS.dark}
+          url={BASEMAP_URL}
           attribution={ATTRIBUTION}
           maxZoom={19}
           subdomains={["a", "b", "c", "d"]}
