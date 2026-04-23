@@ -12978,34 +12978,39 @@ html.keyboard-open .customer-panel-unified {
   background: var(--bg-tertiary);
 }
 
-/* ---------- Station markers (compact chip + selected teardrop) ---------- */
-.rm-station-icon {
+/* ---------- Station markers (pill + selected teardrop + cluster) --------- */
+.rm-station-icon,
+.rm-cluster-icon {
   background: transparent !important;
   border: none !important;
 }
 
-/* Default unselected marker: small 28px round chip, single glyph.
-   Matches Google/Apple Maps POI density conventions on mobile. */
-.rm-chip-marker {
-  position: relative;
-  width: var(--rm-w, 28px);
-  height: var(--rm-w, 28px);
-  border-radius: 50%;
-  background: var(--rm-fill, #10b981);
-  color: var(--rm-text, #ffffff);
-  display: flex;
+/* Default unselected marker: compact pill with ⚡ glyph + battery count.
+   Matches ChargePoint / PlugShare / Electrify America conventions — the
+   glyph makes it readable as an electric asset, the count adds info,
+   and the footprint stays tight on dense maps. */
+.rm-pill-marker {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 3px;
+  height: 22px;
+  min-width: 36px;
+  padding: 0 7px 0 6px;
+  border-radius: 11px;
+  background: var(--rm-fill, #10b981);
+  color: #ffffff;
   box-shadow:
     0 0 0 2px #ffffff,
     0 2px 4px rgba(0, 0, 0, 0.22),
     0 4px 10px rgba(0, 0, 0, 0.12);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.rm-chip-marker:hover {
-  transform: scale(1.12);
+.rm-pill-marker:hover {
+  transform: scale(1.1);
   box-shadow:
     0 0 0 2px #ffffff,
     0 3px 8px rgba(0, 0, 0, 0.28),
@@ -13013,14 +13018,21 @@ html.keyboard-open .customer-panel-unified {
 }
 
 /* Empty stations recede visually so available ones stand out */
-.rm-chip-marker--empty {
+.rm-pill-marker--empty {
   opacity: 0.78;
   box-shadow:
     0 0 0 2px #ffffff,
     0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
-.rm-chip-marker-label {
+.rm-marker-bolt {
+  width: 10px;
+  height: 12px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.rm-pill-marker-label {
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
@@ -13033,9 +13045,6 @@ html.keyboard-open .customer-panel-unified {
   position: relative;
   width: var(--rm-w, 40px);
   height: var(--rm-h, 50px);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
   transform-origin: 50% 100%;
   transition: transform 0.18s ease;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.28));
@@ -13052,15 +13061,31 @@ html.keyboard-open .customer-panel-unified {
   height: 100%;
 }
 
-.rm-pin-label {
-  position: relative;
+.rm-pin-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: calc(var(--rm-w, 40px) * 1.0);
   z-index: 2;
+  pointer-events: none;
+}
+
+.rm-pin-content .rm-marker-bolt {
+  width: 11px;
+  height: 13px;
+}
+
+.rm-pin-label {
   color: var(--rm-text, #0f172a);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
-  margin-top: calc(var(--rm-w, 40px) * 0.28);
   user-select: none;
 }
 
@@ -13081,6 +13106,51 @@ html.keyboard-open .customer-panel-unified {
 @keyframes rm-pin-halo {
   0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.42; }
   100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
+}
+
+/* ---------- Cluster chip (replaces leaflet.markercluster defaults) ------- */
+
+/* Neutralize the library's default colored inner span so only our own
+   chip is visible. leaflet.markercluster wraps our divIcon HTML inside
+   .leaflet-marker-icon.marker-cluster which has a default background. */
+.leaflet-marker-icon.marker-cluster {
+  background: transparent !important;
+}
+.leaflet-marker-icon.marker-cluster > div {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.leaflet-marker-icon.marker-cluster span {
+  display: none !important;
+}
+
+.rm-cluster-marker {
+  width: var(--rm-size, 40px);
+  height: var(--rm-size, 40px);
+  border-radius: 50%;
+  background: var(--color-brand, #00e5e5);
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 0 0 6px rgba(0, 229, 229, 0.28),
+    0 4px 10px rgba(0, 0, 0, 0.22);
+  transition: transform 0.18s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rm-cluster-marker:hover {
+  transform: scale(1.06);
+}
+
+.rm-cluster-marker-label {
+  font-size: 13px;
+  line-height: 1;
 }
 
 /* ---------- User location (blue dot) ---------- */
@@ -13311,6 +13381,12 @@ html.keyboard-open .customer-panel-unified {
   background: var(--color-brand, #00e5e5);
   color: #0f172a;
   border-color: transparent;
+}
+
+.rm-chip--disabled,
+.rm-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .rm-chip-dot {

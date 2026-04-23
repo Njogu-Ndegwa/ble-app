@@ -3,25 +3,37 @@
 import L from "leaflet";
 
 /**
- * Station markers — sized like Google / Apple / PlugShare on mobile.
+ * Station markers — styled like PlugShare / ChargePoint / Electrify America
+ * on mobile.
  *
- * Unselected stations use a compact 28px *round chip* showing the battery
- * count — this keeps the map readable when many stations are visible. Only
- * the selected station inflates into a 40×50 teardrop pin with a pulsing
- * halo so users always know exactly which point is active.
+ * - **Unselected**: a compact **pill** (~36×22) carrying a lightning glyph and
+ *   the available-battery count. The glyph is what makes the marker readable
+ *   as an *electric asset* instead of a generic colored dot. Colors encode
+ *   availability (green = plenty, amber = low, slate = empty).
+ * - **Selected**: a 40×50 teardrop pin with a tail (so the exact lat/lng is
+ *   pinpointed) plus a pulsing halo.
+ * - **Cluster**: when stations merge at low zoom we render a branded bubble
+ *   showing the station count so it's obvious this is still "your" map and
+ *   not a generic cluster placeholder.
  *
- * Colors are inlined (not CSS vars) because Leaflet injects the HTML into a
- * pane outside the theme-scoped tree; CSS variables aren't reliably inherited
- * on every platform (iOS WKWebView in particular).
+ * Colors are inlined because Leaflet injects the HTML into a pane outside
+ * the theme-scoped tree; CSS variables aren't reliably inherited on every
+ * platform (iOS WKWebView in particular).
  */
 export type StationMarkerVariant = "available" | "low" | "empty" | "selected";
 
 const PALETTE = {
   available: { fill: "#10b981", text: "#ffffff" },
   low:       { fill: "#f59e0b", text: "#ffffff" },
-  empty:     { fill: "#94a3b8", text: "#ffffff" }, // muted slate so empty stations recede
+  empty:     { fill: "#94a3b8", text: "#ffffff" },
   selected:  { fill: "#00e5e5", text: "#0f172a" },
 } as const;
+
+const BOLT_WHITE =
+  `<svg class="rm-marker-bolt" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true" focusable="false"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>`;
+
+const BOLT_SLATE =
+  `<svg class="rm-marker-bolt" viewBox="0 0 24 24" fill="#0f172a" aria-hidden="true" focusable="false"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>`;
 
 export function makeStationIcon(
   variant: StationMarkerVariant,
@@ -30,34 +42,36 @@ export function makeStationIcon(
   if (variant === "selected") {
     return makeTeardropIcon(batteries);
   }
-  return makeChipIcon(variant, batteries);
+  return makePillIcon(variant, batteries);
 }
 
 /**
- * Compact round chip — 28px, single glyph, soft shadow.
- * Anchored at its center (iconAnchor = [14,14]) so clicks feel natural.
+ * Pill marker — ⚡ icon + count, rounded rectangle ~36×22. Mirrors the
+ * visual convention used by ChargePoint/PlugShare on zoomed-out maps.
  */
-function makeChipIcon(
+function makePillIcon(
   variant: Exclude<StationMarkerVariant, "selected">,
   batteries: number,
 ) {
-  const size = 28;
-  const { fill, text } = PALETTE[variant];
+  const w = 40;
+  const h = 22;
+  const { fill } = PALETTE[variant];
   const label = formatBatteries(batteries);
 
   const html = `
-    <div class="rm-chip-marker rm-chip-marker--${variant}"
-         style="--rm-w:${size}px;--rm-fill:${fill};--rm-text:${text};">
-      <span class="rm-chip-marker-label">${label}</span>
+    <div class="rm-pill-marker rm-pill-marker--${variant}"
+         style="--rm-fill:${fill};">
+      ${BOLT_WHITE}
+      <span class="rm-pill-marker-label">${label}</span>
     </div>
   `;
 
   return L.divIcon({
     className: "rm-station-icon",
     html,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -(size / 2) - 2],
+    iconSize: [w, h],
+    iconAnchor: [w / 2, h / 2],
+    popupAnchor: [0, -(h / 2) - 2],
   });
 }
 
@@ -77,7 +91,10 @@ function makeTeardropIcon(batteries: number) {
         <path d="M20 0C9 0 0.5 8.6 0.5 19.4c0 7.4 4 13.3 8.9 18.6 3.7 4 7.6 7.3 9.1 12 .3 1 1.6 1 1.9 0 1.5-4.7 5.5-8 9.1-12 4.9-5.3 9-11.2 9-18.6C39.5 8.6 31 0 20 0z"
           fill="${fill}" stroke="#ffffff" stroke-width="2.5" />
       </svg>
-      <span class="rm-pin-label">${label}</span>
+      <div class="rm-pin-content">
+        ${BOLT_SLATE}
+        <span class="rm-pin-label">${label}</span>
+      </div>
     </div>
   `;
 
@@ -85,7 +102,7 @@ function makeTeardropIcon(batteries: number) {
     className: "rm-station-icon",
     html,
     iconSize: [w, h],
-    iconAnchor: [w / 2, h - 2], // tail tip = exact lat/lng
+    iconAnchor: [w / 2, h - 2],
     popupAnchor: [0, -h],
   });
 }
@@ -94,6 +111,33 @@ function formatBatteries(n: number): string {
   if (n == null || Number.isNaN(n)) return "–";
   if (n > 99) return "99+";
   return String(n);
+}
+
+/**
+ * Cluster icon — brand-colored rounded chip showing the station count.
+ * Replaces leaflet.markercluster's default blue/yellow/red bubbles with
+ * something that matches the rest of the map surface.
+ *
+ * The returned value is what `MarkerClusterGroup`'s `iconCreateFunction`
+ * expects: a Leaflet `DivIcon`.
+ */
+export function makeClusterIcon(count: number): L.DivIcon {
+  // Three size tiers mirror markercluster's own buckets (small / medium / large).
+  const size = count < 10 ? 34 : count < 100 ? 40 : 46;
+  const label = count > 999 ? "999+" : String(count);
+
+  const html = `
+    <div class="rm-cluster-marker" style="--rm-size:${size}px;">
+      <span class="rm-cluster-marker-label">${label}</span>
+    </div>
+  `;
+
+  return L.divIcon({
+    className: "rm-cluster-icon",
+    html,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
 }
 
 /**

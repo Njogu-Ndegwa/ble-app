@@ -3,9 +3,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
+// leaflet.markercluster's default CSS is required so cluster bubbles get
+// their size/border-radius — without it they collapse to 0×0 and markers
+// appear to "vanish" at low zoom. Our own styles in globals.css override
+// the look but rely on this base layout.
+import "leaflet.markercluster/dist/MarkerCluster.css";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import type { RiderStation, GeoLocation } from "../types";
-import { makeStationIcon, makeUserLocationIcon } from "./StationMarker";
+import {
+  makeStationIcon,
+  makeUserLocationIcon,
+  makeClusterIcon,
+} from "./StationMarker";
 import { useTheme } from "@/app/context/themeContext";
 import { useRouting } from "./useRouting";
 
@@ -23,8 +32,8 @@ const Marker = dynamic(
   () => import("react-leaflet").then((m) => m.Marker),
   { ssr: false },
 );
-// Marker clustering. `react-leaflet-cluster` ships its own CSS so we only
-// need to import it here; the default export is the cluster group component.
+// Marker clustering. The underlying `leaflet.markercluster` plugin owns the
+// cluster container styles — see the `MarkerCluster.css` import above.
 const MarkerClusterGroup = dynamic(
   () => import("react-leaflet-cluster").then((m: any) => m.default ?? m),
   { ssr: false },
@@ -212,6 +221,9 @@ export default function RiderMap({
               showCoverageOnHover={false}
               spiderfyOnMaxZoom
               maxClusterRadius={60}
+              iconCreateFunction={(cluster: any) =>
+                makeClusterIcon(cluster.getChildCount())
+              }
             >
               {markers}
             </MarkerClusterGroup>

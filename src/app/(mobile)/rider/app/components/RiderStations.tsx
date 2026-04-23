@@ -104,6 +104,10 @@ export default function RiderStations({
     if (filter === "available") {
       list = list.filter((s) => s.batteries > 0);
     } else if (filter === "nearby") {
+      // "Within 5 km" only makes sense once geolocation has resolved; without
+      // a user location every station has `distanceKm === null` and the chip
+      // would produce a silent empty state. The chip itself is disabled in
+      // that case (see JSX below) but we still guard here defensively.
       list = list.filter((s) => s.distanceKm != null && s.distanceKm < 5);
     }
     return [...list].sort((a, b) => {
@@ -117,6 +121,20 @@ export default function RiderStations({
   const selected = selectedId != null
     ? withDistance.find((s) => s.id === selectedId) ?? null
     : null;
+
+  // Map markers should honor the active filter — otherwise tapping
+  // "Available" / "Within 5 km" appears to do nothing because every pin is
+  // still on the map. We always keep the currently-selected station visible
+  // even when it doesn't match the filter, so opening its details never
+  // makes the pin vanish from the map beneath the sheet.
+  const mapStations = useMemo(() => {
+    const inFilter = new Set(filteredStations.map((s) => s.id));
+    const result: RiderStation[] = filteredStations;
+    if (selected && !inFilter.has(selected.id)) {
+      return [...result, selected];
+    }
+    return result;
+  }, [filteredStations, selected]);
 
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -192,7 +210,7 @@ export default function RiderStations({
     >
       <div style={{ position: "absolute", inset: 0 }}>
         <RiderMap
-          stations={stations}
+          stations={mapStations}
           userLocation={location}
           selectedStationId={selectedId}
           onSelectStation={handleSelect}
@@ -242,8 +260,27 @@ export default function RiderStations({
             <button
               role="tab"
               aria-selected={filter === "nearby"}
-              className={`rm-chip${filter === "nearby" ? " rm-chip--active" : ""}`}
-              onClick={() => setFilter("nearby")}
+              aria-disabled={!location}
+              disabled={!location}
+              className={`rm-chip${filter === "nearby" ? " rm-chip--active" : ""}${
+                !location ? " rm-chip--disabled" : ""
+              }`}
+              onClick={() => {
+                if (!location) {
+                  toast.error(
+                    t("rider.locationRequired") ||
+                      "Enable location to filter by distance",
+                  );
+                  return;
+                }
+                setFilter("nearby");
+              }}
+              title={
+                !location
+                  ? t("rider.locationRequired") ||
+                    "Enable location to filter by distance"
+                  : undefined
+              }
             >
               <Crosshair size={11} />
               {t("rider.map.within5km") || "Within 5 km"}
