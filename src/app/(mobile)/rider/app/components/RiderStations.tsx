@@ -9,6 +9,8 @@ import {
   Crosshair,
   MapPin,
   CornerUpRight,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useI18n } from "@/i18n";
@@ -36,6 +38,10 @@ interface RiderStationsProps {
   isLoading: boolean;
   initialSelectedStationId?: number | null;
   onStationDeselected?: () => void;
+  /** Error code from the parent stations pipeline; truthy = fetch failed. */
+  stationsError?: string | null;
+  /** Re-run the stations fetch pipeline. */
+  onRetryStations?: () => void;
 }
 
 type View = "map" | "directions";
@@ -64,9 +70,30 @@ export default function RiderStations({
   isLoading,
   initialSelectedStationId,
   onStationDeselected,
+  stationsError = null,
+  onRetryStations,
 }: RiderStationsProps) {
   const { t } = useI18n();
   const { location, status: geoStatus, requestLocation } = useGeolocation();
+
+  // Debug: log what the component received so the overlay state is traceable.
+  if (typeof window !== 'undefined') {
+    const overlay = isLoading
+      ? 'loading'
+      : stationsError && stations.length === 0
+      ? 'error'
+      : stations.length === 0
+      ? 'empty'
+      : 'map-ready';
+    console.info('[STATIONS] 🗺 RiderStations render', {
+      overlay,
+      stationsCount: stations.length,
+      isLoading,
+      stationsError,
+      geoStatus,
+      hasLocation: !!location,
+    });
+  }
 
   const [view, setView] = useState<View>("map");
   const [selectedId, setSelectedId] = useState<number | null>(
@@ -306,6 +333,56 @@ export default function RiderStations({
             />
             <span>
               {t("rider.directions.loadingStations") || "Loading stations…"}
+            </span>
+          </div>
+        )}
+
+        {/* Fetch failed? Surface an error card centered on the map so the
+            rider knows the map is blank because of a load failure, not an
+            empty area. Retry button re-runs the full pipeline. */}
+        {!isLoading && stationsError && stations.length === 0 && (
+          <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 z-[460] rounded-2xl border border-border bg-bg-secondary shadow-2xl p-5 max-w-sm mx-auto">
+            <div className="flex flex-col items-center text-center">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
+                style={{ backgroundColor: "rgba(239, 68, 68, 0.12)" }}
+              >
+                <AlertCircle size={22} color="#ef4444" />
+              </div>
+              <p className="text-sm font-semibold text-text-primary mb-1">
+                {t("rider.stations.loadError") ||
+                  "Couldn't load stations"}
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed mb-4">
+                {t("rider.stations.loadErrorHint") ||
+                  "Check your connection and try again."}
+              </p>
+              {onRetryStations && (
+                <button
+                  type="button"
+                  onClick={onRetryStations}
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold"
+                  style={{
+                    backgroundColor: "var(--color-brand)",
+                    color: "#0f172a",
+                  }}
+                >
+                  <RefreshCw size={14} />
+                  <span>{t("rider.directions.retry") || "Retry"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Finished loading but no stations returned and no error: the rider
+            genuinely has no stations yet. Show a minimal pill so the empty
+            map isn't ambiguous. */}
+        {!isLoading && !stationsError && stations.length === 0 && (
+          <div className="absolute left-1/2 -translate-x-1/2 top-3 z-[460] flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-bg-secondary shadow-lg text-xs text-text-secondary">
+            <MapPin size={12} />
+            <span>
+              {t("rider.noStationsFound") || "No stations found"}
             </span>
           </div>
         )}

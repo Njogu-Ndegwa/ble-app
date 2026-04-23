@@ -91,13 +91,36 @@ export default function RiderMap({
 
   useEffect(() => {
     let cancelled = false;
-    import("leaflet").then((L) => {
-      if (!cancelled) setLeaflet(L);
+    console.info('[MAP] 📦 RiderMap mounting — importing leaflet', {
+      stationsCount: stations.length,
+      hasUserLocation: !!userLocation,
+      preview,
     });
+    import("leaflet")
+      .then((L) => {
+        if (!cancelled) {
+          console.info('[MAP] ✅ leaflet imported, version:', (L as any).version);
+          setLeaflet(L);
+        }
+      })
+      .catch((err) => {
+        console.error('[MAP] ❌ Failed to import leaflet', err);
+      });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (map) {
+      console.info('[MAP] 🗺 Leaflet map instance ready', {
+        size: map.getSize?.(),
+        center: map.getCenter?.(),
+        zoom: map.getZoom?.(),
+      });
+    }
+  }, [map]);
 
   const initialCenter = useMemo<[number, number]>(() => {
     if (userLocation) return [userLocation.lat, userLocation.lng];

@@ -826,34 +826,55 @@ const RiderApp: React.FC = () => {
     // Allow MQTT to start if either: logged in, OR prefetch has started (welcome screen visible)
     const canFetch = isLoggedIn || prefetchStartedRef.current;
     const hasFleetIds = fleetIds.length > 0;
-    
+
+    // Full state snapshot on every run of the MQTT effect. Lets us see at a
+    // glance why the pipeline did / didn't fire this tick.
+    console.info('[STATIONS] 🔁 MQTT effect tick', {
+      isLoggedIn,
+      canFetch,
+      subscriptionCode: subscription?.subscription_code ?? null,
+      hasCustomer: !!customer,
+      customerId: customer?.id ?? null,
+      bridgePresent: !!bridge,
+      webViewBridgePresent: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
+      fleetIdsCount: fleetIds.length,
+      stationsCount: stations.length,
+      isLoadingStations,
+      stationsError,
+    });
+
     if (!canFetch || !subscription?.subscription_code || !customer) {
-      if (canFetch) {
-        console.warn('[PERF] ðŸ“¡ MQTT - Waiting for dependencies:', {
-          hasSubscription: !!subscription?.subscription_code,
-          hasCustomer: !!customer,
-          isPrefetch: prefetchStartedRef.current && !isLoggedIn,
-        });
-      }
+      console.warn('[STATIONS] ⏸ MQTT early-return: waiting for dependencies', {
+        canFetch,
+        hasSubscription: !!subscription?.subscription_code,
+        hasCustomer: !!customer,
+        isPrefetch: prefetchStartedRef.current && !isLoggedIn,
+      });
       return;
     }
     // Fleet IDs already resolved, avoid re-subscribing and re-entering loading state.
     if (hasFleetIds) {
-      if (isLoggedIn) {
-        setIsLoadingStations(false);
-      }
-      return;
-    }
-    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) {
-      console.warn('[PERF] ðŸ“¡ MQTT - Bridge NOT ready:', {
-        bridge: !!bridge,
-        webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
+      console.info('[STATIONS] ⏭ MQTT early-return: fleet IDs already resolved', {
+        fleetIds,
+        stationsCount: stations.length,
       });
       if (isLoggedIn) {
         setIsLoadingStations(false);
       }
       return;
     }
+    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) {
+      console.warn('[STATIONS] ⏸ MQTT early-return: bridge NOT ready', {
+        bridge: !!bridge,
+        webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'SSR',
+      });
+      if (isLoggedIn) {
+        setIsLoadingStations(false);
+      }
+      return;
+    }
+    console.info('[STATIONS] ▶ MQTT effect proceeding — all gates passed');
 
     // Only set loading state if user is logged in (not during prefetch - don't show loading on welcome screen)
     if (isLoggedIn) {
@@ -972,7 +993,10 @@ const RiderApp: React.FC = () => {
               window.clearTimeout(mqttFailsafeTimer);
               setIsLoadingStations(false);
               setStations([]);
-              setStationsError('mqtt-empty');
+              // Empty fleet list is a legitimate "no stations assigned" state,
+              // not a failure — clear any stale error so the user isn't shown
+              // a Retry card for an API response that came back correctly.
+              setStationsError(null);
             }
             responseCallback({ success: true });
           } else {
@@ -1050,17 +1074,30 @@ const RiderApp: React.FC = () => {
   // Fetch stations from GraphQL when fleet IDs are available from MQTT response
   useEffect(() => {
     if (!fleetIds || fleetIds.length === 0) {
-      console.info('[STATIONS] Waiting for fleet IDs from MQTT response...');
+      console.info('[STATIONS] ⏳ GraphQL effect waiting for fleet IDs from MQTT', {
+        fleetIdsLen: fleetIds?.length ?? 0,
+        stationsLen: stations.length,
+        stationsError,
+      });
       return;
     }
 
     const normalizedFleetIds = [...fleetIds].sort();
     const fleetKey = normalizedFleetIds.join('|');
+    console.info('[STATIONS] 🧮 GraphQL effect tick', {
+      fleetIds: normalizedFleetIds,
+      fleetKey,
+      cachedKey: lastStationsFleetKeyRef.current,
+      cachedHit: lastStationsFleetKeyRef.current === fleetKey,
+      stationsLen: stations.length,
+    });
     if (lastStationsFleetKeyRef.current === fleetKey && stations.length > 0) {
+      console.info('[STATIONS] ⏭ GraphQL skipped — same fleet key, already have stations');
       setIsLoadingStations(false);
       return;
     }
 
+    console.info('[STATIONS] ▶ GraphQL starting fetch for fleet IDs', normalizedFleetIds);
     // Set loading state immediately when we know we're about to fetch
     setIsLoadingStations(true);
 
@@ -1208,14 +1245,24 @@ const RiderApp: React.FC = () => {
         if (allStations.length > 0) {
           const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
           console.warn(`[PERF] ðŸ“ STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
+          console.info('[STATIONS] ✅ Stations ready', {
+            count: allStations.length,
+            firstStation: allStations[0],
+            fleetKey,
+          });
           setStations(allStations);
           lastStationsFleetKeyRef.current = fleetKey;
           setStationsError(null);
         } else {
-          console.warn('[STATIONS] No stations found in GraphQL response');
+          console.warn('[STATIONS] ⚠ No stations found in GraphQL response (valid but empty)', {
+            fleetsReturned: data.fleets.length,
+            missingFleetIds: data.missingFleetIds,
+          });
           setStations([]);
           lastStationsFleetKeyRef.current = null;
-          setStationsError('graphql-empty');
+          // GraphQL responded correctly but nothing matched the fleet IDs —
+          // treat as an empty-but-valid state, not a load error.
+          setStationsError(null);
         }
         setIsLoadingStations(false);
       } catch (error) {
@@ -1238,6 +1285,9 @@ const RiderApp: React.FC = () => {
       console.warn('[STATIONS] No subscription code available, setting stations to empty');
       setIsLoadingStations(false);
       setStations([]);
+      // Not an error — clear any stale retry state carried over from a
+      // previous subscription that failed to load.
+      setStationsError(null);
     }
   }, [isLoggedIn, subscription?.subscription_code]);
 
@@ -1328,13 +1378,17 @@ const RiderApp: React.FC = () => {
    * resolves.
    */
   const refetchStations = React.useCallback(() => {
-    console.info('[STATIONS] Manual retry requested');
+    console.warn('[STATIONS] 🔄 Manual retry requested — resetting pipeline', {
+      previousStationsError: stationsError,
+      previousFleetIdsCount: fleetIds.length,
+      previousStationsCount: stations.length,
+    });
     setStationsError(null);
     setIsLoadingStations(true);
     lastStationsFleetKeyRef.current = null;
     setFleetIds([]);
     setStations([]);
-  }, []);
+  }, [stationsError, fleetIds.length, stations.length]);
 
   const planSheetItems: SelectSheetItem<string>[] = useMemo(
     () =>
@@ -1459,6 +1513,21 @@ const RiderApp: React.FC = () => {
     );
   }
 
+  // Render snapshot — logged every render so we can see exactly what the
+  // children will receive. Helps debug "map not loading" by confirming props.
+  if (typeof window !== 'undefined') {
+    console.info('[STATIONS] 🎬 Render snapshot', {
+      currentScreen,
+      isLoggedIn,
+      hasSubscription: !!subscription?.subscription_code,
+      subscriptionCode: subscription?.subscription_code ?? null,
+      isLoadingStations,
+      stationsError,
+      stationsCount: stations.length,
+      fleetIdsCount: fleetIds.length,
+    });
+  }
+
   // Main app
   return (
     <>
@@ -1551,6 +1620,8 @@ const RiderApp: React.FC = () => {
               isLoading={isLoadingStations}
               initialSelectedStationId={selectedStationId}
               onStationDeselected={() => setSelectedStationId(null)}
+              stationsError={stationsError}
+              onRetryStations={refetchStations}
             />
           )}
 

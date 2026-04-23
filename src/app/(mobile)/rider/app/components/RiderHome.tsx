@@ -78,6 +78,27 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const { t } = useI18n();
   const { location: userLocation } = useGeolocation();
 
+  // Debug: log what we received so we can see which branch the render picks.
+  if (typeof window !== 'undefined') {
+    const branch = nearbyStations.length > 0
+      ? 'list'
+      : isLoadingStations
+      ? 'skeleton'
+      : stationsError
+      ? 'error-card'
+      : hasSubscription
+      ? 'empty-subscribed'
+      : 'no-subscription';
+    console.info('[STATIONS] 🏠 RiderHome render', {
+      branch,
+      nearbyStationsCount: nearbyStations.length,
+      isLoadingStations,
+      stationsError,
+      hasSubscription,
+      hasUserLocation: !!userLocation,
+    });
+  }
+
   const stationsWithDistance = useMemo(() => {
     return nearbyStations.map((station) => {
       if (!userLocation || station.lat == null || station.lng == null) {
