@@ -132,6 +132,10 @@ const RiderApp: React.FC = () => {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+  // Set whenever any step of the map fetch fails (MQTT timeout, empty fleet,
+  // GraphQL error). Cleared on every successful load. Drives the retry/refresh
+  // affordance in `RiderHome`.
+  const [stationsError, setStationsError] = useState<string | null>(null);
   const [isLoadingBike, setIsLoadingBike] = useState(false);
   const [isBikeDataResolved, setIsBikeDataResolved] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
@@ -875,6 +879,7 @@ const RiderApp: React.FC = () => {
       console.warn(`[PERF] â±ï¸ MQTT Fleet IDs - timeout after ${waited}ms, no response received. Stopping stations loader.`);
       setIsLoadingStations(false);
       setStations([]);
+      setStationsError('mqtt-timeout');
     }, LOAD_FAILSAFE_TIMEOUT_MS);
 
     // Generate unique correlation ID
@@ -952,6 +957,7 @@ const RiderApp: React.FC = () => {
               console.info('[STATIONS MQTT] âœ… Found swap station fleet IDs:', swapStationFleetIds);
               fleetIdsReceived = true;
               window.clearTimeout(mqttFailsafeTimer);
+              setStationsError(null);
               setFleetIds(swapStationFleetIds);
             } else {
               console.warn('[STATIONS MQTT] No swap_station_fleet IDs found in response');
@@ -966,6 +972,7 @@ const RiderApp: React.FC = () => {
               window.clearTimeout(mqttFailsafeTimer);
               setIsLoadingStations(false);
               setStations([]);
+              setStationsError('mqtt-empty');
             }
             responseCallback({ success: true });
           } else {
@@ -1131,6 +1138,7 @@ const RiderApp: React.FC = () => {
           });
           setIsLoadingStations(false);
           setStations([]);
+          setStationsError('graphql-http');
           return;
         }
 
@@ -1140,6 +1148,7 @@ const RiderApp: React.FC = () => {
           console.error('[STATIONS] GraphQL errors:', result.errors);
           setStations([]);
           setIsLoadingStations(false);
+          setStationsError('graphql-errors');
           return;
         }
 
@@ -1150,6 +1159,7 @@ const RiderApp: React.FC = () => {
           console.warn('[STATIONS] Invalid response structure from GraphQL API');
           setStations([]);
           setIsLoadingStations(false);
+          setStationsError('graphql-shape');
           return;
         }
 
@@ -1200,10 +1210,12 @@ const RiderApp: React.FC = () => {
           console.warn(`[PERF] ðŸ“ STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
           setStations(allStations);
           lastStationsFleetKeyRef.current = fleetKey;
+          setStationsError(null);
         } else {
           console.warn('[STATIONS] No stations found in GraphQL response');
           setStations([]);
           lastStationsFleetKeyRef.current = null;
+          setStationsError('graphql-empty');
         }
         setIsLoadingStations(false);
       } catch (error) {
@@ -1211,6 +1223,7 @@ const RiderApp: React.FC = () => {
         setIsLoadingStations(false);
         setStations([]);
         lastStationsFleetKeyRef.current = null;
+        setStationsError('graphql-network');
       } finally {
         window.clearTimeout(loadingFailSafeTimer);
       }
@@ -1297,12 +1310,31 @@ const RiderApp: React.FC = () => {
     lastStationsFleetKeyRef.current = null;
     setStations([]);
     setIsLoadingStations(true);
+    setStationsError(null);
     setIsBikeDataResolved(false);
     setIsLoadingBike(true);
     fetchActivityData(sub.subscription_code);
     fetchCustomerIdentificationData(sub.subscription_code);
     toast.success(t('rider.switchedPlan') || 'Plan switched');
   };
+
+  /**
+   * Re-run the full stations pipeline (MQTT fleet discovery → GraphQL fetch).
+   *
+   * Implemented by resetting the memo keys so the two driving effects fire
+   * again. Used by the "Retry" button on the rider home when the map fails
+   * to load on first attempt — the main reason fetch ever fails is the MQTT
+   * failsafe timeout (bridge slow to respond), which a simple retry usually
+   * resolves.
+   */
+  const refetchStations = React.useCallback(() => {
+    console.info('[STATIONS] Manual retry requested');
+    setStationsError(null);
+    setIsLoadingStations(true);
+    lastStationsFleetKeyRef.current = null;
+    setFleetIds([]);
+    setStations([]);
+  }, []);
 
   const planSheetItems: SelectSheetItem<string>[] = useMemo(
     () =>
@@ -1499,6 +1531,9 @@ const RiderApp: React.FC = () => {
               }))}
               isLoadingStations={isLoadingStations}
               isLoadingBike={isLoadingBike}
+              stationsError={stationsError}
+              hasSubscription={!!subscription?.subscription_code}
+              onRefreshStations={refetchStations}
               onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
               onSelectStation={handleSelectStation}

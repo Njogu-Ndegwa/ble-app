@@ -3,7 +3,13 @@
 import React, { useMemo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Zap, Navigation, ChevronRight } from "lucide-react";
+import {
+  Zap,
+  Navigation,
+  ChevronRight,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
 import { useI18n } from "@/i18n";
 import { toast } from "react-hot-toast";
 import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeolocation";
@@ -41,6 +47,12 @@ interface RiderHomeProps {
   nearbyStations: Station[];
   isLoadingStations?: boolean;
   isLoadingBike?: boolean;
+  /** Opaque error code from the page-level stations pipeline; truthy = fetch failed. */
+  stationsError?: string | null;
+  /** Whether the rider actually has an active subscription; drives the empty-state copy. */
+  hasSubscription?: boolean;
+  /** Trigger a manual re-run of the MQTT → GraphQL stations fetch. */
+  onRefreshStations?: () => void;
   onFindStation: () => void;
   onShowQRCode: () => void;
   onSelectStation: (stationId: number) => void;
@@ -55,6 +67,9 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   nearbyStations,
   isLoadingStations = false,
   isLoadingBike = false,
+  stationsError = null,
+  hasSubscription = true,
+  onRefreshStations,
   onFindStation,
   onShowQRCode,
   onSelectStation,
@@ -337,11 +352,47 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <span className="rider-section-title">
           {t("rider.nearbyStations") || "Nearby Stations"}
         </span>
-        {nearbyStations.length > 0 && (
-          <span className="rider-section-link" onClick={onViewAllStations}>
-            {t("rider.viewMap") || "View Map"}
-          </span>
-        )}
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 10 }}
+        >
+          {onRefreshStations && (
+            <button
+              type="button"
+              onClick={onRefreshStations}
+              disabled={isLoadingStations}
+              aria-label={t("common.refresh") || "Refresh"}
+              title={t("common.refresh") || "Refresh"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--bg-tertiary)",
+                color: "var(--text-secondary)",
+                cursor: isLoadingStations ? "not-allowed" : "pointer",
+                opacity: isLoadingStations ? 0.5 : 1,
+                transition: "all 0.15s ease",
+              }}
+            >
+              <RefreshCw
+                size={14}
+                style={
+                  isLoadingStations
+                    ? { animation: "spin 1s linear infinite" }
+                    : undefined
+                }
+              />
+            </button>
+          )}
+          {nearbyStations.length > 0 && (
+            <span className="rider-section-link" onClick={onViewAllStations}>
+              {t("rider.viewMap") || "View Map"}
+            </span>
+          )}
+        </div>
       </div>
 
       {nearbyStations.length === 0 && isLoadingStations ? (
@@ -358,6 +409,73 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      ) : nearbyStations.length === 0 && stationsError ? (
+        <div
+          style={{
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            padding: "20px 18px",
+            textAlign: "center",
+            marginTop: "12px",
+          }}
+          role="alert"
+        >
+          <div
+            style={{
+              width: "52px",
+              height: "52px",
+              margin: "0 auto 14px",
+              borderRadius: "50%",
+              background: "rgba(239, 68, 68, 0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AlertCircle size={24} color="#ef4444" />
+          </div>
+          <p
+            style={{
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              margin: "0 0 4px",
+            }}
+          >
+            {t("rider.stations.loadError") || "Couldn't load stations"}
+          </p>
+          <p
+            style={{
+              fontSize: "13px",
+              color: "var(--text-muted)",
+              lineHeight: "1.5",
+              margin: "0 0 14px",
+            }}
+          >
+            {t("rider.stations.loadErrorHint") ||
+              "Check your connection and try again."}
+          </p>
+          {onRefreshStations && (
+            <button
+              type="button"
+              onClick={onRefreshStations}
+              className="rider-quick-pill"
+              style={{
+                display: "inline-flex",
+                width: "auto",
+                margin: 0,
+                padding: "8px 16px",
+                gap: 8,
+              }}
+            >
+              <RefreshCw size={14} />
+              <span className="rider-quick-pill-label">
+                {t("rider.directions.retry") || "Retry"}
+              </span>
+            </button>
+          )}
         </div>
       ) : nearbyStations.length === 0 ? (
         <div
@@ -407,9 +525,31 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               margin: 0,
             }}
           >
-            {t("rider.noStationsDesc") ||
-              "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
+            {hasSubscription
+              ? t("rider.noStationsFound") ||
+                "No stations found. Please check your subscription configuration."
+              : t("rider.noStationsDesc") ||
+                "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
           </p>
+          {hasSubscription && onRefreshStations && (
+            <button
+              type="button"
+              onClick={onRefreshStations}
+              className="rider-quick-pill"
+              style={{
+                display: "inline-flex",
+                width: "auto",
+                margin: "14px auto 0",
+                padding: "8px 16px",
+                gap: 8,
+              }}
+            >
+              <RefreshCw size={14} />
+              <span className="rider-quick-pill-label">
+                {t("common.refresh") || "Refresh"}
+              </span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="rm-home-stations">
