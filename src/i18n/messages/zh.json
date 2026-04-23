@@ -1103,6 +1103,8 @@
   "sales.profile.actions": "操作",
   
   "common.tryAgain": "重试",
+  "common.noResults": "暂无结果",
+  "common.current": "当前",
   "common.connected": "已连接",
   "common.failed": "失败",
   "common.retry": "重试",

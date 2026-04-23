@@ -6,7 +6,6 @@ export { default as RiderProfile } from './RiderProfile';
 export { default as RiderPlans } from './RiderPlans';
 export { default as RiderTransactions } from './RiderTransactions';
 export { default as RiderTickets } from './RiderTickets';
-export { default as SelectSubscription } from './SelectSubscription';
 export { default as QRCodeModal } from './QRCodeModal';
 export { default as TopUpModal } from './TopUpModal';
 export type { ActivityItem } from './RiderActivity';

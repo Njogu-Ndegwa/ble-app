@@ -1200,6 +1200,8 @@
   "sales.profile.actions": "Actions",
   
   "common.tryAgain": "Try Again",
+  "common.noResults": "No results",
+  "common.current": "Current",
   "common.connected": "Connected",
   "common.failed": "Failed",
   "common.retry": "Retry",

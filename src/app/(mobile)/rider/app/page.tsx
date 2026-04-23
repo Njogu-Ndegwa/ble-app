@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
@@ -19,10 +19,10 @@ import {
   RiderPlans,
   RiderTransactions,
   RiderTickets,
-  SelectSubscription,
   QRCodeModal,
   TopUpModal,
 } from './components';
+import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import AccountDetailsModal from './components/AccountDetailsModal';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
@@ -117,17 +117,6 @@ const RiderApp: React.FC = () => {
     | 'stations'
     | 'activity'
     | 'profile'
-    | 'selectSubscription'
-    | 'transactions'
-    | 'plans'
-    | 'tickets'
-  >('home');
-  const [previousScreen, setPreviousScreen] = useState<
-    | 'home'
-    | 'stations'
-    | 'activity'
-    | 'profile'
-    | 'selectSubscription'
     | 'transactions'
     | 'plans'
     | 'tickets'
@@ -135,6 +124,7 @@ const RiderApp: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [showAccountDetailsModal, setShowAccountDetailsModal] = useState(false);
+  const [showPlanSheet, setShowPlanSheet] = useState(false);
   
   // Data state
   const [balance, setBalance] = useState(0);
@@ -1291,13 +1281,12 @@ const RiderApp: React.FC = () => {
   };
 
   const openSelectSubscription = () => {
-    setPreviousScreen(currentScreen === 'selectSubscription' ? 'home' : currentScreen);
-    setCurrentScreen('selectSubscription');
+    setShowPlanSheet(true);
   };
 
   const handleSelectSubscription = (sub: Subscription) => {
+    setShowPlanSheet(false);
     if (sub.subscription_code === subscription?.subscription_code) {
-      setCurrentScreen(previousScreen);
       return;
     }
     setSubscription(sub);
@@ -1313,8 +1302,48 @@ const RiderApp: React.FC = () => {
     fetchActivityData(sub.subscription_code);
     fetchCustomerIdentificationData(sub.subscription_code);
     toast.success(t('rider.switchedPlan') || 'Plan switched');
-    setCurrentScreen(previousScreen);
   };
+
+  const planSheetItems: SelectSheetItem<string>[] = useMemo(
+    () =>
+      subscriptions.map((s) => {
+        const price = s.price_at_signup ?? 0;
+        const priceLabel =
+          price > 0
+            ? `${s.currency || ''} ${price.toLocaleString()}`.trim()
+            : '';
+        const validUntil = s.next_cycle_date
+          ? new Date(s.next_cycle_date).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : '';
+        const description = [priceLabel, validUntil ? `${t('rider.validUntil') || 'Valid until'} ${validUntil}` : '']
+          .filter(Boolean)
+          .join(' · ');
+        const badges: { label: string; variant: 'success' | 'warning' | 'neutral' }[] = [
+          {
+            label: s.status,
+            variant:
+              s.status === 'active'
+                ? 'success'
+                : s.status === 'pending'
+                  ? 'warning'
+                  : 'neutral',
+          },
+          { label: s.subscription_code, variant: 'neutral' },
+        ];
+        return {
+          value: s.subscription_code,
+          label: s.product_name,
+          description: description || undefined,
+          badges,
+          searchText: `${s.product_name} ${s.subscription_code} ${s.status}`,
+        };
+      }),
+    [subscriptions, t],
+  );
 
   const handleLogout = () => {
     // Clear all credentials from localStorage on logout
@@ -1394,43 +1423,6 @@ const RiderApp: React.FC = () => {
       <>
         <Toaster position="top-center" />
         <Login onLoginSuccess={handleLoginSuccess} />
-      </>
-    );
-  }
-
-  // Select Subscription is a dedicated full-screen flow (SA-style picker)
-  if (currentScreen === 'selectSubscription') {
-    return (
-      <>
-        <Toaster position="top-center" />
-        <SelectSubscription
-          subscriptions={subscriptions.map((s) => ({
-            id: s.id,
-            subscription_code: s.subscription_code,
-            status: s.status,
-            product_id: s.product_id,
-            product_name: s.product_name,
-            price_at_signup: s.price_at_signup,
-            currency: s.currency,
-            start_date: s.start_date,
-            next_cycle_date: s.next_cycle_date,
-          }))}
-          activeCode={subscription?.subscription_code || null}
-          loading={subscriptionsLoading}
-          error={subscriptionsError}
-          userName={customer?.name || ''}
-          onSelect={(sub) => {
-            const full = subscriptions.find((s) => s.subscription_code === sub.subscription_code);
-            if (full) handleSelectSubscription(full);
-          }}
-          onBack={() => setCurrentScreen(previousScreen)}
-          onRetry={() => {
-            if (customer?.partner_id) {
-              const token = localStorage.getItem('authToken_rider');
-              if (token) fetchSubscriptionData(customer.partner_id, token);
-            }
-          }}
-        />
       </>
     );
   }
@@ -1632,6 +1624,42 @@ const RiderApp: React.FC = () => {
         isOpen={showAccountDetailsModal}
         onClose={() => setShowAccountDetailsModal(false)}
         onPasswordChanged={handleLogout}
+      />
+
+      {/* Plan switcher — bottom-sheet picker, no full-screen navigation */}
+      <SelectSheet
+        isOpen={showPlanSheet}
+        onClose={() => setShowPlanSheet(false)}
+        title={t('rider.selectSubscription.title') || 'Switch plan'}
+        subtitle={
+          customer?.name
+            ? (t('rider.selectSubscription.welcome') || 'Welcome, {name}').replace(
+                '{name}',
+                customer.name,
+              )
+            : t('rider.selectSubscription.subtitle') || undefined
+        }
+        items={planSheetItems}
+        activeValue={subscription?.subscription_code || null}
+        loading={subscriptionsLoading}
+        error={subscriptionsError}
+        onRetry={() => {
+          if (customer?.partner_id) {
+            const token = localStorage.getItem('authToken_rider');
+            if (token) fetchSubscriptionData(customer.partner_id, token);
+          }
+        }}
+        emptyText={
+          t('rider.selectSubscription.emptyDesc') ||
+          "You don't have any active subscriptions."
+        }
+        searchable={subscriptions.length > 6}
+        onSelect={(item) => {
+          const full = subscriptions.find(
+            (s) => s.subscription_code === item.value,
+          );
+          if (full) handleSelectSubscription(full);
+        }}
       />
     </>
   );

@@ -115,3 +115,13 @@ export type { DetailScreenProps, DetailSection, DetailField, DetailAction } from
 // ============================================
 export { default as BottomNav, NavIcons } from './BottomNav';
 export type { NavItem, BottomNavProps } from './BottomNav';
+
+// ============================================
+// SELECT SHEET (bottom-sheet picker)
+// ============================================
+export { default as SelectSheet } from './SelectSheet';
+export type {
+  SelectSheetItem,
+  SelectSheetBadge,
+  SelectSheetBadgeVariant,
+} from './SelectSheet';

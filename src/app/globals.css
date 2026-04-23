@@ -12978,30 +12978,70 @@ html.keyboard-open .customer-panel-unified {
   background: var(--bg-tertiary);
 }
 
-/* ---------- Station pin (teardrop) ---------- */
+/* ---------- Station markers (compact chip + selected teardrop) ---------- */
 .rm-station-icon {
   background: transparent !important;
   border: none !important;
 }
 
+/* Default unselected marker: small 28px round chip, single glyph.
+   Matches Google/Apple Maps POI density conventions on mobile. */
+.rm-chip-marker {
+  position: relative;
+  width: var(--rm-w, 28px);
+  height: var(--rm-w, 28px);
+  border-radius: 50%;
+  background: var(--rm-fill, #10b981);
+  color: var(--rm-text, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 2px 4px rgba(0, 0, 0, 0.22),
+    0 4px 10px rgba(0, 0, 0, 0.12);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  cursor: pointer;
+}
+
+.rm-chip-marker:hover {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 3px 8px rgba(0, 0, 0, 0.28),
+    0 6px 14px rgba(0, 0, 0, 0.16);
+}
+
+/* Empty stations recede visually so available ones stand out */
+.rm-chip-marker--empty {
+  opacity: 0.78;
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.rm-chip-marker-label {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+
+/* Selected state — teardrop pin with tail for precise pinpoint + pulsing halo */
 .rm-pin {
   position: relative;
-  width: var(--rm-w, 42px);
-  height: var(--rm-h, 52px);
+  width: var(--rm-w, 40px);
+  height: var(--rm-h, 50px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
   transform-origin: 50% 100%;
   transition: transform 0.18s ease;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
-}
-
-.rm-pin:hover {
-  transform: scale(1.06);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.28));
 }
 
 .rm-pin--selected {
-  transform: scale(1.08);
   z-index: 10;
 }
 
@@ -13015,26 +13055,22 @@ html.keyboard-open .customer-panel-unified {
 .rm-pin-label {
   position: relative;
   z-index: 2;
-  color: var(--rm-text, #ffffff);
+  color: var(--rm-text, #0f172a);
   font-size: 14px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
-  margin-top: calc(var(--rm-w, 42px) * 0.26);
+  margin-top: calc(var(--rm-w, 40px) * 0.28);
   user-select: none;
-}
-
-.rm-pin--selected .rm-pin-label {
-  font-size: 17px;
 }
 
 .rm-pin-halo {
   position: absolute;
   left: 50%;
-  top: calc(var(--rm-w, 42px) * 0.48);
+  top: calc(var(--rm-w, 40px) * 0.48);
   transform: translate(-50%, -50%);
-  width: calc(var(--rm-w, 42px) * 1.6);
-  height: calc(var(--rm-w, 42px) * 1.6);
+  width: calc(var(--rm-w, 40px) * 1.6);
+  height: calc(var(--rm-w, 40px) * 1.6);
   border-radius: 50%;
   background: var(--rm-fill, #00e5e5);
   opacity: 0.28;
@@ -13812,4 +13848,345 @@ html.keyboard-open .customer-panel-unified {
 
 .rm-sub-chip-btn:hover {
   background: var(--accent-soft-hover, rgba(0, 229, 229, 0.18));
+}
+
+/* =================================================================
+ * SelectSheet — reusable bottom-sheet picker
+ * ================================================================= */
+
+.select-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: select-sheet-fade 180ms ease-out;
+}
+
+.select-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  min-height: 200px;
+  background: var(--bg-secondary);
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.35);
+  animation: select-sheet-slide 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .select-sheet-overlay {
+    align-items: center;
+  }
+  .select-sheet {
+    border-radius: 20px;
+    max-height: 78vh;
+    margin: 16px;
+  }
+}
+
+@keyframes select-sheet-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes select-sheet-slide {
+  from { transform: translateY(30px); opacity: 0.6; }
+  to   { transform: translateY(0);     opacity: 1;   }
+}
+
+.select-sheet-handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-default);
+  opacity: 0.8;
+  margin: 8px auto 0;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .select-sheet-handle { display: none; }
+}
+
+.select-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px 10px;
+  flex-shrink: 0;
+}
+
+.select-sheet-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.select-sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.select-sheet-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.select-sheet-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.select-sheet-close:hover {
+  background: var(--bg-elevated, var(--bg-tertiary));
+  color: var(--text-primary);
+}
+
+.select-sheet-search {
+  position: relative;
+  margin: 0 16px 8px;
+  flex-shrink: 0;
+}
+
+.select-sheet-search input {
+  width: 100%;
+  padding: 10px 32px 10px 34px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.select-sheet-search input:focus {
+  outline: none;
+  border-color: var(--color-brand, #00e5e5);
+}
+
+.select-sheet-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.select-sheet-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.select-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 8px 8px;
+}
+
+.select-sheet-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 36px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.select-sheet-state--error {
+  color: var(--color-error, #ef4444);
+}
+
+.select-sheet-retry {
+  margin-top: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.select-sheet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-sheet-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.select-sheet-item:hover:not(.select-sheet-item--disabled) {
+  background: var(--bg-tertiary);
+}
+
+.select-sheet-item--active {
+  background: var(--accent-soft, rgba(0, 229, 229, 0.08));
+  border-color: var(--color-brand, #00e5e5);
+}
+
+.select-sheet-item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.select-sheet-item-leading {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.select-sheet-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-sheet-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.select-sheet-item-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.select-sheet-item-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-brand, #00e5e5);
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.select-sheet-item-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.select-sheet-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.select-sheet-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+  line-height: 1.4;
+}
+
+.select-sheet-badge--success {
+  background: var(--color-success-soft, rgba(0, 217, 160, 0.12));
+  color: var(--color-success, #00d9a0);
+}
+.select-sheet-badge--warning {
+  background: var(--color-warning-soft, rgba(245, 158, 11, 0.12));
+  color: var(--color-warning, #f59e0b);
+}
+.select-sheet-badge--info {
+  background: var(--accent-soft, rgba(0, 229, 229, 0.12));
+  color: var(--color-brand, #00e5e5);
+}
+.select-sheet-badge--error {
+  background: var(--color-error-soft, rgba(239, 68, 68, 0.12));
+  color: var(--color-error, #ef4444);
+}
+.select-sheet-badge--neutral {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.select-sheet-item-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding-left: 8px;
+}
+
+.select-sheet-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }

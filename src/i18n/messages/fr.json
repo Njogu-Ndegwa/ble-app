@@ -1191,6 +1191,8 @@
   "sales.profile.actions": "Actions",
   
   "common.tryAgain": "Réessayer",
+  "common.noResults": "Aucun résultat",
+  "common.current": "Actuel",
   "common.connected": "Connecté",
   "common.failed": "Échoué",
   "common.retry": "Réessayer",
