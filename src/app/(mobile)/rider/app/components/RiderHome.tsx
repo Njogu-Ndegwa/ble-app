@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import {
   Zap,
   Navigation,
+  ChevronRight,
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
@@ -389,11 +390,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               />
             </button>
           )}
-          {nearbyStations.length > 0 && (
-            <span className="rider-section-link" onClick={onViewAllStations}>
-              {t("rider.viewMap") || "View Map"}
-            </span>
-          )}
         </div>
       </div>
 
@@ -570,6 +566,10 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               onSelectStation={(id) => id != null && onSelectStation(id)}
               preview
             />
+            <div className="rm-home-map-cta">
+              <span>{t("rider.map.openFullMap") || "Open full map"}</span>
+              <ChevronRight size={14} />
+            </div>
           </div>
 
           {/* Horizontal carousel — same card as full-screen peek */}

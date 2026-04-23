@@ -13838,6 +13838,25 @@ html.keyboard-open .customer-panel-unified {
   cursor: pointer;
 }
 
+.rm-home-map-cta {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  z-index: 400;
+  pointer-events: none;
+}
+
 /* Rider profile subscription chip */
 .rm-sub-chip {
   display: flex;
