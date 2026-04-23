@@ -167,7 +167,7 @@ export default function RiderMap({
         zoom={13}
         scrollWheelZoom={!preview}
         style={{ width: "100%", height: "100%" }}
-        zoomControl={!preview}
+        zoomControl={false}
         attributionControl={!preview}
         ref={(m) => {
           setMap(m ?? null);

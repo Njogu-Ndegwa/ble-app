@@ -10,6 +10,7 @@ import {
   Crosshair,
   MapPin,
   ChevronRight,
+  CornerUpRight,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useI18n } from "@/i18n";
@@ -17,8 +18,9 @@ import {
   useGeolocation,
   haversineKm,
   formatDistance,
+  type GeoStatus,
 } from "../hooks/useGeolocation";
-import type { RiderStation } from "../types";
+import type { GeoLocation, RiderStation } from "../types";
 import MapBottomSheet, { type SheetSnap } from "../map/MapBottomSheet";
 
 // Leaflet/react-leaflet are client-only and read `window` at module load, so
@@ -61,7 +63,7 @@ export default function RiderStations({
   onStationDeselected,
 }: RiderStationsProps) {
   const { t } = useI18n();
-  const { location } = useGeolocation();
+  const { location, status: geoStatus, requestLocation } = useGeolocation();
 
   const [selectedId, setSelectedId] = useState<number | null>(
     initialSelectedStationId ?? null,
@@ -122,6 +124,10 @@ export default function RiderStations({
     ? withDistance.find((s) => s.id === selectedId) ?? null
     : null;
 
+  const routeTarget = routeTargetId != null
+    ? withDistance.find((s) => s.id === routeTargetId) ?? null
+    : null;
+
   // Map markers should honor the active filter — otherwise tapping
   // "Available" / "Within 5 km" appears to do nothing because every pin is
   // still on the map. We always keep the currently-selected station visible
@@ -129,19 +135,24 @@ export default function RiderStations({
   // makes the pin vanish from the map beneath the sheet.
   const mapStations = useMemo(() => {
     const inFilter = new Set(filteredStations.map((s) => s.id));
-    const result: RiderStation[] = filteredStations;
-    if (selected && !inFilter.has(selected.id)) {
-      return [...result, selected];
+    const extras: RiderStation[] = [];
+    if (selected && !inFilter.has(selected.id)) extras.push(selected);
+    if (routeTarget && !inFilter.has(routeTarget.id) && routeTarget.id !== selected?.id) {
+      extras.push(routeTarget);
     }
-    return result;
-  }, [filteredStations, selected]);
+    return extras.length ? [...filteredStations, ...extras] : filteredStations;
+  }, [filteredStations, selected, routeTarget]);
 
   const carouselRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Selecting a station no longer clears an active route — once the rider has
+  // picked a destination we keep showing the route until they explicitly end
+  // it from the destination banner. This mirrors the Google/Apple-maps model
+  // where "selection" and "active navigation" are two independent things.
   const handleSelect = useCallback(
     (id: number | null) => {
       setSelectedId(id);
-      setRouteTargetId(null);
       if (id == null) {
         onStationDeselected?.();
         setSnap("peek");
@@ -152,6 +163,19 @@ export default function RiderStations({
     [onStationDeselected],
   );
 
+  const clearRoute = useCallback(() => {
+    setRouteTargetId(null);
+  }, []);
+
+  const focusSearch = useCallback(() => {
+    // Mirrors Google Maps' "Where to?" entry point: tapping the directions
+    // affordance jumps to the destination input so the rider can type/search
+    // a place to go. We also raise the sheet to `half` so suggestions are
+    // visible beneath the search bar.
+    if (snap === "peek") setSnap("half");
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  }, [snap]);
+
   // Keep the active carousel card scrolled into view when selection changes.
   useEffect(() => {
     if (selectedId == null || !carouselRef.current) return;
@@ -161,25 +185,67 @@ export default function RiderStations({
     if (el) el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [selectedId]);
 
-  const handleLocateMe = () => {
-    if (!location) {
-      toast.error(t("rider.locationRequired") || "Location is not available");
-      return;
-    }
-    setSelectedId(null);
-    setRouteTargetId(null);
-    setSnap("peek");
-  };
+  // Pick the right user-facing message based on *why* we don't have a fix yet:
+  // still acquiring → "Getting your location…"; denied → ask them to enable;
+  // unavailable/error → generic "not available". This is what the user sees
+  // when they tap Navigate/Locate-me before a first fix has arrived.
+  const geoErrorMessage = useCallback(
+    (status: GeoStatus) => {
+      if (status === 'denied') {
+        return (
+          t('rider.locationDenied') ||
+          t('rider.locationRequired') ||
+          'Location permission denied. Please enable location services.'
+        );
+      }
+      if (status === 'unavailable') {
+        return (
+          t('rider.locationUnavailable') ||
+          t('rider.locationRequired') ||
+          'Location is not available in this browser.'
+        );
+      }
+      if (status === 'locating' || status === 'idle') {
+        return t('rider.locationLoading') || 'Getting your location…';
+      }
+      return t('rider.locationRequired') || 'Location is not available';
+    },
+    [t],
+  );
+
+  // Common gate for actions that need the user's position: if we already
+  // have a fix, run immediately; otherwise kick off a one-shot request so
+  // the action succeeds as soon as the browser hands back coordinates.
+  const withUserLocation = useCallback(
+    async (run: (loc: GeoLocation) => void) => {
+      if (location) {
+        run(location);
+        return;
+      }
+      if (geoStatus === 'denied' || geoStatus === 'unavailable') {
+        toast.error(geoErrorMessage(geoStatus));
+        return;
+      }
+      const loadingToast = toast.loading(
+        t('rider.locationLoading') || 'Getting your location…',
+      );
+      try {
+        const loc = await requestLocation();
+        toast.dismiss(loadingToast);
+        run(loc);
+      } catch {
+        toast.dismiss(loadingToast);
+        toast.error(geoErrorMessage(geoStatus));
+      }
+    },
+    [location, geoStatus, requestLocation, geoErrorMessage, t],
+  );
 
   const handleNavigateInApp = (station: RiderStation) => {
-    if (!location) {
-      toast.error(
-        t("rider.locationRequired") || "Location is required for navigation",
-      );
-      return;
-    }
-    setRouteTargetId(station.id);
-    setSnap("peek");
+    void withUserLocation(() => {
+      setRouteTargetId(station.id);
+      setSnap('peek');
+    });
   };
 
   const handleOpenExternal = (
@@ -217,70 +283,112 @@ export default function RiderStations({
           routeTargetId={routeTargetId}
         />
 
-        {/* Top chrome: search + filter pills */}
+        {/* Top chrome: active-route banner, search bar, filter pills.
+            Search input and pills reuse the same design-system styling as the
+            Customers/Products `ListScreen` so the rider map feels consistent
+            with the rest of the app. */}
         <div className="rm-chrome-top">
-          <div className="rm-search">
-            <Search size={16} className="rm-search-icon" />
+          {routeTarget && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-bg-secondary shadow-lg">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--color-brand)' }}>
+                <Navigation size={15} color="#0f172a" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] uppercase tracking-wide text-text-muted leading-tight">
+                  {t("rider.stations.routingTo") || "Routing to"}
+                </div>
+                <div className="text-sm font-semibold text-text-primary truncate">
+                  {routeTarget.name}
+                </div>
+              </div>
+              <button
+                onClick={clearRoute}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors shrink-0"
+                aria-label={t("rider.stations.endRoute") || "End route"}
+                title={t("rider.stations.endRoute") || "End route"}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          <div className="relative shadow-lg rounded-xl">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search size={16} className="text-text-muted" />
+            </div>
             <input
+              ref={searchInputRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("rider.stations.search") || "Search stations..."}
-              aria-label={t("rider.stations.search") || "Search stations"}
+              placeholder={t("rider.stations.whereTo") || "Where to?"}
+              aria-label={t("rider.stations.whereTo") || "Where to?"}
+              onFocus={() => {
+                if (snap === "peek") setSnap("half");
+              }}
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
             {search && (
               <button
-                className="rm-search-clear"
                 onClick={() => setSearch("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-2.5"
                 aria-label={t("common.clear") || "Clear"}
               >
-                <X size={14} />
+                <X size={14} className="text-text-muted hover:text-text-primary" />
               </button>
             )}
           </div>
 
-          <div className="rm-chips" role="tablist">
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar" role="tablist">
             <button
               role="tab"
               aria-selected={filter === "all"}
-              className={`rm-chip${filter === "all" ? " rm-chip--active" : ""}`}
               onClick={() => setFilter("all")}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                filter === "all"
+                  ? "border-transparent text-text-inverse"
+                  : "border-border bg-bg-tertiary text-text-secondary"
+              }`}
+              style={filter === "all" ? { backgroundColor: "var(--color-brand)" } : undefined}
             >
               {t("rider.all") || "All"}
             </button>
             <button
               role="tab"
               aria-selected={filter === "available"}
-              className={`rm-chip${filter === "available" ? " rm-chip--active" : ""}`}
               onClick={() => setFilter("available")}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                filter === "available"
+                  ? "border-transparent text-text-inverse"
+                  : "border-border bg-bg-tertiary text-text-secondary"
+              }`}
+              style={filter === "available" ? { backgroundColor: "var(--color-brand)" } : undefined}
             >
-              <span className="rm-chip-dot rm-chip-dot--available" />
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: filter === "available" ? "#0f172a" : "#10b981" }}
+              />
               {t("rider.map.available") || "Available"}
             </button>
             <button
               role="tab"
               aria-selected={filter === "nearby"}
-              aria-disabled={!location}
-              disabled={!location}
-              className={`rm-chip${filter === "nearby" ? " rm-chip--active" : ""}${
-                !location ? " rm-chip--disabled" : ""
-              }`}
+              aria-disabled={geoStatus === "denied" || geoStatus === "unavailable"}
+              disabled={geoStatus === "denied" || geoStatus === "unavailable"}
               onClick={() => {
-                if (!location) {
-                  toast.error(
-                    t("rider.locationRequired") ||
-                      "Enable location to filter by distance",
-                  );
-                  return;
-                }
-                setFilter("nearby");
+                void withUserLocation(() => setFilter("nearby"));
               }}
-              title={
-                !location
-                  ? t("rider.locationRequired") ||
-                    "Enable location to filter by distance"
-                  : undefined
-              }
+              title={!location ? geoErrorMessage(geoStatus) : undefined}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                filter === "nearby"
+                  ? "border-transparent text-text-inverse"
+                  : "border-border bg-bg-tertiary text-text-secondary"
+              } ${
+                geoStatus === "denied" || geoStatus === "unavailable"
+                  ? "opacity-50 cursor-not-allowed"
+                  : ""
+              }`}
+              style={filter === "nearby" ? { backgroundColor: "var(--color-brand)" } : undefined}
             >
               <Crosshair size={11} />
               {t("rider.map.within5km") || "Within 5 km"}
@@ -288,7 +396,11 @@ export default function RiderStations({
           </div>
         </div>
 
-        {/* Right-side FAB stack */}
+        {/* Right-side FAB stack.
+            Primary FAB is the Google-Maps-style "Where to?" directions entry —
+            it focuses the destination input so the rider can pick where they
+            want to go, instead of the old "locate me" crosshair (which just
+            re-centered the map and didn't help them pick a destination). */}
         <div className="rm-fab-stack" style={{ bottom: typeof fabBottom === "number" ? `${fabBottom}px` : fabBottom }}>
           {selected && (
             <button
@@ -302,11 +414,11 @@ export default function RiderStations({
           )}
           <button
             className="rm-fab rm-fab--primary"
-            onClick={handleLocateMe}
-            aria-label={t("rider.map.locateMe") || "Locate me"}
-            title={t("rider.map.locateMe") || "Locate me"}
+            onClick={focusSearch}
+            aria-label={t("rider.stations.whereTo") || "Where to?"}
+            title={t("rider.stations.whereTo") || "Where to?"}
           >
-            <Crosshair size={18} />
+            <CornerUpRight size={18} />
           </button>
         </div>
       </div>
@@ -355,7 +467,9 @@ export default function RiderStations({
                 onClose={() => handleSelect(null)}
                 onNavigate={() => handleNavigateInApp(selected)}
                 onOpenExternal={(app) => handleOpenExternal(app, selected)}
-                canRoute={!!location}
+                canRoute={
+                  geoStatus !== "denied" && geoStatus !== "unavailable"
+                }
                 t={t}
               />
             ) : (
@@ -389,7 +503,9 @@ export default function RiderStations({
                 onClose={() => handleSelect(null)}
                 onNavigate={() => handleNavigateInApp(selected)}
                 onOpenExternal={(app) => handleOpenExternal(app, selected)}
-                canRoute={!!location}
+                canRoute={
+                  geoStatus !== "denied" && geoStatus !== "unavailable"
+                }
                 t={t}
                 compact
               />
