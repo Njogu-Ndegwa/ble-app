@@ -1797,5 +1797,12 @@
   "rider.map.low": "Faible",
   "rider.map.empty": "Vide",
   "rider.map.within5km": "Dans un rayon de 5 km",
+  "rider.map.nearby": "à proximité",
+  "rider.map.seeList": "Voir la liste",
+  "rider.map.seeMap": "Voir la carte",
+  "rider.map.availableBatteries": "Disponibles",
+  "rider.map.distance": "Distance",
+  "rider.map.eta": "ETA",
+  "rider.map.openFullMap": "Ouvrir la carte",
   "common.submitting": "Envoi..."
 }

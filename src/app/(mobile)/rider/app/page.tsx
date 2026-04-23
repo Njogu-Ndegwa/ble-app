@@ -1483,7 +1483,11 @@ const RiderApp: React.FC = () => {
         </header>
 
         {/* Main Content */}
-        <main className="rider-main">
+        <main
+          className={`rider-main${
+            currentScreen === 'stations' ? ' rider-main--full' : ''
+          }`}
+        >
           {currentScreen === 'home' && (
             <RiderHome
               userName={customer?.name || t('common.guest')}

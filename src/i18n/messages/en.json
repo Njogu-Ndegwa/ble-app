@@ -1807,5 +1807,12 @@
   "rider.map.low": "Low",
   "rider.map.empty": "Empty",
   "rider.map.within5km": "Within 5 km",
+  "rider.map.nearby": "nearby",
+  "rider.map.seeList": "See list",
+  "rider.map.seeMap": "See map",
+  "rider.map.availableBatteries": "Available",
+  "rider.map.distance": "Distance",
+  "rider.map.eta": "ETA",
+  "rider.map.openFullMap": "Open full map",
   "common.submitting": "Submitting..."
 }

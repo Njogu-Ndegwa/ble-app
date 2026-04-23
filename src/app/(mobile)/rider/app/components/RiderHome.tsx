@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
+import { Zap, Navigation, ChevronRight } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { toast } from "react-hot-toast";
 import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeolocation";
@@ -226,18 +227,32 @@ const RiderHome: React.FC<RiderHomeProps> = ({
 
         {/* Account Balance - integrated into the bike card */}
         <div className="rider-bike-balance">
-          <div className="rider-bike-balance-info">
-            <div className="rider-bike-balance-label">
-              {t("rider.accountBalance") || "Account Balance"}
-            </div>
-            {isLoadingBike ? (
-              <span className="rider-skeleton rider-skeleton-balance" />
-            ) : (
-              <div className="rider-bike-balance-value">
-                {currency} {balance.toLocaleString()}
-              </div>
-            )}
+          <div className="rider-bike-balance-label-row">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+              <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+              <path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z" />
+            </svg>
+            <span>{t("rider.accountBalance") || "Account Balance"}</span>
           </div>
+          {isLoadingBike ? (
+            <span className="rider-skeleton rider-skeleton-balance" />
+          ) : (
+            <div className="rider-bike-balance-value">
+              <span className="rider-bike-balance-currency">{currency}</span>
+              <span className="rider-bike-balance-amount">
+                {balance.toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -397,20 +412,14 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           </p>
         </div>
       ) : (
-        <div className="stations-map-container">
+        <div className="rm-home-stations">
           {/* Map preview (react-leaflet + CARTO) */}
           <div
-            style={{
-              width: "100%",
-              aspectRatio: "16 / 10",
-              borderRadius: "var(--radius-lg)",
-              overflow: "hidden",
-              border: "1px solid var(--border)",
-              background: "var(--bg-tertiary)",
-              marginBottom: "12px",
-              cursor: "pointer",
-            }}
+            className="rm-home-map"
             onClick={onViewAllStations}
+            role="button"
+            tabIndex={0}
+            aria-label={t("rider.viewMap") || "View Map"}
           >
             <RiderMap
               stations={mapStations}
@@ -419,70 +428,64 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               onSelectStation={(id) => id != null && onSelectStation(id)}
               preview
             />
+            <div className="rm-home-map-cta">
+              <span>{t("rider.map.openFullMap") || "Open full map"}</span>
+              <ChevronRight size={14} />
+            </div>
           </div>
 
-          {/* Station List */}
-          <div className="stations-list">
-            {stationsWithDistance.slice(0, 5).map((station) => (
-              <div
-                key={station.id}
-                className="station-item"
-                onClick={() => handleStationClick(station)}
-              >
-                <div className="station-icon">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  </svg>
-                </div>
-                <div className="station-info">
-                  <div className="station-name">{station.name}</div>
-                  <div className="station-details">
-                    <span className="station-distance-info">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        width="12"
-                        height="12"
-                      >
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-                      </svg>
-                      {station.calculatedDistance || station.distance}
-                    </span>
-                    <span className="station-availability">
-                      <span
-                        className={`station-availability-dot ${
-                          station.batteries === 0
-                            ? "empty"
-                            : station.batteries <= 3
-                              ? "low"
-                              : ""
-                        }`}
-                      ></span>
-                      {station.batteries}{" "}
-                      {station.batteries === 1
-                        ? t("rider.battery") || "battery"
-                        : t("rider.batteries") || "batteries"}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="station-nav-btn"
-                  onClick={(e) => handleNavigate(station, e)}
-                  aria-label={t("rider.map.navigate") || "Navigate"}
+          {/* Horizontal carousel — same card as full-screen peek */}
+          <div className="rm-carousel rm-carousel--home">
+            {stationsWithDistance.slice(0, 6).map((station) => {
+              const status =
+                station.batteries === 0
+                  ? "empty"
+                  : station.batteries <= 2
+                    ? "low"
+                    : "available";
+              return (
+                <div
+                  key={station.id}
+                  className="rm-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleStationClick(station)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") handleStationClick(station);
+                  }}
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <div className={`rm-card-badge rm-card-badge--${status}`}>
+                    <Zap size={14} />
+                    <span className="rm-card-badge-num">{station.batteries}</span>
+                  </div>
+                  <div className="rm-card-body">
+                    <div className="rm-card-title">{station.name}</div>
+                    <div className="rm-card-sub">
+                      <span>
+                        {status === "empty"
+                          ? t("rider.map.empty") || "Empty"
+                          : status === "low"
+                            ? t("rider.map.low") || "Low"
+                            : t("rider.map.available") || "Available"}
+                      </span>
+                      {(station.calculatedDistance || station.distance) && (
+                        <>
+                          <span className="rm-card-dot" />
+                          <span>{station.calculatedDistance || station.distance}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="rm-card-cta"
+                    onClick={(e) => handleNavigate(station, e)}
+                    aria-label={t("rider.map.navigate") || "Navigate"}
                   >
-                    <polygon points="3 11 22 2 13 21 11 13 3 11" />
-                  </svg>
-                </button>
-              </div>
-            ))}
+                    <Navigation size={16} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

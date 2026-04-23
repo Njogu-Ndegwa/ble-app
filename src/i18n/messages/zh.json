@@ -1710,5 +1710,12 @@
   "rider.map.low": "不足",
   "rider.map.empty": "空",
   "rider.map.within5km": "5 公里内",
+  "rider.map.nearby": "附近",
+  "rider.map.seeList": "查看列表",
+  "rider.map.seeMap": "查看地图",
+  "rider.map.availableBatteries": "可用",
+  "rider.map.distance": "距离",
+  "rider.map.eta": "预计时间",
+  "rider.map.openFullMap": "打开完整地图",
   "common.submitting": "提交中..."
 }
