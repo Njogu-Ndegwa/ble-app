@@ -22,8 +22,8 @@ import {
 import type { GeoLocation, RiderStation } from "../types";
 import RiderDirections from "./RiderDirections";
 
-// Leaflet/react-leaflet are client-only and read `window` at module load, so
-// the map must be dynamically imported with SSR disabled.
+// Google Maps is client-only and reads `window` at module load, so the map
+// must be dynamically imported with SSR disabled.
 const RiderMap = dynamic(() => import("../map/RiderMap"), { ssr: false });
 import {
   googleMapsUrl,

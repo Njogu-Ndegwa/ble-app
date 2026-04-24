@@ -12982,11 +12982,6 @@ html.keyboard-open .customer-panel-unified {
 }
 
 /* ---------- Station markers (pill + selected teardrop + cluster) --------- */
-.rm-station-icon,
-.rm-cluster-icon {
-  background: transparent !important;
-  border: none !important;
-}
 
 /* Default unselected marker: compact pill with ⚡ glyph + battery count.
    Matches ChargePoint / PlugShare / Electrify America conventions — the
@@ -13111,21 +13106,7 @@ html.keyboard-open .customer-panel-unified {
   100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
 }
 
-/* ---------- Cluster chip (replaces leaflet.markercluster defaults) ------- */
-
-/* Neutralize the library's default colored inner span so only our own
-   chip is visible. leaflet.markercluster wraps our divIcon HTML inside
-   .leaflet-marker-icon.marker-cluster which has a default background. */
-.leaflet-marker-icon.marker-cluster {
-  background: transparent !important;
-}
-.leaflet-marker-icon.marker-cluster > div {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-.leaflet-marker-icon.marker-cluster span {
-  display: none !important;
-}
+/* ---------- Cluster chip (branded MarkerClusterer renderer) ------------- */
 
 .rm-cluster-marker {
   width: var(--rm-size, 40px);

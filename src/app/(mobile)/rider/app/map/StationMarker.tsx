@@ -1,12 +1,12 @@
 "use client";
 
-import L from "leaflet";
+import React from "react";
 
 /**
  * Station markers — styled like PlugShare / ChargePoint / Electrify America
  * on mobile.
  *
- * - **Unselected**: a compact **pill** (~36×22) carrying a lightning glyph and
+ * - **Unselected**: a compact **pill** (~40×22) carrying a lightning glyph and
  *   the available-battery count. The glyph is what makes the marker readable
  *   as an *electric asset* instead of a generic colored dot. Colors encode
  *   availability (green = plenty, amber = low, slate = empty).
@@ -16,9 +16,9 @@ import L from "leaflet";
  *   showing the station count so it's obvious this is still "your" map and
  *   not a generic cluster placeholder.
  *
- * Colors are inlined because Leaflet injects the HTML into a pane outside
- * the theme-scoped tree; CSS variables aren't reliably inherited on every
- * platform (iOS WKWebView in particular).
+ * The previous Leaflet version produced raw HTML strings for `divIcon`; with
+ * Google Maps + @vis.gl we render React nodes directly inside `AdvancedMarker`,
+ * so these are plain components.
  */
 export type StationMarkerVariant = "available" | "low" | "empty" | "selected";
 
@@ -29,82 +29,18 @@ const PALETTE = {
   selected:  { fill: "#00e5e5", text: "#0f172a" },
 } as const;
 
-const BOLT_WHITE =
-  `<svg class="rm-marker-bolt" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true" focusable="false"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>`;
-
-const BOLT_SLATE =
-  `<svg class="rm-marker-bolt" viewBox="0 0 24 24" fill="#0f172a" aria-hidden="true" focusable="false"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>`;
-
-export function makeStationIcon(
-  variant: StationMarkerVariant,
-  batteries: number,
-) {
-  if (variant === "selected") {
-    return makeTeardropIcon(batteries);
-  }
-  return makePillIcon(variant, batteries);
-}
-
-/**
- * Pill marker — ⚡ icon + count, rounded rectangle ~36×22. Mirrors the
- * visual convention used by ChargePoint/PlugShare on zoomed-out maps.
- */
-function makePillIcon(
-  variant: Exclude<StationMarkerVariant, "selected">,
-  batteries: number,
-) {
-  const w = 40;
-  const h = 22;
-  const { fill } = PALETTE[variant];
-  const label = formatBatteries(batteries);
-
-  const html = `
-    <div class="rm-pill-marker rm-pill-marker--${variant}"
-         style="--rm-fill:${fill};">
-      ${BOLT_WHITE}
-      <span class="rm-pill-marker-label">${label}</span>
-    </div>
-  `;
-
-  return L.divIcon({
-    className: "rm-station-icon",
-    html,
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h / 2],
-    popupAnchor: [0, -(h / 2) - 2],
-  });
-}
-
-/**
- * Selected state — teardrop pin with tail (precise pinpoint) + pulsing halo.
- */
-function makeTeardropIcon(batteries: number) {
-  const w = 40;
-  const h = 50;
-  const { fill, text } = PALETTE.selected;
-  const label = formatBatteries(batteries);
-
-  const html = `
-    <div class="rm-pin rm-pin--selected" style="--rm-w:${w}px;--rm-h:${h}px;--rm-fill:${fill};--rm-text:${text};">
-      <div class="rm-pin-halo"></div>
-      <svg class="rm-pin-shape" viewBox="0 0 40 52" width="${w}" height="${h}" aria-hidden="true">
-        <path d="M20 0C9 0 0.5 8.6 0.5 19.4c0 7.4 4 13.3 8.9 18.6 3.7 4 7.6 7.3 9.1 12 .3 1 1.6 1 1.9 0 1.5-4.7 5.5-8 9.1-12 4.9-5.3 9-11.2 9-18.6C39.5 8.6 31 0 20 0z"
-          fill="${fill}" stroke="#ffffff" stroke-width="2.5" />
-      </svg>
-      <div class="rm-pin-content">
-        ${BOLT_SLATE}
-        <span class="rm-pin-label">${label}</span>
-      </div>
-    </div>
-  `;
-
-  return L.divIcon({
-    className: "rm-station-icon",
-    html,
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h - 2],
-    popupAnchor: [0, -h],
-  });
+function BoltSvg({ color }: { color: string }) {
+  return (
+    <svg
+      className="rm-marker-bolt"
+      viewBox="0 0 24 24"
+      fill={color}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z" />
+    </svg>
+  );
 }
 
 function formatBatteries(n: number): string {
@@ -114,58 +50,112 @@ function formatBatteries(n: number): string {
 }
 
 /**
- * Cluster icon — brand-colored rounded chip showing the station count.
- * Replaces leaflet.markercluster's default blue/yellow/red bubbles with
- * something that matches the rest of the map surface.
- *
- * The returned value is what `MarkerClusterGroup`'s `iconCreateFunction`
- * expects: a Leaflet `DivIcon`.
+ * Pill marker — lightning glyph + count, rounded rectangle ~40×22.
+ * Used for every non-selected station.
  */
-export function makeClusterIcon(count: number): L.DivIcon {
-  // Three size tiers mirror markercluster's own buckets (small / medium / large).
-  const size = count < 10 ? 34 : count < 100 ? 40 : 46;
-  const label = count > 999 ? "999+" : String(count);
-
-  const html = `
-    <div class="rm-cluster-marker" style="--rm-size:${size}px;">
-      <span class="rm-cluster-marker-label">${label}</span>
+export function StationPillMarker({
+  variant,
+  batteries,
+}: {
+  variant: Exclude<StationMarkerVariant, "selected">;
+  batteries: number;
+}) {
+  const { fill } = PALETTE[variant];
+  return (
+    <div
+      className={`rm-pill-marker rm-pill-marker--${variant}`}
+      style={{ ["--rm-fill" as any]: fill }}
+    >
+      <BoltSvg color="#ffffff" />
+      <span className="rm-pill-marker-label">{formatBatteries(batteries)}</span>
     </div>
-  `;
-
-  return L.divIcon({
-    className: "rm-cluster-icon",
-    html,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
+  );
 }
 
 /**
- * User location — iOS/Google-style blue dot.
- *
- * - Outer translucent "accuracy" ring that gently pulses
- * - Solid inner dot with white ring for contrast on both light & dark maps
- * - If heading is available, a small directional cone is added above the dot
+ * Teardrop pin with tail (precise pinpoint) + pulsing halo.
+ * Used for the currently-selected station.
  */
-export function makeUserLocationIcon(heading: number | null) {
-  const hasHeading = typeof heading === "number" && !Number.isNaN(heading);
-  const rotation = hasHeading ? heading! : 0;
-  const cone = hasHeading
-    ? `<div class="rm-user-cone" style="transform: rotate(${rotation}deg);"></div>`
-    : "";
-
-  const html = `
-    <div class="rm-user">
-      <div class="rm-user-accuracy"></div>
-      ${cone}
-      <div class="rm-user-dot"></div>
+export function StationTeardropMarker({ batteries }: { batteries: number }) {
+  const w = 40;
+  const h = 50;
+  const { fill, text } = PALETTE.selected;
+  return (
+    <div
+      className="rm-pin rm-pin--selected"
+      style={{
+        ["--rm-w" as any]: `${w}px`,
+        ["--rm-h" as any]: `${h}px`,
+        ["--rm-fill" as any]: fill,
+        ["--rm-text" as any]: text,
+      }}
+    >
+      <div className="rm-pin-halo" />
+      <svg
+        className="rm-pin-shape"
+        viewBox="0 0 40 52"
+        width={w}
+        height={h}
+        aria-hidden="true"
+      >
+        <path
+          d="M20 0C9 0 0.5 8.6 0.5 19.4c0 7.4 4 13.3 8.9 18.6 3.7 4 7.6 7.3 9.1 12 .3 1 1.6 1 1.9 0 1.5-4.7 5.5-8 9.1-12 4.9-5.3 9-11.2 9-18.6C39.5 8.6 31 0 20 0z"
+          fill={fill}
+          stroke="#ffffff"
+          strokeWidth={2.5}
+        />
+      </svg>
+      <div className="rm-pin-content">
+        <BoltSvg color="#0f172a" />
+        <span className="rm-pin-label">{formatBatteries(batteries)}</span>
+      </div>
     </div>
-  `;
+  );
+}
 
-  return L.divIcon({
-    className: "rm-user-icon",
-    html,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-  });
+/**
+ * User location — iOS/Google-style blue dot with a heading cone and a
+ * gently-pulsing accuracy ring. Rendered as the content of an
+ * `AdvancedMarker` centered on the rider's GPS fix.
+ */
+export function UserLocationMarker({ heading }: { heading: number | null }) {
+  const hasHeading = typeof heading === "number" && !Number.isNaN(heading);
+  return (
+    <div className="rm-user">
+      <div className="rm-user-accuracy" />
+      {hasHeading && (
+        <div
+          className="rm-user-cone"
+          style={{ transform: `rotate(${heading!}deg)` }}
+        />
+      )}
+      <div className="rm-user-dot" />
+    </div>
+  );
+}
+
+/**
+ * Cluster chip — brand-colored rounded chip showing the station count.
+ * Rendered into a DOM node that we hand back to `@googlemaps/markerclusterer`
+ * as an `AdvancedMarkerElement` content, so these styles stay consistent with
+ * our other markers.
+ *
+ * The function-form (as opposed to JSX component) is here because the
+ * clusterer's renderer API returns a raw `google.maps.marker.AdvancedMarkerElement`,
+ * which means we build the content element imperatively rather than through React.
+ */
+export function buildClusterChipElement(count: number): HTMLDivElement {
+  const size = count < 10 ? 34 : count < 100 ? 40 : 46;
+  const label = count > 999 ? "999+" : String(count);
+
+  const el = document.createElement("div");
+  el.className = "rm-cluster-marker";
+  el.style.setProperty("--rm-size", `${size}px`);
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "rm-cluster-marker-label";
+  labelEl.textContent = label;
+  el.appendChild(labelEl);
+
+  return el;
 }

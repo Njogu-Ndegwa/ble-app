@@ -16,8 +16,8 @@ import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeoloca
 import type { RiderStation } from "../types";
 import { googleMapsUrl, openExternalMap } from "../map/deepLinks";
 
-// react-leaflet map is client-only; load dynamically to avoid SSR errors and
-// reuse the same component used by the full-screen Stations screen.
+// Google Maps is client-only; load dynamically to avoid SSR errors and reuse
+// the same component used by the full-screen Stations screen.
 const RiderMap = dynamic(() => import("../map/RiderMap"), { ssr: false });
 
 interface Station {
@@ -551,7 +551,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
       ) : (
         <div className="rm-home-stations">
-          {/* Map preview (react-leaflet + CARTO) */}
+          {/* Map preview (Google Maps) */}
           <div
             className="rm-home-map"
             onClick={onViewAllStations}

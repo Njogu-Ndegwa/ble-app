@@ -1,76 +1,76 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
-import "leaflet/dist/leaflet.css";
-// leaflet.markercluster's default CSS is required so cluster bubbles get
-// their size/border-radius — without it they collapse to 0×0 and markers
-// appear to "vanish" at low zoom. Our own styles in globals.css override
-// the look but rely on this base layout.
-import "leaflet.markercluster/dist/MarkerCluster.css";
-import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  APIProvider,
+  AdvancedMarker,
+  Map as GoogleMap,
+  Polyline,
+  useMap,
+  useMapsLibrary,
+} from "@vis.gl/react-google-maps";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import type { RiderStation, GeoLocation } from "../types";
 import {
-  makeStationIcon,
-  makeUserLocationIcon,
-  makeClusterIcon,
+  StationPillMarker,
+  StationTeardropMarker,
+  UserLocationMarker,
+  buildClusterChipElement,
 } from "./StationMarker";
 import { useRouting } from "./useRouting";
 
-// react-leaflet components are client-only and rely on `window`; load them
-// dynamically to avoid SSR errors.
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((m) => m.MapContainer),
-  { ssr: false },
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((m) => m.TileLayer),
-  { ssr: false },
-);
-const Marker = dynamic(
-  () => import("react-leaflet").then((m) => m.Marker),
-  { ssr: false },
-);
-// Marker clustering. The underlying `leaflet.markercluster` plugin owns the
-// cluster container styles — see the `MarkerCluster.css` import above.
-const MarkerClusterGroup = dynamic(
-  () => import("react-leaflet-cluster").then((m: any) => m.default ?? m),
-  { ssr: false },
-) as unknown as React.ComponentType<any>;
+/**
+ * Rider map, backed by Google Maps JavaScript API via `@vis.gl/react-google-maps`.
+ *
+ * The component keeps the same public shape as the old Leaflet version so
+ * `RiderHome` (preview) and `RiderStations` (full-screen) don't need to change:
+ *
+ * - Accepts the same props (`stations`, `userLocation`, `selectedStationId`,
+ *   `onSelectStation`, `routeTargetId`, `preview`, `onMapReady`).
+ * - Renders the same visual marker system (pill / teardrop + halo / user
+ *   chevron / cluster chip) via React content inside `AdvancedMarker`.
+ * - Handles routing through the Directions API, drawing the result as a
+ *   single branded polyline.
+ *
+ * The API key and Map ID are inlined here. The key MUST be restricted in
+ * Google Cloud Console (HTTP referrers + allowed APIs) — that referrer check
+ * is what prevents anyone who inspects the bundle from reusing it elsewhere.
+ * When it's time to rotate the key, change it in one place, here.
+ *
+ * The Map ID is created in Google Cloud Console (Map Management → Map IDs,
+ * JavaScript / Vector type). Swapping it attaches a different cloud-based
+ * style to the map without any code redeploy.
+ */
 
-// Single basemap for both light and dark themes. CARTO Voyager is highly
-// legible on small mobile viewports; the dark CARTO tiles (`dark_all`) are
-// too harsh and collapse labels/road contrast in practice. This matches the
-// pattern used by most operational map apps (PlugShare, ChargePoint, etc.)
-// where the map is its own always-light surface regardless of app theme.
-const BASEMAP_URL =
-  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-const ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const DEFAULT_CENTER: [number, number] = [-1.2921, 36.8219]; // Nairobi
+
+const API_KEY = "AIzaSyDJ6octhDtaSW02NfWPn6NrxyMeNVB_IcU";
+const MAP_ID = "634a14997c640edb8e36b1ce";
 
 interface RiderMapProps {
   stations: RiderStation[];
   userLocation: GeoLocation | null;
   selectedStationId: number | null;
   onSelectStation: (id: number | null) => void;
-  /** When truthy, we render a driving route from the user to this station. */
+  /** When set, we render a driving route from the user to this station. */
   routeTargetId?: number | null;
   /** Default center used before user location is known. */
   defaultCenter?: [number, number];
   /** Compact/preview mode disables clustering and shrinks markers. */
   preview?: boolean;
-  /** Called with the Leaflet map once it's ready. */
-  onMapReady?: (map: LeafletMap) => void;
+  /** Called with the Google map once it's ready. */
+  onMapReady?: (map: google.maps.Map) => void;
 }
 
-const DEFAULT_CENTER: [number, number] = [-1.2921, 36.8219]; // Nairobi
+export default function RiderMap(props: RiderMapProps) {
+  return (
+    <APIProvider apiKey={API_KEY} libraries={["marker", "routes"]}>
+      <RiderMapInner {...props} />
+    </APIProvider>
+  );
+}
 
-/**
- * Shared map component used by both `RiderHome` (preview) and `RiderStations`
- * (full-screen). Uses react-leaflet with CARTO basemaps that follow the app
- * theme, a live user-location chevron, and OSRM-backed driving routes.
- */
-export default function RiderMap({
+function RiderMapInner({
   stations,
   userLocation,
   selectedStationId,
@@ -80,157 +80,273 @@ export default function RiderMap({
   preview = false,
   onMapReady,
 }: RiderMapProps) {
-  const [map, setMap] = useState<LeafletMap | null>(null);
-  const markerRefs = useRef<Map<number, LeafletMarker>>(new Map());
-  const [leaflet, setLeaflet] = useState<typeof import("leaflet") | null>(null);
+  const initialCenter = useMemo<google.maps.LatLngLiteral>(() => {
+    if (userLocation) return { lat: userLocation.lat, lng: userLocation.lng };
+    const withCoords = stations.filter(
+      (s) => typeof s.lat === "number" && typeof s.lng === "number",
+    );
+    if (withCoords.length === 0) {
+      return { lat: defaultCenter[0], lng: defaultCenter[1] };
+    }
+    const sum = withCoords.reduce(
+      (acc, s) => ({ lat: acc.lat + (s.lat || 0), lng: acc.lng + (s.lng || 0) }),
+      { lat: 0, lng: 0 },
+    );
+    return {
+      lat: sum.lat / withCoords.length,
+      lng: sum.lng / withCoords.length,
+    };
+  }, [userLocation, stations, defaultCenter]);
+
+  const validStations = useMemo(
+    () =>
+      stations.filter(
+        (s) => typeof s.lat === "number" && typeof s.lng === "number",
+      ),
+    [stations],
+  );
+
+  const routeTarget = useMemo(() => {
+    const id = routeTargetId ?? null;
+    if (id == null) return null;
+    const s = stations.find((x) => x.id === id);
+    if (!s || s.lat == null || s.lng == null) return null;
+    return { lat: s.lat, lng: s.lng };
+  }, [routeTargetId, stations]);
+
+  const routing = useRouting(
+    userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null,
+    routeTarget,
+    !preview && !!routeTarget,
+  );
+
+  return (
+    <div className={`rm-map-wrap${preview ? " rm-map-preview" : ""}`}>
+      <GoogleMap
+        mapId={MAP_ID}
+        defaultCenter={initialCenter}
+        defaultZoom={13}
+        gestureHandling={preview ? "none" : "greedy"}
+        disableDefaultUI
+        clickableIcons={false}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <MapController
+          stations={validStations}
+          userLocation={userLocation}
+          selectedStationId={selectedStationId}
+          preview={preview}
+          onMapReady={onMapReady}
+        />
+
+        {userLocation && (
+          <AdvancedMarker
+            position={{ lat: userLocation.lat, lng: userLocation.lng }}
+          >
+            <UserLocationMarker heading={userLocation.heading ?? null} />
+          </AdvancedMarker>
+        )}
+
+        <StationMarkers
+          stations={validStations}
+          selectedStationId={selectedStationId}
+          onSelectStation={onSelectStation}
+          preview={preview}
+        />
+
+        {routing.path && routing.path.length > 1 && (
+          <Polyline
+            path={routing.path}
+            strokeColor="#00e5e5"
+            strokeOpacity={0.9}
+            strokeWeight={5}
+          />
+        )}
+      </GoogleMap>
+    </div>
+  );
+}
+
+/**
+ * Side-effect component scoped inside `<Map>` so it has access to the map
+ * instance via `useMap()`. Handles: exposing the map to the parent, initial
+ * fit-to-stations (preview mode), and panning to the selected station.
+ */
+function MapController({
+  stations,
+  userLocation,
+  selectedStationId,
+  preview,
+  onMapReady,
+}: {
+  stations: RiderStation[];
+  userLocation: GeoLocation | null;
+  selectedStationId: number | null;
+  preview: boolean;
+  onMapReady?: (map: google.maps.Map) => void;
+}) {
+  const map = useMap();
+  const coreLib = useMapsLibrary("core");
   const onMapReadyRef = useRef(onMapReady);
+  const didFitOnceRef = useRef(false);
+
   useEffect(() => {
     onMapReadyRef.current = onMapReady;
   }, [onMapReady]);
 
   useEffect(() => {
-    let cancelled = false;
-    import("leaflet").then((L) => {
-      if (!cancelled) setLeaflet(L);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const initialCenter = useMemo<[number, number]>(() => {
-    if (userLocation) return [userLocation.lat, userLocation.lng];
-    const withCoords = stations.filter((s) => s.lat && s.lng);
-    if (withCoords.length === 0) return defaultCenter;
-    const sum = withCoords.reduce(
-      (acc, s) => ({ lat: acc.lat + (s.lat || 0), lng: acc.lng + (s.lng || 0) }),
-      { lat: 0, lng: 0 },
-    );
-    return [sum.lat / withCoords.length, sum.lng / withCoords.length];
-  }, [userLocation, stations, defaultCenter]);
-
-  // Notify parent once the map instance is ready
-  useEffect(() => {
     if (map) onMapReadyRef.current?.(map);
   }, [map]);
 
-  // Fit bounds once we have stations
   useEffect(() => {
-    if (!map || !leaflet) return;
-    const valid = stations.filter(
-      (s) => typeof s.lat === "number" && typeof s.lng === "number",
-    );
-    if (valid.length === 0) return;
-    if (preview) {
-      const bounds = leaflet.latLngBounds(
-        valid.map((s) => [s.lat!, s.lng!] as [number, number]),
-      );
-      if (userLocation) bounds.extend([userLocation.lat, userLocation.lng]);
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15, animate: false });
-    }
-  }, [map, leaflet, stations, userLocation, preview]);
+    if (!map || !coreLib || !preview) return;
+    if (didFitOnceRef.current) return;
+    if (stations.length === 0) return;
 
-  // Pan to selected station
+    const bounds = new coreLib.LatLngBounds();
+    stations.forEach((s) => bounds.extend({ lat: s.lat!, lng: s.lng! }));
+    if (userLocation) {
+      bounds.extend({ lat: userLocation.lat, lng: userLocation.lng });
+    }
+    map.fitBounds(bounds, 30);
+    didFitOnceRef.current = true;
+  }, [map, coreLib, preview, stations, userLocation]);
+
   useEffect(() => {
     if (!map || selectedStationId == null) return;
     const station = stations.find((s) => s.id === selectedStationId);
-    if (!station || typeof station.lat !== "number" || typeof station.lng !== "number") return;
-    map.flyTo([station.lat, station.lng], Math.max(map.getZoom(), 15), {
-      animate: true,
-      duration: 0.5,
-    });
+    if (!station || station.lat == null || station.lng == null) return;
+    map.panTo({ lat: station.lat, lng: station.lng });
+    const currentZoom = map.getZoom() ?? 13;
+    if (currentZoom < 15) map.setZoom(15);
   }, [map, selectedStationId, stations]);
 
-  const routeTarget = useMemo(() => {
-    const id = routeTargetId ?? selectedStationId;
-    if (id == null) return null;
-    const s = stations.find((x) => x.id === id);
-    if (!s || s.lat == null || s.lng == null) return null;
-    return { lat: s.lat, lng: s.lng };
-  }, [routeTargetId, selectedStationId, stations]);
+  return null;
+}
 
-  useRouting(map, userLocation, routeTarget, !preview && !!routeTarget);
+/**
+ * Renders an `AdvancedMarker` for every station and manages the
+ * `@googlemaps/markerclusterer` instance so clusters use our brand chip.
+ *
+ * Clustering is enabled on the full-screen map and disabled in preview mode
+ * (matches the old Leaflet behavior where preview felt too small for
+ * clustering to help).
+ */
+function StationMarkers({
+  stations,
+  selectedStationId,
+  onSelectStation,
+  preview,
+}: {
+  stations: RiderStation[];
+  selectedStationId: number | null;
+  onSelectStation: (id: number | null) => void;
+  preview: boolean;
+}) {
+  const map = useMap();
+  const markerLib = useMapsLibrary("marker");
 
-  if (!leaflet) {
-    return (
-      <div className="rm-map-loading">
-        <div className="loading-spinner" style={{ width: 24, height: 24, borderWidth: 2 }} />
-      </div>
-    );
-  }
+  const markerMapRef = useRef(
+    new Map<number, google.maps.marker.AdvancedMarkerElement>(),
+  );
+  const refCallbacksRef = useRef(
+    new Map<
+      number,
+      (m: google.maps.marker.AdvancedMarkerElement | null) => void
+    >(),
+  );
+  const [markersVersion, setMarkersVersion] = useState(0);
+  const clustererRef = useRef<MarkerClusterer | null>(null);
+
+  // Return a stable ref callback per station id so React doesn't detach and
+  // re-attach the marker on every render (which would thrash the clusterer).
+  const getMarkerRef = useCallback((id: number) => {
+    let cb = refCallbacksRef.current.get(id);
+    if (!cb) {
+      cb = (marker: google.maps.marker.AdvancedMarkerElement | null) => {
+        if (marker) {
+          markerMapRef.current.set(id, marker);
+        } else {
+          markerMapRef.current.delete(id);
+        }
+        setMarkersVersion((v) => v + 1);
+      };
+      refCallbacksRef.current.set(id, cb);
+    }
+    return cb;
+  }, []);
+
+  useEffect(() => {
+    if (!map || !markerLib) return;
+    if (preview) {
+      clustererRef.current?.clearMarkers();
+      clustererRef.current?.setMap(null);
+      clustererRef.current = null;
+      return;
+    }
+
+    if (!clustererRef.current) {
+      clustererRef.current = new MarkerClusterer({
+        map,
+        renderer: {
+          render: ({ count, position }) => {
+            const content = buildClusterChipElement(count);
+            return new markerLib.AdvancedMarkerElement({
+              position,
+              content,
+              zIndex: 1000 + count,
+            });
+          },
+        },
+      });
+    }
+
+    const markers = Array.from(markerMapRef.current.values());
+    clustererRef.current.clearMarkers();
+    clustererRef.current.addMarkers(markers);
+  }, [map, markerLib, markersVersion, preview]);
+
+  useEffect(
+    () => () => {
+      clustererRef.current?.setMap(null);
+      clustererRef.current = null;
+    },
+    [],
+  );
 
   return (
-    <div className={`rm-map-wrap${preview ? " rm-map-preview" : ""}`}>
-      <MapContainer
-        center={initialCenter}
-        zoom={13}
-        scrollWheelZoom={!preview}
-        style={{ width: "100%", height: "100%" }}
-        zoomControl={false}
-        attributionControl={!preview}
-        ref={(m) => {
-          setMap(m ?? null);
-        }}
-      >
-        <TileLayer
-          url={BASEMAP_URL}
-          attribution={ATTRIBUTION}
-          maxZoom={19}
-          subdomains={["a", "b", "c", "d"]}
-        />
+    <>
+      {stations.map((station) => {
+        const isSelected = selectedStationId === station.id;
+        const pillVariant: "empty" | "low" | "available" =
+          station.batteries === 0
+            ? "empty"
+            : station.batteries <= 2
+              ? "low"
+              : "available";
 
-        {userLocation && (
-          <Marker
-            position={[userLocation.lat, userLocation.lng]}
-            icon={makeUserLocationIcon(userLocation.heading ?? null)}
-            interactive={false}
-          />
-        )}
-
-        {(() => {
-          const valid = stations.filter(
-            (s) => typeof s.lat === "number" && typeof s.lng === "number",
-          );
-          const markers = valid.map((station) => {
-            const isSelected = selectedStationId === station.id;
-            const variant = isSelected
-              ? "selected"
-              : station.batteries === 0
-                ? "empty"
-                : station.batteries <= 2
-                  ? "low"
-                  : "available";
-            return (
-              <Marker
-                key={station.id}
-                position={[station.lat!, station.lng!]}
-                icon={makeStationIcon(variant, station.batteries)}
-                eventHandlers={{
-                  click: () => onSelectStation(station.id),
-                  add: (e: any) => markerRefs.current.set(station.id, e.target),
-                  remove: () => markerRefs.current.delete(station.id),
-                }}
+        return (
+          <AdvancedMarker
+            key={station.id}
+            ref={getMarkerRef(station.id)}
+            position={{ lat: station.lat!, lng: station.lng! }}
+            clickable
+            onClick={() => onSelectStation(station.id)}
+            zIndex={isSelected ? 2000 : undefined}
+            anchorLeft="-50%"
+            anchorTop={isSelected ? "-100%" : "-50%"}
+          >
+            {isSelected ? (
+              <StationTeardropMarker batteries={station.batteries} />
+            ) : (
+              <StationPillMarker
+                variant={pillVariant}
+                batteries={station.batteries}
               />
-            );
-          });
-          // Cluster on both the preview and full-screen map so the two views
-          // render the exact same marker layout. Preview just gets a slightly
-          // tighter radius since the map is smaller.
-          return (
-            <MarkerClusterGroup
-              chunkedLoading
-              showCoverageOnHover={false}
-              spiderfyOnMaxZoom={!preview}
-              maxClusterRadius={preview ? 40 : 60}
-              iconCreateFunction={(cluster: any) =>
-                makeClusterIcon(cluster.getChildCount())
-              }
-            >
-              {markers}
-            </MarkerClusterGroup>
-          );
-        })()}
-      </MapContainer>
-    </div>
+            )}
+          </AdvancedMarker>
+        );
+      })}
+    </>
   );
 }
