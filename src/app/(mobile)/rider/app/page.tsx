@@ -24,7 +24,6 @@ import {
   TopUpModal,
 } from './components';
 import { SelectSheet, type SelectSheetItem } from '@/components/ui';
-import AccountDetailsModal from './components/AccountDetailsModal';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 
@@ -139,7 +138,6 @@ const RiderApp: React.FC = () => {
   >('home');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
-  const [showAccountDetailsModal, setShowAccountDetailsModal] = useState(false);
   const [showPlanSheet, setShowPlanSheet] = useState(false);
   
   // Data state
@@ -1360,6 +1358,21 @@ const RiderApp: React.FC = () => {
     setStations([]);
   }, []);
 
+  // Derive "Swaps This Month" from the activity feed so the profile reflects
+  // real data instead of a plan-lifetime counter. Falls back to 0 when the
+  // activity list hasn't loaded yet.
+  const swapsThisMonth = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    return activities.filter((a) => {
+      if (a.type !== 'swap') return false;
+      const d = new Date(a.date);
+      if (isNaN(d.getTime())) return false;
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length;
+  }, [activities]);
+
   const planSheetItems: SelectSheetItem<string>[] = useMemo(
     () =>
       subscriptions.map((s) => {
@@ -1566,7 +1579,7 @@ const RiderApp: React.FC = () => {
           )}
           
           {currentScreen === 'activity' && (
-            <RiderActivity activities={activities} />
+            <RiderActivity activities={activities} currency={currency} />
           )}
           
           {currentScreen === 'stations' && (
@@ -1620,31 +1633,24 @@ const RiderApp: React.FC = () => {
           {currentScreen === 'profile' && (
             <RiderProfile
               profile={{
-                name: customer?.name || 'James Mwangi',
-                initials: customer?.name ? customer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'JM',
-                phone: customer?.phone || '+228 91 234 567',
+                name: customer?.name || t('common.guest') || 'Guest',
+                initials: customer?.name
+                  ? customer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                  : '--',
+                phone: customer?.phone || '',
                 balance: balance,
                 currency: currency,
-                swapsThisMonth: bike.totalSwaps || 18,
-                planName: subscription?.product_name || '7-Day Lux Plan',
-                planValidity: subscription?.next_cycle_date 
+                swapsThisMonth: swapsThisMonth,
+                planName: subscription?.product_name || '',
+                planValidity: subscription?.next_cycle_date
                   ? new Date(subscription.next_cycle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  : 'Dec 9, 2025',
+                  : '',
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'active',
-                vehicleInfo: bike.vehicleId || 'REG-2024-KE',
-                paymentMethod: 'MTN Mobile Money',
               }}
               bikeImageUrl="/assets/E-3-one.png"
-              onAccountDetails={() => setShowAccountDetailsModal(true)}
-              onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
-              onPlanDetails={openSelectSubscription}
-              onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
               onSupport={() => setCurrentScreen('tickets')}
               onLogout={handleLogout}
               onSwitchSubscription={openSelectSubscription}
-              onTransactions={() => setCurrentScreen('transactions')}
-              onPlans={() => setCurrentScreen('plans')}
-              onTickets={() => setCurrentScreen('tickets')}
               subscriptionCode={subscription?.subscription_code}
               subscriptionStatus={subscription?.status}
             />
@@ -1678,13 +1684,6 @@ const RiderApp: React.FC = () => {
         onClose={() => setShowTopUpModal(false)}
         currency={currency}
         onConfirmTopUp={handleConfirmTopUp}
-      />
-
-      {/* Account Details Modal */}
-      <AccountDetailsModal
-        isOpen={showAccountDetailsModal}
-        onClose={() => setShowAccountDetailsModal(false)}
-        onPasswordChanged={handleLogout}
       />
 
       {/* Plan switcher — bottom-sheet picker, no full-screen navigation */}

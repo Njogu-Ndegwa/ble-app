@@ -2,7 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
-import { CreditCard, ArrowLeftRight, Receipt, Package, HelpCircle } from "lucide-react";
+import { CreditCard, ArrowLeftRight } from "lucide-react";
 import { useI18n } from "@/i18n";
 
 interface ProfileData {
@@ -15,24 +15,15 @@ interface ProfileData {
   planName: string;
   planValidity: string;
   paymentState: "PAID" | "RENEWAL_DUE" | "OVERDUE" | "PENDING" | string;
-  vehicleInfo: string;
-  paymentMethod: string;
   currentBatteryId?: string;
 }
 
 interface RiderProfileProps {
   profile: ProfileData;
   bikeImageUrl?: string;
-  onAccountDetails: () => void;
-  onVehicle: () => void;
-  onPlanDetails: () => void;
-  onPaymentMethods: () => void;
   onSupport: () => void;
   onLogout: () => void;
   onSwitchSubscription?: () => void;
-  onTransactions?: () => void;
-  onPlans?: () => void;
-  onTickets?: () => void;
   subscriptionCode?: string | null;
   subscriptionStatus?: string | null;
 }
@@ -40,16 +31,9 @@ interface RiderProfileProps {
 const RiderProfile: React.FC<RiderProfileProps> = ({
   profile,
   bikeImageUrl,
-  onAccountDetails,
-  onVehicle,
-  onPlanDetails,
-  onPaymentMethods,
   onSupport,
   onLogout,
   onSwitchSubscription,
-  onTransactions,
-  onPlans,
-  onTickets,
   subscriptionCode,
   subscriptionStatus,
 }) => {
@@ -95,41 +79,26 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
   // Example: +228 91 234 567
   const formatPhoneNumber = (phone: string): string => {
     if (!phone) return "";
-
-    // Remove any existing spaces and ensure we have just digits (and maybe a +)
     let cleaned = phone.replace(/\s+/g, "");
-
-    // Ensure + prefix
     if (!cleaned.startsWith("+")) {
       cleaned = "+" + cleaned;
     }
-
-    // Extract country code (1-3 digits after +) and remaining digits
     const match = cleaned.match(/^(\+\d{1,3})(\d+)$/);
     if (match) {
       const countryCode = match[1];
       const remaining = match[2];
-      
-      // Format remaining digits in groups of 2-3 for readability
-      // e.g., 91234567 -> 91 234 567
       const groups: string[] = [];
       let i = 0;
-      
-      // First group can be 2 digits
       if (remaining.length > 0) {
         groups.push(remaining.slice(0, 2));
         i = 2;
       }
-      
-      // Remaining groups of 3 digits
       while (i < remaining.length) {
         groups.push(remaining.slice(i, i + 3));
         i += 3;
       }
-      
       return `${countryCode} ${groups.join(" ")}`;
     }
-
     return cleaned;
   };
 
@@ -142,7 +111,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
         <div className="profile-phone">{formatPhoneNumber(profile.phone)}</div>
       </div>
 
-      {/* Energy Service Card - matching abs-design.vercel.app exactly */}
+      {/* Energy Service Card */}
       <div className="energy-service-card">
         {/* Header with icon, title and status */}
         <div className="energy-service-header">
@@ -179,22 +148,22 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 
         {/* Stats - Stacked vertically with icons */}
         <div className="energy-service-stats-vertical">
-          {/* Account Balance - with accent border */}
+          {/* Account Balance */}
           <div className="energy-stat-row highlighted">
             <div className="energy-stat-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M12 6v12M8 10h8M8 14h8"></path>
-            </svg>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 6v12M8 10h8M8 14h8"></path>
+              </svg>
             </div>
             <div className="energy-stat-content">
               <div className="energy-stat-value">
-                {profile.currency || "XOF"} {profile.balance.toLocaleString()}
+                {profile.currency || ""} {profile.balance.toLocaleString()}
               </div>
               <div className="energy-stat-label">
                 {t("rider.accountBalance") || "Account Balance"}
@@ -228,13 +197,12 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 
         {/* Plan Info Footer - name on left, validity on right */}
         <div className="energy-service-footer-row">
-          <span className="energy-plan-name">
-            {profile.planName || "7-Day Lux Plan"}
-          </span>
-          <span className="energy-plan-validity">
-            {t("rider.validUntil") || "Valid until"}{" "}
-            {profile.planValidity || "Dec 9, 2025"}
-          </span>
+          <span className="energy-plan-name">{profile.planName}</span>
+          {profile.planValidity && (
+            <span className="energy-plan-validity">
+              {t("rider.validUntil") || "Valid until"} {profile.planValidity}
+            </span>
+          )}
         </div>
       </div>
 
@@ -251,10 +219,14 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             <p className="rm-sub-chip-name">{profile.planName}</p>
             <div className="rm-sub-chip-badges">
               <span className="sa-badge sa-badge-staff">
-                {getPaymentStateLabel(subscriptionStatus || profile.paymentState)}
+                {getPaymentStateLabel(
+                  subscriptionStatus || profile.paymentState
+                )}
               </span>
               {subscriptionCode && (
-                <span className="sa-badge sa-badge-class">{subscriptionCode}</span>
+                <span className="sa-badge sa-badge-class">
+                  {subscriptionCode}
+                </span>
               )}
             </div>
           </div>
@@ -269,246 +241,8 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
         </div>
       )}
 
-      {/* Menu List - matching abs-design.vercel.app exactly */}
+      {/* Simplified Menu - Help & Logout only */}
       <div className="menu-list">
-        {/* Account Details */}
-        <div className="menu-item" onClick={onAccountDetails}>
-          <div className="menu-item-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-          <div className="menu-item-content">
-            <div className="menu-item-title">
-              {t("rider.accountDetails") || "Account Details"}
-            </div>
-            <div className="menu-item-subtitle">
-              {t("rider.personalInfoDesc") || "Personal information & settings"}
-            </div>
-          </div>
-          <div className="menu-item-arrow">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </div>
-        </div>
-
-        {/* My Vehicle */}
-        <div className="menu-item" onClick={onVehicle}>
-          <div className="menu-item-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="7" cy="17" r="2" />
-              <circle cx="17" cy="17" r="2" />
-              <path d="M5 17H3v-6l2-4h9l4 4h3v6h-2" />
-              <path d="M9 17h6" />
-            </svg>
-          </div>
-          <div className="menu-item-content">
-            <div className="menu-item-title">
-              {t("rider.myVehicle") || "My Vehicle"}
-            </div>
-            <div className="menu-item-subtitle">
-              {profile.vehicleInfo || "Oves Tuk-Tuk • REG-2024-KE"}
-            </div>
-          </div>
-          <div className="menu-item-arrow">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Subscription Plan */}
-        <div className="menu-item" onClick={onPlanDetails}>
-          <div className="menu-item-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-              <path d="M16 13H8M16 17H8M10 9H8" />
-            </svg>
-          </div>
-          <div className="menu-item-content">
-            <div className="menu-item-title">
-              {t("rider.subscriptionPlan") || "Subscription Plan"}
-            </div>
-            <div className="menu-item-subtitle">
-              {t("rider.managePlanDesc") || "Manage your plan & billing"}
-            </div>
-          </div>
-          <div className="menu-item-arrow">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Browse Plans */}
-        {onPlans && (
-          <div className="menu-item" onClick={onPlans}>
-            <div className="menu-item-icon">
-              <Package size={20} />
-            </div>
-            <div className="menu-item-content">
-              <div className="menu-item-title">
-                {t("rider.plans.title") || "Plans"}
-              </div>
-              <div className="menu-item-subtitle">
-                {t("rider.plans.menuSubtitle") || "Browse and subscribe"}
-              </div>
-            </div>
-            <div className="menu-item-arrow">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </div>
-          </div>
-        )}
-
-        {/* Transactions */}
-        {onTransactions && (
-          <div className="menu-item" onClick={onTransactions}>
-            <div className="menu-item-icon">
-              <Receipt size={20} />
-            </div>
-            <div className="menu-item-content">
-              <div className="menu-item-title">
-                {t("rider.transactions.title") || "Transactions"}
-              </div>
-              <div className="menu-item-subtitle">
-                {t("rider.transactions.menuSubtitle") || "Payment history"}
-              </div>
-            </div>
-            <div className="menu-item-arrow">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </div>
-          </div>
-        )}
-
-        {/* Tickets */}
-        {onTickets && (
-          <div className="menu-item" onClick={onTickets}>
-            <div className="menu-item-icon">
-              <HelpCircle size={20} />
-            </div>
-            <div className="menu-item-content">
-              <div className="menu-item-title">
-                {t("rider.tickets.title") || "Tickets"}
-              </div>
-              <div className="menu-item-subtitle">
-                {t("rider.tickets.menuSubtitle") || "Support requests"}
-              </div>
-            </div>
-            <div className="menu-item-arrow">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Methods */}
-        <div className="menu-item" onClick={onPaymentMethods}>
-          <div className="menu-item-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-              <line x1="1" y1="10" x2="23" y2="10" />
-            </svg>
-          </div>
-          <div className="menu-item-content">
-            <div className="menu-item-title">
-              {t("rider.paymentMethods") || "Payment Methods"}
-            </div>
-            <div className="menu-item-subtitle">
-              {t("rider.paymentMethodsDesc") || "Manage your payment options"}
-            </div>
-          </div>
-          <div className="menu-item-arrow">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </div>
-        </div>
-
         {/* Help & Support */}
         <div className="menu-item" onClick={onSupport}>
           <div className="menu-item-icon">

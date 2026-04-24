@@ -20,13 +20,13 @@ type FilterKey = "all" | "swap" | "payment" | "topup";
 
 /**
  * Activity feed — migrated to the shared `ListScreen` + `.list-card` pattern
- * so it matches Customer/Activator/Sales.
+ * so it matches Customer/Activator/Sales/Products.
  */
 export default function RiderActivity({
   activities,
   isLoading,
   onRefresh,
-  currency = "XOF",
+  currency,
 }: RiderActivityProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
@@ -75,9 +75,16 @@ export default function RiderActivity({
     return { swaps, totalSpent };
   }, [activities]);
 
+  const filterOptions: { key: FilterKey; label: string }[] = [
+    { key: "all", label: t("rider.all") || "All" },
+    { key: "swap", label: t("rider.swaps") || "Swaps" },
+    { key: "topup", label: t("rider.topUps") || "Top-ups" },
+    { key: "payment", label: t("rider.payments") || "Payments" },
+  ];
+
   const renderHeaderExtra = () => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+    <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-2 gap-2">
         <div className="rm-summary-tile">
           <Zap size={14} />
           <div>
@@ -91,7 +98,7 @@ export default function RiderActivity({
           <Wallet size={14} />
           <div>
             <div className="rm-summary-tile-value">
-              {currency} {summary.totalSpent.toLocaleString()}
+              {currency || ""} {summary.totalSpent.toLocaleString()}
             </div>
             <div className="rm-summary-tile-label">
               {t("rider.totalSpent") || "Total spent"}
@@ -99,31 +106,25 @@ export default function RiderActivity({
           </div>
         </div>
       </div>
-      <div className="rm-filter-pills">
-        <button
-          className={`rm-filter-pill${filter === "all" ? " active" : ""}`}
-          onClick={() => setFilter("all")}
-        >
-          {t("rider.all") || "All"}
-        </button>
-        <button
-          className={`rm-filter-pill${filter === "swap" ? " active" : ""}`}
-          onClick={() => setFilter("swap")}
-        >
-          {t("rider.swaps") || "Swaps"}
-        </button>
-        <button
-          className={`rm-filter-pill${filter === "topup" ? " active" : ""}`}
-          onClick={() => setFilter("topup")}
-        >
-          {t("rider.topUps") || "Top-ups"}
-        </button>
-        <button
-          className={`rm-filter-pill${filter === "payment" ? " active" : ""}`}
-          onClick={() => setFilter("payment")}
-        >
-          {t("rider.payments") || "Payments"}
-        </button>
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
+        {filterOptions.map((opt) => (
+          <button
+            key={opt.key}
+            onClick={() => setFilter(opt.key)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              filter === opt.key
+                ? "border-transparent text-text-inverse"
+                : "border-border bg-bg-tertiary text-text-secondary"
+            }`}
+            style={
+              filter === opt.key
+                ? { backgroundColor: "var(--color-brand)" }
+                : undefined
+            }
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -184,19 +185,15 @@ export default function RiderActivity({
                 </div>
                 <div className="list-card-actions">
                   <span
-                    className={
+                    className={`list-card-badge ${
                       a.isPositive
                         ? "list-card-badge--completed"
                         : "list-card-badge--default"
-                    }
-                    style={{
-                      color: a.isPositive
-                        ? "var(--color-success)"
-                        : "var(--text-primary)",
-                    }}
+                    }`}
                   >
                     {a.isPositive ? "+" : "-"}
-                    {a.currency || currency} {Math.abs(a.amount).toLocaleString()}
+                    {a.currency || currency || ""}{" "}
+                    {Math.abs(a.amount).toLocaleString()}
                   </span>
                 </div>
               </div>
