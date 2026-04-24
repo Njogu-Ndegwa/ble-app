@@ -120,6 +120,14 @@ const RiderApp: React.FC = () => {
   const stationsSubscriptionRef = useRef<(() => void) | null>(null);
   const lastStationsFleetKeyRef = useRef<string | null>(null);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
+  // Monotonically-incrementing nonce that user-driven retries bump to force
+  // the MQTT + GraphQL effects to re-run even when their other dependencies
+  // haven't changed (e.g. fleetIds is still []). Without this, pressing
+  // "Retry" after a timeout did nothing because no dep in the effect
+  // actually changed, so the effect never re-ran. The bug manifested as
+  // "Retry does nothing, but backgrounding + foregrounding the app works",
+  // because visibilitychange was the only other thing that flipped state.
+  const [stationsRetryNonce, setStationsRetryNonce] = useState(0);
   
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -1062,7 +1070,7 @@ const RiderApp: React.FC = () => {
         stationsSubscriptionRef.current = null;
       }
     };
-  }, [isLoggedIn, subscription?.subscription_code, customer, bridge, fleetIds.length]);
+  }, [isLoggedIn, subscription?.subscription_code, customer, bridge, fleetIds.length, stationsRetryNonce]);
 
   // Fetch stations from GraphQL when fleet IDs are available from MQTT response
   useEffect(() => {
@@ -1249,7 +1257,7 @@ const RiderApp: React.FC = () => {
     };
 
     fetchStationsFromGraphQL();
-  }, [fleetIds, stations.length]);
+  }, [fleetIds, stations.length, stationsRetryNonce]);
 
   // Set stations to empty if no subscription
   useEffect(() => {
@@ -1356,7 +1364,37 @@ const RiderApp: React.FC = () => {
     lastStationsFleetKeyRef.current = null;
     setFleetIds([]);
     setStations([]);
+    // Bump the nonce so the MQTT + GraphQL effects re-run even if their
+    // other inputs didn't change (e.g. fleetIds is already []). Without
+    // this, hitting Retry after an MQTT timeout produced a spinner that
+    // ran forever because the effect's deps were identical.
+    setStationsRetryNonce((n) => n + 1);
   }, []);
+
+  // Auto-retry stations on foreground. The WebView's MQTT bridge sometimes
+  // drops its connection while the app is backgrounded, which manifested
+  // as "Retry on the stations page does nothing, but leaving and coming
+  // back fixes it" — leaving/returning was effectively the only signal
+  // that caused the bridge to reconnect. By watching `visibilitychange`
+  // here we turn that accidental recovery into an explicit one: if the
+  // previous attempt failed, re-run the whole pipeline as soon as the tab
+  // comes back to the foreground.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (typeof document === 'undefined') return;
+
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!stationsError) return;
+      console.info('[STATIONS] Foregrounded after error — auto-retrying');
+      refetchStations();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isLoggedIn, stationsError, refetchStations]);
 
   // Derive "Swaps This Month" from the activity feed so the profile reflects
   // real data instead of a plan-lifetime counter. Falls back to 0 when the

@@ -152,20 +152,32 @@ export default function RiderStations({
     navMode !== "idle",
   );
 
-  // Surface routing errors without spamming: toast once per (destKey, error).
+  // Surface routing errors without spamming: toast once per destination.
+  // We dedup on destination only (NOT on the error code) because the hook
+  // may transition between error codes ("fetch-failed" → "no-route") while
+  // retrying, and we never want two toasts for the same station.
   useEffect(() => {
     if (!routing.error) {
-      routeErrorShownKeyRef.current = null;
+      // Error cleared (e.g. new successful fetch) — allow a future error
+      // for this destination to toast again.
       return;
     }
-    const key = `${routeDest?.lat ?? "x"},${routeDest?.lng ?? "x"}:${routing.error}`;
+    const key = `${routeDest?.lat ?? "x"},${routeDest?.lng ?? "x"}`;
     if (routeErrorShownKeyRef.current === key) return;
     routeErrorShownKeyRef.current = key;
     toast.error(
       t("rider.nav.routeError") || "Couldn't compute route. Try again.",
-      { duration: 4500 },
+      { duration: 4500, id: "rider-route-error" },
     );
   }, [routing.error, routeDest, t]);
+
+  // Reset the "already toasted" marker when the destination is cleared so
+  // the next failed destination can show its own toast.
+  useEffect(() => {
+    if (routeTargetId == null) {
+      routeErrorShownKeyRef.current = null;
+    }
+  }, [routeTargetId]);
 
   const handleSelect = useCallback(
     (id: number | null) => {
@@ -230,12 +242,18 @@ export default function RiderStations({
   // ---- Nav mode transitions ----
   const handleStartFollowing = useCallback(() => {
     if (!routeTargetId) return;
+    // Guard: don't allow starting the journey until the route has actually
+    // been computed. The preview banner renders as soon as the rider taps
+    // Navigate, but the polyline + summary + bounds only arrive once the
+    // Routes API responds. Starting before that leaves the rider in follow
+    // mode with no route to follow.
+    if (!routing.path || !routing.summary) return;
     // Request compass permission on iOS from this user gesture so follow
     // mode has a heading even when stationary. No-op elsewhere.
     void enableCompassHeading();
     setFollowingPaused(false);
     setNavMode("following");
-  }, [routeTargetId]);
+  }, [routeTargetId, routing.path, routing.summary]);
 
   const handleEndNavigation = useCallback(() => {
     clearRoute();
@@ -405,20 +423,47 @@ export default function RiderStations({
                 <div className="text-sm font-semibold text-text-primary truncate">
                   {routeTarget.name}
                 </div>
-                {routing.summary && (
+                {routing.summary ? (
                   <div className="text-[11px] text-text-secondary mt-0.5">
                     {formatDistance(routing.summary.distanceKm)} ·{" "}
                     {formatEta(routing.summary.durationMin)}
                   </div>
-                )}
+                ) : routing.isLoading ? (
+                  <div className="text-[11px] text-text-muted mt-0.5 flex items-center gap-1.5">
+                    <span
+                      className="loading-spinner"
+                      style={{ width: 10, height: 10, borderWidth: 1.5 }}
+                    />
+                    <span>
+                      {t("rider.nav.computingRoute") || "Computing route…"}
+                    </span>
+                  </div>
+                ) : routing.error ? (
+                  <div className="text-[11px] mt-0.5" style={{ color: "#ef4444" }}>
+                    {t("rider.nav.routeError") ||
+                      "Couldn't compute route. Try again."}
+                  </div>
+                ) : null}
               </div>
               <button
                 onClick={handleStartFollowing}
+                disabled={
+                  !routing.path || !routing.summary || !!routing.error
+                }
                 className="rm-route-preview-start"
                 aria-label={t("rider.nav.start") || "Start"}
+                style={
+                  !routing.path || !routing.summary || !!routing.error
+                    ? { opacity: 0.5, cursor: "not-allowed" }
+                    : undefined
+                }
               >
                 <Play size={13} fill="currentColor" />
-                <span>{t("rider.nav.start") || "Start"}</span>
+                <span>
+                  {!routing.path && routing.isLoading
+                    ? t("rider.nav.computing") || "Computing…"
+                    : t("rider.nav.start") || "Start"}
+                </span>
               </button>
               <button
                 onClick={() => setView("directions")}
@@ -440,7 +485,9 @@ export default function RiderStations({
         ) : null}
 
         {/* Routing error pill (preview-mode only; in follow-mode the
-            existing stats stay stale but visible, which is less jarring). */}
+            existing stats stay stale but visible, which is less jarring).
+            Retry clears and re-selects the same destination which resets
+            the hook's error back-off so a fresh fetch fires immediately. */}
         {routing.error && isPreview && (
           <div className="rm-route-error">
             <AlertCircle size={14} />
@@ -450,7 +497,17 @@ export default function RiderStations({
             </span>
             <button
               type="button"
-              onClick={() => setView("directions")}
+              onClick={() => {
+                const target = routeTarget;
+                if (!target) {
+                  setView("directions");
+                  return;
+                }
+                // Toggle routeTargetId through null so useRouting sees a
+                // destination change and drops its error back-off.
+                setRouteTargetId(null);
+                setTimeout(() => handleStartRoute(target), 0);
+              }}
               className="rm-route-error-retry"
             >
               <RefreshCw size={12} />

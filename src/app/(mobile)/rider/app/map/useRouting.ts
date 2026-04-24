@@ -40,6 +40,18 @@ export interface RoutingResult {
  */
 const ORIGIN_MOVE_THRESHOLD_M = 75;
 
+/**
+ * After a fetch failure we do NOT want the hook to immediately retry on the
+ * very next `watchPosition` tick — that's what caused the "Couldn't compute
+ * route" toast storm. Instead, we gate retries behind this cool-down so the
+ * rider sees at most one error per window and the Routes API isn't hammered
+ * while it's either rate-limiting or rejecting the request.
+ *
+ * The cool-down is cleared whenever the destination changes so a fresh
+ * selection is always routed immediately.
+ */
+const ERROR_BACKOFF_MS = 15_000;
+
 const ROUTES_API_ENDPOINT =
   "https://routes.googleapis.com/directions/v2:computeRoutes";
 
@@ -77,16 +89,23 @@ function parseDurationSeconds(duration: string | undefined): number {
 }
 
 /**
- * Fetches a TWO_WHEELER route between `from` and `to` via the Google Routes
+ * Fetches a DRIVE route between `from` and `to` via the Google Routes
  * API (v2) and exposes the resulting path + summary + bounds for the caller
  * to render.
  *
  * Design notes:
  *
- * - **Two-wheeler routing.** The rider fleet is e-bikes / scooters, so we use
- *   `travelMode: "TWO_WHEELER"` (available only on the new Routes API —
- *   legacy DirectionsService didn't support this mode). Falls back to
- *   `DRIVE` if Google ever rejects the mode for a given region.
+ * - **DRIVE travel mode.** The rider fleet is e-bikes / scooters so in theory
+ *   `TWO_WHEELER` would be the perfect match, but the Routes API only
+ *   supports that mode in a handful of countries (mostly South/Southeast
+ *   Asia). Outside that list every request fails with either a 400 or an
+ *   empty `routes` array, which is exactly the "Couldn't compute route"
+ *   storm we hit in production. `DRIVE` has global coverage, supports
+ *   `TRAFFIC_AWARE` traffic data, and for our use case (scooters on city
+ *   streets) produces a route that's close enough to reality — the same
+ *   roads a car would take. Distance/ETA remains useful; worst case the
+ *   ETA is slightly optimistic on congested city streets where a scooter
+ *   would lane-split.
  * - **Field-masked request.** Per Routes API requirements, we send an
  *   `X-Goog-FieldMask` header so only the fields we render come back. This
  *   is both a correctness requirement and a cost optimization.
@@ -117,6 +136,8 @@ export function useRouting(
 
   const lastOriginRef = useRef<google.maps.LatLngLiteral | null>(null);
   const lastDestKeyRef = useRef<string | null>(null);
+  const errorBackoffUntilRef = useRef<number>(0);
+  const errorForDestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!enabled || !from || !to || !geometryLib) {
@@ -130,6 +151,8 @@ export function useRouting(
         setError(null);
         lastOriginRef.current = null;
         lastDestKeyRef.current = null;
+        errorBackoffUntilRef.current = 0;
+        errorForDestKeyRef.current = null;
       }
       return;
     }
@@ -142,6 +165,21 @@ export function useRouting(
       distanceMeters(origin, lastOriginRef.current) >= ORIGIN_MOVE_THRESHOLD_M;
 
     if (!destChanged && !movedEnough) {
+      return;
+    }
+
+    // Error back-off: if the previous attempt for this destination failed,
+    // suppress re-tries (triggered by GPS ticks) until the back-off window
+    // elapses. This is what stops the "Couldn't compute route" toast storm
+    // on flaky networks / API errors. A destination change always clears
+    // the back-off so the rider can retry by re-selecting the station.
+    if (destChanged) {
+      errorBackoffUntilRef.current = 0;
+      errorForDestKeyRef.current = null;
+    } else if (
+      errorForDestKeyRef.current === key &&
+      Date.now() < errorBackoffUntilRef.current
+    ) {
       return;
     }
 
@@ -161,7 +199,10 @@ export function useRouting(
           latLng: { latitude: to.lat, longitude: to.lng },
         },
       },
-      travelMode: "TWO_WHEELER",
+      // DRIVE rather than TWO_WHEELER: see the module-level JSDoc above for
+      // why. TL;DR TWO_WHEELER is regionally limited and fails outside
+      // South/Southeast Asia, while DRIVE works worldwide with traffic data.
+      travelMode: "DRIVE",
       routingPreference: "TRAFFIC_AWARE",
       polylineEncoding: "ENCODED_POLYLINE",
     };
@@ -193,6 +234,12 @@ export function useRouting(
           setPath(null);
           setSummary(null);
           setBounds(null);
+          // Pin this origin/dest so we don't immediately re-fetch on the
+          // next GPS tick; gate further retries behind the error back-off.
+          lastOriginRef.current = origin;
+          lastDestKeyRef.current = key;
+          errorForDestKeyRef.current = key;
+          errorBackoffUntilRef.current = Date.now() + ERROR_BACKOFF_MS;
           return;
         }
 
@@ -240,16 +287,27 @@ export function useRouting(
         }
         lastOriginRef.current = origin;
         lastDestKeyRef.current = key;
+        errorBackoffUntilRef.current = 0;
+        errorForDestKeyRef.current = null;
         setDestKey(key);
         setError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         if ((err as any)?.name === "AbortError") return;
-        const message =
+        const detail =
           err instanceof Error ? err.message : "Failed to compute route";
-        console.warn("[useRouting] Routes API failed:", message);
-        setError(message);
+        console.warn("[useRouting] Routes API failed:", detail);
+        // Store a stable, coarse error code (not the raw API message) so
+        // the RiderStations dedup key — `${dest}:${routing.error}` — does
+        // its job and we only surface one toast per destination.
+        setError("fetch-failed");
+        // Same back-off as the no-route branch: pin the last origin/dest
+        // so background GPS ticks don't cause a retry storm.
+        lastOriginRef.current = origin;
+        lastDestKeyRef.current = key;
+        errorForDestKeyRef.current = key;
+        errorBackoffUntilRef.current = Date.now() + ERROR_BACKOFF_MS;
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

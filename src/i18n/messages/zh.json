@@ -1745,5 +1745,8 @@
   "rider.nav.paused": "跟随已暂停",
   "rider.nav.arrivingIn": "预计时间",
   "rider.nav.routeError": "无法计算路线，请重试。",
+  "rider.nav.computingRoute": "正在计算路线…",
+  "rider.nav.computing": "计算中…",
+  "rider.nav.noRoute": "无法到达此站点。",
   "common.submitting": "提交中..."
 }

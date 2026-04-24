@@ -1842,5 +1842,8 @@
   "rider.nav.paused": "Follow paused",
   "rider.nav.arrivingIn": "ETA",
   "rider.nav.routeError": "Couldn't compute route. Try again.",
+  "rider.nav.computingRoute": "Computing route…",
+  "rider.nav.computing": "Computing…",
+  "rider.nav.noRoute": "No route to this station.",
   "common.submitting": "Submitting..."
 }

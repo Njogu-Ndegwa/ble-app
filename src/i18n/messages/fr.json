@@ -1832,5 +1832,8 @@
   "rider.nav.paused": "Suivi en pause",
   "rider.nav.arrivingIn": "ETA",
   "rider.nav.routeError": "Impossible de calculer l'itinéraire. Réessayez.",
+  "rider.nav.computingRoute": "Calcul de l'itinéraire…",
+  "rider.nav.computing": "Calcul…",
+  "rider.nav.noRoute": "Aucun itinéraire vers cette station.",
   "common.submitting": "Envoi..."
 }
