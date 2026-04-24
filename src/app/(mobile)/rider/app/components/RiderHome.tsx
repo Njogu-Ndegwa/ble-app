@@ -393,89 +393,10 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
       </div>
 
-      {nearbyStations.length === 0 && isLoadingStations ? (
-        <div className="rider-stations-skeleton">
-          <div className="rider-skeleton rider-skeleton-map" />
-          <div className="rider-stations-skeleton-list">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="rider-skeleton-station">
-                <div className="rider-skeleton rider-skeleton-station-icon" />
-                <div className="rider-skeleton-station-body">
-                  <div className="rider-skeleton rider-skeleton-station-name" />
-                  <div className="rider-skeleton rider-skeleton-station-meta" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : nearbyStations.length === 0 && stationsError ? (
-        <div
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "20px 18px",
-            textAlign: "center",
-            marginTop: "12px",
-          }}
-          role="alert"
-        >
-          <div
-            style={{
-              width: "52px",
-              height: "52px",
-              margin: "0 auto 14px",
-              borderRadius: "50%",
-              background: "rgba(239, 68, 68, 0.12)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AlertCircle size={24} color="#ef4444" />
-          </div>
-          <p
-            style={{
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "var(--text-primary)",
-              margin: "0 0 4px",
-            }}
-          >
-            {t("rider.stations.loadError") || "Couldn't load stations"}
-          </p>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "var(--text-muted)",
-              lineHeight: "1.5",
-              margin: "0 0 14px",
-            }}
-          >
-            {t("rider.stations.loadErrorHint") ||
-              "Check your connection and try again."}
-          </p>
-          {onRefreshStations && (
-            <button
-              type="button"
-              onClick={onRefreshStations}
-              className="rider-quick-pill"
-              style={{
-                display: "inline-flex",
-                width: "auto",
-                margin: 0,
-                padding: "8px 16px",
-                gap: 8,
-              }}
-            >
-              <RefreshCw size={14} />
-              <span className="rider-quick-pill-label">
-                {t("rider.directions.retry") || "Retry"}
-              </span>
-            </button>
-          )}
-        </div>
-      ) : nearbyStations.length === 0 ? (
+      {!hasSubscription && nearbyStations.length === 0 ? (
+        /* Hard stop: without an active subscription the rider can't use the
+           app at all, so there's nothing useful to show on a map. Keep the
+           old full-bleed "subscribe first" card here. */
         <div
           style={{
             background: "var(--bg-secondary)",
@@ -523,35 +444,18 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               margin: 0,
             }}
           >
-            {hasSubscription
-              ? t("rider.noStationsFound") ||
-                "No stations found. Please check your subscription configuration."
-              : t("rider.noStationsDesc") ||
-                "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
+            {t("rider.noStationsDesc") ||
+              "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
           </p>
-          {hasSubscription && onRefreshStations && (
-            <button
-              type="button"
-              onClick={onRefreshStations}
-              className="rider-quick-pill"
-              style={{
-                display: "inline-flex",
-                width: "auto",
-                margin: "14px auto 0",
-                padding: "8px 16px",
-                gap: 8,
-              }}
-            >
-              <RefreshCw size={14} />
-              <span className="rider-quick-pill-label">
-                {t("common.refresh") || "Refresh"}
-              </span>
-            </button>
-          )}
         </div>
       ) : (
+        /* Subscribed: always render the map first and let it come up on its
+           own. The carousel/skeleton/error/empty state underneath updates
+           independently as MQTT / fleet data arrives — but the rider never
+           stares at a blank screen while that pipeline is still warming up. */
         <div className="rm-home-stations">
-          {/* Map preview (Google Maps) */}
+          {/* Map preview (Google Maps) — rendered unconditionally so it
+              starts loading tiles immediately, regardless of station state. */}
           <div
             className="rm-home-map"
             onClick={onViewAllStations}
@@ -572,8 +476,124 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             </div>
           </div>
 
-          {/* Horizontal carousel — same card as full-screen peek */}
-          <div className="rm-carousel rm-carousel--home">
+          {nearbyStations.length === 0 && isLoadingStations ? (
+            /* Stations still loading — show a compact skeleton list under
+               the (already rendered) map instead of hiding the map. */
+            <div className="rider-stations-skeleton-list">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="rider-skeleton-station">
+                  <div className="rider-skeleton rider-skeleton-station-icon" />
+                  <div className="rider-skeleton-station-body">
+                    <div className="rider-skeleton rider-skeleton-station-name" />
+                    <div className="rider-skeleton rider-skeleton-station-meta" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : nearbyStations.length === 0 && stationsError ? (
+            <div
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "16px 14px",
+                textAlign: "center",
+                marginTop: "12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+              role="alert"
+            >
+              <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                    margin: "0 0 2px",
+                  }}
+                >
+                  {t("rider.stations.loadError") || "Couldn't load stations"}
+                </p>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--text-muted)",
+                    margin: 0,
+                  }}
+                >
+                  {t("rider.stations.loadErrorHint") ||
+                    "Check your connection and try again."}
+                </p>
+              </div>
+              {onRefreshStations && (
+                <button
+                  type="button"
+                  onClick={onRefreshStations}
+                  className="rider-quick-pill"
+                  style={{
+                    display: "inline-flex",
+                    width: "auto",
+                    margin: 0,
+                    padding: "6px 12px",
+                    gap: 6,
+                    flexShrink: 0,
+                  }}
+                >
+                  <RefreshCw size={12} />
+                  <span className="rider-quick-pill-label">
+                    {t("rider.directions.retry") || "Retry"}
+                  </span>
+                </button>
+              )}
+            </div>
+          ) : nearbyStations.length === 0 ? (
+            <div
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "14px 16px",
+                textAlign: "center",
+                marginTop: "12px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "var(--text-muted)",
+                  lineHeight: "1.5",
+                  margin: 0,
+                }}
+              >
+                {t("rider.noStationsFound") ||
+                  "No stations found. Please check your subscription configuration."}
+              </p>
+              {onRefreshStations && (
+                <button
+                  type="button"
+                  onClick={onRefreshStations}
+                  className="rider-quick-pill"
+                  style={{
+                    display: "inline-flex",
+                    width: "auto",
+                    margin: "10px auto 0",
+                    padding: "6px 14px",
+                    gap: 6,
+                  }}
+                >
+                  <RefreshCw size={12} />
+                  <span className="rider-quick-pill-label">
+                    {t("common.refresh") || "Refresh"}
+                  </span>
+                </button>
+              )}
+            </div>
+          ) : (
+            /* Horizontal carousel — same card as full-screen peek */
+            <div className="rm-carousel rm-carousel--home">
             {stationsWithDistance.slice(0, 6).map((station) => {
               const status =
                 station.batteries === 0
@@ -624,7 +644,8 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
