@@ -11,6 +11,10 @@ import {
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
+
+/** True only in development builds. Used to gate the on-screen debug banner
+ * so end users never see "API: loading…" / "tiles: ok" chrome. */
+const IS_DEV = process.env.NODE_ENV !== "production";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import type { RiderStation, GeoLocation } from "../types";
 import {
@@ -62,9 +66,26 @@ interface RiderMapProps {
   preview?: boolean;
   /** Called with the Google map once it's ready. */
   onMapReady?: (map: google.maps.Map) => void;
+  /**
+   * Preview-mode only. When provided, the entire preview surface becomes a
+   * single clickable button that calls this handler. This both (a) prevents
+   * Google's native logo / "Terms" links inside the embedded widget from
+   * capturing taps and opening Google Maps in a new tab, and (b) matches the
+   * product intent that a preview is a shortcut into the full stations tab,
+   * not an interactive mini-map.
+   */
+  onPreviewClick?: () => void;
 }
 
-export default function RiderMap(props: RiderMapProps) {
+/**
+ * Top-level provider that owns the Google Maps JS loader. Mount this ONCE,
+ * as high in the tree as is practical (e.g. at the rider page level) so it
+ * stays mounted across tab switches. Remounting the provider forces the JS
+ * library to re-initialize, which in some browsers results in a blank map
+ * on the second mount. Keeping it stable fixes "the map disappears after a
+ * refresh / after switching tabs".
+ */
+export function RiderMapProvider({ children }: { children: React.ReactNode }) {
   const handleApiError = useCallback((error: unknown) => {
     console.error("[RiderMap] Google Maps JS API failed to load:", error);
   }, []);
@@ -73,12 +94,25 @@ export default function RiderMap(props: RiderMapProps) {
     <APIProvider
       apiKey={API_KEY}
       libraries={["marker", "routes"]}
-      onLoad={() => console.log("[RiderMap] Google Maps JS API loaded")}
+      onLoad={
+        IS_DEV
+          ? () => console.log("[RiderMap] Google Maps JS API loaded")
+          : undefined
+      }
       onError={handleApiError}
     >
-      <RiderMapInner {...props} />
+      {children}
     </APIProvider>
   );
+}
+
+/**
+ * The rider map itself. Expects an ancestor `<RiderMapProvider>` to provide
+ * the Google Maps JS runtime. Safe to mount/unmount freely — the heavy
+ * library init happens once in the provider above.
+ */
+export default function RiderMap(props: RiderMapProps) {
+  return <RiderMapInner {...props} />;
 }
 
 function RiderMapInner({
@@ -90,6 +124,7 @@ function RiderMapInner({
   defaultCenter = DEFAULT_CENTER,
   preview = false,
   onMapReady,
+  onPreviewClick,
 }: RiderMapProps) {
   const initialCenter = useMemo<google.maps.LatLngLiteral>(() => {
     if (userLocation) return { lat: userLocation.lat, lng: userLocation.lng };
@@ -133,7 +168,7 @@ function RiderMapInner({
 
   return (
     <div className={`rm-map-wrap${preview ? " rm-map-preview" : ""}`}>
-      <MapDebugOverlay />
+      {IS_DEV && <MapDebugOverlay />}
       <GoogleMap
         mapId={MAP_ID}
         defaultCenter={initialCenter}
@@ -175,30 +210,44 @@ function RiderMapInner({
           />
         )}
       </GoogleMap>
+
+      {/* Preview mode: a transparent click-catcher above the map. Without
+          this, taps on the Google logo / "Terms" link baked into the widget
+          open Google Maps in a new tab instead of navigating into our
+          stations screen. It sits below the `.rm-home-map-cta` label
+          (z-index:400) so the label still reads, but above the map canvas. */}
+      {preview && onPreviewClick && (
+        <button
+          type="button"
+          onClick={onPreviewClick}
+          aria-label="Open stations"
+          className="rm-preview-click-catcher"
+        />
+      )}
     </div>
   );
 }
 
 /**
- * On-screen debug banner that surfaces Google Maps JS load status. Helps
- * distinguish "map container has zero size" from "API key rejected / billing
- * off / wrong Map ID" without opening devtools. It auto-hides once the API
- * reports LOADED and no `gm_authFailure` has been observed. Errors remain
- * visible so the user can act on them.
+ * Dev-only diagnostic banner. Only renders a visible chip when something is
+ * actually wrong: auth failure, load failure, or a zero-size container.
+ * The happy-path "loading… / tiles ok" noise is intentionally gone — end
+ * users should never see it, and developers can read the browser console.
+ *
+ * Gated by IS_DEV at the call site, so this component is tree-shaken out
+ * in production builds entirely.
  */
 function MapDebugOverlay() {
   const status = useApiLoadingStatus();
   const map = useMap();
   const [authFailed, setAuthFailed] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
-  const [tilesLoaded, setTilesLoaded] = useState(false);
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [zeroSize, setZeroSize] = useState(false);
 
   useEffect(() => {
     const w = window as unknown as { gm_authFailure?: () => void };
     w.gm_authFailure = () => {
       console.error(
-        "[RiderMap] gm_authFailure: API key is invalid, referrer not allowed, Maps JS API not enabled, or billing disabled on the Google Cloud project.",
+        "[RiderMap] gm_authFailure: API key invalid, referrer not allowed, Maps JS API disabled, or billing off on the Google Cloud project.",
       );
       setAuthFailed(true);
     };
@@ -209,43 +258,33 @@ function MapDebugOverlay() {
 
   useEffect(() => {
     if (!map) return;
-    setMapReady(true);
-    console.log("[RiderMap] Map instance ready");
-    const listener = map.addListener("tilesloaded", () => {
-      setTilesLoaded(true);
-      console.log("[RiderMap] tilesloaded");
-    });
     const div = map.getDiv();
-    if (div) {
-      const rect = div.getBoundingClientRect();
-      setSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
-      if (rect.width === 0 || rect.height === 0) {
-        console.warn(
-          "[RiderMap] Map container has zero size — the map will render blank. Check parent CSS (height/min-height).",
-          rect,
-        );
-      }
+    if (!div) return;
+    const rect = div.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      console.warn(
+        "[RiderMap] Map container has zero size — the map will render blank. Check parent CSS (height / min-height).",
+        rect,
+      );
+      setZeroSize(true);
     }
-    return () => listener.remove();
   }, [map]);
-
-  const statusLabel: Record<APILoadingStatus, string> = {
-    [APILoadingStatus.NOT_LOADED]: "not loaded",
-    [APILoadingStatus.LOADING]: "loading…",
-    [APILoadingStatus.LOADED]: "loaded",
-    [APILoadingStatus.FAILED]: "failed",
-    [APILoadingStatus.AUTH_FAILURE]: "auth failure",
-  };
 
   const hasError =
     authFailed ||
+    zeroSize ||
     status === APILoadingStatus.FAILED ||
     status === APILoadingStatus.AUTH_FAILURE;
 
-  const allGood =
-    status === APILoadingStatus.LOADED && mapReady && tilesLoaded && !hasError;
+  if (!hasError) return null;
 
-  if (allGood) return null;
+  const reason = authFailed
+    ? "Auth failed. Check API key, referrer, Maps JS API enabled, billing."
+    : zeroSize
+      ? "Map container has zero size — parent has no height."
+      : status === APILoadingStatus.AUTH_FAILURE
+        ? "Auth failure from Google Maps loader."
+        : "Google Maps JS failed to load.";
 
   return (
     <div
@@ -261,26 +300,13 @@ function MapDebugOverlay() {
         lineHeight: 1.35,
         fontFamily:
           "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        color: hasError ? "#fff" : "#111",
-        background: hasError ? "rgba(200, 30, 30, 0.92)" : "rgba(255,255,255,0.92)",
+        color: "#fff",
+        background: "rgba(200, 30, 30, 0.92)",
         boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
         pointerEvents: "none",
       }}
     >
-      <div>API: {statusLabel[status]}</div>
-      <div>map: {mapReady ? "ready" : "—"} · tiles: {tilesLoaded ? "ok" : "—"}</div>
-      {size && (
-        <div>
-          size: {size.w}×{size.h}
-          {(size.w === 0 || size.h === 0) && " (ZERO — parent has no height)"}
-        </div>
-      )}
-      {hasError && (
-        <div style={{ marginTop: 4 }}>
-          Check console. Likely: key invalid, referrer blocked, Maps JS API
-          disabled, billing off, or Map ID not in this project.
-        </div>
-      )}
+      [RiderMap dev] {reason}
     </div>
   );
 }

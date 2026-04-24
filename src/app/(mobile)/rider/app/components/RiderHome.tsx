@@ -458,9 +458,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               starts loading tiles immediately, regardless of station state. */}
           <div
             className="rm-home-map"
-            onClick={onViewAllStations}
-            role="button"
-            tabIndex={0}
             aria-label={t("rider.viewMap") || "View Map"}
           >
             <RiderMap
@@ -469,6 +466,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               selectedStationId={null}
               onSelectStation={(id) => id != null && onSelectStation(id)}
               preview
+              onPreviewClick={onViewAllStations}
             />
             <div className="rm-home-map-cta">
               <span>{t("rider.map.openFullMap") || "Open full map"}</span>

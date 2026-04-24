@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
@@ -26,6 +27,21 @@ import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import AccountDetailsModal from './components/AccountDetailsModal';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
+
+/**
+ * Mount the Google Maps JS provider exactly once for the entire logged-in
+ * rider flow. Both `RiderHome` (map preview) and `RiderStations` (full map)
+ * render their own `<RiderMap>` instances, but they all share this single
+ * provider. Without this hoisting, switching tabs would unmount and remount
+ * the provider and the map would sometimes come back blank on the second
+ * mount. Dynamically imported + `ssr: false` matches how `RiderMap` itself
+ * is loaded elsewhere, so the heavy library still only ships on the client
+ * and only after the rider page has mounted.
+ */
+const RiderMapProvider = dynamic(
+  () => import('./map/RiderMap').then((m) => m.RiderMapProvider),
+  { ssr: false },
+);
 
 const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
 
@@ -1469,9 +1485,9 @@ const RiderApp: React.FC = () => {
 
   // Main app
   return (
-    <>
+    <RiderMapProvider>
       <Toaster position="top-center" />
-      
+
       <div className="rider-container">
         <div className="rider-bg-gradient" />
 
@@ -1706,7 +1722,7 @@ const RiderApp: React.FC = () => {
           if (full) handleSelectSubscription(full);
         }}
       />
-    </>
+    </RiderMapProvider>
   );
 };
 
