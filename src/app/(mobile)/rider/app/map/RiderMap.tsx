@@ -175,6 +175,10 @@ function RiderMapInner({
         defaultZoom={13}
         gestureHandling={preview ? "none" : "greedy"}
         disableDefaultUI
+        // `disableDefaultUI` hides zoom/pan/streetview, but the newer
+        // "Keyboard shortcuts" button at the bottom-left is a separate
+        // option that has to be turned off explicitly.
+        keyboardShortcuts={false}
         clickableIcons={false}
         style={{ width: "100%", height: "100%" }}
       >

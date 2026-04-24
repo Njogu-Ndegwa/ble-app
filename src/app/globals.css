@@ -13841,6 +13841,30 @@ html.keyboard-open .customer-panel-unified {
   pointer-events: none;
 }
 
+/* Pill badge that overlays the preview map when the stations pipeline
+   settled with an empty result. Makes it obvious to the rider that the
+   empty map is *intentional* (no stations available) and not a loading
+   state — addresses the "users wonder if the map is broken" case when we
+   give up on a stuck MQTT fetch. */
+.rm-home-map-empty-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  z-index: 400;
+  pointer-events: none;
+}
+
 /* Transparent full-bleed button layered over the preview map. Absorbs all
    pointer events so taps never reach Google's embedded logo / "Terms" links
    (which would otherwise open Google Maps in a new tab). Sits under the

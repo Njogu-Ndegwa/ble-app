@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
@@ -77,6 +77,30 @@ const RiderHome: React.FC<RiderHomeProps> = ({
 }) => {
   const { t } = useI18n();
   const { location: userLocation } = useGeolocation();
+
+  /**
+   * "Loading forever" safety net. The stations pipeline (MQTT → fleet IDs →
+   * GraphQL) can get stuck if the MQTT bridge never responds. Rather than
+   * pin the user on a spinner indefinitely, we give loading a hard ceiling:
+   * after `LOAD_TIMEOUT_MS`, we treat the stations as "settled, empty" and
+   * fall through to rendering the map with a "no stations found" indicator.
+   * A real refresh resets the timer.
+   */
+  const LOAD_TIMEOUT_MS = 10_000;
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isLoadingStations || nearbyStations.length > 0) {
+      setLoadTimedOut(false);
+      return;
+    }
+    const id = window.setTimeout(() => setLoadTimedOut(true), LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, [isLoadingStations, nearbyStations.length]);
+
+  /** True only while we're *genuinely* waiting for the first stations response.
+   *  Timed-out loads collapse to "done, but empty" so the UI can render a map. */
+  const showLoadingSkeleton =
+    isLoadingStations && nearbyStations.length === 0 && !loadTimedOut;
 
   const stationsWithDistance = useMemo(() => {
     return nearbyStations.map((station) => {
@@ -448,14 +472,32 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
           </p>
         </div>
+      ) : showLoadingSkeleton ? (
+        /* Stations are legitimately still being fetched. Show a skeleton in
+           place of BOTH the map and the carousel so the rider understands
+           we're still gathering data, instead of staring at an empty map.
+           Capped at `LOAD_TIMEOUT_MS` (see useEffect above) so a wedged
+           MQTT pipeline can't pin us here forever. */
+        <div className="rider-stations-skeleton">
+          <div className="rider-skeleton rider-skeleton-map" />
+          <div className="rider-stations-skeleton-list">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rider-skeleton-station">
+                <div className="rider-skeleton rider-skeleton-station-icon" />
+                <div className="rider-skeleton-station-body">
+                  <div className="rider-skeleton rider-skeleton-station-name" />
+                  <div className="rider-skeleton rider-skeleton-station-meta" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
-        /* Subscribed: always render the map first and let it come up on its
-           own. The carousel/skeleton/error/empty state underneath updates
-           independently as MQTT / fleet data arrives — but the rider never
-           stares at a blank screen while that pipeline is still warming up. */
+        /* Stations have settled — either with data, without data (empty),
+           with an error, or the load timed out. In all cases we render the
+           actual map; the section below it clarifies what happened to the
+           stations list specifically. */
         <div className="rm-home-stations">
-          {/* Map preview (Google Maps) — rendered unconditionally so it
-              starts loading tiles immediately, regardless of station state. */}
           <div
             className="rm-home-map"
             aria-label={t("rider.viewMap") || "View Map"}
@@ -472,23 +514,21 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               <span>{t("rider.map.openFullMap") || "Open full map"}</span>
               <ChevronRight size={14} />
             </div>
+
+            {/* In-map "no stations" badge — sits over the top of the preview
+                so the rider immediately understands the map is empty *on
+                purpose*, not because it's still loading. */}
+            {nearbyStations.length === 0 && !stationsError && (
+              <div className="rm-home-map-empty-badge">
+                <AlertCircle size={14} />
+                <span>
+                  {t("rider.noStationsFoundShort") || "No stations found"}
+                </span>
+              </div>
+            )}
           </div>
 
-          {nearbyStations.length === 0 && isLoadingStations ? (
-            /* Stations still loading — show a compact skeleton list under
-               the (already rendered) map instead of hiding the map. */
-            <div className="rider-stations-skeleton-list">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="rider-skeleton-station">
-                  <div className="rider-skeleton rider-skeleton-station-icon" />
-                  <div className="rider-skeleton-station-body">
-                    <div className="rider-skeleton rider-skeleton-station-name" />
-                    <div className="rider-skeleton rider-skeleton-station-meta" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : nearbyStations.length === 0 && stationsError ? (
+          {nearbyStations.length === 0 && stationsError ? (
             <div
               style={{
                 background: "var(--bg-secondary)",
