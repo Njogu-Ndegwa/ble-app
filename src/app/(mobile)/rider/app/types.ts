@@ -96,6 +96,23 @@ export interface GeoLocation {
   accuracy?: number;
 }
 
+/**
+ * High-level navigation state for the rider's stations map.
+ *
+ * - `idle`      No destination chosen. Map behaves like a regular explorer
+ *               map (rider drags/zooms freely, camera never auto-moves).
+ * - `preview`   A destination is set and the route is visible on the map,
+ *               but the rider hasn't started navigating yet. The camera is
+ *               fit to the full route once, then stays put. Rider can
+ *               change destination or cancel freely.
+ * - `following` Turn-by-turn-style follow mode. The camera tracks the
+ *               rider's live location, rotates with heading, and tilts
+ *               into a "driving perspective". User drag/zoom gestures
+ *               temporarily pause the auto-follow until Recenter is
+ *               tapped; tapping End exits back to idle.
+ */
+export type NavMode = 'idle' | 'preview' | 'following';
+
 export type RiderScreen =
   | 'home'
   | 'stations'

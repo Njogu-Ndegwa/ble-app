@@ -1823,5 +1823,14 @@
   "rider.map.distance": "Distance",
   "rider.map.eta": "ETA",
   "rider.map.openFullMap": "Ouvrir la carte",
+  "rider.nav.start": "Démarrer",
+  "rider.nav.end": "Terminer",
+  "rider.nav.change": "Changer",
+  "rider.nav.navigatingTo": "Navigation vers",
+  "rider.nav.recenter": "Recentrer",
+  "rider.nav.remaining": "Restant",
+  "rider.nav.paused": "Suivi en pause",
+  "rider.nav.arrivingIn": "ETA",
+  "rider.nav.routeError": "Impossible de calculer l'itinéraire. Réessayez.",
   "common.submitting": "Envoi..."
 }

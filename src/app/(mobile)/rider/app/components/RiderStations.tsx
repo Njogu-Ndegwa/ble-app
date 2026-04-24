@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import dynamic from "next/dynamic";
 import {
   Navigation,
@@ -10,6 +16,10 @@ import {
   MapPin,
   AlertCircle,
   RefreshCw,
+  Play,
+  Square,
+  Shuffle,
+  LocateFixed,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useI18n } from "@/i18n";
@@ -17,10 +27,13 @@ import {
   useGeolocation,
   haversineKm,
   formatDistance,
+  enableCompassHeading,
   type GeoStatus,
 } from "../hooks/useGeolocation";
-import type { GeoLocation, RiderStation } from "../types";
+import type { GeoLocation, RiderStation, NavMode } from "../types";
 import RiderDirections from "./RiderDirections";
+import { useRouting } from "../map/useRouting";
+import type { RiderMapControls } from "../map/RiderMap";
 
 // Google Maps is client-only and reads `window` at module load, so the map
 // must be dynamically imported with SSR disabled.
@@ -46,23 +59,27 @@ interface RiderStationsProps {
 type View = "map" | "directions";
 
 /**
- * Rider "Stations" screen. Two sub-views:
+ * Rider "Stations" screen.
  *
- *  1. `map`        — edge-to-edge map plus floating chrome only:
- *                    - route banner (when a destination is active)
- *                    - mini pin-detail card (when a station pin is tapped)
- *                    - right-side FAB column (clear + "Where to?")
- *                    No bottom sheet, no station list: the whole viewport is
- *                    the map, which keeps context visible while routing.
+ * Top-level state machine over `navMode`:
  *
- *  2. `directions` — full-screen destination picker (`RiderDirections`).
- *                    Opens when the rider taps the "Where to?" FAB. Lets
- *                    them pick/search a station and returns to `map` with
- *                    a persistent route drawn to the chosen station.
+ *  - `idle`      - no destination chosen. Map is explorable; tapping a pin
+ *                  shows the peek card with a "Navigate" button that moves
+ *                  the state to `preview`.
+ *  - `preview`   - a destination is set; the full route is drawn and the
+ *                  camera is fit to the route exactly once. Rider can tap
+ *                  "Start" to enter `following`, "Change" to reopen the
+ *                  directions picker, or the End button to return to `idle`.
+ *  - `following` - full-screen navigation chrome: live remaining distance +
+ *                  ETA pulled from `useRouting`'s summary (which auto-
+ *                  refreshes as the rider moves), camera tracks the rider
+ *                  with tilt + heading. Manual map gestures pause the
+ *                  auto-follow and reveal a Recenter pill.
  *
- * Selection ≠ navigation. Selecting a pin previews its details; the rider
- * must explicitly choose a destination (from the directions page or the
- * mini pin-detail card's Navigate button) to start routing.
+ * The state machine lives here (not inside `RiderMap`) so the screen can
+ * swap its top chrome, hide/show FABs, and coordinate `useRouting` with the
+ * map camera via explicit props — which is what finally eliminates the
+ * zoom-in/zoom-out oscillation that plagued the old implementation.
  */
 export default function RiderStations({
   stations,
@@ -80,6 +97,11 @@ export default function RiderStations({
     initialSelectedStationId ?? null,
   );
   const [routeTargetId, setRouteTargetId] = useState<number | null>(null);
+  const [navMode, setNavMode] = useState<NavMode>("idle");
+  const [followingPaused, setFollowingPaused] = useState(false);
+
+  const mapControlsRef = useRef<RiderMapControls | null>(null);
+  const routeErrorShownKeyRef = useRef<string | null>(null);
 
   // If the parent hands us an initial station (e.g. rider tapped a nearby
   // card on the home screen), select it so the mini detail card is visible.
@@ -115,6 +137,36 @@ export default function RiderStations({
     return withDistance;
   }, [withDistance]);
 
+  // Route target coord, fed into useRouting. Memoized so that its identity
+  // only changes when the destination actually changes (not on every render).
+  const routeDest = useMemo(() => {
+    if (!routeTarget || routeTarget.lat == null || routeTarget.lng == null) {
+      return null;
+    }
+    return { lat: routeTarget.lat, lng: routeTarget.lng };
+  }, [routeTarget]);
+
+  const routing = useRouting(
+    location ? { lat: location.lat, lng: location.lng } : null,
+    routeDest,
+    navMode !== "idle",
+  );
+
+  // Surface routing errors without spamming: toast once per (destKey, error).
+  useEffect(() => {
+    if (!routing.error) {
+      routeErrorShownKeyRef.current = null;
+      return;
+    }
+    const key = `${routeDest?.lat ?? "x"},${routeDest?.lng ?? "x"}:${routing.error}`;
+    if (routeErrorShownKeyRef.current === key) return;
+    routeErrorShownKeyRef.current = key;
+    toast.error(
+      t("rider.nav.routeError") || "Couldn't compute route. Try again.",
+      { duration: 4500 },
+    );
+  }, [routing.error, routeDest, t]);
+
   const handleSelect = useCallback(
     (id: number | null) => {
       setSelectedId(id);
@@ -125,6 +177,8 @@ export default function RiderStations({
 
   const clearRoute = useCallback(() => {
     setRouteTargetId(null);
+    setNavMode("idle");
+    setFollowingPaused(false);
   }, []);
 
   // Common gate for actions that need the user's position.
@@ -158,6 +212,8 @@ export default function RiderStations({
       void withUserLocation(() => {
         setRouteTargetId(station.id);
         setSelectedId(station.id);
+        setNavMode("preview");
+        setFollowingPaused(false);
       });
     },
     [withUserLocation],
@@ -170,6 +226,42 @@ export default function RiderStations({
     },
     [handleStartRoute],
   );
+
+  // ---- Nav mode transitions ----
+  const handleStartFollowing = useCallback(() => {
+    if (!routeTargetId) return;
+    // Request compass permission on iOS from this user gesture so follow
+    // mode has a heading even when stationary. No-op elsewhere.
+    void enableCompassHeading();
+    setFollowingPaused(false);
+    setNavMode("following");
+  }, [routeTargetId]);
+
+  const handleEndNavigation = useCallback(() => {
+    clearRoute();
+    // Stay on the station screen; rider may want to pick a different one.
+  }, [clearRoute]);
+
+  const handleChangeDestination = useCallback(() => {
+    // Keep navMode as-is so the map doesn't snap out of follow-mode
+    // visually while the directions sheet is up. Picking a new destination
+    // calls handlePickDestination → setNavMode('preview').
+    setView("directions");
+  }, []);
+
+  const handleRecenterFollow = useCallback(() => {
+    setFollowingPaused(false);
+    if (location && mapControlsRef.current) {
+      mapControlsRef.current.recenter(location);
+    }
+  }, [location]);
+
+  const handleRecenterIdle = useCallback(() => {
+    void withUserLocation((loc) => {
+      void enableCompassHeading();
+      mapControlsRef.current?.recenter(loc);
+    });
+  }, [withUserLocation]);
 
   const handleOpenExternal = (
     app: "google" | "apple" | "waze",
@@ -208,6 +300,9 @@ export default function RiderStations({
     );
   }
 
+  const isFollowing = navMode === "following";
+  const isPreview = navMode === "preview";
+
   return (
     <div
       className="rider-screen active rm-screen"
@@ -219,15 +314,84 @@ export default function RiderStations({
           userLocation={location}
           selectedStationId={selectedId}
           onSelectStation={handleSelect}
-          routeTargetId={routeTargetId}
+          routePath={routing.path}
+          routeBounds={routing.bounds}
+          routeKey={routing.destKey}
+          navMode={navMode}
+          followingPaused={followingPaused}
+          onFollowingPausedChange={setFollowingPaused}
+          mapControlsRef={mapControlsRef}
         />
 
-        {/* Top chrome = active-route banner only (if any). When idle, the
-            map is completely unobstructed up top — search/filter pills
-            have moved to the Directions page per product feedback. */}
-        {routeTarget && (
+        {/* ----- Top chrome ----- */}
+        {isFollowing && routeTarget ? (
+          // Follow-mode navigation chrome: prominent banner that makes it
+          // unambiguous the rider IS navigating, with live distance + ETA
+          // and End / Change actions front and center.
+          <div className="rm-chrome-top rm-chrome-top--following">
+            <div className="rm-nav-chrome">
+              <div className="rm-nav-chrome-main">
+                <div className="rm-nav-chrome-icon">
+                  <Navigation size={16} />
+                </div>
+                <div className="rm-nav-chrome-text">
+                  <div className="rm-nav-chrome-label">
+                    {t("rider.nav.navigatingTo") || "Navigating to"}
+                  </div>
+                  <div className="rm-nav-chrome-name">{routeTarget.name}</div>
+                </div>
+                <button
+                  type="button"
+                  className="rm-nav-chrome-end"
+                  onClick={handleEndNavigation}
+                  aria-label={t("rider.nav.end") || "End"}
+                >
+                  <Square size={12} fill="currentColor" />
+                  <span>{t("rider.nav.end") || "End"}</span>
+                </button>
+              </div>
+              <div className="rm-nav-chrome-stats">
+                <div className="rm-nav-chrome-stat">
+                  <span className="rm-nav-chrome-stat-value">
+                    {routing.summary
+                      ? formatEta(routing.summary.durationMin)
+                      : routeTarget.distanceKm != null
+                        ? estEtaFromKm(routeTarget.distanceKm)
+                        : "—"}
+                  </span>
+                  <span className="rm-nav-chrome-stat-label">
+                    {t("rider.nav.arrivingIn") || "ETA"}
+                  </span>
+                </div>
+                <div className="rm-nav-chrome-stat">
+                  <span className="rm-nav-chrome-stat-value">
+                    {routing.summary
+                      ? formatDistance(routing.summary.distanceKm)
+                      : routeTarget.distanceKm != null
+                        ? formatDistance(routeTarget.distanceKm)
+                        : "—"}
+                  </span>
+                  <span className="rm-nav-chrome-stat-label">
+                    {t("rider.nav.remaining") || "Remaining"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="rm-nav-chrome-change"
+                  onClick={handleChangeDestination}
+                  aria-label={t("rider.nav.change") || "Change"}
+                >
+                  <Shuffle size={13} />
+                  <span>{t("rider.nav.change") || "Change"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : routeTarget && isPreview ? (
+          // Preview banner: showing the route, rider hasn't started yet.
+          // "Start" promotes the flow to `following`.
           <div className="rm-chrome-top">
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border bg-bg-secondary shadow-lg">
+            <div className="rm-route-preview">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                 style={{ backgroundColor: "var(--color-brand)" }}
@@ -241,7 +405,21 @@ export default function RiderStations({
                 <div className="text-sm font-semibold text-text-primary truncate">
                   {routeTarget.name}
                 </div>
+                {routing.summary && (
+                  <div className="text-[11px] text-text-secondary mt-0.5">
+                    {formatDistance(routing.summary.distanceKm)} ·{" "}
+                    {formatEta(routing.summary.durationMin)}
+                  </div>
+                )}
               </div>
+              <button
+                onClick={handleStartFollowing}
+                className="rm-route-preview-start"
+                aria-label={t("rider.nav.start") || "Start"}
+              >
+                <Play size={13} fill="currentColor" />
+                <span>{t("rider.nav.start") || "Start"}</span>
+              </button>
               <button
                 onClick={() => setView("directions")}
                 className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors shrink-0"
@@ -259,40 +437,82 @@ export default function RiderStations({
               </button>
             </div>
           </div>
+        ) : null}
+
+        {/* Routing error pill (preview-mode only; in follow-mode the
+            existing stats stay stale but visible, which is less jarring). */}
+        {routing.error && isPreview && (
+          <div className="rm-route-error">
+            <AlertCircle size={14} />
+            <span>
+              {t("rider.nav.routeError") ||
+                "Couldn't compute route. Try again."}
+            </span>
+            <button
+              type="button"
+              onClick={() => setView("directions")}
+              className="rm-route-error-retry"
+            >
+              <RefreshCw size={12} />
+              <span>{t("rider.directions.retry") || "Retry"}</span>
+            </button>
+          </div>
         )}
 
-        {/* Right-side FAB column.
-            Primary = "Where to?" (opens the directions picker). The old
-            "locate me" crosshair was removed — the rider's live position
-            is already shown on the map via the animated chevron marker. */}
-        <div
-          className="rm-fab-stack"
-          style={{ bottom: selected ? 180 : 24 }}
-        >
-          {selected && !routeTarget && (
+        {/* Recenter pill — visible only when following is active but paused
+            because the rider manually panned/zoomed the map. */}
+        {isFollowing && followingPaused && (
+          <button
+            type="button"
+            className="rm-recenter-pill"
+            onClick={handleRecenterFollow}
+          >
+            <LocateFixed size={14} />
+            <span>{t("rider.nav.recenter") || "Recenter"}</span>
+          </button>
+        )}
+
+        {/* Right-side FAB column. Hidden while following — the nav chrome
+            owns the controls in that mode, and free-floating FABs on top
+            of the tilted map feel visually noisy. */}
+        {!isFollowing && (
+          <div
+            className="rm-fab-stack"
+            style={{ bottom: selected && !isPreview ? 180 : 24 }}
+          >
+            {selected && !routeTarget && (
+              <button
+                className="rm-fab"
+                onClick={() => handleSelect(null)}
+                aria-label={t("common.clear") || "Clear"}
+                title={t("common.clear") || "Clear"}
+              >
+                <X size={18} />
+              </button>
+            )}
             <button
               className="rm-fab"
-              onClick={() => handleSelect(null)}
-              aria-label={t("common.clear") || "Clear"}
-              title={t("common.clear") || "Clear"}
+              onClick={handleRecenterIdle}
+              aria-label={t("rider.map.locateMe") || "Locate me"}
+              title={t("rider.map.locateMe") || "Locate me"}
             >
-              <X size={18} />
+              <LocateFixed size={18} />
             </button>
-          )}
-          <button
-            className="rm-fab rm-fab--primary"
-            onClick={() => setView("directions")}
-            aria-label={t("rider.stations.whereTo") || "Where to?"}
-            title={t("rider.stations.whereTo") || "Where to?"}
-          >
-            <Navigation size={18} />
-          </button>
-        </div>
+            <button
+              className="rm-fab rm-fab--primary"
+              onClick={() => setView("directions")}
+              aria-label={t("rider.stations.whereTo") || "Where to?"}
+              title={t("rider.stations.whereTo") || "Where to?"}
+            >
+              <Navigation size={18} />
+            </button>
+          </div>
+        )}
 
-        {/* Bottom peek card — only when a station pin is tapped. Compact,
-            non-blocking, with actions to start routing or open externally.
-            Replaces the old draggable bottom sheet entirely. */}
-        {selected && (
+        {/* Bottom peek card — only when a station pin is tapped and we're
+            NOT in preview/following (where the top chrome already tells the
+            whole story). */}
+        {selected && !isPreview && !isFollowing && (
           <StationPeekCard
             station={selected}
             isActiveDestination={selected.id === routeTargetId}
@@ -300,6 +520,11 @@ export default function RiderStations({
             onNavigate={() => handleStartRoute(selected)}
             onOpenExternal={(app) => handleOpenExternal(app, selected)}
             canRoute={geoStatus !== "denied" && geoStatus !== "unavailable"}
+            liveSummary={
+              routing.summary && selected.id === routeTargetId
+                ? routing.summary
+                : null
+            }
             t={t}
           />
         )}
@@ -379,6 +604,7 @@ interface StationPeekCardProps {
   onNavigate: () => void;
   onOpenExternal: (app: "google" | "apple" | "waze") => void;
   canRoute: boolean;
+  liveSummary: { distanceKm: number; durationMin: number } | null;
   t: (key: string, vars?: any) => string | null | undefined;
 }
 
@@ -389,6 +615,7 @@ function StationPeekCard({
   onNavigate,
   onOpenExternal,
   canRoute,
+  liveSummary,
   t,
 }: StationPeekCardProps) {
   const status: "available" | "low" | "empty" =
@@ -452,10 +679,18 @@ function StationPeekCard({
                 <span className="opacity-40">·</span>
                 <span className="inline-flex items-center gap-1">
                   <Crosshair size={11} />
-                  {formatDistance(station.distanceKm)}
+                  {/* Prefer the live routing distance when this station is
+                      the active destination so numbers match the nav chrome. */}
+                  {liveSummary
+                    ? formatDistance(liveSummary.distanceKm)
+                    : formatDistance(station.distanceKm)}
                 </span>
                 <span className="opacity-40">·</span>
-                <span>{etaMinutes(station.distanceKm)}</span>
+                <span>
+                  {liveSummary
+                    ? formatEta(liveSummary.durationMin)
+                    : `${estEtaFromKm(station.distanceKm)} (est.)`}
+                </span>
               </>
             )}
           </div>
@@ -504,10 +739,20 @@ function StationPeekCard({
 }
 
 // ---------- helpers ----------
-function etaMinutes(km: number): string {
-  // Rough urban riding estimate: ~25 km/h average.
-  const mins = Math.max(1, Math.round((km / 25) * 60));
-  return `${mins} min`;
+
+/** Human-friendly ETA from duration in minutes. */
+function formatEta(minutes: number): string {
+  const rounded = Math.max(1, Math.round(minutes));
+  if (rounded < 60) return `${rounded} min`;
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** Haversine-based ETA estimate assuming ~25 km/h urban two-wheeler pace.
+ *  Used only as a fallback before Routes API returns a real duration. */
+function estEtaFromKm(km: number): string {
+  return formatEta(Math.max(1, (km / 25) * 60));
 }
 
 function geoErrorMessage(

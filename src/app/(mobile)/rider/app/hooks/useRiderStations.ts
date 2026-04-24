@@ -22,6 +22,16 @@ interface UseRiderStationsParams {
  *
  * Exposes `stations`, `isLoading`, `error`, and `refetch`.
  */
+/**
+ * Window (in ms) after which a hidden-then-foregrounded document will
+ * re-trigger the stations fetch. Battery counts on the map are the main
+ * piece of data that ages badly when the phone has been locked for a
+ * while — picking a station with stale "batteries: 3" that's actually
+ * been drained to 0 is the worst failure mode we can have, so we refresh
+ * aggressively when the rider comes back after a nap.
+ */
+const VISIBILITY_STALE_MS = 120_000;
+
 export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRiderStationsParams) {
   const [stations, setStations] = useState<RiderStation[]>([]);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
@@ -30,6 +40,7 @@ export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRider
   const cleanupRef = useRef<(() => void) | null>(null);
   const lastFleetKeyRef = useRef<string | null>(null);
   const lastPlanRef = useRef<string | null>(null);
+  const lastSuccessRef = useRef<number>(0);
 
   // ---- MQTT: request fleet IDs for this plan ----
   useEffect(() => {
@@ -201,6 +212,7 @@ export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRider
         if (!cancelled) {
           setStations(parsed);
           lastFleetKeyRef.current = normalized;
+          lastSuccessRef.current = Date.now();
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -224,6 +236,27 @@ export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRider
     setFleetIds([]);
     setStations([]);
   }, []);
+
+  // Refresh when the tab regains focus after being hidden longer than the
+  // freshness window. This is the #1 fix for "rider taps a station that
+  // looks full, arrives, no batteries left" failures on long idle periods.
+  useEffect(() => {
+    if (!enabled) return;
+    if (typeof document === 'undefined') return;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (lastSuccessRef.current === 0) return; // never successfully loaded
+      const ageMs = Date.now() - lastSuccessRef.current;
+      if (ageMs < VISIBILITY_STALE_MS) return;
+      refetch();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [enabled, refetch]);
 
   return { stations, isLoading, error, refetch };
 }

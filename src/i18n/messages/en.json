@@ -1833,5 +1833,14 @@
   "rider.map.distance": "Distance",
   "rider.map.eta": "ETA",
   "rider.map.openFullMap": "Open full map",
+  "rider.nav.start": "Start",
+  "rider.nav.end": "End",
+  "rider.nav.change": "Change",
+  "rider.nav.navigatingTo": "Navigating to",
+  "rider.nav.recenter": "Recenter",
+  "rider.nav.remaining": "Remaining",
+  "rider.nav.paused": "Follow paused",
+  "rider.nav.arrivingIn": "ETA",
+  "rider.nav.routeError": "Couldn't compute route. Try again.",
   "common.submitting": "Submitting..."
 }

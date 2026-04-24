@@ -13884,6 +13884,325 @@ html.keyboard-open .customer-panel-unified {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ---------- 44x44 touch target wrapping the pill marker ----------
+   The visible pill stays compact (40x22), but tap targets on iOS/Android
+   should be at least 44pt on their shortest side. The wrapper is purely
+   for the hitbox and has no visible affordance. */
+.rm-pill-hitbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Cluster chip, availability-colored ---------- */
+.rm-cluster-marker {
+  background: var(--rm-cluster-fill, var(--color-brand, #00e5e5));
+  color: var(--rm-cluster-text, #0f172a);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 0 0 6px var(--rm-cluster-ring, rgba(0, 229, 229, 0.28)),
+    0 4px 10px rgba(0, 0, 0, 0.22);
+  flex-direction: column;
+  line-height: 1;
+  padding: 4px 0;
+}
+
+.rm-cluster-marker-sub {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+  margin-top: 1px;
+}
+
+/* ---------- Follow-mode navigation chrome (top banner) ---------- */
+.rm-chrome-top--following {
+  top: 10px;
+}
+
+.rm-nav-chrome {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 229, 229, 0.14) 0%,
+    var(--bg-secondary) 55%
+  );
+  border: 1px solid rgba(0, 229, 229, 0.45);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  color: var(--text-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle moving accent bar across the top to signal "active navigation". */
+.rm-nav-chrome::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-brand, #00e5e5) 30%,
+    var(--accent-light, #33ffff) 50%,
+    var(--color-brand, #00e5e5) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: rm-nav-bar 2.8s linear infinite;
+}
+
+@keyframes rm-nav-bar {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.rm-nav-chrome-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rm-nav-chrome-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-brand, #00e5e5);
+  color: #0f172a;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0, 229, 229, 0.25);
+}
+
+.rm-nav-chrome-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rm-nav-chrome-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-light, #33ffff);
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.rm-nav-chrome-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rm-nav-chrome-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: none;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+}
+
+.rm-nav-chrome-end:active {
+  transform: scale(0.95);
+}
+
+.rm-nav-chrome-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.rm-nav-chrome-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+}
+
+.rm-nav-chrome-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.rm-nav-chrome-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.rm-nav-chrome-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.rm-nav-chrome-change:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+/* ---------- Preview-mode route banner (with Start button) ---------- */
+.rm-route-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.rm-route-preview-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-brand, #00e5e5);
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 229, 229, 0.35);
+}
+
+.rm-route-preview-start:active {
+  transform: scale(0.95);
+}
+
+/* ---------- Routing error inline pill ---------- */
+.rm-route-error {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 80px;
+  z-index: 470;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.38);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.rm-route-error-retry {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.18);
+  color: #fecaca;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ---------- Follow-mode Recenter pill ---------- */
+.rm-recenter-pill {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 465;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 229, 229, 0.55);
+  background: var(--bg-secondary);
+  color: var(--accent-light, #33ffff);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 3px rgba(0, 229, 229, 0.18),
+    0 10px 22px rgba(0, 0, 0, 0.28);
+  transition: transform 0.15s ease;
+  animation: rm-recenter-pulse 2.4s ease-in-out infinite;
+}
+
+.rm-recenter-pill:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+@keyframes rm-recenter-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 3px rgba(0, 229, 229, 0.18),
+      0 10px 22px rgba(0, 0, 0, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(0, 229, 229, 0.28),
+      0 10px 22px rgba(0, 0, 0, 0.28);
+  }
+}
+
 /* Rider profile subscription chip */
 .rm-sub-chip {
   display: flex;

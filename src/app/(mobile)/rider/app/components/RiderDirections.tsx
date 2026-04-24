@@ -415,9 +415,12 @@ function StationRow({
               <>
                 {station.address && <span className="list-card-dot">·</span>}
                 <Crosshair size={10} />
+                {/* Haversine + pace-based estimate: labelled so riders
+                    don't confuse it with the Routes-API-backed number
+                    shown on the active navigation chrome. */}
                 <span>{formatDistance(station.distanceKm)}</span>
                 <span className="list-card-dot">·</span>
-                <span>{etaMinutes(station.distanceKm)}</span>
+                <span>{etaMinutes(station.distanceKm)} (est.)</span>
               </>
             )}
           </div>

@@ -1736,5 +1736,14 @@
   "rider.map.distance": "距离",
   "rider.map.eta": "预计时间",
   "rider.map.openFullMap": "打开完整地图",
+  "rider.nav.start": "开始",
+  "rider.nav.end": "结束",
+  "rider.nav.change": "更改",
+  "rider.nav.navigatingTo": "正在导航至",
+  "rider.nav.recenter": "重新居中",
+  "rider.nav.remaining": "剩余",
+  "rider.nav.paused": "跟随已暂停",
+  "rider.nav.arrivingIn": "预计时间",
+  "rider.nav.routeError": "无法计算路线，请重试。",
   "common.submitting": "提交中..."
 }

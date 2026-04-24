@@ -667,7 +667,15 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                       {(station.calculatedDistance || station.distance) && (
                         <>
                           <span className="rm-card-dot" />
-                          <span>{station.calculatedDistance || station.distance}</span>
+                          {/* Straight-line (haversine) distance + pace-based
+                              ETA label. Real routing distance/ETA only
+                              appears on the full stations screen once the
+                              rider picks a destination, so we mark these as
+                              estimates here to avoid raising expectations. */}
+                          <span>
+                            {station.calculatedDistance || station.distance}
+                            {station.calculatedDistance ? " (est.)" : ""}
+                          </span>
                         </>
                       )}
                     </div>
