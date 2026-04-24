@@ -3,9 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   APIProvider,
+  APILoadingStatus,
   AdvancedMarker,
   Map as GoogleMap,
   Polyline,
+  useApiLoadingStatus,
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
@@ -63,8 +65,17 @@ interface RiderMapProps {
 }
 
 export default function RiderMap(props: RiderMapProps) {
+  const handleApiError = useCallback((error: unknown) => {
+    console.error("[RiderMap] Google Maps JS API failed to load:", error);
+  }, []);
+
   return (
-    <APIProvider apiKey={API_KEY} libraries={["marker", "routes"]}>
+    <APIProvider
+      apiKey={API_KEY}
+      libraries={["marker", "routes"]}
+      onLoad={() => console.log("[RiderMap] Google Maps JS API loaded")}
+      onError={handleApiError}
+    >
       <RiderMapInner {...props} />
     </APIProvider>
   );
@@ -122,6 +133,7 @@ function RiderMapInner({
 
   return (
     <div className={`rm-map-wrap${preview ? " rm-map-preview" : ""}`}>
+      <MapDebugOverlay />
       <GoogleMap
         mapId={MAP_ID}
         defaultCenter={initialCenter}
@@ -163,6 +175,112 @@ function RiderMapInner({
           />
         )}
       </GoogleMap>
+    </div>
+  );
+}
+
+/**
+ * On-screen debug banner that surfaces Google Maps JS load status. Helps
+ * distinguish "map container has zero size" from "API key rejected / billing
+ * off / wrong Map ID" without opening devtools. It auto-hides once the API
+ * reports LOADED and no `gm_authFailure` has been observed. Errors remain
+ * visible so the user can act on them.
+ */
+function MapDebugOverlay() {
+  const status = useApiLoadingStatus();
+  const map = useMap();
+  const [authFailed, setAuthFailed] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [tilesLoaded, setTilesLoaded] = useState(false);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const w = window as unknown as { gm_authFailure?: () => void };
+    w.gm_authFailure = () => {
+      console.error(
+        "[RiderMap] gm_authFailure: API key is invalid, referrer not allowed, Maps JS API not enabled, or billing disabled on the Google Cloud project.",
+      );
+      setAuthFailed(true);
+    };
+    return () => {
+      if (w.gm_authFailure) delete w.gm_authFailure;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!map) return;
+    setMapReady(true);
+    console.log("[RiderMap] Map instance ready");
+    const listener = map.addListener("tilesloaded", () => {
+      setTilesLoaded(true);
+      console.log("[RiderMap] tilesloaded");
+    });
+    const div = map.getDiv();
+    if (div) {
+      const rect = div.getBoundingClientRect();
+      setSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
+      if (rect.width === 0 || rect.height === 0) {
+        console.warn(
+          "[RiderMap] Map container has zero size — the map will render blank. Check parent CSS (height/min-height).",
+          rect,
+        );
+      }
+    }
+    return () => listener.remove();
+  }, [map]);
+
+  const statusLabel: Record<APILoadingStatus, string> = {
+    [APILoadingStatus.NOT_LOADED]: "not loaded",
+    [APILoadingStatus.LOADING]: "loading…",
+    [APILoadingStatus.LOADED]: "loaded",
+    [APILoadingStatus.FAILED]: "failed",
+    [APILoadingStatus.AUTH_FAILURE]: "auth failure",
+  };
+
+  const hasError =
+    authFailed ||
+    status === APILoadingStatus.FAILED ||
+    status === APILoadingStatus.AUTH_FAILURE;
+
+  const allGood =
+    status === APILoadingStatus.LOADED && mapReady && tilesLoaded && !hasError;
+
+  if (allGood) return null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        left: 8,
+        zIndex: 1000,
+        maxWidth: "calc(100% - 16px)",
+        padding: "6px 10px",
+        borderRadius: 8,
+        fontSize: 12,
+        lineHeight: 1.35,
+        fontFamily:
+          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+        color: hasError ? "#fff" : "#111",
+        background: hasError ? "rgba(200, 30, 30, 0.92)" : "rgba(255,255,255,0.92)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        pointerEvents: "none",
+      }}
+    >
+      <div>API: {statusLabel[status]}</div>
+      <div>map: {mapReady ? "ready" : "—"} · tiles: {tilesLoaded ? "ok" : "—"}</div>
+      {size && (
+        <div>
+          size: {size.w}×{size.h}
+          {(size.w === 0 || size.h === 0) && " (ZERO — parent has no height)"}
+        </div>
+      )}
+      {hasError && (
+        <div style={{ marginTop: 4 }}>
+          Check console. Likely: key invalid, referrer blocked, Maps JS API
+          disabled, billing off, or Map ID not in this project.
+        </div>
+      )}
     </div>
   );
 }
