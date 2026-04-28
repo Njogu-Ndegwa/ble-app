@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { ArrowLeft, Share2, Clipboard} from 'lucide-react';
-import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
+import { ArrowLeft, Share2, Clipboard, Power } from 'lucide-react';
+import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
 
@@ -357,6 +357,32 @@ useEffect(() => {
   };
 
   /* ------------------------------------------------------------------ */
+  /* Disconnect handler */
+  /* ------------------------------------------------------------------ */
+  const handleDisconnect = () => {
+    if (!device?.macAddress) return;
+    disconnBleByMacAddress(device.macAddress, (resp: any) => {
+      try {
+        const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
+        const ok = parsed?.respCode === '200' || parsed?.respData === true;
+        if (ok) {
+          toast.success(t('Disconnected from device'), { id: 'disconnect-toast', duration: 1500 });
+          sessionStorage.removeItem('connectedDeviceMac');
+          if (onBack) {
+            setTimeout(() => {
+              onBack();
+            }, 500);
+          }
+        } else {
+          toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
+        }
+      } catch (e) {
+        toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
+      }
+    });
+  };
+
+  /* ------------------------------------------------------------------ */
   /* Render */
   /* ------------------------------------------------------------------ */
   const header = (
@@ -374,7 +400,20 @@ useEffect(() => {
       <h1 className="text-lg font-semibold flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
         {getDisplayValue(opidCharacteristic) ?? device.name ?? t('Device')}
       </h1>
-      <Share2 className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleDisconnect}
+          className="p-2 rounded-lg transition-colors"
+          style={{ color: 'var(--color-error)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          title={t('Disconnect Device') || 'Disconnect Device'}
+          aria-label={t('Disconnect Device') || 'Disconnect Device'}
+        >
+          <Power className="w-5 h-5" />
+        </button>
+        <Share2 className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+      </div>
     </div>
   );
 
