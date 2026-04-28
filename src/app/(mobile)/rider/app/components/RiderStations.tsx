@@ -20,6 +20,8 @@ import {
   Square,
   Shuffle,
   LocateFixed,
+  Clipboard,
+  Check,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useI18n } from "@/i18n";
@@ -38,12 +40,7 @@ import type { RiderMapControls } from "../map/RiderMap";
 // Google Maps is client-only and reads `window` at module load, so the map
 // must be dynamically imported with SSR disabled.
 const RiderMap = dynamic(() => import("../map/RiderMap"), { ssr: false });
-import {
-  googleMapsUrl,
-  appleMapsUrl,
-  wazeUrl,
-  openExternalMap,
-} from "../map/deepLinks";
+import { copyToClipboard, formatCoords } from "../map/deepLinks";
 
 interface RiderStationsProps {
   stations: RiderStation[];
@@ -281,20 +278,35 @@ export default function RiderStations({
     });
   }, [withUserLocation]);
 
-  const handleOpenExternal = (
-    app: "google" | "apple" | "waze",
-    station: RiderStation,
-  ) => {
-    if (station.lat == null || station.lng == null) return;
-    const dest = { lat: station.lat, lng: station.lng };
-    const url =
-      app === "google"
-        ? googleMapsUrl(dest, station.name)
-        : app === "apple"
-          ? appleMapsUrl(dest)
-          : wazeUrl(dest);
-    openExternalMap(url);
-  };
+  // Copy the station's coordinates to the clipboard. Replaces the old
+  // "Open in Google Maps" button: in embedded WebViews `window.open` is
+  // frequently a no-op, so handing the rider the raw lat/lng lets them
+  // paste into whatever map / messaging app they prefer.
+  const handleCopyCoords = useCallback(
+    async (station: RiderStation) => {
+      if (station.lat == null || station.lng == null) {
+        toast.error(
+          t("rider.stationLocationMissing") || "Station location is missing.",
+        );
+        return;
+      }
+      const text = formatCoords({ lat: station.lat, lng: station.lng });
+      const ok = await copyToClipboard(text);
+      if (ok) {
+        toast.success(
+          t("rider.map.coordsCopied", { coords: text }) ||
+            `Copied: ${text}`,
+          { duration: 2800, id: "rider-coords-copied" },
+        );
+      } else {
+        toast.error(
+          t("rider.map.coordsCopyFailed") || "Couldn't copy coordinates.",
+          { id: "rider-coords-copy-failed" },
+        );
+      }
+    },
+    [t],
+  );
 
   // Directions sub-view renders edge-to-edge; no map behind it.
   if (view === "directions") {
@@ -409,7 +421,13 @@ export default function RiderStations({
           // Preview banner: showing the route, rider hasn't started yet.
           // "Start" promotes the flow to `following`.
           <div className="rm-chrome-top">
-            <div className="rm-route-preview">
+            <div
+              className={`rm-route-preview${
+                routing.isLoading && !routing.summary
+                  ? " rm-route-preview--loading"
+                  : ""
+              }`}
+            >
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                 style={{ backgroundColor: "var(--color-brand)" }}
@@ -429,14 +447,27 @@ export default function RiderStations({
                     {formatEta(routing.summary.durationMin)}
                   </div>
                 ) : routing.isLoading ? (
-                  <div className="text-[11px] text-text-muted mt-0.5 flex items-center gap-1.5">
+                  // Skeleton line matches the "distance · ETA" rhythm
+                  // (two short shimmer bars with a dot between) so the
+                  // banner doesn't reflow when the summary arrives. The
+                  // indeterminate bar along the banner's bottom edge
+                  // (rm-route-preview--loading) signals activity.
+                  <div
+                    className="rm-route-preview-skeleton"
+                    aria-label={
+                      t("rider.nav.computingRoute") || "Computing route…"
+                    }
+                    role="status"
+                  >
                     <span
-                      className="loading-spinner"
-                      style={{ width: 10, height: 10, borderWidth: 1.5 }}
+                      className="rm-route-preview-skeleton-bar"
+                      style={{ width: 44 }}
                     />
-                    <span>
-                      {t("rider.nav.computingRoute") || "Computing route…"}
-                    </span>
+                    <span className="rm-route-preview-skeleton-dot" />
+                    <span
+                      className="rm-route-preview-skeleton-bar"
+                      style={{ width: 52 }}
+                    />
                   </div>
                 ) : routing.error ? (
                   <div className="text-[11px] mt-0.5" style={{ color: "#ef4444" }}>
@@ -452,18 +483,19 @@ export default function RiderStations({
                 }
                 className="rm-route-preview-start"
                 aria-label={t("rider.nav.start") || "Start"}
+                aria-busy={routing.isLoading && !routing.summary}
                 style={
                   !routing.path || !routing.summary || !!routing.error
-                    ? { opacity: 0.5, cursor: "not-allowed" }
+                    ? { opacity: 0.6, cursor: "not-allowed" }
                     : undefined
                 }
               >
-                <Play size={13} fill="currentColor" />
-                <span>
-                  {!routing.path && routing.isLoading
-                    ? t("rider.nav.computing") || "Computing…"
-                    : t("rider.nav.start") || "Start"}
-                </span>
+                {routing.isLoading && !routing.summary ? (
+                  <span className="rm-route-preview-start-spinner" aria-hidden />
+                ) : (
+                  <Play size={13} fill="currentColor" />
+                )}
+                <span>{t("rider.nav.start") || "Start"}</span>
               </button>
               <button
                 onClick={() => setView("directions")}
@@ -575,7 +607,7 @@ export default function RiderStations({
             isActiveDestination={selected.id === routeTargetId}
             onClose={() => handleSelect(null)}
             onNavigate={() => handleStartRoute(selected)}
-            onOpenExternal={(app) => handleOpenExternal(app, selected)}
+            onCopyCoords={() => handleCopyCoords(selected)}
             canRoute={geoStatus !== "denied" && geoStatus !== "unavailable"}
             liveSummary={
               routing.summary && selected.id === routeTargetId
@@ -659,7 +691,7 @@ interface StationPeekCardProps {
   isActiveDestination: boolean;
   onClose: () => void;
   onNavigate: () => void;
-  onOpenExternal: (app: "google" | "apple" | "waze") => void;
+  onCopyCoords: () => void;
   canRoute: boolean;
   liveSummary: { distanceKm: number; durationMin: number } | null;
   t: (key: string, vars?: any) => string | null | undefined;
@@ -670,11 +702,17 @@ function StationPeekCard({
   isActiveDestination,
   onClose,
   onNavigate,
-  onOpenExternal,
+  onCopyCoords,
   canRoute,
   liveSummary,
   t,
 }: StationPeekCardProps) {
+  const [justCopied, setJustCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    onCopyCoords();
+    setJustCopied(true);
+    window.setTimeout(() => setJustCopied(false), 1800);
+  }, [onCopyCoords]);
   const status: "available" | "low" | "empty" =
     station.batteries === 0
       ? "empty"
@@ -785,10 +823,26 @@ function StationPeekCard({
           </span>
         </button>
         <button
-          onClick={() => onOpenExternal("google")}
-          className="h-9 px-3 rounded-xl text-xs font-medium border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+          onClick={handleCopy}
+          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-xl text-xs font-medium border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors"
+          aria-label={t("rider.map.copyCoords") || "Copy coordinates"}
+          title={
+            station.lat != null && station.lng != null
+              ? formatCoords({ lat: station.lat, lng: station.lng })
+              : undefined
+          }
         >
-          {t("rider.map.openInGoogle") || "Google"}
+          {justCopied ? (
+            <>
+              <Check size={13} />
+              <span>{t("common.copied") || "Copied"}</span>
+            </>
+          ) : (
+            <>
+              <Clipboard size={13} />
+              <span>{t("rider.map.copyCoords") || "Copy"}</span>
+            </>
+          )}
         </button>
       </div>
     </div>

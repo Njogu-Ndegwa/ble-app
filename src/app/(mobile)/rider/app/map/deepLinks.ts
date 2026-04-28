@@ -57,3 +57,79 @@ export function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
+
+/**
+ * Copies a string to the system clipboard.
+ *
+ * Tries, in order:
+ *   1. A native bridge handler (`copyToClipboard`) if the WebView host exposes
+ *      one — most reliable inside restricted mobile WebViews.
+ *   2. `navigator.clipboard.writeText` — the modern async API, works in any
+ *      secure context (https / localhost) including most WebViews.
+ *   3. A legacy `document.execCommand("copy")` fallback via a hidden
+ *      `<textarea>`. Ugly but survives older Android WebViews where the
+ *      Clipboard API isn't exposed.
+ *
+ * Returns `true` if any path reports success.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  const bridge = (window as any).WebViewJavascriptBridge;
+  if (bridge?.callHandler) {
+    try {
+      const ok = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        bridge.callHandler("copyToClipboard", text, (res: unknown) => {
+          settled = true;
+          resolve(res !== false);
+        });
+        setTimeout(() => {
+          if (!settled) resolve(false);
+        }, 400);
+      });
+      if (ok) return true;
+    } catch (err) {
+      console.warn("[deepLinks] bridge copyToClipboard failed:", err);
+    }
+  }
+
+  try {
+    if (navigator.clipboard && window.isSecureContext !== false) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    console.warn("[deepLinks] navigator.clipboard.writeText failed:", err);
+  }
+
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (err) {
+    console.warn("[deepLinks] execCommand copy fallback failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Formats a lat/lng pair as a human-readable, paste-friendly string.
+ *
+ * We fix the precision to 6 decimals (~10 cm resolution — more than enough
+ * for station pinpointing) so the output is stable across different origins
+ * and survives round-tripping through apps like Google Maps' search bar,
+ * WhatsApp, SMS, etc.
+ */
+export function formatCoords(coords: Coords): string {
+  return `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+}

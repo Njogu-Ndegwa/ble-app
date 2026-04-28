@@ -58,6 +58,15 @@ function formatBatteries(n: number): string {
  * visual footprint. 44pt is the iOS HIG / Material minimum for touch
  * targets; the pill itself stays at its existing compact size so markers
  * still read as compact dots on dense maps.
+ *
+ * IMPORTANT: `rm-pill-hitbox` has `pointer-events: none` and the inner
+ * `rm-pill-marker` has `pointer-events: auto`. This is deliberate — when
+ * two stations sit close together their 44×44 wrappers overlap even when
+ * the visible pills are clearly separate, and without the pointer-events
+ * split a tap on one pill's visible body could land inside the other
+ * pill's invisible padding and fire the wrong station's click handler
+ * (the "expand a cluster of 2, tap one, wrong one selected" bug). Keep
+ * both rules or the bug comes back.
  */
 export function StationPillMarker({
   variant,

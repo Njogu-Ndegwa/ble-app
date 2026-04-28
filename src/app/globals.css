@@ -12862,8 +12862,8 @@ html.theme-transition *::after {
 /* ---- Variant: card with product image (devices) ---- */
 
 .list-card-image {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
@@ -13885,7 +13885,17 @@ html.keyboard-open .customer-panel-unified {
 /* ---------- 44x44 touch target wrapping the pill marker ----------
    The visible pill stays compact (40x22), but tap targets on iOS/Android
    should be at least 44pt on their shortest side. The wrapper is purely
-   for the hitbox and has no visible affordance. */
+   for layout centering and has no visible affordance.
+
+   CRITICAL — pointer-events split: the wrapper's transparent padding
+   must NOT capture clicks, only the visible pill inside it. Previously,
+   when two stations sat close enough for their 44x44 wrappers to overlap
+   (a very common scenario right after expanding a 2-item cluster at
+   medium zoom), a tap on the visible pill of station B could land inside
+   station A's invisible padding, and A's click handler would fire
+   instead — the rider would see "wrong station selected". Moving
+   `pointer-events: auto` to the visible pill fixes that: clicks only
+   register on pills you can actually see. */
 .rm-pill-hitbox {
   display: inline-flex;
   align-items: center;
@@ -13893,8 +13903,13 @@ html.keyboard-open .customer-panel-unified {
   min-width: 44px;
   min-height: 44px;
   padding: 0;
-  cursor: pointer;
+  pointer-events: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.rm-pill-hitbox > .rm-pill-marker {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* ---------- Cluster chip, availability-colored ---------- */
@@ -14090,6 +14105,7 @@ html.keyboard-open .customer-panel-unified {
 
 /* ---------- Preview-mode route banner (with Start button) ---------- */
 .rm-route-preview {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -14098,6 +14114,80 @@ html.keyboard-open .customer-panel-unified {
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+/* Indeterminate progress bar along the bottom of the banner while the
+   Routes API call is in flight. Keeps the rider aware that something is
+   actively happening even when the distance/ETA line is a skeleton. */
+.rm-route-preview--loading::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-brand, #00e5e5) 40%,
+    var(--color-brand, #00e5e5) 60%,
+    transparent 100%
+  );
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: rm-route-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes rm-route-progress {
+  0% {
+    background-position: -40% 0;
+  }
+  100% {
+    background-position: 140% 0;
+  }
+}
+
+/* Skeleton shimmer shown in place of the distance/ETA line until the
+   Routes API returns. Same height as the real text so the banner doesn't
+   reflow when the real content arrives. */
+.rm-route-preview-skeleton {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 11px;
+}
+
+.rm-route-preview-skeleton-bar {
+  display: inline-block;
+  height: 9px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.12) 0%,
+    rgba(148, 163, 184, 0.32) 50%,
+    rgba(148, 163, 184, 0.12) 100%
+  );
+  background-size: 200% 100%;
+  animation: rm-route-shimmer 1.25s ease-in-out infinite;
+}
+
+.rm-route-preview-skeleton-dot {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+@keyframes rm-route-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: -100% 50%;
+  }
 }
 
 .rm-route-preview-start {
@@ -14120,6 +14210,19 @@ html.keyboard-open .customer-panel-unified {
 
 .rm-route-preview-start:active {
   transform: scale(0.95);
+}
+
+/* Small inline spinner that replaces the Play icon while the route is
+   being computed. Inherits currentColor so it matches the button's dark
+   text on the brand background. */
+.rm-route-preview-start-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(15, 23, 42, 0.25);
+  border-top-color: #0f172a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 /* ---------- Routing error inline pill ---------- */
