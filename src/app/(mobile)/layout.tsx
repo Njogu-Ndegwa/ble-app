@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../../components/sidebar/sidebar';   // wherever you put the sidebar file
 import { User } from 'lucide-react';
 import { isAuth } from '@/lib/auth';
@@ -17,6 +17,29 @@ function MobileLayout({
 }) {
   const [open, setOpen] = useState(false);
   useKeyboardVisible();
+
+  // Dismiss the SSR HTML splash overlay (#html-splash) when any mobile page
+  // mounts. Normally `src/app/page.tsx` does this after the SplashScreen
+  // animation, but users who deep-link straight into a tool page (e.g.
+  // /assets/ble-devices, /keypad/keypad, /mydevices/devices) never hit that
+  // code path, so the splash sits on top forever and the page looks "stuck"
+  // even though it rendered underneath.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('html-splash');
+    if (!el) return;
+    el.style.opacity = '0';
+    el.style.pointerEvents = 'none';
+    const id = window.setTimeout(() => {
+      el.style.display = 'none';
+    }, 350);
+    try {
+      sessionStorage.setItem('oves-splash-shown', 'true');
+    } catch {
+      /* ignore storage errors */
+    }
+    return () => window.clearTimeout(id);
+  }, []);
 
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--bg-primary)' }}>

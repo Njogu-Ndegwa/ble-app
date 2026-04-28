@@ -1,182 +1,72 @@
 "use client";
 
-import React from 'react';
-import { Globe, ChevronRight, Bluetooth, ArrowLeft, LogOut } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
+import { WorkflowProfile } from '@/components/shared';
+import { getDecodedToken } from '@/lib/auth';
 
 interface DeviceManagerProfileProps {
-  onChangeRole: () => void;
+  /** @deprecated Change role is now exposed via the header back button. Kept for backwards compatibility. */
+  onChangeRole?: () => void;
   onLogout: () => void;
+  /** @deprecated The active tool is reflected in the bottom nav; the profile always shows the role. */
   toolLabel?: string;
-  /** Optional override for the subtitle in the tool card */
+  /** @deprecated Kept for backwards compatibility, no longer rendered. */
   toolSubtitle?: string;
 }
 
-const sectionHeader: React.CSSProperties = {
-  padding: '12px 16px',
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: 0.5,
-  textTransform: 'uppercase',
-  color: 'var(--text-muted)',
-  borderBottom: '1px solid var(--border)',
-};
+interface DeviceManagerEmployee {
+  id: string | number;
+  name: string;
+  email: string;
+  phone?: string;
+}
 
-const cardSection: React.CSSProperties = {
-  border: '1px solid var(--border)',
-  background: 'var(--bg-secondary)',
-  borderRadius: 12,
-  overflow: 'hidden',
-};
+const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({ onLogout }) => {
+  const { t } = useI18n();
+  const [employee, setEmployee] = useState<DeviceManagerEmployee | null>(null);
 
-const rowBase: React.CSSProperties = {
-  width: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '12px 16px',
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-  color: 'var(--text-primary)',
-  fontSize: 14,
-  fontFamily: 'inherit',
-  textAlign: 'left',
-};
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({
-  onChangeRole,
-  onLogout,
-  toolLabel,
-  toolSubtitle,
-}) => {
-  const { t, locale, setLocale } = useI18n();
+    let storedName = '';
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        storedName = parsed?.name || '';
+      }
+    } catch {
+      /* ignore malformed user blob */
+    }
 
-  const cycleLocale = () => {
-    const next = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(next);
-  };
+    const decoded = getDecodedToken();
+    const email: string = decoded?.email || '';
+    const id: string | number =
+      decoded?.user_id ?? localStorage.getItem('distributorId') ?? 'N/A';
+    const name = storedName || decoded?.username || decoded?.name || '';
 
-  const localeLabel =
-    locale === 'en'
-      ? t('common.language.english') || 'English'
-      : locale === 'fr'
-      ? t('common.language.french') || 'French'
-      : t('common.language.chinese') || 'Chinese';
+    if (!name && !email && id === 'N/A') {
+      setEmployee(null);
+      return;
+    }
+
+    setEmployee({
+      id,
+      name,
+      email,
+    });
+  }, []);
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
-      <div className="p-4 max-w-md mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Tool card */}
-        <div
-          style={{
-            ...cardSection,
-            padding: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: 'var(--accent-soft)',
-              color: 'var(--accent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Bluetooth size={22} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: 16 }}>
-              {toolLabel || t('ble.profile.toolName') || 'BLE Device Manager'}
-            </div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>
-              {toolSubtitle || t('ble.profile.toolSubtitle') || 'Field tool for technicians'}
-            </div>
-          </div>
-        </div>
-
-        {/* Preferences */}
-        <div style={cardSection}>
-          <div style={sectionHeader}>
-            {t('ble.profile.preferences') || 'Preferences'}
-          </div>
-
-          <div
-            style={{
-              ...rowBase,
-              cursor: 'default',
-              borderBottom: '1px solid var(--border)',
-            }}
-          >
-            <span>{t('ble.profile.theme') || 'Theme'}</span>
-            <ThemeToggle />
-          </div>
-
-          <button
-            onClick={cycleLocale}
-            style={rowBase}
-          >
-            <span>{t('ble.profile.language') || 'Language'}</span>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                color: 'var(--text-secondary)',
-                fontSize: 12,
-              }}
-            >
-              <Globe size={14} />
-              {localeLabel}
-              <ChevronRight size={14} style={{ opacity: 0.5 }} />
-            </span>
-          </button>
-        </div>
-
-        {/* Account */}
-        <div style={cardSection}>
-          <div style={sectionHeader}>
-            {t('ble.menu.account') || 'Account'}
-          </div>
-
-          <button
-            onClick={onChangeRole}
-            style={{
-              ...rowBase,
-              borderBottom: '1px solid var(--border)',
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <ArrowLeft size={16} style={{ color: 'var(--text-secondary)' }} />
-              {t('ble.profile.changeRole') || 'Change Role'}
-            </span>
-            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-          </button>
-
-          <button
-            onClick={onLogout}
-            style={{
-              ...rowBase,
-              color: 'var(--color-error, #ef4444)',
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <LogOut size={16} />
-              {t('common.logout') || 'Logout'}
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>
+    <WorkflowProfile
+      employee={employee}
+      onLogout={onLogout}
+      roleIconSrc="/assets/BleDeviceAttendant.svg"
+      roleLabel={t('role.bleDeviceManager') || 'Device Manager'}
+      employeeIdLabel={t('profile.employeeId') || 'Employee ID'}
+      fallbackInitials="DM"
+    />
   );
 };
 

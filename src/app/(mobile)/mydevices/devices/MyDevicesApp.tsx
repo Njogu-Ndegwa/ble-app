@@ -194,13 +194,12 @@ const MyDevicesApp: React.FC = () => {
       return () => bridge.registerHandler(name, noop);
     };
 
+    // NOTE: bridge.init() is already called in bridgeContext.tsx
+    // Do NOT call init() again here as it causes the app to hang / native
+    // force-close, especially when navigating between BLE/Keypad/MyDevices
+    // via the bottom nav (each mount used to re-init the bridge).
     if (!bridgeHasBeenInitialized) {
       bridgeHasBeenInitialized = true;
-      try {
-        bridge.init((_m, r) => r("js success!"));
-      } catch (error) {
-        console.error("Error initializing bridge:", error);
-      }
     }
 
     const offPrint = reg("print", (data: string, resp: any) => {
