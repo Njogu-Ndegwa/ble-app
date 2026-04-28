@@ -19,15 +19,32 @@ interface MobileListViewProps {
   isScanning: boolean;
 }
 
+const SkeletonBar: React.FC<{ width: string; height: number }> = ({ width, height }) => (
+  <div
+    style={{
+      width,
+      height,
+      borderRadius: 4,
+      background: 'var(--bg-tertiary)',
+    }}
+  />
+);
+
 const DeviceItemSkeleton = () => (
   <div className="list-card animate-pulse">
     <div className="list-card-body list-card-body--with-avatar">
-      <div className="w-10 h-10 rounded-md flex-shrink-0" style={{ background: 'var(--bg-tertiary)' }} />
+      <div
+        className="list-card-image flex-shrink-0"
+        style={{ background: 'var(--bg-tertiary)' }}
+      />
       <div className="list-card-content">
-        <div className="h-4 rounded w-2/3" style={{ background: 'var(--bg-tertiary)' }} />
-        <div className="h-3 rounded w-1/2 mt-1" style={{ background: 'var(--bg-tertiary)' }} />
+        <SkeletonBar width="65%" height={16} />
+        <SkeletonBar width="50%" height={13} />
+        <SkeletonBar width="35%" height={11} />
       </div>
-      <div className="w-16 h-5 rounded-md" style={{ background: 'var(--bg-tertiary)' }} />
+      <div className="list-card-actions">
+        <SkeletonBar width="64px" height={20} />
+      </div>
     </div>
   </div>
 );

@@ -5,14 +5,14 @@ import { Bluetooth, Battery, Keyboard, User } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import BottomNav, { NavItem } from '@/components/ui/BottomNav';
 
-export type BleDevicesTab = 'all-devices' | 'my-devices' | 'keypad' | 'profile';
+export type MyDevicesTab = 'all-devices' | 'my-devices' | 'keypad' | 'profile';
 
-interface BleDevicesNavProps {
-  currentTab: BleDevicesTab;
-  onNavigate: (tab: BleDevicesTab) => void;
+interface MyDevicesNavProps {
+  currentTab: MyDevicesTab;
+  onNavigate: (tab: MyDevicesTab) => void;
 }
 
-const BleDevicesNav: React.FC<BleDevicesNavProps> = ({ currentTab, onNavigate }) => {
+const MyDevicesNav: React.FC<MyDevicesNavProps> = ({ currentTab, onNavigate }) => {
   const { t } = useI18n();
 
   const navItems: NavItem[] = useMemo(() => [
@@ -42,10 +42,10 @@ const BleDevicesNav: React.FC<BleDevicesNavProps> = ({ currentTab, onNavigate })
     <BottomNav
       items={navItems}
       currentScreen={currentTab}
-      onNavigate={(tab) => onNavigate(tab as BleDevicesTab)}
-      className="ble-devices-nav"
+      onNavigate={(tab) => onNavigate(tab as MyDevicesTab)}
+      className="my-devices-nav"
     />
   );
 };
 
-export default BleDevicesNav;
+export default MyDevicesNav;

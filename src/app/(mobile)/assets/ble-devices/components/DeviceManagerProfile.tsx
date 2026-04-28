@@ -1,18 +1,56 @@
 "use client";
 
 import React from 'react';
-import { Globe, ChevronRight, Bluetooth, ArrowLeft } from 'lucide-react';
+import { Globe, ChevronRight, Bluetooth, ArrowLeft, LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface DeviceManagerProfileProps {
   onChangeRole: () => void;
+  onLogout: () => void;
   toolLabel?: string;
+  /** Optional override for the subtitle in the tool card */
+  toolSubtitle?: string;
 }
+
+const sectionHeader: React.CSSProperties = {
+  padding: '12px 16px',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: 0.5,
+  textTransform: 'uppercase',
+  color: 'var(--text-muted)',
+  borderBottom: '1px solid var(--border)',
+};
+
+const cardSection: React.CSSProperties = {
+  border: '1px solid var(--border)',
+  background: 'var(--bg-secondary)',
+  borderRadius: 12,
+  overflow: 'hidden',
+};
+
+const rowBase: React.CSSProperties = {
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '12px 16px',
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  color: 'var(--text-primary)',
+  fontSize: 14,
+  fontFamily: 'inherit',
+  textAlign: 'left',
+};
 
 const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({
   onChangeRole,
+  onLogout,
   toolLabel,
+  toolSubtitle,
 }) => {
   const { t, locale, setLocale } = useI18n();
 
@@ -31,11 +69,10 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({
   return (
     <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
       <div className="p-4 max-w-md mx-auto" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Tool card */}
         <div
-          className="rounded-lg"
           style={{
-            border: '1px solid var(--border)',
-            background: 'var(--bg-secondary)',
+            ...cardSection,
             padding: 16,
             display: 'flex',
             alignItems: 'center',
@@ -62,61 +99,31 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({
               {toolLabel || t('ble.profile.toolName') || 'BLE Device Manager'}
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>
-              {t('ble.profile.toolSubtitle') || 'Field tool for technicians'}
+              {toolSubtitle || t('ble.profile.toolSubtitle') || 'Field tool for technicians'}
             </div>
           </div>
         </div>
 
-        <div
-          className="rounded-lg overflow-hidden"
-          style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
-        >
-          <div
-            style={{
-              padding: '12px 16px',
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: 0.5,
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-              borderBottom: '1px solid var(--border)',
-            }}
-          >
+        {/* Preferences */}
+        <div style={cardSection}>
+          <div style={sectionHeader}>
             {t('ble.profile.preferences') || 'Preferences'}
           </div>
 
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '12px 16px',
+              ...rowBase,
+              cursor: 'default',
               borderBottom: '1px solid var(--border)',
             }}
           >
-            <div style={{ color: 'var(--text-primary)', fontSize: 14 }}>
-              {t('ble.profile.theme') || 'Theme'}
-            </div>
+            <span>{t('ble.profile.theme') || 'Theme'}</span>
             <ThemeToggle />
           </div>
 
           <button
             onClick={cycleLocale}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '12px 16px',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--text-primary)',
-              fontSize: 14,
-              fontFamily: 'inherit',
-            }}
+            style={rowBase}
           >
             <span>{t('ble.profile.language') || 'Language'}</span>
             <span
@@ -135,30 +142,39 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({
           </button>
         </div>
 
-        <button
-          onClick={onChangeRole}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '12px 16px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            cursor: 'pointer',
-            color: 'var(--text-primary)',
-            fontSize: 14,
-            fontFamily: 'inherit',
-          }}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <ArrowLeft size={16} style={{ color: 'var(--text-secondary)' }} />
-            {t('ble.profile.changeRole') || 'Change Role'}
-          </span>
-          <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-        </button>
+        {/* Account */}
+        <div style={cardSection}>
+          <div style={sectionHeader}>
+            {t('ble.menu.account') || 'Account'}
+          </div>
+
+          <button
+            onClick={onChangeRole}
+            style={{
+              ...rowBase,
+              borderBottom: '1px solid var(--border)',
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <ArrowLeft size={16} style={{ color: 'var(--text-secondary)' }} />
+              {t('ble.profile.changeRole') || 'Change Role'}
+            </span>
+            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+          </button>
+
+          <button
+            onClick={onLogout}
+            style={{
+              ...rowBase,
+              color: 'var(--color-error, #ef4444)',
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <LogOut size={16} />
+              {t('common.logout') || 'Logout'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

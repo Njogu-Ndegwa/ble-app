@@ -91,6 +91,9 @@
 
   "ble.nav.devices": "Devices",
   "ble.nav.profile": "Profile",
+  "ble.nav.menu": "Menu",
+  "ble.menu.navigate": "Navigate",
+  "ble.menu.account": "Account",
   "ble.connectedBadge": "Connected",
   "ble.changeRole": "Change Role",
   "ble.disconnect": "Disconnect Device",
@@ -101,6 +104,7 @@
   "ble.profile.language": "Language",
   "ble.profile.changeRole": "Change Role",
   "keypad.profile.toolName": "Keypad",
+  "mydevices.profile.toolName": "My Devices",
 
   "nav.dashboard": "Dashboard",
   "nav.dashboard.overview": "My Dash 1",

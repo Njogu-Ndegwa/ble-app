@@ -91,6 +91,9 @@
 
   "ble.nav.devices": "设备",
   "ble.nav.profile": "个人资料",
+  "ble.nav.menu": "菜单",
+  "ble.menu.navigate": "导航",
+  "ble.menu.account": "账户",
   "ble.connectedBadge": "已连接",
   "ble.changeRole": "切换角色",
   "ble.disconnect": "断开设备连接",
@@ -101,6 +104,7 @@
   "ble.profile.language": "语言",
   "ble.profile.changeRole": "切换角色",
   "keypad.profile.toolName": "键盘",
+  "mydevices.profile.toolName": "我的设备",
 
   "nav.dashboard": "仪表盘",
   "nav.dashboard.overview": "我的仪表盘 1",

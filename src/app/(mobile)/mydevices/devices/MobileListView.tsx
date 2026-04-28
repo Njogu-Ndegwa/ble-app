@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   Camera,
   RefreshCcw,
   BluetoothSearching,
-  BluetoothConnected,
 } from 'lucide-react';
 import { BleDevice } from './page';
 import { useI18n } from '@/i18n';
@@ -20,15 +19,33 @@ interface MobileListViewProps {
   isScanning: boolean;
 }
 
+const SkeletonBar: React.FC<{ width: string; height: number }> = ({ width, height }) => (
+  <div
+    style={{
+      width,
+      height,
+      borderRadius: 4,
+      background: 'var(--bg-tertiary)',
+    }}
+  />
+);
+
 const DeviceItemSkeleton = () => (
-  <div className="flex items-start p-3 rounded-lg animate-pulse" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-    <div className="w-12 h-12 rounded-full mr-3" style={{ background: 'var(--bg-tertiary)' }}></div>
-    <div className="flex-1">
-      <div className="h-4 rounded w-2/3 mb-2" style={{ background: 'var(--bg-tertiary)' }}></div>
-      <div className="h-3 rounded w-1/2 mb-2" style={{ background: 'var(--bg-tertiary)' }}></div>
-      <div className="h-3 rounded w-1/3" style={{ background: 'var(--bg-tertiary)' }}></div>
+  <div className="list-card animate-pulse">
+    <div className="list-card-body list-card-body--with-avatar">
+      <div
+        className="list-card-image flex-shrink-0"
+        style={{ background: 'var(--bg-tertiary)' }}
+      />
+      <div className="list-card-content">
+        <SkeletonBar width="65%" height={16} />
+        <SkeletonBar width="50%" height={13} />
+        <SkeletonBar width="35%" height={11} />
+      </div>
+      <div className="list-card-actions">
+        <SkeletonBar width="64px" height={20} />
+      </div>
     </div>
-    <div className="w-5 h-5 rounded-full" style={{ background: 'var(--bg-tertiary)' }}></div>
   </div>
 );
 
@@ -43,7 +60,6 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Filter items based on search query
   const filteredItems = items.filter((item) =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.macAddress.toLowerCase().includes(searchQuery.toLowerCase())
@@ -57,8 +73,6 @@ const MobileListView: React.FC<MobileListViewProps> = ({
     onRescanBleItems();
   };
 
-
-  // Generate skeleton loaders
   const renderSkeletons = () => {
     return Array(5).fill(0).map((_, index) => (
       <DeviceItemSkeleton key={`skeleton-${index}`} />
@@ -125,75 +139,54 @@ const MobileListView: React.FC<MobileListViewProps> = ({
           </div>
         </div>
 
-        {/* Sort and Filter */}
-        {/* <div className="flex gap-2 mb-4">
-          <button
-            className="flex-1 px-4 py-2 border border-border rounded-lg text-text-primary text-sm flex items-center justify-between bg-bg-secondary"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {t('Sort by...')}
-            <span className="text-xs">
-              <ArrowUpDown />
-            </span>
-          </button>
-          <button
-            className="flex-1 px-4 py-2 border border-border rounded-lg text-text-primary text-sm flex items-center justify-between bg-bg-secondary"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {t('Filter')}
-            <span className="text-lg">
-              <ListFilter />
-            </span>
-          </button>
-        </div> */}
-
         {/* List Items or Skeleton Loaders */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {items.length === 0 && isScanning ? (
             renderSkeletons()
           ) : filteredItems.length > 0 ? (
-            filteredItems.map((item) => (
-              <div
-                key={item.macAddress}
-                className="flex items-start p-3 rounded-lg cursor-pointer transition-colors"
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-tertiary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-secondary)';
-                }}
-                onClick={() => handleDeviceClick(item.macAddress)}
-              >
-                {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="w-12 h-12 rounded-full mr-3 object-contain"
-                    style={{ background: 'var(--bg-tertiary)' }}
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full mr-3 flex items-center justify-center" style={{ background: 'var(--bg-tertiary)' }}>
-                    <BluetoothSearching size={20} style={{ color: 'var(--text-muted)' }} />
+            filteredItems.map((item) => {
+              const isConnected = item.macAddress === connectedDevice;
+              return (
+                <button
+                  key={item.macAddress}
+                  className="list-card w-full text-left"
+                  onClick={() => handleDeviceClick(item.macAddress)}
+                >
+                  <div className="list-card-body list-card-body--with-avatar">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="list-card-image"
+                      />
+                    ) : (
+                      <div
+                        className="list-card-image flex items-center justify-center"
+                        style={{ background: 'var(--bg-tertiary)' }}
+                      >
+                        <BluetoothSearching size={18} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                    )}
+                    <div className="list-card-content">
+                      <div className="list-card-primary">{item.name}</div>
+                      <div className="list-card-secondary list-card-meta-mono">
+                        {item.macAddress}
+                      </div>
+                      <div className="list-card-meta">
+                        <span>{item.rssi}</span>
+                      </div>
+                    </div>
+                    <div className="list-card-actions">
+                      {isConnected && (
+                        <span className="list-card-badge list-card-badge--info">
+                          {t('ble.connectedBadge') || 'Connected'}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                )}
-                <div className="flex-1">
-                  <h3 className="text-[14px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</h3>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-secondary)' }}>{item.macAddress}</p>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{item.rssi}</p>
-                </div>
-                <span className="text-lg">
-                  {item.macAddress === connectedDevice ? (
-                    <BluetoothConnected style={{ color: 'var(--accent)' }} />
-                  ) : (
-                    <BluetoothSearching style={{ color: 'var(--text-secondary)' }} />
-                  )}
-                </span>
-              </div>
-            ))
+                </button>
+              );
+            })
           ) : (
             <div className="text-center py-6" style={{ color: 'var(--text-secondary)' }}>
               {searchQuery ? (t('No devices match your search.') || 'No devices match your search.') : (t('No devices found. Try scanning again.') || 'No devices found. Try scanning again.')}

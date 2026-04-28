@@ -13,8 +13,10 @@ import { connBleByMacAddress, initServiceBleData } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import KeypadNav, { type KeypadScreen } from './components/KeypadNav';
+import KeypadNav, { type KeypadTab } from './components/KeypadNav';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
+
+type KeypadScreen = 'devices' | 'profile';
 
 let bridgeHasBeenInitialized = false;
 
@@ -696,12 +698,34 @@ const KeypadApp: React.FC = () => {
     router.push('/');
   }, [router]);
 
-  const handleNavigate = useCallback((screen: KeypadScreen) => {
-    if (screen === 'devices' && selectedDevice) {
-      handleBackToList();
+  const handleLogout = useCallback(() => {
+    try {
+      localStorage.removeItem('access_token');
+    } catch {
+      /* ignore storage errors */
     }
-    setCurrentScreen(screen);
-  }, [selectedDevice, handleBackToList]);
+    router.push('/signin');
+  }, [router]);
+
+  const handleNavigate = useCallback((tab: KeypadTab) => {
+    switch (tab) {
+      case 'all-devices':
+        router.push('/assets/ble-devices');
+        break;
+      case 'my-devices':
+        router.push('/mydevices/devices');
+        break;
+      case 'keypad':
+        if (selectedDevice) handleBackToList();
+        setCurrentScreen('devices');
+        break;
+      case 'profile':
+        setCurrentScreen('profile');
+        break;
+    }
+  }, [selectedDevice, handleBackToList, router]);
+
+  const currentTab: KeypadTab = currentScreen === 'profile' ? 'profile' : 'keypad';
 
   return (
     <div className="attendant-container has-bottom-nav">
@@ -795,6 +819,7 @@ const KeypadApp: React.FC = () => {
       ) : (
         <DeviceManagerProfile
           onChangeRole={handleBackToRoles}
+          onLogout={handleLogout}
           toolLabel={t('keypad.profile.toolName') || 'Keypad'}
         />
       )}
@@ -814,7 +839,7 @@ const KeypadApp: React.FC = () => {
         </div>
       )}
 
-      <KeypadNav currentScreen={currentScreen} onNavigate={handleNavigate} />
+      <KeypadNav currentTab={currentTab} onNavigate={handleNavigate} />
     </div>
   );
 };

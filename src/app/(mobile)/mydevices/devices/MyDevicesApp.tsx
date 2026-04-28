@@ -13,10 +13,10 @@ import { connBleByMacAddress, initServiceBleData } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
-import DeviceManagerProfile from './components/DeviceManagerProfile';
+import MyDevicesNav, { type MyDevicesTab } from './components/MyDevicesNav';
+import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 
-type BleDevicesScreen = 'devices' | 'profile';
+type MyDevicesScreen = 'devices' | 'profile';
 
 let bridgeHasBeenInitialized = false;
 
@@ -82,10 +82,10 @@ const itemImageMap: { [key: string]: string } = {
   FRZR: "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1770021563/OVES-PRODUCTS/CROSS-GRID/AC-Productive%20Appliances/BD-228DV%20Freezer/BD-228DV_PNG_qqnaow.png",
 };
 
-const BleDevicesApp: React.FC = () => {
+const MyDevicesApp: React.FC = () => {
   const router = useRouter();
   const { t, locale, setLocale } = useI18n();
-  const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('devices');
+  const [currentScreen, setCurrentScreen] = useState<MyDevicesScreen>('devices');
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
@@ -98,6 +98,7 @@ const BleDevicesApp: React.FC = () => {
   const [isMqttConnected, setIsMqttConnected] = useState<boolean>(false);
   const [loadingService, setLoadingService] = useState<string | null>(null);
   const [androidId, setAndroidId] = useState<any>("");
+  const [ignoreProgressSet, setIgnoreProgressSet] = useState(false);
 
   const deviceDetails = selectedDevice
     ? detectedDevices.find((device) => device.macAddress === selectedDevice)
@@ -121,24 +122,26 @@ const BleDevicesApp: React.FC = () => {
   }, [selectedDevice]);
 
   const handleBackToList = useCallback(() => {
+    setIgnoreProgressSet(true);
     setSelectedDevice(null);
-    sessionStorage.removeItem("connectedDeviceMac");
-    setConnectedDevice(null);
-    setServiceAttrList([]);
-    setAtrrList([]);
-    setLoadingService(null);
-    setProgress(0);
     setConnectingDeviceId(null);
     setIsConnecting(false);
+    setServiceAttrList([]);
+    setAtrrList([]);
+    sessionStorage.removeItem("connectedDeviceMac");
+    setConnectedDevice(null);
+    setLoadingService(null);
+    setProgress(0);
   }, []);
 
   useEffect(() => {
-    if (!selectedDevice) return;
-    window.history.pushState(
-      { bleDetail: true },
-      "",
-      window.location.pathname
-    );
+    if (selectedDevice) {
+      window.history.pushState(
+        { bleDetail: true },
+        "",
+        window.location.pathname
+      );
+    }
 
     const handlePopState = () => {
       if (selectedDeviceRef.current) {
@@ -181,7 +184,7 @@ const BleDevicesApp: React.FC = () => {
     n: number = 2
   ): string {
     const distance = Math.pow(10, (txPower - rssi) / (10 * n));
-    return t('{rssi}db ~ {distance}m', { rssi: String(rssi), distance: distance.toFixed(0) });
+    return `${rssi}db ~ ${distance.toFixed(0)}m`;
   }
 
   const setupBridge = (bridge: WebViewJavascriptBridge) => {
@@ -196,7 +199,7 @@ const BleDevicesApp: React.FC = () => {
       try {
         bridge.init((_m, r) => r("js success!"));
       } catch (error) {
-        // bridge init error silenced
+        console.error("Error initializing bridge:", error);
       }
     }
 
@@ -206,7 +209,7 @@ const BleDevicesApp: React.FC = () => {
         if (parsed?.data) resp(parsed.data);
         else throw new Error("Parsed data is not in the expected format.");
       } catch (err) {
-        // print parse error silenced
+        console.error("Error parsing JSON in 'print':", err);
       }
     });
 
@@ -229,11 +232,7 @@ const BleDevicesApp: React.FC = () => {
               const next = exists
                 ? prev.map((p) =>
                     p.macAddress === d.macAddress
-                      ? {
-                          ...p,
-                          rssi: d.rssi,
-                          rawRssi: d.rawRssi,
-                        }
+                      ? { ...p, rssi: d.rssi, rawRssi: d.rawRssi }
                       : p
                   )
                 : [...prev, d];
@@ -241,8 +240,11 @@ const BleDevicesApp: React.FC = () => {
             });
 
             resp({ success: true });
+          } else {
+            console.warn("Invalid device data format:", d);
           }
         } catch (err: any) {
+          console.error("Error parsing BLE device data:", err);
           resp({ success: false, error: err.message });
         }
       }
@@ -251,10 +253,9 @@ const BleDevicesApp: React.FC = () => {
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
-        console.warn('[BLE DevMgr] Connection FAILED raw:', data);
         setIsConnecting(false);
         setProgress(0);
-        toast.error(t('Connection failed! Please try reconnecting again.'), {
+        toast.error(t("Connection failed! Please try reconnecting again."), {
           id: "connect-toast",
         });
         resp(data);
@@ -264,7 +265,6 @@ const BleDevicesApp: React.FC = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
-        console.warn('[BLE DevMgr] Connected to device:', macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         setConnectedDevice(macAddress);
         setIsScanning(false);
@@ -278,9 +278,7 @@ const BleDevicesApp: React.FC = () => {
     const offInitComplete = reg(
       "bleInitDataOnCompleteCallBack",
       (data: string, resp: any) => {
-        console.warn('[BLE DevMgr] bleInitDataOnCompleteCallBack raw:', data);
         const r = JSON.parse(data);
-        console.warn('[BLE DevMgr] bleInitDataOnCompleteCallBack parsed:', JSON.stringify(r, null, 2));
         setServiceAttrList(
           r.dataList.map((s: any, i: any) => ({ ...s, index: i }))
         );
@@ -295,7 +293,10 @@ const BleDevicesApp: React.FC = () => {
           const p = JSON.parse(data);
           resp(p);
         } catch (err) {
-          // bleInitDataCallBack parse error silenced
+          console.error(
+            "Error parsing JSON data from 'bleInitDataCallBack' handler:",
+            err
+          );
         }
       }
     );
@@ -306,7 +307,7 @@ const BleDevicesApp: React.FC = () => {
         const qrVal = p.respData.value || "";
         handleQrCode(qrVal.slice(-6).toLowerCase());
       } catch (err) {
-        // QR code parse error silenced
+        console.error("Error processing QR code data:", err);
       }
       resp(data);
     });
@@ -318,7 +319,7 @@ const BleDevicesApp: React.FC = () => {
           const p = JSON.parse(data);
           resp(p);
         } catch (err) {
-          // MQTT message parse error silenced
+          console.error("Error parsing MQTT message:", err);
         }
       }
     );
@@ -328,7 +329,7 @@ const BleDevicesApp: React.FC = () => {
         const p = JSON.parse(data);
         setProgress(Math.round((p.progress / p.total) * 100));
       } catch (err) {
-        // progress parse error silenced
+        console.error("Progress callback error:", err);
       }
     });
 
@@ -341,6 +342,7 @@ const BleDevicesApp: React.FC = () => {
           resp("Received MQTT Connection Callback");
         } catch (err) {
           setIsMqttConnected(false);
+          console.error("Error parsing MQTT connection callback:", err);
         }
       }
     );
@@ -356,13 +358,7 @@ const BleDevicesApp: React.FC = () => {
     const offSvcComplete = reg(
       "bleInitServiceDataOnCompleteCallBack",
       (data: string, resp: any) => {
-        console.warn('[BLE DevMgr] Service complete raw:', data);
         const parsedData = JSON.parse(data);
-        console.warn('[BLE DevMgr] Service complete parsed:', JSON.stringify(parsedData, null, 2));
-        console.warn('[BLE DevMgr] serviceNameEnum:', parsedData?.serviceNameEnum);
-        if (parsedData?.characteristicList) {
-          console.warn('[BLE DevMgr] characteristicList:', JSON.stringify(parsedData.characteristicList, null, 2));
-        }
         setServiceAttrList((prev: any) => {
           if (!prev || prev.length === 0) return [parsedData];
           const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
@@ -378,15 +374,14 @@ const BleDevicesApp: React.FC = () => {
       }
     );
 
-    const offSvcFail = reg("bleInitServiceDataFailureCallBack", (data: string) => {
-      console.warn('[BLE DevMgr] Service FAILURE raw:', data);
-      setLoadingService(null);
-    });
+    const offSvcFail = reg("bleInitServiceDataFailureCallBack", () =>
+      setLoadingService(null)
+    );
 
     const generateClientId = () => {
       const timestamp = Date.now();
       const random = Math.random().toString(36).substring(2, 9);
-      return `oves-ble-devices-${timestamp}-${random}`;
+      return `oves-mydevices-${timestamp}-${random}`;
     };
 
     const mqttConfig: MqttConfig = {
@@ -399,9 +394,10 @@ const BleDevicesApp: React.FC = () => {
 
     bridge.callHandler("connectMqtt", mqttConfig, (resp: string) => {
       try {
-        JSON.parse(resp);
+        const p = JSON.parse(resp);
+        if (p.error) console.error("MQTT connection error:", p.error.message);
       } catch (err) {
-        // MQTT response parse error silenced
+        console.error("Error parsing MQTT response:", err);
       }
     });
 
@@ -422,7 +418,7 @@ const BleDevicesApp: React.FC = () => {
 
       if (connectedDeviceRef.current) {
         bridge.callHandler(
-          "disconnBleByMacAddress",
+          "disconnectBle",
           connectedDeviceRef.current,
           () => {}
         );
@@ -440,8 +436,35 @@ const BleDevicesApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge]);
 
+  const qrScanInitiatedRef = useRef(false);
+
+  useEffect(() => {
+    let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => {
+          pendingTimeout = null;
+          if (isScanning) {
+            console.info('Resetting scanning state - user returned without scanning');
+            setIsScanning(false);
+          }
+          qrScanInitiatedRef.current = false;
+        }, 500);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pendingTimeout) clearTimeout(pendingTimeout);
+    };
+  }, [isScanning]);
+
   const startQrCodeScan = () => {
     if (window.WebViewJavascriptBridge) {
+      qrScanInitiatedRef.current = true;
       window.WebViewJavascriptBridge.callHandler(
         "startQrCodeScan",
         999,
@@ -465,14 +488,19 @@ const BleDevicesApp: React.FC = () => {
   };
 
   useEffect(() => {
-    if (progress === 100 && attributeList.length > 0 && connectingDeviceId) {
+    if (ignoreProgressSet) {
+      setIgnoreProgressSet(false);
+      return;
+    }
+
+    if (progress === 100 && attributeList.length > 0) {
       setIsConnecting(false);
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList);
       handlePublish(attributeList, loadingService);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progress, attributeList]);
+  }, [progress, attributeList, ignoreProgressSet, connectingDeviceId, loadingService]);
 
   useEffect(() => {
     if (!bridgeHasBeenInitialized) return;
@@ -519,12 +547,15 @@ const BleDevicesApp: React.FC = () => {
     if (matches.length === 1) {
       startConnection(matches[0].macAddress);
     } else {
-      toast.error(t('There was a problem connecting with device. Try doing it manually.'));
+      toast.error(
+        t("There was a problem connecting with device. Try doing it manually.")
+      );
     }
   };
 
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
+      console.error("WebViewJavascriptBridge is not initialized.");
       return;
     }
 
@@ -533,7 +564,8 @@ const BleDevicesApp: React.FC = () => {
       !Array.isArray(attributeList) ||
       attributeList.length === 0
     ) {
-      toast.error(t('Error: Device data not available yet'));
+      console.error("AttributeList is empty or invalid");
+      toast.error(t("Error: Device data not available yet"));
       return;
     }
 
@@ -542,7 +574,7 @@ const BleDevicesApp: React.FC = () => {
     );
 
     if (!attService) {
-      toast.error(t('ATT service data is required but not available yet'));
+      console.error("ATT_SERVICE not found in attributeList.");
       return;
     }
 
@@ -551,7 +583,10 @@ const BleDevicesApp: React.FC = () => {
     );
 
     if (!opidChar || !opidChar.realVal) {
-      toast.error(t('Device ID not available'));
+      console.error(
+        "opid characteristic not found or has no value in ATT_SERVICE."
+      );
+      toast.error(t("Device ID not available"));
       return;
     }
 
@@ -572,6 +607,7 @@ const BleDevicesApp: React.FC = () => {
     );
 
     if (!requestedService) {
+      console.error(`${serviceNameEnum} not found in attributeList.`);
       return;
     }
 
@@ -586,7 +622,8 @@ const BleDevicesApp: React.FC = () => {
     );
 
     if (Object.keys(serviceData).length === 0) {
-      toast.error(t('No data available to publish for {service}', { service: serviceType }));
+      console.error(`No valid data found in ${serviceType} service.`);
+      toast.error(t(`No data available to publish for ${serviceType}`));
       return;
     }
 
@@ -607,7 +644,8 @@ const BleDevicesApp: React.FC = () => {
         () => {}
       );
     } catch (error) {
-      // publish error silenced
+      console.error(`Error publishing ${serviceType} data:`, error);
+      toast.error(t(`Error publishing ${serviceType} data`));
     }
   };
 
@@ -626,23 +664,23 @@ const BleDevicesApp: React.FC = () => {
             jsonData.respData &&
             jsonData.respData.ANDROID_ID
           ) {
-            const androidId = jsonData.respData.ANDROID_ID;
-            setAndroidId(androidId);
+            setAndroidId(jsonData.respData.ANDROID_ID);
           }
         }
       );
     } catch (error) {
-      toast.error(t('Error reading device info data'));
+      console.error(`Error :`, error);
+      toast.error(t(`Error reading device info data`));
     }
   };
 
   const bleLoadingSteps = [
-    { percentComplete: 10, message: t('Initializing Bluetooth connection...') },
-    { percentComplete: 25, message: t('Reading ATT Service...') },
-    { percentComplete: 45, message: t('Reading CMD Service...') },
-    { percentComplete: 60, message: t('Reading STS Service...') },
-    { percentComplete: 75, message: t('Reading DTA Service...') },
-    { percentComplete: 90, message: t('Reading DIA Service..') },
+    { percentComplete: 10, message: t("Initializing Bluetooth connection...") },
+    { percentComplete: 25, message: t("Reading ATT Service...") },
+    { percentComplete: 45, message: t("Reading CMD Service...") },
+    { percentComplete: 60, message: t("Reading STS Service...") },
+    { percentComplete: 75, message: t("Reading DTA Service...") },
+    { percentComplete: 90, message: t("Reading DIA Service..") },
   ];
 
   const handleBLERescan = () => {
@@ -675,14 +713,14 @@ const BleDevicesApp: React.FC = () => {
     router.push('/signin');
   }, [router]);
 
-  const handleNavigate = useCallback((tab: BleDevicesTab) => {
+  const handleNavigate = useCallback((tab: MyDevicesTab) => {
     switch (tab) {
       case 'all-devices':
-        if (selectedDevice) handleBackToList();
-        setCurrentScreen('devices');
+        router.push('/assets/ble-devices');
         break;
       case 'my-devices':
-        router.push('/mydevices/devices');
+        if (selectedDevice) handleBackToList();
+        setCurrentScreen('devices');
         break;
       case 'keypad':
         router.push('/keypad/keypad');
@@ -693,7 +731,7 @@ const BleDevicesApp: React.FC = () => {
     }
   }, [selectedDevice, handleBackToList, router]);
 
-  const currentTab: BleDevicesTab = currentScreen === 'profile' ? 'profile' : 'all-devices';
+  const currentTab: MyDevicesTab = currentScreen === 'profile' ? 'profile' : 'my-devices';
 
   return (
     <div className="attendant-container has-bottom-nav">
@@ -776,7 +814,7 @@ const BleDevicesApp: React.FC = () => {
           <DeviceDetailView
             // @ts-ignore
             device={deviceDetails}
-            attributeList={attrList}
+            attributeList={attributeList}
             onBack={handleBackToList}
             onRequestServiceData={handleServiceDataRequest}
             isLoadingService={loadingService}
@@ -788,7 +826,7 @@ const BleDevicesApp: React.FC = () => {
         <DeviceManagerProfile
           onChangeRole={handleBackToRoles}
           onLogout={handleLogout}
-          toolLabel={t('ble.profile.toolName') || 'BLE Device Manager'}
+          toolLabel={t('mydevices.profile.toolName') || 'My Devices'}
         />
       )}
 
@@ -796,8 +834,8 @@ const BleDevicesApp: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="w-full max-w-md">
             <ProgressiveLoading
-              initialMessage={t('Preparing to connect...')}
-              completionMessage={t('Connection established!')}
+              initialMessage={t("Preparing to connect...")}
+              completionMessage={t("Connection established!")}
               loadingSteps={bleLoadingSteps}
               onLoadingComplete={() => {}}
               autoProgress={false}
@@ -807,9 +845,9 @@ const BleDevicesApp: React.FC = () => {
         </div>
       )}
 
-      <BleDevicesNav currentTab={currentTab} onNavigate={handleNavigate} />
+      <MyDevicesNav currentTab={currentTab} onNavigate={handleNavigate} />
     </div>
   );
 };
 
-export default BleDevicesApp;
+export default MyDevicesApp;

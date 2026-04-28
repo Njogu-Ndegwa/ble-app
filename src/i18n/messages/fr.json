@@ -196,6 +196,9 @@
 
   "ble.nav.devices": "Appareils",
   "ble.nav.profile": "Profil",
+  "ble.nav.menu": "Menu",
+  "ble.menu.navigate": "Navigation",
+  "ble.menu.account": "Compte",
   "ble.connectedBadge": "Connecté",
   "ble.changeRole": "Changer de rôle",
   "ble.disconnect": "Déconnecter l'appareil",
@@ -206,6 +209,7 @@
   "ble.profile.language": "Langue",
   "ble.profile.changeRole": "Changer de rôle",
   "keypad.profile.toolName": "Pavé numérique",
+  "mydevices.profile.toolName": "Mes appareils",
 
   
   "Firmware Version. Factory set.": "Version du micrologiciel. Défini en usine.",
