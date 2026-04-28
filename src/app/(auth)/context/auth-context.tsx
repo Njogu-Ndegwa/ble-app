@@ -129,6 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    
     if (storedAccessToken && storedRefreshToken && isTokenExpired(storedAccessToken)) {
       refreshAccessToken().catch(() => {
         handleLogout();
