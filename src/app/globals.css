@@ -45,18 +45,16 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
-  
-  /* Typography Scale */
-  --font-xs: 9px;
-  --font-sm: 10px;
-  --font-base: 11px;
-  --font-md: 12px;
-  --font-lg: 13px;
-  --font-xl: 14px;
-  --font-2xl: 18px;
-  --font-3xl: 20px;
-  --font-4xl: 24px;
-  
+
+  /*
+   * NOTE: --font-* tokens are defined in src/styles/design-system.css
+   * (imported at the top of this file). Do NOT redeclare them here — doing so
+   * would override the design system with stale values and shrink Tailwind
+   * text utilities (text-xs, text-sm, etc.) to ~9–11px, which previously
+   * made action buttons appear as "miniatures" (e.g. on the Devices >
+   * Device Details page).
+   */
+
   --shadow-glow: 0 0 60px -15px var(--accent-glow);
   --shadow-card: 0 4px 24px -8px rgba(0, 0, 0, 0.5);
   
