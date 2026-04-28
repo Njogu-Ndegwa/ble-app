@@ -107,23 +107,35 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
-      // If a key isn't in the active locale, try English (covers locales
-      // that are missing a translation for the key) and only fall through
-      // to the raw key as a last-ditch signal to developers. The
-      // `|| 'fallback'` pattern used everywhere in the codebase expects
-      // this function to return empty/undefined when the key is truly
-      // missing; in that case we return an empty string so the fallback
-      // kicks in instead of showing the raw dotted key in the UI.
+      // Two key conventions live in this codebase:
+      //   1. Dotted namespace keys, e.g. "rider.nav.routeError". When
+      //      these are missing we DO NOT want the raw dotted string in
+      //      the UI, so we return "" and rely on the caller-provided
+      //      `|| 'fallback'` pattern documented in .cursorrules.
+      //   2. Natural-language English keys, e.g. t('Generate'),
+      //      t('Days Code'). Many components (e.g. DeviceDetailView)
+      //      use these without a `|| 'fallback'` — the key itself is
+      //      already a perfectly readable English string. Returning ""
+      //      here was making buttons render as empty boxes.
+      // So: try active locale → English file → key itself if it looks
+      // like natural language (no dots) → "" otherwise.
       const msg = messages[key] ?? EN_MESSAGES[key];
-      if (msg == null) {
-        if (process.env.NODE_ENV !== "production") {
-          // Loud warn so missing keys are easy to spot in dev; silent in
-          // production so end users see the caller-provided fallback.
-          console.warn(`[i18n] Missing translation key: "${key}"`);
-        }
-        return "";
+      if (msg != null) return interpolate(msg, vars);
+
+      if (process.env.NODE_ENV !== "production") {
+        // Loud warn so missing keys are easy to spot in dev; silent in
+        // production so end users see the caller-provided fallback or
+        // the natural-language key.
+        console.warn(`[i18n] Missing translation key: "${key}"`);
       }
-      return interpolate(msg, vars);
+
+      // Heuristic: dotted keys ("foo.bar") are namespace-style and
+      // should NEVER appear in the UI raw — return "" so the caller's
+      // `|| 'fallback'` kicks in. Anything else is treated as a
+      // human-readable English source string and returned as-is, with
+      // variable interpolation still applied.
+      if (key.includes(".")) return "";
+      return interpolate(key, vars);
     },
     [messages]
   );
