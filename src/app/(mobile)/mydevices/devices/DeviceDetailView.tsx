@@ -700,8 +700,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 </span>
               </div>
               <button
-                className="py-2 px-4 rounded-lg font-semibold text-xs transition-all duration-200 flex-shrink-0"
+                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
                 style={{
+                  minHeight: 40,
+                  padding: '10px 18px',
+                  fontSize: 14,
                   background: isBusy || !duration
                     ? 'var(--bg-tertiary)'
                     : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
@@ -739,8 +742,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Unlock without time limit')}</p>
               </div>
               <button
-                className="py-2 px-4 rounded-lg font-semibold text-xs transition-all duration-200 flex-shrink-0"
+                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
                 style={{
+                  minHeight: 40,
+                  padding: '10px 18px',
+                  fontSize: 14,
                   background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                   color: isBusy ? 'var(--text-muted)' : '#fff',
                   opacity: isBusy ? 0.5 : 1,
@@ -776,8 +782,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Restore to default state')}</p>
               </div>
               <button
-                className="py-2 px-4 rounded-lg font-semibold text-xs transition-all duration-200 flex-shrink-0"
+                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
                 style={{
+                  minHeight: 40,
+                  padding: '10px 18px',
+                  fontSize: 14,
                   background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                   color: isBusy ? 'var(--text-muted)' : '#fff',
                   opacity: isBusy ? 0.5 : 1,
@@ -954,8 +963,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
         {/* Retrieve Last Code */}
         <button
-          className="w-full py-2.5 px-4 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 mb-6"
+          className="w-full rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-6"
           style={{
+            minHeight: 44,
+            padding: '12px 16px',
+            fontSize: 14,
             background: 'transparent',
             color: isBusy ? 'var(--text-muted)' : 'var(--text-secondary)',
             border: '1px dashed var(--border)',
@@ -1035,16 +1047,16 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
               <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{pubkCharacteristic.name}</span>
               <div className="flex space-x-2">
                 <button
-                  className="btn btn-secondary text-xs"
-                  style={{ padding: '5px 10px', fontSize: '12px' }}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, flex: '0 0 auto' }}
                   onClick={handleRead}
                   disabled={isLoading}
                 >
                   {isLoading ? t('Reading...') : t('Read')}
                 </button>
                 <button
-                  className="btn btn-primary text-xs"
-                  style={{ padding: '5px 10px', fontSize: '12px' }}
+                  className="btn btn-primary"
+                  style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, flex: '0 0 auto' }}
                   onClick={handleWriteClick}
                 >
                   {t('Write')}
