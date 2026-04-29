@@ -42,8 +42,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const { bridge } = useBridge();
+  const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('phone');
   // Phone number in E.164 format without the + prefix (e.g., "254712345678")
   const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
@@ -204,12 +206,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const handleSignIn = async () => {
-    // Phone number from PhoneInputWithCountry is already in E.164 format without + prefix
-    // Validate: should have at least 7 digits (dial code + some local number)
-    const phoneDigits = phoneNumber.replace(/\D/g, '');
-    if (phoneDigits.length < 7) {
-      toast.error(t("rider.enterPhone") || t("Please enter your phone number"));
-      return;
+    if (loginMethod === 'phone') {
+      const phoneDigits = phoneNumber.replace(/\D/g, '');
+      if (phoneDigits.length < 7) {
+        toast.error(t("rider.enterPhone") || "Please enter your phone number");
+        return;
+      }
+    } else {
+      if (!email.trim() || !validateEmail(email)) {
+        toast.error(t("rider.enterEmail") || "Please enter a valid email address");
+        return;
+      }
     }
     if (!password.trim()) {
       toast.error(t("Please enter your password"));
@@ -219,11 +226,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsSigningIn(true);
 
     try {
-      // Phone number is already the full number from PhoneInputWithCountry
-      const fullPhoneNumber = phoneDigits;
-      
-      console.log("Attempting login with phone:", fullPhoneNumber);
-      console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
+      const fullPhoneNumber = loginMethod === 'phone' ? phoneNumber.replace(/\D/g, '') : '';
+      const credential = loginMethod === 'phone'
+        ? { phone: fullPhoneNumber, password }
+        : { email: email.trim(), password };
+
       const response = await fetch(
         "https://crm-omnivoltaic.odoo.com/api/auth/login",
         {
@@ -232,7 +239,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ phone: fullPhoneNumber, password }),
+          body: JSON.stringify(credential),
         }
       );
 
@@ -308,8 +315,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.error("Error Data:", JSON.stringify(data, null, 2));
         console.error("Payload Sent:", JSON.stringify({ phone: fullPhoneNumber, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
-        // Pre-fill the registration phone with the full number
-        setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
+        if (loginMethod === 'phone') {
+          setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
+        } else {
+          setFormData(prev => ({ ...prev, email: email.trim() }));
+        }
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
         console.error("=== Login Error Response (400) ===");
@@ -773,20 +783,84 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </svg>
           </div>
           <h1 className="login-title">{t('rider.loginTitle') || 'Rider Login'}</h1>
-          <p className="login-subtitle">{t('rider.enterPhoneAndPassword') || 'Please enter phone number and password'}</p>
+          <p className="login-subtitle">
+            {loginMethod === 'phone'
+              ? t('rider.enterPhoneAndPassword') || 'Enter your phone number and password'
+              : t('rider.enterEmailAndPassword') || 'Enter your email and password'}
+          </p>
         </div>
 
       {/* Login Form */}
       <div className="login-form">
-        {/* Phone Number Input with Country Code */}
-        <PhoneInputWithCountry
-          label={t('rider.phoneNumber') || 'Phone Number'}
-          value={phoneNumber}
-          onChange={handlePhoneChange}
-          locale={locale}
-          placeholder={t('rider.enterPhone') || 'Enter your phone number'}
-          disabled={isSigningIn}
-        />
+        {/* Phone / Email toggle */}
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 3,
+          gap: 3,
+          marginBottom: 4,
+        }}>
+          {(['phone', 'email'] as const).map((method) => (
+            <button
+              key={method}
+              type="button"
+              onClick={() => setLoginMethod(method)}
+              disabled={isSigningIn}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                borderRadius: 'calc(var(--radius-lg) - 3px)',
+                border: 'none',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                cursor: isSigningIn ? 'not-allowed' : 'pointer',
+                transition: 'all 0.18s ease',
+                background: loginMethod === method ? 'var(--accent)' : 'transparent',
+                color: loginMethod === method ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                boxShadow: loginMethod === method ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+              }}
+            >
+              {method === 'phone'
+                ? t('rider.phoneNumber') || 'Phone'
+                : t('sales.emailAddress') || 'Email'}
+            </button>
+          ))}
+        </div>
+
+        {/* Credential input */}
+        {loginMethod === 'phone' ? (
+          <PhoneInputWithCountry
+            label={t('rider.phoneNumber') || 'Phone Number'}
+            value={phoneNumber}
+            onChange={handlePhoneChange}
+            locale={locale}
+            placeholder={t('rider.enterPhone') || 'Enter your phone number'}
+            disabled={isSigningIn}
+          />
+        ) : (
+          <div className="form-group">
+            <label className="form-label">{t('sales.emailAddress') || 'Email'}</label>
+            <div className="input-with-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <input
+                type="email"
+                className="form-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={t('sales.enterEmail') || 'Enter your email'}
+                disabled={isSigningIn}
+                autoComplete="email"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Password Input */}
         <div className="form-group">
@@ -832,7 +906,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <button
           className="btn btn-primary login-btn"
           onClick={handleSignIn}
-          disabled={isSigningIn || phoneNumber.replace(/\D/g, '').length < 7 || !password.trim()}
+          disabled={
+            isSigningIn ||
+            !password.trim() ||
+            (loginMethod === 'phone'
+              ? phoneNumber.replace(/\D/g, '').length < 7
+              : !email.trim() || !validateEmail(email))
+          }
         >
           {isSigningIn ? (
             <>

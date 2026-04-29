@@ -43,7 +43,7 @@ export default function RiderPlans({
   pageSize = 20,
   isLoading: externalLoading = false,
   onPageChange,
-  defaultCurrency = "XOF",
+  defaultCurrency = "",
   token,
 }: RiderPlansProps) {
   const { t } = useI18n();
@@ -75,7 +75,6 @@ export default function RiderPlans({
           productId: p.id,
           default_code: p.default_code || `P-${p.id}`,
           suggested_billing_frequency: p.pu_category || undefined,
-          currency: p.currencySymbol || defaultCurrency,
           category: p.category_name || p.pu_category || undefined,
         }));
         setFetchedPlans(list);
@@ -228,7 +227,7 @@ export default function RiderPlans({
                 className="list-card-badge--info"
                 style={{ fontSize: 13, padding: "6px 10px" }}
               >
-                {p.currency || defaultCurrency} {p.price.toLocaleString()}
+                {defaultCurrency ? `${defaultCurrency} ` : ''}{p.price.toLocaleString()}
               </span>
             </div>
           </div>

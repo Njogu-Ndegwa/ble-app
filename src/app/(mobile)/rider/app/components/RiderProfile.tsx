@@ -163,7 +163,7 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </div>
             <div className="energy-stat-content">
               <div className="energy-stat-value">
-                {profile.currency || ""} {profile.balance.toLocaleString()}
+                {profile.currency ? `${profile.currency} ` : ''}{profile.balance.toLocaleString()}
               </div>
               <div className="energy-stat-label">
                 {t("rider.accountBalance") || "Account Balance"}

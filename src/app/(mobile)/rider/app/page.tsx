@@ -150,7 +150,7 @@ const RiderApp: React.FC = () => {
   
   // Data state
   const [balance, setBalance] = useState(0);
-  const [currency, setCurrency] = useState('XOF');
+  const [currency, setCurrency] = useState('');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
@@ -437,7 +437,7 @@ const RiderApp: React.FC = () => {
       const energyValue = Math.round(energyRemaining * energyUnitPrice); // Monetary value
 
       // Get currency from common_terms (source of truth) or fallback
-      const billingCurrency = common_terms?.billingCurrency || service_plan_data?.currency || 'XOF';
+      const billingCurrency = common_terms?.billingCurrency || service_plan_data?.currency || '';
 
       // Log account balance calculation details
       console.warn('[RIDER] ðŸ’° ACCOUNT BALANCE CALCULATION:', {
@@ -1415,20 +1415,12 @@ const RiderApp: React.FC = () => {
     () =>
       subscriptions.map((s) => {
         const price = s.price_at_signup ?? 0;
+        // Currency comes from the company billing data (identifyCustomer metadata),
+        // not from the individual subscription record which may be stale or missing.
         const priceLabel =
           price > 0
-            ? `${s.currency || ''} ${price.toLocaleString()}`.trim()
+            ? `${currency} ${price.toLocaleString()}`.trim()
             : '';
-        const validUntil = s.next_cycle_date
-          ? new Date(s.next_cycle_date).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })
-          : '';
-        const description = [priceLabel, validUntil ? `${t('rider.validUntil') || 'Valid until'} ${validUntil}` : '']
-          .filter(Boolean)
-          .join(' · ');
         const badges: { label: string; variant: 'success' | 'warning' | 'neutral' }[] = [
           {
             label: s.status,
@@ -1444,12 +1436,12 @@ const RiderApp: React.FC = () => {
         return {
           value: s.subscription_code,
           label: s.product_name,
-          description: description || undefined,
+          description: priceLabel || undefined,
           badges,
           searchText: `${s.product_name} ${s.subscription_code} ${s.status}`,
         };
       }),
-    [subscriptions, t],
+    [subscriptions, currency, t],
   );
 
   const handleLogout = () => {

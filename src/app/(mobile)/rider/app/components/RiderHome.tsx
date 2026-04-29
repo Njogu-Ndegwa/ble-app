@@ -62,7 +62,7 @@ interface RiderHomeProps {
 const RiderHome: React.FC<RiderHomeProps> = ({
   userName,
   balance,
-  currency = "XOF",
+  currency = "",
   bike,
   nearbyStations,
   isLoadingStations = false,

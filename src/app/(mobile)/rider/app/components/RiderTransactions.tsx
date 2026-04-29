@@ -33,7 +33,7 @@ interface RiderTransactionsProps {
 export default function RiderTransactions({
   partnerId,
   token,
-  defaultCurrency = "XOF",
+  defaultCurrency = "",
   seedTransactions,
 }: RiderTransactionsProps) {
   const { t } = useI18n();
@@ -136,7 +136,7 @@ export default function RiderTransactions({
                 <span>{tx.date}</span>
                 <span>·</span>
                 <span>
-                  {tx.currency || defaultCurrency} {tx.amount.toLocaleString()}
+                  {(tx.currency || defaultCurrency) ? `${tx.currency || defaultCurrency} ` : ''}{tx.amount.toLocaleString()}
                 </span>
               </div>
             </div>
