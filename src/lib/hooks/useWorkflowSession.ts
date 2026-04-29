@@ -558,7 +558,15 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       // Extract subscription code from response
       const subscriptionCode = response.subscription_code;
       const subscriptionsCreated = response.subscriptions_created;
-      
+
+      if (!subscriptionCode) {
+        console.warn('[useWorkflowSession] updateSessionWithProducts: products were added but the backend returned no subscription_code', {
+          subscription_code: response.subscription_code,
+          subscriptions_created: subscriptionsCreated,
+          message: response.message,
+        });
+      }
+
       return {
         success: true,
         subscriptionCode,

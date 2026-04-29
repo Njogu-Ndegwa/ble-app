@@ -853,12 +853,24 @@ export default function ActivatorFlow({
           if (result.success && result.subscriptionCode) {
             setConfirmedSubscriptionCode(result.subscriptionCode);
             advanceToStep(4);
+          } else if (result.success) {
+            // Plan product was added to the order but the backend did not return a
+            // subscription code — this is a backend-side issue for this plan/product.
+            console.error('[ActivatorFlow] Plan added to order but no subscription code returned', {
+              planId: selectedPlan.odooProductId,
+              planName: selectedPlan.name,
+              result,
+            });
+            toast.error(
+              t('activator.noSubscriptionCode') ||
+              'Plan added, but no subscription was created by the server. Please contact support.'
+            );
           } else {
-            toast.error('Failed to add plan to order. Please try again.');
+            toast.error(t('activator.failedToAddPlan') || 'Failed to add plan to order. Please try again.');
           }
         } catch (err) {
           console.error('[ActivatorFlow] Failed to update session with products:', err);
-          toast.error('Failed to add plan to order. Please try again.');
+          toast.error(t('activator.failedToAddPlan') || 'Failed to add plan to order. Please try again.');
         } finally {
           setIsProcessing(false);
         }

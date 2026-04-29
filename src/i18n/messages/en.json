@@ -1753,6 +1753,8 @@
   "activator.fetchingPricing": "Fetching pricing...",
   "activator.pleaseSelectPlan": "Please select a plan",
   "activator.pleaseSelectPackage": "Please select a package",
+  "activator.failedToAddPlan": "Failed to add plan to order. Please try again.",
+  "activator.noSubscriptionCode": "Plan added, but no subscription was created by the server. Please contact support.",
   "activator.sessions.title": "Activation Sessions",
   "activator.sessions.searchPlaceholder": "Search by subscription code...",
   "activator.sessions.noSearchResults": "No sessions match your search",

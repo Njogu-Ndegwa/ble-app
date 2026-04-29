@@ -1744,6 +1744,8 @@
   "activator.fetchingPricing": "Récupération des tarifs...",
   "activator.pleaseSelectPlan": "Veuillez sélectionner un plan",
   "activator.pleaseSelectPackage": "Veuillez sélectionner un forfait",
+  "activator.failedToAddPlan": "Échec de l'ajout du plan à la commande. Veuillez réessayer.",
+  "activator.noSubscriptionCode": "Plan ajouté, mais aucun abonnement n'a été créé par le serveur. Veuillez contacter le support.",
   "activator.sessions.title": "Sessions d'activation",
   "activator.sessions.searchPlaceholder": "Rechercher par code d'abonnement...",
   "activator.sessions.noSearchResults": "Aucune session ne correspond à votre recherche",
