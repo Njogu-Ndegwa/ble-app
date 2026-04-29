@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
-import { Globe, LogOut, Layers } from 'lucide-react';
+import { Layers } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
+import AppHeader from '@/components/AppHeader';
 import {
   getStoredServiceAccounts,
   selectServiceAccount,
@@ -20,7 +19,7 @@ interface Props {
 }
 
 export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
   const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
   const [employee, setEmployee] = useState<{ name: string; email: string } | null>(null);
   const [selecting, setSelecting] = useState<number | null>(null);
@@ -28,20 +27,15 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
 
   useEffect(() => {
     const stored = getStoredServiceAccounts();
-    console.info('[SelectSA] Stored SAs on mount:', stored.length, stored.map(a => `#${a.id} ${a.name}`));
     setServiceAccounts(stored);
 
     const emp = getOdooEmployee();
     if (emp) setEmployee({ name: emp.name, email: emp.email });
 
-    // After Microsoft SSO the SA list is not embedded in the callback — fetch it live
     if (stored.length === 0) {
       setFetchingAccounts(true);
       fetchAndCacheServiceAccounts().then(accounts => {
-        console.info('[SelectSA] Live fetch returned', accounts.length, 'SA(s):', accounts.map(a => `#${a.id} ${a.name}`));
         if (accounts.length === 1) {
-          // Single SA — auto-select and skip the picker, same as the normal login path
-          console.info('[SelectSA] Single SA after live fetch — auto-selecting SA #', accounts[0].id);
           selectServiceAccount(accounts[0]);
           onSelected();
           return;
@@ -50,12 +44,7 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
         setFetchingAccounts(false);
       });
     }
-  }, []);
-
-  const toggleLocale = () => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  };
+  }, [onSelected]);
 
   const handleSelect = (sa: ServiceAccount) => {
     setSelecting(sa.id);
@@ -78,73 +67,46 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
     <div className="select-role-container">
       <div className="select-role-bg-gradient" />
 
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage')}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-            <button
-              className="flow-header-logout"
-              onClick={handleLogout}
-              aria-label={t('sa.signOut')}
-              title={t('sa.signOut')}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Unified app header — no SA selected yet so Switch SA is hidden */}
+      <AppHeader onSwitchSA={handleLogout} />
 
       <main className="select-role-main">
-        <div className="role-selection">
-          {/* Greeting */}
-          <div style={{ width: '100%', maxWidth: 420, marginBottom: 8 }}>
-            {employee && (
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                {t('auth.welcome')}, <strong style={{ color: 'var(--text-primary)' }}>{employee.name}</strong>
+        <div className="sa-page-body">
+          {/* Hero / intro block */}
+          <div className="sa-hero">
+            <div className="sa-hero-icon">
+              <Layers size={26} />
+            </div>
+            <div className="sa-hero-text">
+              {employee && (
+                <p className="sa-hero-greeting">
+                  {t('auth.welcome') || 'Welcome'},{' '}
+                  <strong>{employee.name}</strong>
+                </p>
+              )}
+              <h1 className="sa-hero-title">
+                {t('sa.selectTitle') || 'Select Service Account'}
+              </h1>
+              <p className="sa-hero-desc">
+                {t('sa.selectDescription') || 'Choose the workspace you want to work in.'}
               </p>
-            )}
-            <h1 className="role-title" style={{ fontSize: 20, marginBottom: 4 }}>
-              {t('sa.selectTitle')}
-            </h1>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-              {t('sa.selectDescription')}
-            </p>
+            </div>
           </div>
 
-          {/* SA cards */}
+          {/* Account cards */}
           {fetchingAccounts ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '32px 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+            <div className="sa-loading">
               <div className="loading-spinner" style={{ width: 24, height: 24, borderWidth: 2 }} />
               <span>{t('common.loading') || 'Loading accounts…'}</span>
             </div>
           ) : serviceAccounts.length === 0 ? (
             <div className="sa-error-card">
-              <p className="sa-error-title">{t('sa.noAccessTitle')}</p>
-              <p className="sa-error-desc">{t('sa.noAccounts')}</p>
-              <p className="sa-error-hint">{t('sa.noAccessHint')}</p>
+              <p className="sa-error-title">{t('sa.noAccessTitle') || 'No Access'}</p>
+              <p className="sa-error-desc">{t('sa.noAccounts') || 'No service accounts found.'}</p>
+              <p className="sa-error-hint">{t('sa.noAccessHint') || 'Contact your administrator.'}</p>
               <div className="sa-error-actions">
                 <button className="btn btn-secondary" onClick={handleLogout}>
-                  {t('sa.signOut')}
+                  {t('sa.signOut') || 'Sign Out'}
                 </button>
               </div>
             </div>

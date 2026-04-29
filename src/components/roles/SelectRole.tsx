@@ -3,10 +3,10 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, Zap, RefreshCw, LogOut } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-import { getActiveSAApplets, getSelectedSA, clearOdooEmployeeSession } from '@/lib/ov-auth';
+import AppHeader from '@/components/AppHeader';
+import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
 
 interface Props {
   /** Called when the user wants to switch to a different SA (no re-login). */
@@ -120,12 +120,8 @@ const NAV_TIMEOUT_MS = 3000;
 
 export default function SelectRole({ onSwitchSA }: Props) {
   const router = useRouter();
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
 
-  const handleLogout = useCallback(() => {
-    clearOdooEmployeeSession();
-    router.replace('/signin');
-  }, [router]);
   const hiddenAtRef = useRef<number | null>(null);
   const wasIdleRef = useRef(false);
   const navFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,7 +137,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
 
     const filtered = ALL_ROLES.filter(role => {
       const slug = role.appletSlug ?? APPLET_SLUG_MAP[role.id];
-      if (!slug) return true; // no slug mapping → always show
+      if (!slug) return true;
       return saApplets.includes(slug);
     });
 
@@ -203,63 +199,16 @@ export default function SelectRole({ onSwitchSA }: Props) {
     }, NAV_TIMEOUT_MS);
   }, [router]);
 
-  const toggleLocale = () => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  };
-
   return (
     <div className="select-role-container">
       <div className="select-role-bg-gradient" />
 
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage')}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-            {onSwitchSA && (
-              <button
-                className="flow-header-lang"
-                onClick={onSwitchSA}
-                aria-label={t('sa.switchAccount')}
-                title={t('sa.switchAccount')}
-              >
-                <RefreshCw size={14} />
-              </button>
-            )}
-            <button
-              className="flow-header-logout"
-              onClick={handleLogout}
-              aria-label={t('sa.signOut')}
-              title={t('sa.signOut')}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Unified app header with SA switching */}
+      <AppHeader onSwitchSA={onSwitchSA} />
 
       <main className="select-role-main">
         <div className="role-selection">
+          {/* Hero card */}
           <div className="role-hero-card">
             <div className="role-hero-card-bg" />
             <div className="role-hero-card-img">
@@ -286,6 +235,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
             </div>
           </div>
 
+          {/* App grid */}
           <div className="role-grid">
             {visibleRoles.map((role, i) => (
               <div
