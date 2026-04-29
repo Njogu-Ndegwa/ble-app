@@ -59,9 +59,18 @@ function decodeJwtExp(token: string): number | null {
 function isTokenExpired(token: string | null): boolean {
   if (!token) return true
   const exp = decodeJwtExp(token)
-  if (exp === null) return true
-  // 60-second buffer
-  return Date.now() >= (exp - 60) * 1000
+  if (exp !== null) {
+    // Standard JWT — use embedded exp with a 60-second buffer
+    return Date.now() >= (exp - 60) * 1000
+  }
+  // Non-JWT / opaque token — fall back to the stored expires_at timestamp
+  try {
+    const stored = localStorage.getItem(KEYS.EMPLOYEE_TOKEN_EXPIRES)
+    if (!stored) return false  // no expiry on record → assume still valid
+    return Date.now() >= new Date(stored).getTime() - 60_000
+  } catch {
+    return false  // can't determine expiry, assume valid
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,10 +125,17 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
   localStorage.setItem(KEYS.EMPLOYEE_TOKEN, session.token)
   localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, session.expires_at)
   localStorage.setItem(KEYS.EMPLOYEE_DATA, JSON.stringify(session.employee))
-  localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(session.service_accounts))
+
+  // Defensive: the backend occasionally returns null/undefined for service_accounts
+  // (e.g. when the normal-login response omits the field).  Always normalise to an array.
+  const accounts: ServiceAccount[] = Array.isArray(session.service_accounts)
+    ? session.service_accounts
+    : []
+
+  localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
 
   // Cache each SA's applets keyed by SA id for zero-roundtrip access
-  session.service_accounts.forEach(sa => {
+  accounts.forEach(sa => {
     localStorage.setItem(
       `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
       JSON.stringify(sa.applets ?? []),
@@ -127,12 +143,14 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
     console.info(`[ov-auth] Cached applets for SA #${sa.id} "${sa.name}": [${sa.applets?.join(', ')}]`)
   })
 
-  console.info('[ov-auth] Session saved. SAs cached:', session.service_accounts.length)
+  console.info('[ov-auth] Session saved. SAs cached:', accounts.length)
 
-  // Auto-select when there is exactly one SA — no need to present a picker
-  if (session.service_accounts.length === 1) {
-    console.info('[ov-auth] Single SA — auto-selecting SA #', session.service_accounts[0].id)
-    selectServiceAccount(session.service_accounts[0], session.token)
+  // Restore the original guard: only auto-select when the backend explicitly signals
+  // auto_selected AND there is exactly one SA.  Removing this guard caused normal-login
+  // users (where auto_selected is false) to skip SelectSA unexpectedly.
+  if (session.auto_selected && accounts.length === 1) {
+    console.info('[ov-auth] Single SA (auto_selected) — auto-selecting SA #', accounts[0].id)
+    selectServiceAccount(accounts[0], session.token)
   }
 }
 
@@ -182,6 +200,14 @@ export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> 
   }
 
   console.info('[ov-auth] fetchAndCacheServiceAccounts: fetching live SA list…')
+
+  // Abort after 15 s so the UI doesn't spin forever if the endpoint hangs
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => {
+    console.warn('[ov-auth] fetchAndCacheServiceAccounts: timed out after 15 s')
+    controller.abort()
+  }, 15_000)
+
   try {
     const resp = await fetch(`${ODOO_BASE_URL}/me/service-accounts`, {
       headers: {
@@ -189,23 +215,29 @@ export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> 
         'X-API-KEY': ODOO_API_KEY,
         Authorization: `Bearer ${token}`,
       },
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     console.info('[ov-auth] fetchAndCacheServiceAccounts: HTTP', resp.status)
     if (!resp.ok) return []
     const data = await resp.json()
-    const accounts: ServiceAccount[] = data.service_accounts ?? []
+    const accounts: ServiceAccount[] = Array.isArray(data.service_accounts)
+      ? data.service_accounts
+      : []
     console.info('[ov-auth] fetchAndCacheServiceAccounts: received', accounts.length, 'accounts')
     if (accounts.length > 0) {
       localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
       accounts.forEach(sa => {
         console.info(`[ov-auth]   SA #${sa.id} "${sa.name}" applets: [${(sa.applets ?? []).join(', ')}]`)
-        if (sa.applets?.length) {
-          localStorage.setItem(`${KEYS.SA_APPLETS_PREFIX}${sa.id}`, JSON.stringify(sa.applets))
-        }
+        localStorage.setItem(
+          `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
+          JSON.stringify(sa.applets ?? []),
+        )
       })
     }
     return accounts
   } catch (err) {
+    clearTimeout(timeoutId)
     console.warn('[ov-auth] fetchAndCacheServiceAccounts error:', err)
     return []
   }
@@ -251,7 +283,9 @@ export function getStoredServiceAccounts(): ServiceAccount[] {
   const raw = localStorage.getItem(KEYS.SERVICE_ACCOUNTS)
   if (!raw) return []
   try {
-    return JSON.parse(raw) as ServiceAccount[]
+    const parsed = JSON.parse(raw)
+    // Guard against null / non-array values stored by a previous bad write
+    return Array.isArray(parsed) ? (parsed as ServiceAccount[]) : []
   } catch {
     return []
   }

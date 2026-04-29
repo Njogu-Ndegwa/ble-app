@@ -173,6 +173,10 @@ export default function Index() {
     resolveAuthState();
   }, [resolveAuthState]);
 
+  // Stable callbacks for SelectSA so its useEffect dependency stays quiet
+  const handleSASelected = useCallback(() => setAppState('selectRole'), []);
+  const handleSASwitch = useCallback(() => router.push('/signin'), [router]);
+
   // ── Renders ────────────────────────────────────────────────────────────────
 
   if (appState === 'initializing') {
@@ -202,10 +206,8 @@ export default function Index() {
   if (appState === 'selectSA') {
     return (
       <SelectSA
-        onSelected={() => setAppState('selectRole')}
-        onSwitchAccount={() => {
-          router.push('/signin');
-        }}
+        onSelected={handleSASelected}
+        onSwitchAccount={handleSASwitch}
       />
     );
   }

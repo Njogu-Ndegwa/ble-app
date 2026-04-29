@@ -33,6 +33,9 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
     const emp = getOdooEmployee();
     if (emp) setEmployee({ name: emp.name, email: emp.email });
 
+    // Live fetch is only triggered when no accounts were saved at login time
+    // (e.g. Microsoft SSO without session_data).  For normal email/password login,
+    // accounts are already stored and this branch is skipped.
     if (stored.length === 0) {
       setFetchingAccounts(true);
       fetchAndCacheServiceAccounts().then(accounts => {
@@ -45,7 +48,8 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
         setFetchingAccounts(false);
       });
     }
-  }, [onSelected]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelect = (sa: ServiceAccount) => {
     setSelecting(sa.id);

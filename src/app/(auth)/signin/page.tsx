@@ -39,12 +39,30 @@ const LoginPage = () => {
       console.info('[SignIn] Raw backend response:', JSON.stringify(data, null, 2))
 
       if (data.success && data.session) {
-        console.info('[SignIn] Login SUCCESS — employee:', data.session.employee?.name, '| SAs:', data.session.service_accounts?.length)
-        saveOdooEmployeeSession(data.session)
+        const session = data.session
+
+        // Some backend builds return service_accounts at the top level of the
+        // login response rather than nested inside `session`.  Merge them in so
+        // saveOdooEmployeeSession always has the full account list.
+        const raw = data as any
+        if (
+          (!Array.isArray(session.service_accounts) || session.service_accounts.length === 0) &&
+          Array.isArray(raw.service_accounts) &&
+          raw.service_accounts.length > 0
+        ) {
+          console.info('[SignIn] service_accounts found at response root — merging into session')
+          session.service_accounts = raw.service_accounts
+        }
+
+        console.info('[SignIn] Login SUCCESS — employee:', session.employee?.name,
+          '| SAs:', session.service_accounts?.length ?? 0,
+          '| auto_selected:', session.auto_selected)
+
+        saveOdooEmployeeSession(session)
         router.replace('/')
       } else {
         const msg = data.error || data.message || t('auth.error.badRequest')
-        console.warn('[SignIn] Login FAILED:', msg)
+        console.warn('[SignIn] Login FAILED or session missing:', msg)
         toast.error(msg)
       }
     } catch (err: any) {
