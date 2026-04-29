@@ -8,6 +8,7 @@ import { Globe, Eye, EyeOff, ArrowLeft, ArrowRight } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { odooEmployeeLogin, saveOdooEmployeeSession } from '@/lib/ov-auth'
+import { getMicrosoftAuthUrl, saveMicrosoftPendingContext } from '@/lib/attendant-auth'
 
 const LoginPage = () => {
   const router = useRouter()
@@ -37,7 +38,6 @@ const LoginPage = () => {
 
       if (data.success && data.session) {
         saveOdooEmployeeSession(data.session)
-        // Root page reads auth state and routes to SA picker or applet grid
         router.replace('/')
       } else {
         const msg = data.error || data.message || t('auth.error.badRequest')
@@ -49,6 +49,12 @@ const LoginPage = () => {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleMicrosoftSignIn = () => {
+    // Save return path so the OAuth callback knows where to go after auth
+    saveMicrosoftPendingContext('/', 'sales')
+    window.location.href = getMicrosoftAuthUrl()
   }
 
   return (
@@ -116,8 +122,35 @@ const LoginPage = () => {
               <circle cx="12" cy="7" r="4"/>
             </svg>
           </div>
-          <h1 className="login-title">{t('auth.title')}</h1>
-          <p className="login-subtitle">{t('auth.subtitle')}</p>
+          <h1 className="login-title">{t('auth.appTitle')}</h1>
+          <p className="login-subtitle">{t('auth.appSubtitle')}</p>
+        </div>
+
+        {/* Microsoft SSO */}
+        <button
+          type="button"
+          className="btn btn-secondary login-btn"
+          onClick={handleMicrosoftSignIn}
+          disabled={isLoading}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+        >
+          {/* Microsoft logo mark */}
+          <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+            <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+          </svg>
+          <span>{t('auth.signInWithMicrosoft')}</span>
+        </button>
+
+        {/* Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            {t('auth.orSignInWith')}
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
@@ -163,7 +196,7 @@ const LoginPage = () => {
                 type="button"
                 className="password-toggle"
                 onClick={() => setShowPassword(v => !v)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
                 disabled={isLoading}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}

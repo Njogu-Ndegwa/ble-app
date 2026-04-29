@@ -9,7 +9,7 @@ import SelectRole from '@/components/roles/SelectRole';
 import SelectSA from '@/components/roles/SelectSA';
 import PublicLanding from '@/components/roles/PublicLanding';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
-import { isOdooEmployeeLoggedIn, getSelectedSAId } from '@/lib/ov-auth';
+import { isOdooEmployeeLoggedIn, getSelectedSAId, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
 
 type AppState =
   | 'initializing'
@@ -68,6 +68,8 @@ export default function Index() {
 
       if (result.success) {
         console.info('[RootPage] Microsoft login SUCCESS → redirecting to', returnPath);
+        // Bridge into unified ov-auth so the new SA flow recognises this session
+        saveOdooEmployeeSessionFromMicrosoft(result.user);
       } else {
         console.info('[RootPage] Microsoft login FAILED:', result.error);
       }

@@ -10,6 +10,10 @@
   
   "auth.title": "BLE Device Manager",
   "auth.subtitle": "Sign in to access your devices",
+  "auth.appTitle": "OVES",
+  "auth.appSubtitle": "Sign in to access your workspace",
+  "auth.signInWithMicrosoft": "Sign in with Microsoft",
+  "auth.orSignInWith": "or sign in with email",
   "auth.emailPlaceholder": "Email address",
   "auth.passwordPlaceholder": "Password",
   "auth.signIn": "Sign in",
@@ -34,6 +38,7 @@
   "common.next": "Next",
   "common.hidePassword": "Hide password",
   "common.showPassword": "Show password",
+  "common.loading": "Loading…",
   "common.na": "N/A",
   "common.or": "or select from list",
   "common.scanOrSelect": "Scan QR code or select from list below",

@@ -51,6 +51,17 @@ export default function PublicLanding({ onSignIn }: Props) {
               <Globe size={14} />
               <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
             </button>
+            {/* Sign-in icon — positioned naturally among header controls */}
+            <button
+              className="flow-header-lang"
+              onClick={onSignIn}
+              aria-label={t('auth.signIn')}
+              title={t('auth.signIn')}
+              style={{ gap: 6 }}
+            >
+              <LogIn size={14} />
+              <span className="flow-header-lang-label">{t('auth.signIn')}</span>
+            </button>
           </div>
         </div>
       </header>
@@ -82,7 +93,7 @@ export default function PublicLanding({ onSignIn }: Props) {
           </div>
 
           {/* Keypad — the only public applet */}
-          <div className="role-grid" style={{ marginBottom: 24 }}>
+          <div className="role-grid">
             <div
               className="role-app"
               onClick={handleKeypadClick}
@@ -101,19 +112,9 @@ export default function PublicLanding({ onSignIn }: Props) {
             </div>
           </div>
 
-          {/* Sign In CTA */}
-          <div style={{ width: '100%', maxWidth: 420, padding: '0 4px' }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 12 }}>
-              {t('auth.signInPrompt')}
-            </p>
-            <button
-              className="btn btn-primary login-btn"
-              onClick={onSignIn}
-            >
-              <LogIn size={16} />
-              <span>{t('auth.signIn')}</span>
-            </button>
-          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
+            {t('auth.signInPrompt')}
+          </p>
         </div>
       </main>
     </div>

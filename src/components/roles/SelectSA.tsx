@@ -10,6 +10,7 @@ import {
   selectServiceAccount,
   getOdooEmployee,
   clearOdooEmployeeSession,
+  fetchAndCacheServiceAccounts,
 } from '@/lib/ov-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 
@@ -23,11 +24,23 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
   const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
   const [employee, setEmployee] = useState<{ name: string; email: string } | null>(null);
   const [selecting, setSelecting] = useState<number | null>(null);
+  const [fetchingAccounts, setFetchingAccounts] = useState(false);
 
   useEffect(() => {
-    setServiceAccounts(getStoredServiceAccounts());
+    const stored = getStoredServiceAccounts();
+    setServiceAccounts(stored);
+
     const emp = getOdooEmployee();
     if (emp) setEmployee({ name: emp.name, email: emp.email });
+
+    // After Microsoft SSO the SA list is not embedded in the callback — fetch it live
+    if (stored.length === 0) {
+      setFetchingAccounts(true);
+      fetchAndCacheServiceAccounts().then(accounts => {
+        if (accounts.length > 0) setServiceAccounts(accounts);
+        setFetchingAccounts(false);
+      });
+    }
   }, []);
 
   const toggleLocale = () => {
@@ -110,7 +123,12 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
           </div>
 
           {/* SA cards */}
-          {serviceAccounts.length === 0 ? (
+          {fetchingAccounts ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '32px 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+              <div className="loading-spinner" style={{ width: 24, height: 24, borderWidth: 2 }} />
+              <span>{t('common.loading') || 'Loading accounts…'}</span>
+            </div>
+          ) : serviceAccounts.length === 0 ? (
             <div className="sa-error-card">
               <p className="sa-error-title">{t('sa.noAccessTitle')}</p>
               <p className="sa-error-desc">{t('sa.noAccounts')}</p>

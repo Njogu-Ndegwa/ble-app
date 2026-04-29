@@ -12,6 +12,7 @@ import type {
   OdooLoginResponse,
   ServiceAccount,
 } from './sa-types'
+import type { EmployeeUser } from './attendant-auth'
 import { clearAttendantRoleLogin, clearSalesRoleLogin } from './attendant-auth'
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,68 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
   // Auto-select if the backend signals only one SA
   if (session.auto_selected && session.service_accounts.length === 1) {
     selectServiceAccount(session.service_accounts[0], session.token)
+  }
+}
+
+/**
+ * Bridge a Microsoft SSO result into the unified ov-auth storage.
+ * Called from page.tsx after a successful Microsoft OAuth callback.
+ * Service accounts are NOT available at this point — SelectSA will lazy-fetch them.
+ */
+export function saveOdooEmployeeSessionFromMicrosoft(user: EmployeeUser): void {
+  if (typeof window === 'undefined') return
+
+  if (!user.accessToken) return
+
+  localStorage.setItem(KEYS.EMPLOYEE_TOKEN, user.accessToken)
+  if (user.tokenExpiresAt) {
+    localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, user.tokenExpiresAt)
+  }
+  localStorage.setItem(
+    KEYS.EMPLOYEE_DATA,
+    JSON.stringify({
+      id: user.employeeId ?? user.id,
+      name: user.name,
+      email: user.email,
+      company_id: user.companyId ?? null,
+      user_type: 'abs.employee',
+    }),
+  )
+  // Service accounts are not embedded in the Microsoft callback — clear any stale
+  // list so SelectSA can detect the empty state and trigger a live fetch.
+  localStorage.removeItem(KEYS.SERVICE_ACCOUNTS)
+}
+
+/**
+ * Fetch and cache service accounts from the API.
+ * Used by SelectSA after Microsoft SSO, where SAs were not embedded in the callback.
+ */
+export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> {
+  const token = getOdooEmployeeToken()
+  if (!token) return []
+
+  try {
+    const resp = await fetch(`${ODOO_BASE_URL}/me/service-accounts`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': ODOO_API_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (!resp.ok) return []
+    const data = await resp.json()
+    const accounts: ServiceAccount[] = data.service_accounts ?? []
+    if (accounts.length > 0) {
+      localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
+      accounts.forEach(sa => {
+        if (sa.applets?.length) {
+          localStorage.setItem(`${KEYS.SA_APPLETS_PREFIX}${sa.id}`, JSON.stringify(sa.applets))
+        }
+      })
+    }
+    return accounts
+  } catch {
+    return []
   }
 }
 
