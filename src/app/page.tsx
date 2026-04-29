@@ -9,7 +9,8 @@ import SelectRole from '@/components/roles/SelectRole';
 import SelectSA from '@/components/roles/SelectSA';
 import PublicLanding from '@/components/roles/PublicLanding';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
-import { isOdooEmployeeLoggedIn, getSelectedSAId, getStoredServiceAccounts, selectServiceAccount, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
+import { isOdooEmployeeLoggedIn, getSelectedSAId, getStoredServiceAccounts, selectServiceAccount, saveOdooEmployeeSession, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
+import type { OdooEmployeeSession } from '@/lib/sa-types';
 
 type AppState =
   | 'initializing'
@@ -69,15 +70,32 @@ export default function Index() {
 
       if (result.success) {
         console.info('[RootPage] Microsoft SSO callback SUCCESS');
-        console.info('[RootPage] Raw user object:', JSON.stringify(result.user, null, 2));
-        console.info('[RootPage] employee name:', result.user.name, '| id:', result.user.employeeId, '| email:', result.user.email);
-        console.info('[RootPage] token (first 40 chars):', result.user.accessToken?.slice(0, 40));
-        console.info('[RootPage] tokenExpiresAt:', result.user.tokenExpiresAt);
-        console.info('[RootPage] NOTE — service_accounts not in Microsoft callback; SelectSA will fetch them live');
-        // Bridge into unified ov-auth so isOdooEmployeeLoggedIn() recognises this session
-        saveOdooEmployeeSessionFromMicrosoft(result.user);
-        // Go directly to the correct app state — router.replace('/') would not
-        // re-fire this useEffect because the router instance is stable
+        console.info('[RootPage] employee:', result.user.name, '| id:', result.user.employeeId, '| email:', result.user.email);
+        console.info('[RootPage] token (first 40):', result.user.accessToken?.slice(0, 40));
+
+        // The callback URL includes a `session_data` param: a base64-encoded JSON blob
+        // that contains the full OdooEmployeeSession (token, employee, service_accounts,
+        // applets, auto_selected). Using it is equivalent to a normal email login response.
+        const sessionDataParam = params.get('session_data');
+        if (sessionDataParam) {
+          try {
+            const decoded = atob(sessionDataParam);
+            const sessionData = JSON.parse(decoded) as OdooEmployeeSession;
+            console.info('[RootPage] session_data decoded — SAs:', sessionData.service_accounts?.length, '| auto_selected:', sessionData.auto_selected);
+            sessionData.service_accounts?.forEach(sa => {
+              console.info(`[RootPage]   SA #${sa.id} "${sa.name}" applets: [${sa.applets?.join(', ')}]`);
+            });
+            console.info('[RootPage] Full session_data:', JSON.stringify(sessionData, null, 2));
+            saveOdooEmployeeSession(sessionData);
+          } catch (e) {
+            console.warn('[RootPage] Failed to decode session_data — falling back to basic token save:', e);
+            saveOdooEmployeeSessionFromMicrosoft(result.user);
+          }
+        } else {
+          console.info('[RootPage] No session_data param in callback — using basic token save');
+          saveOdooEmployeeSessionFromMicrosoft(result.user);
+        }
+
         resolveAuthState();
       } else {
         console.info('[RootPage] Microsoft SSO callback FAILED:', result.error);
