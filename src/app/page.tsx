@@ -9,7 +9,7 @@ import SelectRole from '@/components/roles/SelectRole';
 import SelectSA from '@/components/roles/SelectSA';
 import PublicLanding from '@/components/roles/PublicLanding';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
-import { isOdooEmployeeLoggedIn, getSelectedSAId, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
+import { isOdooEmployeeLoggedIn, getSelectedSAId, getStoredServiceAccounts, selectServiceAccount, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
 
 type AppState =
   | 'initializing'
@@ -114,7 +114,16 @@ export default function Index() {
     }
     const saId = getSelectedSAId();
     if (saId === null) {
-      setAppState('selectSA');
+      // Auto-select if the user has exactly one SA (e.g. resumed session after
+      // page refresh where selectServiceAccount wasn't called again yet).
+      const accounts = getStoredServiceAccounts();
+      if (accounts.length === 1) {
+        console.info('[RootPage] resolveAuthState: single SA found — auto-selecting SA #', accounts[0].id);
+        selectServiceAccount(accounts[0]);
+        setAppState('selectRole');
+      } else {
+        setAppState('selectSA');
+      }
     } else {
       setAppState('selectRole');
     }

@@ -3,10 +3,10 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, Zap, RefreshCw } from 'lucide-react';
+import { Globe, Zap, RefreshCw, LogOut } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
+import { getActiveSAApplets, getSelectedSA, clearOdooEmployeeSession } from '@/lib/ov-auth';
 
 interface Props {
   /** Called when the user wants to switch to a different SA (no re-login). */
@@ -121,6 +121,11 @@ const NAV_TIMEOUT_MS = 3000;
 export default function SelectRole({ onSwitchSA }: Props) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
+
+  const handleLogout = useCallback(() => {
+    clearOdooEmployeeSession();
+    router.replace('/signin');
+  }, [router]);
   const hiddenAtRef = useRef<number | null>(null);
   const wasIdleRef = useRef(false);
   const navFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -241,6 +246,14 @@ export default function SelectRole({ onSwitchSA }: Props) {
                 <RefreshCw size={14} />
               </button>
             )}
+            <button
+              className="flow-header-logout"
+              onClick={handleLogout}
+              aria-label={t('sa.signOut')}
+              title={t('sa.signOut')}
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </header>

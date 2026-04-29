@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 import {
   isSalesRoleLoggedIn,
@@ -65,10 +66,15 @@ function getInitialScreen(): { screen: Screen; user: EmployeeUser | null } {
 }
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [screen, setScreen] = useState<Screen>(() => getInitialScreen().screen);
   const [user, setUser] = useState<EmployeeUser | null>(
     () => getInitialScreen().user,
   );
+
+  useEffect(() => {
+    if (screen === 'login') router.replace('/signin');
+  }, [screen, router]);
 
   const [saAccounts, setSaAccounts] = useState<ServiceAccount[]>([]);
   const [saLoading, setSaLoading] = useState(false);

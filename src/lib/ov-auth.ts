@@ -129,9 +129,9 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
 
   console.info('[ov-auth] Session saved. SAs cached:', session.service_accounts.length)
 
-  // Auto-select if the backend signals only one SA
-  if (session.auto_selected && session.service_accounts.length === 1) {
-    console.info('[ov-auth] auto_selected=true, selecting SA #', session.service_accounts[0].id)
+  // Auto-select when there is exactly one SA — no need to present a picker
+  if (session.service_accounts.length === 1) {
+    console.info('[ov-auth] Single SA — auto-selecting SA #', session.service_accounts[0].id)
     selectServiceAccount(session.service_accounts[0], session.token)
   }
 }
