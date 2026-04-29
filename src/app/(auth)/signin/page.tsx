@@ -36,11 +36,15 @@ const LoginPage = () => {
     try {
       const data = await odooEmployeeLogin(email, password)
 
+      console.info('[SignIn] Raw backend response:', JSON.stringify(data, null, 2))
+
       if (data.success && data.session) {
+        console.info('[SignIn] Login SUCCESS — employee:', data.session.employee?.name, '| SAs:', data.session.service_accounts?.length)
         saveOdooEmployeeSession(data.session)
         router.replace('/')
       } else {
         const msg = data.error || data.message || t('auth.error.badRequest')
+        console.warn('[SignIn] Login FAILED:', msg)
         toast.error(msg)
       }
     } catch (err: any) {

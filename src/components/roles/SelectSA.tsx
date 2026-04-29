@@ -28,6 +28,7 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
 
   useEffect(() => {
     const stored = getStoredServiceAccounts();
+    console.info('[SelectSA] Stored SAs on mount:', stored.length, stored.map(a => `#${a.id} ${a.name}`));
     setServiceAccounts(stored);
 
     const emp = getOdooEmployee();
@@ -37,6 +38,14 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
     if (stored.length === 0) {
       setFetchingAccounts(true);
       fetchAndCacheServiceAccounts().then(accounts => {
+        console.info('[SelectSA] Live fetch returned', accounts.length, 'SA(s):', accounts.map(a => `#${a.id} ${a.name}`));
+        if (accounts.length === 1) {
+          // Single SA — auto-select and skip the picker, same as the normal login path
+          console.info('[SelectSA] Single SA after live fetch — auto-selecting SA #', accounts[0].id);
+          selectServiceAccount(accounts[0]);
+          onSelected();
+          return;
+        }
         if (accounts.length > 0) setServiceAccounts(accounts);
         setFetchingAccounts(false);
       });

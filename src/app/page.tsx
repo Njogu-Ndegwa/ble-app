@@ -69,8 +69,11 @@ export default function Index() {
 
       if (result.success) {
         console.info('[RootPage] Microsoft SSO callback SUCCESS');
-        console.info('[RootPage] employee:', result.user.name, '| id:', result.user.employeeId, '| email:', result.user.email);
+        console.info('[RootPage] Raw user object:', JSON.stringify(result.user, null, 2));
+        console.info('[RootPage] employee name:', result.user.name, '| id:', result.user.employeeId, '| email:', result.user.email);
         console.info('[RootPage] token (first 40 chars):', result.user.accessToken?.slice(0, 40));
+        console.info('[RootPage] tokenExpiresAt:', result.user.tokenExpiresAt);
+        console.info('[RootPage] NOTE — service_accounts not in Microsoft callback; SelectSA will fetch them live');
         // Bridge into unified ov-auth so isOdooEmployeeLoggedIn() recognises this session
         saveOdooEmployeeSessionFromMicrosoft(result.user);
         // Go directly to the correct app state — router.replace('/') would not
