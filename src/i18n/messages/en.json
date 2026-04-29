@@ -14,6 +14,7 @@
   "auth.appSubtitle": "Sign in to access your workspace",
   "auth.signInWithMicrosoft": "Sign in with Microsoft",
   "auth.orSignInWith": "or sign in with email",
+  "auth.skipToKeypad": "Just need the Keypad? Access it here →",
   "auth.emailPlaceholder": "Email address",
   "auth.passwordPlaceholder": "Password",
   "auth.signIn": "Sign in",

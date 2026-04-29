@@ -101,8 +101,9 @@ export default function Index() {
   /** Determine which authenticated state to show after splash/onboarding. */
   const resolveAuthState = useCallback(() => {
     if (!isOdooEmployeeLoggedIn()) {
-      // Not logged in → show public landing with keypad + Sign In
-      setAppState('landing');
+      // Not logged in → go straight to the sign-in page.
+      // Keypad is available as a "skip" option from there.
+      router.replace('/signin');
       return;
     }
     const saId = getSelectedSAId();
@@ -111,7 +112,7 @@ export default function Index() {
     } else {
       setAppState('selectRole');
     }
-  }, []);
+  }, [router]);
 
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;

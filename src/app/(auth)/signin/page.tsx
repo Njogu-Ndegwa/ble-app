@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Toaster, toast } from 'react-hot-toast'
 import Image from 'next/image'
-import { Globe, Eye, EyeOff, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { odooEmployeeLogin, saveOdooEmployeeSession } from '@/lib/ov-auth'
@@ -51,10 +51,19 @@ const LoginPage = () => {
     }
   }
 
-  const handleMicrosoftSignIn = () => {
-    // Save return path so the OAuth callback knows where to go after auth
+  const handleMicrosoftSignIn = async () => {
+    const authUrl = getMicrosoftAuthUrl()
     saveMicrosoftPendingContext('/', 'sales')
-    window.location.href = getMicrosoftAuthUrl()
+
+    // Unregister service workers so the Odoo redirect is not intercepted by a stale cache
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      for (const reg of regs) {
+        await reg.unregister()
+      }
+    }
+
+    window.location.href = authUrl
   }
 
   return (
@@ -62,13 +71,16 @@ const LoginPage = () => {
       <header className="flow-header">
         <div className="flow-header-inner">
           <div className="flow-header-left">
+            {/* Back → takes the user to the public keypad instead of looping back to /signin */}
             <button
               className="flow-header-back"
-              onClick={() => router.replace('/')}
+              onClick={() => router.push('/keypad/keypad')}
               aria-label={t('auth.backToCustomer')}
               title={t('auth.backToCustomer')}
             >
-              <ArrowLeft size={18} />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
             </button>
             <div className="flow-header-logo">
               <Image
@@ -126,34 +138,8 @@ const LoginPage = () => {
           <p className="login-subtitle">{t('auth.appSubtitle')}</p>
         </div>
 
-        {/* Microsoft SSO */}
-        <button
-          type="button"
-          className="btn btn-secondary login-btn"
-          onClick={handleMicrosoftSignIn}
-          disabled={isLoading}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
-        >
-          {/* Microsoft logo mark */}
-          <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-            <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-            <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-            <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-          </svg>
-          <span>{t('auth.signInWithMicrosoft')}</span>
-        </button>
-
-        {/* Divider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-            {t('auth.orSignInWith')}
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
         <form onSubmit={handleLogin} className="login-form">
+          {/* Email */}
           <div className="form-group">
             <label className="form-label">{t('auth.emailPlaceholder')}</label>
             <div className="input-with-icon">
@@ -174,6 +160,7 @@ const LoginPage = () => {
             </div>
           </div>
 
+          {/* Password */}
           <div className="form-group">
             <label className="form-label">{t('auth.passwordPlaceholder')}</label>
             <div className="input-with-icon">
@@ -199,11 +186,22 @@ const LoginPage = () => {
                 aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
                 disabled={isLoading}
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
               </button>
             </div>
           </div>
 
+          {/* Primary sign-in button */}
           <button
             type="submit"
             className="btn btn-primary login-btn"
@@ -216,18 +214,58 @@ const LoginPage = () => {
               </>
             ) : (
               <>
-                <ArrowRight size={18} />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
                 <span>{t('auth.signIn')}</span>
               </>
             )}
           </button>
 
-          <p className="login-help">
-            {t('auth.noAccount')}{' '}
-            <a href="#" className="text-brand hover:text-brand-light">
-              {t('auth.contactSupport')}
-            </a>
-          </p>
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {t('auth.orSignInWith')}
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          {/* Microsoft sign-in — full width, below form, matches attendant login pattern */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleMicrosoftSignIn}
+            disabled={isLoading}
+            style={{ width: '100%' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
+              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+            </svg>
+            <span>{t('auth.signInWithMicrosoft')}</span>
+          </button>
+
+          {/* Keypad-only escape hatch for users who do not need to sign in */}
+          <button
+            type="button"
+            onClick={() => router.push('/keypad/keypad')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontFamily: 'inherit',
+              padding: '12px 0 0',
+              width: '100%',
+              textAlign: 'center',
+            }}
+          >
+            {t('auth.skipToKeypad')}
+          </button>
         </form>
 
         <div style={{ marginTop: 24, textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
