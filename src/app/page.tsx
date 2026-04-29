@@ -6,9 +6,19 @@ import { useRouter } from 'next/navigation';
 import SplashScreen from '@/components/splash/SplashScreen';
 import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
+import SelectSA from '@/components/roles/SelectSA';
+import PublicLanding from '@/components/roles/PublicLanding';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
+import { isOdooEmployeeLoggedIn, getSelectedSAId } from '@/lib/ov-auth';
 
-type AppState = 'initializing' | 'splash' | 'onboarding' | 'selectRole' | 'microsoftCallback';
+type AppState =
+  | 'initializing'
+  | 'splash'
+  | 'onboarding'
+  | 'landing'      // unauthenticated: shows public keypad + Sign In CTA
+  | 'selectSA'     // authenticated but no SA chosen yet
+  | 'selectRole'   // authenticated + SA selected: shows SA-filtered applet grid
+  | 'microsoftCallback';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 const SPLASH_SHOWN_KEY = 'oves-splash-shown';
@@ -16,24 +26,17 @@ const SPLASH_SHOWN_KEY = 'oves-splash-shown';
 export default function Index() {
   const router = useRouter();
 
-  // Start as 'initializing' — all browser-dependent detection happens in useEffect
   const [appState, setAppState] = useState<AppState>('initializing');
 
-  // Runs once on the client after mount — determines real state
   useEffect(() => {
     console.info('[RootPage] useEffect fired. Full URL:', window.location.href);
-    console.info('[RootPage] search:', window.location.search);
-    console.info('[RootPage] hash:', window.location.hash);
 
     // 1. Check for Microsoft OAuth callback tokens in URL query string OR hash fragment
-    //    Odoo may return tokens in either format depending on configuration
     let params = new URLSearchParams(window.location.search);
     let tokenVal = params.get('token');
     let employeeIdVal = params.get('employee_id');
 
-    // Fallback: check hash fragment (e.g. #token=...&employee_id=...)
     if (!tokenVal && window.location.hash) {
-      console.info('[RootPage] No token in query string, checking hash fragment');
       const hashStr = window.location.hash.startsWith('#')
         ? window.location.hash.slice(1)
         : window.location.hash;
@@ -47,74 +50,66 @@ export default function Index() {
 
     const employeeNameVal = params.get('employee_name');
     const employeeEmailVal = params.get('employee_email');
-    const expiresAtVal = params.get('expires_at');
-
-    console.info('[RootPage] URL params → token:', tokenVal ? `${tokenVal.slice(0, 20)}...` : null);
-    console.info('[RootPage] URL params → employee_id:', employeeIdVal);
-    console.info('[RootPage] URL params → employee_name:', employeeNameVal);
-    console.info('[RootPage] URL params → employee_email:', employeeEmailVal);
-    console.info('[RootPage] URL params → expires_at:', expiresAtVal);
-
     const hasTokenParams = !!(tokenVal && employeeIdVal);
-    console.info('[RootPage] hasTokenParams:', hasTokenParams);
 
-    // 2. Check for the pending context we saved before redirecting to Odoo
+    // 2. Check for pending Microsoft context saved before redirect
     const pendingContext = consumeMicrosoftPendingContext();
-    console.info('[RootPage] pendingContext:', JSON.stringify(pendingContext));
 
     if (hasTokenParams) {
-      // Dismiss the HTML splash overlay immediately so it doesn't block the UI
       const htmlSplash = document.getElementById('html-splash');
-      if (htmlSplash) {
-        htmlSplash.style.display = 'none';
-      }
+      if (htmlSplash) htmlSplash.style.display = 'none';
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
       const userType = pendingContext?.userType ?? 'sales';
       const returnPath = pendingContext?.returnPath ?? '/';
-      console.info('[RootPage] Processing Microsoft callback → userType:', userType, 'returnPath:', returnPath);
 
       const result = parseMicrosoftCallback(params, userType);
-      console.info('[RootPage] parseMicrosoftCallback result:', JSON.stringify(result));
-
       window.history.replaceState({}, '', '/');
 
       if (result.success) {
-        console.info('[RootPage] Login SUCCESS. Checking localStorage after save...');
-        console.info('[RootPage] oves-sales-data:', localStorage.getItem('oves-sales-data')?.slice(0, 100));
-        console.info('[RootPage] oves-sales-token:', localStorage.getItem('oves-sales-token')?.slice(0, 30));
-        console.info('[RootPage] Redirecting to', returnPath);
+        console.info('[RootPage] Microsoft login SUCCESS → redirecting to', returnPath);
       } else {
-        console.info('[RootPage] ERROR: Login FAILED:', result.error);
+        console.info('[RootPage] Microsoft login FAILED:', result.error);
       }
       router.replace(returnPath);
       return;
     }
 
     if (pendingContext) {
-      // Dismiss the HTML splash overlay so it doesn't block navigation
       const htmlSplash = document.getElementById('html-splash');
-      if (htmlSplash) {
-        htmlSplash.style.display = 'none';
-      }
+      if (htmlSplash) htmlSplash.style.display = 'none';
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
       const returnPath = pendingContext.returnPath ?? '/';
-      console.info('[RootPage] No tokens but has pendingContext. Redirecting to', returnPath);
       window.history.replaceState({}, '', '/');
       router.replace(returnPath);
       return;
     }
 
-    // 3. Normal app launch — determine splash / onboarding / selectRole
+    // 3. Normal app launch
     const splashShown = sessionStorage.getItem(SPLASH_SHOWN_KEY);
-    console.info('[RootPage] Normal launch. splashShown:', splashShown);
+
     if (splashShown === 'true') {
-      setAppState('selectRole');
+      resolveAuthState();
     } else {
       setAppState('splash');
     }
   }, [router]);
+
+  /** Determine which authenticated state to show after splash/onboarding. */
+  const resolveAuthState = useCallback(() => {
+    if (!isOdooEmployeeLoggedIn()) {
+      // Not logged in → show public landing with keypad + Sign In
+      setAppState('landing');
+      return;
+    }
+    const saId = getSelectedSAId();
+    if (saId === null) {
+      setAppState('selectSA');
+    } else {
+      setAppState('selectRole');
+    }
+  }, []);
 
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;
@@ -128,18 +123,19 @@ export default function Index() {
   const handleSplashComplete = useCallback(() => {
     sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
     if (hasSeenOnboarding()) {
-      setAppState('selectRole');
+      resolveAuthState();
     } else {
       setAppState('onboarding');
     }
-  }, []);
+  }, [resolveAuthState]);
 
   const handleOnboardingComplete = useCallback(() => {
     markOnboardingComplete();
-    setAppState('selectRole');
-  }, []);
+    resolveAuthState();
+  }, [resolveAuthState]);
 
-  // Show a brief loading screen while determining state (SSR + first client frame)
+  // ── Renders ────────────────────────────────────────────────────────────────
+
   if (appState === 'initializing') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', flexDirection: 'column', gap: 16, background: 'var(--bg-primary, #0a0a0a)' }}>
@@ -156,8 +152,31 @@ export default function Index() {
     return <OnboardingCarousel onComplete={handleOnboardingComplete} />;
   }
 
+  if (appState === 'landing') {
+    return (
+      <PublicLanding
+        onSignIn={() => router.push('/signin')}
+      />
+    );
+  }
+
+  if (appState === 'selectSA') {
+    return (
+      <SelectSA
+        onSelected={() => setAppState('selectRole')}
+        onSwitchAccount={() => {
+          router.push('/signin');
+        }}
+      />
+    );
+  }
+
   if (appState === 'selectRole') {
-    return <SelectRole />;
+    return (
+      <SelectRole
+        onSwitchSA={() => setAppState('selectSA')}
+      />
+    );
   }
 
   return null;

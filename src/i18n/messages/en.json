@@ -1722,6 +1722,11 @@
   "sessions.exitReview": "Exit",
 
   "sa.selectAccount": "Select Service Account",
+  "sa.selectTitle": "Select Account",
+  "sa.selectDescription": "Choose the service account you want to work in.",
+  "sa.noAccounts": "No service accounts found. Please contact your administrator.",
+  "sa.applet": "app",
+  "sa.applets": "apps",
   "sa.welcome": "Welcome, {name}. Choose your service account.",
   "sa.noAccessTitle": "No Access",
   "sa.noAccessDescription": "You don't have access to any service accounts.",
@@ -1733,6 +1738,10 @@
   "sa.loadFailed": "Failed to load service accounts",
   "sa.currentAccount": "Service Account",
   "sa.switchAccount": "Switch",
+  "sa.activeAccount": "Account",
+  "auth.signInToAccessApps": "Sign in to access your apps",
+  "auth.signInPrompt": "Have an account? Sign in to see your personalised apps.",
+  "auth.welcome": "Welcome",
 
   "activator.selectCustomer": "Select Customer",
   "activator.nav.activate": "Activate",
