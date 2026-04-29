@@ -262,20 +262,26 @@ export function getStoredServiceAccounts(): ServiceAccount[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Persist the user's chosen SA and mirror the employee token into the legacy
- * attendant + sales storage keys so existing per-app auth guards pass.
+ * Persist the user's chosen SA and mirror the employee token AND the SA selection
+ * into every legacy storage key so individual applets (customer-management, orders,
+ * activator, attendant, etc.) skip their own per-applet login / SA-picker screens.
+ *
+ * Legacy keys written:
+ *   Auth  → oves-attendant-token, oves-sales-token (+ *-data variants)
+ *   SA    → oves-sales-sa-id, oves-sales-sa-data, oves-attendant-sa-id, oves-attendant-sa-data
+ *
+ * Without the SA keys, individual applets see hasSASelected()=false and fall back to
+ * their own SA picker, which contains a Microsoft sign-in button → OAuth loop.
  */
 export function selectServiceAccount(sa: ServiceAccount, tokenOverride?: string): void {
   if (typeof window === 'undefined') return
 
   localStorage.setItem(KEYS.SELECTED_SA_ID, String(sa.id))
 
-  // Mirror token into legacy keys so attendant/sales apps auto-authenticate
+  // Mirror token into legacy auth keys
   const token = tokenOverride ?? localStorage.getItem(KEYS.EMPLOYEE_TOKEN) ?? ''
   const employeeRaw = localStorage.getItem(KEYS.EMPLOYEE_DATA)
-  const legacyUserData = employeeRaw
-    ? JSON.parse(employeeRaw)
-    : {}
+  const legacyUserData = employeeRaw ? JSON.parse(employeeRaw) : {}
 
   if (token) {
     localStorage.setItem(KEYS.ATTENDANT_TOKEN, token)
@@ -283,6 +289,17 @@ export function selectServiceAccount(sa: ServiceAccount, tokenOverride?: string)
     localStorage.setItem(KEYS.ATTENDANT_DATA, JSON.stringify({ ...legacyUserData, userType: 'attendant', accessToken: token }))
     localStorage.setItem(KEYS.SALES_DATA, JSON.stringify({ ...legacyUserData, userType: 'sales', accessToken: token }))
   }
+
+  // Mirror SA selection into legacy per-applet SA keys.
+  // Written directly (not via saveSelectedSA()) to avoid its cross-contamination
+  // clearing logic which would erase the other role's entry we just wrote.
+  const saJson = JSON.stringify(sa)
+  localStorage.setItem('oves-sales-sa-id', String(sa.id))
+  localStorage.setItem('oves-sales-sa-data', saJson)
+  localStorage.setItem('oves-attendant-sa-id', String(sa.id))
+  localStorage.setItem('oves-attendant-sa-data', saJson)
+
+  console.info(`[ov-auth] selectServiceAccount: SA #${sa.id} "${sa.name}" bridged to all legacy keys (token + SA selection)`)
 }
 
 export function getSelectedSAId(): number | null {
@@ -357,4 +374,10 @@ export function clearOdooEmployeeSession(): void {
   // Clear legacy mirrored tokens so per-app auth checks also reset
   clearAttendantRoleLogin()
   clearSalesRoleLogin()
+
+  // Clear legacy per-applet SA selections
+  localStorage.removeItem('oves-sales-sa-id')
+  localStorage.removeItem('oves-sales-sa-data')
+  localStorage.removeItem('oves-attendant-sa-id')
+  localStorage.removeItem('oves-attendant-sa-data')
 }
