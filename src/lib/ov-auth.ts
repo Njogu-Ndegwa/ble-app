@@ -72,6 +72,8 @@ export async function odooEmployeeLogin(
   email: string,
   password: string,
 ): Promise<OdooLoginResponse> {
+  console.info('[ov-auth] odooEmployeeLogin → POST /employee/login for', email)
+
   const response = await fetch(`${ODOO_BASE_URL}/employee/login`, {
     method: 'POST',
     headers: {
@@ -86,6 +88,19 @@ export async function odooEmployeeLogin(
   if (!response.ok && !data.error) {
     data.success = false
     data.error = `HTTP ${response.status}`
+  }
+
+  if (data.success) {
+    console.info('[ov-auth] Login response SUCCESS')
+    console.info('[ov-auth] employee:', data.session?.employee?.name, '| id:', data.session?.employee?.id)
+    console.info('[ov-auth] token expires_at:', data.session?.expires_at)
+    console.info('[ov-auth] total SAs returned:', data.session?.service_accounts?.length ?? 0)
+    console.info('[ov-auth] auto_selected:', data.session?.auto_selected)
+    data.session?.service_accounts?.forEach(sa => {
+      console.info(`[ov-auth]   SA #${sa.id} "${sa.name}" (${sa.my_role}) → applets: [${sa.applets?.join(', ')}]`)
+    })
+  } else {
+    console.warn('[ov-auth] Login response FAILED:', data.error ?? data.message)
   }
 
   return data
@@ -109,10 +124,14 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
       `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
       JSON.stringify(sa.applets ?? []),
     )
+    console.info(`[ov-auth] Cached applets for SA #${sa.id} "${sa.name}": [${sa.applets?.join(', ')}]`)
   })
+
+  console.info('[ov-auth] Session saved. SAs cached:', session.service_accounts.length)
 
   // Auto-select if the backend signals only one SA
   if (session.auto_selected && session.service_accounts.length === 1) {
+    console.info('[ov-auth] auto_selected=true, selecting SA #', session.service_accounts[0].id)
     selectServiceAccount(session.service_accounts[0], session.token)
   }
 }
@@ -125,8 +144,12 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
 export function saveOdooEmployeeSessionFromMicrosoft(user: EmployeeUser): void {
   if (typeof window === 'undefined') return
 
-  if (!user.accessToken) return
+  if (!user.accessToken) {
+    console.warn('[ov-auth] saveOdooEmployeeSessionFromMicrosoft: no accessToken on user, aborting')
+    return
+  }
 
+  console.info('[ov-auth] saveOdooEmployeeSessionFromMicrosoft: saving token for', user.name, '| expires:', user.tokenExpiresAt)
   localStorage.setItem(KEYS.EMPLOYEE_TOKEN, user.accessToken)
   if (user.tokenExpiresAt) {
     localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, user.tokenExpiresAt)
@@ -144,6 +167,7 @@ export function saveOdooEmployeeSessionFromMicrosoft(user: EmployeeUser): void {
   // Service accounts are not embedded in the Microsoft callback — clear any stale
   // list so SelectSA can detect the empty state and trigger a live fetch.
   localStorage.removeItem(KEYS.SERVICE_ACCOUNTS)
+  console.info('[ov-auth] Microsoft session saved. SAs cleared — SelectSA will fetch them live.')
 }
 
 /**
@@ -152,8 +176,12 @@ export function saveOdooEmployeeSessionFromMicrosoft(user: EmployeeUser): void {
  */
 export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> {
   const token = getOdooEmployeeToken()
-  if (!token) return []
+  if (!token) {
+    console.info('[ov-auth] fetchAndCacheServiceAccounts: no token, skipping')
+    return []
+  }
 
+  console.info('[ov-auth] fetchAndCacheServiceAccounts: fetching live SA list…')
   try {
     const resp = await fetch(`${ODOO_BASE_URL}/me/service-accounts`, {
       headers: {
@@ -162,19 +190,23 @@ export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> 
         Authorization: `Bearer ${token}`,
       },
     })
+    console.info('[ov-auth] fetchAndCacheServiceAccounts: HTTP', resp.status)
     if (!resp.ok) return []
     const data = await resp.json()
     const accounts: ServiceAccount[] = data.service_accounts ?? []
+    console.info('[ov-auth] fetchAndCacheServiceAccounts: received', accounts.length, 'accounts')
     if (accounts.length > 0) {
       localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
       accounts.forEach(sa => {
+        console.info(`[ov-auth]   SA #${sa.id} "${sa.name}" applets: [${(sa.applets ?? []).join(', ')}]`)
         if (sa.applets?.length) {
           localStorage.setItem(`${KEYS.SA_APPLETS_PREFIX}${sa.id}`, JSON.stringify(sa.applets))
         }
       })
     }
     return accounts
-  } catch {
+  } catch (err) {
+    console.warn('[ov-auth] fetchAndCacheServiceAccounts error:', err)
     return []
   }
 }
@@ -280,11 +312,19 @@ export function clearSelectedSA(): void {
 export function getActiveSAApplets(): string[] {
   if (typeof window === 'undefined') return []
   const id = getSelectedSAId()
-  if (id === null) return []
+  if (id === null) {
+    console.info('[ov-auth] getActiveSAApplets: no SA selected → returning []')
+    return []
+  }
   const raw = localStorage.getItem(`${KEYS.SA_APPLETS_PREFIX}${id}`)
-  if (!raw) return []
+  if (!raw) {
+    console.info(`[ov-auth] getActiveSAApplets: no cached applets for SA #${id} → returning []`)
+    return []
+  }
   try {
-    return JSON.parse(raw) as string[]
+    const applets = JSON.parse(raw) as string[]
+    console.info(`[ov-auth] getActiveSAApplets (SA #${id}): [${applets.join(', ')}]`)
+    return applets
   } catch {
     return []
   }

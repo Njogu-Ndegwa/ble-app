@@ -61,19 +61,25 @@ export default function Index() {
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
       const userType = pendingContext?.userType ?? 'sales';
-      const returnPath = pendingContext?.returnPath ?? '/';
 
       const result = parseMicrosoftCallback(params, userType);
+      // Clean the URL without triggering a navigation (avoids router.replace not
+      // re-firing useEffect since router is a stable reference)
       window.history.replaceState({}, '', '/');
 
       if (result.success) {
-        console.info('[RootPage] Microsoft login SUCCESS → redirecting to', returnPath);
-        // Bridge into unified ov-auth so the new SA flow recognises this session
+        console.info('[RootPage] Microsoft SSO callback SUCCESS');
+        console.info('[RootPage] employee:', result.user.name, '| id:', result.user.employeeId, '| email:', result.user.email);
+        console.info('[RootPage] token (first 40 chars):', result.user.accessToken?.slice(0, 40));
+        // Bridge into unified ov-auth so isOdooEmployeeLoggedIn() recognises this session
         saveOdooEmployeeSessionFromMicrosoft(result.user);
+        // Go directly to the correct app state — router.replace('/') would not
+        // re-fire this useEffect because the router instance is stable
+        resolveAuthState();
       } else {
-        console.info('[RootPage] Microsoft login FAILED:', result.error);
+        console.info('[RootPage] Microsoft SSO callback FAILED:', result.error);
+        router.replace('/signin');
       }
-      router.replace(returnPath);
       return;
     }
 

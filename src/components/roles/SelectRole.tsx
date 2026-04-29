@@ -129,14 +129,20 @@ export default function SelectRole({ onSwitchSA }: Props) {
   const visibleRoles = useMemo(() => {
     const saApplets = getActiveSAApplets();
 
-    // If no SA applets loaded (graceful degradation), show all roles
-    if (saApplets.length === 0) return ALL_ROLES;
+    if (saApplets.length === 0) {
+      console.info('[SelectRole] No SA applets found — showing all', ALL_ROLES.length, 'roles (graceful degradation)');
+      return ALL_ROLES;
+    }
 
-    return ALL_ROLES.filter(role => {
+    const filtered = ALL_ROLES.filter(role => {
       const slug = role.appletSlug ?? APPLET_SLUG_MAP[role.id];
       if (!slug) return true; // no slug mapping → always show
       return saApplets.includes(slug);
     });
+
+    console.info('[SelectRole] SA applets:', saApplets);
+    console.info('[SelectRole] Visible roles (' + filtered.length + '/' + ALL_ROLES.length + '):', filtered.map(r => r.id));
+    return filtered;
   }, []);
 
   const selectedSA = useMemo(() => getSelectedSA(), []);
