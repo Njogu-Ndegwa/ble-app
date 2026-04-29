@@ -6790,11 +6790,6 @@ html.theme-transition *::after {
   height: 28px;
 }
 
-/* Container that positions the dropdown */
-.app-header-profile {
-  position: relative;
-}
-
 /* Circular avatar button */
 .app-header-avatar-btn {
   width: 32px;
@@ -6837,11 +6832,10 @@ html.theme-transition *::after {
   justify-content: center;
 }
 
-/* Dropdown panel */
+/* Dropdown panel — position: fixed so it escapes overflow:hidden containers.
+   top/right are set via inline style computed from getBoundingClientRect(). */
 .app-header-dropdown {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
+  position: fixed;
   width: 230px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);

@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Layers } from 'lucide-react';
+import Image from 'next/image';
+import { Globe, LogOut, Layers } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import AppHeader from '@/components/AppHeader';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import {
   getStoredServiceAccounts,
   selectServiceAccount,
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
-  const { t } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
   const [employee, setEmployee] = useState<{ name: string; email: string } | null>(null);
   const [selecting, setSelecting] = useState<number | null>(null);
@@ -57,6 +58,11 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
     onSwitchAccount();
   };
 
+  const toggleLocale = () => {
+    const next = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
+    setLocale(next);
+  };
+
   const roleBadgeClass = (role: string) => {
     if (role === 'admin') return 'sa-badge sa-badge-admin';
     if (role === 'staff') return 'sa-badge sa-badge-staff';
@@ -67,8 +73,42 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
     <div className="select-role-container">
       <div className="select-role-bg-gradient" />
 
-      {/* Unified app header — no SA selected yet so Switch SA is hidden */}
-      <AppHeader onSwitchSA={handleLogout} />
+      {/* Minimal header — SelectSA is a pre-selection step, no full profile menu needed */}
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          <div className="flow-header-left">
+            <div className="flow-header-logo">
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
+            </div>
+          </div>
+          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ThemeToggle />
+            <button
+              className="flow-header-lang"
+              onClick={toggleLocale}
+              aria-label={t('role.switchLanguage') || 'Language'}
+            >
+              <Globe size={14} />
+              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
+            </button>
+            <button
+              className="flow-header-logout"
+              onClick={handleLogout}
+              aria-label={t('sa.signOut') || 'Sign Out'}
+              title={t('sa.signOut') || 'Sign Out'}
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </header>
 
       <main className="select-role-main">
         <div className="sa-page-body">

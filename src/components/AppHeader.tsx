@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Globe, LogOut, RefreshCw, Layers, Menu } from 'lucide-react';
@@ -19,7 +19,7 @@ interface AppHeaderProps {
    * If omitted, defaults to clearSelectedSA() + router.push('/').
    */
   onSwitchSA?: () => void;
-  /** If provided, shows a hamburger/menu button that calls this on press. */
+  /** If provided, shows a hamburger button on the left that calls this on press. */
   onMenuOpen?: () => void;
 }
 
@@ -27,7 +27,9 @@ export default function AppHeader({ onSwitchSA, onMenuOpen }: AppHeaderProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const avatarBtnRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number }>({ top: 0, right: 16 });
 
   const employee = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -39,10 +41,28 @@ export default function AppHeader({ onSwitchSA, onMenuOpen }: AppHeaderProps) {
     return getSelectedSA();
   }, []);
 
+  // When opening, compute the fixed position from the avatar button's viewport rect.
+  // This escapes any overflow:hidden ancestor (e.g. select-role-container).
+  const handleAvatarClick = useCallback(() => {
+    if (avatarBtnRef.current) {
+      const rect = avatarBtnRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen(v => !v);
+  }, []);
+
+  // Close when clicking outside both the button and the dropdown
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(target) &&
+        avatarBtnRef.current && !avatarBtnRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -74,104 +94,109 @@ export default function AppHeader({ onSwitchSA, onMenuOpen }: AppHeaderProps) {
   };
 
   return (
-    <header className="flow-header" style={{ borderBottom: '1px solid var(--border-default)' }}>
-      <div className="flow-header-inner">
-        {/* Left: optional menu button + logo */}
-        <div className="flow-header-left">
-          {onMenuOpen && (
+    <>
+      <header className="flow-header">
+        <div className="flow-header-inner">
+          {/* Left: optional hamburger + logo */}
+          <div className="flow-header-left">
+            {onMenuOpen && (
+              <button
+                className="flow-header-back"
+                onClick={onMenuOpen}
+                aria-label={t('common.menu') || 'Menu'}
+              >
+                <Menu size={16} />
+              </button>
+            )}
             <button
-              className="flow-header-back"
-              onClick={onMenuOpen}
-              aria-label={t('common.menu') || 'Menu'}
+              className="app-header-logo-btn"
+              onClick={() => router.push('/')}
+              aria-label="Home"
             >
-              <Menu size={16} />
+              <Image
+                src="/assets/Logo-Oves.png"
+                alt="Omnivoltaic"
+                width={100}
+                height={28}
+                style={{ objectFit: 'contain' }}
+                priority
+              />
             </button>
-          )}
-          <button
-            className="flow-header-logo app-header-logo-btn"
-            onClick={() => router.push('/')}
-            aria-label="Home"
-          >
-            <Image
-              src="/assets/Logo-Oves.png"
-              alt="Omnivoltaic"
-              width={100}
-              height={28}
-              style={{ objectFit: 'contain' }}
-              priority
-            />
-          </button>
-        </div>
+          </div>
 
-        {/* Right: theme toggle + user avatar dropdown */}
-        <div className="flow-header-right">
-          <ThemeToggle />
-
-          <div className="app-header-profile" ref={menuRef}>
+          {/* Right: theme toggle + user avatar */}
+          <div className="flow-header-right">
+            <ThemeToggle />
             <button
+              ref={avatarBtnRef}
               className="app-header-avatar-btn"
-              onClick={() => setOpen(v => !v)}
+              onClick={handleAvatarClick}
               aria-label={t('common.menu') || 'User menu'}
               aria-expanded={open}
             >
               <span className="app-header-avatar-initial">{initial}</span>
             </button>
-
-            {open && (
-              <div className="app-header-dropdown">
-                  {/* User identity block */}
-                  <div className="app-header-dropdown-user">
-                    <div className="app-header-dropdown-avatar">
-                      <span className="app-header-avatar-initial app-header-avatar-initial--lg">
-                        {initial}
-                      </span>
-                    </div>
-                    <div className="app-header-dropdown-info">
-                      <p className="app-header-dropdown-name">{employee?.name || 'User'}</p>
-                      {employee?.email && (
-                        <p className="app-header-dropdown-email">{employee.email}</p>
-                      )}
-                      {selectedSA && (
-                        <p className="app-header-dropdown-sa">
-                          <Layers size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
-                          {selectedSA.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="app-header-dropdown-divider" />
-
-                  {/* Language toggle */}
-                  <button className="app-header-dropdown-item" onClick={handleLocale}>
-                    <Globe size={14} />
-                    <span>{t('role.switchLanguage') || 'Language'}</span>
-                    <span className="app-header-dropdown-badge">{locale.toUpperCase()}</span>
-                  </button>
-
-                  <div className="app-header-dropdown-divider" />
-
-                  {/* Switch SA — only shown when an SA is already selected */}
-                  {selectedSA && (
-                    <button className="app-header-dropdown-item" onClick={handleSwitchSA}>
-                      <RefreshCw size={14} />
-                      <span>{t('sa.switchAccount') || 'Switch Service Account'}</span>
-                    </button>
-                  )}
-
-                  {/* Sign out */}
-                  <button
-                    className="app-header-dropdown-item app-header-dropdown-item--danger"
-                    onClick={handleSignOut}
-                  >
-                    <LogOut size={14} />
-                    <span>{t('sa.signOut') || 'Sign Out'}</span>
-                  </button>
-                </div>
-            )}
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Dropdown rendered as a fixed overlay so it escapes any overflow:hidden container */}
+      {open && (
+        <div
+          ref={dropdownRef}
+          className="app-header-dropdown"
+          style={{ top: dropdownPos.top, right: dropdownPos.right }}
+        >
+          {/* User identity */}
+          <div className="app-header-dropdown-user">
+            <div className="app-header-dropdown-avatar">
+              <span className="app-header-avatar-initial app-header-avatar-initial--lg">
+                {initial}
+              </span>
+            </div>
+            <div className="app-header-dropdown-info">
+              <p className="app-header-dropdown-name">{employee?.name || 'User'}</p>
+              {employee?.email && (
+                <p className="app-header-dropdown-email">{employee.email}</p>
+              )}
+              {selectedSA && (
+                <p className="app-header-dropdown-sa">
+                  <Layers size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+                  {selectedSA.name}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="app-header-dropdown-divider" />
+
+          {/* Language */}
+          <button className="app-header-dropdown-item" onClick={handleLocale}>
+            <Globe size={14} />
+            <span>{t('role.switchLanguage') || 'Language'}</span>
+            <span className="app-header-dropdown-badge">{locale.toUpperCase()}</span>
+          </button>
+
+          <div className="app-header-dropdown-divider" />
+
+          {/* Switch SA — only shown when an SA is already active */}
+          {selectedSA && (
+            <button className="app-header-dropdown-item" onClick={handleSwitchSA}>
+              <RefreshCw size={14} />
+              <span>{t('sa.switchAccount') || 'Switch Service Account'}</span>
+            </button>
+          )}
+
+          {/* Sign out */}
+          <button
+            className="app-header-dropdown-item app-header-dropdown-item--danger"
+            onClick={handleSignOut}
+          >
+            <LogOut size={14} />
+            <span>{t('sa.signOut') || 'Sign Out'}</span>
+          </button>
+        </div>
+      )}
+    </>
   );
 }
