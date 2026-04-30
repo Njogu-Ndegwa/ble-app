@@ -3,12 +3,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut, Eye, X } from 'lucide-react';
-import Image from 'next/image';
+import { Eye, X } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-
 // Import components
 import {
   SalesTimeline,
@@ -120,7 +117,7 @@ export default function SalesFlow({
   // Use global MQTT connection from bridgeContext (connects at splash screen)
   // This leverages the auto-reconnection mechanism for unstable networks
   const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
   
   // Lock body overflow for fixed container
   useEffect(() => {
@@ -129,12 +126,6 @@ export default function SalesFlow({
       document.body.classList.remove('overflow-locked');
     };
   }, []);
-
-  // Toggle locale function
-  const toggleLocale = useCallback(() => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  }, [locale, setLocale]);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<SalesStep>(1);
@@ -2416,28 +2407,6 @@ export default function SalesFlow({
     setIsReadOnlySession(false);
   }, [availablePackages, availableProducts, availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment]);
 
-  // Handle back to roles
-  const handleBackToRoles = useCallback(() => {
-    if (onBack) {
-      onBack();
-    } else {
-      router.push('/');
-    }
-  }, [onBack, router]);
-
-  // Handle logout - clear authentication and sales session, then notify parent
-  const handleLogout = useCallback(() => {
-    // Clear the sales session first
-    clearSalesSession();
-    // Clear employee authentication
-    clearSalesRoleLogin();
-    toast.success(t('Signed out successfully'));
-    if (onLogout) {
-      onLogout();
-    } else {
-      router.push('/');
-    }
-  }, [onLogout, router, t]);
 
   // Render step content
   // NOTE: selectedPackage and selectedPlan are provided by useProductCatalog hook
@@ -2578,52 +2547,6 @@ export default function SalesFlow({
       <div className="sales-bg-gradient" />
       
       {/* Header with Back + Logo on left, Language Toggle on right */}
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button 
-              className="flow-header-back" 
-              onClick={handleBackToRoles}
-              aria-label={t('sales.changeRole')}
-              title={t('sales.changeRole')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage')}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-            <button
-              className="flow-header-logout"
-              onClick={handleLogout}
-              aria-label={t('common.logout')}
-              title={t('common.logout')}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </header>
-
       {/* Timeline */}
       <SalesTimeline 
         currentStep={currentStep}

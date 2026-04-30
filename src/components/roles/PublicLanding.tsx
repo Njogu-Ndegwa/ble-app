@@ -1,10 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, LogIn, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
+import Image from 'next/image';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
+import AppHeader from '@/components/AppHeader';
 
 interface Props {
   onSignIn: () => void;
@@ -12,12 +12,7 @@ interface Props {
 
 export default function PublicLanding({ onSignIn }: Props) {
   const router = useRouter();
-  const { locale, setLocale, t } = useI18n();
-
-  const toggleLocale = () => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  };
+  const { t } = useI18n();
 
   const handleKeypadClick = () => {
     router.push('/keypad/keypad');
@@ -48,44 +43,7 @@ export default function PublicLanding({ onSignIn }: Props) {
     <div className="select-role-container">
       <div className="select-role-bg-gradient" />
 
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage')}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-            {/* Sign-in icon — positioned naturally among header controls */}
-            <button
-              className="flow-header-lang"
-              onClick={onSignIn}
-              aria-label={t('auth.signIn')}
-              title={t('auth.signIn')}
-              style={{ gap: 6 }}
-            >
-              <LogIn size={14} />
-              <span className="flow-header-lang-label">{t('auth.signIn')}</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader onSignIn={onSignIn} />
 
       <main className="select-role-main">
         <div className="role-selection">

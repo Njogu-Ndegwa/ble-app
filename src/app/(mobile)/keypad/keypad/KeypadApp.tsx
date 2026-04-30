@@ -2,8 +2,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Image from 'next/image';
-import { Globe } from 'lucide-react';
 import { Toaster, toast } from "react-hot-toast";
 
 import MobileListView from "./MobileListView";
@@ -12,7 +10,6 @@ import ProgressiveLoading from "../../../../components/loader/progressiveLoading
 import { connBleByMacAddress, initServiceBleData } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
-import ThemeToggle from '@/components/ui/ThemeToggle';
 import KeypadNav, { type KeypadTab } from './components/KeypadNav';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 
@@ -84,7 +81,7 @@ const itemImageMap: { [key: string]: string } = {
 
 const KeypadApp: React.FC = () => {
   const router = useRouter();
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const [currentScreen, setCurrentScreen] = useState<KeypadScreen>('devices');
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -688,11 +685,6 @@ const KeypadApp: React.FC = () => {
     }
   };
 
-  const toggleLocale = () => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  };
-
   const handleBackToRoles = useCallback(() => {
     router.push('/');
   }, [router]);
@@ -729,44 +721,6 @@ const KeypadApp: React.FC = () => {
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button
-              onClick={handleBackToRoles}
-              className="flow-header-back"
-              aria-label={t('ble.profile.changeRole') || 'Change Role'}
-              title={t('ble.profile.changeRole') || 'Change Role'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage') || 'Switch language'}
-            >
-              <Globe size={16} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-          </div>
-        </div>
-      </header>
 
       <Toaster
         position="top-center"

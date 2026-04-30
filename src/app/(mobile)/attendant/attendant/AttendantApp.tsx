@@ -3,10 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut, ArrowLeftRight } from 'lucide-react';
-import Image from 'next/image';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
 import { 
   getSalesRoleUser, 
   clearSalesRoleLogin,
@@ -32,7 +29,7 @@ interface AttendantAppProps {
 
 export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps) {
   const router = useRouter();
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
   
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<AttendantScreen>('swap');
@@ -89,17 +86,6 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
     };
   }, [currentScreen, router]);
 
-  // Toggle locale function
-  const toggleLocale = useCallback(() => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  }, [locale, setLocale]);
-
-  // Handle back to roles (navigate to role selection without logging out)
-  const handleBackToRoles = useCallback(() => {
-    router.push('/');
-  }, [router]);
-
   // Handle logout
   const handleLogout = useCallback(() => {
     clearSalesRoleLogin();
@@ -155,62 +141,6 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
       
-      {/* Header */}
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button 
-              className="flow-header-back" 
-              onClick={handleBackToRoles}
-              aria-label={t('attendant.changeRole') || 'Change Role'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {currentSA && onSwitchSA && (
-              <button
-                onClick={onSwitchSA}
-                className="flex items-center gap-1 px-2 py-1 rounded-md bg-brand/10 text-brand text-xs font-medium transition-colors hover:bg-brand/20 active:bg-brand/25"
-                title={t('sa.switchAccount') || 'Switch'}
-              >
-                <ArrowLeftRight size={12} />
-                <span className="max-w-[80px] truncate">{currentSA.name}</span>
-              </button>
-            )}
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage') || 'Switch Language'}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-            <button
-              className="flow-header-logout"
-              onClick={handleLogout}
-              aria-label={t('common.logout') || 'Logout'}
-              title={t('common.logout') || 'Logout'}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="attendant-main attendant-main-screen">
         {currentScreen === 'transactions' && (

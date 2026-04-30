@@ -5,9 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
-import { Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
 import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
@@ -115,7 +113,7 @@ declare global {
 
 const RiderApp: React.FC = () => {
   const router = useRouter();
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const { bridge } = useBridge();
   const stationsSubscriptionRef = useRef<(() => void) | null>(null);
   const lastStationsFleetKeyRef = useRef<string | null>(null);
@@ -1279,15 +1277,6 @@ const RiderApp: React.FC = () => {
     };
   }, []);
 
-  const toggleLocale = () => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  };
-
-  const handleBackToRoles = () => {
-    router.push('/');
-  };
-
   const handleLoginSuccess = (customerData: Customer) => {
     dataLoadStartRef.current = performance.now();
     console.warn('[PERF] â±ï¸ LOGIN START - Beginning data load sequence');
@@ -1535,44 +1524,6 @@ const RiderApp: React.FC = () => {
         <div className="rider-bg-gradient" />
 
         {/* Header */}
-        <header className="flow-header">
-          <div className="flow-header-inner">
-            <div className="flow-header-left">
-              <button 
-                className="flow-header-back" 
-                onClick={handleBackToRoles}
-                aria-label={t('attendant.changeRole') || 'Change Role'}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <div className="flow-header-logo">
-                <Image src="/assets/Logo-Oves.png" alt="Omnivoltaic" width={100} height={28} style={{ objectFit: 'contain' }} priority />
-              </div>
-            </div>
-            <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                className="flow-header-lang"
-                onClick={openSelectSubscription}
-                aria-label={t('rider.switchPlan') || 'Switch plan'}
-                title={t('rider.switchPlan') || 'Switch plan'}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
-                  <path d="M4 7h16M4 12h10M4 17h16" />
-                  <path d="M17 9l3 3-3 3" />
-                </svg>
-                <span className="flow-header-lang-label">{t('rider.switchPlan') || 'Plan'}</span>
-              </button>
-              <ThemeToggle />
-              <button className="flow-header-lang" onClick={toggleLocale} aria-label={t('role.switchLanguage') || 'Switch Language'}>
-                <Globe size={14} />
-                <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
         {/* Main Content */}
         <main
           className={`rider-main${

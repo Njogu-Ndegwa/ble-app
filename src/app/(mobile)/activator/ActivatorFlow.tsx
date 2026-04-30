@@ -4,12 +4,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Globe, LogOut, Eye, X } from 'lucide-react';
-import Image from 'next/image';
+import { Eye, X } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-
 import type { CustomerFormData, BatteryData, PlanData } from './components/types';
 import type { ActivatorStep } from './components/types';
 import { generateRegistrationId } from './components/types';
@@ -81,7 +78,7 @@ export default function ActivatorFlow({
 }: ActivatorFlowProps) {
   const router = useRouter();
   const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
 
   useEffect(() => {
     document.body.classList.add('overflow-locked');
@@ -89,11 +86,6 @@ export default function ActivatorFlow({
       document.body.classList.remove('overflow-locked');
     };
   }, []);
-
-  const toggleLocale = useCallback(() => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  }, [locale, setLocale]);
 
   // Step management (6 steps)
   const [currentStep, setCurrentStep] = useState<ActivatorStep>(1);
@@ -959,24 +951,6 @@ export default function ActivatorFlow({
     setIsReadOnlySession(false);
   }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPackageId, setSelectedPlanId]);
 
-  const handleBackToRoles = useCallback(() => {
-    if (onBack) {
-      onBack();
-    } else {
-      router.push('/');
-    }
-  }, [onBack, router]);
-
-  const handleLogout = useCallback(() => {
-    clearSalesSession();
-    clearSalesRoleLogin();
-    toast.success(t('Signed out successfully'));
-    if (onLogout) {
-      onLogout();
-    } else {
-      router.push('/');
-    }
-  }, [onLogout, router, t]);
 
   // Track which vehicleId already triggered auto-advance so navigating back
   // to the vehicle step doesn't immediately kick the user forward again.
@@ -1105,43 +1079,6 @@ export default function ActivatorFlow({
   return (
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
-
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button
-              className="flow-header-back"
-              onClick={handleBackToRoles}
-              aria-label={t('attendant.changeRole') || 'Change Role'}
-              title={t('attendant.changeRole') || 'Change Role'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button className="flow-header-lang" onClick={toggleLocale} aria-label={t('role.switchLanguage')}>
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-            <button className="flow-header-logout" onClick={handleLogout} aria-label={t('common.logout')} title={t('common.logout')}>
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </header>
 
       <ActivatorTimeline
         currentStep={currentStep}

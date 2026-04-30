@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, LogOut, RefreshCw, Layers, Menu } from 'lucide-react';
+import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import {
@@ -21,9 +21,14 @@ interface AppHeaderProps {
   onSwitchSA?: () => void;
   /** If provided, shows a hamburger button on the left that calls this on press. */
   onMenuOpen?: () => void;
+  /**
+   * When provided, replaces the avatar with a visible "Sign In" button.
+   * Use this on unauthenticated pages (public landing, etc.).
+   */
+  onSignIn?: () => void;
 }
 
-export default function AppHeader({ onSwitchSA, onMenuOpen }: AppHeaderProps) {
+export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn }: AppHeaderProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -124,18 +129,30 @@ export default function AppHeader({ onSwitchSA, onMenuOpen }: AppHeaderProps) {
             </button>
           </div>
 
-          {/* Right: theme toggle + user avatar */}
+          {/* Right: theme toggle + sign-in button (unauthenticated) or avatar (authenticated) */}
           <div className="flow-header-right">
             <ThemeToggle />
-            <button
-              ref={avatarBtnRef}
-              className="app-header-avatar-btn"
-              onClick={handleAvatarClick}
-              aria-label={t('common.menu') || 'User menu'}
-              aria-expanded={open}
-            >
-              <span className="app-header-avatar-initial">{initial}</span>
-            </button>
+            {onSignIn ? (
+              <button
+                className="flow-header-lang"
+                onClick={onSignIn}
+                aria-label={t('auth.signIn') || 'Sign In'}
+                style={{ gap: 6 }}
+              >
+                <LogIn size={14} />
+                <span className="flow-header-lang-label">{t('auth.signIn') || 'Sign In'}</span>
+              </button>
+            ) : (
+              <button
+                ref={avatarBtnRef}
+                className="app-header-avatar-btn"
+                onClick={handleAvatarClick}
+                aria-label={t('common.menu') || 'User menu'}
+                aria-expanded={open}
+              >
+                <span className="app-header-avatar-initial">{initial}</span>
+              </button>
+            )}
           </div>
         </div>
       </header>

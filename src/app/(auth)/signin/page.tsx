@@ -3,10 +3,8 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Toaster, toast } from 'react-hot-toast'
-import Image from 'next/image'
-import { Globe } from 'lucide-react'
 import { useI18n } from '@/i18n'
-import ThemeToggle from '@/components/ui/ThemeToggle'
+import AppHeader from '@/components/AppHeader'
 import PhoneInputWithCountry from '@/components/ui/PhoneInputWithCountry'
 import { odooEmployeeLogin, saveOdooEmployeeSession } from '@/lib/ov-auth'
 import { getMicrosoftAuthUrl, saveMicrosoftPendingContext } from '@/lib/attendant-auth'
@@ -15,7 +13,7 @@ type LoginMethod = 'email' | 'phone'
 
 const LoginPage = () => {
   const router = useRouter()
-  const { t, locale, setLocale } = useI18n()
+  const { t, locale } = useI18n()
 
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('email')
   const [email, setEmail] = useState('')
@@ -23,11 +21,6 @@ const LoginPage = () => {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-
-  const toggleLocale = () => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en'
-    setLocale(nextLocale)
-  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,44 +89,7 @@ const LoginPage = () => {
 
   return (
     <>
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            {/* Back → returns to the public apps landing */}
-            <button
-              className="flow-header-back"
-              onClick={() => router.push('/')}
-              aria-label={t('auth.backToPublicApps')}
-              title={t('auth.backToPublicApps')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label="Switch language"
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       <div className="login-container">
         <Toaster

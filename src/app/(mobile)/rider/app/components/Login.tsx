@@ -6,11 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
-import { Globe } from 'lucide-react';
-import Image from "next/image";
 import { PhoneInputWithCountry } from '@/components/ui';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-
 // Define interfaces
 interface Customer {
   id: number;
@@ -40,7 +36,7 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const router = useRouter();
-  const { locale, setLocale, t } = useI18n();
+  const { t, locale } = useI18n();
   const { bridge } = useBridge();
   const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('phone');
   // Phone number in E.164 format without the + prefix (e.g., "254712345678")
@@ -74,17 +70,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       document.body.classList.remove('overflow-locked');
     };
   }, []);
-
-  // Toggle locale function
-  const toggleLocale = useCallback(() => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  }, [locale, setLocale]);
-
-  // Navigate back to roles page
-  const handleBackToRoles = useCallback(() => {
-    router.push('/');
-  }, [router]);
 
   // Load scanned battery code from localStorage on mount and when registration form is shown
   useEffect(() => {
@@ -464,45 +449,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="login-page-container">
         <div className="login-bg-gradient" />
         
-        {/* Header with Back + Logo on left, Language Toggle on right */}
-        <header className="flow-header">
-          <div className="flow-header-inner">
-            <div className="flow-header-left">
-              <button 
-                className="flow-header-back" 
-                onClick={() => setShowRegister(false)}
-                aria-label={t('Back')}
-                title={t('Back')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <div className="flow-header-logo">
-                <Image
-                  src="/assets/Logo-Oves.png"
-                  alt="Omnivoltaic"
-                  width={100}
-                  height={28}
-                  style={{ objectFit: 'contain' }}
-                  priority
-                />
-              </div>
-            </div>
-            <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ThemeToggle />
-              <button
-                className="flow-header-lang"
-                onClick={toggleLocale}
-                aria-label={t('role.switchLanguage')}
-              >
-                <Globe size={14} />
-                <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
         <div className="login-container">
           {/* Header */}
           <div className="login-header">
@@ -516,6 +462,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <h1 className="login-title">{t('auth.createAccount') || 'Create Account'}</h1>
             <p className="login-subtitle">{t('auth.joinCommunity') || 'Join our community today'}</p>
           </div>
+          <button
+            onClick={() => setShowRegister(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', padding: '4px 0 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            {t('Back') || 'Back to Login'}
+          </button>
 
         {/* Status Alert */}
         {submitStatus && (
@@ -735,44 +688,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="login-bg-gradient" />
       
       {/* Header with Back + Logo on left, Language Toggle on right */}
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button 
-              className="flow-header-back" 
-              onClick={handleBackToRoles}
-              aria-label={t('common.back') || 'Back'}
-              title={t('common.back') || 'Back'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage') || 'Switch language'}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div className="login-container">
         {/* Header */}
         <div className="login-header">
