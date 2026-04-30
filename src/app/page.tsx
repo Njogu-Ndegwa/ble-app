@@ -128,9 +128,9 @@ export default function Index() {
   /** Determine which authenticated state to show after splash/onboarding. */
   const resolveAuthState = useCallback(() => {
     if (!isOdooEmployeeLoggedIn()) {
-      // Not logged in → go straight to the sign-in page.
-      // Keypad is available as a "skip" option from there.
-      router.replace('/signin');
+      // Not logged in → show the public landing so users can choose a public
+      // app or sign in. PublicLanding exposes a Sign In button that goes to /signin.
+      setAppState('landing');
       return;
     }
     const saId = getSelectedSAId();

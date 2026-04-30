@@ -7,14 +7,19 @@ import Image from 'next/image'
 import { Globe } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import ThemeToggle from '@/components/ui/ThemeToggle'
+import PhoneInputWithCountry from '@/components/ui/PhoneInputWithCountry'
 import { odooEmployeeLogin, saveOdooEmployeeSession } from '@/lib/ov-auth'
 import { getMicrosoftAuthUrl, saveMicrosoftPendingContext } from '@/lib/attendant-auth'
+
+type LoginMethod = 'email' | 'phone'
 
 const LoginPage = () => {
   const router = useRouter()
   const { t, locale, setLocale } = useI18n()
 
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('email')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -27,14 +32,15 @@ const LoginPage = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!email.trim() || !password) {
+    const identifier = loginMethod === 'phone' ? phone : email
+    if (!identifier.trim() || !password) {
       toast.error(t('auth.error.missingCredentials'))
       return
     }
 
     setIsLoading(true)
     try {
-      const data = await odooEmployeeLogin(email, password)
+      const data = await odooEmployeeLogin(identifier, password, loginMethod)
 
       console.info('[SignIn] Raw backend response:', JSON.stringify(data, null, 2))
 
@@ -93,12 +99,12 @@ const LoginPage = () => {
       <header className="flow-header">
         <div className="flow-header-inner">
           <div className="flow-header-left">
-            {/* Back → takes the user to the public keypad instead of looping back to /signin */}
+            {/* Back → returns to the public apps landing */}
             <button
               className="flow-header-back"
-              onClick={() => router.push('/keypad/keypad')}
-              aria-label={t('auth.backToCustomer')}
-              title={t('auth.backToCustomer')}
+              onClick={() => router.push('/')}
+              aria-label={t('auth.backToPublicApps')}
+              title={t('auth.backToPublicApps')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -161,26 +167,75 @@ const LoginPage = () => {
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
-          {/* Email */}
-          <div className="form-group">
-            <label className="form-label">{t('auth.emailPlaceholder')}</label>
-            <div className="input-with-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
-              </svg>
-              <input
-                type="email"
-                className="form-input"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder={t('auth.emailPlaceholder')}
-                required
+          {/* Email / Phone toggle */}
+          <div style={{
+            display: 'flex',
+            background: 'var(--bg-surface)',
+            borderRadius: 8,
+            padding: 3,
+            marginBottom: 16,
+            gap: 2,
+          }}>
+            {(['email', 'phone'] as LoginMethod[]).map(method => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => setLoginMethod(method)}
                 disabled={isLoading}
-                autoComplete="email"
+                style={{
+                  flex: 1,
+                  padding: '6px 0',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  fontWeight: loginMethod === method ? 600 : 400,
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  background: loginMethod === method ? 'var(--color-brand, #00e5e5)' : 'transparent',
+                  color: loginMethod === method ? '#0a0a0a' : 'var(--text-secondary)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {method === 'email' ? t('auth.emailPlaceholder') : t('auth.phoneNumber')}
+              </button>
+            ))}
+          </div>
+
+          {/* Email input */}
+          {loginMethod === 'email' && (
+            <div className="form-group">
+              <label className="form-label">{t('auth.emailPlaceholder')}</label>
+              <div className="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder={t('auth.emailPlaceholder')}
+                  required
+                  disabled={isLoading}
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Phone input */}
+          {loginMethod === 'phone' && (
+            <div className="form-group">
+              <PhoneInputWithCountry
+                label={t('auth.phoneNumber')}
+                value={phone}
+                onChange={setPhone}
+                locale={locale}
+                disabled={isLoading}
               />
             </div>
-          </div>
+          )}
 
           {/* Password */}
           <div className="form-group">
@@ -227,7 +282,7 @@ const LoginPage = () => {
           <button
             type="submit"
             className="btn btn-primary login-btn"
-            disabled={isLoading || !email.trim() || !password.trim()}
+            disabled={isLoading || !(loginMethod === 'phone' ? phone.trim() : email.trim()) || !password.trim()}
           >
             {isLoading ? (
               <>
@@ -270,10 +325,10 @@ const LoginPage = () => {
             <span>{t('auth.signInWithMicrosoft')}</span>
           </button>
 
-          {/* Keypad-only escape hatch for users who do not need to sign in */}
+          {/* Public-apps escape hatch for users who do not need to sign in */}
           <button
             type="button"
-            onClick={() => router.push('/keypad/keypad')}
+            onClick={() => router.push('/')}
             style={{
               background: 'none',
               border: 'none',
@@ -286,7 +341,7 @@ const LoginPage = () => {
               textAlign: 'center',
             }}
           >
-            {t('auth.skipToKeypad')}
+            {t('auth.browsePublicApps')}
           </button>
         </form>
 

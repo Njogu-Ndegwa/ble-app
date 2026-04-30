@@ -78,10 +78,15 @@ function isTokenExpired(token: string | null): boolean {
 // ---------------------------------------------------------------------------
 
 export async function odooEmployeeLogin(
-  email: string,
+  emailOrPhone: string,
   password: string,
+  loginMethod: 'email' | 'phone' = 'email',
 ): Promise<OdooLoginResponse> {
-  console.info('[ov-auth] odooEmployeeLogin → POST /employee/login for', email)
+  console.info('[ov-auth] odooEmployeeLogin → POST /employee/login for', emailOrPhone, '(method:', loginMethod, ')')
+
+  const credential = loginMethod === 'phone'
+    ? { phone: emailOrPhone.trim(), password }
+    : { email: emailOrPhone.trim(), password }
 
   const response = await fetch(`${ODOO_BASE_URL}/employee/login`, {
     method: 'POST',
@@ -89,7 +94,7 @@ export async function odooEmployeeLogin(
       'Content-Type': 'application/json',
       'X-API-KEY': ODOO_API_KEY,
     },
-    body: JSON.stringify({ email: email.trim(), password }),
+    body: JSON.stringify(credential),
   })
 
   const data = await response.json() as OdooLoginResponse
