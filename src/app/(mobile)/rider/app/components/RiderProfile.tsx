@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { CreditCard, ArrowLeftRight } from "lucide-react";
 import { useI18n } from "@/i18n";
+import { Fingerprint } from "lucide-react";
 
 interface ProfileData {
   name: string;
@@ -15,14 +16,22 @@ interface ProfileData {
   planName: string;
   planValidity: string;
   paymentState: "PAID" | "RENEWAL_DUE" | "OVERDUE" | "PENDING" | string;
+  vehicleInfo?: string;
+  paymentMethod?: string;
   currentBatteryId?: string;
 }
 
 interface RiderProfileProps {
   profile: ProfileData;
   bikeImageUrl?: string;
+  onAccountDetails: () => void;
+  onVehicle: () => void;
+  onPlanDetails: () => void;
+  onPaymentMethods: () => void;
   onSupport: () => void;
   onLogout: () => void;
+  isFingerprintEnabled?: boolean;
+  onToggleFingerprint?: () => void;
   onSwitchSubscription?: () => void;
   subscriptionCode?: string | null;
   subscriptionStatus?: string | null;
@@ -31,8 +40,14 @@ interface RiderProfileProps {
 const RiderProfile: React.FC<RiderProfileProps> = ({
   profile,
   bikeImageUrl,
+  onAccountDetails,
+  onVehicle,
+  onPlanDetails,
+  onPaymentMethods,
   onSupport,
   onLogout,
+  isFingerprintEnabled = false,
+  onToggleFingerprint,
   onSwitchSubscription,
   subscriptionCode,
   subscriptionStatus,
@@ -243,6 +258,203 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 
       {/* Simplified Menu - Help & Logout only */}
       <div className="menu-list">
+        {/* Account Details */}
+        <div className="menu-item" onClick={onAccountDetails}>
+          <div className="menu-item-icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <div className="menu-item-content">
+            <div className="menu-item-title">
+              {t("rider.accountDetails") || "Account Details"}
+            </div>
+            <div className="menu-item-subtitle">
+              {t("rider.personalInfoDesc") || "Personal information & settings"}
+            </div>
+          </div>
+          <div className="menu-item-arrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </div>
+
+        {/* My Vehicle */}
+        <div className="menu-item" onClick={onVehicle}>
+          <div className="menu-item-icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="7" cy="17" r="2" />
+              <circle cx="17" cy="17" r="2" />
+              <path d="M5 17H3v-6l2-4h9l4 4h3v6h-2" />
+              <path d="M9 17h6" />
+            </svg>
+          </div>
+          <div className="menu-item-content">
+            <div className="menu-item-title">
+              {t("rider.myVehicle") || "My Vehicle"}
+            </div>
+            <div className="menu-item-subtitle">
+              {profile.vehicleInfo || "Oves Tuk-Tuk • REG-2024-KE"}
+            </div>
+          </div>
+          <div className="menu-item-arrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Subscription Plan */}
+        <div className="menu-item" onClick={onPlanDetails}>
+          <div className="menu-item-icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6" />
+              <path d="M16 13H8M16 17H8M10 9H8" />
+            </svg>
+          </div>
+          <div className="menu-item-content">
+            <div className="menu-item-title">
+              {t("rider.subscriptionPlan") || "Subscription Plan"}
+            </div>
+            <div className="menu-item-subtitle">
+              {t("rider.managePlanDesc") || "Manage your plan & billing"}
+            </div>
+          </div>
+          <div className="menu-item-arrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Payment Methods */}
+        <div className="menu-item" onClick={onPaymentMethods}>
+          <div className="menu-item-icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>
+          </div>
+          <div className="menu-item-content">
+            <div className="menu-item-title">
+              {t("rider.paymentMethods") || "Payment Methods"}
+            </div>
+            <div className="menu-item-subtitle">
+              {t("rider.paymentMethodsDesc") || "Manage your payment options"}
+            </div>
+          </div>
+          <div className="menu-item-arrow">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Fingerprint Login */}
+        {onToggleFingerprint && (
+          <div className="menu-item" onClick={onToggleFingerprint}>
+            <div className="menu-item-icon">
+              <Fingerprint size={20} />
+            </div>
+            <div className="menu-item-content">
+              <div className="menu-item-title">
+                {t("auth.fingerprintLogin") || "Fingerprint Login"}
+              </div>
+              <div className="menu-item-subtitle">
+                {isFingerprintEnabled 
+                  ? (t("common.enabled") || "Enabled") 
+                  : (t("common.disabled") || "Disabled")}
+              </div>
+            </div>
+            <div className="menu-item-arrow" style={{ display: 'flex', alignItems: 'center' }}>
+              <div 
+                style={{
+                  width: '44px',
+                  height: '24px',
+                  borderRadius: '12px',
+                  background: isFingerprintEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
+                  position: 'relative',
+                  transition: 'background 0.2s ease',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div 
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: 'white',
+                    position: 'absolute',
+                    top: '1px',
+                    left: isFingerprintEnabled ? '22px' : '1px',
+                    transition: 'left 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Help & Support */}
         <div className="menu-item" onClick={onSupport}>
           <div className="menu-item-icon">

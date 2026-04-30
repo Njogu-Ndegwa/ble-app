@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Toaster, toast } from 'react-hot-toast';
+import { Fingerprint } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
@@ -131,6 +132,7 @@ const RiderApp: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [showFoundCustomer, setShowFoundCustomer] = useState(false);
   
   // UI state
   const [currentScreen, setCurrentScreen] = useState<
@@ -171,6 +173,18 @@ const RiderApp: React.FC = () => {
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
+  const [showFingerprintPrompt, setShowFingerprintPrompt] = useState(false);
+  const [isFingerprintEnabled, setIsFingerprintEnabled] = useState(false);
+  const [isEnablingFingerprint, setIsEnablingFingerprint] = useState(false);
+  const isEnablingFingerprintRef = useRef(false); // Ref for callback to access current state
+
+  // Check if fingerprint is enabled on mount and when showFoundCustomer changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const enabled = localStorage.getItem('fingerprintEnabled_rider') === 'true';
+      setIsFingerprintEnabled(enabled);
+    }
+  }, [showFoundCustomer]);
 
   // Handle browser back button
   const currentScreenRef = useRef(currentScreen);
@@ -202,13 +216,23 @@ const RiderApp: React.FC = () => {
   // Track if we've started prefetching
   const prefetchStartedRef = useRef(false);
   
-  // Check authentication on mount - if credentials exist, auto-login and go directly to home
+  // Check authentication on mount or after logout - show found customer screen if credentials exist
   useEffect(() => {
+    // Only run when not logged in (on mount or after logout)
+    if (isLoggedIn) return;
+    
     const checkAuth = async () => {
       const token = localStorage.getItem('authToken_rider');
       const storedCustomerData = localStorage.getItem('customerData_rider');
+      const showLoginPage = localStorage.getItem('showLoginPage_rider') === 'true';
       
-      if (token && storedCustomerData) {
+      // Clear the login page flag after reading
+      if (showLoginPage) {
+        localStorage.removeItem('showLoginPage_rider');
+      }
+      
+      // If user just logged out (showLoginPage flag), show login page even if credentials exist
+      if (token && storedCustomerData && !showLoginPage) {
         try {
           const customerData = JSON.parse(storedCustomerData);
           setCustomer(customerData);
@@ -237,7 +261,7 @@ const RiderApp: React.FC = () => {
 
     checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoggedIn]);
 
   // Set loading states immediately when user logs in
   useEffect(() => {
@@ -249,6 +273,28 @@ const RiderApp: React.FC = () => {
       setIsLoadingStations(true);
     }
   }, [isLoggedIn, isBikeDataResolved]);
+
+  // Check if we should show fingerprint prompt after login
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      const shouldShowPrompt = localStorage.getItem('showFingerprintPrompt_rider') === 'true';
+      const fingerprintPref = localStorage.getItem('fingerprintEnabled_rider');
+      console.info('[FINGERPRINT] Checking prompt:', { 
+        isLoggedIn, 
+        shouldShowPrompt, 
+        fingerprintPref,
+        showFingerprintPromptFlag: localStorage.getItem('showFingerprintPrompt_rider')
+      });
+      if (shouldShowPrompt) {
+        // Clear the flag and show the prompt after a short delay
+        localStorage.removeItem('showFingerprintPrompt_rider');
+        console.info('[FINGERPRINT] Showing fingerprint enable prompt...');
+        setTimeout(() => {
+          setShowFingerprintPrompt(true);
+        }, 1000); // Show after 1 second to let the UI settle
+      }
+    }
+  }, [isLoggedIn]);
 
   // Fetch dashboard data from API
   const fetchDashboardData = async (token: string) => {
@@ -1269,6 +1315,151 @@ const RiderApp: React.FC = () => {
     }
   }, [isLoggedIn, subscription?.subscription_code]);
 
+  // Check fingerprint availability (credentials + preference)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem('authToken_rider');
+    const customerData = localStorage.getItem('customerData_rider');
+    const fingerprintEnabled = localStorage.getItem('fingerprintEnabled_rider') === 'true';
+    const hasCredentials = !!(token && customerData);
+    // Only enable if both credentials exist AND user has enabled fingerprint
+    if (hasCredentials && fingerprintEnabled) {
+      // Fingerprint is available
+      console.info('[FINGERPRINT] Fingerprint login available for this user');
+    }
+  }, []);
+
+  // Register fingerprint callback handler - for both login (welcome screen) and enrollment
+  useEffect(() => {
+    if (!bridge) return;
+    // Register when: on welcome screen with customer, OR when logged in (for enrollment)
+    if (!((customer && showFoundCustomer) || isLoggedIn)) return;
+
+    const reg = (name: string, handler: any) => {
+      bridge.registerHandler(name, handler);
+      return () => bridge.registerHandler(name, () => {});
+    };
+
+    // Register fingerprint verification callback
+    const offFingerprint = reg("fingerprintVerificationCallBack", (data: any, resp: any) => {
+      try {
+        console.info('[FINGERPRINT] ===== CALLBACK RECEIVED =====');
+        console.info('[FINGERPRINT] Raw data:', data);
+        console.info('[FINGERPRINT] isEnablingFingerprint:', isEnablingFingerprintRef.current);
+        
+        // Parse response - handle different formats
+        let parsed: any;
+        if (typeof data === 'string') {
+          try {
+            parsed = JSON.parse(data);
+          } catch (e) {
+            parsed = data;
+          }
+        } else {
+          parsed = data;
+        }
+        
+        // Check for failure indicators FIRST
+        const isFailure = 
+          parsed?.success === false ||
+          parsed?.error === true ||
+          parsed?.failed === true ||
+          parsed?.status === 'failed' ||
+          parsed?.status === 'error' ||
+          parsed?.result === 'failed' ||
+          parsed === false ||
+          parsed === 'false' ||
+          (typeof parsed === 'string' && (
+            parsed.toLowerCase() === 'failed' ||
+            parsed.toLowerCase() === 'false' ||
+            parsed.toLowerCase().includes('fail') ||
+            parsed.toLowerCase().includes('error') ||
+            parsed.toLowerCase().includes("don't match") ||
+            parsed.toLowerCase().includes('not match') ||
+            parsed.toLowerCase().includes('mismatch')
+          )) ||
+          (parsed && typeof parsed === 'object' && (parsed.error || parsed.failed || parsed.message?.toLowerCase().includes('fail')));
+        
+        // Only check for success if it's NOT a failure
+        const success = !isFailure && (
+          parsed?.success === true || 
+          parsed?.respData === true || 
+          parsed === true ||
+          parsed?.status === 'success' ||
+          parsed?.result === 'success' ||
+          parsed?.verified === true ||
+          (typeof parsed === 'string' && (
+            parsed.toLowerCase() === 'success' || 
+            parsed.toLowerCase() === 'true' ||
+            parsed.toLowerCase() === 'verified'
+          ))
+        );
+        
+        console.info('[FINGERPRINT] Success:', success, 'isFailure:', isFailure);
+        
+        // Check if this is for enrollment or login
+        if (isEnablingFingerprintRef.current) {
+          // ENROLLMENT MODE
+          setIsEnablingFingerprint(false);
+          isEnablingFingerprintRef.current = false;
+          
+          if (success && !isFailure) {
+            // Fingerprint verified successfully during enrollment
+            console.info('[FINGERPRINT] ✓ Enrollment verification successful');
+            localStorage.setItem('fingerprintEnabled_rider', 'true');
+            setIsFingerprintEnabled(true);
+            setShowFingerprintPrompt(false);
+            toast.success(t('auth.fingerprintEnabled') || 'Fingerprint login enabled');
+          } else {
+            console.warn('[FINGERPRINT] ✗ Enrollment verification failed');
+            toast.error(t('auth.fingerprintFailed') || 'Fingerprint verification failed. Please try again.');
+          }
+        } else if (success && !isFailure && customer) {
+          // LOGIN MODE - Fingerprint verified, proceed with login
+          console.info('[FINGERPRINT] ✓ Login verification successful');
+          const token = localStorage.getItem('authToken_rider');
+          if (token) {
+            setIsLoadingBike(true);
+            setIsLoadingStations(true);
+            setIsLoggedIn(true);
+            fetchDashboardData(token).then(() => {
+              if (customer.partner_id) {
+                fetchSubscriptionData(customer.partner_id, token);
+              }
+            }).catch((err) => {
+              console.error('[FINGERPRINT] Error during login:', err);
+              toast.error(t("auth.loginFailed") || "Login failed. Please try again.");
+              setIsLoggedIn(false);
+            });
+          } else {
+            toast.error(t("auth.noCredentials") || "No saved credentials found.");
+          }
+        } else if (!isEnablingFingerprintRef.current) {
+          // LOGIN MODE - Failed
+          console.warn('[FINGERPRINT] ✗ Login verification failed');
+          if (parsed && (
+            (typeof parsed === 'object' && (parsed.error || parsed.failed)) ||
+            (typeof parsed === 'string' && parsed.toLowerCase().includes('fail'))
+          )) {
+            toast.error(t("auth.fingerprintFailed") || "Fingerprint verification failed");
+          }
+        }
+      } catch (err) {
+        console.error("[FINGERPRINT] Error processing fingerprint data:", err);
+        setIsEnablingFingerprint(false);
+        isEnablingFingerprintRef.current = false;
+        toast.error(t("auth.fingerprintError") || "Error processing fingerprint verification");
+      }
+      resp(data);
+    });
+
+    console.info('[FINGERPRINT] Callback handler registered');
+    
+    return () => {
+      offFingerprint();
+    };
+  }, [bridge, customer, showFoundCustomer, isLoggedIn, t]);
+
   // Lock body overflow
   useEffect(() => {
     document.body.classList.add('overflow-locked');
@@ -1434,13 +1625,16 @@ const RiderApp: React.FC = () => {
   );
 
   const handleLogout = () => {
-    // Clear all credentials from localStorage on logout
-    localStorage.removeItem('authToken_rider');
-    localStorage.removeItem('customerData_rider');
-    localStorage.removeItem('userPhone');
+    // Clear session state but KEEP credentials for fingerprint login
     setIsLoggedIn(false);
     setCustomer(null);
+    setShowFoundCustomer(false); // Force login page instead of welcome back
     setCurrentScreen('home');
+    // Keep credentials and fingerprint preference for fingerprint login
+    // Only clear the phone number (user can re-enter if needed)
+    localStorage.removeItem('userPhone');
+    // Set flag to show login page instead of welcome back on next check
+    localStorage.setItem('showLoginPage_rider', 'true');
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 
@@ -1504,6 +1698,300 @@ const RiderApp: React.FC = () => {
     );
   }
 
+  // Found customer screen - show before login if credentials exist
+  if (!isLoggedIn && showFoundCustomer && customer) {
+    const initials = customer.name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+
+    return (
+      <>
+        <Toaster position="top-center" />
+        <div className="rider-container">
+          <div className="rider-bg-gradient" />
+          
+          {/* Header */}
+          <header className="flow-header">
+            <div className="flow-header-inner">
+              <div className="flow-header-left">
+                <button 
+                  className="flow-header-back" 
+                  onClick={() => {
+                    if (isLoggedIn) {
+                      // If logged in and not on home, go to home
+                      if (currentScreen !== 'home') {
+                        setCurrentScreen('home');
+                      }
+                      // If already on home, do nothing (stay on home)
+                    } else if (showFoundCustomer) {
+                      // If on welcome back screen, go back to role selection
+                      window.location.href = '/';
+                    } else {
+                      // Otherwise, go back to role selection
+                      window.location.href = '/';
+                    }
+                  }} 
+                  aria-label={t('common.back') || 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="rider-main" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="rider-screen active" style={{ width: '100%', maxWidth: '100%' }}>
+              {/* Large Profile Icon */}
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 24px',
+                border: '2px solid rgba(255, 255, 255, 0.2)'
+              }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+
+              {/* Title */}
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: '700',
+                color: 'white',
+                textAlign: 'center',
+                marginBottom: '8px'
+              }}>
+                {t('rider.loginTitle') || 'Rider Login'}
+              </h2>
+
+              {/* Welcome Message */}
+              <p style={{
+                fontSize: '14px',
+                color: 'rgba(255, 255, 255, 0.7)',
+                textAlign: 'center',
+                marginBottom: '32px'
+              }}>
+                {t('rider.welcomeBack') || 'Welcome back!'}
+              </p>
+
+              {/* Account Card */}
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '16px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <div style={{ 
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  color: 'white',
+                  flexShrink: 0
+                }}>
+                  {initials}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ 
+                    marginBottom: '4px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: 'white'
+                  }}>
+                    {customer.name}
+                  </div>
+                  <div style={{ 
+                    fontSize: '13px', 
+                    fontWeight: '400', 
+                    color: 'rgba(255, 255, 255, 0.6)'
+                  }}>
+                    {t('role.rider') || 'Rider'}
+                  </div>
+                </div>
+                <div style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: 'white',
+                  padding: '4px 10px',
+                  background: 'var(--success)',
+                  borderRadius: 'var(--radius-md)',
+                  flexShrink: 0
+                }}>
+                  {t('common.active') || 'Active'}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                <button
+                  onClick={() => {
+                    const token = localStorage.getItem('authToken_rider');
+                    if (token && customer) {
+                      // Check if data was already prefetched
+                      const wasPrefetched = prefetchStartedRef.current;
+                      const prefetchElapsed = dataLoadStartRef.current > 0 
+                        ? Math.round(performance.now() - dataLoadStartRef.current) 
+                        : 0;
+                      
+                      console.warn(`[PERF] ⏱️ CONTINUE clicked - Prefetched: ${wasPrefetched}, Time since prefetch: ${prefetchElapsed}ms`);
+                      
+                      // Set loading states - if prefetch already completed, these will show briefly then clear
+                      // If prefetch still in progress, show loading until it completes
+                      if (!bike.vehicleId) {
+                        setIsLoadingBike(true);
+                      }
+                      if (stations.length === 0) {
+                        setIsLoadingStations(true);
+                      }
+                      setIsLoggedIn(true);
+                      
+                      // Only fetch if prefetch wasn't started
+                      if (!wasPrefetched) {
+                        dataLoadStartRef.current = performance.now();
+                        console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions (no prefetch)');
+                        fetchDashboardData(token);
+                        if (customer.partner_id) {
+                          fetchSubscriptionData(customer.partner_id, token);
+                        }
+                      } else {
+                        console.warn('[PERF] ✅ Data was prefetched - skipping redundant API calls');
+                      }
+                    }
+                  }}
+                  style={{ 
+                    width: '100%',
+                    padding: '14px',
+                    background: 'var(--accent)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = '0.9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                >
+                  {t('common.continue') || 'Continue'}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </button>
+
+                {/* Fingerprint Login Button - only show if fingerprint is enabled */}
+                {isFingerprintEnabled && bridge && (
+                  <button
+                    onClick={() => {
+                      // Trigger native fingerprint verification
+                      console.info('[FINGERPRINT] Triggering fingerprint verification from welcome screen');
+                      bridge.callHandler(
+                        'fingerprintVerification',
+                        '',
+                        (responseData: any) => {
+                          console.info('[FINGERPRINT] Verification initiated:', responseData);
+                        }
+                      );
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--accent)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      color: 'var(--accent)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--accent)';
+                      e.currentTarget.style.color = 'white';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--bg-secondary)';
+                      e.currentTarget.style.color = 'var(--accent)';
+                    }}
+                  >
+                    <Fingerprint size={18} />
+                    {t('common.useFingerprint') || 'Use Fingerprint'}
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('authToken_rider');
+                    localStorage.removeItem('customerData_rider');
+                    localStorage.removeItem('userPhone');
+                    localStorage.removeItem('fingerprintEnabled_rider'); // Also clear fingerprint preference
+                    setShowFoundCustomer(false);
+                    setCustomer(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '16px',
+                    fontWeight: '500',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-secondary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-tertiary)';
+                  }}
+                >
+                  {t('rider.switchAccount') || 'Switch Account'}
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </>
+    );
+  }
 
   // Login screen
   if (!isLoggedIn) {
@@ -1629,8 +2117,34 @@ const RiderApp: React.FC = () => {
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'active',
               }}
               bikeImageUrl="/assets/E-3-one.png"
+              onAccountDetails={() => toast.success(t('rider.accountDetailsSoon') || 'Account details coming soon')}
+              onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
+              onPlanDetails={openSelectSubscription}
+              onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
               onSupport={() => setCurrentScreen('tickets')}
               onLogout={handleLogout}
+              isFingerprintEnabled={isFingerprintEnabled}
+              onToggleFingerprint={() => {
+                if (isFingerprintEnabled) {
+                  localStorage.setItem('fingerprintEnabled_rider', 'false');
+                  setIsFingerprintEnabled(false);
+                  toast.success(t('auth.fingerprintDisabled') || 'Fingerprint login disabled');
+                } else {
+                  if (bridge) {
+                    setIsEnablingFingerprint(true);
+                    isEnablingFingerprintRef.current = true;
+                    bridge.callHandler(
+                      'fingerprintVerification',
+                      '',
+                      (responseData: any) => {
+                        console.info('[FINGERPRINT] Settings toggle - verification initiated:', responseData);
+                      }
+                    );
+                  } else {
+                    toast.error(t('common.bridgeNotInitialized') || 'Bridge not initialized');
+                  }
+                }
+              }}
               onSwitchSubscription={openSelectSubscription}
               subscriptionCode={subscription?.subscription_code}
               subscriptionStatus={subscription?.status}
@@ -1702,6 +2216,144 @@ const RiderApp: React.FC = () => {
           if (full) handleSelectSubscription(full);
         }}
       />
+
+      {/* Fingerprint Enable Prompt Modal */}
+      {showFingerprintPrompt && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => {
+            localStorage.setItem('fingerprintEnabled_rider', 'false');
+            setShowFingerprintPrompt(false);
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-primary)',
+              borderRadius: '16px',
+              padding: '24px',
+              maxWidth: '340px',
+              width: '100%',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                }}
+              >
+                <Fingerprint size={32} color="white" />
+              </div>
+              <h3
+                style={{
+                  fontSize: '18px',
+                  fontWeight: '700',
+                  color: 'var(--text-primary)',
+                  marginBottom: '8px',
+                }}
+              >
+                {t('auth.enableFingerprintTitle') || 'Enable Fingerprint Login?'}
+              </h3>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: 'var(--text-muted)',
+                  lineHeight: '1.5',
+                }}
+              >
+                {t('auth.enableFingerprintDescription') || 'Enable this later in settings.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  if (!bridge) {
+                    toast.error(t('common.bridgeNotInitialized') || 'Bridge not initialized');
+                    return;
+                  }
+                  setIsEnablingFingerprint(true);
+                  isEnablingFingerprintRef.current = true;
+                  bridge.callHandler(
+                    'fingerprintVerification',
+                    '',
+                    (responseData: any) => {
+                      console.info('[FINGERPRINT] Enrollment verification initiated:', responseData);
+                    }
+                  );
+                }}
+                disabled={isEnablingFingerprint}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: 'var(--accent)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: 'white',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: isEnablingFingerprint ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  opacity: isEnablingFingerprint ? 0.7 : 1,
+                }}
+              >
+                {isEnablingFingerprint ? (
+                  <>
+                    <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+                    {t('common.verifying') || 'Verifying...'}
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint size={18} />
+                    {t('auth.enableFingerprint') || 'Enable Fingerprint'}
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('fingerprintEnabled_rider', 'false');
+                  setShowFingerprintPrompt(false);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  color: 'var(--text-secondary)',
+                  fontSize: '15px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                }}
+              >
+                {t('auth.fingerprintCanEnableLater') || 'Maybe Later'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </RiderMapProvider>
   );
 };
