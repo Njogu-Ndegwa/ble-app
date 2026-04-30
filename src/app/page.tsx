@@ -53,6 +53,26 @@ export default function Index() {
     const employeeEmailVal = params.get('employee_email');
     const hasTokenParams = !!(tokenVal && employeeIdVal);
 
+    // RAW token dump — remove before production
+    if (hasTokenParams) {
+      console.log('[MSCallback] ===== RAW CALLBACK PARAMS =====');
+      console.log('[MSCallback] token:', tokenVal);
+      console.log('[MSCallback] employee_id:', employeeIdVal);
+      console.log('[MSCallback] employee_name:', employeeNameVal);
+      console.log('[MSCallback] employee_email:', employeeEmailVal);
+      const sessionDataRaw = params.get('session_data');
+      console.log('[MSCallback] session_data (raw base64):', sessionDataRaw);
+      if (sessionDataRaw) {
+        try {
+          console.log('[MSCallback] session_data (decoded):', JSON.parse(atob(sessionDataRaw)));
+        } catch {
+          console.log('[MSCallback] session_data decode failed');
+        }
+      }
+      console.log('[MSCallback] all params:', Object.fromEntries(params.entries()));
+      console.log('[MSCallback] ===================================');
+    }
+
     // 2. Check for pending Microsoft context saved before redirect
     const pendingContext = consumeMicrosoftPendingContext();
 
