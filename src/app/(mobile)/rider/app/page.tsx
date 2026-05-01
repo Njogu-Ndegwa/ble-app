@@ -1731,11 +1731,9 @@ const RiderApp: React.FC = () => {
                       }
                       // If already on home, do nothing (stay on home)
                     } else if (showFoundCustomer) {
-                      // If on welcome back screen, go back to role selection
-                      window.location.href = '/';
+                      router.push('/');
                     } else {
-                      // Otherwise, go back to role selection
-                      window.location.href = '/';
+                      router.push('/');
                     }
                   }} 
                   aria-label={t('common.back') || 'Back'}

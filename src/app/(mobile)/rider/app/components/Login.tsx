@@ -372,6 +372,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    if (!navigator.onLine) {
+      toast.error(t('network.offline') || 'No internet connection. Please check your network and try again.');
+      return;
+    }
+
     setIsSigningIn(true);
 
     try {
