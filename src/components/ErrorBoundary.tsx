@@ -92,6 +92,7 @@ export class ErrorBoundary extends Component<Props, State> {
               alignItems: 'center',
               justifyContent: 'center',
               background: 'var(--bg-primary, #0a0f0f)',
+              zIndex: 9999,
             }}
           >
             <div className="loading-spinner" />
@@ -115,6 +116,7 @@ export class ErrorBoundary extends Component<Props, State> {
             padding: '24px',
             background: 'var(--bg-primary, #0a0f0f)',
             gap: '12px',
+            zIndex: 9999,
           }}
         >
           <p

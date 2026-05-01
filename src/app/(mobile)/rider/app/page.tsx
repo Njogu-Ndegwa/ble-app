@@ -230,24 +230,35 @@ const RiderApp: React.FC = () => {
   useEffect(() => {
     // Only run when not logged in (on mount or after logout)
     if (isLoggedIn) return;
+
+    // Safety: always clear the loading state within 5 seconds even if checkAuth hangs
+    const fallbackTimer = setTimeout(() => setIsCheckingAuth(false), 5000);
     
     const checkAuth = async () => {
-      const token = localStorage.getItem('authToken_rider');
-      const storedCustomerData = localStorage.getItem('customerData_rider');
-      const showLoginPage = localStorage.getItem('showLoginPage_rider') === 'true';
+      let token: string | null = null;
+      let storedCustomerData: string | null = null;
+      let showLoginPage = false;
 
-      // If the main app crashed in the previous session, don't auto-login.
-      // Show the login screen so the user isn't stuck in a crash-reload loop.
+      // Guard all storage reads — some WebViews throw on localStorage access
+      try {
+        token = localStorage.getItem('authToken_rider');
+        storedCustomerData = localStorage.getItem('customerData_rider');
+        showLoginPage = localStorage.getItem('showLoginPage_rider') === 'true';
+      } catch { /* storage unavailable — treat as fresh session */ }
+
+      // If the main app crashed previously, don't auto-login.
+      // We use localStorage (not sessionStorage) so the flag survives
+      // native app close/reopen on iOS and Android WebViews.
       let prevSessionCrashed = false;
       try {
-        prevSessionCrashed = sessionStorage.getItem('riderAppCrashed') === 'true';
-        sessionStorage.removeItem('riderAppCrashed');
+        prevSessionCrashed = localStorage.getItem('riderAppCrashed') === 'true';
+        if (prevSessionCrashed) localStorage.removeItem('riderAppCrashed');
       } catch { /* ignore storage errors */ }
       
       // Clear the login page flag after reading
-      if (showLoginPage) {
-        localStorage.removeItem('showLoginPage_rider');
-      }
+      try {
+        if (showLoginPage) localStorage.removeItem('showLoginPage_rider');
+      } catch { /* ignore */ }
       
       // If user just logged out (showLoginPage flag), or the app crashed last session,
       // show the login page even if credentials exist
@@ -266,7 +277,7 @@ const RiderApp: React.FC = () => {
           if (!prefetchStartedRef.current && customerData.partner_id) {
             prefetchStartedRef.current = true;
             dataLoadStartRef.current = performance.now();
-            console.warn('[PERF] ðŸš€ AUTO-LOGIN - Starting data load');
+            console.warn('[PERF] 🚀 AUTO-LOGIN - Starting data load');
 
             fetchDashboardData(token);
             fetchSubscriptionData(customerData.partner_id, token);
@@ -278,7 +289,9 @@ const RiderApp: React.FC = () => {
       setIsCheckingAuth(false);
     };
 
-    checkAuth();
+    checkAuth().catch(() => setIsCheckingAuth(false));
+
+    return () => clearTimeout(fallbackTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
@@ -1488,6 +1501,9 @@ const RiderApp: React.FC = () => {
   }, []);
 
   const handleLoginSuccess = (customerData: Customer) => {
+    // Clear any previous crash flag so the next session can auto-login normally
+    try { localStorage.removeItem('riderAppCrashed'); } catch { /* ignore */ }
+
     dataLoadStartRef.current = performance.now();
     console.warn('[PERF] â±ï¸ LOGIN START - Beginning data load sequence');
     
@@ -2013,13 +2029,32 @@ const RiderApp: React.FC = () => {
     );
   }
 
-  // Login screen
+  // Login screen — wrapped in its own ErrorBoundary so a crash in the login
+  // form shows a visible recovery prompt rather than propagating to the root.
   if (!isLoggedIn) {
     return (
-      <>
+      <ErrorBoundary
+        fallback={
+          <div style={{
+            position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', padding: '24px',
+            background: '#0a0f0f', gap: '12px', zIndex: 9999,
+          }}>
+            <p style={{ color: '#94b8b8', fontSize: '14px', textAlign: 'center', maxWidth: '280px', margin: 0 }}>
+              Unable to load login screen. Please reload the app.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ padding: '10px 24px', background: '#00e5e5', color: '#0a0f0f', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Reload App
+            </button>
+          </div>
+        }
+      >
         <Toaster position="top-center" />
         <Login onLoginSuccess={handleLoginSuccess} />
-      </>
+      </ErrorBoundary>
     );
   }
 
@@ -2027,7 +2062,7 @@ const RiderApp: React.FC = () => {
   return (
     <ErrorBoundary
       onCriticalError={() => {
-        try { sessionStorage.setItem('riderAppCrashed', 'true'); } catch { /* ignore */ }
+        try { localStorage.setItem('riderAppCrashed', 'true'); } catch { /* ignore */ }
       }}
     >
     <RiderMapProvider>
