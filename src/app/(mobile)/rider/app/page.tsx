@@ -25,6 +25,7 @@ import {
 import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
+import { googleMapsUrl, openExternalMap } from './map/deepLinks';
 
 /**
  * Mount the Google Maps JS provider exactly once for the entire logged-in
@@ -1674,9 +1675,12 @@ const RiderApp: React.FC = () => {
 
   const handleNavigateToStation = (station: Station) => {
     if (station.lat && station.lng) {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`, '_blank');
+      openExternalMap(
+        googleMapsUrl({ lat: station.lat, lng: station.lng }, station.name),
+        (msg) => toast.error(msg),
+      );
     } else {
-      toast.success(t('rider.navigationStarted') || 'Navigation started');
+      toast.error(t('rider.stationLocationMissing') || 'Station location is missing.');
     }
   };
 

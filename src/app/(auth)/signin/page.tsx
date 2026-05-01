@@ -73,6 +73,11 @@ const LoginPage = () => {
   }
 
   const handleMicrosoftSignIn = async () => {
+    if (!navigator.onLine) {
+      toast.error('No internet connection. Please check your network and try again.');
+      return;
+    }
+
     const authUrl = getMicrosoftAuthUrl()
     saveMicrosoftPendingContext('/', 'sales')
 

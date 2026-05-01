@@ -670,6 +670,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
         <button
           className="btn btn-secondary"
           onClick={async () => {
+            if (!navigator.onLine) {
+              toast.error('No internet connection. Please check your network and try again.');
+              return;
+            }
+
             const authUrl = getMicrosoftAuthUrl();
             console.info('[Login] Microsoft button clicked. userType:', userType, 'returnPath:', microsoftReturnPath);
             saveMicrosoftPendingContext(microsoftReturnPath, userType);

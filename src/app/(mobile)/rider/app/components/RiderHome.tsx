@@ -190,6 +190,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     }
     openExternalMap(
       googleMapsUrl({ lat: station.lat, lng: station.lng }, station.name),
+      (msg) => toast.error(msg),
     );
   };
 
