@@ -26,6 +26,7 @@ import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 import { googleMapsUrl, openExternalMap } from './map/deepLinks';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 /**
  * Mount the Google Maps JS provider exactly once for the entire logged-in
@@ -50,12 +51,20 @@ const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV1';
 const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const LOAD_FAILSAFE_TIMEOUT_MS = 15000;
 
+interface ServiceAccount {
+  sa_id: number;
+  sa_name: string;
+  applets: any[];
+  role: string;
+}
+
 interface Customer {
   id: number;
   name: string;
   email: string;
   phone: string;
   partner_id?: number;
+  service_accounts?: ServiceAccount[];
 }
 
 interface BikeInfo {
@@ -226,14 +235,23 @@ const RiderApp: React.FC = () => {
       const token = localStorage.getItem('authToken_rider');
       const storedCustomerData = localStorage.getItem('customerData_rider');
       const showLoginPage = localStorage.getItem('showLoginPage_rider') === 'true';
+
+      // If the main app crashed in the previous session, don't auto-login.
+      // Show the login screen so the user isn't stuck in a crash-reload loop.
+      let prevSessionCrashed = false;
+      try {
+        prevSessionCrashed = sessionStorage.getItem('riderAppCrashed') === 'true';
+        sessionStorage.removeItem('riderAppCrashed');
+      } catch { /* ignore storage errors */ }
       
       // Clear the login page flag after reading
       if (showLoginPage) {
         localStorage.removeItem('showLoginPage_rider');
       }
       
-      // If user just logged out (showLoginPage flag), show login page even if credentials exist
-      if (token && storedCustomerData && !showLoginPage) {
+      // If user just logged out (showLoginPage flag), or the app crashed last session,
+      // show the login page even if credentials exist
+      if (token && storedCustomerData && !showLoginPage && !prevSessionCrashed) {
         try {
           const customerData = JSON.parse(storedCustomerData);
           setCustomer(customerData);
@@ -2007,6 +2025,11 @@ const RiderApp: React.FC = () => {
 
   // Main app
   return (
+    <ErrorBoundary
+      onCriticalError={() => {
+        try { sessionStorage.setItem('riderAppCrashed', 'true'); } catch { /* ignore */ }
+      }}
+    >
     <RiderMapProvider>
       <Toaster position="top-center" />
 
@@ -2357,6 +2380,7 @@ const RiderApp: React.FC = () => {
         </div>
       )}
     </RiderMapProvider>
+    </ErrorBoundary>
   );
 };
 

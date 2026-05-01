@@ -15,6 +15,7 @@ import { toast } from "react-hot-toast";
 import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeolocation";
 import type { RiderStation } from "../types";
 import { googleMapsUrl, openExternalMap } from "../map/deepLinks";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Google Maps is client-only; load dynamically to avoid SSR errors and reuse
 // the same component used by the full-screen Stations screen.
@@ -503,14 +504,21 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             className="rm-home-map"
             aria-label={t("rider.viewMap") || "View Map"}
           >
-            <RiderMap
-              stations={mapStations}
-              userLocation={userLocation}
-              selectedStationId={null}
-              onSelectStation={(id) => id != null && onSelectStation(id)}
-              preview
-              onPreviewClick={onViewAllStations}
-            />
+            <ErrorBoundary fallback={
+              <div className="rm-home-map-error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
+                <AlertCircle size={16} style={{ marginRight: 6 }} />
+                <span>{t("rider.map.loadError") || "Map unavailable"}</span>
+              </div>
+            }>
+              <RiderMap
+                stations={mapStations}
+                userLocation={userLocation}
+                selectedStationId={null}
+                onSelectStation={(id) => id != null && onSelectStation(id)}
+                preview
+                onPreviewClick={onViewAllStations}
+              />
+            </ErrorBoundary>
             <div className="rm-home-map-cta">
               <span>{t("rider.map.openFullMap") || "Open full map"}</span>
               <ChevronRight size={14} />

@@ -6,6 +6,8 @@ import toast, { Toaster } from 'react-hot-toast';
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  /** Called once when the error count exceeds the auto-recovery threshold (3rd+ crash). */
+  onCriticalError?: () => void;
 }
 
 interface State {
@@ -54,6 +56,7 @@ export class ErrorBoundary extends Component<Props, State> {
         duration: 5000,
         id: 'eb-persistent',
       });
+      this.props.onCriticalError?.();
     }
   }
 

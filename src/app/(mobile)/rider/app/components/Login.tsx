@@ -9,12 +9,20 @@ import { useBridge } from "@/app/context/bridgeContext";
 import { Fingerprint } from 'lucide-react';
 import { PhoneInputWithCountry } from '@/components/ui';
 // Define interfaces
+interface ServiceAccount {
+  sa_id: number;
+  sa_name: string;
+  applets: any[];
+  role: string;
+}
+
 interface Customer {
   id: number;
   name: string;
   email: string;
   phone: string;
   partner_id?: number;
+  service_accounts?: ServiceAccount[];
 }
 
 interface LoginProps {
@@ -386,7 +394,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         : { email: email.trim(), password };
 
       const response = await fetch(
-        "https://crm-omnivoltaic.odoo.com/api/auth/login",
+        "https://crm-omnivoltaic.odoo.com/api/employee/login",
         {
           method: "POST",
           headers: {
@@ -429,6 +437,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         
         let customerData: Customer;
         
+        const serviceAccounts: ServiceAccount[] = data.session?.service_accounts || [];
+
         if (sessionUser) {
           // Use session.user data (has partner_id)
           customerData = {
@@ -438,9 +448,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             phone: sessionUser.phone || fullPhoneNumber,
             // Explicitly get partner_id - don't use || operator as 0 is valid
             partner_id: sessionUser.partner_id !== undefined ? sessionUser.partner_id : undefined,
+            service_accounts: serviceAccounts,
           };
           console.log("Login: sessionUser object:", sessionUser);
           console.log("Login: sessionUser.partner_id:", sessionUser.partner_id);
+          console.log("Login: service_accounts:", serviceAccounts);
         } else if (fallbackCustomer) {
           // Fallback to data.customer
           customerData = {
@@ -449,6 +461,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             email: fallbackCustomer.email || "",
             phone: fallbackCustomer.phone || fullPhoneNumber,
             partner_id: fallbackCustomer.partner_id !== undefined ? fallbackCustomer.partner_id : undefined,
+            service_accounts: serviceAccounts,
           };
         } else {
           throw new Error("No customer data found in response");
