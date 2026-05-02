@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Eye, X } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
+import AppHeader from '@/components/AppHeader';
 // Import components
 import {
   SalesTimeline,
@@ -2546,7 +2547,7 @@ export default function SalesFlow({
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
       
-      {/* Header with Back + Logo on left, Language Toggle on right */}
+      <AppHeader />
       {/* Timeline */}
       <SalesTimeline 
         currentStep={currentStep}

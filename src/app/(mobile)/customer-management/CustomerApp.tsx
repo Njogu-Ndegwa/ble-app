@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { clearSalesRoleLogin } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
 import CustomerManagement from './CustomerManagement';
+import AppHeader from '@/components/AppHeader';
 
 interface CustomerAppProps {
   onLogout?: () => void;
@@ -34,6 +35,7 @@ export default function CustomerApp({ onLogout }: CustomerAppProps) {
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
+      <AppHeader />
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">

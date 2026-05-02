@@ -16,6 +16,7 @@ import SalesTransactions from './components/SalesTransactions';
 import SalesCustomers from './components/SalesCustomers';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
+import AppHeader from '@/components/AppHeader';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface SalesAppProps {
@@ -109,7 +110,7 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
     <div className="sales-container">
       <div className="sales-bg-gradient" />
       
-      {/* Header */}
+      <AppHeader onSwitchSA={onSwitchSA} />
       {/* Main Content */}
       <main className="sales-main sales-main-screen">
         {currentScreen === 'customers' && (

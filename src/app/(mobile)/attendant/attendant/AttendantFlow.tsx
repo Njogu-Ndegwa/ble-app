@@ -7,6 +7,7 @@ import { Eye, X } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getSalesRoleUser, clearSalesRoleLogin, getSalesRoleToken } from '@/lib/attendant-auth';
 import { useI18n } from '@/i18n';
+import AppHeader from '@/components/AppHeader';
 
 // Import components
 import {
@@ -1916,7 +1917,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     <div className={`attendant-container ${renderBottomNav ? 'has-bottom-nav' : ''}`}>
       <div className="attendant-bg-gradient" />
       
-      {/* Header with Back + Logo on left, Language Toggle on right */}
+      <AppHeader />
       {/* Interactive Timeline */}
       <Timeline 
         currentStep={currentStep} 

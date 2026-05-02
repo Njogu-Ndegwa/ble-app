@@ -13,6 +13,7 @@ import { clearSalesSession } from '@/lib/sales-session';
 import ActivatorNav, { type ActivatorScreen } from './components/ActivatorNav';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
+import AppHeader from '@/components/AppHeader';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 const ActivatorFlow = dynamic(() => import('./ActivatorFlow'), { ssr: false });
@@ -97,6 +98,7 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
+      <AppHeader />
 
       <main className="sales-main sales-main-screen">
         {currentScreen === 'sessions' && (

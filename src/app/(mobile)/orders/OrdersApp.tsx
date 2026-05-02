@@ -5,6 +5,7 @@ import OrdersList from './components/OrdersList';
 import OrderDetail from './components/OrderDetail';
 import CreateOrder from './components/CreateOrder';
 import type { OrderEntity } from '@/lib/portal/types';
+import AppHeader from '@/components/AppHeader';
 
 type Screen = 'list' | 'detail' | 'create';
 
@@ -52,6 +53,7 @@ export default function OrdersApp(_: OrdersAppProps) {
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
+      <AppHeader />
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">

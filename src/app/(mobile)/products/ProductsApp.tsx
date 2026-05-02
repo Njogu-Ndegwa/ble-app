@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import ProductsList from './components/ProductsList';
 import ProductDetail from './components/ProductDetail';
 import type { OdooProduct } from '@/lib/portal/types';
+import AppHeader from '@/components/AppHeader';
 
 type Screen = 'list' | 'detail';
 
@@ -36,6 +37,7 @@ export default function ProductsApp(_: ProductsAppProps) {
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
+      <AppHeader />
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">

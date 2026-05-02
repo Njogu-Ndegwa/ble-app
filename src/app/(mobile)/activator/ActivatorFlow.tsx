@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { Eye, X } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
+import AppHeader from '@/components/AppHeader';
 import type { CustomerFormData, BatteryData, PlanData } from './components/types';
 import type { ActivatorStep } from './components/types';
 import { generateRegistrationId } from './components/types';
@@ -1079,6 +1080,7 @@ export default function ActivatorFlow({
   return (
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
+      <AppHeader />
 
       <ActivatorTimeline
         currentStep={currentStep}

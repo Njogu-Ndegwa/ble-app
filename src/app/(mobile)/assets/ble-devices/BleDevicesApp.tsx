@@ -12,6 +12,7 @@ import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
 import DeviceManagerProfile from './components/DeviceManagerProfile';
+import AppHeader from '@/components/AppHeader';
 
 type BleDevicesScreen = 'devices' | 'profile';
 
@@ -689,6 +690,7 @@ const BleDevicesApp: React.FC = () => {
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
+      <AppHeader />
 
       <Toaster
         position="top-center"

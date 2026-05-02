@@ -27,6 +27,7 @@ import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 import { googleMapsUrl, openExternalMap } from './map/deepLinks';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import AppHeader from '@/components/AppHeader';
 
 /**
  * Mount the Google Maps JS provider exactly once for the entire logged-in
@@ -2070,8 +2071,7 @@ const RiderApp: React.FC = () => {
 
       <div className="rider-container">
         <div className="rider-bg-gradient" />
-
-        {/* Header */}
+        <AppHeader />
         {/* Main Content */}
         <main
           className={`rider-main${

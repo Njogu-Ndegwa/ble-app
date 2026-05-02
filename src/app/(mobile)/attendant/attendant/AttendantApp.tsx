@@ -20,6 +20,7 @@ import {
 } from './components';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
+import AppHeader from '@/components/AppHeader';
 import type { OrderListItem } from '@/lib/odoo-api';
 
 interface AttendantAppProps {
@@ -140,7 +141,7 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-      
+      <AppHeader onSwitchSA={onSwitchSA} />
       {/* Main Content */}
       <main className="attendant-main attendant-main-screen">
         {currentScreen === 'transactions' && (
