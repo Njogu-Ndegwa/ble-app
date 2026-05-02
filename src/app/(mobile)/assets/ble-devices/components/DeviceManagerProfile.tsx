@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useI18n } from '@/i18n';
 import { WorkflowProfile } from '@/components/shared';
-import { getDecodedToken } from '@/lib/auth';
+import { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from '../BleDevicesLogin';
 
 interface DeviceManagerProfileProps {
   /** @deprecated Change role is now exposed via the header back button. Kept for backwards compatibility. */
@@ -29,33 +29,31 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({ onLogout })
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    let storedName = '';
-    try {
-      const raw = localStorage.getItem('user');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        storedName = parsed?.name || '';
-      }
-    } catch {
-      /* ignore malformed user blob */
-    }
-
-    const decoded = getDecodedToken();
-    const email: string = decoded?.email || '';
-    const id: string | number =
-      decoded?.user_id ?? localStorage.getItem('distributorId') ?? 'N/A';
-    const name = storedName || decoded?.username || decoded?.name || '';
-
-    if (!name && !email && id === 'N/A') {
+    // Read the employee record that was stored by BleDevicesLogin at sign-in time.
+    // Both keys live in sessionStorage so they are automatically cleared when the
+    // WebView / browser tab is closed, ensuring fresh credentials next time.
+    const token = sessionStorage.getItem(BLE_DM_TOKEN_KEY);
+    if (!token) {
       setEmployee(null);
       return;
     }
 
-    setEmployee({
-      id,
-      name,
-      email,
-    });
+    try {
+      const raw = sessionStorage.getItem(BLE_DM_USER_KEY);
+      if (raw) {
+        const user = JSON.parse(raw);
+        setEmployee({
+          id: user.id ?? 'N/A',
+          name: user.name ?? '',
+          email: user.email ?? '',
+          phone: user.phone ?? undefined,
+        });
+      } else {
+        setEmployee(null);
+      }
+    } catch {
+      setEmployee(null);
+    }
   }, []);
 
   return (

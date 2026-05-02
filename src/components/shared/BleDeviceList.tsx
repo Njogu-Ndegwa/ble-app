@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { colors, spacing, radius, fontSize, fontWeight } from '@/styles';
 import type { BleDevice } from './types';
+import { Search, X } from 'lucide-react';
 
 // Device image mapping based on name patterns
 // This should match the itemImageMap used in Keypad and BLE Device Manager pages
@@ -136,12 +137,14 @@ function extractDeviceDisplay(deviceName: string): { name: string; id: string } 
  */
 function DeviceItemSkeleton() {
   return (
-    <div className="ble-device-item ble-device-skeleton">
-      <div className="ble-device-image-skeleton" />
-      <div className="ble-device-info-skeleton">
-        <div className="skeleton-line skeleton-id" />
-        <div className="skeleton-line skeleton-mac" />
-        <div className="skeleton-line skeleton-rssi" />
+    <div className="rounded-xl border border-border bg-bg-tertiary p-4 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-border/50 flex-shrink-0" />
+        <div className="flex-1">
+          <div className="h-4 w-3/5 bg-border/50 rounded mb-2" />
+          <div className="h-3 w-4/5 bg-border/50 rounded mb-1" />
+          <div className="h-2.5 w-2/5 bg-border/50 rounded" />
+        </div>
       </div>
     </div>
   );
@@ -255,38 +258,42 @@ export default function BleDeviceList({
 
       {/* Search - always show when not hidden by parent */}
       {!hideSearch && (
-        <div className="ble-device-search">
-          <SearchIcon />
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search size={16} className="text-text-muted" />
+          </div>
           <input
             type="text"
             placeholder={t('ble.searchDevices') || 'Search by name or ID (e.g., 0006)...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="ble-device-search-input"
+            className="w-full pl-9 py-2.5 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            style={{ paddingRight: onScanQr ? '5rem' : '2rem' }}
             disabled={disabled}
           />
-          <div className="ble-device-search-actions">
+          <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
             {searchQuery && (
               <button
                 type="button"
-                className="ble-device-search-clear"
                 onClick={() => setSearchQuery('')}
+                className="flex items-center justify-center"
                 aria-label="Clear search"
               >
-                <ClearIcon />
+                <X size={14} className="text-text-muted hover:text-text-primary" />
               </button>
             )}
             {onScanQr && (
               <button
                 type="button"
-                className="ble-device-qr-btn"
                 onClick={onScanQr}
                 disabled={isScannerOpening || disabled}
+                className="flex items-center justify-center w-8 h-8 rounded-lg disabled:opacity-60 transition-all active:scale-95"
+                style={{ background: 'var(--color-brand)', color: 'white' }}
                 aria-label={t('battery.scanQr') || 'Scan QR Code'}
                 title={t('battery.scanQr') || 'Scan QR Code'}
               >
                 {isScannerOpening ? (
-                  <div className="ble-device-qr-spinner" />
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <QrScanIcon />
                 )}
@@ -334,7 +341,7 @@ export default function BleDeviceList({
         {/* No Results */}
         {devices.length > 0 && sortedDevices.length === 0 && (
           <div className="ble-device-empty">
-            <SearchIcon />
+            <Search width={48} height={48} />
             <p>{t('ble.noMatchingDevices') || 'No devices match your search'}</p>
           </div>
         )}
@@ -401,8 +408,8 @@ export default function BleDeviceList({
 
         {/* Scanning Indicator */}
         {isScanning && devices.length > 0 && (
-          <div className="ble-scanning-indicator">
-            <div className="ble-scanning-dot" />
+          <div className="flex items-center justify-center gap-2 p-2 text-xs text-text-muted">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-brand)' }} />
             <span>{t('ble.scanning') || 'Scanning for more devices...'}</span>
           </div>
         )}
@@ -480,120 +487,6 @@ export default function BleDeviceList({
 
         @keyframes spin {
           from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .ble-device-search {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .ble-device-search > :global(svg:first-child) {
-          position: absolute;
-          left: ${spacing[3]};
-          width: 18px;
-          height: 18px;
-          color: ${colors.text.muted};
-          pointer-events: none;
-        }
-
-        .ble-device-search-input {
-          width: 100%;
-          padding: ${spacing[3]} ${spacing[3]} ${spacing[3]} ${spacing[10]};
-          padding-right: calc(${spacing[3]} + var(--search-actions-width, 40px));
-          font-size: ${fontSize.base};
-          color: ${colors.text.primary};
-          background: ${colors.bg.tertiary};
-          border: 2px solid ${colors.border.default};
-          border-radius: ${radius.lg};
-          outline: none;
-          transition: all 0.2s ease;
-        }
-
-        .ble-device-search-input:focus {
-          border-color: ${colors.brand.primary};
-          background: ${colors.bg.secondary};
-          box-shadow: 0 0 0 3px ${colors.brand.primary}20;
-        }
-
-        .ble-device-search-input::placeholder {
-          color: ${colors.text.muted};
-          font-size: ${fontSize.sm};
-        }
-
-        .ble-device-search-actions {
-          position: absolute;
-          right: ${spacing[2]};
-          display: flex;
-          align-items: center;
-          gap: ${spacing[2]};
-        }
-
-        .ble-device-search-clear {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          padding: 0;
-          background: ${colors.bg.elevated};
-          border: none;
-          border-radius: ${radius.full};
-          color: ${colors.text.secondary};
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .ble-device-search-clear:hover {
-          background: ${colors.bg.tertiary};
-          color: ${colors.text.primary};
-        }
-
-        .ble-device-qr-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 36px;
-          height: 36px;
-          padding: 0;
-          background: ${colors.brand.primary};
-          border: none;
-          border-radius: ${radius.md};
-          color: ${colors.bg.primary};
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .ble-device-qr-btn:hover:not(:disabled) {
-          background: ${colors.brand.primaryDark};
-          transform: scale(1.05);
-        }
-
-        .ble-device-qr-btn:active:not(:disabled) {
-          transform: scale(0.98);
-        }
-
-        .ble-device-qr-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .ble-device-qr-btn :global(svg) {
-          width: 20px;
-          height: 20px;
-        }
-
-        .ble-device-qr-spinner {
-          width: 18px;
-          height: 18px;
-          border: 2px solid var(--border-default);
-          border-top-color: var(--text-primary);
-          border-radius: 50%;
-          animation: qr-spin 0.8s linear infinite;
-        }
-
-        @keyframes qr-spin {
           to { transform: rotate(360deg); }
         }
 
@@ -781,67 +674,6 @@ export default function BleDeviceList({
           font-style: italic;
         }
 
-        .ble-device-skeleton {
-          pointer-events: none;
-        }
-
-        .ble-device-image-skeleton {
-          width: 48px;
-          height: 48px;
-          border-radius: ${radius.md};
-          background: ${colors.bg.elevated};
-          animation: pulse 1.5s infinite;
-        }
-
-        .ble-device-info-skeleton {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: ${spacing[2]};
-        }
-
-        .skeleton-line {
-          height: 12px;
-          border-radius: ${radius.sm};
-          background: ${colors.bg.elevated};
-          animation: pulse 1.5s infinite;
-        }
-
-        .skeleton-id {
-          width: 60%;
-        }
-
-        .skeleton-mac {
-          width: 80%;
-        }
-
-        .skeleton-rssi {
-          width: 40%;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.7; }
-        }
-
-        .ble-scanning-indicator {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: ${spacing[2]};
-          padding: ${spacing[2]};
-          font-size: ${fontSize.xs};
-          color: ${colors.text.muted};
-        }
-
-        .ble-scanning-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: ${radius.full};
-          background: ${colors.brand.primary};
-          animation: pulse 1s infinite;
-        }
-
         .ble-device-count {
           font-size: ${fontSize.xs};
           color: ${colors.text.muted};
@@ -871,24 +703,6 @@ function RefreshIcon() {
       <polyline points="23 4 23 10 17 10"/>
       <polyline points="1 20 1 14 7 14"/>
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-      width="16"
-      height="16"
-    >
-      <circle cx="11" cy="11" r="8"/>
-      <path d="M21 21l-4.35-4.35"/>
     </svg>
   );
 }
@@ -923,24 +737,6 @@ function CheckIcon() {
       height="12"
     >
       <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  );
-}
-
-function ClearIcon() {
-  return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-      width="16"
-      height="16"
-    >
-      <line x1="18" y1="6" x2="6" y2="18"/>
-      <line x1="6" y1="6" x2="18" y2="18"/>
     </svg>
   );
 }

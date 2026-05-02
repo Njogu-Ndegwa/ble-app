@@ -13,6 +13,7 @@ import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
 import DeviceManagerProfile from './components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
+import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
 
 type BleDevicesScreen = 'devices' | 'profile';
 
@@ -83,6 +84,14 @@ const itemImageMap: { [key: string]: string } = {
 const BleDevicesApp: React.FC = () => {
   const router = useRouter();
   const { t } = useI18n();
+
+  // BLE-applet–specific session token. Lives in sessionStorage so it is always
+  // cleared when the WebView / browser tab is closed, forcing re-authentication.
+  const [bleToken, setBleToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem(BLE_DM_TOKEN_KEY);
+  });
+
   const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('devices');
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -660,12 +669,13 @@ const BleDevicesApp: React.FC = () => {
 
   const handleLogout = useCallback(() => {
     try {
-      localStorage.removeItem('access_token');
+      sessionStorage.removeItem(BLE_DM_TOKEN_KEY);
+      sessionStorage.removeItem(BLE_DM_USER_KEY);
     } catch {
       /* ignore storage errors */
     }
-    router.push('/signin');
-  }, [router]);
+    setBleToken(null);
+  }, []);
 
   const handleNavigate = useCallback((tab: BleDevicesTab) => {
     switch (tab) {
@@ -686,6 +696,10 @@ const BleDevicesApp: React.FC = () => {
   }, [selectedDevice, handleBackToList, router]);
 
   const currentTab: BleDevicesTab = currentScreen === 'profile' ? 'profile' : 'all-devices';
+
+  if (!bleToken) {
+    return <BleDevicesLogin onLoginSuccess={(token) => setBleToken(token)} />;
+  }
 
   return (
     <div className="attendant-container has-bottom-nav">

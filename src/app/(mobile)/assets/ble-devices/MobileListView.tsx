@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import {
   Search,
+  X,
   Camera,
   RefreshCcw,
   BluetoothSearching,
@@ -19,31 +20,13 @@ interface MobileListViewProps {
   isScanning: boolean;
 }
 
-const SkeletonBar: React.FC<{ width: string; height: number }> = ({ width, height }) => (
-  <div
-    style={{
-      width,
-      height,
-      borderRadius: 4,
-      background: 'var(--bg-tertiary)',
-    }}
-  />
-);
-
 const DeviceItemSkeleton = () => (
-  <div className="list-card animate-pulse">
-    <div className="list-card-body list-card-body--with-avatar">
-      <div
-        className="list-card-image flex-shrink-0"
-        style={{ background: 'var(--bg-tertiary)' }}
-      />
-      <div className="list-card-content">
-        <SkeletonBar width="65%" height={16} />
-        <SkeletonBar width="50%" height={13} />
-        <SkeletonBar width="35%" height={11} />
-      </div>
-      <div className="list-card-actions">
-        <SkeletonBar width="64px" height={20} />
+  <div className="rounded-xl border border-border bg-bg-tertiary p-4 animate-pulse">
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-lg bg-border/50 flex-shrink-0" />
+      <div className="flex-1">
+        <div className="h-4 w-3/5 bg-border/50 rounded mb-2" />
+        <div className="h-3 w-4/5 bg-border/50 rounded" />
       </div>
     </div>
   </div>
@@ -117,25 +100,40 @@ const MobileListView: React.FC<MobileListViewProps> = ({
 
         {/* Search Bar */}
         <div className="relative mb-4">
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search size={16} className="text-text-muted" />
+          </div>
           <input
             type="text"
-            className="form-input"
-            style={{ paddingRight: 80 }}
             placeholder={t('Search devices...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 py-2.5 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            style={{ paddingRight: '5rem' }}
           />
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-3">
-            <div
-              className="cursor-pointer"
+          <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1.5">
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="flex items-center justify-center"
+                aria-label="Clear search"
+              >
+                <X size={14} className="text-text-muted hover:text-text-primary" />
+              </button>
+            )}
+            <button
+              type="button"
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95"
+              style={{ background: 'var(--color-brand)', color: 'white' }}
               onClick={(e) => {
                 e.stopPropagation();
                 onScanQrCode();
               }}
+              aria-label="Scan QR Code"
             >
-              <Camera size={18} style={{ color: 'var(--text-secondary)' }} className="hover:opacity-80 transition-opacity" />
-            </div>
-            <Search className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
+              <Camera size={16} />
+            </button>
           </div>
         </div>
 
