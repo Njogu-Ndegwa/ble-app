@@ -37,7 +37,7 @@ export default function ProductsApp(_: ProductsAppProps) {
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
-      <AppHeader />
+      <AppHeader showBack />
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">

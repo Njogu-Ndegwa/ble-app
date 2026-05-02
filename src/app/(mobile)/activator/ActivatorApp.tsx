@@ -98,7 +98,7 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
-      <AppHeader />
+      <AppHeader showBack />
 
       <main className="sales-main sales-main-screen">
         {currentScreen === 'sessions' && (

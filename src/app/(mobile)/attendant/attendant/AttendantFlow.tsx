@@ -1917,7 +1917,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     <div className={`attendant-container ${renderBottomNav ? 'has-bottom-nav' : ''}`}>
       <div className="attendant-bg-gradient" />
       
-      <AppHeader />
+      <AppHeader showBack />
       {/* Interactive Timeline */}
       <Timeline 
         currentStep={currentStep} 

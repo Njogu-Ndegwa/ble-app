@@ -2071,7 +2071,7 @@ const RiderApp: React.FC = () => {
 
       <div className="rider-container">
         <div className="rider-bg-gradient" />
-        <AppHeader />
+        <AppHeader showBack />
         {/* Main Content */}
         <main
           className={`rider-main${

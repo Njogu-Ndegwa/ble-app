@@ -728,7 +728,7 @@ const MyDevicesApp: React.FC = () => {
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-      <AppHeader />
+      <AppHeader showBack />
 
       <Toaster
         position="top-center"

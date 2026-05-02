@@ -141,7 +141,7 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-      <AppHeader onSwitchSA={onSwitchSA} />
+      <AppHeader showBack onSwitchSA={onSwitchSA} />
       {/* Main Content */}
       <main className="attendant-main attendant-main-screen">
         {currentScreen === 'transactions' && (

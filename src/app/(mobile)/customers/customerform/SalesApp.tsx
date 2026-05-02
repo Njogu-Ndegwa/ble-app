@@ -110,7 +110,7 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
     <div className="sales-container">
       <div className="sales-bg-gradient" />
       
-      <AppHeader onSwitchSA={onSwitchSA} />
+      <AppHeader showBack onSwitchSA={onSwitchSA} />
       {/* Main Content */}
       <main className="sales-main sales-main-screen">
         {currentScreen === 'customers' && (

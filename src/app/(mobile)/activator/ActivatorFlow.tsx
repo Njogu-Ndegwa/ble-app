@@ -1080,7 +1080,7 @@ export default function ActivatorFlow({
   return (
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
-      <AppHeader />
+      <AppHeader showBack />
 
       <ActivatorTimeline
         currentStep={currentStep}

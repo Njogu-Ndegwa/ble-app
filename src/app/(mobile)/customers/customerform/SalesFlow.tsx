@@ -2547,7 +2547,7 @@ export default function SalesFlow({
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
       
-      <AppHeader />
+      <AppHeader showBack />
       {/* Timeline */}
       <SalesTimeline 
         currentStep={currentStep}

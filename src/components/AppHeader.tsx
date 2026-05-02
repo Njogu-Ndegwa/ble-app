@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn } from 'lucide-react';
+import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn, ArrowLeft } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import {
@@ -26,9 +26,18 @@ interface AppHeaderProps {
    * Use this on unauthenticated pages (public landing, etc.).
    */
   onSignIn?: () => void;
+  /**
+   * When true, shows a back arrow button on the left (mutually exclusive with onMenuOpen).
+   * Defaults to false.
+   */
+  showBack?: boolean;
+  /**
+   * Custom back handler. Defaults to router.back().
+   */
+  onBack?: () => void;
 }
 
-export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn }: AppHeaderProps) {
+export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack }: AppHeaderProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -45,6 +54,14 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn }: AppHeade
     if (typeof window === 'undefined') return null;
     return getSelectedSA();
   }, []);
+
+  const handleBack = useCallback(() => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.back();
+    }
+  }, [onBack, router]);
 
   // When opening, compute the fixed position from the avatar button's viewport rect.
   // This escapes any overflow:hidden ancestor (e.g. select-role-container).
@@ -102,9 +119,17 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn }: AppHeade
     <>
       <header className="flow-header">
         <div className="flow-header-inner">
-          {/* Left: optional hamburger + logo */}
+          {/* Left: back arrow (applets) OR hamburger (layout) + logo */}
           <div className="flow-header-left">
-            {onMenuOpen && (
+            {showBack ? (
+              <button
+                className="flow-header-back"
+                onClick={handleBack}
+                aria-label={t('common.back') || 'Back'}
+              >
+                <ArrowLeft size={18} />
+              </button>
+            ) : onMenuOpen ? (
               <button
                 className="flow-header-back"
                 onClick={onMenuOpen}
@@ -112,7 +137,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn }: AppHeade
               >
                 <Menu size={16} />
               </button>
-            )}
+            ) : null}
             <button
               className="app-header-logo-btn"
               onClick={() => router.push('/')}
