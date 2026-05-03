@@ -1,0 +1,25 @@
+---
+description: Require explicit user permission before pushing to remote
+alwaysApply: true
+---
+
+# Git Push Policy
+
+**Never run `git push` without first asking the user for permission.**
+
+- You may freely stage and commit changes locally.
+- Before any `git push` (including `--force`, `-u`, or branch-specific pushes), stop and ask: "Ready to push to `<remote>/<branch>` — do you want me to proceed?"
+- Wait for an explicit "yes" / "go ahead" / "push it" confirmation before executing the push.
+
+## Examples
+
+❌ BAD — pushing without asking:
+```
+git add . && git commit -m "feat: ..." && git push origin main
+```
+
+✅ GOOD — commit, then ask:
+```
+git add . && git commit -m "feat: ..."
+# → "Changes committed. Ready to push to origin/main — should I go ahead?"
+```
