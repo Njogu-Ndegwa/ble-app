@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import {
   ArrowLeft,
   User,
+  Building2,
   Phone,
   Mail,
   MapPin,
@@ -42,7 +43,10 @@ import { resetPassword } from '@/lib/odoo-api';
 
 type SubView = 'list' | 'detail' | 'edit' | 'create';
 
+type CustomerTypeFilter = 'all' | 'company' | 'individual';
+
 interface CustomerFormState {
+  isCompany: boolean;
   firstName: string;
   lastName: string;
   email: string;
@@ -53,6 +57,7 @@ interface CustomerFormState {
 }
 
 const EMPTY_FORM: CustomerFormState = {
+  isCompany: false,
   firstName: '',
   lastName: '',
   email: '',
@@ -76,6 +81,7 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [period, setPeriod] = useState<ListPeriod>('all');
+  const [customerType, setCustomerType] = useState<CustomerTypeFilter>('all');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const [formData, setFormData] = useState<CustomerFormState>(EMPTY_FORM);
@@ -109,13 +115,16 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
   // ------------------------------------------------------------------
   // Data fetching
   // ------------------------------------------------------------------
-  const fetchCustomers = useCallback(async (query?: string) => {
+  const fetchCustomers = useCallback(async (
+    query?: string,
+    type: CustomerTypeFilter = 'all'
+  ) => {
     setIsLoading(true);
     try {
       const token = getSalesRoleToken() || '';
       const result = query?.trim()
-        ? await searchCustomers(query, token)
-        : await getAllCustomers(1, 50, token);
+        ? await searchCustomers(query, token, type)
+        : await getAllCustomers(1, 50, token, type);
       setCustomers(result.customers);
     } catch {
       toast.error(t('sales.fetchCustomersError') || 'Failed to load customers');
@@ -130,12 +139,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
     const delay = isFirstLoadRef.current ? 0 : 300;
     isFirstLoadRef.current = false;
     debounceRef.current = setTimeout(() => {
-      fetchCustomers(searchQuery);
+      fetchCustomers(searchQuery, customerType);
     }, delay);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchQuery, fetchCustomers]);
+  }, [searchQuery, customerType, fetchCustomers]);
 
   const filteredCustomers = React.useMemo(() => {
     const cutoff = getDateCutoff(period);
@@ -166,10 +175,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
   }, [t]);
 
   const openEdit = useCallback((customer: ExistingCustomer) => {
+    const isCompany = customer.isCompany;
     const nameParts = customer.name.split(' ');
     setFormData({
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
+      isCompany,
+      firstName: isCompany ? customer.name : (nameParts[0] || ''),
+      lastName: isCompany ? '' : nameParts.slice(1).join(' '),
       email: customer.email || '',
       phone: customer.phone || '',
       street: customer.street || '',
@@ -219,8 +230,14 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
   const validateForm = useCallback((): boolean => {
     const errors: Partial<Record<keyof CustomerFormState, string>> = {};
 
-    if (!formData.firstName.trim()) errors.firstName = t('sales.firstNameRequired') || 'First name is required';
-    if (!formData.lastName.trim()) errors.lastName = t('sales.lastNameRequired') || 'Last name is required';
+    if (!formData.firstName.trim()) {
+      errors.firstName = formData.isCompany
+        ? (t('sales.companyNameRequired') || 'Company name is required')
+        : (t('sales.firstNameRequired') || 'First name is required');
+    }
+    if (!formData.isCompany && !formData.lastName.trim()) {
+      errors.lastName = t('sales.lastNameRequired') || 'Last name is required';
+    }
 
     const hasEmail = formData.email.trim().length > 0;
     const phoneDigits = formData.phone.replace(/\D/g, '');
@@ -255,8 +272,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
 
     try {
       const token = getSalesRoleToken() || '';
+      const name = formData.isCompany
+        ? formData.firstName.trim()
+        : `${formData.firstName} ${formData.lastName}`.trim();
       const payload = {
-        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        name,
+        isCompany: formData.isCompany,
         email: formData.email.trim(),
         phone: formData.phone.replace(/\D/g, ''),
         street: formData.street.trim(),
@@ -274,13 +295,13 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
         toast.success(t('sales.customerCreated') || 'Customer created');
         goBackToList();
       }
-      fetchCustomers(searchQuery);
+      fetchCustomers(searchQuery, customerType);
     } catch (err: any) {
       toast.error(err.message || t('sales.saveCustomerError') || 'Failed to save customer');
     } finally {
       setIsSaving(false);
     }
-  }, [validateForm, formData, subView, selectedCustomer, fetchCustomers, searchQuery, goBackToList, t]);
+  }, [validateForm, formData, subView, selectedCustomer, fetchCustomers, searchQuery, customerType, goBackToList, t]);
 
   // ------------------------------------------------------------------
   // Delete
@@ -295,13 +316,13 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
       toast.success(t('customerMgmt.customerDeleted') || 'Customer deleted');
       setShowDeleteConfirm(false);
       goBackToList();
-      fetchCustomers(searchQuery);
+      fetchCustomers(searchQuery, customerType);
     } catch (err: any) {
       toast.error(err.message || t('customerMgmt.deleteCustomerError') || 'Failed to delete customer');
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedCustomer, fetchCustomers, searchQuery, goBackToList, t]);
+  }, [selectedCustomer, fetchCustomers, searchQuery, customerType, goBackToList, t]);
 
   // ------------------------------------------------------------------
   // Reset password (set phone number as password)
@@ -444,6 +465,12 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
   // ------------------------------------------------------------------
   // LIST VIEW
   // ------------------------------------------------------------------
+  const TYPE_FILTER_OPTIONS: { value: CustomerTypeFilter; label: string }[] = [
+    { value: 'all', label: t('customerMgmt.filterAll') || 'All' },
+    { value: 'individual', label: t('customerMgmt.filterIndividual') || 'Individual' },
+    { value: 'company', label: t('customerMgmt.filterCompany') || 'Company' },
+  ];
+
   if (subView === 'list') {
     return (
       <ListScreen
@@ -454,7 +481,7 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
         period={period}
         onPeriodChange={setPeriod}
         isLoading={isLoading}
-        onRefresh={() => fetchCustomers()}
+        onRefresh={() => fetchCustomers(searchQuery, customerType)}
         isEmpty={filteredCustomers.length === 0}
         emptyIcon={<User size={28} className="text-text-muted" />}
         emptyMessage={
@@ -472,6 +499,23 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           ? (t('sales.customerSingular') || 'customer')
           : (t('sales.customerPlural') || 'customers')
         }
+        headerExtra={
+          <div className="flex gap-2 pb-2 pt-1">
+            {TYPE_FILTER_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setCustomerType(value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                  customerType === value
+                    ? 'border-brand bg-brand/10 text-brand'
+                    : 'border-border bg-bg-tertiary text-text-secondary hover:bg-bg-elevated'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
         fabAction={openCreate}
         fabLabel={t('sales.createCustomer') || 'Create Customer'}
       >
@@ -483,12 +527,18 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           >
             <div className="list-card-body list-card-body--with-avatar">
               <div className="list-card-avatar list-card-avatar--primary">
-                {customer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                {customer.isCompany
+                  ? <Building2 size={18} />
+                  : customer.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
               <div className="list-card-content">
                 <div className="list-card-primary">{customer.name}</div>
                 <div className="list-card-secondary">
                   <Phone size={10} /> {customer.phone ? formatPhone(customer.phone) : 'N/A'}
+                  <span className="list-card-dot">&middot;</span>
+                  {customer.isCompany
+                    ? <><Building2 size={10} /><span>{t('customerMgmt.filterCompany') || 'Company'}</span></>
+                    : <><User size={10} /><span>{t('customerMgmt.filterIndividual') || 'Individual'}</span></>}
                 </div>
                 <div className="list-card-meta">
                   <Mail size={10} />
@@ -553,6 +603,13 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
       {
         title: t('sales.contactInfo') || 'Contact',
         fields: [
+          {
+            icon: selectedCustomer.isCompany ? <Building2 size={15} /> : <User size={15} />,
+            label: t('customerMgmt.customerType') || 'Type',
+            value: selectedCustomer.isCompany
+              ? (t('customerMgmt.filterCompany') || 'Company')
+              : (t('customerMgmt.filterIndividual') || 'Individual'),
+          },
           { icon: <Phone size={15} />, label: t('sales.phoneNumber') || 'Phone', value: formatPhone(selectedCustomer.phone) },
           { icon: <Mail size={15} />, label: t('sales.emailAddress') || 'Email', value: selectedCustomer.email || '--' },
         ],
@@ -672,11 +729,58 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-6">
+        {/* Company / Individual toggle — only shown on create; for edit, type is pre-set */}
+        {subView === 'create' && (
+          <div className="flex gap-2 mt-2 mb-1">
+            <button
+              type="button"
+              onClick={() => {
+                setFormData((prev) => ({ ...prev, isCompany: false, lastName: '' }));
+                setFormErrors({});
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                !formData.isCompany
+                  ? 'border-brand bg-brand/10 text-brand'
+                  : 'border-border bg-bg-tertiary text-text-secondary hover:bg-bg-elevated'
+              }`}
+            >
+              <User size={15} />
+              {t('customerMgmt.filterIndividual') || 'Individual'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFormData((prev) => ({ ...prev, isCompany: true, lastName: '' }));
+                setFormErrors({});
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                formData.isCompany
+                  ? 'border-brand bg-brand/10 text-brand'
+                  : 'border-border bg-bg-tertiary text-text-secondary hover:bg-bg-elevated'
+              }`}
+            >
+              <Building2 size={15} />
+              {t('customerMgmt.filterCompany') || 'Company'}
+            </button>
+          </div>
+        )}
+
         <FormSection title={t('sales.personalInfo') || 'Personal Information'}>
-          <FormRow columns={2}>
-            <FormInput label={t('sales.firstName') || 'First Name'} required value={formData.firstName} onChange={(e) => handleFormChange('firstName', e.target.value)} placeholder="John" error={formErrors.firstName} />
-            <FormInput label={t('sales.lastName') || 'Last Name'} required value={formData.lastName} onChange={(e) => handleFormChange('lastName', e.target.value)} placeholder="Doe" error={formErrors.lastName} />
-          </FormRow>
+          {formData.isCompany ? (
+            <FormInput
+              label={t('customerMgmt.companyName') || 'Company Name'}
+              required
+              value={formData.firstName}
+              onChange={(e) => handleFormChange('firstName', e.target.value)}
+              placeholder="Acme Corp"
+              error={formErrors.firstName}
+            />
+          ) : (
+            <FormRow columns={2}>
+              <FormInput label={t('sales.firstName') || 'First Name'} required value={formData.firstName} onChange={(e) => handleFormChange('firstName', e.target.value)} placeholder="John" error={formErrors.firstName} />
+              <FormInput label={t('sales.lastName') || 'Last Name'} required value={formData.lastName} onChange={(e) => handleFormChange('lastName', e.target.value)} placeholder="Doe" error={formErrors.lastName} />
+            </FormRow>
+          )}
           <FormInput label={t('sales.emailAddress') || 'Email'} type="email" value={formData.email} onChange={(e) => handleFormChange('email', e.target.value)} placeholder="customer@example.com" error={formErrors.email} />
           <div className="flex items-center gap-3 my-2">
             <div className="flex-1 border-t border-border" />
