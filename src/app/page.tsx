@@ -7,7 +7,6 @@ import SplashScreen from '@/components/splash/SplashScreen';
 import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
 import SelectSA from '@/components/roles/SelectSA';
-import PublicLanding from '@/components/roles/PublicLanding';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
 import { isOdooEmployeeLoggedIn, getSelectedSAId, getStoredServiceAccounts, selectServiceAccount, saveOdooEmployeeSession, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
 import type { OdooEmployeeSession } from '@/lib/sa-types';
@@ -16,7 +15,6 @@ type AppState =
   | 'initializing'
   | 'splash'
   | 'onboarding'
-  | 'landing'      // unauthenticated: shows public keypad + Sign In CTA
   | 'selectSA'     // authenticated but no SA chosen yet
   | 'selectRole'   // authenticated + SA selected: shows SA-filtered applet grid
   | 'microsoftCallback';
@@ -148,9 +146,7 @@ export default function Index() {
   /** Determine which authenticated state to show after splash/onboarding. */
   const resolveAuthState = useCallback(() => {
     if (!isOdooEmployeeLoggedIn()) {
-      // Not logged in → show the public landing so users can choose a public
-      // app or sign in. PublicLanding exposes a Sign In button that goes to /signin.
-      setAppState('landing');
+      router.replace('/signin');
       return;
     }
     const saId = getSelectedSAId();
@@ -213,14 +209,6 @@ export default function Index() {
 
   if (appState === 'onboarding') {
     return <OnboardingCarousel onComplete={handleOnboardingComplete} />;
-  }
-
-  if (appState === 'landing') {
-    return (
-      <PublicLanding
-        onSignIn={() => router.push('/signin')}
-      />
-    );
   }
 
   if (appState === 'selectSA') {
