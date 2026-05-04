@@ -23,6 +23,16 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   product: 'Storable',
 };
 
+function getCategoryBadgeClass(puCategory: string | false): string {
+  switch (puCategory) {
+    case 'physical':  return 'list-card-badge--completed';
+    case 'service':   return 'list-card-badge--info';
+    case 'contract':  return 'list-card-badge--progress';
+    case 'digital':   return 'list-card-badge--info';
+    default:          return 'list-card-badge--default';
+  }
+}
+
 interface ProductsListProps {
   onSelect: (product: OdooProduct) => void;
 }
@@ -161,7 +171,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
             </div>
             <div className="list-card-actions">
               {product.category?.complete_name && (
-                <span className="list-card-badge list-card-badge--default">
+                <span className={`list-card-badge ${getCategoryBadgeClass(product.pu_category)}`}>
                   {parseLastSegment(product.category.complete_name)}
                 </span>
               )}

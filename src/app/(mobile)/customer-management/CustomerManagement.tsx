@@ -535,10 +535,6 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
                 <div className="list-card-primary">{customer.name}</div>
                 <div className="list-card-secondary">
                   <Phone size={10} /> {customer.phone ? formatPhone(customer.phone) : 'N/A'}
-                  <span className="list-card-dot">&middot;</span>
-                  {customer.isCompany
-                    ? <><Building2 size={10} /><span>{t('customerMgmt.filterCompany') || 'Company'}</span></>
-                    : <><User size={10} /><span>{t('customerMgmt.filterIndividual') || 'Individual'}</span></>}
                 </div>
                 <div className="list-card-meta">
                   <Mail size={10} />
@@ -547,6 +543,13 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
                   <MapPin size={10} />
                   <span>{customer.city || 'N/A'}</span>
                 </div>
+              </div>
+              <div className="list-card-actions">
+                <span className={`list-card-badge ${customer.isCompany ? 'list-card-badge--info' : 'list-card-badge--completed'}`}>
+                  {customer.isCompany
+                    ? (t('customerMgmt.filterCompany') || 'Company')
+                    : (t('customerMgmt.filterIndividual') || 'Individual')}
+                </span>
               </div>
             </div>
           </button>
