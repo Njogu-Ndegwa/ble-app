@@ -43,31 +43,39 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       onLoginSuccess(accessToken);
     },
     onError: (err) => {
-      console.warn('[BleDevicesLogin] onError full error:', JSON.stringify({
+      console.warn('[BleDevicesLogin] onError:', JSON.stringify({
         message: err.message,
         graphQLErrors: err.graphQLErrors ?? null,
         networkError: err.networkError ? String(err.networkError) : null,
       }));
-      const raw = (err.graphQLErrors?.[0]?.message ?? err.message ?? '').toLowerCase();
-      console.warn('[BleDevicesLogin] onError raw message used for matching:', raw);
+
+      const gqlErr = err.graphQLErrors?.[0];
+      const code = gqlErr?.extensions?.code as string | undefined;
+      const originalError = gqlErr?.extensions?.originalError as
+        | { message?: string | string[] }
+        | undefined;
+
       let msg: string;
-      if (
-        raw.includes('unauthorized') || raw.includes('invalid') ||
-        raw.includes('wrong') || raw.includes('incorrect') ||
-        raw.includes('not found') || raw.includes('password') ||
-        raw.includes('credentials') || raw.includes('unauthenticated') ||
-        raw.includes('forbidden') || raw.includes('401') || raw.includes('403')
-      ) {
-        msg = t('auth.error.wrongCredentials') || 'Incorrect email or password. Please try again.';
-      } else if (
-        raw.includes('network') || raw.includes('fetch') ||
-        raw.includes('failed to fetch') || raw.includes('timeout') || raw.includes('econnrefused')
-      ) {
+
+      if (err.networkError) {
         msg = t('auth.error.networkError') || 'Connection failed. Please check your network and try again.';
+      } else if (code === 'UNAUTHENTICATED') {
+        // "Invalid Credentials" — show it directly
+        msg = gqlErr?.message || t('auth.error.wrongCredentials') || 'Invalid credentials. Please try again.';
+      } else if (code === 'BAD_REQUEST' && originalError?.message) {
+        // Validation errors come as an array — pick the first meaningful one
+        const detail = Array.isArray(originalError.message)
+          ? originalError.message[0]
+          : originalError.message;
+        msg = detail || t('auth.error.badRequest') || 'Invalid request. Please check your input.';
+      } else if (gqlErr?.message) {
+        // Any other GraphQL error — show the actual message from the server
+        msg = gqlErr.message;
       } else {
         msg = t('auth.error.serverError') || 'Something went wrong. Please try again.';
       }
-      console.warn('[BleDevicesLogin] onError showing toast:', msg);
+
+      console.warn('[BleDevicesLogin] showing toast:', msg);
       toast.error(msg);
     },
   });
