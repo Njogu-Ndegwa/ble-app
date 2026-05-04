@@ -18,11 +18,15 @@ type KeypadScreen = 'devices' | 'profile';
 
 let bridgeHasBeenInitialized = false;
 
+const EMA_ALPHA = 0.3;
+const SORT_THROTTLE_MS = 2500;
+
 export interface BleDevice {
   macAddress: string;
   name: string;
   rssi: string;
   rawRssi: number;
+  smoothedRssi: number;
   imageUrl?: string;
   firmwareVersion?: string;
   deviceId?: string;
@@ -102,6 +106,7 @@ const KeypadApp: React.FC = () => {
     : undefined;
 
   const detectedDevicesRef = useRef(detectedDevices);
+  const lastSortRef = useRef<number>(0);
   const { bridge } = useBridge();
 
   const connectedDeviceRef = useRef<string | null>(null);
@@ -218,19 +223,25 @@ const KeypadApp: React.FC = () => {
             d.imageUrl = getImageUrl(d.name);
 
             setDetectedDevices((prev) => {
-              const exists = prev.some((p) => p.macAddress === d.macAddress);
-              const next = exists
+              const existing = prev.find((p) => p.macAddress === d.macAddress);
+              const smoothedRssi = existing
+                ? EMA_ALPHA * d.rawRssi + (1 - EMA_ALPHA) * existing.smoothedRssi
+                : d.rawRssi;
+
+              const next = existing
                 ? prev.map((p) =>
                     p.macAddress === d.macAddress
-                      ? {
-                          ...p,
-                          rssi: d.rssi,
-                          rawRssi: d.rawRssi,
-                        }
+                      ? { ...p, rssi: d.rssi, rawRssi: d.rawRssi, smoothedRssi }
                       : p
                   )
-                : [...prev, d];
-              return [...next].sort((a, b) => b.rawRssi - a.rawRssi);
+                : [...prev, { ...d, smoothedRssi }];
+
+              const now = Date.now();
+              if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
+                lastSortRef.current = now;
+                return [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
+              }
+              return next;
             });
 
             resp({ success: true });
