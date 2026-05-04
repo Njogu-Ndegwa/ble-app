@@ -6,6 +6,7 @@ import { Toaster, toast } from "react-hot-toast";
 
 import MobileListView from "./MobileListView";
 import DeviceDetailView from "./DeviceDetailView";
+import MyDevicesDetailView from "../../mydevices/devices/DeviceDetailView";
 import ProgressiveLoading from "../../../../components/loader/progressiveLoading";
 import { connBleByMacAddress, initServiceBleData, disconnBleByMacAddress } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
@@ -798,6 +799,16 @@ const BleDevicesApp: React.FC = () => {
                 isScanning={isScanning}
                 title={currentScreen === 'my-devices' ? (t('nav.mydevices') || 'My Devices') : (t('nav.assets.bledevices') || 'All Devices')}
               />
+            ) : currentScreen === 'my-devices' ? (
+              <MyDevicesDetailView
+                // @ts-ignore
+                device={deviceDetails}
+                attributeList={attrList}
+                onBack={handleBackToList}
+                onRequestServiceData={handleServiceDataRequest}
+                isLoadingService={loadingService}
+                serviceLoadingProgress={progress}
+              />
             ) : (
               <DeviceDetailView
                 // @ts-ignore
@@ -808,7 +819,6 @@ const BleDevicesApp: React.FC = () => {
                 isLoadingService={loadingService}
                 serviceLoadingProgress={progress}
                 handlePublish={handlePublish}
-                mode={currentScreen === 'my-devices' ? 'overview' : 'technical'}
               />
             )
           ) : (
