@@ -43,7 +43,7 @@ export const isAuthenticated = (): boolean => {
   return getDecodedToken() !== null || isOdooEmployeeLoggedIn();
 };
 
-const PUBLIC_ROUTES = ["/signin", "/signup"] as const;
+const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup"] as const;
 
 export function isAuth(Component: any) {
   return function ProtectedPage(props: any) {

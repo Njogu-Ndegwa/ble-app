@@ -303,6 +303,24 @@ const LoginPage = () => {
             <span>{t('auth.signInWithMicrosoft')}</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontFamily: 'inherit',
+              padding: '12px 0 0',
+              width: '100%',
+              textAlign: 'center',
+            }}
+          >
+            {t('auth.browsePublicApps')}
+          </button>
+
         </form>
 
         <div style={{ marginTop: 24, textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
