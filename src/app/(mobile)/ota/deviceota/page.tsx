@@ -123,6 +123,10 @@ const AppContainer = () => {
     setConnectedDevice(null);
     setServiceAttrList([]);
     setAtrrList([]);
+    setLoadingService(null);
+    setProgress(0);
+    setConnectingDeviceId(null);
+    setIsConnecting(false);
   };
 
   const startConnection = (macAddress: string) => {
@@ -615,7 +619,10 @@ const AppContainer = () => {
       setConnectedDevice(null);
       setDetectedDevices([]);
       setSelectedDevice(null);
+      setLoadingService(null);
+      setProgress(0);
       setConnectingDeviceId(null);
+      setIsConnecting(false);
       startBleScan();
     }
   };
