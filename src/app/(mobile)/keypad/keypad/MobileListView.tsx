@@ -80,61 +80,40 @@ const MobileListView: React.FC<MobileListViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
+    <div style={{ position: 'relative', zIndex: 1 }}>
       <div className="p-4 max-w-md mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="text-center flex-1">
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Keypad')}</h2>
-          </div>
-          <div className="relative">
-            <div
-              onClick={handleRescan}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
-                items.length === 0 && isScanning ? 'animate-spin' : ''
-              }`}
-              style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-tertiary)';
-                e.currentTarget.style.color = 'var(--accent)';
-                e.currentTarget.style.borderColor = 'var(--accent)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--bg-secondary)';
-                e.currentTarget.style.color = 'var(--text-secondary)';
-                e.currentTarget.style.borderColor = 'var(--border)';
-              }}
-            >
-              <RefreshCcw size={16} />
-            </div>
-          </div>
-        </div>
-
         {/* Search Bar */}
         <div className="relative mb-4">
           <input
             type="text"
             className="form-input"
-            style={{ paddingRight: 80 }}
+            style={{ paddingRight: 100 }}
             placeholder={t('Search devices...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-3">
-            <div
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRescan();
+              }}
+              className={`transition-colors ${items.length === 0 && isScanning ? 'animate-spin' : ''}`}
+              aria-label={t('Rescan')}
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <RefreshCcw size={16} className="hover:opacity-80 transition-opacity" />
+            </button>
+            <button
               className="cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
                 onScanQrCode();
               }}
+              aria-label={t('Scan QR code')}
             >
               <Camera size={18} style={{ color: 'var(--text-secondary)' }} className="hover:opacity-80 transition-opacity" />
-            </div>
+            </button>
             <Search className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
           </div>
         </div>

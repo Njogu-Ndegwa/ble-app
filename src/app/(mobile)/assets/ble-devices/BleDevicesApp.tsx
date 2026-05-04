@@ -665,7 +665,7 @@ const BleDevicesApp: React.FC = () => {
   };
 
   const handleBackToRoles = useCallback(() => {
-    router.push('/');
+    router.replace('/');
   }, [router]);
 
   const handleLogout = useCallback(() => {
@@ -690,10 +690,10 @@ const BleDevicesApp: React.FC = () => {
         setCurrentScreen('devices');
         break;
       case 'my-devices':
-        router.push('/mydevices/devices');
+        router.replace('/mydevices/devices');
         break;
       case 'keypad':
-        router.push('/keypad/keypad');
+        router.replace('/keypad/keypad');
         break;
       case 'profile':
         setCurrentScreen('profile');
@@ -710,7 +710,7 @@ const BleDevicesApp: React.FC = () => {
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-      <AppHeader showBack />
+      <AppHeader showBack onBack={selectedDevice ? handleBackToList : handleBackToRoles} />
 
       <Toaster
         position="top-center"

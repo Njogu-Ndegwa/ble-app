@@ -687,7 +687,7 @@ const KeypadApp: React.FC = () => {
   };
 
   const handleBackToRoles = useCallback(() => {
-    router.push('/');
+    router.replace('/');
   }, [router]);
 
   const handleLogout = useCallback(() => {
@@ -696,16 +696,16 @@ const KeypadApp: React.FC = () => {
     } catch {
       /* ignore storage errors */
     }
-    router.push('/signin');
+    router.replace('/signin');
   }, [router]);
 
   const handleNavigate = useCallback((tab: KeypadTab) => {
     switch (tab) {
       case 'all-devices':
-        router.push('/assets/ble-devices');
+        router.replace('/assets/ble-devices');
         break;
       case 'my-devices':
-        router.push('/mydevices/devices');
+        router.replace('/mydevices/devices');
         break;
       case 'keypad':
         if (selectedDevice) handleBackToList();
@@ -722,7 +722,7 @@ const KeypadApp: React.FC = () => {
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-      <AppHeader showBack />
+      <AppHeader showBack onBack={selectedDevice ? handleBackToList : handleBackToRoles} />
 
       <Toaster
         position="top-center"
@@ -749,35 +749,39 @@ const KeypadApp: React.FC = () => {
         }}
       />
 
-      {currentScreen === 'devices' ? (
-        !selectedDevice ? (
-          <MobileListView
-            items={detectedDevices}
-            onStartConnection={startConnection}
-            connectedDevice={connectedDevice}
-            onScanQrCode={startQrCodeScan}
-            onRescanBleItems={handleBLERescan}
-            isScanning={isScanning}
-          />
-        ) : (
-          <DeviceDetailView
-            // @ts-ignore
-            device={deviceDetails}
-            attributeList={attrList}
-            onBack={handleBackToList}
-            onRequestServiceData={handleServiceDataRequest}
-            isLoadingService={loadingService}
-            serviceLoadingProgress={progress}
-            handlePublish={handlePublish}
-          />
-        )
-      ) : (
-        <DeviceManagerProfile
-          onChangeRole={handleBackToRoles}
-          onLogout={handleLogout}
-          toolLabel={t('keypad.profile.toolName') || 'Keypad'}
-        />
-      )}
+      <main className="attendant-main attendant-main-screen">
+        <div className="attendant-screen-container">
+          {currentScreen === 'devices' ? (
+            !selectedDevice ? (
+              <MobileListView
+                items={detectedDevices}
+                onStartConnection={startConnection}
+                connectedDevice={connectedDevice}
+                onScanQrCode={startQrCodeScan}
+                onRescanBleItems={handleBLERescan}
+                isScanning={isScanning}
+              />
+            ) : (
+              <DeviceDetailView
+                // @ts-ignore
+                device={deviceDetails}
+                attributeList={attrList}
+                onBack={handleBackToList}
+                onRequestServiceData={handleServiceDataRequest}
+                isLoadingService={loadingService}
+                serviceLoadingProgress={progress}
+                handlePublish={handlePublish}
+              />
+            )
+          ) : (
+            <DeviceManagerProfile
+              onChangeRole={handleBackToRoles}
+              onLogout={handleLogout}
+              toolLabel={t('keypad.profile.toolName') || 'Keypad'}
+            />
+          )}
+        </div>
+      </main>
 
       {isConnecting && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
