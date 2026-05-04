@@ -43,7 +43,24 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       onLoginSuccess(accessToken);
     },
     onError: (err) => {
-      const msg = err.graphQLErrors?.[0]?.message ?? err.message ?? t('auth.error.badRequest');
+      const raw = (err.graphQLErrors?.[0]?.message ?? err.message ?? '').toLowerCase();
+      let msg: string;
+      if (
+        raw.includes('unauthorized') || raw.includes('invalid') ||
+        raw.includes('wrong') || raw.includes('incorrect') ||
+        raw.includes('not found') || raw.includes('password') ||
+        raw.includes('credentials') || raw.includes('unauthenticated') ||
+        raw.includes('forbidden') || raw.includes('401') || raw.includes('403')
+      ) {
+        msg = t('auth.error.wrongCredentials') || 'Incorrect email or password. Please try again.';
+      } else if (
+        raw.includes('network') || raw.includes('fetch') ||
+        raw.includes('failed to fetch') || raw.includes('timeout') || raw.includes('econnrefused')
+      ) {
+        msg = t('auth.error.networkError') || 'Connection failed. Please check your network and try again.';
+      } else {
+        msg = t('auth.error.serverError') || 'Something went wrong. Please try again.';
+      }
       toast.error(msg);
     },
   });

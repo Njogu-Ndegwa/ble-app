@@ -60,13 +60,30 @@ const LoginPage = () => {
         saveOdooEmployeeSession(session)
         router.replace('/')
       } else {
-        const msg = data.error || data.message || t('auth.error.badRequest')
-        console.warn('[SignIn] Login FAILED or session missing:', msg)
+        const rawMsg = (data.error || data.message || '').toLowerCase()
+        console.warn('[SignIn] Login FAILED or session missing:', data.error || data.message)
+        let msg: string
+        if (
+          rawMsg.includes('invalid') || rawMsg.includes('wrong') ||
+          rawMsg.includes('incorrect') || rawMsg.includes('not found') ||
+          rawMsg.includes('password') || rawMsg.includes('credentials') ||
+          rawMsg.includes('unauthorized') || rawMsg.includes('unauthenticated') ||
+          rawMsg.includes('401') || rawMsg.includes('403') || rawMsg === ''
+        ) {
+          msg = t('auth.error.wrongCredentials') || 'Incorrect email or password. Please try again.'
+        } else {
+          msg = t('auth.error.serverError') || 'Something went wrong. Please try again.'
+        }
         toast.error(msg)
       }
     } catch (err: any) {
       console.error('[SignIn] login error:', err)
-      toast.error(t('auth.error.badRequest'))
+      const errMsg = (err?.message || '').toLowerCase()
+      if (errMsg.includes('fetch') || errMsg.includes('network') || errMsg.includes('timeout')) {
+        toast.error(t('auth.error.networkError') || 'Connection failed. Please check your network and try again.')
+      } else {
+        toast.error(t('auth.error.serverError') || 'Something went wrong. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
