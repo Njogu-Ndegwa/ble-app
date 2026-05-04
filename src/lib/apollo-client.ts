@@ -34,12 +34,12 @@ const authLink = setContext((_, { headers }) => {
 const AUTH_OPERATIONS = new Set(["SignInUser"]);
 
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
-  console.log('[Apollo errorLink] operation:', operation.operationName);
-  console.log('[Apollo errorLink] graphQLErrors:', JSON.stringify(graphQLErrors ?? null));
-  console.log('[Apollo errorLink] networkError:', networkError ? String(networkError) : null);
+  console.warn('[Apollo errorLink] operation:', operation.operationName);
+  console.warn('[Apollo errorLink] graphQLErrors:', JSON.stringify(graphQLErrors ?? null));
+  console.warn('[Apollo errorLink] networkError:', networkError ? String(networkError) : null);
 
   if (AUTH_OPERATIONS.has(operation.operationName)) {
-    console.log('[Apollo errorLink] AUTH_OPERATION — skipping token refresh, letting error propagate to caller');
+    console.warn('[Apollo errorLink] AUTH_OPERATION — skipping token refresh, letting error propagate to caller');
     return;
   }
 
@@ -48,7 +48,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
     (networkError && "statusCode" in networkError && networkError.statusCode === 401)
   ) {
     const refreshToken = localStorage.getItem("refresh_token");
-    console.log('[Apollo errorLink] UNAUTHENTICATED — refreshToken present:', !!refreshToken);
+    console.warn('[Apollo errorLink] UNAUTHENTICATED — refreshToken present:', !!refreshToken);
     if (refreshToken) {
       return new Observable((observer) => {
         apolloClient
@@ -73,7 +73,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
             });
           })
           .catch((error) => {
-            console.log('[Apollo errorLink] token refresh FAILED:', error);
+            console.warn('[Apollo errorLink] token refresh FAILED:', String(error));
             handleLogout();
             observer.error(error);
           });
