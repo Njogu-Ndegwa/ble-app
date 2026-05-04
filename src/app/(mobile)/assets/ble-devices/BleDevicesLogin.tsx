@@ -43,7 +43,14 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       onLoginSuccess(accessToken);
     },
     onError: (err) => {
+      console.log('[BleDevicesLogin] onError full error:', JSON.stringify({
+        message: err.message,
+        graphQLErrors: err.graphQLErrors,
+        networkError: err.networkError ? String(err.networkError) : null,
+        extraInfo: err.extraInfo,
+      }));
       const raw = (err.graphQLErrors?.[0]?.message ?? err.message ?? '').toLowerCase();
+      console.log('[BleDevicesLogin] onError raw message used for matching:', raw);
       let msg: string;
       if (
         raw.includes('unauthorized') || raw.includes('invalid') ||
@@ -61,6 +68,7 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       } else {
         msg = t('auth.error.serverError') || 'Something went wrong. Please try again.';
       }
+      console.log('[BleDevicesLogin] onError showing toast:', msg);
       toast.error(msg);
     },
   });
