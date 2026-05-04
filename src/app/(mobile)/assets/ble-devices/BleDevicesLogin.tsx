@@ -43,14 +43,13 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       onLoginSuccess(accessToken);
     },
     onError: (err) => {
-      console.log('[BleDevicesLogin] onError full error:', JSON.stringify({
+      console.warn('[BleDevicesLogin] onError full error:', JSON.stringify({
         message: err.message,
-        graphQLErrors: err.graphQLErrors,
+        graphQLErrors: err.graphQLErrors ?? null,
         networkError: err.networkError ? String(err.networkError) : null,
-        extraInfo: err.extraInfo,
       }));
       const raw = (err.graphQLErrors?.[0]?.message ?? err.message ?? '').toLowerCase();
-      console.log('[BleDevicesLogin] onError raw message used for matching:', raw);
+      console.warn('[BleDevicesLogin] onError raw message used for matching:', raw);
       let msg: string;
       if (
         raw.includes('unauthorized') || raw.includes('invalid') ||
@@ -68,17 +67,20 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       } else {
         msg = t('auth.error.serverError') || 'Something went wrong. Please try again.';
       }
-      console.log('[BleDevicesLogin] onError showing toast:', msg);
+      console.warn('[BleDevicesLogin] onError showing toast:', msg);
       toast.error(msg);
     },
   });
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    console.warn('[BleDevicesLogin] handleLogin fired — email:', email.trim(), '| password length:', password.length);
     if (!email.trim() || !password) {
+      console.warn('[BleDevicesLogin] handleLogin — missing credentials, showing toast');
       toast.error(t('auth.error.missingCredentials'));
       return;
     }
+    console.warn('[BleDevicesLogin] calling signInUser mutation');
     signInUser({ variables: { signInCredentials: { email: email.trim(), password } } });
   };
 
