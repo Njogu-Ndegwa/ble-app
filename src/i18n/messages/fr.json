@@ -14,6 +14,7 @@
   "auth.passwordPlaceholder": "Mot de passe",
   "auth.signIn": "Se connecter",
   "auth.signingIn": "Connexion en cours...",
+  "auth.noSignInRequired": "Sans connexion requise",
   "auth.noAccount": "Vous n'avez pas de compte ?",
   "auth.createAccount": "Créer un compte",
   "auth.creatingAccount": "Création du compte...",

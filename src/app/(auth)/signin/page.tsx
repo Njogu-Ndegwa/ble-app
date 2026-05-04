@@ -303,11 +303,11 @@ const LoginPage = () => {
             <span>{t('auth.signInWithMicrosoft')}</span>
           </button>
 
-          {/* Public apps divider */}
+          {/* Keypad public access */}
           <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
             <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t('auth.orContinueAs') || 'or continue as'}
+              or
             </span>
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
@@ -328,14 +328,10 @@ const LoginPage = () => {
               <line x1="16" y1="13" x2="16" y2="13.01"/>
               <line x1="8" y1="17" x2="16" y2="17"/>
             </svg>
-            <span>{t('auth.browsePublicApps') || 'Access Public Apps'}</span>
+            <span>{t('role.keypad') || 'Keypad'} — {t('auth.noSignInRequired') || 'No sign-in required'}</span>
           </button>
 
         </form>
-
-        <div style={{ marginTop: 24, textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
-          <p>{t('common.version', { version: '1.2.5' })}</p>
-        </div>
       </div>
     </>
   )

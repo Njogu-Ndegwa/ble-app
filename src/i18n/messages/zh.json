@@ -14,6 +14,7 @@
   "auth.passwordPlaceholder": "密码",
   "auth.signIn": "登录",
   "auth.signingIn": "登录中...",
+  "auth.noSignInRequired": "无需登录",
   "auth.noAccount": "没有账户？",
   "auth.createAccount": "创建账户",
   "auth.creatingAccount": "创建账户中...",
