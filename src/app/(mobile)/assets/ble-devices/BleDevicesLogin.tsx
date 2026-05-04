@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { useMutation } from '@apollo/client';
 import { useI18n } from '@/i18n';
-import AppHeader from '@/components/AppHeader';
 import { SIGN_IN_USER } from '@/app/(auth)/mutations';
 
 // sessionStorage keys scoped to this applet
@@ -59,10 +58,7 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
   };
 
   return (
-    <>
-      <AppHeader />
-
-      <div className="login-container">
+    <div className="login-container">
         <Toaster
           position="top-center"
           toastOptions={{
@@ -176,8 +172,7 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
             )}
           </button>
         </form>
-      </div>
-    </>
+    </div>
   );
 };
 
