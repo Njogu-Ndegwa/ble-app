@@ -90,7 +90,7 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
             </svg>
           </div>
           <h1 className="login-title">{t('ble.profile.toolName') || 'BLE Device Manager'}</h1>
-          <p className="login-subtitle">{t('auth.appSubtitle')}</p>
+          <p className="login-subtitle">{t('ble.loginSubtitle') || 'Device Management System — separate credentials required'}</p>
         </div>
 
         <form onSubmit={handleLogin} className="login-form">

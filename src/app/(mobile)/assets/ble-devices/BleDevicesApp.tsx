@@ -14,6 +14,7 @@ import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
 import DeviceManagerProfile from './components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
+import { clearAllAuth } from '@/lib/attendant-auth';
 
 type BleDevicesScreen = 'devices' | 'profile';
 
@@ -668,13 +669,18 @@ const BleDevicesApp: React.FC = () => {
   }, [router]);
 
   const handleLogout = useCallback(() => {
+    // Clear the BLE Device Manager applet session
     try {
       sessionStorage.removeItem(BLE_DM_TOKEN_KEY);
       sessionStorage.removeItem(BLE_DM_USER_KEY);
     } catch {
       /* ignore storage errors */
     }
-    setBleToken(null);
+    // Clear ALL auth credentials (Odoo employee session, legacy tokens, rider, etc.)
+    // so the user must start fresh from the first login → BLE App → second login
+    clearAllAuth();
+    // Hard redirect to first login so no stale state lingers in the router
+    window.location.href = '/signin';
   }, []);
 
   const handleNavigate = useCallback((tab: BleDevicesTab) => {
