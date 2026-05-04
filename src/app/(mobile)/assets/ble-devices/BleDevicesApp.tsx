@@ -7,13 +7,14 @@ import { Toaster, toast } from "react-hot-toast";
 import MobileListView from "./MobileListView";
 import DeviceDetailView from "./DeviceDetailView";
 import ProgressiveLoading from "../../../../components/loader/progressiveLoading";
-import { connBleByMacAddress, initServiceBleData } from "../../../utils";
+import { connBleByMacAddress, initServiceBleData, disconnBleByMacAddress } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
 import DeviceManagerProfile from './components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
+import { Power } from 'lucide-react';
 import { clearAllAuth } from '@/lib/attendant-auth';
 
 type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
@@ -679,6 +680,24 @@ const BleDevicesApp: React.FC = () => {
     router.replace('/');
   }, [router]);
 
+  const handleDisconnectDevice = useCallback(() => {
+    if (!selectedDevice) return;
+    disconnBleByMacAddress(selectedDevice, (resp: any) => {
+      try {
+        const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
+        const ok = parsed?.respCode === '200' || parsed?.respData === true;
+        if (ok) {
+          toast.success(t('Disconnected from device'), { id: 'disconnect-toast', duration: 1500 });
+          setTimeout(() => handleBackToList(), 500);
+        } else {
+          toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
+        }
+      } catch {
+        toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
+      }
+    });
+  }, [selectedDevice, handleBackToList, t]);
+
   const handleLogout = useCallback(() => {
     // Clear the BLE Device Manager applet session
     try {
@@ -722,7 +741,24 @@ const BleDevicesApp: React.FC = () => {
   return (
     <div className="attendant-container has-bottom-nav">
       <div className="attendant-bg-gradient" />
-      <AppHeader showBack onBack={selectedDevice ? handleBackToList : handleBackToRoles} />
+      <AppHeader
+        showBack
+        onBack={selectedDevice ? handleBackToList : handleBackToRoles}
+        title={selectedDevice ? (deviceDetails?.name ?? t('Device')) : undefined}
+        actions={selectedDevice ? (
+          <button
+            onClick={handleDisconnectDevice}
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: 'var(--color-error)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            title={t('Disconnect Device') || 'Disconnect Device'}
+            aria-label={t('Disconnect Device') || 'Disconnect Device'}
+          >
+            <Power className="w-5 h-5" />
+          </button>
+        ) : undefined}
+      />
 
       <Toaster
         position="top-center"

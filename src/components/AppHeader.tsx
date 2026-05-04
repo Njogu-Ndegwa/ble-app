@@ -35,9 +35,19 @@ interface AppHeaderProps {
    * Custom back handler. Defaults to router.back().
    */
   onBack?: () => void;
+  /**
+   * When provided, replaces the logo with a page title in the header center.
+   * Use this on drill-down sub-pages (e.g. device details).
+   */
+  title?: string;
+  /**
+   * When provided, replaces the avatar/sign-in slot in the right area.
+   * Use this to surface contextual actions (e.g. disconnect button) on sub-pages.
+   */
+  actions?: React.ReactNode;
 }
 
-export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack }: AppHeaderProps) {
+export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack, title, actions }: AppHeaderProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -119,7 +129,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     <>
       <header className="flow-header">
         <div className="flow-header-inner">
-          {/* Left: back arrow (applets) OR hamburger (layout) + logo */}
+          {/* Left: back arrow (applets) OR hamburger (layout) + logo/title */}
           <div className="flow-header-left">
             {showBack ? (
               <button
@@ -138,26 +148,33 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
                 <Menu size={16} />
               </button>
             ) : null}
-            <button
-              className="app-header-logo-btn"
-              onClick={() => router.push('/')}
-              aria-label="Home"
-            >
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </button>
+            {!title && (
+              <button
+                className="app-header-logo-btn"
+                onClick={() => router.push('/')}
+                aria-label="Home"
+              >
+                <Image
+                  src="/assets/Logo-Oves.png"
+                  alt="Omnivoltaic"
+                  width={100}
+                  height={28}
+                  style={{ objectFit: 'contain' }}
+                  priority
+                />
+              </button>
+            )}
           </div>
 
-          {/* Right: theme toggle + sign-in button (unauthenticated) or avatar (authenticated) */}
+          {/* Center: page title (only on sub-pages) */}
+          {title && (
+            <span className="flow-header-title">{title}</span>
+          )}
+
+          {/* Right: theme toggle + contextual actions or avatar */}
           <div className="flow-header-right">
             <ThemeToggle />
-            {onSignIn ? (
+            {actions != null ? actions : onSignIn ? (
               <button
                 className="flow-header-lang"
                 onClick={onSignIn}

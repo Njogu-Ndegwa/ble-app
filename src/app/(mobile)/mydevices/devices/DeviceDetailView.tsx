@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from '../../../utils';
+import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { toast } from 'react-hot-toast';
 import {
-  ArrowLeft, Share2, Clipboard, RefreshCw, Power, Calendar,
+  Clipboard, RefreshCw, Calendar,
   Unlock, RotateCcw, Clock, CheckCircle, AlertCircle, Loader2, Download,
 } from 'lucide-react';
 import { AsciiStringModal } from '../../../modals';
@@ -173,27 +173,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     if (!stsService) onRequestServiceData('STS');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleBack = () => (onBack ? onBack() : router.back());
-
-  const handleDisconnect = () => {
-    if (!device?.macAddress) return;
-    disconnBleByMacAddress(device.macAddress, (resp: any) => {
-      try {
-        const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
-        const ok = parsed?.respCode === '200' || parsed?.respData === true;
-        if (ok) {
-          toast.success(t('Disconnected from device'), { duration: 1500, id: 'disconnect-toast' });
-          sessionStorage.removeItem("connectedDeviceMac");
-          setTimeout(() => { onBack?.(); }, 500);
-        } else {
-          toast.error(t('Failed to disconnect device'), { duration: 1500, id: 'disconnect-error' });
-        }
-      } catch {
-        toast.error(t('Failed to disconnect device'), { duration: 1500, id: 'disconnect-error' });
-      }
-    });
-  };
 
   const handleRead = useCallback(() => {
     if (!cmdService || !pubkCharacteristic) return;
@@ -557,32 +536,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         title={activeCharacteristic?.name || t('Public Key / Last Code / GPRS Carrier APN Name')}
       />
 
-      {/* Header */}
-      <div className="p-4 flex items-center" style={{ borderBottom: '1px solid var(--border)' }}>
-        <button
-          onClick={handleBack}
-          className="mr-4 transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
-        >
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <h1 className="text-lg font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>{t('Device Details')}</h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleDisconnect}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: 'var(--color-error)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            title={t('Disconnect Device')}
-          >
-            <Power className="w-5 h-5" />
-          </button>
-          <Share2 className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
-        </div>
-      </div>
 
       {/* Device Info */}
       <div className="flex flex-col items-center p-6 pb-3">

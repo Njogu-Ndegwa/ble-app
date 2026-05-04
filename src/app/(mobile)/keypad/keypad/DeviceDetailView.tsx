@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
-import { Share2, Clipboard, Power } from 'lucide-react';
-import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from '../../../utils';
+import { Clipboard } from 'lucide-react';
+import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
 
@@ -351,32 +351,6 @@ useEffect(() => {
 
 
   /* ------------------------------------------------------------------ */
-  /* Disconnect handler */
-  /* ------------------------------------------------------------------ */
-  const handleDisconnect = () => {
-    if (!device?.macAddress) return;
-    disconnBleByMacAddress(device.macAddress, (resp: any) => {
-      try {
-        const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
-        const ok = parsed?.respCode === '200' || parsed?.respData === true;
-        if (ok) {
-          toast.success(t('Disconnected from device'), { id: 'disconnect-toast', duration: 1500 });
-          sessionStorage.removeItem('connectedDeviceMac');
-          if (onBack) {
-            setTimeout(() => {
-              onBack();
-            }, 500);
-          }
-        } else {
-          toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
-        }
-      } catch (e) {
-        toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
-      }
-    });
-  };
-
-  /* ------------------------------------------------------------------ */
   /* Render */
   /* ------------------------------------------------------------------ */
 
@@ -596,28 +570,6 @@ useEffect(() => {
       />
       {/* ---------- main content ---------- */}
       <div className="p-4 space-y-4 max-w-md mx-auto">
-        {/* Device title row */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-            {getDisplayValue(opidCharacteristic) !== t('N/A')
-              ? getDisplayValue(opidCharacteristic)
-              : (device.name ?? t('Device'))}
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleDisconnect}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: 'var(--color-error)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              title={t('Disconnect Device') || 'Disconnect Device'}
-              aria-label={t('Disconnect Device') || 'Disconnect Device'}
-            >
-              <Power className="w-5 h-5" />
-            </button>
-            <Share2 className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
-          </div>
-        </div>
         {credentialsCards}
         {inputDisplay}
         {keypadGrid}

@@ -579,10 +579,9 @@
 "use client";
 
 import React, { useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from "../../../utils";
+import { readBleCharacteristic, writeBleCharacteristic } from "../../../utils";
 import { Toaster, toast } from "react-hot-toast";
-import { ArrowLeft, Share2, RefreshCw, Clipboard, Power } from "lucide-react";
+import { RefreshCw, Clipboard } from "lucide-react";
 import { AsciiStringModal, NumericModal } from "../../../modals";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
@@ -616,7 +615,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   handlePublish,
   mode = 'technical',
 }) => {
-  const router = useRouter();
   const { t } = useI18n();
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: any }>(
     {}
@@ -735,8 +733,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       onRequestServiceData("ATT");
     }
   }, [onRequestServiceData, isServiceLoaded]);
-
-  const handleBack = () => (onBack ? onBack() : router.back());
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -896,29 +892,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     onRequestServiceData(activeTab);
   };
 
-  const handleDisconnect = () => {
-    if (!device?.macAddress) return;
-    disconnBleByMacAddress(device.macAddress, (resp: any) => {
-      try {
-        const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
-        const ok = parsed?.respCode === '200' || parsed?.respData === true;
-        if (ok) {
-          toast.success(t('Disconnected from device'), { duration: 1500, id: 'disconnect-toast' });
-          // Navigate back to device list after toast shows briefly
-          if (onBack) {
-            setTimeout(() => {
-              onBack();
-            }, 500);
-          }
-        } else {
-          toast.error(t('Failed to disconnect device'), { duration: 1500, id: 'disconnect-error' });
-        }
-      } catch (e) {
-        toast.error(t('Failed to disconnect device'), { duration: 1500, id: 'disconnect-error' });
-      }
-    });
-  };
-
   // Show OPID instead of device.name
   const deviceDisplayName =
     getDisplayValue(opidCharacteristic) || device.name || t("Unknown Device");
@@ -971,25 +944,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           title={activeCharacteristic?.name || t('Read')}
         />
 
-        {/* Header */}
-        <div className="p-4 flex items-center max-w-md mx-auto">
-          <button onClick={handleBack} className="mr-4 flow-header-back">
-            <ArrowLeft size={18} />
-          </button>
-          <h1 className="text-lg font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
-            {t('My Device')}
-          </h1>
-          <button
-            onClick={handleDisconnect}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: 'var(--color-error)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            title={t('Disconnect Device')}
-          >
-            <Power className="w-5 h-5" />
-          </button>
-        </div>
 
         {/* Device card */}
         <div className="max-w-md mx-auto px-4 pb-6 space-y-4">
@@ -1115,25 +1069,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || t("Read")}
       />
-      <div className="p-4 flex items-center max-w-md mx-auto">
-        <button onClick={handleBack} className="mr-4 flow-header-back">
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-lg font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>{t("Device Details")}</h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleDisconnect}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: 'var(--color-error)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            title={t('Disconnect Device')}
-          >
-            <Power className="w-5 h-5" />
-          </button>
-          <Share2 className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} />
-        </div>
-      </div>
       <div className="flex flex-col items-center p-6 pb-2 max-w-md mx-auto">
         <img
           src={device.imageUrl}
