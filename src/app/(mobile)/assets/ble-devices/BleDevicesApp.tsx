@@ -16,7 +16,7 @@ import AppHeader from '@/components/AppHeader';
 import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
 import { clearAllAuth } from '@/lib/attendant-auth';
 
-type BleDevicesScreen = 'devices' | 'profile';
+type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
 
 let bridgeHasBeenInitialized = false;
 
@@ -93,7 +93,7 @@ const BleDevicesApp: React.FC = () => {
     return sessionStorage.getItem(BLE_DM_TOKEN_KEY);
   });
 
-  const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('devices');
+  const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('all-devices');
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [detectedDevices, setDetectedDevices] = useState<BleDevice[]>([]);
@@ -687,18 +687,22 @@ const BleDevicesApp: React.FC = () => {
     switch (tab) {
       case 'all-devices':
         if (selectedDevice) handleBackToList();
-        setCurrentScreen('devices');
+        setCurrentScreen('all-devices');
         break;
       case 'my-devices':
-        router.replace('/mydevices/devices');
+        if (selectedDevice) handleBackToList();
+        setCurrentScreen('my-devices');
         break;
       case 'profile':
         setCurrentScreen('profile');
         break;
     }
-  }, [selectedDevice, handleBackToList, router]);
+  }, [selectedDevice, handleBackToList]);
 
-  const currentTab: BleDevicesTab = currentScreen === 'profile' ? 'profile' : 'all-devices';
+  const currentTab: BleDevicesTab =
+    currentScreen === 'profile' ? 'profile' :
+    currentScreen === 'my-devices' ? 'my-devices' :
+    'all-devices';
 
   if (!bleToken) {
     return <BleDevicesLogin onLoginSuccess={(token) => setBleToken(token)} />;
@@ -734,7 +738,7 @@ const BleDevicesApp: React.FC = () => {
         }}
       />
 
-      {currentScreen === 'devices' ? (
+      {currentScreen !== 'profile' ? (
         !selectedDevice ? (
           <MobileListView
             items={detectedDevices}

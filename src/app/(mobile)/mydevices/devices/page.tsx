@@ -1,9 +1,12 @@
 "use client";
 
-import MyDevicesApp from './MyDevicesApp';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export type { BleDevice } from './MyDevicesApp';
-
-export default function Page() {
-  return <MyDevicesApp />;
+export default function MyDevicesRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/assets/ble-devices');
+  }, [router]);
+  return null;
 }

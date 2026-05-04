@@ -7,7 +7,7 @@ import {
   RefreshCcw,
   BluetoothSearching,
 } from 'lucide-react';
-import { BleDevice } from './page';
+import { BleDevice } from './MyDevicesApp';
 import { useI18n } from '@/i18n';
 
 interface MobileListViewProps {
