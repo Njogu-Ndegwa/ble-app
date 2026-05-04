@@ -749,36 +749,40 @@ const BleDevicesApp: React.FC = () => {
         }}
       />
 
-      {currentScreen !== 'profile' ? (
-        !selectedDevice ? (
-          <MobileListView
-            items={detectedDevices}
-            onStartConnection={startConnection}
-            connectedDevice={connectedDevice}
-            onScanQrCode={startQrCodeScan}
-            onRescanBleItems={handleBLERescan}
-            isScanning={isScanning}
-            title={currentScreen === 'my-devices' ? (t('nav.mydevices') || 'My Devices') : (t('nav.assets.bledevices') || 'All Devices')}
-          />
-        ) : (
-          <DeviceDetailView
-            // @ts-ignore
-            device={deviceDetails}
-            attributeList={attrList}
-            onBack={handleBackToList}
-            onRequestServiceData={handleServiceDataRequest}
-            isLoadingService={loadingService}
-            serviceLoadingProgress={progress}
-            handlePublish={handlePublish}
-          />
-        )
-      ) : (
-        <DeviceManagerProfile
-          onChangeRole={handleBackToRoles}
-          onLogout={handleLogout}
-          toolLabel={t('ble.profile.toolName') || 'BLE Device Manager'}
-        />
-      )}
+      <main className="attendant-main attendant-main-screen">
+        <div className="attendant-screen-container">
+          {currentScreen !== 'profile' ? (
+            !selectedDevice ? (
+              <MobileListView
+                items={detectedDevices}
+                onStartConnection={startConnection}
+                connectedDevice={connectedDevice}
+                onScanQrCode={startQrCodeScan}
+                onRescanBleItems={handleBLERescan}
+                isScanning={isScanning}
+                title={currentScreen === 'my-devices' ? (t('nav.mydevices') || 'My Devices') : (t('nav.assets.bledevices') || 'All Devices')}
+              />
+            ) : (
+              <DeviceDetailView
+                // @ts-ignore
+                device={deviceDetails}
+                attributeList={attrList}
+                onBack={handleBackToList}
+                onRequestServiceData={handleServiceDataRequest}
+                isLoadingService={loadingService}
+                serviceLoadingProgress={progress}
+                handlePublish={handlePublish}
+              />
+            )
+          ) : (
+            <DeviceManagerProfile
+              onChangeRole={handleBackToRoles}
+              onLogout={handleLogout}
+              toolLabel={t('ble.profile.toolName') || 'BLE Device Manager'}
+            />
+          )}
+        </div>
+      </main>
 
       {isConnecting && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
