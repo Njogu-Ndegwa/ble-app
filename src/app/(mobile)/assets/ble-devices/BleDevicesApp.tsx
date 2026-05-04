@@ -747,6 +747,7 @@ const BleDevicesApp: React.FC = () => {
             onScanQrCode={startQrCodeScan}
             onRescanBleItems={handleBLERescan}
             isScanning={isScanning}
+            title={currentScreen === 'my-devices' ? (t('nav.mydevices') || 'My Devices') : (t('nav.assets.bledevices') || 'All Devices')}
           />
         ) : (
           <DeviceDetailView

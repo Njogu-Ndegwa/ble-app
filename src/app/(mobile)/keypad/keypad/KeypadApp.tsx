@@ -754,6 +754,7 @@ const KeypadApp: React.FC = () => {
                 onScanQrCode={startQrCodeScan}
                 onRescanBleItems={handleBLERescan}
                 isScanning={isScanning}
+                title={t('nav.keypad') || 'Keypad'}
               />
             ) : (
               <DeviceDetailView
