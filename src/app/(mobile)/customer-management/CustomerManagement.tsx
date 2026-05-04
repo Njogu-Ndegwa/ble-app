@@ -29,6 +29,7 @@ import {
   PhoneInputWithCountry,
 } from '@/components/ui';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
+import FilterChips from '@/components/ui/FilterChips';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import {
   searchCustomers,
@@ -65,6 +66,11 @@ const EMPTY_FORM: CustomerFormState = {
   street: '',
   city: '',
   zip: '',
+};
+
+const CUSTOMER_TYPE_BADGE: Record<'individual' | 'company', string> = {
+  individual: 'list-card-badge list-card-badge--info',
+  company: 'list-card-badge list-card-badge--progress',
 };
 
 interface CustomerManagementProps {
@@ -500,21 +506,11 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
           : (t('sales.customerPlural') || 'customers')
         }
         headerExtra={
-          <div className="flex gap-2 pb-2 pt-1">
-            {TYPE_FILTER_OPTIONS.map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => setCustomerType(value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                  customerType === value
-                    ? 'border-brand bg-brand/10 text-brand'
-                    : 'border-border bg-bg-tertiary text-text-secondary hover:bg-bg-elevated'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <FilterChips
+            items={TYPE_FILTER_OPTIONS.map(({ value, label }) => ({ key: value, label }))}
+            activeKey={customerType}
+            onSelect={(key) => setCustomerType(key as CustomerTypeFilter)}
+          />
         }
         fabAction={openCreate}
         fabLabel={t('sales.createCustomer') || 'Create Customer'}
@@ -535,10 +531,6 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
                 <div className="list-card-primary">{customer.name}</div>
                 <div className="list-card-secondary">
                   <Phone size={10} /> {customer.phone ? formatPhone(customer.phone) : 'N/A'}
-                  <span className="list-card-dot">&middot;</span>
-                  {customer.isCompany
-                    ? <><Building2 size={10} /><span>{t('customerMgmt.filterCompany') || 'Company'}</span></>
-                    : <><User size={10} /><span>{t('customerMgmt.filterIndividual') || 'Individual'}</span></>}
                 </div>
                 <div className="list-card-meta">
                   <Mail size={10} />
@@ -547,6 +539,13 @@ export default function CustomerManagement({ onLogout }: CustomerManagementProps
                   <MapPin size={10} />
                   <span>{customer.city || 'N/A'}</span>
                 </div>
+              </div>
+              <div className="list-card-actions">
+                <span className={customer.isCompany ? CUSTOMER_TYPE_BADGE.company : CUSTOMER_TYPE_BADGE.individual}>
+                  {customer.isCompany
+                    ? (t('customerMgmt.filterCompany') || 'Company')
+                    : (t('customerMgmt.filterIndividual') || 'Individual')}
+                </span>
               </div>
             </div>
           </button>
