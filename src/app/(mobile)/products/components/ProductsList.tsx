@@ -25,6 +25,18 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   product: 'Storable',
 };
 
+// Cycle through themed colors so each category gets a consistent, distinct badge.
+// Skips grey (--default) and red (--overdue) — reserved for inactive/error states.
+const CATEGORY_BADGE_PALETTE = [
+  'list-card-badge list-card-badge--info',      // teal  (brand / accent)
+  'list-card-badge list-card-badge--progress',  // amber (warm / secondary)
+  'list-card-badge list-card-badge--completed', // green (positive)
+] as const;
+
+function getCategoryBadgeClass(categoryId: number): string {
+  return CATEGORY_BADGE_PALETTE[categoryId % CATEGORY_BADGE_PALETTE.length];
+}
+
 interface ProductsListProps {
   onSelect: (product: OdooProduct) => void;
 }
@@ -147,7 +159,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
             </div>
             <div className="list-card-actions">
               {product.category?.complete_name && (
-                <span className="list-card-badge list-card-badge--default">
+                <span className={getCategoryBadgeClass(product.category.id)}>
                   {parseLastSegment(product.category.complete_name)}
                 </span>
               )}
