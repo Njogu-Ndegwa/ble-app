@@ -303,22 +303,32 @@ const LoginPage = () => {
             <span>{t('auth.signInWithMicrosoft')}</span>
           </button>
 
+          {/* Public apps divider */}
+          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {t('auth.orContinueAs') || 'or continue as'}
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
           <button
             type="button"
-            onClick={() => router.push('/')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontFamily: 'inherit',
-              padding: '12px 0 0',
-              width: '100%',
-              textAlign: 'center',
-            }}
+            className="btn btn-secondary"
+            onClick={() => router.push('/keypad/keypad')}
+            style={{ width: '100%' }}
           >
-            {t('auth.browsePublicApps')}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8, flexShrink: 0 }}>
+              <rect x="2" y="3" width="20" height="18" rx="2"/>
+              <line x1="8" y1="9" x2="8" y2="9.01"/>
+              <line x1="12" y1="9" x2="12" y2="9.01"/>
+              <line x1="16" y1="9" x2="16" y2="9.01"/>
+              <line x1="8" y1="13" x2="8" y2="13.01"/>
+              <line x1="12" y1="13" x2="12" y2="13.01"/>
+              <line x1="16" y1="13" x2="16" y2="13.01"/>
+              <line x1="8" y1="17" x2="16" y2="17"/>
+            </svg>
+            <span>{t('auth.browsePublicApps') || 'Access Public Apps'}</span>
           </button>
 
         </form>

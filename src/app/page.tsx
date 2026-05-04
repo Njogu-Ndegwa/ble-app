@@ -148,7 +148,7 @@ export default function Index() {
   /** Determine which authenticated state to show after splash/onboarding. */
   const resolveAuthState = useCallback(() => {
     if (!isOdooEmployeeLoggedIn()) {
-      setAppState('landing');
+      router.replace('/signin');
       return;
     }
     const saId = getSelectedSAId();
@@ -166,7 +166,7 @@ export default function Index() {
     } else {
       setAppState('selectRole');
     }
-  }, []);
+  }, [router]);
 
   const hasSeenOnboarding = () => {
     if (typeof window === 'undefined') return false;
