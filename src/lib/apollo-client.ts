@@ -28,48 +28,56 @@ const authLink = setContext((_, { headers }) => {
   };
 });
 
+// Operations that perform authentication themselves — UNAUTHENTICATED errors from
+// these mean "wrong credentials", not an expired session, so the error must reach
+// the caller's onError handler unchanged.
+const AUTH_OPERATIONS = new Set(["SignInUser"]);
+
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
-  if (graphQLErrors || networkError) {
-    // Handle unauthenticated errors
-    if (
-      graphQLErrors?.some((err) => err.extensions?.code === "UNAUTHENTICATED") ||
-      (networkError && "statusCode" in networkError && networkError.statusCode === 401)
-    ) {
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (refreshToken) {
-        return new Observable((observer) => {
-          apolloClient
-            .mutate({
-              mutation: REFRESH_TOKEN,
-              variables: { refreshToken },
-            })
-            .then(({ data }) => {
-              const { accessToken, refreshToken: newRefreshToken } = data.refreshToken;
-              localStorage.setItem("access_token", accessToken);
-              localStorage.setItem("refresh_token", newRefreshToken);
-              operation.setContext(({ headers = {} }) => ({
-                headers: {
-                  ...headers,
-                  authorization: `Bearer ${accessToken}`,
-                },
-              }));
-              forward(operation).subscribe({
-                next: observer.next.bind(observer),
-                error: observer.error.bind(observer),
-                complete: observer.complete.bind(observer),
-              });
-            })
-            .catch((error) => {
-              handleLogout();
-              observer.error(error);
+  if (AUTH_OPERATIONS.has(operation.operationName)) {
+    // Let the error propagate naturally to the mutation's own onError handler.
+    return;
+  }
+
+  if (
+    graphQLErrors?.some((err) => err.extensions?.code === "UNAUTHENTICATED") ||
+    (networkError && "statusCode" in networkError && networkError.statusCode === 401)
+  ) {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (refreshToken) {
+      return new Observable((observer) => {
+        apolloClient
+          .mutate({
+            mutation: REFRESH_TOKEN,
+            variables: { refreshToken },
+          })
+          .then(({ data }) => {
+            const { accessToken, refreshToken: newRefreshToken } = data.refreshToken;
+            localStorage.setItem("access_token", accessToken);
+            localStorage.setItem("refresh_token", newRefreshToken);
+            operation.setContext(({ headers = {} }) => ({
+              headers: {
+                ...headers,
+                authorization: `Bearer ${accessToken}`,
+              },
+            }));
+            forward(operation).subscribe({
+              next: observer.next.bind(observer),
+              error: observer.error.bind(observer),
+              complete: observer.complete.bind(observer),
             });
-        });
-      } else {
-        handleLogout();
-      }
+          })
+          .catch((error) => {
+            handleLogout();
+            observer.error(error);
+          });
+      });
+    } else {
+      handleLogout();
     }
   }
-  return forward(operation);
+  // Returning nothing lets non-auth errors propagate naturally to each
+  // operation's own onError / error handler.
 });
 
 const handleLogout = () => {
