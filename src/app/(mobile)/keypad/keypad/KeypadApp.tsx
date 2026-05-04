@@ -125,9 +125,14 @@ const KeypadApp: React.FC = () => {
 
   const handleBackToList = useCallback(() => {
     setSelectedDevice(null);
+    sessionStorage.removeItem('connectedDeviceMac');
+    setConnectedDevice(null);
     setServiceAttrList([]);
     setAtrrList([]);
     setLoadingService(null);
+    setProgress(0);
+    setConnectingDeviceId(null);
+    setIsConnecting(false);
   }, []);
 
   useEffect(() => {
@@ -493,7 +498,7 @@ const KeypadApp: React.FC = () => {
   };
 
   useEffect(() => {
-    if (progress === 100 && attributeList.length > 0) {
+    if (progress === 100 && attributeList.length > 0 && connectingDeviceId) {
       setIsConnecting(false);
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList);

@@ -28,48 +28,62 @@ const authLink = setContext((_, { headers }) => {
   };
 });
 
+// Operations that perform authentication themselves — UNAUTHENTICATED errors from
+// these mean "wrong credentials", not an expired session, so the error must reach
+// the caller's onError handler unchanged.
+const AUTH_OPERATIONS = new Set(["SignInUser"]);
+
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
-  if (graphQLErrors || networkError) {
-    // Handle unauthenticated errors
-    if (
-      graphQLErrors?.some((err) => err.extensions?.code === "UNAUTHENTICATED") ||
-      (networkError && "statusCode" in networkError && networkError.statusCode === 401)
-    ) {
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (refreshToken) {
-        return new Observable((observer) => {
-          apolloClient
-            .mutate({
-              mutation: REFRESH_TOKEN,
-              variables: { refreshToken },
-            })
-            .then(({ data }) => {
-              const { accessToken, refreshToken: newRefreshToken } = data.refreshToken;
-              localStorage.setItem("access_token", accessToken);
-              localStorage.setItem("refresh_token", newRefreshToken);
-              operation.setContext(({ headers = {} }) => ({
-                headers: {
-                  ...headers,
-                  authorization: `Bearer ${accessToken}`,
-                },
-              }));
-              forward(operation).subscribe({
-                next: observer.next.bind(observer),
-                error: observer.error.bind(observer),
-                complete: observer.complete.bind(observer),
-              });
-            })
-            .catch((error) => {
-              handleLogout();
-              observer.error(error);
+  console.log('[Apollo errorLink] operation:', operation.operationName);
+  console.log('[Apollo errorLink] graphQLErrors:', JSON.stringify(graphQLErrors ?? null));
+  console.log('[Apollo errorLink] networkError:', networkError ? String(networkError) : null);
+
+  if (AUTH_OPERATIONS.has(operation.operationName)) {
+    console.log('[Apollo errorLink] AUTH_OPERATION — skipping token refresh, letting error propagate to caller');
+    return;
+  }
+
+  if (
+    graphQLErrors?.some((err) => err.extensions?.code === "UNAUTHENTICATED") ||
+    (networkError && "statusCode" in networkError && networkError.statusCode === 401)
+  ) {
+    const refreshToken = localStorage.getItem("refresh_token");
+    console.log('[Apollo errorLink] UNAUTHENTICATED — refreshToken present:', !!refreshToken);
+    if (refreshToken) {
+      return new Observable((observer) => {
+        apolloClient
+          .mutate({
+            mutation: REFRESH_TOKEN,
+            variables: { refreshToken },
+          })
+          .then(({ data }) => {
+            const { accessToken, refreshToken: newRefreshToken } = data.refreshToken;
+            localStorage.setItem("access_token", accessToken);
+            localStorage.setItem("refresh_token", newRefreshToken);
+            operation.setContext(({ headers = {} }) => ({
+              headers: {
+                ...headers,
+                authorization: `Bearer ${accessToken}`,
+              },
+            }));
+            forward(operation).subscribe({
+              next: observer.next.bind(observer),
+              error: observer.error.bind(observer),
+              complete: observer.complete.bind(observer),
             });
-        });
-      } else {
-        handleLogout();
-      }
+          })
+          .catch((error) => {
+            console.log('[Apollo errorLink] token refresh FAILED:', error);
+            handleLogout();
+            observer.error(error);
+          });
+      });
+    } else {
+      handleLogout();
     }
   }
-  return forward(operation);
+  // Returning nothing lets non-auth errors propagate naturally to each
+  // operation's own onError / error handler.
 });
 
 const handleLogout = () => {
