@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { ArrowLeft, Share2, Clipboard, Power } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic, disconnBleByMacAddress } from '../../../utils';
@@ -42,7 +42,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -350,11 +349,6 @@ useEffect(() => {
     setDigitInput('');
   };
 
-  const focusInput = () => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  };
 
   /* ------------------------------------------------------------------ */
   /* Disconnect handler */
@@ -484,14 +478,19 @@ useEffect(() => {
       </div>
       <div className="relative">
         <input
-          ref={inputRef}
           type="text"
+          inputMode="none"
+          readOnly
+          tabIndex={-1}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           value={formattedInputCode}
-          onPaste={handlePaste}
+          onFocus={(e) => e.currentTarget.blur()}
           onChange={(e) => {
             e.preventDefault();
           }}
-          onClick={focusInput}
           placeholder="(*...#)"
           className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10"
           style={{
