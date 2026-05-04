@@ -587,6 +587,8 @@ import { AsciiStringModal, NumericModal } from "../../../modals";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
 
+export type DeviceDetailMode = 'technical' | 'overview';
+
 interface DeviceDetailProps {
   device: {
     macAddress: string;
@@ -600,6 +602,8 @@ interface DeviceDetailProps {
   isLoadingService?: string | null;
   serviceLoadingProgress?: number;
   handlePublish?: (attributeList: any, serviceType: string) => void;
+  /** 'technical' = full BLE tabs (All Devices). 'overview' = user-friendly summary (My Devices). */
+  mode?: DeviceDetailMode;
 }
 
 const DeviceDetailView: React.FC<DeviceDetailProps> = ({
@@ -610,6 +614,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   isLoadingService,
   serviceLoadingProgress = 0,
   handlePublish,
+  mode = 'technical',
 }) => {
   const router = useRouter();
   const { t } = useI18n();
@@ -918,6 +923,181 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const deviceDisplayName =
     getDisplayValue(opidCharacteristic) || device.name || t("Unknown Device");
 
+  // ── Overview mode (My Devices) ──────────────────────────────────────────
+  if (mode === 'overview') {
+    const attService = attributeList.find(
+      (s: any) => s.serviceNameEnum === 'ATT_SERVICE',
+    );
+    const stsService = attributeList.find(
+      (s: any) => s.serviceNameEnum === 'STS_SERVICE',
+    );
+
+    const getAttr = (service: any, name: string) =>
+      service?.characteristicList?.find(
+        (c: any) => c.name?.toLowerCase() === name.toLowerCase(),
+      );
+
+    const overviewStats: { label: string; value: string; icon: string }[] = [];
+
+    const opidVal = getDisplayValue(opidCharacteristic);
+    if (opidVal) overviewStats.push({ label: t('Device ID'), value: String(opidVal), icon: '🔑' });
+
+    const fwChar = getAttr(attService, 'fwv') ?? getAttr(attService, 'fw');
+    if (fwChar) overviewStats.push({ label: t('Firmware'), value: String(fwChar.realVal ?? t('N/A')), icon: '📦' });
+
+    const soc = getAttr(stsService, 'soc') ?? getAttr(attService, 'soc');
+    if (soc) overviewStats.push({ label: t('Battery (SoC)'), value: `${soc.realVal ?? t('N/A')} %`, icon: '🔋' });
+
+    const volt = getAttr(stsService, 'volt') ?? getAttr(stsService, 'vbat') ?? getAttr(attService, 'volt');
+    if (volt) overviewStats.push({ label: t('Voltage'), value: `${volt.realVal ?? t('N/A')} V`, icon: '⚡' });
+
+    const temp = getAttr(stsService, 'temp') ?? getAttr(attService, 'temp');
+    if (temp) overviewStats.push({ label: t('Temperature'), value: `${temp.realVal ?? t('N/A')} °C`, icon: '🌡️' });
+
+    const isLoading = !!isLoadingService;
+
+    return (
+      <div style={{ color: 'var(--text-primary)' }}>
+        <AsciiStringModal
+          isOpen={asciiModalOpen}
+          onClose={() => setAsciiModalOpen(false)}
+          onSubmit={(value) => handleWrite(value)}
+          title={activeCharacteristic?.name || t('Public Key / Last Code / GPRS Carrier APN Name')}
+        />
+        <NumericModal
+          isOpen={numericModalOpen}
+          onClose={() => setNumericModalOpen(false)}
+          onSubmit={(value) => handleWrite(value)}
+          title={activeCharacteristic?.name || t('Read')}
+        />
+
+        {/* Header */}
+        <div className="p-4 flex items-center max-w-md mx-auto">
+          <button onClick={handleBack} className="mr-4 flow-header-back">
+            <ArrowLeft size={18} />
+          </button>
+          <h1 className="text-lg font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
+            {t('My Device')}
+          </h1>
+          <button
+            onClick={handleDisconnect}
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: 'var(--color-error)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-error-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            title={t('Disconnect Device')}
+          >
+            <Power className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Device card */}
+        <div className="max-w-md mx-auto px-4 pb-6 space-y-4">
+          <div
+            className="rounded-2xl p-5 flex items-center gap-4"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            {device.imageUrl ? (
+              <img src={device.imageUrl} alt={deviceDisplayName} className="w-20 h-20 object-contain flex-shrink-0" />
+            ) : (
+              <div
+                className="w-20 h-20 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'var(--bg-tertiary)' }}
+              >
+                <span style={{ fontSize: 32 }}>📡</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-lg font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                {deviceDisplayName}
+              </p>
+              <p className="text-xs mt-0.5 font-mono truncate" style={{ color: 'var(--text-muted)' }}>
+                {device.macAddress}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                {device.rssi}
+              </p>
+              <span
+                className="inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded-full"
+                style={{ background: 'var(--color-success-soft, #d1fae5)', color: 'var(--color-success, #059669)' }}
+              >
+                {t('ble.connectedBadge') || 'Connected'}
+              </span>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          {(isLoading || overviewStats.length > 0) && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+                {t('Device Stats')}
+              </p>
+              {isLoading && overviewStats.length === 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl p-4 animate-pulse"
+                      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', height: 72 }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {overviewStats.map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-xl p-4"
+                      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+                    >
+                      <span style={{ fontSize: 20 }}>{stat.icon}</span>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{stat.label}</p>
+                      <p className="text-sm font-semibold font-mono mt-0.5 truncate" style={{ color: 'var(--text-primary)' }}>
+                        {stat.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Refresh stats */}
+          <button
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all"
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              color: isLoading ? 'var(--text-muted)' : 'var(--accent)',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+            }}
+            disabled={isLoading}
+            onClick={() => {
+              if (onRequestServiceData) {
+                onRequestServiceData('ATT');
+                onRequestServiceData('STS');
+              }
+            }}
+          >
+            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+            {isLoading ? t('Loading data...') : t('Refresh Stats')}
+          </button>
+
+          {/* Loading bar */}
+          {isLoading && (
+            <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'var(--bg-tertiary)' }}>
+              <div
+                className="h-full transition-all duration-300 ease-in-out"
+                style={{ width: `${serviceLoadingProgress}%`, background: 'var(--accent)' }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Technical mode (All Devices) ────────────────────────────────────────
   return (
     <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1, color: 'var(--text-primary)' }}>
       <AsciiStringModal

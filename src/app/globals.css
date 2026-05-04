@@ -1328,6 +1328,7 @@ html.theme-transition *::after {
 /* Attendant Main Content */
 .attendant-main {
   flex: 1;
+  min-height: 0; /* required: prevents flex child from overflowing when content grows */
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 16px 100px;
@@ -11463,6 +11464,7 @@ html.theme-transition *::after {
 
 .attendant-main-screen {
   flex: 1;
+  min-height: 0; /* required: prevents flex child from overflowing when content grows */
   overflow-y: auto;
   padding-bottom: 70px; /* Space for bottom nav */
 }

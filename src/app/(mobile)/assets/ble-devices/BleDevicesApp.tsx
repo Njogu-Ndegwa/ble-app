@@ -772,6 +772,7 @@ const BleDevicesApp: React.FC = () => {
                 isLoadingService={loadingService}
                 serviceLoadingProgress={progress}
                 handlePublish={handlePublish}
+                mode={currentScreen === 'my-devices' ? 'overview' : 'technical'}
               />
             )
           ) : (
