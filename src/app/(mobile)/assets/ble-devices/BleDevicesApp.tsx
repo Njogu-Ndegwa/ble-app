@@ -91,11 +91,11 @@ const BleDevicesApp: React.FC = () => {
   const router = useRouter();
   const { t } = useI18n();
 
-  // BLE-applet–specific session token. Lives in sessionStorage so it is always
-  // cleared when the WebView / browser tab is closed, forcing re-authentication.
+  // BLE-applet–specific session token. Lives in localStorage so it persists
+  // across app restarts and the user only needs to log in once.
   const [bleToken, setBleToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    return sessionStorage.getItem(BLE_DM_TOKEN_KEY);
+    return localStorage.getItem(BLE_DM_TOKEN_KEY);
   });
 
   const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('all-devices');
@@ -701,8 +701,8 @@ const BleDevicesApp: React.FC = () => {
   const handleLogout = useCallback(() => {
     // Clear the BLE Device Manager applet session
     try {
-      sessionStorage.removeItem(BLE_DM_TOKEN_KEY);
-      sessionStorage.removeItem(BLE_DM_USER_KEY);
+      localStorage.removeItem(BLE_DM_TOKEN_KEY);
+      localStorage.removeItem(BLE_DM_USER_KEY);
     } catch {
       /* ignore storage errors */
     }

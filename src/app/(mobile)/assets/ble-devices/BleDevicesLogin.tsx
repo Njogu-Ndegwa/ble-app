@@ -6,7 +6,7 @@ import { useMutation } from '@apollo/client';
 import { useI18n } from '@/i18n';
 import { SIGN_IN_USER } from '@/app/(auth)/mutations';
 
-// sessionStorage keys scoped to this applet
+// localStorage keys scoped to this applet (persist across restarts)
 export const BLE_DM_TOKEN_KEY = 'ble-dm-token';
 export const BLE_DM_USER_KEY = 'ble-dm-user';
 
@@ -24,10 +24,10 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
     onCompleted: (data) => {
       const { accessToken, refreshToken, _id, name, email: userEmail } = data.signInUser;
 
-      // Persist the fresh token in sessionStorage so the BLE applet gate can
-      // verify it and clear it automatically when the WebView session ends.
-      sessionStorage.setItem(BLE_DM_TOKEN_KEY, accessToken);
-      sessionStorage.setItem(
+      // Persist the fresh token in localStorage so it survives app restarts
+      // and the user does not have to re-authenticate on every launch.
+      localStorage.setItem(BLE_DM_TOKEN_KEY, accessToken);
+      localStorage.setItem(
         BLE_DM_USER_KEY,
         JSON.stringify({ id: _id, name, email: userEmail }),
       );

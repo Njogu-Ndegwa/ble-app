@@ -30,16 +30,15 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({ onLogout })
     if (typeof window === 'undefined') return;
 
     // Read the employee record that was stored by BleDevicesLogin at sign-in time.
-    // Both keys live in sessionStorage so they are automatically cleared when the
-    // WebView / browser tab is closed, ensuring fresh credentials next time.
-    const token = sessionStorage.getItem(BLE_DM_TOKEN_KEY);
+    // Both keys live in localStorage and persist across app restarts.
+    const token = localStorage.getItem(BLE_DM_TOKEN_KEY);
     if (!token) {
       setEmployee(null);
       return;
     }
 
     try {
-      const raw = sessionStorage.getItem(BLE_DM_USER_KEY);
+      const raw = localStorage.getItem(BLE_DM_USER_KEY);
       if (raw) {
         const user = JSON.parse(raw);
         setEmployee({
