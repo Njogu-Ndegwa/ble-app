@@ -701,12 +701,6 @@ const KeypadApp: React.FC = () => {
 
   const handleNavigate = useCallback((tab: KeypadTab) => {
     switch (tab) {
-      case 'all-devices':
-        router.replace('/assets/ble-devices');
-        break;
-      case 'my-devices':
-        router.replace('/mydevices/devices');
-        break;
       case 'keypad':
         if (selectedDevice) handleBackToList();
         setCurrentScreen('devices');
@@ -715,7 +709,7 @@ const KeypadApp: React.FC = () => {
         setCurrentScreen('profile');
         break;
     }
-  }, [selectedDevice, handleBackToList, router]);
+  }, [selectedDevice, handleBackToList]);
 
   const currentTab: KeypadTab = currentScreen === 'profile' ? 'profile' : 'keypad';
 

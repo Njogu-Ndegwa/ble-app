@@ -714,9 +714,6 @@ const MyDevicesApp: React.FC = () => {
         if (selectedDevice) handleBackToList();
         setCurrentScreen('devices');
         break;
-      case 'keypad':
-        router.replace('/keypad/keypad');
-        break;
       case 'profile':
         setCurrentScreen('profile');
         break;

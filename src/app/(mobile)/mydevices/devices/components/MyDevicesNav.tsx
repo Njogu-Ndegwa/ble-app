@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { Bluetooth, Battery, Keyboard, User } from 'lucide-react';
+import { Bluetooth, Battery, User } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import BottomNav, { NavItem } from '@/components/ui/BottomNav';
 
-export type MyDevicesTab = 'all-devices' | 'my-devices' | 'keypad' | 'profile';
+export type MyDevicesTab = 'all-devices' | 'my-devices' | 'profile';
 
 interface MyDevicesNavProps {
   currentTab: MyDevicesTab;
@@ -25,11 +25,6 @@ const MyDevicesNav: React.FC<MyDevicesNavProps> = ({ currentTab, onNavigate }) =
       key: 'my-devices',
       label: t('nav.mydevices') || 'My Devices',
       icon: <Battery size={22} />,
-    },
-    {
-      key: 'keypad',
-      label: t('nav.keypad') || 'Keypad',
-      icon: <Keyboard size={22} />,
     },
     {
       key: 'profile',

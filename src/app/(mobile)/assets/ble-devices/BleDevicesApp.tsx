@@ -692,9 +692,6 @@ const BleDevicesApp: React.FC = () => {
       case 'my-devices':
         router.replace('/mydevices/devices');
         break;
-      case 'keypad':
-        router.replace('/keypad/keypad');
-        break;
       case 'profile':
         setCurrentScreen('profile');
         break;
