@@ -105,8 +105,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   // Stock levels: productId → { qty_on_hand, qty_reserved, qty_available }
   const [stockMap, setStockMap] = useState<Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }>>(new Map());
-  // True once stock data has been fetched at least once (distinguishes "no data yet" from "genuinely 0 stock")
+  // true = loaded OK, false = loading / failed
   const [stockLoaded, setStockLoaded] = useState(false);
+  // true while the one-time stock fetch is in-flight
+  const [stockFetching, setStockFetching] = useState(true);
 
   const linesRef = useRef(lines);
   linesRef.current = lines;
@@ -283,6 +285,28 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     return () => { cancelled = true; };
   }, [showCustomerDropdown, debouncedCustomerSearch]);
 
+  // Fetch stock levels ONCE on mount so badges are ready before the picker opens.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStock = async () => {
+      setStockFetching(true);
+      try {
+        const data = await getStockLevels({ limit: 500 });
+        if (!cancelled) {
+          setStockMap(aggregateStockByProduct(data.levels));
+          setStockLoaded(true);
+        }
+      } catch {
+        // Endpoint not available — badges won't show but picker still works
+      } finally {
+        if (!cancelled) setStockFetching(false);
+      }
+    };
+    fetchStock();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fetch products whenever the picker is open and search changes (no stock here).
   useEffect(() => {
     if (!showProductDropdown) return;
     let cancelled = false;
@@ -290,27 +314,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       setProductsLoading(true);
       try {
         const token = getSalesRoleToken();
-        const [productData, stockData] = await Promise.allSettled([
-          getProducts(
-            { limit: 20, search: debouncedProductSearch || undefined },
-            token || undefined,
-          ),
-          getStockLevels({ limit: 200 }),
-        ]);
-
-        if (!cancelled) {
-          if (productData.status === 'fulfilled') {
-            setProducts(productData.value.products ?? []);
-          } else {
-            setProducts([]);
-          }
-          if (stockData.status === 'fulfilled') {
-            setStockMap(aggregateStockByProduct(stockData.value.levels));
-            setStockLoaded(true);
-          }
-          // If the stock fetch failed we leave stockLoaded=false so badges are omitted
-          // rather than incorrectly treating everything as out-of-stock
-        }
+        const data = await getProducts(
+          { limit: 20, search: debouncedProductSearch || undefined },
+          token || undefined,
+        );
+        if (!cancelled) setProducts(data.products ?? []);
       } catch {
         if (!cancelled) setProducts([]);
       } finally {
@@ -884,8 +892,8 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                   const hasDiscount = resolved.discountPercent > 0;
                   const isStorable = p.type === STORABLE_TYPE;
                   const stock = stockLoaded ? (stockMap.get(p.id) ?? null) : undefined;
-                  // stock === undefined  → data not loaded yet, show nothing
-                  // stock === null       → loaded but no entry in stockMap = never stocked = 0 available
+                  // stock === undefined  → still loading (or failed)
+                  // stock === null       → loaded, not in map = 0 available
                   // stock = { ... }     → live figures
                   const qtyAvailable = stock !== undefined ? (stock?.qty_available ?? 0) : null;
                   const isOutOfStock = isStorable && qtyAvailable !== null && qtyAvailable <= 0;
@@ -942,17 +950,19 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                         </div>
                       </div>
 
-                      {/* Right: stock badge (storable only, once loaded) */}
-                      {isStorable && qtyAvailable !== null ? (
-                        <StockBadge
-                          qtyAvailable={qtyAvailable}
-                          isOutOfStock={isOutOfStock}
-                          isLowStock={isLowStock}
-                        />
-                      ) : (
-                        /* non-storable: show nothing on the right so layout stays consistent */
-                        <span className="shrink-0 w-[56px]" />
-                      )}
+                      {/* Right: stock badge column */}
+                      <div className="shrink-0 flex items-center justify-end w-[72px]">
+                        {isStorable && stockFetching ? (
+                          /* stock still loading — show mini spinner */
+                          <Loader2 size={12} className="animate-spin text-text-muted" />
+                        ) : isStorable && qtyAvailable !== null ? (
+                          <StockBadge
+                            qtyAvailable={qtyAvailable}
+                            isOutOfStock={isOutOfStock}
+                            isLowStock={isLowStock}
+                          />
+                        ) : null}
+                      </div>
                     </button>
                   );
                 })}
