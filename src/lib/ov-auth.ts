@@ -127,9 +127,18 @@ export async function odooEmployeeLogin(
 export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
   if (typeof window === 'undefined') return
 
-  localStorage.setItem(KEYS.EMPLOYEE_TOKEN, session.token)
-  localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, session.expires_at)
-  localStorage.setItem(KEYS.EMPLOYEE_DATA, JSON.stringify(session.employee))
+  // Guard against undefined/null fields — localStorage.setItem coerces any
+  // non-string value to a string, so storing `JSON.stringify(undefined)` would
+  // write the literal string "undefined" which later fails JSON.parse.
+  if (session.token != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_TOKEN, session.token)
+  }
+  if (session.expires_at != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, session.expires_at)
+  }
+  if (session.employee != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_DATA, JSON.stringify(session.employee))
+  }
 
   // Defensive: the backend occasionally returns null/undefined for service_accounts
   // (e.g. when the normal-login response omits the field).  Always normalise to an array.
@@ -139,8 +148,14 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
 
   localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
 
-  // Cache each SA's applets keyed by SA id for zero-roundtrip access
+  // Cache each SA's applets keyed by SA id for zero-roundtrip access.
+  // Skip SAs with no valid id (e.g. rider-shaped accounts where the backend
+  // returns sa_id instead of id) to avoid `ov_sa_applets_undefined` keys.
   accounts.forEach(sa => {
+    if (sa.id == null) {
+      console.warn(`[ov-auth] Skipping applet cache for SA with missing id: "${sa.name}"`)
+      return
+    }
     localStorage.setItem(
       `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
       JSON.stringify(sa.applets ?? []),
@@ -315,12 +330,27 @@ export function getStoredServiceAccounts(): ServiceAccount[] {
 export function selectServiceAccount(sa: ServiceAccount, tokenOverride?: string): void {
   if (typeof window === 'undefined') return
 
+  // Guard: a missing id (e.g. rider-shape response uses sa_id, not id) would
+  // write the literal string "undefined" to localStorage, corrupting every
+  // downstream auth check that calls Number(val) on the stored string.
+  if (sa.id == null) {
+    console.warn('[ov-auth] selectServiceAccount: SA has no valid id — aborting to prevent "undefined" storage', sa)
+    return
+  }
+
   localStorage.setItem(KEYS.SELECTED_SA_ID, String(sa.id))
 
   // Mirror token into legacy auth keys
   const token = tokenOverride ?? localStorage.getItem(KEYS.EMPLOYEE_TOKEN) ?? ''
   const employeeRaw = localStorage.getItem(KEYS.EMPLOYEE_DATA)
-  const legacyUserData = employeeRaw ? JSON.parse(employeeRaw) : {}
+  let legacyUserData: Record<string, unknown> = {}
+  if (employeeRaw) {
+    try {
+      legacyUserData = JSON.parse(employeeRaw)
+    } catch {
+      legacyUserData = {}
+    }
+  }
 
   if (token) {
     localStorage.setItem(KEYS.ATTENDANT_TOKEN, token)

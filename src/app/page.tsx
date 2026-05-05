@@ -156,7 +156,8 @@ export default function Index() {
       // Auto-select if the user has exactly one SA (e.g. resumed session after
       // page refresh where selectServiceAccount wasn't called again yet).
       const accounts = getStoredServiceAccounts();
-      if (accounts.length === 1) {
+      const validSingle = accounts.length === 1 && accounts[0].id != null;
+      if (validSingle) {
         console.info('[RootPage] resolveAuthState: single SA found — auto-selecting SA #', accounts[0].id);
         selectServiceAccount(accounts[0]);
         setAppState('selectRole');
