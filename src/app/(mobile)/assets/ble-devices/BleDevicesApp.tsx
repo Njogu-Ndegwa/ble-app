@@ -736,7 +736,13 @@ const BleDevicesApp: React.FC = () => {
     'all-devices';
 
   if (!bleToken) {
-    return <BleDevicesLogin onLoginSuccess={(token) => setBleToken(token)} />;
+    return (
+      <div className="login-page-container">
+        <div className="login-bg-gradient" />
+        <AppHeader showBack onBack={handleBackToRoles} />
+        <BleDevicesLogin onLoginSuccess={(token) => setBleToken(token)} />
+      </div>
+    );
   }
 
   return (
