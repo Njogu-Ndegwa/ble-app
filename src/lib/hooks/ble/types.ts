@@ -121,6 +121,8 @@ export interface BleFullState {
   error: string | null;
   connectionFailed: boolean;
   requiresBluetoothReset: boolean;
+  /** Timestamp when the current scan/connection attempt started */
+  scanStartTime?: number;
 }
 
 // ============================================
