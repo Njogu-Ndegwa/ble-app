@@ -127,35 +127,77 @@ export async function odooEmployeeLogin(
 export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
   if (typeof window === 'undefined') return
 
+  // ---------------------------------------------------------------------------
+  // Shape normalisation
+  // The rider/portal login endpoint returns a different JSON shape than the
+  // standard employee login:
+  //   • session.user  (not session.employee)
+  //   • service_accounts[].sa_id   (not .id)
+  //   • service_accounts[].sa_name (not .name)
+  //   • service_accounts[].role    (not .my_role)
+  //   • no auto_selected field
+  // Normalise everything here so every downstream consumer sees a consistent
+  // shape regardless of which backend variant responded.
+  // ---------------------------------------------------------------------------
+  const raw = session as any
+
+  // employee: prefer the canonical field, fall back to the portal `user` field
+  const employee = session.employee ?? raw.user ?? null
+
+  // Normalise each SA so id/name/my_role are always populated
+  const rawAccounts: any[] = Array.isArray(session.service_accounts)
+    ? session.service_accounts
+    : []
+
+  const accounts: ServiceAccount[] = rawAccounts
+    .map((sa: any): ServiceAccount => ({
+      // Spread first so any extra fields are preserved
+      ...sa,
+      // Core identity fields — map rider variants to canonical names
+      id:            sa.id     ?? sa.sa_id   ?? undefined,
+      name:          sa.name   ?? sa.sa_name ?? undefined,
+      my_role:       sa.my_role ?? sa.role   ?? 'staff',
+      // Provide safe defaults for fields the rider endpoint omits
+      account_code:  sa.account_code  ?? null,
+      account_class: sa.account_class ?? '',
+      state:         sa.state         ?? 'active',
+      is_root:       sa.is_root       ?? false,
+      note:          sa.note          ?? null,
+      member_count:  sa.member_count  ?? 0,
+      child_count:   sa.child_count   ?? 0,
+      company_id:    sa.company_id    ?? false,
+      company_name:  sa.company_name  ?? false,
+      parent:        sa.parent        ?? null,
+      partner:       sa.partner       ?? null,
+      created_at:    sa.created_at    ?? '',
+      updated_at:    sa.updated_at    ?? '',
+      my_scope_policy: sa.my_scope_policy ?? false,
+      applets:       Array.isArray(sa.applets) ? sa.applets : [],
+    }))
+    .filter(sa => sa.id != null)
+
+  console.info('[ov-auth] normalised accounts:', accounts.map(sa => ({ id: sa.id, name: sa.name, applets: sa.applets })))
+
+  // ---------------------------------------------------------------------------
+  // Persist to localStorage
   // Guard against undefined/null fields — localStorage.setItem coerces any
-  // non-string value to a string, so storing `JSON.stringify(undefined)` would
-  // write the literal string "undefined" which later fails JSON.parse.
+  // non-string value to a string, so JSON.stringify(undefined) would write
+  // the literal string "undefined" which later breaks JSON.parse.
+  // ---------------------------------------------------------------------------
   if (session.token != null) {
     localStorage.setItem(KEYS.EMPLOYEE_TOKEN, session.token)
   }
   if (session.expires_at != null) {
     localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, session.expires_at)
   }
-  if (session.employee != null) {
-    localStorage.setItem(KEYS.EMPLOYEE_DATA, JSON.stringify(session.employee))
+  if (employee != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_DATA, JSON.stringify(employee))
   }
-
-  // Defensive: the backend occasionally returns null/undefined for service_accounts
-  // (e.g. when the normal-login response omits the field).  Always normalise to an array.
-  const accounts: ServiceAccount[] = Array.isArray(session.service_accounts)
-    ? session.service_accounts
-    : []
 
   localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
 
-  // Cache each SA's applets keyed by SA id for zero-roundtrip access.
-  // Skip SAs with no valid id (e.g. rider-shaped accounts where the backend
-  // returns sa_id instead of id) to avoid `ov_sa_applets_undefined` keys.
+  // Cache each SA's applets keyed by id for zero-roundtrip access
   accounts.forEach(sa => {
-    if (sa.id == null) {
-      console.warn(`[ov-auth] Skipping applet cache for SA with missing id: "${sa.name}"`)
-      return
-    }
     localStorage.setItem(
       `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
       JSON.stringify(sa.applets ?? []),
@@ -165,9 +207,9 @@ export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
 
   console.info('[ov-auth] Session saved. SAs cached:', accounts.length)
 
-  // Restore the original guard: only auto-select when the backend explicitly signals
-  // auto_selected AND there is exactly one SA.  Removing this guard caused normal-login
-  // users (where auto_selected is false) to skip SelectSA unexpectedly.
+  // Auto-select when the backend explicitly signals auto_selected AND there is
+  // exactly one SA.  Removing this guard caused normal-login users (where
+  // auto_selected is false) to skip SelectSA unexpectedly.
   if (session.auto_selected && accounts.length === 1) {
     console.info('[ov-auth] Single SA (auto_selected) — auto-selecting SA #', accounts[0].id)
     selectServiceAccount(accounts[0], session.token)
