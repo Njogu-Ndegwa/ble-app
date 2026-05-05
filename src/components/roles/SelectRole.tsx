@@ -148,6 +148,15 @@ export default function SelectRole({ onSwitchSA }: Props) {
 
   const selectedSA = useMemo(() => getSelectedSA(), []);
 
+  // Auto-navigate when the SA only grants access to a single applet — no need
+  // to show the selection grid in that case (e.g. a rider-only account).
+  useEffect(() => {
+    if (visibleRoles.length === 1 && !visibleRoles[0].disabled) {
+      console.info('[SelectRole] Single applet SA — auto-navigating to', visibleRoles[0].path);
+      router.replace(visibleRoles[0].path);
+    }
+  }, [visibleRoles, router]);
+
   useEffect(() => {
     document.body.classList.add('overflow-locked');
     return () => {
@@ -198,6 +207,11 @@ export default function SelectRole({ onSwitchSA }: Props) {
       window.location.href = role.path;
     }, NAV_TIMEOUT_MS);
   }, [router]);
+
+  // Don't flash the grid while the single-applet redirect is in progress
+  if (visibleRoles.length === 1 && !visibleRoles[0].disabled) {
+    return null;
+  }
 
   return (
     <div className="select-role-container">
