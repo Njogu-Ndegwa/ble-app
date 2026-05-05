@@ -126,13 +126,15 @@ export default function SelectRole({ onSwitchSA }: Props) {
   const wasIdleRef = useRef(false);
   const navFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Derive which roles are visible for the current SA
+  // Derive which roles are visible for the current SA.
+  // An empty applet list means this SA has no granted apps — return [] so the
+  // caller renders an empty state instead of falling back to all roles.
   const visibleRoles = useMemo(() => {
     const saApplets = getActiveSAApplets();
 
     if (saApplets.length === 0) {
-      console.info('[SelectRole] No SA applets found — showing all', ALL_ROLES.length, 'roles (graceful degradation)');
-      return ALL_ROLES;
+      console.info('[SelectRole] No SA applets found — returning empty list');
+      return [] as RoleConfig[];
     }
 
     const filtered = ALL_ROLES.filter(role => {
@@ -211,6 +213,36 @@ export default function SelectRole({ onSwitchSA }: Props) {
   // Don't flash the grid while the single-applet redirect is in progress
   if (visibleRoles.length === 1 && !visibleRoles[0].disabled) {
     return null;
+  }
+
+  // SA has no applets assigned — show a clear error instead of all roles
+  if (visibleRoles.length === 0) {
+    return (
+      <div className="select-role-container">
+        <div className="select-role-bg-gradient" />
+        <AppHeader onSwitchSA={onSwitchSA} />
+        <main className="select-role-main" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', padding: '32px 24px', maxWidth: 320 }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+              {t('role.noAppsTitle') || 'No apps available'}
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
+              {t('role.noAppsDescription') || 'This account has no apps assigned. Contact your administrator or switch to a different account.'}
+            </p>
+            {onSwitchSA && (
+              <button
+                className="btn btn-secondary"
+                onClick={onSwitchSA}
+                style={{ width: '100%' }}
+              >
+                {t('sa.switchAccount') || 'Switch Account'}
+              </button>
+            )}
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
