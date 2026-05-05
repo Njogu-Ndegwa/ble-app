@@ -986,6 +986,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               placeholder={t('auth.passwordPlaceholder') || 'Enter your password'}
               disabled={isSigningIn}
               style={{ paddingRight: 44 }}
+              autoComplete="current-password"
             />
             <button
               type="button"

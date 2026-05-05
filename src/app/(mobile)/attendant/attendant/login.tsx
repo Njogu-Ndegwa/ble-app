@@ -577,6 +577,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
               onKeyPress={handleKeyPress}
               placeholder={t('Enter your email')}
               disabled={isSigningIn}
+              autoComplete="email"
             />
           </div>
         </div>
@@ -598,6 +599,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
               placeholder={t('Enter your password')}
               disabled={isSigningIn}
               style={{ paddingRight: 44 }}
+              autoComplete="current-password"
             />
             <button
               type="button"
