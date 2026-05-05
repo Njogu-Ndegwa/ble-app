@@ -1190,16 +1190,16 @@ function StockBadge({
     return (
       <span
         className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-        style={{ backgroundColor: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+        style={{ backgroundColor: 'var(--color-warning-soft, #fffbeb)', color: 'var(--color-warning, #d97706)' }}
       >
-        Low: {qtyAvailable}
+        {qtyAvailable} left
       </span>
     );
   }
   return (
     <span
       className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
-      style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+      style={{ backgroundColor: 'var(--color-success-soft, #f0fdf4)', color: 'var(--color-success, #16a34a)' }}
     >
       {qtyAvailable} avail.
     </span>
