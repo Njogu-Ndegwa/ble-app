@@ -381,6 +381,13 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   const handleAddProduct = useCallback(
     async (p: OdooProduct) => {
+      // Block zero-stock storable products entirely
+      if (p.type === STORABLE_TYPE && stockLoaded) {
+        const stockEntry = stockMap.get(p.id);
+        const avail = stockEntry?.qty_available ?? 0;
+        if (avail <= 0) return;
+      }
+
       const existingLine = linesRef.current.find((l) => l.productId === p.id);
 
       if (existingLine) {
@@ -887,7 +894,13 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                     <button
                       key={p.id}
                       onClick={() => handleAddProduct(p)}
-                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex items-center gap-3"
+                      disabled={isOutOfStock}
+                      className={[
+                        'w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-3 transition-colors',
+                        isOutOfStock
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:bg-bg-elevated',
+                      ].join(' ')}
                     >
                       {/* Left: name + category badge */}
                       <div className="min-w-0 flex-1">
@@ -1166,7 +1179,7 @@ function StockBadge({
   if (isOutOfStock) {
     return (
       <span
-        className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+        className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
         style={{ backgroundColor: 'var(--color-error-soft, #fef2f2)', color: 'var(--color-error, #ef4444)' }}
       >
         Out of stock
@@ -1176,7 +1189,7 @@ function StockBadge({
   if (isLowStock) {
     return (
       <span
-        className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+        className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
         style={{ backgroundColor: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
       >
         Low: {qtyAvailable}
@@ -1185,7 +1198,7 @@ function StockBadge({
   }
   return (
     <span
-      className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+      className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
       style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
     >
       {qtyAvailable} avail.
