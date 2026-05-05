@@ -9,6 +9,7 @@ import {
   ClipboardList,
   RefreshCw,
   ShieldCheck,
+  Truck,
   CreditCard,
   FileCheck,
   User,
@@ -21,6 +22,8 @@ import {
   Tag,
   ChevronDown,
   Check,
+  MapPin,
+  AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StepProgress } from '@/components/ui/Progress';
@@ -37,23 +40,37 @@ import {
   formatCurrency,
   getPriceLists,
   getPriceListPrice,
+  getDeliveries,
+  getDelivery,
+  validateDelivery,
 } from '@/lib/portal/order-api';
 import {
   PIPELINE_STEPS,
   getOrderStepIndex,
   STEP_ACTIONS,
+  getDeliveryState,
+  isDeliveryDone,
 } from '@/lib/portal/order-constants';
 import { mapOdooPriceList, type PriceList } from '@/lib/portal/price-list-data';
-import type { OrderEntity, OrderLineEntity, PaymentStatus } from '@/lib/portal/types';
+import type { OrderEntity, OrderLineEntity, PaymentStatus, DeliveryEntity } from '@/lib/portal/types';
 
-const STEP_ICONS = [ClipboardList, RefreshCw, ShieldCheck, CreditCard, FileCheck];
+const STEP_ICONS = [ClipboardList, RefreshCw, ShieldCheck, Truck, CreditCard, FileCheck];
 
 const STATE_BADGES: Record<string, { label: string; cls: string }> = {
-  draft: { label: 'Draft', cls: 'list-card-badge list-card-badge--default' },
-  sent: { label: 'Sent', cls: 'list-card-badge list-card-badge--progress' },
-  sale: { label: 'Confirmed', cls: 'list-card-badge list-card-badge--completed' },
-  done: { label: 'Done', cls: 'list-card-badge list-card-badge--completed' },
-  cancel: { label: 'Cancelled', cls: 'list-card-badge list-card-badge--default' },
+  draft:  { label: 'Draft',     cls: 'list-card-badge list-card-badge--default'   },
+  sent:   { label: 'Sent',      cls: 'list-card-badge list-card-badge--progress'  },
+  sale:   { label: 'Confirmed', cls: 'list-card-badge list-card-badge--completed' },
+  done:   { label: 'Done',      cls: 'list-card-badge list-card-badge--completed' },
+  cancel: { label: 'Cancelled', cls: 'list-card-badge list-card-badge--default'   },
+};
+
+const DELIVERY_STATE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  draft:     { label: 'Draft',            color: 'var(--text-muted)',       bg: 'var(--bg-elevated)'            },
+  waiting:   { label: 'Waiting',          color: 'var(--color-warning)',    bg: 'var(--color-warning-soft)'     },
+  confirmed: { label: 'Confirmed',        color: 'var(--color-warning)',    bg: 'var(--color-warning-soft)'     },
+  assigned:  { label: 'Ready to Deliver', color: 'var(--color-success)',    bg: 'var(--color-success-soft)'     },
+  done:      { label: 'Delivered',        color: 'var(--color-success)',    bg: 'var(--color-success-soft)'     },
+  cancel:    { label: 'Cancelled',        color: 'var(--text-muted)',       bg: 'var(--bg-elevated)'            },
 };
 
 interface OrderDetailProps {
@@ -89,6 +106,13 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   selectedRevisePLRef.current = selectedRevisePL;
   const reviseQtyTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Delivery step state
+  const [deliveries, setDeliveries] = useState<DeliveryEntity[]>([]);
+  const [deliveriesLoading, setDeliveriesLoading] = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<DeliveryEntity | null>(null);
+  const [deliveryDetailLoading, setDeliveryDetailLoading] = useState(false);
+  const [validatingDelivery, setValidatingDelivery] = useState(false);
+
   // PDF download state
   const [pdfLoading, setPdfLoading] = useState<'proforma' | 'invoice' | null>(null);
   const [sendingProforma, setSendingProforma] = useState(false);
@@ -101,6 +125,10 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       const step = getOrderStepIndex(data);
       setBackendStep(step);
       setActiveStep(step);
+      // Seed deliveries from order response if available
+      if (data.deliveries?.length) {
+        setDeliveries(data.deliveries);
+      }
       setError(null);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load order.');
@@ -134,12 +162,61 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     };
   }, []);
 
+  // Load deliveries when user navigates to the Delivery step
+  useEffect(() => {
+    if (activeStep !== 3) return;
+    let cancelled = false;
+    (async () => {
+      setDeliveriesLoading(true);
+      try {
+        const result = await getDeliveries({ sale_order_id: orderId, limit: 10 });
+        if (!cancelled) {
+          setDeliveries(result.deliveries);
+          if (result.deliveries.length > 0 && !selectedDelivery) {
+            // Auto-select first non-done delivery, else the first one
+            const active = result.deliveries.find(
+              (d) => d.state !== 'done' && d.state !== 'cancel',
+            ) ?? result.deliveries[0];
+            setSelectedDelivery(active);
+          }
+        }
+      } catch {
+        /* keep current */
+      } finally {
+        if (!cancelled) setDeliveriesLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeStep, orderId]);
+
+  // Load delivery line detail when a delivery is selected
+  useEffect(() => {
+    if (!selectedDelivery || selectedDelivery.lines !== undefined) return;
+    let cancelled = false;
+    (async () => {
+      setDeliveryDetailLoading(true);
+      try {
+        const detail = await getDelivery(selectedDelivery.id);
+        if (!cancelled) {
+          setSelectedDelivery(detail);
+          setDeliveries((prev) => prev.map((d) => (d.id === detail.id ? detail : d)));
+        }
+      } catch {
+        /* keep summary */
+      } finally {
+        if (!cancelled) setDeliveryDetailLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedDelivery?.id]);
+
   const refreshOrder = useCallback(
     async (minStep?: number) => {
       try {
         const fresh = await getOrder(orderId);
         setOrder(fresh);
         setEditableLines(fresh.lines.map((l) => ({ ...l })));
+        if (fresh.deliveries?.length) setDeliveries(fresh.deliveries);
         const computed = getOrderStepIndex(fresh);
         const step = minStep != null ? Math.max(minStep, computed) : computed;
         setBackendStep(step);
@@ -208,6 +285,42 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     );
   }, [handleAction, orderId, approvalNotes]);
 
+  const handleValidateDelivery = useCallback(async () => {
+    if (!selectedDelivery) return;
+    setValidatingDelivery(true);
+    try {
+      const result = await validateDelivery(selectedDelivery.id);
+      if (!result.success) {
+        toast.error(result.message ?? 'Delivery validation failed.');
+        return;
+      }
+      toast.success('Delivery validated — stock decremented.');
+      // Refresh deliveries and order
+      try {
+        const [fresh, deliResult] = await Promise.all([
+          getOrder(orderId),
+          getDeliveries({ sale_order_id: orderId, limit: 10 }),
+        ]);
+        setOrder(fresh);
+        setDeliveries(deliResult.deliveries);
+        setSelectedDelivery(
+          result.delivery ??
+          deliResult.deliveries.find((d) => d.id === selectedDelivery.id) ??
+          null,
+        );
+        const computed = getOrderStepIndex(fresh);
+        setBackendStep(computed);
+        setActiveStep(computed);
+      } catch {
+        await refreshOrder();
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to validate delivery.');
+    } finally {
+      setValidatingDelivery(false);
+    }
+  }, [selectedDelivery, orderId, refreshOrder]);
+
   const handleRegisterPayment = useCallback(async () => {
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) {
@@ -261,11 +374,6 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
   // Pricelist selection handler — re-compute all line prices
   const handleRevisePLSelect = useCallback(async (pl: PriceList) => {
-    console.info('[Orders][Rules] Revise — pricelist selected, re-pricing all lines', {
-      pricelist: { id: pl.id, odooId: pl.odooId, name: pl.name, ruleCount: pl.rules.length },
-      lineCount: editableLinesRef.current.length,
-      path: pl.odooId ? 'odoo-api' : 'skip (no odooId)',
-    });
     setSelectedRevisePL(pl);
     setShowRevisePLPicker(false);
 
@@ -283,25 +391,9 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       currentLines.map(async (line) => {
         try {
           const result = await getPriceListPrice(pl.odooId!, line.productId, line.quantity);
-          console.info('[Orders][Rules] Revise — line repriced', {
-            lineId: line.id,
-            productId: line.productId,
-            productName: line.productName,
-            quantity: line.quantity,
-            previousUnitPrice: line.priceUnit,
-            newUnitPrice: result.unit_price,
-            appliedRuleId: result.applied_rule_id,
-            pricelistOdooId: pl.odooId,
-            fellBackToList: result.applied_rule_id == null,
-          });
           priceMap.set(line.id, result.unit_price);
-        } catch (err) {
-          console.info('[Orders][Rules] Revise — line reprice error (kept existing)', {
-            lineId: line.id,
-            productId: line.productId,
-            productName: line.productName,
-            error: err instanceof Error ? err.message : String(err),
-          });
+        } catch {
+          /* keep existing price */
         }
       }),
     );
@@ -318,7 +410,6 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     setLinePriceLoadingIds(new Set());
   }, []);
 
-  // Qty-only handler — calls pricelist API when a pricelist is selected
   const handleLineQtyChange = useCallback((lineId: string, quantity: number) => {
     const safeQty = Math.max(1, quantity);
 
@@ -343,17 +434,6 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
       try {
         const result = await getPriceListPrice(pl.odooId!, line.productId, safeQty);
-        console.info('[Orders][Rules] Revise — qty change repriced line', {
-          lineId,
-          productId: line.productId,
-          productName: line.productName,
-          newQuantity: safeQty,
-          previousUnitPrice: line.priceUnit,
-          newUnitPrice: result.unit_price,
-          appliedRuleId: result.applied_rule_id,
-          pricelistOdooId: pl.odooId,
-          fellBackToList: result.applied_rule_id == null,
-        });
         setEditableLines((prev) =>
           prev.map((l) =>
             l.id === lineId
@@ -361,14 +441,8 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               : l,
           ),
         );
-      } catch (err) {
-        console.info('[Orders][Rules] Revise — qty change reprice error (kept existing)', {
-          lineId,
-          productId: line.productId,
-          productName: line.productName,
-          newQuantity: safeQty,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      } catch {
+        /* keep existing */
       }
 
       setLinePriceLoadingIds((prev) => {
@@ -438,7 +512,8 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const st = STATE_BADGES[order.state] ?? STATE_BADGES.draft;
   const isViewingPastStep = activeStep < backendStep;
   const sa = STEP_ACTIONS[activeStep];
-  const needsFullPayment = activeStep === 3 && order.paymentStatus !== 'paid';
+  // Step 4 is Payment — block next if not yet paid
+  const needsFullPayment = activeStep === 4 && order.paymentStatus !== 'paid';
   const nextDisabled = actionLoading || needsFullPayment;
   const isReviseEditable = activeStep === 1 && !isViewingPastStep;
 
@@ -483,6 +558,15 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               </p>
             </div>
           </div>
+
+          {/* Delivery status badge if order is confirmed */}
+          {(order.state === 'sale' || order.state === 'done') && (
+            <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
+              <Truck size={13} className="text-text-muted shrink-0" />
+              <span className="text-[11px] text-text-muted">Delivery:</span>
+              <DeliveryStatusBadge order={order} />
+            </div>
+          )}
         </div>
 
         {/* Step progress bar */}
@@ -507,7 +591,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                   key={i}
                   onClick={() => isClickable && setActiveStep(i)}
                   disabled={!isClickable}
-                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg min-w-[64px] text-center transition-all"
+                  className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg min-w-[56px] text-center transition-all"
                   style={
                     isActive
                       ? { backgroundColor: 'var(--color-brand)', color: 'var(--text-inverse)' }
@@ -526,6 +610,8 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
         {/* Step content */}
         <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden mb-4">
+
+          {/* ── Step 0: Quotation ── */}
           {activeStep === 0 && (
             <div>
               <div className="px-4 py-3 border-b border-border flex items-center gap-2">
@@ -541,6 +627,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             </div>
           )}
 
+          {/* ── Step 1: Revise & Confirm ── */}
           {activeStep === 1 && (
             <div>
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
@@ -656,6 +743,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             </div>
           )}
 
+          {/* ── Step 2: Approval ── */}
           {activeStep === 2 && (
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -746,7 +834,23 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             </div>
           )}
 
+          {/* ── Step 3: Delivery ── */}
           {activeStep === 3 && (
+            <DeliveryStep
+              order={order}
+              deliveries={deliveries}
+              deliveriesLoading={deliveriesLoading}
+              selectedDelivery={selectedDelivery}
+              detailLoading={deliveryDetailLoading}
+              validating={validatingDelivery}
+              isViewingPastStep={isViewingPastStep}
+              onSelectDelivery={setSelectedDelivery}
+              onValidate={handleValidateDelivery}
+            />
+          )}
+
+          {/* ── Step 4: Payment ── */}
+          {activeStep === 4 && (
             <div className="space-y-3">
               <OrderLines lines={order.lines} />
               <div className="px-4">
@@ -792,7 +896,8 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             </div>
           )}
 
-          {activeStep === 4 && (
+          {/* ── Step 5: Final Invoice ── */}
+          {activeStep === 5 && (
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-text-primary">Final Invoice</p>
@@ -903,7 +1008,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             {PIPELINE_STEPS[activeStep + 1]?.label ?? 'Next'}
             <ChevronRight size={16} />
           </button>
-        ) : activeStep < 4 && sa.nextLabel ? (
+        ) : activeStep < 5 && sa.nextLabel ? (
           <button
             onClick={handleStepAction}
             disabled={nextDisabled}
@@ -919,7 +1024,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               </>
             )}
           </button>
-        ) : activeStep === 4 ? (
+        ) : activeStep === 5 ? (
           <button
             onClick={onBack}
             className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-white active:scale-[0.98] transition-transform"
@@ -930,6 +1035,284 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
           </button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/* ── Delivery status badge (in order summary card) ── */
+function DeliveryStatusBadge({ order }: { order: OrderEntity }) {
+  const state = getDeliveryState(order);
+  if (!state) {
+    return (
+      <span className="text-[11px] text-text-muted">
+        {order.state === 'sale' ? 'Pending creation' : '—'}
+      </span>
+    );
+  }
+  const meta = DELIVERY_STATE_LABELS[state] ?? DELIVERY_STATE_LABELS.waiting;
+  return (
+    <span
+      className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+      style={{ backgroundColor: meta.bg, color: meta.color }}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+/* ── Delivery step ── */
+interface DeliveryStepProps {
+  order: OrderEntity;
+  deliveries: DeliveryEntity[];
+  deliveriesLoading: boolean;
+  selectedDelivery: DeliveryEntity | null;
+  detailLoading: boolean;
+  validating: boolean;
+  isViewingPastStep: boolean;
+  onSelectDelivery: (d: DeliveryEntity) => void;
+  onValidate: () => void;
+}
+
+function DeliveryStep({
+  order,
+  deliveries,
+  deliveriesLoading,
+  selectedDelivery,
+  detailLoading,
+  validating,
+  isViewingPastStep,
+  onSelectDelivery,
+  onValidate,
+}: DeliveryStepProps) {
+  const canValidate =
+    !isViewingPastStep &&
+    selectedDelivery !== null &&
+    (selectedDelivery.state === 'assigned' || selectedDelivery.state === 'confirmed');
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Header */}
+      <div className="px-4 py-3 flex items-center gap-2">
+        <Truck size={15} className="text-text-muted" />
+        <span className="text-sm font-semibold text-text-primary">Delivery Orders</span>
+        {deliveriesLoading && <Loader2 size={13} className="animate-spin text-text-muted ml-1" />}
+      </div>
+
+      {/* Explanation */}
+      <div className="px-4 py-3">
+        <div className="rounded-lg p-3 text-xs flex items-center gap-2"
+          style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+          <AlertCircle size={13} className="shrink-0 text-text-muted" />
+          <span>Tap <strong>Validate</strong> once goods have been dispatched to the customer.</span>
+        </div>
+      </div>
+
+      {/* Delivery list / picker */}
+      {!deliveriesLoading && deliveries.length === 0 && (
+        <div className="px-4 py-6 text-center">
+          <Truck size={24} className="mx-auto mb-2 text-text-muted" />
+          <p className="text-xs text-text-muted">No delivery orders found for this sale.</p>
+          <p className="text-[11px] text-text-muted mt-1">
+            This may mean the order only contains service products (no physical delivery needed).
+          </p>
+        </div>
+      )}
+
+      {deliveries.length > 1 && (
+        <div className="px-4 py-3 space-y-2">
+          <p className="text-xs font-medium text-text-secondary">Select delivery</p>
+          {deliveries.map((d) => {
+            const meta = DELIVERY_STATE_LABELS[d.state] ?? DELIVERY_STATE_LABELS.waiting;
+            const isSelected = selectedDelivery?.id === d.id;
+            return (
+              <button
+                key={d.id}
+                onClick={() => onSelectDelivery(d)}
+                className="w-full text-left px-3 py-2.5 rounded-lg border transition-colors"
+                style={{
+                  borderColor: isSelected ? 'var(--color-brand)' : 'var(--border-default)',
+                  backgroundColor: isSelected ? 'var(--color-brand-soft, rgba(255,200,0,0.06))' : 'var(--bg-elevated)',
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-text-primary">{d.name}</span>
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: meta.bg, color: meta.color }}
+                  >
+                    {meta.label}
+                  </span>
+                </div>
+                {d.scheduled_date && (
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Scheduled: {new Date(d.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Selected delivery detail */}
+      {selectedDelivery && (
+        <div className="px-4 py-3 space-y-3">
+          {/* Delivery header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-text-primary">{selectedDelivery.name}</p>
+              {selectedDelivery.origin && (
+                <p className="text-[11px] text-text-muted">Origin: {selectedDelivery.origin}</p>
+              )}
+            </div>
+            {(() => {
+              const meta = DELIVERY_STATE_LABELS[selectedDelivery.state] ?? DELIVERY_STATE_LABELS.waiting;
+              return (
+                <span
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                  style={{ backgroundColor: meta.bg, color: meta.color }}
+                >
+                  {meta.label}
+                </span>
+              );
+            })()}
+          </div>
+
+          {/* Location route */}
+          {(selectedDelivery.location_from || selectedDelivery.location_to) && (
+            <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+              <MapPin size={11} className="shrink-0" />
+              <span>{selectedDelivery.location_from?.name ?? '—'}</span>
+              <ChevronRight size={11} className="shrink-0" />
+              <span>{selectedDelivery.location_to?.name ?? '—'}</span>
+            </div>
+          )}
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-2">
+            {selectedDelivery.scheduled_date && (
+              <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                <p className="text-[10px] uppercase font-medium text-text-muted">Scheduled</p>
+                <p className="text-xs font-semibold text-text-primary mt-0.5">
+                  {new Date(selectedDelivery.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+            {selectedDelivery.date_done && (
+              <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--color-success-soft)' }}>
+                <p className="text-[10px] uppercase font-medium" style={{ color: 'var(--color-success)' }}>Delivered</p>
+                <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--color-success)' }}>
+                  {new Date(selectedDelivery.date_done).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Move lines */}
+          {detailLoading ? (
+            <div className="py-4"><LoadingState size="sm" inline /></div>
+          ) : selectedDelivery.lines && selectedDelivery.lines.length > 0 ? (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="px-3 py-2 border-b border-border flex items-center gap-2"
+                style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                <Package size={13} className="text-text-muted" />
+                <span className="text-xs font-semibold text-text-secondary">
+                  Products ({selectedDelivery.lines.length})
+                </span>
+              </div>
+              <div className="divide-y divide-border">
+                {selectedDelivery.lines.map((line) => {
+                  const isDone = line.qty_done >= line.qty_ordered && line.qty_ordered > 0;
+                  const isPartial = line.qty_done > 0 && line.qty_done < line.qty_ordered;
+                  return (
+                    <div key={line.id} className="px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-text-primary truncate flex-1">
+                          {line.product.name}
+                        </p>
+                        {isDone && (
+                          <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[11px] text-text-muted">
+                          Demand: <strong className="text-text-primary">{line.qty_ordered}</strong>
+                        </span>
+                        <span className="text-[11px] text-text-muted">
+                          Done:{' '}
+                          <strong
+                            style={{
+                              color: isDone
+                                ? 'var(--color-success)'
+                                : isPartial
+                                  ? 'var(--color-warning)'
+                                  : 'var(--text-primary)',
+                            }}
+                          >
+                            {line.qty_done}
+                          </strong>
+                        </span>
+                        {line.uom?.name && (
+                          <span className="text-[11px] text-text-muted">{line.uom.name}</span>
+                        )}
+                      </div>
+                      {line.lot_ids && line.lot_ids.length > 0 && (
+                        <div className="mt-1.5">
+                          <span
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                          >
+                            {line.lot_ids.length} serial{line.lot_ids.length > 1 ? 's' : ''} assigned
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-text-muted text-center py-2">No line detail available.</p>
+          )}
+
+          {/* Done delivery note */}
+          {selectedDelivery.state === 'done' && (
+            <div className="rounded-lg p-3 text-xs flex items-center gap-2"
+              style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
+              <CheckCircle2 size={14} className="shrink-0" />
+              <span>Delivery completed. Stock has been decremented from warehouse inventory.</span>
+            </div>
+          )}
+
+          {/* Waiting note */}
+          {(selectedDelivery.state === 'waiting' || selectedDelivery.state === 'confirmed') && (
+            <div className="rounded-lg p-3 text-xs flex items-start gap-2"
+              style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>
+                Stock is <strong>reserved</strong> for this delivery but not yet dispatched.
+                The delivery will be ready once stock is confirmed at the warehouse.
+              </span>
+            </div>
+          )}
+
+          {/* Validate button */}
+          {canValidate && (
+            <button
+              onClick={onValidate}
+              disabled={validating}
+              className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform"
+              style={{ backgroundColor: 'var(--color-success)', color: '#fff' }}
+            >
+              {validating ? (
+                <><Loader2 size={16} className="animate-spin" /> Validating...</>
+              ) : (
+                <><Truck size={16} /> Validate Delivery</>
+              )}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

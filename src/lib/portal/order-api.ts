@@ -10,6 +10,10 @@ import type {
   PaginationMeta,
   MutationResponse,
   PaymentStatus,
+  StockLevelEntry,
+  ProductStockDetail,
+  DeliveryEntity,
+  DeliveryLineEntity,
 } from './types';
 
 const ODOO_BASE_URL =
@@ -266,6 +270,39 @@ function mapLine(raw: any): OrderLineEntity {
   };
 }
 
+function mapDeliveryLine(raw: any): DeliveryLineEntity {
+  return {
+    id: raw.id ?? 0,
+    product: { id: raw.product?.id ?? 0, name: raw.product?.name ?? '' },
+    qty_ordered: raw.qty_ordered ?? raw.demand ?? 0,
+    qty_done: raw.qty_done ?? 0,
+    uom: { id: raw.uom?.id ?? 1, name: raw.uom?.name ?? 'Units' },
+    state: raw.state ?? 'confirmed',
+    lot_ids: Array.isArray(raw.lot_ids) ? raw.lot_ids : [],
+  };
+}
+
+function mapDelivery(raw: any): DeliveryEntity {
+  return {
+    id: raw.id ?? 0,
+    name: raw.name ?? '',
+    state: raw.state ?? 'waiting',
+    scheduled_date: raw.scheduled_date ?? null,
+    date_done: raw.date_done ?? null,
+    origin: raw.origin ?? null,
+    partner: raw.partner ? { id: raw.partner.id, name: raw.partner.name } : null,
+    sale_order: raw.sale_order ? { id: raw.sale_order.id, name: raw.sale_order.name } : null,
+    location_from: raw.location_from
+      ? { id: raw.location_from.id, name: raw.location_from.name }
+      : null,
+    location_to: raw.location_to
+      ? { id: raw.location_to.id, name: raw.location_to.name }
+      : null,
+    move_count: raw.move_count ?? 0,
+    lines: Array.isArray(raw.lines) ? raw.lines.map(mapDeliveryLine) : undefined,
+  };
+}
+
 function mapOrder(raw: any): OrderEntity {
   const partner = raw.partner ?? {};
   const order: OrderEntity = {
@@ -302,6 +339,10 @@ function mapOrder(raw: any): OrderEntity {
     payments: Array.isArray(raw.payments) ? raw.payments.map(mapPayment) : [],
     approval: mapApproval(raw.approval) ?? buildApprovalFromFlat(raw),
     timeline: [],
+    deliveries: Array.isArray(raw.deliveries)
+      ? raw.deliveries.map(mapDelivery)
+      : [],
+    deliveryStatus: raw.delivery_status ?? raw.deliveryStatus ?? null,
     createdAt:
       raw.created_at ?? raw.createdAt ?? raw.create_date ?? raw.date_order ?? null,
     updatedAt: raw.updated_at ?? raw.updatedAt ?? raw.write_date ?? null,
@@ -660,4 +701,145 @@ export async function sendProformaPdf(orderId: number): Promise<MutationResponse
   });
   const raw = await parseResponse<any>(response, endpoint);
   return { success: raw.success, message: raw.message ?? null };
+}
+
+// ============================================================================
+// Stock / Inventory
+// ============================================================================
+
+export interface StockLevelsParams {
+  product_id?: number;
+  warehouse_id?: number;
+  page?: number;
+  limit?: number;
+}
+
+export async function getStockLevels(
+  params: StockLevelsParams = {},
+): Promise<{ levels: StockLevelEntry[]; total: number }> {
+  const qp = new URLSearchParams();
+  if (params.product_id !== undefined) qp.append('product_id', String(params.product_id));
+  if (params.warehouse_id !== undefined) qp.append('warehouse_id', String(params.warehouse_id));
+  if (params.page !== undefined) qp.append('page', String(params.page));
+  qp.append('limit', String(params.limit ?? 200));
+
+  const qs = qp.toString();
+  const endpoint = `/api/stock/levels${qs ? `?${qs}` : ''}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  return {
+    levels: Array.isArray(raw.levels) ? raw.levels : [],
+    total: raw.total ?? 0,
+  };
+}
+
+export async function getProductStockLevel(
+  productId: number,
+  warehouseId?: number,
+): Promise<ProductStockDetail> {
+  const qp = new URLSearchParams();
+  if (warehouseId !== undefined) qp.append('warehouse_id', String(warehouseId));
+
+  const qs = qp.toString();
+  const endpoint = `/api/stock/levels/${productId}${qs ? `?${qs}` : ''}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  return parseResponse<ProductStockDetail>(response, endpoint);
+}
+
+// Aggregate stock levels by product id (sum across all locations)
+export function aggregateStockByProduct(
+  levels: StockLevelEntry[],
+): Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }> {
+  const map = new Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }>();
+  for (const entry of levels) {
+    const id = entry.product.id;
+    const existing = map.get(id) ?? { qty_on_hand: 0, qty_reserved: 0, qty_available: 0 };
+    map.set(id, {
+      qty_on_hand: existing.qty_on_hand + (entry.qty_on_hand ?? 0),
+      qty_reserved: existing.qty_reserved + (entry.qty_reserved ?? 0),
+      qty_available: existing.qty_available + (entry.qty_available ?? 0),
+    });
+  }
+  return map;
+}
+
+// ============================================================================
+// Deliveries
+// ============================================================================
+
+export interface GetDeliveriesParams {
+  state?: string;
+  sale_order_id?: number;
+  warehouse_id?: number;
+  page?: number;
+  limit?: number;
+}
+
+export async function getDeliveries(
+  params: GetDeliveriesParams = {},
+): Promise<{ deliveries: DeliveryEntity[]; total: number }> {
+  const qp = new URLSearchParams();
+  if (params.state) qp.append('state', params.state);
+  if (params.sale_order_id !== undefined) qp.append('sale_order_id', String(params.sale_order_id));
+  if (params.warehouse_id !== undefined) qp.append('warehouse_id', String(params.warehouse_id));
+  if (params.page !== undefined) qp.append('page', String(params.page));
+  qp.append('limit', String(params.limit ?? 20));
+
+  const qs = qp.toString();
+  const endpoint = `/api/stock/deliveries${qs ? `?${qs}` : ''}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  return {
+    deliveries: Array.isArray(raw.deliveries) ? raw.deliveries.map(mapDelivery) : [],
+    total: raw.total ?? 0,
+  };
+}
+
+export async function getDelivery(deliveryId: number): Promise<DeliveryEntity> {
+  const endpoint = `/api/stock/deliveries/${deliveryId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  return mapDelivery(raw.delivery ?? raw);
+}
+
+export interface ValidateDeliveryLine {
+  move_id: number;
+  qty_done: number;
+  lot_id?: number;
+}
+
+export async function validateDelivery(
+  deliveryId: number,
+  lines?: ValidateDeliveryLine[],
+  forceBackorder = false,
+): Promise<MutationResponse & { delivery?: DeliveryEntity }> {
+  const endpoint = `/api/stock/deliveries/${deliveryId}/validate`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const body: Record<string, unknown> = { force_backorder: forceBackorder };
+  if (lines?.length) body.lines = lines;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  return {
+    success: raw.success,
+    message: raw.message ?? null,
+    delivery: raw.delivery ? mapDelivery(raw.delivery) : undefined,
+  };
 }
