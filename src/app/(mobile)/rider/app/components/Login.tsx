@@ -898,7 +898,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </div>
 
       {/* Login Form */}
-      <div className="login-form">
+      <form
+        key={loginMethod}
+        id={loginMethod === 'phone' ? 'phone-login-form' : 'email-login-form'}
+        autoComplete={loginMethod === 'phone' ? 'off' : 'on'}
+        className="login-form"
+        onSubmit={(e) => e.preventDefault()}
+      >
         {/* Phone / Email toggle */}
         <div style={{
           display: 'flex',
@@ -986,7 +992,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               placeholder={t('auth.passwordPlaceholder') || 'Enter your password'}
               disabled={isSigningIn}
               style={{ paddingRight: 44 }}
-              autoComplete="current-password"
+              autoComplete={loginMethod === 'phone' ? 'off' : 'current-password'}
             />
             <button
               type="button"
@@ -1062,7 +1068,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <p className="login-help">
           {t('auth.needHelp') || 'Need help? Contact support'}
         </p>
-      </div>
+      </form>
     </div>
     </div>
   );
