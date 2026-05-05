@@ -38,8 +38,6 @@ import {
   type PriceList,
 } from '@/lib/portal/price-list-data';
 
-// Storable product type that requires stock tracking
-const STORABLE_TYPE = 'product';
 
 interface CreateOrderProps {
   onCreated: (order: OrderEntity) => void;
@@ -389,11 +387,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   const handleAddProduct = useCallback(
     async (p: OdooProduct) => {
-      // Block zero-stock storable products entirely
-      if (p.type === STORABLE_TYPE && stockLoaded) {
-        const stockEntry = stockMap.get(p.id);
-        const avail = stockEntry?.qty_available ?? 0;
-        if (avail <= 0) return;
+      // Block products that are in the stockMap with 0 available
+      if (stockLoaded) {
+        const entry = stockMap.get(p.id);
+        if (entry !== undefined && entry.qty_available <= 0) return;
       }
 
       const existingLine = linesRef.current.find((l) => l.productId === p.id);
@@ -401,11 +398,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       if (existingLine) {
         const newQty = existingLine.quantity + 1;
 
-        // Warn if exceeding available stock for storable products
-        if (p.type === STORABLE_TYPE && stockLoaded) {
+        // Warn if exceeding available stock
+        if (stockLoaded) {
           const stock = stockMap.get(p.id);
-          const effectiveAvailable = stock?.qty_available ?? 0;
-          if (newQty > effectiveAvailable) {
+          const effectiveAvailable = stock?.qty_available ?? null;
+          if (effectiveAvailable !== null && newQty > effectiveAvailable) {
             toast(
               effectiveAvailable === 0
                 ? `${p.name} has no available stock. Delivery will wait for replenishment.`
@@ -439,12 +436,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const listPrice = p.list_price ?? 0;
 
-        // Warn if out of stock for storable products
-        // A product absent from stockMap (after data loaded) means it has never been stocked → 0 available
-        if (p.type === STORABLE_TYPE && stockLoaded) {
+        // Warn if product is in stockMap with 0 available
+        if (stockLoaded) {
           const stock = stockMap.get(p.id);
-          const effectiveAvailable = stock?.qty_available ?? 0;
-          if (effectiveAvailable <= 0) {
+          if (stock !== undefined && stock.qty_available <= 0) {
             toast(
               `${p.name} has 0 units available. You can still add it to the quotation but delivery will wait for stock replenishment.`,
               { icon: '⚠️', duration: 6000 },
@@ -890,14 +885,13 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                     1,
                   );
                   const hasDiscount = resolved.discountPercent > 0;
-                  const isStorable = p.type === STORABLE_TYPE;
-                  const stock = stockLoaded ? (stockMap.get(p.id) ?? null) : undefined;
-                  // stock === undefined  → still loading (or failed)
-                  // stock === null       → loaded, not in map = 0 available
-                  // stock = { ... }     → live figures
-                  const qtyAvailable = stock !== undefined ? (stock?.qty_available ?? 0) : null;
-                  const isOutOfStock = isStorable && qtyAvailable !== null && qtyAvailable <= 0;
-                  const isLowStock = isStorable && qtyAvailable !== null && qtyAvailable > 0 && qtyAvailable <= 3;
+                  // Use stockMap as ground truth — products present in the map have tracked inventory.
+                  // Don't rely on p.type: in Odoo 16+ storable products may return type='consu'.
+                  const stockEntry = stockLoaded ? stockMap.get(p.id) : undefined;
+                  const hasStockInfo = stockEntry !== undefined; // true only after load & in map
+                  const qtyAvailable = hasStockInfo ? stockEntry!.qty_available : null;
+                  const isOutOfStock = hasStockInfo && qtyAvailable! <= 0;
+                  const isLowStock = hasStockInfo && qtyAvailable! > 0 && qtyAvailable! <= 3;
                   return (
                     <button
                       key={p.id}
@@ -905,9 +899,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                       disabled={isOutOfStock}
                       className={[
                         'w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-3 transition-colors',
-                        isOutOfStock
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'hover:bg-bg-elevated',
+                        isOutOfStock ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bg-elevated',
                       ].join(' ')}
                     >
                       {/* Left: name + category badge */}
@@ -952,12 +944,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
                       {/* Right: stock badge column */}
                       <div className="shrink-0 flex items-center justify-end w-[72px]">
-                        {isStorable && stockFetching ? (
-                          /* stock still loading — show mini spinner */
+                        {stockFetching ? (
                           <Loader2 size={12} className="animate-spin text-text-muted" />
-                        ) : isStorable && qtyAvailable !== null ? (
+                        ) : hasStockInfo ? (
                           <StockBadge
-                            qtyAvailable={qtyAvailable}
+                            qtyAvailable={qtyAvailable!}
                             isOutOfStock={isOutOfStock}
                             isLowStock={isLowStock}
                           />
@@ -989,8 +980,8 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
               {lines.map((line) => {
                 const hasDiscount = line.discountPercent > 0;
                 // Only show over-stock warnings once stock data has loaded
-                const lineStockEntry = stockLoaded ? (stockMap.get(line.productId) ?? null) : undefined;
-                const lineAvailable = lineStockEntry !== undefined ? (lineStockEntry?.qty_available ?? 0) : null;
+                const lineStockEntry = stockLoaded ? stockMap.get(line.productId) : undefined;
+                const lineAvailable = lineStockEntry !== undefined ? lineStockEntry.qty_available : null;
                 const lineOverStock = lineAvailable !== null && line.quantity > lineAvailable;
                 return (
                   <div key={line.tempId} className="px-3 py-3">
@@ -1147,8 +1138,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         {/* Over-stock summary warning — only once stock data is loaded */}
         {stockLoaded && lines.some((l) => {
           const s = stockMap.get(l.productId);
-          const avail = s?.qty_available ?? 0;
-          return l.quantity > avail;
+          return s !== undefined && l.quantity > s.qty_available;
         }) && (
           <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-[11px] font-medium"
             style={{ backgroundColor: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
