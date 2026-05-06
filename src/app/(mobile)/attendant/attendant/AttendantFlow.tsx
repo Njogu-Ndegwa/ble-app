@@ -65,6 +65,8 @@ declare global {
   }
 }
 
+export type AttendantWorkflowMode = 'standard' | 'manual-payment';
+
 interface AttendantFlowProps {
   onBack?: () => void;
   onLogout?: () => void;
@@ -78,9 +80,11 @@ interface AttendantFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback to clear the initial session after it's been consumed */
   onInitialSessionConsumed?: () => void;
+  /** Workflow mode - standard uses Odoo payment confirmation, manual-payment skips it */
+  workflowMode?: AttendantWorkflowMode;
 }
 
-export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, workflowMode = 'standard' }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { t } = useI18n();
@@ -831,6 +835,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     // Pass session order ID - when provided, payment uses session update flow
     // instead of creating a separate payment request
     sessionOrderId,
+    skipOdooConfirmation: workflowMode === 'manual-payment',
     onSuccess: (isIdempotent) => {
       advanceToStep(6);
       toast.success(isIdempotent ? 'Swap completed! (already recorded)' : 'Swap completed!');
@@ -1812,7 +1817,8 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         break;
       case 5:
         // Handle payment based on input mode
-        if (paymentInputMode === 'scan') {
+        // In manual-payment workflow, always use manual entry (no QR scan)
+        if (paymentInputMode === 'scan' && workflowMode !== 'manual-payment') {
           handleConfirmPayment();
         } else {
           // Manual mode - call backend with manual payment ID
@@ -1827,7 +1833,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         handleNewSwap();
         break;
     }
-  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession]);
+  }, [currentStep, inputMode, paymentInputMode, manualPaymentId, handleScanCustomer, handleManualLookup, handleScanOldBattery, handleScanNewBattery, handleProceedToPayment, handleConfirmPayment, handleManualPayment, handleNewSwap, t, isReadOnlySession, workflowMode]);
 
   // Render current step content
   const renderStepContent = () => {

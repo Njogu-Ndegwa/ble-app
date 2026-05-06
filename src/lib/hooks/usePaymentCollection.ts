@@ -97,6 +97,12 @@ export interface UsePaymentCollectionOptions {
    * via the session update endpoint before calling confirmPayment.
    */
   sessionOrderId?: number | null;
+  /** 
+   * When true, skips Odoo payment request creation and confirmation.
+   * The entered transaction ID is used directly for service completion.
+   * Used by the Manual Swap workflow where attendant records payment locally.
+   */
+  skipOdooConfirmation?: boolean;
   /** Callback when swap completes successfully */
   onSuccess?: (isIdempotent: boolean) => void;
   /** Callback when an error occurs */
@@ -160,6 +166,7 @@ export function usePaymentCollection(
     attendantInfo,
     electricityServiceId = 'service-electricity-default',
     sessionOrderId,
+    skipOdooConfirmation = false,
     onSuccess,
     onError,
     onPartialPayment,
@@ -288,6 +295,18 @@ export function usePaymentCollection(
       return true;
     }
 
+    // MANUAL SWAP MODE: Skip all Odoo payment interactions
+    // Just mark payment as ready and let attendant enter transaction ID directly
+    if (skipOdooConfirmation) {
+      const amountRequired = Math.floor(swapData.cost);
+      setExpectedPaymentAmount(amountRequired);
+      setPaymentRequestCreated(true);
+      setPaymentRequestOrderId(sessionOrderId ?? null);
+      setPaymentInitiated(true);
+      toast.success('Enter transaction ID to confirm payment');
+      return true;
+    }
+
     const phoneNumber = customerData?.phone || '';
 
     try {
@@ -407,7 +426,7 @@ export function usePaymentCollection(
       toast.error(error.message || 'Failed to initiate payment. Please try again.');
       return false;
     }
-  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff, swapData.currencySymbol, sessionOrderId]);
+  }, [customerData, dynamicPlanId, swapData.cost, swapData.energyDiff, swapData.currencySymbol, sessionOrderId, skipOdooConfirmation]);
 
   // ============================================================================
   // Confirm Payment (QR or Manual)
@@ -423,8 +442,37 @@ export function usePaymentCollection(
         expectedPaymentAmount,
         swapCost: swapData.cost,
         currency: swapData.currencySymbol,
+        skipOdooConfirmation,
       });
       setIsProcessing(true);
+
+      // MANUAL SWAP MODE: Skip Odoo confirmation entirely
+      // The attendant-entered transaction ID is trusted and used directly
+      if (skipOdooConfirmation) {
+        try {
+          if (!receipt.trim()) {
+            toast.error('Please enter a transaction ID');
+            setIsProcessing(false);
+            return;
+          }
+
+          const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
+          setActualAmountPaid(requiredAmount);
+          setPaymentAmountRemaining(0);
+          setPaymentConfirmed(true);
+          setPaymentReceipt(receipt);
+          setTransactionId(receipt);
+          toast.success('Payment recorded successfully');
+
+          // Publish payment_and_service directly without Odoo validation
+          callPublishRef.current(receipt, false);
+        } catch (err: any) {
+          console.error('[usePaymentCollection] Manual payment confirmation error:', err);
+          toast.error(err.message || 'Payment confirmation failed');
+          setIsProcessing(false);
+        }
+        return;
+      }
 
       // Capture current orderId - may be from previous payment request or session
       let orderId = paymentRequestOrderId;
@@ -539,6 +587,9 @@ export function usePaymentCollection(
       swapData.cost,
       swapData.currencySymbol,
       sessionOrderId,
+      skipOdooConfirmation,
+      paymentInputMode,
+      manualPaymentId,
     ]
   );
 

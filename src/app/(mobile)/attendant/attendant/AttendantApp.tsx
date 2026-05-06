@@ -10,7 +10,7 @@ import {
   getSalesRoleToken,
   type EmployeeUser 
 } from '@/lib/attendant-auth';
-import AttendantFlow from './AttendantFlow';
+import AttendantFlow, { type AttendantWorkflowMode } from './AttendantFlow';
 import { 
   AttendantNav, 
   AttendantTransactions,
@@ -26,9 +26,10 @@ import type { OrderListItem } from '@/lib/odoo-api';
 interface AttendantAppProps {
   onLogout?: () => void;
   onSwitchSA?: () => void;
+  workflowMode?: AttendantWorkflowMode;
 }
 
-export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps) {
+export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'standard' }: AttendantAppProps) {
   const router = useRouter();
   const { t } = useI18n();
   
@@ -133,6 +134,7 @@ export default function AttendantApp({ onLogout, onSwitchSA }: AttendantAppProps
         initialSession={selectedSession}
         initialSessionReadOnly={selectedSessionReadOnly}
         onInitialSessionConsumed={handleSessionConsumed}
+        workflowMode={workflowMode}
       />
     );
   }
