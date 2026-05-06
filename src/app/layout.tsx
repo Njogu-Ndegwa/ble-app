@@ -27,7 +27,7 @@ import { ThemeProvider } from './context/themeContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // ── vConsole toggle (set to true to enable, false to disable) ──
-const ENABLE_VCONSOLE = true;
+const ENABLE_VCONSOLE = false;
 
 export default function RootLayout({
   children,
