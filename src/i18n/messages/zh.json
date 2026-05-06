@@ -932,6 +932,7 @@
   "role.bleDeviceManager": "设备管理",
   "role.attendantDesc": "换电站运营",
   "role.manualSwapDesc": "手动记录换电",
+  "role.testBadge": "测试",
   "role.salesRepDesc": "客户销售",
   "role.riderDesc": "骑行导航",
   "role.keypadDesc": "快速访问",

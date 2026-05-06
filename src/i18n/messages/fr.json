@@ -1019,6 +1019,7 @@
   "role.bleDeviceManager": "Gestionnaire",
   "role.attendantDesc": "Opérations de station",
   "role.manualSwapDesc": "Enregistrement manuel",
+  "role.testBadge": "TEST",
   "role.salesRepDesc": "Ventes clients",
   "role.riderDesc": "Rouler & Naviguer",
   "role.keypadDesc": "Accès rapide",
