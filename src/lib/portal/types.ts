@@ -123,6 +123,72 @@ export interface OrderApproval {
   notes: string | null;
 }
 
+// ============================================================================
+// Stock types
+// ============================================================================
+
+export interface StockLevelEntry {
+  product: { id: number; name: string };
+  location: { id: number; name: string };
+  qty_on_hand: number;
+  qty_reserved: number;
+  qty_available: number;
+}
+
+export interface ProductStockTotals {
+  qty_on_hand: number;
+  qty_reserved: number;
+  qty_available: number;
+  qty_forecasted: number;
+}
+
+export interface ProductStockDetail {
+  product: {
+    id: number;
+    name: string;
+    default_code: string | null;
+    tracking: 'serial' | 'lot' | 'none';
+  };
+  by_location: {
+    location: { id: number; name: string };
+    qty_on_hand: number;
+    qty_reserved: number;
+    qty_available: number;
+  }[];
+  totals: ProductStockTotals;
+}
+
+// ============================================================================
+// Delivery types
+// ============================================================================
+
+export type DeliveryState = 'draft' | 'waiting' | 'confirmed' | 'assigned' | 'done' | 'cancel';
+
+export interface DeliveryLineEntity {
+  id: number;
+  product: { id: number; name: string };
+  qty_ordered: number;
+  qty_done: number;
+  uom: { id: number; name: string };
+  state: string;
+  lot_ids: number[];
+}
+
+export interface DeliveryEntity {
+  id: number;
+  name: string;
+  state: DeliveryState;
+  scheduled_date: string | null;
+  date_done: string | null;
+  origin: string | null;
+  partner: { id: number; name: string } | null;
+  sale_order: { id: number; name: string } | null;
+  location_from: { id: number; name: string } | null;
+  location_to: { id: number; name: string } | null;
+  move_count: number;
+  lines?: DeliveryLineEntity[];
+}
+
 export interface OrderEntity {
   id: string;
   name: string;
@@ -149,6 +215,8 @@ export interface OrderEntity {
   payments: OrderPaymentEntity[];
   approval: OrderApproval | null;
   timeline: OrderTimelineEvent[];
+  deliveries: DeliveryEntity[];
+  deliveryStatus: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }

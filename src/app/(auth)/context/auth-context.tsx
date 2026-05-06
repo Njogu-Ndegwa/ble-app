@@ -59,9 +59,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const isTokenExpired = (token: string): boolean => {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const exp = payload.exp * 1000; // Convert to milliseconds
-    return Date.now() > exp;
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return true;
+      const payload = JSON.parse(atob(parts[1]));
+      if (typeof payload?.exp !== 'number') return true;
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      return Date.now() > exp;
+    } catch {
+      // Malformed token shouldn't crash the AuthProvider tree (which would
+      // black-screen every page underneath it). Treat as expired so the
+      // existing refresh-or-logout path runs cleanly.
+      return true;
+    }
   };
 
   const refreshAccessToken = async (): Promise<void> => {

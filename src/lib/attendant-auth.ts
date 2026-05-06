@@ -727,6 +727,10 @@ export function clearAttendantRoleLogin(): void {
   localStorage.removeItem(STORAGE_KEYS.ATTENDANT_TOKEN_EXPIRES);
   localStorage.removeItem(STORAGE_KEYS.ATTENDANT_SA_ID);
   localStorage.removeItem(STORAGE_KEYS.ATTENDANT_SA_DATA);
+
+  // Also invalidate the unified ov-auth session so the root page redirects
+  // to /signin instead of showing the applet grid after an applet-level logout.
+  _clearOvSession();
   
   console.log('[EmployeeAuth] Cleared Attendant login');
 }
@@ -743,8 +747,32 @@ export function clearSalesRoleLogin(): void {
   localStorage.removeItem(STORAGE_KEYS.SALES_TOKEN_EXPIRES);
   localStorage.removeItem(STORAGE_KEYS.SALES_SA_ID);
   localStorage.removeItem(STORAGE_KEYS.SALES_SA_DATA);
+
+  // Also invalidate the unified ov-auth session (avoids circular import by
+  // deleting the keys directly rather than importing clearOdooEmployeeSession).
+  _clearOvSession();
   
   console.log('[EmployeeAuth] Cleared Sales login');
+}
+
+/** Remove all ov-* unified session keys without importing from ov-auth (avoids circular dep). */
+function _clearOvSession(): void {
+  localStorage.removeItem('ov-employee-token');
+  localStorage.removeItem('ov-employee-data');
+  localStorage.removeItem('ov-employee-token-expires');
+  localStorage.removeItem('ov-service-accounts');
+  localStorage.removeItem('ov-selected-sa-id');
+  localStorage.removeItem('oves-sales-sa-id');
+  localStorage.removeItem('oves-sales-sa-data');
+  localStorage.removeItem('oves-attendant-sa-id');
+  localStorage.removeItem('oves-attendant-sa-data');
+  // Per-SA applet caches
+  const toRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('ov_sa_applets_')) toRemove.push(key);
+  }
+  toRemove.forEach(k => localStorage.removeItem(k));
 }
 
 /**

@@ -1,0 +1,495 @@
+// Unified Odoo employee session management.
+// This module owns all `ov-*` localStorage keys and is the single source of
+// truth for whether a user is logged in, which SA they have selected, and
+// which applets are visible for that SA.
+//
+// It intentionally does NOT replicate the legacy attendant/sales storage logic;
+// it mirrors the token into those keys only when an SA is selected so that
+// existing per-app auth checks (isAttendantRoleLoggedIn etc.) continue to work.
+
+import type {
+  OdooEmployeeSession,
+  OdooLoginResponse,
+  ServiceAccount,
+} from './sa-types'
+import type { EmployeeUser } from './attendant-auth'
+import { clearAttendantRoleLogin, clearSalesRoleLogin } from './attendant-auth'
+
+// ---------------------------------------------------------------------------
+// Storage key constants
+// ---------------------------------------------------------------------------
+
+const KEYS = {
+  EMPLOYEE_TOKEN: 'ov-employee-token',
+  EMPLOYEE_DATA: 'ov-employee-data',
+  EMPLOYEE_TOKEN_EXPIRES: 'ov-employee-token-expires',
+  SERVICE_ACCOUNTS: 'ov-service-accounts',
+  SELECTED_SA_ID: 'ov-selected-sa-id',
+  SA_APPLETS_PREFIX: 'ov_sa_applets_',
+  // Legacy keys mirrored on SA selection so existing per-app checks work
+  ATTENDANT_TOKEN: 'oves-attendant-token',
+  ATTENDANT_DATA: 'oves-attendant-data',
+  SALES_TOKEN: 'oves-sales-token',
+  SALES_DATA: 'oves-sales-data',
+} as const
+
+// ---------------------------------------------------------------------------
+// API config
+// ---------------------------------------------------------------------------
+
+const ODOO_BASE_URL = 'https://crm-omnivoltaic.odoo.com/api'
+const ODOO_API_KEY = 'abs_connector_secret_key_2024'
+
+// ---------------------------------------------------------------------------
+// JWT helpers (no external dependency)
+// ---------------------------------------------------------------------------
+
+function decodeJwtExp(token: string): number | null {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    const parsed = JSON.parse(json)
+    return typeof parsed.exp === 'number' ? parsed.exp : null
+  } catch {
+    return null
+  }
+}
+
+function isTokenExpired(token: string | null): boolean {
+  if (!token) return true
+  const exp = decodeJwtExp(token)
+  if (exp !== null) {
+    // Standard JWT — use embedded exp with a 60-second buffer
+    return Date.now() >= (exp - 60) * 1000
+  }
+  // Non-JWT / opaque token — fall back to the stored expires_at timestamp
+  try {
+    const stored = localStorage.getItem(KEYS.EMPLOYEE_TOKEN_EXPIRES)
+    if (!stored) return false  // no expiry on record → assume still valid
+    return Date.now() >= new Date(stored).getTime() - 60_000
+  } catch {
+    return false  // can't determine expiry, assume valid
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Login API call
+// ---------------------------------------------------------------------------
+
+export async function odooEmployeeLogin(
+  emailOrPhone: string,
+  password: string,
+  loginMethod: 'email' | 'phone' = 'email',
+): Promise<OdooLoginResponse> {
+  console.info('[ov-auth] odooEmployeeLogin → POST /employee/login for', emailOrPhone, '(method:', loginMethod, ')')
+
+  const credential = loginMethod === 'phone'
+    ? { phone: emailOrPhone.trim(), password }
+    : { email: emailOrPhone.trim(), password }
+
+  const response = await fetch(`${ODOO_BASE_URL}/employee/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-KEY': ODOO_API_KEY,
+    },
+    body: JSON.stringify(credential),
+  })
+
+  const data = await response.json() as OdooLoginResponse
+
+  if (!response.ok && !data.error) {
+    data.success = false
+    data.error = `HTTP ${response.status}`
+  }
+
+  if (data.success) {
+    console.info('[ov-auth] Login response SUCCESS')
+    console.info('[ov-auth] employee:', data.session?.employee?.name, '| id:', data.session?.employee?.id)
+    console.info('[ov-auth] token expires_at:', data.session?.expires_at)
+    console.info('[ov-auth] total SAs returned:', data.session?.service_accounts?.length ?? 0)
+    console.info('[ov-auth] auto_selected:', data.session?.auto_selected)
+    data.session?.service_accounts?.forEach(sa => {
+      console.info(`[ov-auth]   SA #${sa.id} "${sa.name}" (${sa.my_role}) → applets: [${sa.applets?.join(', ')}]`)
+    })
+  } else {
+    console.warn('[ov-auth] Login response FAILED:', data.error ?? data.message)
+  }
+
+  return data
+}
+
+// ---------------------------------------------------------------------------
+// Session persistence
+// ---------------------------------------------------------------------------
+
+export function saveOdooEmployeeSession(session: OdooEmployeeSession): void {
+  if (typeof window === 'undefined') return
+
+  // ---------------------------------------------------------------------------
+  // Shape normalisation
+  // The rider/portal login endpoint returns a different JSON shape than the
+  // standard employee login:
+  //   • session.user  (not session.employee)
+  //   • service_accounts[].sa_id   (not .id)
+  //   • service_accounts[].sa_name (not .name)
+  //   • service_accounts[].role    (not .my_role)
+  //   • no auto_selected field
+  // Normalise everything here so every downstream consumer sees a consistent
+  // shape regardless of which backend variant responded.
+  // ---------------------------------------------------------------------------
+  const raw = session as any
+
+  // employee: prefer the canonical field, fall back to the portal `user` field
+  const employee = session.employee ?? raw.user ?? null
+
+  // Normalise each SA so id/name/my_role are always populated
+  const rawAccounts: any[] = Array.isArray(session.service_accounts)
+    ? session.service_accounts
+    : []
+
+  const accounts: ServiceAccount[] = rawAccounts
+    .map((sa: any): ServiceAccount => ({
+      // Spread first so any extra fields are preserved
+      ...sa,
+      // Core identity fields — map rider variants to canonical names
+      id:            sa.id     ?? sa.sa_id   ?? undefined,
+      name:          sa.name   ?? sa.sa_name ?? undefined,
+      my_role:       sa.my_role ?? sa.role   ?? 'staff',
+      // Provide safe defaults for fields the rider endpoint omits
+      account_code:  sa.account_code  ?? null,
+      account_class: sa.account_class ?? '',
+      state:         sa.state         ?? 'active',
+      is_root:       sa.is_root       ?? false,
+      note:          sa.note          ?? null,
+      member_count:  sa.member_count  ?? 0,
+      child_count:   sa.child_count   ?? 0,
+      company_id:    sa.company_id    ?? false,
+      company_name:  sa.company_name  ?? false,
+      parent:        sa.parent        ?? null,
+      partner:       sa.partner       ?? null,
+      created_at:    sa.created_at    ?? '',
+      updated_at:    sa.updated_at    ?? '',
+      my_scope_policy: sa.my_scope_policy ?? false,
+      applets:       Array.isArray(sa.applets) ? sa.applets : [],
+    }))
+    .filter(sa => sa.id != null)
+
+  console.info('[ov-auth] normalised accounts:', accounts.map(sa => ({ id: sa.id, name: sa.name, applets: sa.applets })))
+
+  // ---------------------------------------------------------------------------
+  // Persist to localStorage
+  // Guard against undefined/null fields — localStorage.setItem coerces any
+  // non-string value to a string, so JSON.stringify(undefined) would write
+  // the literal string "undefined" which later breaks JSON.parse.
+  // ---------------------------------------------------------------------------
+  if (session.token != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_TOKEN, session.token)
+  }
+  if (session.expires_at != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, session.expires_at)
+  }
+  if (employee != null) {
+    localStorage.setItem(KEYS.EMPLOYEE_DATA, JSON.stringify(employee))
+  }
+
+  localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
+
+  // Cache each SA's applets keyed by id for zero-roundtrip access
+  accounts.forEach(sa => {
+    localStorage.setItem(
+      `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
+      JSON.stringify(sa.applets ?? []),
+    )
+    console.info(`[ov-auth] Cached applets for SA #${sa.id} "${sa.name}": [${sa.applets?.join(', ')}]`)
+  })
+
+  console.info('[ov-auth] Session saved. SAs cached:', accounts.length)
+
+  // Auto-select when the backend explicitly signals auto_selected AND there is
+  // exactly one SA.  Removing this guard caused normal-login users (where
+  // auto_selected is false) to skip SelectSA unexpectedly.
+  if (session.auto_selected && accounts.length === 1) {
+    console.info('[ov-auth] Single SA (auto_selected) — auto-selecting SA #', accounts[0].id)
+    selectServiceAccount(accounts[0], session.token)
+  }
+}
+
+/**
+ * Bridge a Microsoft SSO result into the unified ov-auth storage.
+ * Called from page.tsx after a successful Microsoft OAuth callback.
+ * Service accounts are NOT available at this point — SelectSA will lazy-fetch them.
+ */
+export function saveOdooEmployeeSessionFromMicrosoft(user: EmployeeUser): void {
+  if (typeof window === 'undefined') return
+
+  if (!user.accessToken) {
+    console.warn('[ov-auth] saveOdooEmployeeSessionFromMicrosoft: no accessToken on user, aborting')
+    return
+  }
+
+  console.info('[ov-auth] saveOdooEmployeeSessionFromMicrosoft: saving token for', user.name, '| expires:', user.tokenExpiresAt)
+  localStorage.setItem(KEYS.EMPLOYEE_TOKEN, user.accessToken)
+  if (user.tokenExpiresAt) {
+    localStorage.setItem(KEYS.EMPLOYEE_TOKEN_EXPIRES, user.tokenExpiresAt)
+  }
+  localStorage.setItem(
+    KEYS.EMPLOYEE_DATA,
+    JSON.stringify({
+      id: user.employeeId ?? user.id,
+      name: user.name,
+      email: user.email,
+      company_id: user.companyId ?? null,
+      partner_id: (user as any).partner_id ?? null,
+      user_type: 'abs.employee',
+    }),
+  )
+  // Service accounts are not embedded in the Microsoft callback — clear any stale
+  // list so SelectSA can detect the empty state and trigger a live fetch.
+  localStorage.removeItem(KEYS.SERVICE_ACCOUNTS)
+  console.info('[ov-auth] Microsoft session saved. SAs cleared — SelectSA will fetch them live.')
+}
+
+/**
+ * Fetch and cache service accounts from the API.
+ * Used by SelectSA after Microsoft SSO, where SAs were not embedded in the callback.
+ */
+export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> {
+  const token = getOdooEmployeeToken()
+  if (!token) {
+    console.info('[ov-auth] fetchAndCacheServiceAccounts: no token, skipping')
+    return []
+  }
+
+  console.info('[ov-auth] fetchAndCacheServiceAccounts: fetching live SA list…')
+
+  // Abort after 15 s so the UI doesn't spin forever if the endpoint hangs
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => {
+    console.warn('[ov-auth] fetchAndCacheServiceAccounts: timed out after 15 s')
+    controller.abort()
+  }, 15_000)
+
+  try {
+    const resp = await fetch(`${ODOO_BASE_URL}/me/service-accounts`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': ODOO_API_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    console.info('[ov-auth] fetchAndCacheServiceAccounts: HTTP', resp.status)
+    if (!resp.ok) return []
+    const data = await resp.json()
+    const accounts: ServiceAccount[] = Array.isArray(data.service_accounts)
+      ? data.service_accounts
+      : []
+    console.info('[ov-auth] fetchAndCacheServiceAccounts: received', accounts.length, 'accounts')
+    if (accounts.length > 0) {
+      localStorage.setItem(KEYS.SERVICE_ACCOUNTS, JSON.stringify(accounts))
+      accounts.forEach(sa => {
+        console.info(`[ov-auth]   SA #${sa.id} "${sa.name}" applets: [${(sa.applets ?? []).join(', ')}]`)
+        localStorage.setItem(
+          `${KEYS.SA_APPLETS_PREFIX}${sa.id}`,
+          JSON.stringify(sa.applets ?? []),
+        )
+      })
+    }
+    return accounts
+  } catch (err) {
+    clearTimeout(timeoutId)
+    console.warn('[ov-auth] fetchAndCacheServiceAccounts error:', err)
+    return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auth checks
+// ---------------------------------------------------------------------------
+
+export function isOdooEmployeeLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false
+  const token = localStorage.getItem(KEYS.EMPLOYEE_TOKEN)
+  return !isTokenExpired(token)
+}
+
+export function getOdooEmployeeToken(): string | null {
+  if (typeof window === 'undefined') return null
+  const token = localStorage.getItem(KEYS.EMPLOYEE_TOKEN)
+  return isTokenExpired(token) ? null : token
+}
+
+// ---------------------------------------------------------------------------
+// Employee data
+// ---------------------------------------------------------------------------
+
+export function getOdooEmployee(): OdooEmployeeSession['employee'] | null {
+  if (typeof window === 'undefined') return null
+  const raw = localStorage.getItem(KEYS.EMPLOYEE_DATA)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Service accounts
+// ---------------------------------------------------------------------------
+
+export function getStoredServiceAccounts(): ServiceAccount[] {
+  if (typeof window === 'undefined') return []
+  const raw = localStorage.getItem(KEYS.SERVICE_ACCOUNTS)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    // Guard against null / non-array values stored by a previous bad write
+    return Array.isArray(parsed) ? (parsed as ServiceAccount[]) : []
+  } catch {
+    return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SA selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist the user's chosen SA and mirror the employee token AND the SA selection
+ * into every legacy storage key so individual applets (customer-management, orders,
+ * activator, attendant, etc.) skip their own per-applet login / SA-picker screens.
+ *
+ * Legacy keys written:
+ *   Auth  → oves-attendant-token, oves-sales-token (+ *-data variants)
+ *   SA    → oves-sales-sa-id, oves-sales-sa-data, oves-attendant-sa-id, oves-attendant-sa-data
+ *
+ * Without the SA keys, individual applets see hasSASelected()=false and fall back to
+ * their own SA picker, which contains a Microsoft sign-in button → OAuth loop.
+ */
+export function selectServiceAccount(sa: ServiceAccount, tokenOverride?: string): void {
+  if (typeof window === 'undefined') return
+
+  // Guard: a missing id (e.g. rider-shape response uses sa_id, not id) would
+  // write the literal string "undefined" to localStorage, corrupting every
+  // downstream auth check that calls Number(val) on the stored string.
+  if (sa.id == null) {
+    console.warn('[ov-auth] selectServiceAccount: SA has no valid id — aborting to prevent "undefined" storage', sa)
+    return
+  }
+
+  localStorage.setItem(KEYS.SELECTED_SA_ID, String(sa.id))
+
+  // Mirror token into legacy auth keys
+  const token = tokenOverride ?? localStorage.getItem(KEYS.EMPLOYEE_TOKEN) ?? ''
+  const employeeRaw = localStorage.getItem(KEYS.EMPLOYEE_DATA)
+  let legacyUserData: Record<string, unknown> = {}
+  if (employeeRaw) {
+    try {
+      legacyUserData = JSON.parse(employeeRaw)
+    } catch {
+      legacyUserData = {}
+    }
+  }
+
+  if (token) {
+    localStorage.setItem(KEYS.ATTENDANT_TOKEN, token)
+    localStorage.setItem(KEYS.SALES_TOKEN, token)
+    localStorage.setItem(KEYS.ATTENDANT_DATA, JSON.stringify({ ...legacyUserData, userType: 'attendant', accessToken: token }))
+    localStorage.setItem(KEYS.SALES_DATA, JSON.stringify({ ...legacyUserData, userType: 'sales', accessToken: token }))
+  }
+
+  // Mirror SA selection into legacy per-applet SA keys.
+  // Written directly (not via saveSelectedSA()) to avoid its cross-contamination
+  // clearing logic which would erase the other role's entry we just wrote.
+  const saJson = JSON.stringify(sa)
+  localStorage.setItem('oves-sales-sa-id', String(sa.id))
+  localStorage.setItem('oves-sales-sa-data', saJson)
+  localStorage.setItem('oves-attendant-sa-id', String(sa.id))
+  localStorage.setItem('oves-attendant-sa-data', saJson)
+
+  console.info(`[ov-auth] selectServiceAccount: SA #${sa.id} "${sa.name}" bridged to all legacy keys (token + SA selection)`)
+}
+
+export function getSelectedSAId(): number | null {
+  if (typeof window === 'undefined') return null
+  const val = localStorage.getItem(KEYS.SELECTED_SA_ID)
+  if (!val) return null
+  const num = Number(val)
+  return Number.isNaN(num) ? null : num
+}
+
+export function getSelectedSA(): ServiceAccount | null {
+  const id = getSelectedSAId()
+  if (id === null) return null
+  return getStoredServiceAccounts().find(sa => sa.id === id) ?? null
+}
+
+/** Clear only the SA selection (for "Switch Account" — no re-login required) */
+export function clearSelectedSA(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(KEYS.SELECTED_SA_ID)
+}
+
+// ---------------------------------------------------------------------------
+// Applets
+// ---------------------------------------------------------------------------
+
+export function getActiveSAApplets(): string[] {
+  if (typeof window === 'undefined') return []
+  const id = getSelectedSAId()
+  if (id === null) {
+    console.info('[ov-auth] getActiveSAApplets: no SA selected → returning []')
+    return []
+  }
+  const raw = localStorage.getItem(`${KEYS.SA_APPLETS_PREFIX}${id}`)
+  if (!raw) {
+    console.info(`[ov-auth] getActiveSAApplets: no cached applets for SA #${id} → returning []`)
+    return []
+  }
+  try {
+    const applets = JSON.parse(raw) as string[]
+    console.info(`[ov-auth] getActiveSAApplets (SA #${id}): [${applets.join(', ')}]`)
+    return applets
+  } catch {
+    return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Logout / session clear
+// ---------------------------------------------------------------------------
+
+export function clearOdooEmployeeSession(): void {
+  if (typeof window === 'undefined') return
+
+  // Remove core ov-* keys
+  localStorage.removeItem(KEYS.EMPLOYEE_TOKEN)
+  localStorage.removeItem(KEYS.EMPLOYEE_DATA)
+  localStorage.removeItem(KEYS.EMPLOYEE_TOKEN_EXPIRES)
+  localStorage.removeItem(KEYS.SERVICE_ACCOUNTS)
+  localStorage.removeItem(KEYS.SELECTED_SA_ID)
+
+  // Remove all per-SA applet caches
+  const toRemove: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(KEYS.SA_APPLETS_PREFIX)) {
+      toRemove.push(key)
+    }
+  }
+  toRemove.forEach(k => localStorage.removeItem(k))
+
+  // Clear legacy mirrored tokens so per-app auth checks also reset
+  clearAttendantRoleLogin()
+  clearSalesRoleLogin()
+
+  // Clear legacy per-applet SA selections
+  localStorage.removeItem('oves-sales-sa-id')
+  localStorage.removeItem('oves-sales-sa-data')
+  localStorage.removeItem('oves-attendant-sa-id')
+  localStorage.removeItem('oves-attendant-sa-data')
+}

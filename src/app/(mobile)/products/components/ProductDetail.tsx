@@ -42,15 +42,6 @@ export default function ProductDetail({ product, onBack }: ProductDetailProps) {
           { label: 'Recurring Invoice', value: product.recurring_invoice ? 'Yes' : 'No' },
         ],
       },
-      {
-        title: 'Classification',
-        fields: [
-          { label: 'PU Category', value: product.pu_category || '--' },
-          { label: 'PU Metric', value: product.pu_metric || '--' },
-          { label: 'Service Type', value: product.service_type || '--' },
-          { label: 'Contract Type', value: product.contract_type || '--' },
-        ],
-      },
       ...(product.company_name
         ? [{
             title: 'Company',

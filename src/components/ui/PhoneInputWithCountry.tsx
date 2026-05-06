@@ -317,6 +317,8 @@ export default function PhoneInputWithCountry({
             onChange={handlePhoneValueChange}
             placeholder={placeholder || 'Enter phone number'}
             disabled={disabled}
+            autoComplete="off"
+            name="phone-login"
           />
         </div>
 

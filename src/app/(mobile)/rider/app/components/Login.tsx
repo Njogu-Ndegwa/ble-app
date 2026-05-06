@@ -6,18 +6,23 @@ import { useRouter } from 'next/navigation';
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
-import { Globe } from 'lucide-react';
-import Image from "next/image";
+import { Fingerprint } from 'lucide-react';
 import { PhoneInputWithCountry } from '@/components/ui';
-import ThemeToggle from '@/components/ui/ThemeToggle';
-
 // Define interfaces
+interface ServiceAccount {
+  sa_id: number;
+  sa_name: string;
+  applets: any[];
+  role: string;
+}
+
 interface Customer {
   id: number;
   name: string;
   email: string;
   phone: string;
   partner_id?: number;
+  service_accounts?: ServiceAccount[];
 }
 
 interface LoginProps {
@@ -40,16 +45,20 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const router = useRouter();
-  const { locale, setLocale, t } = useI18n();
+  const { t, locale } = useI18n();
   const { bridge } = useBridge();
+  const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('phone');
   // Phone number in E.164 format without the + prefix (e.g., "254712345678")
   const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [showRegister, setShowRegister] = useState<boolean>(false);
   const [scannedBatteryCode, setScannedBatteryCode] = useState<string | null>(null);
   const [isScanningBattery, setIsScanningBattery] = useState<boolean>(false);
+  const [isFingerprintAvailable, setIsFingerprintAvailable] = useState<boolean>(false);
+  const [isFingerprintAuthenticating, setIsFingerprintAuthenticating] = useState<boolean>(false);
   const bridgeInitRef = useRef(false);
   
   // Registration form state - only fields accepted by Odoo /api/auth/register
@@ -73,16 +82,25 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     };
   }, []);
 
-  // Toggle locale function
-  const toggleLocale = useCallback(() => {
-    const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
-    setLocale(nextLocale);
-  }, [locale, setLocale]);
+  // Check fingerprint availability and preference on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const checkFingerprintAvailability = () => {
+      const token = localStorage.getItem('authToken_rider');
+      const customerData = localStorage.getItem('customerData_rider');
+      const fingerprintEnabled = localStorage.getItem('fingerprintEnabled_rider') === 'true';
+      const hasCredentials = !!(token && customerData);
+      const available = hasCredentials && fingerprintEnabled;
+      setIsFingerprintAvailable(available);
+    };
+    
+    checkFingerprintAvailability();
+    setTimeout(checkFingerprintAvailability, 500);
+    const interval = setInterval(checkFingerprintAvailability, 2000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
-  // Navigate back to roles page
-  const handleBackToRoles = useCallback(() => {
-    router.push('/');
-  }, [router]);
 
   // Load scanned battery code from localStorage on mount and when registration form is shown
   useEffect(() => {
@@ -105,7 +123,70 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   }, [scannedBatteryCode]);
 
-  // Setup bridge for QR code scanning
+  // Handle fingerprint login using stored credentials
+  const handleFingerprintLogin = useCallback(async () => {
+    const token = localStorage.getItem('authToken_rider');
+    const storedCustomerData = localStorage.getItem('customerData_rider');
+    
+    if (!token || !storedCustomerData) {
+      toast.error(t("auth.noCredentials") || "No saved credentials found. Please login with password first.");
+      setIsFingerprintAvailable(false);
+      return;
+    }
+
+    try {
+      const customerData = JSON.parse(storedCustomerData);
+      // Verify token is still valid by checking with backend
+      const response = await fetch(
+        "https://crm-omnivoltaic.odoo.com/api/customer/dashboard",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-KEY": "abs_connector_secret_key_2024",
+            "Authorization": `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Token is valid, proceed with login
+        onLoginSuccess(customerData);
+        toast.success(t("common.loginSuccess") || "Login successful");
+      } else {
+        // Token expired, need to login with password again
+        toast.error(t("auth.sessionExpired") || "Session expired. Please login with password.");
+        localStorage.removeItem('authToken_rider');
+        localStorage.removeItem('customerData_rider');
+        setIsFingerprintAvailable(false);
+      }
+    } catch (error: any) {
+      console.error("Fingerprint login error:", error);
+      toast.error(t("auth.fingerprintLoginFailed") || "Fingerprint login failed. Please try password login.");
+      setIsFingerprintAuthenticating(false);
+    }
+  }, [onLoginSuccess, t]);
+
+  // Trigger fingerprint verification
+  const handleFingerprintAuth = useCallback(() => {
+    if (!bridge) {
+      toast.error(t("common.bridgeNotInitialized") || "Bridge not initialized");
+      return;
+    }
+
+    setIsFingerprintAuthenticating(true);
+    // Call fingerprintVerification with empty string
+    bridge.callHandler(
+      'fingerprintVerification',
+      '',
+      (responseData: any) => {
+        // Response is handled by the registered callback
+        console.info('[FINGERPRINT] Verification initiated:', responseData);
+      }
+    );
+  }, [bridge, t]);
+
+  // Setup bridge for QR code scanning and fingerprint verification
   useEffect(() => {
     if (!bridge || bridgeInitRef.current) return;
 
@@ -136,14 +217,92 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         resp(data);
       });
 
+      // Register fingerprint verification callback
+      const offFingerprint = reg("fingerprintVerificationCallBack", (data: string, resp: any) => {
+        try {
+          setIsFingerprintAuthenticating(false);
+          console.info('[FINGERPRINT] Callback received:', data);
+          
+          // Parse response - could be string or object
+          let parsed: any;
+          if (typeof data === 'string') {
+            try {
+              parsed = JSON.parse(data);
+            } catch (e) {
+              parsed = data;
+            }
+          } else {
+            parsed = data;
+          }
+          
+          // Check for failure indicators FIRST
+          const isFailure = 
+            parsed?.success === false ||
+            parsed?.error === true ||
+            parsed?.failed === true ||
+            parsed?.status === 'failed' ||
+            parsed?.status === 'error' ||
+            parsed === false ||
+            parsed === 'false' ||
+            (typeof parsed === 'string' && (
+              parsed.toLowerCase() === 'failed' ||
+              parsed.toLowerCase() === 'false' ||
+              parsed.toLowerCase().includes('fail') ||
+              parsed.toLowerCase().includes('error') ||
+              parsed.toLowerCase().includes("don't match") ||
+              parsed.toLowerCase().includes('not match')
+            )) ||
+            (parsed && typeof parsed === 'object' && (parsed.error || parsed.failed));
+          
+          // Only check for success if it's NOT a failure
+          const success = !isFailure && (
+            parsed?.success === true || 
+            parsed?.respData === true || 
+            parsed === true ||
+            parsed?.status === 'success' ||
+            parsed?.result === 'success' ||
+            (typeof parsed === 'string' && (
+              parsed.toLowerCase() === 'success' || 
+              parsed.toLowerCase() === 'true'
+            ))
+          );
+          
+          console.info('[FINGERPRINT] Login page - Success check:', { success, isFailure, parsed });
+          
+          if (success && !isFailure) {
+            // Fingerprint verified successfully, use stored credentials to login
+            console.info('[FINGERPRINT] Verification successful, logging in...');
+            handleFingerprintLogin().catch((err) => {
+              console.error("Fingerprint login error:", err);
+              setIsFingerprintAuthenticating(false);
+            });
+          } else {
+            // Fingerprint verification failed or cancelled
+            console.warn('[FINGERPRINT] Verification failed or cancelled:', parsed);
+            if (parsed && (
+              (typeof parsed === 'object' && (parsed.error || parsed.failed)) ||
+              (typeof parsed === 'string' && parsed.toLowerCase().includes('fail'))
+            )) {
+              toast.error(t("auth.fingerprintFailed") || "Fingerprint verification failed");
+            }
+          }
+        } catch (err) {
+          console.error("Error processing fingerprint data:", err);
+          setIsFingerprintAuthenticating(false);
+          toast.error(t("auth.fingerprintError") || "Error processing fingerprint verification");
+        }
+        resp(data);
+      });
+
       return () => {
         offQr();
+        offFingerprint();
         bridgeInitRef.current = false;
       };
     };
 
     return setupBridge();
-  }, [bridge, t]);
+  }, [bridge, t, handleFingerprintLogin]);
 
   // Start QR code scan
   const startBatteryQrScan = useCallback(() => {
@@ -204,35 +363,45 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   const handleSignIn = async () => {
-    // Phone number from PhoneInputWithCountry is already in E.164 format without + prefix
-    // Validate: should have at least 7 digits (dial code + some local number)
-    const phoneDigits = phoneNumber.replace(/\D/g, '');
-    if (phoneDigits.length < 7) {
-      toast.error(t("rider.enterPhone") || t("Please enter your phone number"));
-      return;
+    if (loginMethod === 'phone') {
+      const phoneDigits = phoneNumber.replace(/\D/g, '');
+      if (phoneDigits.length < 7) {
+        toast.error(t("rider.enterPhone") || "Please enter your phone number");
+        return;
+      }
+    } else {
+      if (!email.trim() || !validateEmail(email)) {
+        toast.error(t("rider.enterEmail") || "Please enter a valid email address");
+        return;
+      }
     }
     if (!password.trim()) {
       toast.error(t("Please enter your password"));
       return;
     }
 
+    if (!navigator.onLine) {
+      toast.error(t('network.offline') || 'No internet connection. Please check your network and try again.');
+      return;
+    }
+
     setIsSigningIn(true);
 
     try {
-      // Phone number is already the full number from PhoneInputWithCountry
-      const fullPhoneNumber = phoneDigits;
-      
-      console.log("Attempting login with phone:", fullPhoneNumber);
-      console.log("Login endpoint: https://crm-omnivoltaic.odoo.com/api/auth/login");
+      const fullPhoneNumber = loginMethod === 'phone' ? phoneNumber.replace(/\D/g, '') : '';
+      const credential = loginMethod === 'phone'
+        ? { phone: fullPhoneNumber, password }
+        : { email: email.trim(), password };
+
       const response = await fetch(
-        "https://crm-omnivoltaic.odoo.com/api/auth/login",
+        "https://crm-omnivoltaic.odoo.com/api/employee/login",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
           },
-          body: JSON.stringify({ phone: fullPhoneNumber, password }),
+          body: JSON.stringify(credential),
         }
       );
 
@@ -268,6 +437,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         
         let customerData: Customer;
         
+        const serviceAccounts: ServiceAccount[] = data.session?.service_accounts || [];
+
         if (sessionUser) {
           // Use session.user data (has partner_id)
           customerData = {
@@ -277,9 +448,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             phone: sessionUser.phone || fullPhoneNumber,
             // Explicitly get partner_id - don't use || operator as 0 is valid
             partner_id: sessionUser.partner_id !== undefined ? sessionUser.partner_id : undefined,
+            service_accounts: serviceAccounts,
           };
           console.log("Login: sessionUser object:", sessionUser);
           console.log("Login: sessionUser.partner_id:", sessionUser.partner_id);
+          console.log("Login: service_accounts:", serviceAccounts);
         } else if (fallbackCustomer) {
           // Fallback to data.customer
           customerData = {
@@ -288,6 +461,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             email: fallbackCustomer.email || "",
             phone: fallbackCustomer.phone || fullPhoneNumber,
             partner_id: fallbackCustomer.partner_id !== undefined ? fallbackCustomer.partner_id : undefined,
+            service_accounts: serviceAccounts,
           };
         } else {
           throw new Error("No customer data found in response");
@@ -300,6 +474,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         // Persist customer data to localStorage for auto-login
         localStorage.setItem("customerData_rider", JSON.stringify(customerData));
         
+        // Check if this is first login (no fingerprint preference set)
+        // Mark for fingerprint prompt to be shown after navigation
+        const fingerprintPreference = localStorage.getItem('fingerprintEnabled_rider');
+        console.info('[FINGERPRINT] Login - checking if should show prompt:', { fingerprintPreference });
+        if (fingerprintPreference === null) {
+          // Set a flag so the main app can show the fingerprint prompt
+          localStorage.setItem('showFingerprintPrompt_rider', 'true');
+          console.info('[FINGERPRINT] Login - set showFingerprintPrompt_rider flag to true');
+        }
+        
         onLoginSuccess(customerData);
       } else if (response.status === 404) {
         console.error("=== Login Error Response (404) ===");
@@ -308,8 +492,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         console.error("Error Data:", JSON.stringify(data, null, 2));
         console.error("Payload Sent:", JSON.stringify({ phone: fullPhoneNumber, password: "***" }, null, 2));
         toast.error(t("User not found. Would you like to create an account?"));
-        // Pre-fill the registration phone with the full number
-        setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
+        if (loginMethod === 'phone') {
+          setFormData(prev => ({ ...prev, phone: fullPhoneNumber }));
+        } else {
+          setFormData(prev => ({ ...prev, email: email.trim() }));
+        }
         setTimeout(() => setShowRegister(true), 1500);
       } else if (response.status === 400) {
         console.error("=== Login Error Response (400) ===");
@@ -454,45 +641,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="login-page-container">
         <div className="login-bg-gradient" />
         
-        {/* Header with Back + Logo on left, Language Toggle on right */}
-        <header className="flow-header">
-          <div className="flow-header-inner">
-            <div className="flow-header-left">
-              <button 
-                className="flow-header-back" 
-                onClick={() => setShowRegister(false)}
-                aria-label={t('Back')}
-                title={t('Back')}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <div className="flow-header-logo">
-                <Image
-                  src="/assets/Logo-Oves.png"
-                  alt="Omnivoltaic"
-                  width={100}
-                  height={28}
-                  style={{ objectFit: 'contain' }}
-                  priority
-                />
-              </div>
-            </div>
-            <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ThemeToggle />
-              <button
-                className="flow-header-lang"
-                onClick={toggleLocale}
-                aria-label={t('role.switchLanguage')}
-              >
-                <Globe size={14} />
-                <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
         <div className="login-container">
           {/* Header */}
           <div className="login-header">
@@ -506,6 +654,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <h1 className="login-title">{t('auth.createAccount') || 'Create Account'}</h1>
             <p className="login-subtitle">{t('auth.joinCommunity') || 'Join our community today'}</p>
           </div>
+          <button
+            onClick={() => setShowRegister(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', padding: '4px 0 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            {t('Back') || 'Back to Login'}
+          </button>
 
         {/* Status Alert */}
         {submitStatus && (
@@ -725,44 +880,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="login-bg-gradient" />
       
       {/* Header with Back + Logo on left, Language Toggle on right */}
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button 
-              className="flow-header-back" 
-              onClick={handleBackToRoles}
-              aria-label={t('common.back') || 'Back'}
-              title={t('common.back') || 'Back'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: 'contain' }}
-                priority
-              />
-            </div>
-          </div>
-          <div className="flow-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t('role.switchLanguage') || 'Switch language'}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">{locale.toUpperCase()}</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div className="login-container">
         {/* Header */}
         <div className="login-header">
@@ -773,20 +890,90 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </svg>
           </div>
           <h1 className="login-title">{t('rider.loginTitle') || 'Rider Login'}</h1>
-          <p className="login-subtitle">{t('rider.enterPhoneAndPassword') || 'Please enter phone number and password'}</p>
+          <p className="login-subtitle">
+            {loginMethod === 'phone'
+              ? t('rider.enterPhoneAndPassword') || 'Enter your phone number and password'
+              : t('rider.enterEmailAndPassword') || 'Enter your email and password'}
+          </p>
         </div>
 
       {/* Login Form */}
-      <div className="login-form">
-        {/* Phone Number Input with Country Code */}
-        <PhoneInputWithCountry
-          label={t('rider.phoneNumber') || 'Phone Number'}
-          value={phoneNumber}
-          onChange={handlePhoneChange}
-          locale={locale}
-          placeholder={t('rider.enterPhone') || 'Enter your phone number'}
-          disabled={isSigningIn}
-        />
+      <form
+        key={loginMethod}
+        id={loginMethod === 'phone' ? 'phone-login-form' : 'email-login-form'}
+        autoComplete={loginMethod === 'phone' ? 'off' : 'on'}
+        className="login-form"
+        onSubmit={(e) => e.preventDefault()}
+      >
+        {/* Phone / Email toggle */}
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 3,
+          gap: 3,
+          marginBottom: 4,
+        }}>
+          {(['phone', 'email'] as const).map((method) => (
+            <button
+              key={method}
+              type="button"
+              onClick={() => setLoginMethod(method)}
+              disabled={isSigningIn}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                borderRadius: 'calc(var(--radius-lg) - 3px)',
+                border: 'none',
+                fontSize: 13,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                cursor: isSigningIn ? 'not-allowed' : 'pointer',
+                transition: 'all 0.18s ease',
+                background: loginMethod === method ? 'var(--accent)' : 'transparent',
+                color: loginMethod === method ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                boxShadow: loginMethod === method ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+              }}
+            >
+              {method === 'phone'
+                ? t('rider.phoneNumber') || 'Phone'
+                : t('sales.emailAddress') || 'Email'}
+            </button>
+          ))}
+        </div>
+
+        {/* Credential input */}
+        {loginMethod === 'phone' ? (
+          <PhoneInputWithCountry
+            label={t('rider.phoneNumber') || 'Phone Number'}
+            value={phoneNumber}
+            onChange={handlePhoneChange}
+            locale={locale}
+            placeholder={t('rider.enterPhone') || 'Enter your phone number'}
+            disabled={isSigningIn}
+          />
+        ) : (
+          <div className="form-group">
+            <label className="form-label">{t('sales.emailAddress') || 'Email'}</label>
+            <div className="input-with-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <input
+                type="email"
+                className="form-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={t('sales.enterEmail') || 'Enter your email'}
+                disabled={isSigningIn}
+                autoComplete="email"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Password Input */}
         <div className="form-group">
@@ -805,6 +992,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               placeholder={t('auth.passwordPlaceholder') || 'Enter your password'}
               disabled={isSigningIn}
               style={{ paddingRight: 44 }}
+              autoComplete={loginMethod === 'phone' ? 'off' : 'current-password'}
             />
             <button
               type="button"
@@ -832,7 +1020,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <button
           className="btn btn-primary login-btn"
           onClick={handleSignIn}
-          disabled={isSigningIn || phoneNumber.replace(/\D/g, '').length < 7 || !password.trim()}
+          disabled={
+            isSigningIn ||
+            !password.trim() ||
+            (loginMethod === 'phone'
+              ? phoneNumber.replace(/\D/g, '').length < 7
+              : !email.trim() || !validateEmail(email))
+          }
         >
           {isSigningIn ? (
             <>
@@ -849,11 +1043,32 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           )}
         </button>
 
+        {/* Fingerprint Login Button - only show if available */}
+        {isFingerprintAvailable && (
+          <button
+            className="btn btn-secondary login-btn"
+            onClick={handleFingerprintAuth}
+            disabled={isFingerprintAuthenticating}
+            style={{ marginTop: 12 }}
+          >
+            {isFingerprintAuthenticating ? (
+              <>
+                <div className="loading-spinner" style={{ width: 18, height: 18, marginBottom: 0, borderWidth: 2 }}></div>
+                <span>{t('common.verifying') || 'Verifying...'}</span>
+              </>
+            ) : (
+              <>
+                <Fingerprint size={18} />
+                <span>{t('common.useFingerprint') || 'Use Fingerprint'}</span>
+              </>
+            )}
+          </button>
+        )}
 
         <p className="login-help">
           {t('auth.needHelp') || 'Need help? Contact support'}
         </p>
-      </div>
+      </form>
     </div>
     </div>
   );

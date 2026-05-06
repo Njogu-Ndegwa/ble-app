@@ -253,6 +253,7 @@ export default function SalesCustomers() {
         street: formData.street.trim(),
         city: formData.city.trim(),
         zip: formData.zip.trim(),
+        isCompany: false,
       };
 
       if (subView === 'edit' && selectedCustomer) {

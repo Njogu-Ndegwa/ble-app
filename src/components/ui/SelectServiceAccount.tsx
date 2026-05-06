@@ -1,11 +1,8 @@
 "use client";
 
-import React, { useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Globe } from "lucide-react";
-import Image from "next/image";
+import React from "react";
 import { useI18n } from "@/i18n";
-import ThemeToggle from "@/components/ui/ThemeToggle";
+import AppHeader from "@/components/AppHeader";
 import type { ServiceAccount } from "@/lib/sa-types";
 
 type ErrorKind = "noAccounts" | "loadFailed" | null;
@@ -38,17 +35,7 @@ export default function SelectServiceAccount({
   onSignOut,
   onRetry,
 }: SelectServiceAccountProps) {
-  const router = useRouter();
-  const { locale, setLocale, t } = useI18n();
-
-  const toggleLocale = useCallback(() => {
-    const nextLocale = locale === "en" ? "fr" : locale === "fr" ? "zh" : "en";
-    setLocale(nextLocale);
-  }, [locale, setLocale]);
-
-  const handleBackToRoles = useCallback(() => {
-    router.push("/");
-  }, [router]);
+  const { t } = useI18n();
 
   const hasError = errorKind !== null;
   // Treat "no accounts, no error, not loading" as still loading (fetch hasn't started yet)
@@ -58,56 +45,7 @@ export default function SelectServiceAccount({
     <div className="login-page-container">
       <div className="login-bg-gradient" />
 
-      {/* Header — same as login page */}
-      <header className="flow-header">
-        <div className="flow-header-inner">
-          <div className="flow-header-left">
-            <button
-              className="flow-header-back"
-              onClick={handleBackToRoles}
-              aria-label={t("Back")}
-              title={t("Back")}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flow-header-logo">
-              <Image
-                src="/assets/Logo-Oves.png"
-                alt="Omnivoltaic"
-                width={100}
-                height={28}
-                style={{ objectFit: "contain" }}
-                priority
-              />
-            </div>
-          </div>
-          <div
-            className="flow-header-right"
-            style={{ display: "flex", alignItems: "center", gap: "8px" }}
-          >
-            <ThemeToggle />
-            <button
-              className="flow-header-lang"
-              onClick={toggleLocale}
-              aria-label={t("role.switchLanguage")}
-            >
-              <Globe size={14} />
-              <span className="flow-header-lang-label">
-                {locale.toUpperCase()}
-              </span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       <div className="login-container">
         {/* Title — only when there are accounts to pick */}

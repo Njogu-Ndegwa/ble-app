@@ -84,15 +84,16 @@ function mapContact(c: OdooContact): ExistingCustomer {
 
 /**
  * Search customers by name, email, or phone (smart search).
- * Uses GET /api/contacts?q=<query>
+ * Uses GET /api/contacts?q=<query>&type=<type>
  */
 export async function searchCustomers(
   query: string,
-  authToken: string
+  authToken: string,
+  type: 'all' | 'company' | 'individual' = 'all'
 ): Promise<CustomerListResponse> {
   const trimmed = query.trim();
   const result = await getContacts(
-    trimmed ? { q: trimmed } : { limit: 50 },
+    trimmed ? { q: trimmed, type } : { limit: 50, type },
     authToken
   );
 
@@ -108,16 +109,17 @@ export async function searchCustomers(
 }
 
 /**
- * Get all customers with pagination.
- * Uses GET /api/contacts?page=<page>&limit=<limit>&type=all
+ * Get all customers with pagination and optional type filter.
+ * Uses GET /api/contacts?page=<page>&limit=<limit>&type=<type>
  */
 export async function getAllCustomers(
   page: number = 1,
   limit: number = 20,
-  authToken: string
+  authToken: string,
+  type: 'all' | 'company' | 'individual' = 'all'
 ): Promise<CustomerListResponse> {
   const result = await getContacts(
-    { page, limit, type: 'all' },
+    { page, limit, type },
     authToken
   );
 
@@ -163,6 +165,7 @@ export async function updateCustomer(
   if (data.street !== undefined) payload.street = data.street;
   if (data.city !== undefined) payload.city = data.city;
   if (data.zip !== undefined) payload.zip = data.zip;
+  if (data.isCompany !== undefined) payload.is_company = data.isCompany;
 
   const result = await apiUpdateContact(id, payload, authToken);
 
@@ -178,7 +181,7 @@ export async function updateCustomer(
  * Uses POST /api/contacts
  */
 export async function createCustomer(
-  data: Omit<ExistingCustomer, 'id' | 'partnerId' | 'createdAt' | 'isCompany' | 'companyName' | 'companyId' | 'mobile' | 'password'>,
+  data: Omit<ExistingCustomer, 'id' | 'partnerId' | 'createdAt' | 'companyName' | 'companyId' | 'mobile' | 'password'>,
   authToken: string
 ): Promise<CustomerDetailResponse> {
   const payload: ContactWritePayload = {
@@ -188,6 +191,7 @@ export async function createCustomer(
     street: data.street || undefined,
     city: data.city || undefined,
     zip: data.zip || undefined,
+    is_company: data.isCompany ?? false,
   };
 
   const result = await apiCreateContact(payload, authToken);

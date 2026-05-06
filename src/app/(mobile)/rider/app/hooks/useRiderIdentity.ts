@@ -71,7 +71,7 @@ function writeCache(cache: IdentityCache) {
 export function useRiderIdentity(subscriptionCode: string | undefined): UseRiderIdentityResult {
   const [bike, setBike] = useState<RiderBikeInfo>(initialBike);
   const [balance, setBalance] = useState(0);
-  const [currency, setCurrency] = useState('XOF');
+  const [currency, setCurrency] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const lastCodeRef = useRef<string | null>(null);
 
@@ -142,7 +142,7 @@ export function useRiderIdentity(subscriptionCode: string | undefined): UseRider
       const value = Math.round(remaining * unitPrice);
 
       const billingCurrency =
-        common_terms?.billingCurrency || service_plan_data?.currency || 'XOF';
+        common_terms?.billingCurrency || service_plan_data?.currency || '';
 
       setBalance(value);
       setCurrency(billingCurrency);

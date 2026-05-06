@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ClipboardList, CreditCard, DollarSign } from 'lucide-react';
 import ListScreen from '@/components/ui/ListScreen';
+import FilterChips from '@/components/ui/FilterChips';
 import { getOrders, formatCurrency, type GetOrdersParams } from '@/lib/portal/order-api';
 import type { OrderEntity, OrderState, PaginationMeta } from '@/lib/portal/types';
 
@@ -93,22 +94,11 @@ export default function OrdersList({ onSelect, onCreateNew }: OrdersListProps) {
   ];
 
   const filterChips = (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-      {statePills.map((pill) => (
-        <button
-          key={pill.key}
-          onClick={() => setStateFilter(pill.key)}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-            stateFilter === pill.key
-              ? 'border-transparent text-text-inverse'
-              : 'border-border bg-bg-tertiary text-text-secondary'
-          }`}
-          style={stateFilter === pill.key ? { backgroundColor: 'var(--color-brand)' } : undefined}
-        >
-          {pill.label}
-        </button>
-      ))}
-    </div>
+    <FilterChips
+      items={statePills.map((p) => ({ key: p.key, label: p.label }))}
+      activeKey={stateFilter}
+      onSelect={(key) => setStateFilter(key as StateFilter)}
+    />
   );
 
   return (

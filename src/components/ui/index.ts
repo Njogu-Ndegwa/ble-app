@@ -99,6 +99,12 @@ export {
 export { default as PhoneInputWithCountry } from './PhoneInputWithCountry';
 
 // ============================================
+// FILTER CHIPS
+// ============================================
+export { default as FilterChips } from './FilterChips';
+export type { FilterChipItem } from './FilterChips';
+
+// ============================================
 // LIST SCREEN
 // ============================================
 export { default as ListScreen, PERIOD_OPTIONS } from './ListScreen';

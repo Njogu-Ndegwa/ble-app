@@ -6,9 +6,20 @@ import { useRouter } from 'next/navigation';
 import SplashScreen from '@/components/splash/SplashScreen';
 import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
+import SelectSA from '@/components/roles/SelectSA';
+import PublicLanding from '@/components/roles/PublicLanding';
 import { parseMicrosoftCallback, consumeMicrosoftPendingContext } from '@/lib/attendant-auth';
+import { isOdooEmployeeLoggedIn, getSelectedSAId, getStoredServiceAccounts, selectServiceAccount, saveOdooEmployeeSession, saveOdooEmployeeSessionFromMicrosoft } from '@/lib/ov-auth';
+import type { OdooEmployeeSession } from '@/lib/sa-types';
 
-type AppState = 'initializing' | 'splash' | 'onboarding' | 'selectRole' | 'microsoftCallback';
+type AppState =
+  | 'initializing'
+  | 'splash'
+  | 'onboarding'
+  | 'landing'      // unauthenticated: keypad public app + Sign In CTA
+  | 'selectSA'     // authenticated but no SA chosen yet
+  | 'selectRole'   // authenticated + SA selected: shows SA-filtered applet grid
+  | 'microsoftCallback';
 
 const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 const SPLASH_SHOWN_KEY = 'oves-splash-shown';
@@ -16,24 +27,17 @@ const SPLASH_SHOWN_KEY = 'oves-splash-shown';
 export default function Index() {
   const router = useRouter();
 
-  // Start as 'initializing' — all browser-dependent detection happens in useEffect
   const [appState, setAppState] = useState<AppState>('initializing');
 
-  // Runs once on the client after mount — determines real state
   useEffect(() => {
     console.info('[RootPage] useEffect fired. Full URL:', window.location.href);
-    console.info('[RootPage] search:', window.location.search);
-    console.info('[RootPage] hash:', window.location.hash);
 
     // 1. Check for Microsoft OAuth callback tokens in URL query string OR hash fragment
-    //    Odoo may return tokens in either format depending on configuration
     let params = new URLSearchParams(window.location.search);
     let tokenVal = params.get('token');
     let employeeIdVal = params.get('employee_id');
 
-    // Fallback: check hash fragment (e.g. #token=...&employee_id=...)
     if (!tokenVal && window.location.hash) {
-      console.info('[RootPage] No token in query string, checking hash fragment');
       const hashStr = window.location.hash.startsWith('#')
         ? window.location.hash.slice(1)
         : window.location.hash;
@@ -47,72 +51,121 @@ export default function Index() {
 
     const employeeNameVal = params.get('employee_name');
     const employeeEmailVal = params.get('employee_email');
-    const expiresAtVal = params.get('expires_at');
-
-    console.info('[RootPage] URL params → token:', tokenVal ? `${tokenVal.slice(0, 20)}...` : null);
-    console.info('[RootPage] URL params → employee_id:', employeeIdVal);
-    console.info('[RootPage] URL params → employee_name:', employeeNameVal);
-    console.info('[RootPage] URL params → employee_email:', employeeEmailVal);
-    console.info('[RootPage] URL params → expires_at:', expiresAtVal);
-
     const hasTokenParams = !!(tokenVal && employeeIdVal);
-    console.info('[RootPage] hasTokenParams:', hasTokenParams);
 
-    // 2. Check for the pending context we saved before redirecting to Odoo
+    // RAW token dump — remove before production
+    if (hasTokenParams) {
+      console.log('[MSCallback] ===== RAW CALLBACK PARAMS =====');
+      console.log('[MSCallback] token:', tokenVal);
+      console.log('[MSCallback] employee_id:', employeeIdVal);
+      console.log('[MSCallback] employee_name:', employeeNameVal);
+      console.log('[MSCallback] employee_email:', employeeEmailVal);
+      const sessionDataRaw = params.get('session_data');
+      console.log('[MSCallback] session_data (raw base64):', sessionDataRaw);
+      if (sessionDataRaw) {
+        try {
+          console.log('[MSCallback] session_data (decoded):', JSON.parse(atob(sessionDataRaw)));
+        } catch {
+          console.log('[MSCallback] session_data decode failed');
+        }
+      }
+      console.log('[MSCallback] all params:', Object.fromEntries(params.entries()));
+      console.log('[MSCallback] ===================================');
+    }
+
+    // 2. Check for pending Microsoft context saved before redirect
     const pendingContext = consumeMicrosoftPendingContext();
-    console.info('[RootPage] pendingContext:', JSON.stringify(pendingContext));
 
     if (hasTokenParams) {
-      // Dismiss the HTML splash overlay immediately so it doesn't block the UI
       const htmlSplash = document.getElementById('html-splash');
-      if (htmlSplash) {
-        htmlSplash.style.display = 'none';
-      }
+      if (htmlSplash) htmlSplash.style.display = 'none';
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
       const userType = pendingContext?.userType ?? 'sales';
-      const returnPath = pendingContext?.returnPath ?? '/';
-      console.info('[RootPage] Processing Microsoft callback → userType:', userType, 'returnPath:', returnPath);
 
       const result = parseMicrosoftCallback(params, userType);
-      console.info('[RootPage] parseMicrosoftCallback result:', JSON.stringify(result));
-
+      // Clean the URL without triggering a navigation (avoids router.replace not
+      // re-firing useEffect since router is a stable reference)
       window.history.replaceState({}, '', '/');
 
       if (result.success) {
-        console.info('[RootPage] Login SUCCESS. Checking localStorage after save...');
-        console.info('[RootPage] oves-sales-data:', localStorage.getItem('oves-sales-data')?.slice(0, 100));
-        console.info('[RootPage] oves-sales-token:', localStorage.getItem('oves-sales-token')?.slice(0, 30));
-        console.info('[RootPage] Redirecting to', returnPath);
+        console.info('[RootPage] Microsoft SSO callback SUCCESS');
+        console.info('[RootPage] employee:', result.user.name, '| id:', result.user.employeeId, '| email:', result.user.email);
+        console.info('[RootPage] token (first 40):', result.user.accessToken?.slice(0, 40));
+
+        // The callback URL includes a `session_data` param: a base64-encoded JSON blob
+        // that contains the full OdooEmployeeSession (token, employee, service_accounts,
+        // applets, auto_selected). Using it is equivalent to a normal email login response.
+        const sessionDataParam = params.get('session_data');
+        if (sessionDataParam) {
+          try {
+            const decoded = atob(sessionDataParam);
+            const sessionData = JSON.parse(decoded) as OdooEmployeeSession;
+            console.info('[RootPage] session_data decoded — SAs:', sessionData.service_accounts?.length, '| auto_selected:', sessionData.auto_selected);
+            sessionData.service_accounts?.forEach(sa => {
+              console.info(`[RootPage]   SA #${sa.id} "${sa.name}" applets: [${sa.applets?.join(', ')}]`);
+            });
+            console.info('[RootPage] Full session_data:', JSON.stringify(sessionData, null, 2));
+            saveOdooEmployeeSession(sessionData);
+          } catch (e) {
+            console.warn('[RootPage] Failed to decode session_data — falling back to basic token save:', e);
+            saveOdooEmployeeSessionFromMicrosoft(result.user);
+          }
+        } else {
+          console.info('[RootPage] No session_data param in callback — using basic token save');
+          saveOdooEmployeeSessionFromMicrosoft(result.user);
+        }
+
+        resolveAuthState();
       } else {
-        console.info('[RootPage] ERROR: Login FAILED:', result.error);
+        console.info('[RootPage] Microsoft SSO callback FAILED:', result.error);
+        router.replace('/signin');
       }
-      router.replace(returnPath);
       return;
     }
 
     if (pendingContext) {
-      // Dismiss the HTML splash overlay so it doesn't block navigation
       const htmlSplash = document.getElementById('html-splash');
-      if (htmlSplash) {
-        htmlSplash.style.display = 'none';
-      }
+      if (htmlSplash) htmlSplash.style.display = 'none';
       sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
 
       const returnPath = pendingContext.returnPath ?? '/';
-      console.info('[RootPage] No tokens but has pendingContext. Redirecting to', returnPath);
       window.history.replaceState({}, '', '/');
       router.replace(returnPath);
       return;
     }
 
-    // 3. Normal app launch — determine splash / onboarding / selectRole
+    // 3. Normal app launch
     const splashShown = sessionStorage.getItem(SPLASH_SHOWN_KEY);
-    console.info('[RootPage] Normal launch. splashShown:', splashShown);
+
     if (splashShown === 'true') {
-      setAppState('selectRole');
+      resolveAuthState();
     } else {
       setAppState('splash');
+    }
+  }, [router]);
+
+  /** Determine which authenticated state to show after splash/onboarding. */
+  const resolveAuthState = useCallback(() => {
+    if (!isOdooEmployeeLoggedIn()) {
+      router.replace('/signin');
+      return;
+    }
+    const saId = getSelectedSAId();
+    if (saId === null) {
+      // Auto-select if the user has exactly one SA (e.g. resumed session after
+      // page refresh where selectServiceAccount wasn't called again yet).
+      const accounts = getStoredServiceAccounts();
+      const validSingle = accounts.length === 1 && accounts[0].id != null;
+      if (validSingle) {
+        console.info('[RootPage] resolveAuthState: single SA found — auto-selecting SA #', accounts[0].id);
+        selectServiceAccount(accounts[0]);
+        setAppState('selectRole');
+      } else {
+        setAppState('selectSA');
+      }
+    } else {
+      setAppState('selectRole');
     }
   }, [router]);
 
@@ -128,18 +181,23 @@ export default function Index() {
   const handleSplashComplete = useCallback(() => {
     sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
     if (hasSeenOnboarding()) {
-      setAppState('selectRole');
+      resolveAuthState();
     } else {
       setAppState('onboarding');
     }
-  }, []);
+  }, [resolveAuthState]);
 
   const handleOnboardingComplete = useCallback(() => {
     markOnboardingComplete();
-    setAppState('selectRole');
-  }, []);
+    resolveAuthState();
+  }, [resolveAuthState]);
 
-  // Show a brief loading screen while determining state (SSR + first client frame)
+  // Stable callbacks for SelectSA so its useEffect dependency stays quiet
+  const handleSASelected = useCallback(() => setAppState('selectRole'), []);
+  const handleSASwitch = useCallback(() => router.push('/signin'), [router]);
+
+  // ── Renders ────────────────────────────────────────────────────────────────
+
   if (appState === 'initializing') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', flexDirection: 'column', gap: 16, background: 'var(--bg-primary, #0a0a0a)' }}>
@@ -156,8 +214,29 @@ export default function Index() {
     return <OnboardingCarousel onComplete={handleOnboardingComplete} />;
   }
 
+  if (appState === 'landing') {
+    return (
+      <PublicLanding
+        onSignIn={() => router.push('/signin')}
+      />
+    );
+  }
+
+  if (appState === 'selectSA') {
+    return (
+      <SelectSA
+        onSelected={handleSASelected}
+        onSwitchAccount={handleSASwitch}
+      />
+    );
+  }
+
   if (appState === 'selectRole') {
-    return <SelectRole />;
+    return (
+      <SelectRole
+        onSwitchSA={() => setAppState('selectSA')}
+      />
+    );
   }
 
   return null;

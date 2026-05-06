@@ -305,7 +305,12 @@ export async function generateInvoicePdf(
 
   // Fallback: open as data URL in new tab (works on most mobile browsers)
   const dataUrl = pdf.output('datauristring');
-  const newTab = window.open('', '_blank');
+  let newTab: Window | null = null;
+  try {
+    newTab = window.open('', '_blank');
+  } catch {
+    // Popup was blocked or WebView doesn't support new windows — fall through
+  }
   if (newTab) {
     newTab.document.write(
       `<html><head><title>${filename}</title></head>` +

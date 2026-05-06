@@ -24,9 +24,10 @@ import { ApolloProvider } from "@apollo/client";
 import { I18nProvider } from "@/i18n";
 
 import { ThemeProvider } from './context/themeContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // ── vConsole toggle (set to true to enable, false to disable) ──
-const ENABLE_VCONSOLE = false;
+const ENABLE_VCONSOLE = true;
 
 export default function RootLayout({
   children,
@@ -76,7 +77,9 @@ export default function RootLayout({
             <BridgeProvider>
               <AuthProvider>
                 <I18nProvider>
-                  {children}
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
                 </I18nProvider>
               </AuthProvider>
             </BridgeProvider>

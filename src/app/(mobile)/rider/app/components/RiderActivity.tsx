@@ -98,7 +98,7 @@ export default function RiderActivity({
           <Wallet size={14} />
           <div>
             <div className="rm-summary-tile-value">
-              {currency || ""} {summary.totalSpent.toLocaleString()}
+              {currency ? `${currency} ` : ''}{summary.totalSpent.toLocaleString()}
             </div>
             <div className="rm-summary-tile-label">
               {t("rider.totalSpent") || "Total spent"}
@@ -192,7 +192,7 @@ export default function RiderActivity({
                     }`}
                   >
                     {a.isPositive ? "+" : "-"}
-                    {a.currency || currency || ""}{" "}
+                    {(a.currency || currency) ? `${a.currency || currency} ` : ''}
                     {Math.abs(a.amount).toLocaleString()}
                   </span>
                 </div>

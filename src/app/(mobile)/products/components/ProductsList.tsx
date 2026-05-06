@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Package, Tag } from 'lucide-react';
 import ListScreen from '@/components/ui/ListScreen';
+import FilterChips from '@/components/ui/FilterChips';
 import { getProducts } from '@/lib/odoo-api';
 import type {
   OdooProduct,
@@ -11,6 +12,7 @@ import type {
 } from '@/lib/portal/types';
 
 const ALL_CATEGORY_ID = null;
+const CATEGORY_ALL_KEY = '__all__';
 
 function parseLastSegment(completeName: string): string {
   const parts = completeName.split('/');
@@ -22,6 +24,18 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   service: 'Service',
   product: 'Storable',
 };
+
+// Cycle through themed colors so each category gets a consistent, distinct badge.
+// Skips grey (--default) and red (--overdue) — reserved for inactive/error states.
+const CATEGORY_BADGE_PALETTE = [
+  'list-card-badge list-card-badge--info',      // teal  (brand / accent)
+  'list-card-badge list-card-badge--progress',  // amber (warm / secondary)
+  'list-card-badge list-card-badge--completed', // green (positive)
+] as const;
+
+function getCategoryBadgeClass(categoryId: number): string {
+  return CATEGORY_BADGE_PALETTE[categoryId % CATEGORY_BADGE_PALETTE.length];
+}
 
 interface ProductsListProps {
   onSelect: (product: OdooProduct) => void;
@@ -79,33 +93,17 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
   const total = pagination?.total ?? products.length;
 
   const filterChips = catalogRoots.length > 0 ? (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-      <button
-        onClick={() => setCategoryId(null)}
-        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-          categoryId === null
-            ? 'border-transparent text-text-inverse'
-            : 'border-border bg-bg-tertiary text-text-secondary'
-        }`}
-        style={categoryId === null ? { backgroundColor: 'var(--color-brand)' } : undefined}
-      >
-        All
-      </button>
-      {catalogRoots.map((root) => (
-        <button
-          key={root.id}
-          onClick={() => setCategoryId(root.id)}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-            categoryId === root.id
-              ? 'border-transparent text-text-inverse'
-              : 'border-border bg-bg-tertiary text-text-secondary'
-          }`}
-          style={categoryId === root.id ? { backgroundColor: 'var(--color-brand)' } : undefined}
-        >
-          {parseLastSegment(root.complete_name)}
-        </button>
-      ))}
-    </div>
+    <FilterChips
+      items={[
+        { key: CATEGORY_ALL_KEY, label: 'All' },
+        ...catalogRoots.map((root) => ({
+          key: String(root.id),
+          label: parseLastSegment(root.complete_name),
+        })),
+      ]}
+      activeKey={categoryId === null ? CATEGORY_ALL_KEY : String(categoryId)}
+      onSelect={(key) => setCategoryId(key === CATEGORY_ALL_KEY ? null : Number(key))}
+    />
   ) : undefined;
 
   return (
@@ -161,7 +159,7 @@ export default function ProductsList({ onSelect }: ProductsListProps) {
             </div>
             <div className="list-card-actions">
               {product.category?.complete_name && (
-                <span className="list-card-badge list-card-badge--default">
+                <span className={getCategoryBadgeClass(product.category.id)}>
                   {parseLastSegment(product.category.complete_name)}
                 </span>
               )}

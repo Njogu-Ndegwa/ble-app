@@ -34,22 +34,53 @@ export function wazeUrl(dest: Coords): string {
 }
 
 /**
- * Opens an external map URL. In a WebView-enabled host we delegate to the
- * bridge's `openExternalUrl` handler if available; otherwise we fall back to
- * `window.open`.
+ * Opens an external map URL safely.
+ *
+ * Priority order:
+ *  1. `navigator.onLine` guard — if the device is offline the navigation will
+ *     result in ERR_NAME_NOT_RESOLVED. In a mobile WebView that error page
+ *     replaces the entire app, forcing the user to restart. We stop early and
+ *     call `onError` instead.
+ *  2. WebViewJavascriptBridge `openExternalUrl` — lets the native host open the
+ *     URL in the system browser, completely outside the WebView. This is the
+ *     safest path and never risks crashing the current page.
+ *  3. `window.open` fallback — works in real browsers (new tab) but in WebViews
+ *     without bridge support it may navigate the current window. We still try it
+ *     as a last resort; the online check above prevents the worst crash scenario.
+ *
+ * Returns `true` if a navigation was dispatched, `false` if it was blocked.
  */
-export function openExternalMap(url: string): void {
-  if (typeof window === "undefined") return;
+export function openExternalMap(
+  url: string,
+  onError?: (message: string) => void,
+): boolean {
+  if (typeof window === "undefined") return false;
+
+  if (!navigator.onLine) {
+    onError?.(
+      "No internet connection. Please check your network and try again.",
+    );
+    return false;
+  }
+
   const bridge = (window as any).WebViewJavascriptBridge;
   if (bridge?.callHandler) {
     try {
       bridge.callHandler("openExternalUrl", url, () => {});
-      return;
+      return true;
     } catch (err) {
       console.warn("[deepLinks] bridge openExternalUrl failed, falling back:", err);
     }
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return true;
+  } catch (err) {
+    console.warn("[deepLinks] window.open failed:", err);
+    onError?.("Could not open external link. Please try again.");
+    return false;
+  }
 }
 
 /** Detects the likely external map the user would prefer. */

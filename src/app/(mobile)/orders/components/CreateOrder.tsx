@@ -14,6 +14,7 @@ import {
   Check,
   ShoppingCart,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingState } from '@/components/ui/State';
@@ -27,6 +28,8 @@ import {
   getPriceLists,
   getPriceListPrice,
   validatePriceListProduct,
+  getStockLevels,
+  aggregateStockByProduct,
 } from '@/lib/portal/order-api';
 import {
   DEMO_PRICE_LISTS,
@@ -34,6 +37,7 @@ import {
   mapOdooPriceList,
   type PriceList,
 } from '@/lib/portal/price-list-data';
+
 
 interface CreateOrderProps {
   onCreated: (order: OrderEntity) => void;
@@ -96,6 +100,13 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   const [products, setProducts] = useState<OdooProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  // Stock levels: productId → { qty_on_hand, qty_reserved, qty_available }
+  const [stockMap, setStockMap] = useState<Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }>>(new Map());
+  // true = loaded OK, false = loading / failed
+  const [stockLoaded, setStockLoaded] = useState(false);
+  // true while the one-time stock fetch is in-flight
+  const [stockFetching, setStockFetching] = useState(true);
 
   const linesRef = useRef(lines);
   linesRef.current = lines;
@@ -272,6 +283,28 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
     return () => { cancelled = true; };
   }, [showCustomerDropdown, debouncedCustomerSearch]);
 
+  // Fetch stock levels ONCE on mount so badges are ready before the picker opens.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStock = async () => {
+      setStockFetching(true);
+      try {
+        const data = await getStockLevels({ limit: 500 });
+        if (!cancelled) {
+          setStockMap(aggregateStockByProduct(data.levels));
+          setStockLoaded(true);
+        }
+      } catch {
+        // Endpoint not available — badges won't show but picker still works
+      } finally {
+        if (!cancelled) setStockFetching(false);
+      }
+    };
+    fetchStock();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fetch products whenever the picker is open and search changes (no stock here).
   useEffect(() => {
     if (!showProductDropdown) return;
     let cancelled = false;
@@ -280,7 +313,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       try {
         const token = getSalesRoleToken();
         const data = await getProducts(
-          { limit: 10, search: debouncedProductSearch || undefined },
+          { limit: 20, search: debouncedProductSearch || undefined },
           token || undefined,
         );
         if (!cancelled) setProducts(data.products ?? []);
@@ -354,10 +387,31 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
   const handleAddProduct = useCallback(
     async (p: OdooProduct) => {
+      // Block products that are in the stockMap with 0 available
+      if (stockLoaded) {
+        const entry = stockMap.get(p.id);
+        if (entry !== undefined && entry.qty_available <= 0) return;
+      }
+
       const existingLine = linesRef.current.find((l) => l.productId === p.id);
 
       if (existingLine) {
         const newQty = existingLine.quantity + 1;
+
+        // Warn if exceeding available stock
+        if (stockLoaded) {
+          const stock = stockMap.get(p.id);
+          const effectiveAvailable = stock?.qty_available ?? null;
+          if (effectiveAvailable !== null && newQty > effectiveAvailable) {
+            toast(
+              effectiveAvailable === 0
+                ? `${p.name} has no available stock. Delivery will wait for replenishment.`
+                : `Only ${effectiveAvailable} unit${effectiveAvailable !== 1 ? 's' : ''} available — you are ordering over stock.`,
+              { icon: '⚠️', duration: 4000 },
+            );
+          }
+        }
+
         setLines((prev) =>
           prev.map((l) =>
             l.productId === p.id ? { ...l, quantity: newQty, priceLoading: true } : l,
@@ -381,6 +435,17 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       } else {
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const listPrice = p.list_price ?? 0;
+
+        // Warn if product is in stockMap with 0 available
+        if (stockLoaded) {
+          const stock = stockMap.get(p.id);
+          if (stock !== undefined && stock.qty_available <= 0) {
+            toast(
+              `${p.name} has 0 units available. You can still add it to the quotation but delivery will wait for stock replenishment.`,
+              { icon: '⚠️', duration: 6000 },
+            );
+          }
+        }
 
         setLines((prev) => [
           ...prev,
@@ -417,7 +482,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
       setShowProductDropdown(false);
       setProductSearch('');
     },
-    [fetchPrice],
+    [fetchPrice, stockMap, stockLoaded],
   );
 
   const handleRemoveLine = (tempId: string) => {
@@ -812,7 +877,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
             ) : products.length === 0 ? (
               <p className="text-xs py-4 text-center text-text-muted">No products found.</p>
             ) : (
-              <div className="max-h-48 overflow-y-auto px-2 pb-2 space-y-1">
+              <div className="max-h-56 overflow-y-auto px-2 pb-2 space-y-1">
                 {products.map((p) => {
                   const resolved = resolvePrice(
                     selectedPriceList,
@@ -820,46 +885,74 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                     1,
                   );
                   const hasDiscount = resolved.discountPercent > 0;
+                  // Use stockMap as ground truth — products present in the map have tracked inventory.
+                  // Don't rely on p.type: in Odoo 16+ storable products may return type='consu'.
+                  const stockEntry = stockLoaded ? stockMap.get(p.id) : undefined;
+                  const hasStockInfo = stockEntry !== undefined; // true only after load & in map
+                  const qtyAvailable = hasStockInfo ? stockEntry!.qty_available : null;
+                  const isOutOfStock = hasStockInfo && qtyAvailable! <= 0;
+                  const isLowStock = hasStockInfo && qtyAvailable! > 0 && qtyAvailable! <= 3;
                   return (
                     <button
                       key={p.id}
                       onClick={() => handleAddProduct(p)}
-                      className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated flex justify-between items-center"
+                      disabled={isOutOfStock}
+                      className={[
+                        'w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center gap-3 transition-colors',
+                        isOutOfStock ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bg-elevated',
+                      ].join(' ')}
                     >
-                      <div className="min-w-0">
-                        <span className="font-medium text-text-primary">{p.name}</span>
-                        {p.pu_category && (
-                          <span className="list-card-badge list-card-badge--progress ml-2">
-                            {p.pu_category}
+                      {/* Left: name + category badge */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="font-medium text-text-primary truncate">{p.name}</span>
+                          {p.pu_category && (
+                            <span className="list-card-badge list-card-badge--progress shrink-0">
+                              {p.pu_category}
+                            </span>
+                          )}
+                        </div>
+                        {/* Price row */}
+                        <div className="flex items-center gap-1.5">
+                          {hasDiscount && (
+                            <span
+                              className="text-[10px] line-through text-text-muted"
+                              style={{ fontFamily: 'var(--font-mono)' }}
+                            >
+                              {formatCurrency(p.list_price)}
+                            </span>
+                          )}
+                          <span
+                            className="text-xs font-semibold"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
+                            }}
+                          >
+                            {formatCurrency(resolved.unitPrice)}
                           </span>
-                        )}
+                          {hasDiscount && (
+                            <span
+                              className="text-[9px] font-bold px-1 py-0.5 rounded"
+                              style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                            >
+                              -{resolved.discountPercent}%
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        {hasDiscount && (
-                          <span
-                            className="text-[10px] line-through text-text-muted"
-                            style={{ fontFamily: 'var(--font-mono)' }}
-                          >
-                            {formatCurrency(p.list_price)}
-                          </span>
-                        )}
-                        <span
-                          className="text-xs font-semibold"
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            color: hasDiscount ? 'var(--color-success)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          {formatCurrency(resolved.unitPrice)}
-                        </span>
-                        {hasDiscount && (
-                          <span
-                            className="text-[9px] font-bold px-1 py-0.5 rounded"
-                            style={{ backgroundColor: 'var(--color-success-soft)', color: 'var(--color-success)' }}
-                          >
-                            -{resolved.discountPercent}%
-                          </span>
-                        )}
+
+                      {/* Right: stock badge column */}
+                      <div className="shrink-0 flex items-center justify-end w-[72px]">
+                        {stockFetching ? (
+                          <Loader2 size={12} className="animate-spin text-text-muted" />
+                        ) : hasStockInfo ? (
+                          <StockBadge
+                            qtyAvailable={qtyAvailable!}
+                            isOutOfStock={isOutOfStock}
+                            isLowStock={isLowStock}
+                          />
+                        ) : null}
                       </div>
                     </button>
                   );
@@ -886,6 +979,10 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
             <div className="divide-y divide-border">
               {lines.map((line) => {
                 const hasDiscount = line.discountPercent > 0;
+                // Only show over-stock warnings once stock data has loaded
+                const lineStockEntry = stockLoaded ? stockMap.get(line.productId) : undefined;
+                const lineAvailable = lineStockEntry !== undefined ? lineStockEntry.qty_available : null;
+                const lineOverStock = lineAvailable !== null && line.quantity > lineAvailable;
                 return (
                   <div key={line.tempId} className="px-3 py-3">
                     {/* Row 1: product name + remove */}
@@ -901,6 +998,23 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
                         <X size={14} />
                       </button>
                     </div>
+                    {/* Stock warning */}
+                    {lineOverStock && (
+                      <div
+                        className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md text-[11px] font-medium"
+                        style={{
+                          backgroundColor: 'var(--color-warning-soft)',
+                          color: 'var(--color-warning)',
+                        }}
+                      >
+                        <AlertCircle size={11} className="shrink-0" />
+                        <span>
+                          {lineAvailable === 0
+                            ? 'No stock — delivery waits for replenishment'
+                            : `Only ${lineAvailable} available`}
+                        </span>
+                      </div>
+                    )}
                     {/* Row 2: price × qty = subtotal */}
                     <div className="flex items-center gap-1.5">
                       <div className="flex items-center gap-1 min-w-0">
@@ -1021,6 +1135,17 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
       {/* ─── Bottom action ─── */}
       <div className="px-4 py-3 border-t border-border">
+        {/* Over-stock summary warning — only once stock data is loaded */}
+        {stockLoaded && lines.some((l) => {
+          const s = stockMap.get(l.productId);
+          return s !== undefined && l.quantity > s.qty_available;
+        }) && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-[11px] font-medium"
+            style={{ backgroundColor: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+            <AlertCircle size={13} className="shrink-0" />
+            <span>Some items exceed stock — delivery may be delayed.</span>
+          </div>
+        )}
         <button
           onClick={handleSubmit}
           disabled={creating || !selectedCustomer || lines.length === 0 || anyLineLoading}
@@ -1038,5 +1163,45 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         </button>
       </div>
     </div>
+  );
+}
+
+/* ── Stock availability badge ── */
+function StockBadge({
+  qtyAvailable,
+  isOutOfStock,
+  isLowStock,
+}: {
+  qtyAvailable: number;
+  isOutOfStock: boolean;
+  isLowStock: boolean;
+}) {
+  if (isOutOfStock) {
+    return (
+      <span
+        className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+        style={{ backgroundColor: 'var(--color-error-soft, #fef2f2)', color: 'var(--color-error, #ef4444)' }}
+      >
+        Out of stock
+      </span>
+    );
+  }
+  if (isLowStock) {
+    return (
+      <span
+        className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+        style={{ backgroundColor: 'var(--color-warning-soft, #fffbeb)', color: 'var(--color-warning, #d97706)' }}
+      >
+        {qtyAvailable} left
+      </span>
+    );
+  }
+  return (
+    <span
+      className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+      style={{ backgroundColor: 'var(--color-success-soft, #f0fdf4)', color: 'var(--color-success, #16a34a)' }}
+    >
+      {qtyAvailable} avail.
+    </span>
   );
 }

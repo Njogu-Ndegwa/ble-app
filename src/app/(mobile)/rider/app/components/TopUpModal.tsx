@@ -13,7 +13,7 @@ interface TopUpModalProps {
 const TopUpModal: React.FC<TopUpModalProps> = ({ 
   isOpen, 
   onClose, 
-  currency = 'XOF',
+  currency = '',
   onConfirmTopUp 
 }) => {
   const { t } = useI18n();
@@ -116,7 +116,7 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
                     className={`topup-amount-btn ${selectedAmount === amount ? 'active' : ''}`}
                     onClick={() => handleAmountSelect(amount)}
                   >
-                    {currency} {amount.toLocaleString()}
+                    {currency ? `${currency} ` : ''}{amount.toLocaleString()}
                   </button>
                 ))}
                 <div className="topup-amount-custom">
@@ -281,11 +281,11 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
             <div className="topup-modal-body">
               <div className="topup-confirm-amount">
                 <div className="topup-confirm-label">{t('rider.topUpAmount') || 'Top-up Amount'}</div>
-                <div className="topup-confirm-value">{currency} {confirmedAmount.toLocaleString()}</div>
+                <div className="topup-confirm-value">{currency ? `${currency} ` : ''}{confirmedAmount.toLocaleString()}</div>
               </div>
               <div className="topup-confirm-info">
                 <p className="topup-confirm-text">
-                  {t('rider.addingAmount') || 'You\'re adding'} {currency} {confirmedAmount.toLocaleString()}
+                  {t('rider.addingAmount') || "You're adding"} {currency ? `${currency} ` : ''}{confirmedAmount.toLocaleString()}
                 </p>
               </div>
               <div className="topup-input-group">
@@ -319,7 +319,7 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
                   onChange={() => {}}
                 />
                 <label htmlFor="topup-confirm">
-                  {t('rider.confirmCheckboxPrefix') || 'I confirm that I have sent'} <strong>{currency} {confirmedAmount.toLocaleString()}</strong> {t('rider.confirmCheckboxSuffix') || 'to the specified account and the transaction ID above is correct.'}
+                  {t('rider.confirmCheckboxPrefix') || 'I confirm that I have sent'} <strong>{currency ? `${currency} ` : ''}{confirmedAmount.toLocaleString()}</strong> {t('rider.confirmCheckboxSuffix') || 'to the specified account and the transaction ID above is correct.'}
                 </label>
               </div>
               <div className="topup-modal-actions">
@@ -357,14 +357,14 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
                 </svg>
               </div>
               <div className="topup-success-amount">
-                +{currency} {confirmedAmount.toLocaleString()}
+                +{currency ? `${currency} ` : ''}{confirmedAmount.toLocaleString()}
               </div>
               <p className="topup-success-message">
                 {t('rider.creditedDesc') || 'Your account has been credited successfully'}
               </p>
               <div className="topup-success-balance">
                 <div className="topup-success-balance-label">{t('rider.newAccountBalance') || 'New Account Balance'}</div>
-                <div className="topup-success-balance-value">{currency} {confirmedAmount.toLocaleString()}</div>
+                <div className="topup-success-balance-value">{currency ? `${currency} ` : ''}{confirmedAmount.toLocaleString()}</div>
               </div>
               <button className="btn btn-primary" onClick={handleClose} style={{ width: '100%', marginTop: 24 }}>
                 {t('rider.done') || 'Done'}
