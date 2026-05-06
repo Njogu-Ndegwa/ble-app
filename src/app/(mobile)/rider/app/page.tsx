@@ -345,16 +345,35 @@ const RiderApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
-  // Set loading states immediately when user logs in
+  // Set loading states immediately when user logs in.
+  // IMPORTANT: only depend on [isLoggedIn]. If isBikeDataResolved is in the
+  // deps, the effect re-fires when bike data resolves and sets
+  // isLoadingStations=true again — but the MQTT/GraphQL effects that clear it
+  // don't re-run, so stations get stuck loading forever.
   useEffect(() => {
     if (isLoggedIn) {
-      // Set loading states immediately when logged in, before any data is fetched
       if (!isBikeDataResolved) {
         setIsLoadingBike(true);
       }
       setIsLoadingStations(true);
     }
-  }, [isLoggedIn, isBikeDataResolved]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  // Global emergency failsafe: if any loader is stuck for >20 s, force it off.
+  // This is a last-resort guard against edge cases where an async effect hangs
+  // or a race condition leaves a spinner running forever.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const stuckTimer = window.setTimeout(() => {
+      if (isLoadingBike || isLoadingStations) {
+        console.warn('[RIDER] Emergency failsafe triggered — forcing loaders off');
+        setIsLoadingBike(false);
+        setIsLoadingStations(false);
+      }
+    }, 20000);
+    return () => window.clearTimeout(stuckTimer);
+  }, [isLoggedIn, isLoadingBike, isLoadingStations]);
 
   // Check if we should show fingerprint prompt after login
   useEffect(() => {
@@ -1556,7 +1575,9 @@ const RiderApp: React.FC = () => {
 
     dataLoadStartRef.current = performance.now();
     console.warn('[PERF] â±ï¸ LOGIN START - Beginning data load sequence');
-    
+
+    // Defensive: if we came from the login form, auth check might still be true
+    setIsCheckingAuth(false);
     setCustomer(customerData);
     setIsBikeDataResolved(false);
     // Set loading states immediately before fetching data
