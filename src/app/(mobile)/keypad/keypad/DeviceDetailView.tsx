@@ -328,6 +328,13 @@ useEffect(() => {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/[^\d]/g, '');
+    if (digits.length <= REQUIRED_DIGIT_COUNT) {
+      setDigitInput(digits);
+    }
+  };
+
   const clearInput = () => {
     setDigitInput((prev) => prev.slice(0, -1));
   };
@@ -416,28 +423,26 @@ useEffect(() => {
           onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
-          {/* <Clipboard size={14} className="mr-1" /> Paste */}
+          <Clipboard size={14} className="mr-1" /> {t('Paste')}
         </button>
       </div>
       <div className="relative">
         <input
           type="text"
           inputMode="none"
-          readOnly
-          tabIndex={-1}
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
           value={formattedInputCode}
           placeholder="(*...#)"
+          onPaste={handlePaste}
+          onChange={handleInputChange}
           className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10"
           style={{
             background: 'var(--bg-tertiary)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
-            pointerEvents: 'none',
-            userSelect: 'none',
             fontSize:
               formattedInputCode.length > 20
                 ? '0.75rem'
