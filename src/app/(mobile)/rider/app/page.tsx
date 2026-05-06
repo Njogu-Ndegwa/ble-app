@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -10,7 +10,7 @@ import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
 import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
-import { getOdooEmployeeToken } from '@/lib/ov-auth';
+import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
 import {
   RiderNav,
   RiderHome,
@@ -224,6 +224,25 @@ const RiderApp: React.FC = () => {
       window.removeEventListener('popstate', handlePopState);
     };
   }, [currentScreen, isLoggedIn, router]);
+
+  // Detect direct rider login (single SA with only rider applet) so we can hide
+  // the back button — there is no upstream page to return to.
+  const isDirectRider = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const accounts = getStoredServiceAccounts();
+    const applets = getActiveSAApplets();
+    return accounts.length === 1 && applets.length === 1 && applets[0] === 'rider';
+  }, []);
+
+  // Custom back handler that mirrors the popstate logic to avoid race conditions
+  // between AppHeader's router.back() and the rider's internal screen stack.
+  const handleHeaderBack = useCallback(() => {
+    if (currentScreenRef.current !== 'home') {
+      setCurrentScreen('home');
+    } else {
+      router.push('/');
+    }
+  }, [router]);
 
   // Track if we've started prefetching
   const prefetchStartedRef = useRef(false);
@@ -2141,7 +2160,7 @@ const RiderApp: React.FC = () => {
 
       <div className="rider-container">
         <div className="rider-bg-gradient" />
-        <AppHeader showBack />
+        <AppHeader showBack={!isDirectRider} onBack={handleHeaderBack} />
         {/* Main Content */}
         <main
           className={`rider-main${

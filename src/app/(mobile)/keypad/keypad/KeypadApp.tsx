@@ -125,6 +125,9 @@ const KeypadApp: React.FC = () => {
   }, [selectedDevice]);
 
   const handleBackToList = useCallback(() => {
+    if (connectedDeviceRef.current) {
+      disconnBleByMacAddress(connectedDeviceRef.current, () => {});
+    }
     setSelectedDevice(null);
     sessionStorage.removeItem('connectedDeviceMac');
     setConnectedDevice(null);

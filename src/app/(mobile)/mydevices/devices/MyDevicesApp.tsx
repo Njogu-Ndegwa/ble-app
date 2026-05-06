@@ -121,6 +121,9 @@ const MyDevicesApp: React.FC = () => {
   }, [selectedDevice]);
 
   const handleBackToList = useCallback(() => {
+    if (connectedDeviceRef.current) {
+      disconnBleByMacAddress(connectedDeviceRef.current, () => {});
+    }
     setIgnoreProgressSet(true);
     setSelectedDevice(null);
     setConnectingDeviceId(null);

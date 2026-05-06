@@ -278,32 +278,6 @@ const LoginPage = () => {
             )}
           </button>
 
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t('auth.orSignInWith')}
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-
-          {/* Microsoft sign-in — full width, below form, matches attendant login pattern */}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleMicrosoftSignIn}
-            disabled={isLoading}
-            style={{ width: '100%' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
-              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-            </svg>
-            <span>{t('auth.signInWithMicrosoft')}</span>
-          </button>
-
           {/* Keypad public access */}
           <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
@@ -330,6 +304,32 @@ const LoginPage = () => {
               <line x1="8" y1="17" x2="16" y2="17"/>
             </svg>
             <span>{t('role.keypad') || 'Keypad'} — {t('auth.noSignInRequired') || 'No sign-in required'}</span>
+          </button>
+
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {t('auth.orSignInWith')}
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          {/* Microsoft sign-in — full width, below form, matches attendant login pattern */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleMicrosoftSignIn}
+            disabled={isLoading}
+            style={{ width: '100%' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
+              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+            </svg>
+            <span>{t('auth.signInWithMicrosoft')}</span>
           </button>
 
         </form>
