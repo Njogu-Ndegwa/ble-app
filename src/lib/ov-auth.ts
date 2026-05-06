@@ -241,6 +241,7 @@ export function saveOdooEmployeeSessionFromMicrosoft(user: EmployeeUser): void {
       name: user.name,
       email: user.email,
       company_id: user.companyId ?? null,
+      partner_id: (user as any).partner_id ?? null,
       user_type: 'abs.employee',
     }),
   )

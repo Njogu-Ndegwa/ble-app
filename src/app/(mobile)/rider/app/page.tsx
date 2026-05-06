@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
 import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
+import { getOdooEmployeeToken } from '@/lib/ov-auth';
 import {
   RiderNav,
   RiderHome,
@@ -236,34 +237,82 @@ const RiderApp: React.FC = () => {
     const fallbackTimer = setTimeout(() => setIsCheckingAuth(false), 5000);
     
     const checkAuth = async () => {
-      let token: string | null = null;
-      let storedCustomerData: string | null = null;
       let showLoginPage = false;
+      let prevSessionCrashed = false;
 
       // Guard all storage reads — some WebViews throw on localStorage access
       try {
-        token = localStorage.getItem('authToken_rider');
-        storedCustomerData = localStorage.getItem('customerData_rider');
         showLoginPage = localStorage.getItem('showLoginPage_rider') === 'true';
-      } catch { /* storage unavailable — treat as fresh session */ }
-
-      // If the main app crashed previously, don't auto-login.
-      // We use localStorage (not sessionStorage) so the flag survives
-      // native app close/reopen on iOS and Android WebViews.
-      let prevSessionCrashed = false;
-      try {
         prevSessionCrashed = localStorage.getItem('riderAppCrashed') === 'true';
         if (prevSessionCrashed) localStorage.removeItem('riderAppCrashed');
-      } catch { /* ignore storage errors */ }
-      
-      // Clear the login page flag after reading
-      try {
         if (showLoginPage) localStorage.removeItem('showLoginPage_rider');
-      } catch { /* ignore */ }
-      
+      } catch { /* ignore storage errors */ }
+
       // If user just logged out (showLoginPage flag), or the app crashed last session,
       // show the login page even if credentials exist
-      if (token && storedCustomerData && !showLoginPage && !prevSessionCrashed) {
+      if (showLoginPage || prevSessionCrashed) {
+        setIsCheckingAuth(false);
+        return;
+      }
+
+      // 1. Try unified session first (main-page login)
+      try {
+        const unifiedToken = getOdooEmployeeToken();
+        const rawUser = localStorage.getItem('ov-employee-data');
+        if (unifiedToken && rawUser) {
+          const user = JSON.parse(rawUser);
+          const rawSAs = localStorage.getItem('ov-service-accounts');
+          const sArr = rawSAs ? JSON.parse(rawSAs) : [];
+          const serviceAccounts = sArr.map((sa: any) => ({
+            sa_id: sa.id ?? sa.sa_id,
+            sa_name: sa.name ?? sa.sa_name,
+            role: sa.my_role ?? sa.role,
+            applets: sa.applets || [],
+          }));
+
+          const customerData: Customer = {
+            id: user.id || 0,
+            name: user.name || '',
+            email: user.email || '',
+            phone: localStorage.getItem('userPhone') || '',
+            partner_id: user.partner_id,
+            service_accounts: serviceAccounts,
+          };
+
+          // Bridge to rider legacy keys so existing code works
+          localStorage.setItem('authToken_rider', unifiedToken);
+          localStorage.setItem('customerData_rider', JSON.stringify(customerData));
+
+          setCustomer(customerData);
+          setIsBikeDataResolved(false);
+          setIsLoadingBike(true);
+          setIsLoadingStations(true);
+          setIsLoggedIn(true);
+
+          if (!prefetchStartedRef.current && customerData.partner_id) {
+            prefetchStartedRef.current = true;
+            dataLoadStartRef.current = performance.now();
+            console.warn('[PERF] 🚀 AUTO-LOGIN (unified) - Starting data load');
+
+            fetchDashboardData(unifiedToken);
+            fetchSubscriptionData(customerData.partner_id, unifiedToken);
+          }
+          setIsCheckingAuth(false);
+          return;
+        }
+      } catch (e) {
+        console.error('Error checking unified session:', e);
+      }
+
+      // 2. Fallback to legacy rider keys
+      let token: string | null = null;
+      let storedCustomerData: string | null = null;
+      try {
+        token = localStorage.getItem('authToken_rider');
+        storedCustomerData = localStorage.getItem('customerData_rider');
+      } catch { /* ignore */ }
+
+      if (token && storedCustomerData) {
         try {
           const customerData = JSON.parse(storedCustomerData);
           setCustomer(customerData);
@@ -278,7 +327,7 @@ const RiderApp: React.FC = () => {
           if (!prefetchStartedRef.current && customerData.partner_id) {
             prefetchStartedRef.current = true;
             dataLoadStartRef.current = performance.now();
-            console.warn('[PERF] 🚀 AUTO-LOGIN - Starting data load');
+            console.warn('[PERF] 🚀 AUTO-LOGIN (legacy) - Starting data load');
 
             fetchDashboardData(token);
             fetchSubscriptionData(customerData.partner_id, token);

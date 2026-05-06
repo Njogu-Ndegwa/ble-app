@@ -38,13 +38,15 @@ export interface OdooEmployee {
   email: string
   company_id: number
   user_type: string
+  partner_id?: number
 }
 
 export interface OdooEmployeeSession {
   token: string
   expires_at: string
-  employee: OdooEmployee
-  partner_id: number
+  employee?: OdooEmployee
+  user?: OdooEmployee
+  partner_id?: number
   service_accounts: ServiceAccount[]
   total: number
   auto_selected: boolean

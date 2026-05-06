@@ -53,7 +53,8 @@ const LoginPage = () => {
           session.service_accounts = raw.service_accounts
         }
 
-        console.info('[SignIn] Login SUCCESS — employee:', session.employee?.name,
+        const userOrEmployee = (session as any).user ?? session.employee
+        console.info('[SignIn] Login SUCCESS — employee:', userOrEmployee?.name,
           '| SAs:', session.service_accounts?.length ?? 0,
           '| auto_selected:', session.auto_selected)
 
