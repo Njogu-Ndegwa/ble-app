@@ -151,14 +151,6 @@ export default function SelectRole({ onSwitchSA }: Props) {
       return saApplets.includes(slug);
     });
 
-    // TODO: Remove after testing — force-show manual-swap in all SA profiles
-    if (!filtered.some(r => r.id === 'manualSwap')) {
-      const manualSwapRole = ALL_ROLES.find(r => r.id === 'manualSwap');
-      if (manualSwapRole) {
-        filtered.push({ ...manualSwapRole, badgeKey: 'role.testBadge' });
-      }
-    }
-
     console.info('[SelectRole] SA applets:', saApplets);
     console.info('[SelectRole] Visible roles (' + filtered.length + '/' + ALL_ROLES.length + '):', filtered.map(r => r.id));
     return filtered;
