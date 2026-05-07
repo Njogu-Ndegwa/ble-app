@@ -38,7 +38,7 @@ const APPLET_SLUG_MAP: Record<string, string> = {
   activator: 'activator',
   sales: 'customers',
   attendant: 'attendant',
-  manualSwap: 'manual-swap',
+  manualSwap: 'externalswap',
   keypad: 'keypad',
   bleDeviceManager: 'assets',
   location: 'location',
@@ -104,7 +104,7 @@ const ALL_ROLES: RoleConfig[] = [
     labelKey: 'role.manualSwap',
     icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
     path: '/attendant/manual-swap',
-    appletSlug: 'manual-swap',
+    appletSlug: 'externalswap',
   },
   {
     id: 'keypad',
