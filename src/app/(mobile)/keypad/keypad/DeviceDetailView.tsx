@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { Clipboard } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
@@ -42,7 +42,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -411,21 +410,9 @@ useEffect(() => {
     <div className="rounded-lg p-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
       <div className="flex justify-between items-center mb-1">
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('New Code:')}</p>
-        <button
-          onClick={() => {
-            inputRef.current?.focus();
-          }}
-          className="flex items-center text-xs transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
-        >
-          <Clipboard size={14} className="mr-1" /> {t('Paste')}
-        </button>
       </div>
       <div className="relative">
         <input
-          ref={inputRef}
           type="text"
           inputMode="none"
           autoComplete="off"
