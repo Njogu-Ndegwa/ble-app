@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { Clipboard } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
@@ -42,6 +42,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -413,9 +414,23 @@ useEffect(() => {
         <button
           onClick={async () => {
             try {
-              await handlePaste();
-            } catch (error) {
-              toast.error(t('Clipboard access denied. Please paste manually.'));
+              const clipboardText = await navigator.clipboard.readText();
+              let rawText = clipboardText.trim().replace(/\s/g, '');
+              if (rawText.startsWith(START_SENTINEL)) rawText = rawText.slice(1);
+              if (rawText.endsWith(END_SENTINEL)) rawText = rawText.slice(0, -1);
+              if (rawText.length !== REQUIRED_DIGIT_COUNT) {
+                toast.error(t('Code must contain exactly 21 digits'));
+                return;
+              }
+              if (!/^\d+$/.test(rawText)) {
+                toast.error(t('Code can only include digits between the markers'));
+                return;
+              }
+              setDigitInput(rawText);
+              toast.success(t('Code pasted successfully'));
+            } catch {
+              inputRef.current?.focus();
+              toast.success(t('Long-press the input to paste'));
             }
           }}
           className="flex items-center text-xs transition-colors"
@@ -428,6 +443,7 @@ useEffect(() => {
       </div>
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           inputMode="none"
           autoComplete="off"
