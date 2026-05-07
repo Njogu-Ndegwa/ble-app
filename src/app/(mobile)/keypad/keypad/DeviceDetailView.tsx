@@ -412,26 +412,8 @@ useEffect(() => {
       <div className="flex justify-between items-center mb-1">
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('New Code:')}</p>
         <button
-          onClick={async () => {
-            try {
-              const clipboardText = await navigator.clipboard.readText();
-              let rawText = clipboardText.trim().replace(/\s/g, '');
-              if (rawText.startsWith(START_SENTINEL)) rawText = rawText.slice(1);
-              if (rawText.endsWith(END_SENTINEL)) rawText = rawText.slice(0, -1);
-              if (rawText.length !== REQUIRED_DIGIT_COUNT) {
-                toast.error(t('Code must contain exactly 21 digits'));
-                return;
-              }
-              if (!/^\d+$/.test(rawText)) {
-                toast.error(t('Code can only include digits between the markers'));
-                return;
-              }
-              setDigitInput(rawText);
-              toast.success(t('Code pasted successfully'));
-            } catch {
-              inputRef.current?.focus();
-              toast.success(t('Long-press the input to paste'));
-            }
+          onClick={() => {
+            inputRef.current?.focus();
           }}
           className="flex items-center text-xs transition-colors"
           style={{ color: 'var(--text-secondary)' }}
@@ -458,11 +440,13 @@ useEffect(() => {
             // Allow native context menu (paste) on long-press where supported
             e.stopPropagation();
           }}
-          className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10"
+          className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10 focus:outline-none focus:ring-0"
           style={{
             background: 'var(--bg-tertiary)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
+            outline: 'none',
+            WebkitTapHighlightColor: 'transparent',
             fontSize:
               formattedInputCode.length > 20
                 ? '0.75rem'
