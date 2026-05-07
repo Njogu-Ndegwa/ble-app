@@ -14,6 +14,7 @@ import MyDevicesNav, { type MyDevicesTab } from './components/MyDevicesNav';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
+import { BLE_DM_TOKEN_KEY } from '../../assets/ble-devices/BleDevicesLogin';
 
 type MyDevicesScreen = 'devices' | 'profile';
 
@@ -99,6 +100,29 @@ const MyDevicesApp: React.FC = () => {
   const [androidId, setAndroidId] = useState<any>("");
   const [ignoreProgressSet, setIgnoreProgressSet] = useState(false);
 
+  function isDmTokenExpired(token: string | null): boolean {
+    if (!token) return true;
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return true;
+      const payload = JSON.parse(atob(parts[1]));
+      if (typeof payload?.exp !== 'number') return true;
+      return Date.now() > payload.exp * 1000;
+    } catch {
+      return true;
+    }
+  }
+
+  useEffect(() => {
+    const token = localStorage.getItem(BLE_DM_TOKEN_KEY);
+    if (isDmTokenExpired(token)) {
+      // Token missing or expired — send user back to the Device Manager login
+      // instead of letting them linger in My Devices or falling through to the
+      // global first-login page.
+      window.location.href = '/assets/ble-devices';
+    }
+  }, []);
+
   const deviceDetails = selectedDevice
     ? detectedDevices.find((device) => device.macAddress === selectedDevice)
     : undefined;
@@ -120,9 +144,21 @@ const MyDevicesApp: React.FC = () => {
     selectedDeviceRef.current = selectedDevice;
   }, [selectedDevice]);
 
-  const handleBackToList = useCallback(() => {
-    if (connectedDeviceRef.current) {
-      disconnBleByMacAddress(connectedDeviceRef.current, () => {});
+  const handleBackToList = useCallback((alreadyDisconnected = false) => {
+    if (!alreadyDisconnected && connectedDeviceRef.current) {
+      disconnBleByMacAddress(connectedDeviceRef.current, (resp: any) => {
+        try {
+          const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
+          const ok = parsed?.respCode === '200' || parsed?.respData === true;
+          if (ok) {
+            toast.success(t('Disconnected from device'), { duration: 1500 });
+          } else {
+            toast.error(t('Failed to disconnect device'), { duration: 1500 });
+          }
+        } catch {
+          toast.error(t('Failed to disconnect device'), { duration: 1500 });
+        }
+      });
     }
     setIgnoreProgressSet(true);
     setSelectedDevice(null);
@@ -134,7 +170,7 @@ const MyDevicesApp: React.FC = () => {
     setConnectedDevice(null);
     setLoadingService(null);
     setProgress(0);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (selectedDevice) {
@@ -708,7 +744,7 @@ const MyDevicesApp: React.FC = () => {
         const ok = parsed?.respCode === '200' || parsed?.respData === true;
         if (ok) {
           toast.success(t('Disconnected from device'), { id: 'disconnect-toast', duration: 1500 });
-          setTimeout(() => handleBackToList(), 500);
+          setTimeout(() => handleBackToList(true), 500);
         } else {
           toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
         }
@@ -721,11 +757,13 @@ const MyDevicesApp: React.FC = () => {
   const handleLogout = useCallback(() => {
     try {
       localStorage.removeItem('access_token');
+      localStorage.removeItem(BLE_DM_TOKEN_KEY);
     } catch {
       /* ignore storage errors */
     }
-    router.replace('/signin');
-  }, [router]);
+    // Redirect back to the Device Manager login instead of the global first login
+    window.location.href = '/assets/ble-devices';
+  }, []);
 
   const handleNavigate = useCallback((tab: MyDevicesTab) => {
     switch (tab) {

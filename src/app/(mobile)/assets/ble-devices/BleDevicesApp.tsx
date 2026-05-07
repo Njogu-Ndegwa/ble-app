@@ -94,10 +94,33 @@ const BleDevicesApp: React.FC = () => {
 
   // BLE-applet–specific session token. Lives in localStorage so it persists
   // across app restarts and the user only needs to log in once.
+  function isDmTokenExpired(token: string | null): boolean {
+    if (!token) return true;
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return true;
+      const payload = JSON.parse(atob(parts[1]));
+      if (typeof payload?.exp !== 'number') return true;
+      return Date.now() > payload.exp * 1000;
+    } catch {
+      return true;
+    }
+  }
+
   const [bleToken, setBleToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(BLE_DM_TOKEN_KEY);
+    const token = localStorage.getItem(BLE_DM_TOKEN_KEY);
+    return isDmTokenExpired(token) ? null : token;
   });
+
+  useEffect(() => {
+    const token = localStorage.getItem(BLE_DM_TOKEN_KEY);
+    if (isDmTokenExpired(token)) {
+      setBleToken(null);
+      localStorage.removeItem(BLE_DM_TOKEN_KEY);
+      localStorage.removeItem(BLE_DM_USER_KEY);
+    }
+  }, []);
 
   const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('all-devices');
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
@@ -135,9 +158,21 @@ const BleDevicesApp: React.FC = () => {
     selectedDeviceRef.current = selectedDevice;
   }, [selectedDevice]);
 
-  const handleBackToList = useCallback(() => {
-    if (connectedDeviceRef.current) {
-      disconnBleByMacAddress(connectedDeviceRef.current, () => {});
+  const handleBackToList = useCallback((alreadyDisconnected = false) => {
+    if (!alreadyDisconnected && connectedDeviceRef.current) {
+      disconnBleByMacAddress(connectedDeviceRef.current, (resp: any) => {
+        try {
+          const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
+          const ok = parsed?.respCode === '200' || parsed?.respData === true;
+          if (ok) {
+            toast.success(t('Disconnected from device'), { duration: 1500 });
+          } else {
+            toast.error(t('Failed to disconnect device'), { duration: 1500 });
+          }
+        } catch {
+          toast.error(t('Failed to disconnect device'), { duration: 1500 });
+        }
+      });
     }
     setSelectedDevice(null);
     sessionStorage.removeItem("connectedDeviceMac");
@@ -148,7 +183,7 @@ const BleDevicesApp: React.FC = () => {
     setProgress(0);
     setConnectingDeviceId(null);
     setIsConnecting(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!selectedDevice) return;
@@ -692,7 +727,7 @@ const BleDevicesApp: React.FC = () => {
         const ok = parsed?.respCode === '200' || parsed?.respData === true;
         if (ok) {
           toast.success(t('Disconnected from device'), { id: 'disconnect-toast', duration: 1500 });
-          setTimeout(() => handleBackToList(), 500);
+          setTimeout(() => handleBackToList(true), 500);
         } else {
           toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
         }
@@ -713,8 +748,9 @@ const BleDevicesApp: React.FC = () => {
     // Clear ALL auth credentials (Odoo employee session, legacy tokens, rider, etc.)
     // so the user must start fresh from the first login → BLE App → second login
     clearAllAuth();
-    // Hard redirect to first login so no stale state lingers in the router
-    window.location.href = '/signin';
+    // Hard redirect to BLE Device Manager login so the user lands in the correct
+    // applet context instead of the global first login page
+    window.location.href = '/assets/ble-devices';
   }, []);
 
   const handleNavigate = useCallback((tab: BleDevicesTab) => {

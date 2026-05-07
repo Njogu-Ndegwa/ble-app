@@ -1230,7 +1230,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                           onClick={() => {
                             const valueToCopy = getDisplayValue(char) || formatValue(char);
                             navigator.clipboard.writeText(String(valueToCopy));
-                            // toast.success(t("Value copied to clipboard"));
+                            toast.success(t("Value copied to clipboard"));
                           }}
                           aria-label="Copy to clipboard"
                         >

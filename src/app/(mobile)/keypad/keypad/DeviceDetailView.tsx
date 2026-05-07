@@ -42,6 +42,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
+  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -321,7 +322,7 @@ useEffect(() => {
         return;
       }
       setDigitInput(rawText);
-      // toast.success('Code pasted successfully');
+      toast.success(t('Code pasted successfully'));
     } catch (error) {
       console.error('Failed to paste:', error);
       toast.error(t('Failed to paste code. Please check clipboard permissions.'));
@@ -374,7 +375,7 @@ useEffect(() => {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(String(getDisplayValue(pubkCharacteristic)));
-                // toast.success(t('Value copied'));
+                toast.success(t('Value copied'));
               }}
               className="ml-1 p-1 transition-colors"
               style={{ color: 'var(--text-secondary)' }}
@@ -438,6 +439,29 @@ useEffect(() => {
           placeholder="(*...#)"
           onPaste={handlePaste}
           onChange={handleInputChange}
+          onContextMenu={(e) => {
+            // Allow native context menu (paste) on long-press where supported
+            e.stopPropagation();
+          }}
+          onTouchStart={(e) => {
+            if (longPressTimer) clearTimeout(longPressTimer);
+            const timer = setTimeout(() => {
+              handlePaste();
+            }, 600);
+            setLongPressTimer(timer);
+          }}
+          onTouchEnd={() => {
+            if (longPressTimer) {
+              clearTimeout(longPressTimer);
+              setLongPressTimer(null);
+            }
+          }}
+          onTouchMove={() => {
+            if (longPressTimer) {
+              clearTimeout(longPressTimer);
+              setLongPressTimer(null);
+            }
+          }}
           className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10"
           style={{
             background: 'var(--bg-tertiary)',

@@ -90,7 +90,12 @@ const handleLogout = () => {
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
   localStorage.removeItem("distributorId");
-  window.location.href = "/signin";
+
+  // When the session expires inside a BLE Device Manager context, send the user
+  // back to the applet-level login instead of the global first-login page.
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isBleContext = currentPath.startsWith('/assets/ble-devices') || currentPath.startsWith('/mydevices');
+  window.location.href = isBleContext ? '/assets/ble-devices' : '/signin';
 };
 
 const apolloClient = new ApolloClient({

@@ -124,12 +124,24 @@ const KeypadApp: React.FC = () => {
     selectedDeviceRef.current = selectedDevice;
   }, [selectedDevice]);
 
-  const handleBackToList = useCallback(() => {
-    if (connectedDeviceRef.current) {
-      disconnBleByMacAddress(connectedDeviceRef.current, () => {});
+  const handleBackToList = useCallback((alreadyDisconnected = false) => {
+    if (!alreadyDisconnected && connectedDeviceRef.current) {
+      disconnBleByMacAddress(connectedDeviceRef.current, (resp: any) => {
+        try {
+          const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
+          const ok = parsed?.respCode === '200' || parsed?.respData === true;
+          if (ok) {
+            toast.success(t('Disconnected from device'), { duration: 1500 });
+          } else {
+            toast.error(t('Failed to disconnect device'), { duration: 1500 });
+          }
+        } catch {
+          toast.error(t('Failed to disconnect device'), { duration: 1500 });
+        }
+      });
     }
     setSelectedDevice(null);
-    sessionStorage.removeItem('connectedDeviceMac');
+    sessionStorage.removeItem("connectedDeviceMac");
     setConnectedDevice(null);
     setServiceAttrList([]);
     setAtrrList([]);
@@ -137,7 +149,7 @@ const KeypadApp: React.FC = () => {
     setProgress(0);
     setConnectingDeviceId(null);
     setIsConnecting(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (selectedDevice) {
@@ -718,7 +730,7 @@ const KeypadApp: React.FC = () => {
         const ok = parsed?.respCode === '200' || parsed?.respData === true;
         if (ok) {
           toast.success(t('Disconnected from device'), { id: 'disconnect-toast', duration: 1500 });
-          setTimeout(() => handleBackToList(), 500);
+          setTimeout(() => handleBackToList(true), 500);
         } else {
           toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
         }
