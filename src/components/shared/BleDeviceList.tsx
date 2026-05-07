@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { colors, spacing, radius, fontSize, fontWeight } from '@/styles';
 import type { BleDevice } from './types';
-import { Search, X } from 'lucide-react';
+import { Search, X, Camera } from 'lucide-react';
 
 // Device image mapping based on name patterns
 // This should match the itemImageMap used in Keypad and BLE Device Manager pages
@@ -295,7 +295,7 @@ export default function BleDeviceList({
                 {isScannerOpening ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <QrScanIcon />
+                  <Camera size={16} />
                 )}
               </button>
             )}
@@ -741,28 +741,4 @@ function CheckIcon() {
   );
 }
 
-function QrScanIcon() {
-  return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      {/* QR code pattern */}
-      <rect x="3" y="3" width="7" height="7" rx="1"/>
-      <rect x="14" y="3" width="7" height="7" rx="1"/>
-      <rect x="3" y="14" width="7" height="7" rx="1"/>
-      <rect x="14" y="14" width="3" height="3" rx="0.5"/>
-      <rect x="18" y="14" width="3" height="3" rx="0.5"/>
-      <rect x="14" y="18" width="3" height="3" rx="0.5"/>
-      <rect x="18" y="18" width="3" height="3" rx="0.5"/>
-      {/* Inner squares */}
-      <rect x="5" y="5" width="3" height="3" fill="currentColor"/>
-      <rect x="16" y="5" width="3" height="3" fill="currentColor"/>
-      <rect x="5" y="16" width="3" height="3" fill="currentColor"/>
-    </svg>
-  );
-}
+

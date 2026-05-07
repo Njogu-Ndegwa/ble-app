@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Camera } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
 export type ScannerType = 'qr' | 'battery';
@@ -95,20 +96,7 @@ export default function ScannerArea({
         ) : (
           <>
             <div className="scanner-icon">
-              {/* Consistent QR code icon for all scan types - since all steps scan QR codes */}
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
+              <Camera size={40} />
             </div>
             {/* Clear prompt so users know to tap */}
             <div className="scanner-tap-prompt">
