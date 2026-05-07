@@ -42,7 +42,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
-  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -442,25 +441,6 @@ useEffect(() => {
           onContextMenu={(e) => {
             // Allow native context menu (paste) on long-press where supported
             e.stopPropagation();
-          }}
-          onTouchStart={(e) => {
-            if (longPressTimer) clearTimeout(longPressTimer);
-            const timer = setTimeout(() => {
-              handlePaste();
-            }, 600);
-            setLongPressTimer(timer);
-          }}
-          onTouchEnd={() => {
-            if (longPressTimer) {
-              clearTimeout(longPressTimer);
-              setLongPressTimer(null);
-            }
-          }}
-          onTouchMove={() => {
-            if (longPressTimer) {
-              clearTimeout(longPressTimer);
-              setLongPressTimer(null);
-            }
           }}
           className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10"
           style={{
