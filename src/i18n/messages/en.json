@@ -1046,7 +1046,7 @@
   "role.products": "Products",
   "role.productsDesc": "Product Catalog",
   "role.comingSoon": "Coming Soon",
-  "role.switchLanguage": "Switch language",
+  "role.switchLanguage": "Select Language",
 
   "customerMgmt.title": "Customer Management",
   "customerMgmt.deleteCustomer": "Delete Customer",
@@ -1776,7 +1776,7 @@
   "sa.loadingAccounts": "Loading accounts...",
   "sa.loadFailed": "Failed to load service accounts",
   "sa.currentAccount": "Service Account",
-  "sa.switchAccount": "Switch",
+  "sa.switchAccount": "Switch Service Account",
   "sa.activeAccount": "Account",
   "auth.signInToAccessApps": "Sign in to access your apps",
   "auth.publicAppsDescription": "Free to use — no sign-in required.",

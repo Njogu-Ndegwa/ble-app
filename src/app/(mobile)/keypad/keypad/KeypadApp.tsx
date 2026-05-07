@@ -14,6 +14,7 @@ import KeypadNav, { type KeypadTab } from './components/KeypadNav';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
+import { clearAllAuth } from '@/lib/attendant-auth';
 
 type KeypadScreen = 'devices' | 'profile';
 
@@ -778,12 +779,7 @@ const KeypadApp: React.FC = () => {
 
   const handleLogout = useCallback(() => {
     try {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('ble-dm-token');
-      localStorage.removeItem('ble-dm-user');
-      localStorage.removeItem('distributorId');
-      localStorage.removeItem('user');
+      clearAllAuth();
     } catch {
       /* ignore storage errors */
     }

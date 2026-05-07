@@ -946,7 +946,7 @@
   "role.products": "产品",
   "role.productsDesc": "产品目录",
   "role.comingSoon": "即将推出",
-  "role.switchLanguage": "切换语言",
+  "role.switchLanguage": "选择语言",
 
   "customerMgmt.title": "客户管理",
   "customerMgmt.deleteCustomer": "删除客户",
@@ -1669,7 +1669,7 @@
   "sa.loadingAccounts": "加载账户中...",
   "sa.loadFailed": "加载服务账户失败",
   "sa.currentAccount": "服务账户",
-  "sa.switchAccount": "切换",
+  "sa.switchAccount": "切换服务账户",
 
   "activator.selectCustomer": "选择客户",
   "activator.nav.activate": "激活",

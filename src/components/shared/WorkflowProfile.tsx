@@ -164,7 +164,7 @@ const WorkflowProfile: React.FC<WorkflowProfileProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand/10 text-brand text-xs font-medium transition-colors hover:bg-brand/20 active:bg-brand/25 flex-shrink-0"
             >
               <ArrowLeftRight size={13} />
-              <span>{t('sa.switchAccount') || 'Switch'}</span>
+              <span>{t('sa.switchAccount') || 'Switch Service Account'}</span>
             </button>
           </div>
         </div>

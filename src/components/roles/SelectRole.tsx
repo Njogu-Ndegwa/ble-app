@@ -252,7 +252,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
                 onClick={onSwitchSA}
                 style={{ width: '100%' }}
               >
-                {t('sa.switchAccount') || 'Switch Account'}
+                {t('sa.switchAccount') || 'Switch Service Account'}
               </button>
             )}
           </div>

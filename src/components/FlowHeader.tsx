@@ -68,7 +68,7 @@ export default function FlowHeader({ showBack = true, backPath, onBack, title }:
           <button
             className="flow-header-lang"
             onClick={toggleLocale}
-            aria-label={t('Switch language')}
+            aria-label={t('role.switchLanguage') || 'Select Language'}
           >
             <Globe size={16} />
             <span className="flow-header-lang-label">{locale.toUpperCase()}</span>

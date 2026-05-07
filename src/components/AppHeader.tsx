@@ -10,8 +10,8 @@ import {
   getOdooEmployee,
   getSelectedSA,
   clearSelectedSA,
-  clearOdooEmployeeSession,
 } from '@/lib/ov-auth';
+import { clearAllAuth } from '@/lib/attendant-auth';
 
 interface AppHeaderProps {
   /**
@@ -121,7 +121,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
 
   const handleSignOut = () => {
     setOpen(false);
-    clearOdooEmployeeSession();
+    clearAllAuth();
     router.replace('/signin');
   };
 
@@ -232,7 +232,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
           {/* Language */}
           <button className="app-header-dropdown-item" onClick={handleLocale}>
             <Globe size={14} />
-            <span>{t('role.switchLanguage') || 'Language'}</span>
+            <span>{t('role.switchLanguage') || 'Select Language'}</span>
             <span className="app-header-dropdown-badge">{locale.toUpperCase()}</span>
           </button>
 

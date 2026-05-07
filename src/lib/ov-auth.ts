@@ -492,4 +492,12 @@ export function clearOdooEmployeeSession(): void {
   localStorage.removeItem('oves-sales-sa-data')
   localStorage.removeItem('oves-attendant-sa-id')
   localStorage.removeItem('oves-attendant-sa-data')
+
+  // Clear BLE Device Manager tokens so a global sign-out also resets DM
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  localStorage.removeItem('distributorId')
+  localStorage.removeItem('user')
+  localStorage.removeItem('ble-dm-token')
+  localStorage.removeItem('ble-dm-user')
 }

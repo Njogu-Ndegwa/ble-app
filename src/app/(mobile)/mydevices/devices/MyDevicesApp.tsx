@@ -15,6 +15,7 @@ import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceMana
 import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
 import { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from '../../assets/ble-devices/BleDevicesLogin';
+import { clearAllAuth } from '@/lib/attendant-auth';
 
 type MyDevicesScreen = 'devices' | 'profile';
 
@@ -791,14 +792,9 @@ const MyDevicesApp: React.FC = () => {
   }, [selectedDevice, handleBackToList, t]);
 
   const handleLogout = useCallback(() => {
-    // Clear the BLE Device Manager applet session
+    // Clear all auth credentials so the user must start fresh
     try {
-      localStorage.removeItem(BLE_DM_TOKEN_KEY);
-      localStorage.removeItem(BLE_DM_USER_KEY);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('distributorId');
-      localStorage.removeItem('user');
+      clearAllAuth();
     } catch {
       /* ignore storage errors */
     }

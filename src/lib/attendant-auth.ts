@@ -996,4 +996,18 @@ export function clearAllAuth(): void {
   localStorage.removeItem(STORAGE_KEYS.BLE_USER);
   localStorage.removeItem('ble-dm-token');
   localStorage.removeItem('ble-dm-user');
+
+  // Clear remaining rider / misc keys that could mark a returning user
+  localStorage.removeItem('activeSubscriptionCode_rider');
+  localStorage.removeItem('customerData_rider');
+  localStorage.removeItem('riderIdentificationCacheV1');
+  localStorage.removeItem('userPhone');
+  localStorage.removeItem('fingerprintEnabled_rider');
+  localStorage.removeItem('showLoginPage_rider');
+  localStorage.removeItem('showFingerprintPrompt_rider');
+  localStorage.removeItem('riderAppCrashed');
+  localStorage.removeItem('oves-onboarding-seen');
+  localStorage.removeItem('app_locale');
+  localStorage.removeItem('vConsole_switch_x');
+  localStorage.removeItem('vConsole_switch_y');
 }
