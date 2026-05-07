@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Camera } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { SalesStep } from './types';
 
@@ -35,11 +36,7 @@ const ActionIcons = {
       <path d="M20 6L9 17l-5-5"/>
     </svg>
   ),
-  scan: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/>
-    </svg>
-  ),
+  scan: <Camera size={18} />,
   plus: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 5v14M5 12h14"/>
