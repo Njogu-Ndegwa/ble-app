@@ -14,7 +14,7 @@ import MyDevicesNav, { type MyDevicesTab } from './components/MyDevicesNav';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
-import { BLE_DM_TOKEN_KEY } from '../../assets/ble-devices/BleDevicesLogin';
+import { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from '../../assets/ble-devices/BleDevicesLogin';
 
 type MyDevicesScreen = 'devices' | 'profile';
 
@@ -131,6 +131,31 @@ const MyDevicesApp: React.FC = () => {
   const { bridge } = useBridge();
 
   const connectedDeviceRef = useRef<string | null>(null);
+
+  // Throttle device list updates to avoid re-render storms when many BLE
+  // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
+  // ref and flushed to React state at most every 300 ms.
+  const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushDeviceBatch = useCallback(() => {
+    deviceBatchTimerRef.current = null;
+    setDetectedDevices(detectedDevicesRef.current);
+  }, []);
+
+  const scheduleDeviceBatch = useCallback(() => {
+    if (!deviceBatchTimerRef.current) {
+      deviceBatchTimerRef.current = setTimeout(flushDeviceBatch, 300);
+    }
+  }, [flushDeviceBatch]);
+
+  // Flush pending batch on unmount / before disconnect / before stop scan
+  useEffect(() => {
+    return () => {
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+      }
+    };
+  }, []);
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
@@ -264,17 +289,17 @@ const MyDevicesApp: React.FC = () => {
             d.rssi = convertRssiToFormattedString(raw);
             d.imageUrl = getImageUrl(d.name);
 
-            setDetectedDevices((prev) => {
-              const exists = prev.some((p) => p.macAddress === d.macAddress);
-              const next = exists
-                ? prev.map((p) =>
-                    p.macAddress === d.macAddress
-                      ? { ...p, rssi: d.rssi, rawRssi: d.rawRssi }
-                      : p
-                  )
-                : [...prev, d];
-              return [...next].sort((a, b) => b.rawRssi - a.rawRssi);
-            });
+            const prev = detectedDevicesRef.current;
+            const exists = prev.some((p) => p.macAddress === d.macAddress);
+            const next = exists
+              ? prev.map((p) =>
+                  p.macAddress === d.macAddress
+                    ? { ...p, rssi: d.rssi, rawRssi: d.rawRssi }
+                    : p
+                )
+              : [...prev, d];
+            detectedDevicesRef.current = [...next].sort((a, b) => b.rawRssi - a.rawRssi);
+            scheduleDeviceBatch();
 
             resp({ success: true });
           } else {
@@ -453,6 +478,12 @@ const MyDevicesApp: React.FC = () => {
       offSvcComplete();
       offSvcFail();
 
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+        flushDeviceBatch();
+      }
+
       if (connectedDeviceRef.current) {
         bridge.callHandler(
           "disconnectBle",
@@ -567,6 +598,11 @@ const MyDevicesApp: React.FC = () => {
   };
 
   const stopBleScan = () => {
+    if (deviceBatchTimerRef.current) {
+      clearTimeout(deviceBatchTimerRef.current);
+      deviceBatchTimerRef.current = null;
+      flushDeviceBatch();
+    }
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
       setIsScanning(false);
@@ -755,9 +791,14 @@ const MyDevicesApp: React.FC = () => {
   }, [selectedDevice, handleBackToList, t]);
 
   const handleLogout = useCallback(() => {
+    // Clear the BLE Device Manager applet session
     try {
-      localStorage.removeItem('access_token');
       localStorage.removeItem(BLE_DM_TOKEN_KEY);
+      localStorage.removeItem(BLE_DM_USER_KEY);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('distributorId');
+      localStorage.removeItem('user');
     } catch {
       /* ignore storage errors */
     }

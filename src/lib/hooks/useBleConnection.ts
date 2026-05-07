@@ -229,6 +229,24 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
   const pendingScanTypeRef = useRef<string | null>(null);
   const pendingConnectionMacRef = useRef<string | null>(null);
 
+  // Throttle device list updates to avoid re-render storms when many BLE
+  // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
+  // ref and flushed to React state at most every 300 ms.
+  const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushDeviceBatch = useCallback(() => {
+    deviceBatchTimerRef.current = null;
+    setBleScanState(prev => ({
+      ...prev,
+      detectedDevices: [...detectedBleDevicesRef.current],
+    }));
+  }, []);
+
+  const scheduleDeviceBatch = useCallback(() => {
+    if (!deviceBatchTimerRef.current) {
+      deviceBatchTimerRef.current = setTimeout(flushDeviceBatch, 300);
+    }
+  }, [flushDeviceBatch]);
+
   // Callback refs (to avoid stale closures)
   const onBatteryReadRef = useRef(onBatteryRead);
   const onErrorRef = useRef(onError);
@@ -294,12 +312,18 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
 
     log('Stopping BLE scan');
     window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
-    
+
+    if (deviceBatchTimerRef.current) {
+      clearTimeout(deviceBatchTimerRef.current);
+      deviceBatchTimerRef.current = null;
+      flushDeviceBatch();
+    }
+
     setBleScanState(prev => ({
       ...prev,
       isScanning: false,
     }));
-  }, [log]);
+  }, [log, flushDeviceBatch]);
 
   /**
    * Connect to a BLE device by MAC address
@@ -610,12 +634,8 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
             
             // Sort by signal strength
             detectedBleDevicesRef.current.sort((a, b) => b.rawRssi - a.rawRssi);
-            
-            setBleScanState(prev => ({
-              ...prev,
-              detectedDevices: [...detectedBleDevicesRef.current],
-            }));
-            
+            scheduleDeviceBatch();
+
             resp({ success: true });
           } catch {
             resp({ success: false });
@@ -1081,6 +1101,11 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
 
     return () => {
       clearAllTimeouts();
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+        flushDeviceBatch();
+      }
       if (window.WebViewJavascriptBridge) {
         window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
         const connectedMac = sessionStorage.getItem('connectedDeviceMac');
@@ -1089,7 +1114,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
         }
       }
     };
-  }, [clearAllTimeouts, clearOperationTimeout, clearGlobalTimeout, log]);
+  }, [clearAllTimeouts, clearOperationTimeout, clearGlobalTimeout, log, flushDeviceBatch]);
 
   // ============================================
   // RETURN

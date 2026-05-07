@@ -144,6 +144,30 @@ const BleDevicesApp: React.FC = () => {
   const lastSortRef = useRef<number>(0);
   const { bridge } = useBridge();
 
+  // Throttle device list updates to avoid re-render storms when many BLE
+  // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
+  // ref and flushed to React state at most every 300 ms.
+  const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushDeviceBatch = useCallback(() => {
+    deviceBatchTimerRef.current = null;
+    setDetectedDevices(detectedDevicesRef.current);
+  }, []);
+
+  const scheduleDeviceBatch = useCallback(() => {
+    if (!deviceBatchTimerRef.current) {
+      deviceBatchTimerRef.current = setTimeout(flushDeviceBatch, 300);
+    }
+  }, [flushDeviceBatch]);
+
+  useEffect(() => {
+    return () => {
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const connectedDeviceRef = useRef<string | null>(null);
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
@@ -276,27 +300,28 @@ const BleDevicesApp: React.FC = () => {
             d.rssi = convertRssiToFormattedString(raw);
             d.imageUrl = getImageUrl(d.name);
 
-            setDetectedDevices((prev) => {
-              const existing = prev.find((p) => p.macAddress === d.macAddress);
-              const smoothedRssi = existing
-                ? EMA_ALPHA * d.rawRssi + (1 - EMA_ALPHA) * existing.smoothedRssi
-                : d.rawRssi;
+            const prev = detectedDevicesRef.current;
+            const existing = prev.find((p) => p.macAddress === d.macAddress);
+            const smoothedRssi = existing
+              ? EMA_ALPHA * d.rawRssi + (1 - EMA_ALPHA) * existing.smoothedRssi
+              : d.rawRssi;
 
-              const next = existing
-                ? prev.map((p) =>
-                    p.macAddress === d.macAddress
-                      ? { ...p, rssi: d.rssi, rawRssi: d.rawRssi, smoothedRssi }
-                      : p
-                  )
-                : [...prev, { ...d, smoothedRssi }];
+            const next = existing
+              ? prev.map((p) =>
+                  p.macAddress === d.macAddress
+                    ? { ...p, rssi: d.rssi, rawRssi: d.rawRssi, smoothedRssi }
+                    : p
+                )
+              : [...prev, { ...d, smoothedRssi }];
 
-              const now = Date.now();
-              if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
-                lastSortRef.current = now;
-                return [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
-              }
-              return next;
-            });
+            const now = Date.now();
+            if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
+              lastSortRef.current = now;
+              detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
+            } else {
+              detectedDevicesRef.current = next;
+            }
+            scheduleDeviceBatch();
 
             resp({ success: true });
           }
@@ -478,6 +503,12 @@ const BleDevicesApp: React.FC = () => {
       offSvcComplete();
       offSvcFail();
 
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+        flushDeviceBatch();
+      }
+
       if (connectedDeviceRef.current) {
         bridge.callHandler(
           "disconnBleByMacAddress",
@@ -560,6 +591,11 @@ const BleDevicesApp: React.FC = () => {
   };
 
   const stopBleScan = () => {
+    if (deviceBatchTimerRef.current) {
+      clearTimeout(deviceBatchTimerRef.current);
+      deviceBatchTimerRef.current = null;
+      flushDeviceBatch();
+    }
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
       setIsScanning(false);

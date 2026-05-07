@@ -994,4 +994,6 @@ export function clearAllAuth(): void {
   localStorage.removeItem(STORAGE_KEYS.BLE_REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.BLE_DISTRIBUTOR_ID);
   localStorage.removeItem(STORAGE_KEYS.BLE_USER);
+  localStorage.removeItem('ble-dm-token');
+  localStorage.removeItem('ble-dm-user');
 }

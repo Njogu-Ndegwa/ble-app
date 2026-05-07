@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 
 const LocationView = dynamic(() => import('./LocationView'), { ssr: false });
@@ -77,6 +77,30 @@ const AppContainer = () => {
   const lastProcessedLocation = useRef<{ lat: number; lon: number } | null>(null);
 
   const { bridge } = useBridge();
+
+  // Throttle device list updates to avoid re-render storms when many BLE
+  // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
+  // ref and flushed to React state at most every 300 ms.
+  const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushDeviceBatch = useCallback(() => {
+    deviceBatchTimerRef.current = null;
+    setDetectedDevices(detectedDevicesRef.current);
+  }, []);
+
+  const scheduleDeviceBatch = useCallback(() => {
+    if (!deviceBatchTimerRef.current) {
+      deviceBatchTimerRef.current = setTimeout(flushDeviceBatch, 300);
+    }
+  }, [flushDeviceBatch]);
+
+  useEffect(() => {
+    return () => {
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
@@ -283,21 +307,21 @@ const AppContainer = () => {
             d.rssi = convertRssiToFormattedString(raw);
             d.imageUrl = getImageUrl(d.name);
 
-            setDetectedDevices((prev) => {
-              const exists = prev.some((p) => p.macAddress === d.macAddress);
-              const next = exists
-                ? prev.map((p) =>
-                  p.macAddress === d.macAddress
-                    ? {
-                      ...p,
-                      rssi: d.rssi,
-                      rawRssi: d.rawRssi,
-                    }
-                    : p
-                )
-                : [...prev, d];
-              return [...next].sort((a, b) => b.rawRssi - a.rawRssi);
-            });
+            const prev = detectedDevicesRef.current;
+            const exists = prev.some((p) => p.macAddress === d.macAddress);
+            const next = exists
+              ? prev.map((p) =>
+                p.macAddress === d.macAddress
+                  ? {
+                    ...p,
+                    rssi: d.rssi,
+                    rawRssi: d.rawRssi,
+                  }
+                  : p
+              )
+              : [...prev, d];
+            detectedDevicesRef.current = [...next].sort((a, b) => b.rawRssi - a.rawRssi);
+            scheduleDeviceBatch();
 
             resp({ success: true });
           } else {
@@ -493,6 +517,12 @@ const AppContainer = () => {
     
       offLocationCallback();
 
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+        flushDeviceBatch();
+      }
+
       if (connectedDeviceRef.current) {
         bridge.callHandler('disconnectBle', connectedDeviceRef.current, () => { });
       }
@@ -577,6 +607,11 @@ const AppContainer = () => {
   };
 
   const stopBleScan = () => {
+    if (deviceBatchTimerRef.current) {
+      clearTimeout(deviceBatchTimerRef.current);
+      deviceBatchTimerRef.current = null;
+      flushDeviceBatch();
+    }
     if (window.WebViewJavascriptBridge) {
       window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
       setIsScanning(false);

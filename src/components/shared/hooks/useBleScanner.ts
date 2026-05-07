@@ -85,6 +85,24 @@ export function useBleScanner(): UseBleScanner {
   const pendingConnectionMacRef = useRef<string | null>(null);
   const onSuccessCallbackRef = useRef<((battery: BatteryData) => void) | null>(null);
 
+  // Throttle device list updates to avoid re-render storms when many BLE
+  // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
+  // ref and flushed to React state at most every 300 ms.
+  const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushDeviceBatch = useCallback(() => {
+    deviceBatchTimerRef.current = null;
+    setBleScanState(prev => ({
+      ...prev,
+      detectedDevices: [...detectedBleDevicesRef.current],
+    }));
+  }, []);
+
+  const scheduleDeviceBatch = useCallback(() => {
+    if (!deviceBatchTimerRef.current) {
+      deviceBatchTimerRef.current = setTimeout(flushDeviceBatch, 300);
+    }
+  }, [flushDeviceBatch]);
+
   // Clear operation timeout
   const clearBleOperationTimeout = useCallback(() => {
     if (bleOperationTimeoutRef.current) {
@@ -128,11 +146,18 @@ export function useBleScanner(): UseBleScanner {
     if (!window.WebViewJavascriptBridge) return;
 
     window.WebViewJavascriptBridge.callHandler('stopBleScan', '', () => {});
+
+    if (deviceBatchTimerRef.current) {
+      clearTimeout(deviceBatchTimerRef.current);
+      deviceBatchTimerRef.current = null;
+      flushDeviceBatch();
+    }
+
     setBleScanState(prev => ({
       ...prev,
       isScanning: false,
     }));
-  }, []);
+  }, [flushDeviceBatch]);
 
   // Connection attempt ref for retry logic
   const attemptConnectionRef = useRef<((macAddress: string) => void) | null>(null);
@@ -336,10 +361,7 @@ export function useBleScanner(): UseBleScanner {
                 }
               });
 
-              setBleScanState(prev => ({
-                ...prev,
-                detectedDevices: [...detectedBleDevicesRef.current],
-              }));
+              scheduleDeviceBatch();
             }
           } catch (error) {
             console.error('Error parsing BLE scan result:', error);
@@ -457,6 +479,10 @@ export function useBleScanner(): UseBleScanner {
     return () => {
       clearBleOperationTimeout();
       clearBleGlobalTimeout();
+      if (deviceBatchTimerRef.current) {
+        clearTimeout(deviceBatchTimerRef.current);
+        deviceBatchTimerRef.current = null;
+      }
     };
   }, [clearBleOperationTimeout, clearBleGlobalTimeout]);
 
