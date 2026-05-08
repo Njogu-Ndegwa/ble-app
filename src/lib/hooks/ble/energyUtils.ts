@@ -53,10 +53,24 @@ export function extractEnergyFromDta(serviceData: DtaServiceData | unknown): Ene
   const rsocRaw = getCharValue('rsoc');  // Relative State of Charge (%)
 
   // Parse to numbers
-  const rcap = rcapRaw !== null ? parseFloat(String(rcapRaw)) : NaN;
-  const fccp = fccpRaw !== null ? parseFloat(String(fccpRaw)) : NaN;
+  let rcap = rcapRaw !== null ? parseFloat(String(rcapRaw)) : NaN;
+  let fccp = fccpRaw !== null ? parseFloat(String(fccpRaw)) : NaN;
   const pckv = pckvRaw !== null ? parseFloat(String(pckvRaw)) : NaN;
   const rsoc = rsocRaw !== null ? parseFloat(String(rsocRaw)) : NaN;
+
+  // DEFENSIVE FIX: Handle signed 16-bit integer overflow from native BLE layer.
+  // Some Android APIs return unsigned BMS characteristic values (rcap, fccp) as
+  // signed 16-bit integers. When the raw value exceeds 32,767 it wraps to negative.
+  // For example, 40,000 mAh becomes -25,536. This causes energy calculations to go
+  // negative for batteries > ~2.5 kWh. We detect and correct this by adding 65,536.
+  //
+  // Rationale: BMS remaining/full capacity can never legitimately be negative.
+  if (Number.isFinite(rcap) && rcap < 0) {
+    rcap += 65536;
+  }
+  if (Number.isFinite(fccp) && fccp < 0) {
+    fccp += 65536;
+  }
 
   // Validate required values
   if (!Number.isFinite(rcap) || !Number.isFinite(pckv)) {
