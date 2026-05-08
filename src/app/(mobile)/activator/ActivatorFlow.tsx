@@ -842,8 +842,22 @@ export default function ActivatorFlow({
             price_unit: selectedPlan.price,
           }];
           const sessionData = buildActivatorSessionData(buildCurrentSessionState());
+
+          console.info('[ActivatorFlow] Step 3 - Adding plan to order');
+          console.info('[ActivatorFlow] Selected plan:', {
+            odooProductId: selectedPlan.odooProductId,
+            name: selectedPlan.name,
+            price: selectedPlan.price,
+          });
+          console.info('[ActivatorFlow] Products payload:', products);
+          console.info('[ActivatorFlow] Session data payload:', sessionData);
+
           const result = await updateSessionWithProducts(sessionData, products);
+
+          console.info('[ActivatorFlow] updateSessionWithProducts result:', result);
+
           if (result.success && result.subscriptionCode) {
+            console.info('[ActivatorFlow] Plan added successfully. Subscription code:', result.subscriptionCode);
             setConfirmedSubscriptionCode(result.subscriptionCode);
             advanceToStep(4);
           } else if (result.success) {
@@ -859,10 +873,21 @@ export default function ActivatorFlow({
               'Plan added, but no subscription was created by the server. Please contact support.'
             );
           } else {
+            console.error('[ActivatorFlow] updateSessionWithProducts returned success=false', {
+              planId: selectedPlan.odooProductId,
+              planName: selectedPlan.name,
+              result,
+            });
             toast.error(t('activator.failedToAddPlan') || 'Failed to add plan to order. Please try again.');
           }
-        } catch (err) {
-          console.error('[ActivatorFlow] Failed to update session with products:', err);
+        } catch (err: any) {
+          console.error('[ActivatorFlow] Failed to update session with products - EXCEPTION:', {
+            error: err,
+            message: err?.message,
+            response: err?.response,
+            status: err?.status,
+            stack: err?.stack,
+          });
           toast.error(t('activator.failedToAddPlan') || 'Failed to add plan to order. Please try again.');
         } finally {
           setIsProcessing(false);
