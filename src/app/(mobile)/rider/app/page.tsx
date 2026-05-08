@@ -27,6 +27,7 @@ import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 import { googleMapsUrl, openExternalMap } from './map/deepLinks';
+import { groupServiceActions } from './hooks/useRiderActivity';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
 
@@ -764,46 +765,67 @@ const RiderApp: React.FC = () => {
           if (serviceActions && Array.isArray(serviceActions)) {
             // Find the most recent service action for last swap
             let latestServiceAction: any = null;
-            
-            serviceActions.forEach((action: any) => {
-              const date = new Date(action.createdAt);
-              const formattedDate = date.toISOString().split('T')[0];
-              const timeStr = date.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                hour12: false 
-              });
 
-              // Track the latest service action
+            serviceActions.forEach((action: any) => {
               if (!latestServiceAction || new Date(action.createdAt) > new Date(latestServiceAction.createdAt)) {
                 latestServiceAction = action;
               }
+            });
 
-              let title = '';
-              let subtitle = '';
-              
-              if (action.serviceType?.includes('swap')) {
-                title = t('rider.batterySwap') || 'Battery Swap';
-                subtitle = t('rider.batterySwapTransaction') || 'Battery swap transaction';
-              } else if (action.serviceType?.includes('electricity')) {
-                title = t('rider.electricityUsage') || 'Electricity Usage';
-                subtitle = `${action.serviceAmount || 0} kWh`;
-              } else {
-                title = t('rider.batterySwap') || 'Battery Swap';
-                subtitle = action.serviceType || '';
-              }
+            // Group electricity + swap actions that occur within 2 min of each other
+            // so a single battery swap renders as one unified row.
+            const serviceGroups = groupServiceActions(serviceActions);
 
-              mappedActivities.push({
-                id: action.serviceActionId || `service-${Date.now()}`,
-                type: 'swap', // All serviceActions are swaps
-                title: title,
-                subtitle: subtitle,
-                amount: Math.abs(action.serviceAmount || 0),
-                currency: currency,
-                isPositive: false,
-                time: timeStr,
-                date: formattedDate,
+            serviceGroups.forEach((group) => {
+              const hasElec = group.some((g: any) =>
+                String(g.serviceType || '').includes('electricity')
+              );
+              const hasSwap = group.some(
+                (g: any) => !String(g.serviceType || '').includes('electricity')
+              );
+
+              const date = new Date(group[0].createdAt);
+              const formattedDate = date.toISOString().split('T')[0];
+              const timeStr = date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
               });
+
+              if (hasElec && hasSwap && group.length === 2) {
+                // Unified battery swap row — show energy, no price.
+                const elecAction = group.find((g: any) =>
+                  String(g.serviceType || '').includes('electricity')
+                )!;
+                mappedActivities.push({
+                  id: elecAction.serviceActionId || `swap-${Date.now()}`,
+                  type: 'swap',
+                  title: t('rider.batterySwap') || 'Battery Swap',
+                  subtitle: t('rider.batterySwapTransaction') || 'Battery swap transaction',
+                  energy: `${elecAction.serviceAmount || 0} kWh`,
+                  isPositive: false,
+                  time: timeStr,
+                  date: formattedDate,
+                });
+              } else {
+                // Fallback: render each action individually.
+                group.forEach((action: any) => {
+                  const isElec = String(action.serviceType || '').includes('electricity');
+                  mappedActivities.push({
+                    id: action.serviceActionId || `service-${Date.now()}`,
+                    type: 'swap',
+                    title: isElec
+                      ? t('rider.electricityUsage') || 'Electricity Usage'
+                      : t('rider.batterySwap') || 'Battery Swap',
+                    subtitle: isElec
+                      ? `${action.serviceAmount || 0} kWh`
+                      : t('rider.batterySwapTransaction') || 'Battery swap transaction',
+                    isPositive: false,
+                    time: timeStr,
+                    date: formattedDate,
+                  });
+                });
+              }
             });
 
             // Update last swap in bike state if we found any service actions
@@ -813,7 +835,7 @@ const RiderApp: React.FC = () => {
               const diffMs = now.getTime() - lastSwapDate.getTime();
               const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
               const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              
+
               let lastSwapText: string;
               if (diffHours < 1) {
                 lastSwapText = t('rider.justNow') || 'Just now';
@@ -826,7 +848,7 @@ const RiderApp: React.FC = () => {
               } else {
                 lastSwapText = lastSwapDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               }
-              
+
               setBike((prev) => ({
                 ...prev,
                 lastSwap: lastSwapText,
@@ -2222,7 +2244,7 @@ const RiderApp: React.FC = () => {
                   id: a.id,
                   reference: a.subtitle,
                   planName: a.title,
-                  amount: a.amount,
+                  amount: a.amount ?? 0,
                   currency: a.currency,
                   date: `${a.date} ${a.time}`,
                   status: a.isPositive ? 'completed' : 'completed',

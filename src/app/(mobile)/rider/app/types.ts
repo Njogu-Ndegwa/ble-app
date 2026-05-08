@@ -70,11 +70,13 @@ export interface RiderActivityItem {
   type: 'swap' | 'topup' | 'payment';
   title: string;
   subtitle: string;
-  amount: number;
+  amount?: number;
   currency?: string;
   isPositive?: boolean;
   time: string;
   date: string;
+  /** Energy info (e.g. "3.5 kWh") to show instead of a price badge on swap rows. */
+  energy?: string;
 }
 
 export interface RiderTicket {
