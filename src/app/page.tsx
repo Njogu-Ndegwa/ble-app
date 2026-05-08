@@ -4,7 +4,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import SplashScreen from '@/components/splash/SplashScreen';
-import OnboardingCarousel from '@/components/onboarding/OnboardingCarousel';
 import SelectRole from '@/components/roles/SelectRole';
 import SelectSA from '@/components/roles/SelectSA';
 import PublicLanding from '@/components/roles/PublicLanding';
@@ -15,13 +14,11 @@ import type { OdooEmployeeSession } from '@/lib/sa-types';
 type AppState =
   | 'initializing'
   | 'splash'
-  | 'onboarding'
   | 'landing'      // unauthenticated: keypad public app + Sign In CTA
   | 'selectSA'     // authenticated but no SA chosen yet
   | 'selectRole'   // authenticated + SA selected: shows SA-filtered applet grid
   | 'microsoftCallback';
 
-const ONBOARDING_STORAGE_KEY = 'oves-onboarding-seen';
 const SPLASH_SHOWN_KEY = 'oves-splash-shown';
 
 export default function Index() {
@@ -145,7 +142,7 @@ export default function Index() {
     }
   }, [router]);
 
-  /** Determine which authenticated state to show after splash/onboarding. */
+  /** Determine which authenticated state to show after splash. */
   const resolveAuthState = useCallback(() => {
     if (!isOdooEmployeeLoggedIn()) {
       router.replace('/signin');
@@ -169,26 +166,8 @@ export default function Index() {
     }
   }, [router]);
 
-  const hasSeenOnboarding = () => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true';
-  };
-
-  const markOnboardingComplete = () => {
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
-  };
-
   const handleSplashComplete = useCallback(() => {
     sessionStorage.setItem(SPLASH_SHOWN_KEY, 'true');
-    if (hasSeenOnboarding()) {
-      resolveAuthState();
-    } else {
-      setAppState('onboarding');
-    }
-  }, [resolveAuthState]);
-
-  const handleOnboardingComplete = useCallback(() => {
-    markOnboardingComplete();
     resolveAuthState();
   }, [resolveAuthState]);
 
@@ -208,10 +187,6 @@ export default function Index() {
 
   if (appState === 'splash') {
     return <SplashScreen onComplete={handleSplashComplete} />;
-  }
-
-  if (appState === 'onboarding') {
-    return <OnboardingCarousel onComplete={handleOnboardingComplete} />;
   }
 
   if (appState === 'landing') {
