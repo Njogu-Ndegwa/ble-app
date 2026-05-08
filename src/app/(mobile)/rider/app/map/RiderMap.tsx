@@ -53,7 +53,8 @@ import { MAPS_API_KEY, MAP_ID } from "./config";
  *                                               mini-map
  */
 
-const DEFAULT_CENTER: [number, number] = [-1.2921, 36.8219]; // Nairobi
+const DEFAULT_CENTER: [number, number] = [20, 20]; // Neutral center for Africa / Europe / Asia visibility
+const WORLD_ZOOM = 2; // Half-world view when no stations and no user location
 
 interface RiderMapProps {
   stations: RiderStation[];
@@ -164,11 +165,13 @@ function RiderMapInner({
 }: RiderMapProps) {
   const { t } = useI18n();
 
+  const withCoords = useMemo(
+    () => stations.filter((s) => typeof s.lat === "number" && typeof s.lng === "number"),
+    [stations],
+  );
+
   const initialCenter = useMemo<google.maps.LatLngLiteral>(() => {
     if (userLocation) return { lat: userLocation.lat, lng: userLocation.lng };
-    const withCoords = stations.filter(
-      (s) => typeof s.lat === "number" && typeof s.lng === "number",
-    );
     if (withCoords.length === 0) {
       return { lat: defaultCenter[0], lng: defaultCenter[1] };
     }
@@ -180,7 +183,12 @@ function RiderMapInner({
       lat: sum.lat / withCoords.length,
       lng: sum.lng / withCoords.length,
     };
-  }, [userLocation, stations, defaultCenter]);
+  }, [userLocation, withCoords, defaultCenter]);
+
+  const initialZoom = useMemo<number>(() => {
+    if (userLocation || withCoords.length > 0) return 13;
+    return WORLD_ZOOM;
+  }, [userLocation, withCoords.length]);
 
   const validStations = useMemo(
     () =>
@@ -196,7 +204,7 @@ function RiderMapInner({
       <GoogleMap
         mapId={MAP_ID}
         defaultCenter={initialCenter}
-        defaultZoom={13}
+        defaultZoom={initialZoom}
         gestureHandling={preview ? "none" : "greedy"}
         disableDefaultUI
         // `disableDefaultUI` hides zoom/pan/streetview, but the newer
@@ -481,7 +489,22 @@ function MapController({
     if (didFitInitialRef.current) return;
     if (hasActiveRoute) return; // never fight an in-flight route
     if (selectedStationId != null) return; // rider already zoomed somewhere
-    if (stations.length === 0) return;
+
+    if (stations.length === 0) {
+      if (userLocation) {
+        // No stations but we know where the rider is — center on them.
+        programmaticMoveRef.current = true;
+        map.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+        map.setZoom(13);
+      } else {
+        // No stations and no location — show a half-world view (Africa/Europe/Asia).
+        programmaticMoveRef.current = true;
+        map.setCenter({ lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] });
+        map.setZoom(WORLD_ZOOM);
+      }
+      didFitInitialRef.current = true;
+      return;
+    }
 
     const bounds = new coreLib.LatLngBounds();
     stations.forEach((s) => bounds.extend({ lat: s.lat!, lng: s.lng! }));

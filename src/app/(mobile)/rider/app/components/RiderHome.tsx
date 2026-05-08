@@ -419,62 +419,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
       </div>
 
-      {!hasSubscription && nearbyStations.length === 0 ? (
-        /* Hard stop: without an active subscription the rider can't use the
-           app at all, so there's nothing useful to show on a map. Keep the
-           old full-bleed "subscribe first" card here. */
-        <div
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "24px 20px",
-            textAlign: "center",
-            marginTop: "12px",
-          }}
-        >
-          <div
-            style={{
-              width: "60px",
-              height: "60px",
-              margin: "0 auto 16px",
-              borderRadius: "50%",
-              background: "var(--bg-tertiary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                width: "30px",
-                height: "30px",
-                color: "var(--text-muted)",
-              }}
-            >
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-          </div>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "var(--text-muted)",
-              lineHeight: "1.5",
-              margin: 0,
-            }}
-          >
-            {t("rider.noStationsDesc") ||
-              "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
-          </p>
-        </div>
-      ) : showLoadingSkeleton ? (
+      {showLoadingSkeleton ? (
         /* Stations are legitimately still being fetched. Show a skeleton in
            place of BOTH the map and the carousel so the rider understands
            we're still gathering data, instead of staring at an empty map.
@@ -537,7 +482,62 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             )}
           </div>
 
-          {nearbyStations.length === 0 && stationsError ? (
+          {!hasSubscription && nearbyStations.length === 0 ? (
+            /* Without an active subscription the rider can't use stations,
+               but we still show the map (user location or half-world view)
+               so the empty state isn't tied to a hard-coded city. */
+            <div
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "24px 20px",
+                textAlign: "center",
+                marginTop: "12px",
+              }}
+            >
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  margin: "0 auto 16px",
+                  borderRadius: "50%",
+                  background: "var(--bg-tertiary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    width: "30px",
+                    height: "30px",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </div>
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "var(--text-muted)",
+                  lineHeight: "1.5",
+                  margin: 0,
+                }}
+              >
+                {t("rider.noStationsDesc") ||
+                  "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
+              </p>
+            </div>
+          ) : nearbyStations.length === 0 && stationsError ? (
             <div
               style={{
                 background: "var(--bg-secondary)",
