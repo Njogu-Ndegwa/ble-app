@@ -17,8 +17,12 @@ interface RoleConfig {
   id: string;
   labelKey: string;
   path: string;
-  /** Canonical applet slug from the login response. Roles without a slug are always shown. */
-  appletSlug?: string;
+  /**
+   * Canonical applet slug(s) from the login response. A role is shown when the
+   * SA's applet list contains ANY of the listed slugs. Roles without a slug are
+   * always shown.
+   */
+  appletSlug?: string | string[];
   disabled?: boolean;
   badgeKey?: string;
   icon:
@@ -27,10 +31,11 @@ interface RoleConfig {
 }
 
 /**
- * Mapping from this component's role id → canonical SA applet slug.
+ * Mapping from this component's role id → canonical SA applet slug(s).
  * Roles whose id is not in this map are always shown (no applet guard).
+ * An array value means the role is shown when the SA has ANY of those slugs.
  */
-const APPLET_SLUG_MAP: Record<string, string> = {
+const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   customerManagement: 'customer-management',
   products: 'products',
   orders: 'orders',
@@ -40,9 +45,9 @@ const APPLET_SLUG_MAP: Record<string, string> = {
   attendant: 'attendant',
   manualSwap: 'externalswap',
   keypad: 'keypad',
-  bleDeviceManager: 'assets',
+  // Both 'assets' and 'mydevices' grant access to the Device Manager tile.
+  bleDeviceManager: ['assets', 'mydevices'],
   location: 'location',
-  mydevices: 'mydevices',
   ota: 'ota',
   ticketing: 'ticketing',
 };
@@ -119,7 +124,8 @@ const ALL_ROLES: RoleConfig[] = [
     labelKey: 'role.bleDeviceManager',
     icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
     path: '/assets/ble-devices',
-    appletSlug: 'assets',
+    // Visible when the SA has either 'assets' OR 'mydevices' in its applet list.
+    appletSlug: ['assets', 'mydevices'],
   },
 ];
 
@@ -148,7 +154,8 @@ export default function SelectRole({ onSwitchSA }: Props) {
     const filtered = ALL_ROLES.filter(role => {
       const slug = role.appletSlug ?? APPLET_SLUG_MAP[role.id];
       if (!slug) return true;
-      return saApplets.includes(slug);
+      const slugs = Array.isArray(slug) ? slug : [slug];
+      return slugs.some(s => saApplets.includes(s));
     });
 
     console.info('[SelectRole] SA applets:', saApplets);
