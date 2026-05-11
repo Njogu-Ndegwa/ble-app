@@ -168,7 +168,9 @@ useEffect(() => {
     if (!char || !cmdService) return;
 
     const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-    if (!connectedMac || connectedMac !== device.macAddress) {
+    // Normalize both sides: some Android BLE callbacks return uppercase MACs,
+    // others lowercase; trim guards against stray whitespace from the bridge.
+    if (!connectedMac || connectedMac.trim().toLowerCase() !== device.macAddress.trim().toLowerCase()) {
       toast.error(t("Device not connected. Please reconnect and try again."));
       return;
     }
@@ -227,7 +229,7 @@ useEffect(() => {
         toast.success(t("Success"));
         setTimeout(() => {
           const stillConnected = sessionStorage.getItem("connectedDeviceMac");
-          if (stillConnected === device.macAddress) {
+          if (stillConnected?.trim().toLowerCase() === device.macAddress.trim().toLowerCase()) {
             afterWrite?.();
           } else {
             toast.error(t("Device disconnected. Please reconnect."));
