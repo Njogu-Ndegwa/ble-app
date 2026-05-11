@@ -93,7 +93,7 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" style={{ justifyContent: 'flex-start', paddingTop: '10vh' }}>
         <Toaster
           position="top-center"
           toastOptions={{
