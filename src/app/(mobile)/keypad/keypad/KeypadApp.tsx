@@ -263,6 +263,9 @@ const KeypadApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
+            // Normalize MAC to uppercase+trimmed so it always matches the value
+            // stored by bleConnectSuccessCallBack, regardless of OS/device format.
+            d.macAddress = d.macAddress.trim().toUpperCase();
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
@@ -317,10 +320,12 @@ const KeypadApp: React.FC = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
-        sessionStorage.setItem("connectedDeviceMac", macAddress);
-        setConnectedDevice(macAddress);
+        // Normalize to match the uppercase+trimmed format used in findBleDeviceCallBack.
+        const normalizedMac = macAddress.trim().toUpperCase();
+        sessionStorage.setItem("connectedDeviceMac", normalizedMac);
+        setConnectedDevice(normalizedMac);
         setIsScanning(false);
-        const d = { serviceName: "ATT", macAddress };
+        const d = { serviceName: "ATT", macAddress: normalizedMac };
         setLoadingService("ATT");
         initServiceBleData(d);
         resp(macAddress);
@@ -412,14 +417,23 @@ const KeypadApp: React.FC = () => {
       (data: string, resp: any) => {
         const parsedData = JSON.parse(data);
         setServiceAttrList((prev: any) => {
-          if (!prev || prev.length === 0) return [parsedData];
-          const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
-          if (idx >= 0) {
-            const u = [...prev];
-            u[idx] = parsedData;
-            return u;
+          let updated: any[];
+          if (!prev || prev.length === 0) {
+            updated = [parsedData];
+          } else {
+            const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
+            if (idx >= 0) {
+              updated = [...prev];
+              updated[idx] = parsedData;
+            } else {
+              updated = [...prev, parsedData];
+            }
           }
-          return [...prev, parsedData];
+          // Sync attrList immediately so DeviceDetailView gets the new service
+          // without waiting for the progress===100 effect, which can miss the
+          // update if the native side doesn't fire a final 100% progress callback.
+          setAtrrList(updated);
+          return updated;
         });
         setTimeout(() => setLoadingService(null), 100);
         resp(data);

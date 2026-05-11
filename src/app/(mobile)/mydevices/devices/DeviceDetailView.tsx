@@ -322,12 +322,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     return responseData.data;
   };
 
+  // Trigger write only after React has re-rendered with the latest attributeList.
+  // Calling writeCodeToDevice directly inside the async runCodeOperation captures a
+  // stale closure: if CMD_SERVICE data finishes loading while the API call is in-flight,
+  // the captured writeCodeToDevice still sees the old attributeList and fails to find
+  // CMD_SERVICE, producing an intermittent "CMD service not available" writeFailed.
+  useEffect(() => {
+    if (result.status === 'generated' && result.codeDec) {
+      writeCodeToDevice(result.codeDec);
+    }
+  // writeCodeToDevice is a useCallback that depends on attributeList, so this
+  // always uses the freshest service data available at render time.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.status, result.codeDec]);
+
   const runCodeOperation = async (codeType: CodeType, apiCall: () => Promise<string>) => {
     setResult({ status: 'generating', codeType, codeDec: null, error: null });
     try {
       const codeDec = await apiCall();
+      // Setting 'generated' triggers the useEffect above to call writeCodeToDevice
+      // with the latest attributeList, avoiding the stale-closure race condition.
       setResult({ status: 'generated', codeType, codeDec, error: null });
-      writeCodeToDevice(codeDec);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       setResult({ status: 'error', codeType, codeDec: null, error: message });
