@@ -3,7 +3,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 
-const LocationView = dynamic(() => import('./LocationView'), { ssr: false });
+const LocationView = dynamic(() => import('./LocationView'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)' }} />
+    </div>
+  ),
+});
 import ProgressiveLoading from '../../../../components/loader/progressiveLoading';
 import { connBleByMacAddress, initServiceBleData } from "../../../utils"
 import { Toaster, toast } from 'react-hot-toast';

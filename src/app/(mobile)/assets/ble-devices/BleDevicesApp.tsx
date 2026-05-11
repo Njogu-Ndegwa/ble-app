@@ -148,6 +148,7 @@ const BleDevicesApp: React.FC = () => {
   // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
   // ref and flushed to React state at most every 300 ms.
   const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
     setDetectedDevices(detectedDevicesRef.current);
@@ -164,6 +165,10 @@ const BleDevicesApp: React.FC = () => {
       if (deviceBatchTimerRef.current) {
         clearTimeout(deviceBatchTimerRef.current);
         deviceBatchTimerRef.current = null;
+      }
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
       }
     };
   }, []);
@@ -206,6 +211,10 @@ const BleDevicesApp: React.FC = () => {
     setLoadingService(null);
     setProgress(0);
     setConnectingDeviceId(null);
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     setIsConnecting(false);
   }, [t]);
 
@@ -231,10 +240,17 @@ const BleDevicesApp: React.FC = () => {
     if (macAddress === connectedDevice && attributeList.length > 0) {
       setSelectedDevice(macAddress);
     } else {
+      if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
       connBleByMacAddress(macAddress);
+      connectTimeoutRef.current = setTimeout(() => {
+        connectTimeoutRef.current = null;
+        setIsConnecting(false);
+        setProgress(0);
+        toast.error(t('Connection timed out. Please try again.'), { id: 'connect-toast' });
+      }, 30_000);
     }
   };
 
@@ -334,6 +350,10 @@ const BleDevicesApp: React.FC = () => {
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         console.warn('[BLE DevMgr] Connection FAILED raw:', data);
         setIsConnecting(false);
         setProgress(0);
@@ -347,6 +367,10 @@ const BleDevicesApp: React.FC = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         console.warn('[BLE DevMgr] Connected to device:', macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         setConnectedDevice(macAddress);

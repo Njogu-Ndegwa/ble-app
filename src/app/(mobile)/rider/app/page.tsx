@@ -43,7 +43,14 @@ import AppHeader from '@/components/AppHeader';
  */
 const RiderMapProvider = dynamic(
   () => import('./map/RiderMap').then((m) => m.RiderMapProvider),
-  { ssr: false },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)' }} />
+      </div>
+    ),
+  },
 );
 
 const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
