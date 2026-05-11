@@ -5,7 +5,7 @@ import Image from 'next/image';
 
 interface SplashScreenProps {
   onComplete: () => void;
-  /** Total animation display time in ms. Default 2000ms (down from 3000ms). */
+  /** Total animation display time in ms. Default 1200ms. */
   duration?: number;
 }
 
@@ -23,7 +23,7 @@ function dismissHtmlSplash() {
 
 export default function SplashScreen({ 
   onComplete, 
-  duration = 2000,
+  duration = 1200,
 }: SplashScreenProps) {
   // Always start in 'init' — identical on server and client, avoids hydration
   // mismatch. The init phase renders a static logo that matches the HTML splash
@@ -46,12 +46,18 @@ export default function SplashScreen({
 
     let settled = false;
 
+    // Adaptive cap: if the SW is already controlling this page it will respond
+    // in <100ms, so 500ms is generous. For a first install (controller===null)
+    // the SW must download and precache before activating — give it 1500ms.
+    const alreadyControlled = !!navigator.serviceWorker.controller;
+    const timeoutMs = alreadyControlled ? 500 : 1500;
+
     const timeout = setTimeout(() => {
       if (settled) return;
       settled = true;
       dismissHtmlSplash();
       setPhase('animating');
-    }, 2000);
+    }, timeoutMs);
 
     navigator.serviceWorker.ready.then(() => {
       if (settled) return;
@@ -78,7 +84,8 @@ export default function SplashScreen({
       if (hasCompletedRef.current) return;
       hasCompletedRef.current = true;
       setPhase('hiding');
-      setTimeout(onComplete, 600);
+      // 300ms matches the CSS fade-out transition on .splash-screen.hidden
+      setTimeout(onComplete, 300);
     }, duration);
 
     return () => clearTimeout(timer);

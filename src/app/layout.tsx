@@ -1,26 +1,20 @@
-'use client'
 import { Outfit, DM_Mono } from "next/font/google";
 import "./globals.css";
+import ClientProviders from "./ClientProviders";
 
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['400', '500', '700'],
+  display: 'swap',
 });
 
 const dmMono = DM_Mono({
   variable: "--font-dm-mono",
   subsets: ["latin"],
-  weight: ['400', '500'],
+  weight: ['400'],
+  display: 'swap',
 });
-
-import { BridgeProvider } from './context/bridgeContext';
-import { AuthProvider } from "./(auth)/context/auth-context";
-import apolloClient from "@/lib/apollo-client";
-import { ApolloProvider } from "@apollo/client";
-import { I18nProvider } from "@/i18n";
-import { ThemeProvider } from './context/themeContext';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function RootLayout({
   children,
@@ -30,16 +24,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Preload applet icon SVGs so they are in the browser cache before React renders */}
-        <link rel="preload" as="image" href="/assets/Customer.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Products.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Orders.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Rider.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Activator.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Salesperson.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Attendant2.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Keypad2.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/BleDeviceAttendant.svg" type="image/svg+xml" />
+        {/* Preconnect to API servers so the first GraphQL request pays no TCP cost */}
+        <link rel="preconnect" href="https://federated-graphql-api.omnivoltaic.com" />
+        <link rel="preconnect" href="https://dev-federated-graphql-api.omnivoltaic.com" />
+        <link rel="preconnect" href="https://abs-platform-dev.omnivoltaic.com" />
         <style
           dangerouslySetInnerHTML={{
             __html: `
@@ -64,19 +52,9 @@ export default function RootLayout({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/Logo-Oves.png" alt="" />
         </div>
-        <ThemeProvider>
-          <ApolloProvider client={apolloClient}>
-            <BridgeProvider>
-              <AuthProvider>
-                <I18nProvider>
-                  <ErrorBoundary>
-                    {children}
-                  </ErrorBoundary>
-                </I18nProvider>
-              </AuthProvider>
-            </BridgeProvider>
-          </ApolloProvider>
-        </ThemeProvider>
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );
