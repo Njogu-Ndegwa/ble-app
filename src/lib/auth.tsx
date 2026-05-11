@@ -1,7 +1,7 @@
 // app/lib/auth.ts
 import { jwtDecode } from 'jwt-decode';
 import { redirect } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter, usePathname } from "next/navigation";
 import { isOdooEmployeeLoggedIn, getActiveSAApplets } from './ov-auth';
 
@@ -16,7 +16,6 @@ interface DecodedToken {
 export const getDecodedToken = (): any | null => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('access_token');
-    console.log(token, "Token---17----")
     if (token) {
       try {
         const decoded = jwtDecode<any>(token);
@@ -47,8 +46,9 @@ const PUBLIC_ROUTES = ["/keypad", "/signin", "/signup"] as const;
 
 export function isAuth(Component: any) {
   return function ProtectedPage(props: any) {
-    /* `isAuthenticated()` returns true/false (⚠️ be sure to CALL the fn) */
-    const loggedIn   = isAuthenticated();
+    // Memoized so localStorage + JWT decode only run once per mount, not on
+    // every re-render (e.g. sidebar open/close toggles in MobileLayout).
+    const loggedIn   = useMemo(() => isAuthenticated(), []);
     const pathname   = usePathname();
     const router     = useRouter();
 

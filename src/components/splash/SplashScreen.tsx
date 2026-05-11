@@ -5,6 +5,7 @@ import Image from 'next/image';
 
 interface SplashScreenProps {
   onComplete: () => void;
+  /** Total animation display time in ms. Default 2000ms (down from 3000ms). */
   duration?: number;
 }
 
@@ -22,7 +23,7 @@ function dismissHtmlSplash() {
 
 export default function SplashScreen({ 
   onComplete, 
-  duration = 3000,
+  duration = 2000,
 }: SplashScreenProps) {
   // Always start in 'init' — identical on server and client, avoids hydration
   // mismatch. The init phase renders a static logo that matches the HTML splash
@@ -30,10 +31,9 @@ export default function SplashScreen({
   const [phase, setPhase] = useState<Phase>('init');
   const hasCompletedRef = useRef(false);
 
-  // After hydration: check if the SW needs its first-activation reload.
-  // If yes, the reload fires while the user still sees the static logo
-  // (the HTML splash in layout.tsx re-appears instantly on reload).
-  // If no, we move straight to the battery animation.
+  // After hydration: wait for the SW to activate on first session, then start
+  // the animation. clientsClaim:true in sw.js hands control to the SW without
+  // a page reload, so we go straight from SW-ready → animation.
   useEffect(() => {
     const swSupported = 'serviceWorker' in navigator;
     const alreadyActivated = sessionStorage.getItem('sw-activated') === 'true';
@@ -51,20 +51,20 @@ export default function SplashScreen({
       settled = true;
       dismissHtmlSplash();
       setPhase('animating');
-    }, 4000);
+    }, 2000);
 
-    navigator.serviceWorker.ready.then((registration) => {
+    navigator.serviceWorker.ready.then(() => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
 
-      if (registration.active) {
-        sessionStorage.setItem('sw-activated', 'true');
-        window.location.reload();
-      } else {
-        dismissHtmlSplash();
-        setPhase('animating');
-      }
+      // sw.js uses clientsClaim:true + skipWaiting:true, so the SW already
+      // controls this page as soon as it activates — no reload is needed to
+      // hand off control. Precaching happens during install (before this
+      // point), so offline mode is fully intact.
+      sessionStorage.setItem('sw-activated', 'true');
+      dismissHtmlSplash();
+      setPhase('animating');
     });
 
     return () => clearTimeout(timeout);

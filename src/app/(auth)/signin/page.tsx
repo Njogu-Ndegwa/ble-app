@@ -102,9 +102,7 @@ const LoginPage = () => {
     // Unregister service workers so the Odoo redirect is not intercepted by a stale cache
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations()
-      for (const reg of regs) {
-        await reg.unregister()
-      }
+      await Promise.all(regs.map(reg => reg.unregister()))
     }
 
     window.location.href = authUrl

@@ -21,10 +21,52 @@ type AppState =
 
 const SPLASH_SHOWN_KEY = 'oves-splash-shown';
 
+/**
+ * Compute the initial AppState synchronously so the very first paint already
+ * shows the right screen on return visits instead of flashing the spinner.
+ *
+ * Rules (evaluated in order):
+ *  1. Microsoft OAuth callback in URL → must go through the full async effect.
+ *  2. Splash not yet shown this session → show SplashScreen.
+ *  3. Splash already shown + logged in + SA selected → go straight to SelectRole.
+ *  4. Splash already shown + logged in + single SA (will auto-select) → SelectRole.
+ *  5. Splash already shown + logged in + multiple/no SAs → SelectSA.
+ *  6. Splash already shown + not logged in → 'initializing' (effect redirects to /signin).
+ */
+function getInitialAppState(): AppState {
+  if (typeof window === 'undefined') return 'initializing';
+
+  // Microsoft callback carries a `token=` param in search or hash
+  if (
+    window.location.search.includes('token=') ||
+    window.location.hash.includes('token=')
+  ) {
+    return 'initializing';
+  }
+
+  try {
+    if (sessionStorage.getItem(SPLASH_SHOWN_KEY) !== 'true') return 'splash';
+  } catch {
+    return 'splash';
+  }
+
+  // Splash already shown — resolve from localStorage (all synchronous)
+  if (!isOdooEmployeeLoggedIn()) return 'initializing'; // effect redirects to /signin
+
+  const saId = getSelectedSAId();
+  if (saId !== null) return 'selectRole';
+
+  const accounts = getStoredServiceAccounts();
+  // Single SA will be auto-selected by the effect; show selectRole immediately
+  if (accounts.length === 1 && accounts[0].id != null) return 'selectRole';
+
+  return 'selectSA';
+}
+
 export default function Index() {
   const router = useRouter();
 
-  const [appState, setAppState] = useState<AppState>('initializing');
+  const [appState, setAppState] = useState<AppState>(getInitialAppState);
 
   useEffect(() => {
     console.info('[RootPage] useEffect fired. Full URL:', window.location.href);
