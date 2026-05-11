@@ -1,5 +1,5 @@
 import { defaultCache } from "@serwist/next/worker";
-import { Serwist, NetworkFirst, NetworkOnly } from "serwist";
+import { Serwist, NetworkFirst, NetworkOnly, StaleWhileRevalidate } from "serwist";
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
@@ -15,10 +15,14 @@ const serwist = new Serwist({
     },
     ...defaultCache,
     {
+      // Serve the app-shell HTML from cache immediately, revalidate in the
+      // background. Since all app data is fetched client-side (no SSR data in
+      // the HTML), stale HTML is always safe to display — the user never sees
+      // outdated content. This eliminates the blank screen that NetworkFirst
+      // caused while waiting up to 3 s for the server before showing anything.
       matcher: ({ request }) => request.destination === "document",
-      handler: new NetworkFirst({
+      handler: new StaleWhileRevalidate({
         cacheName: "pages-cache",
-        networkTimeoutSeconds: 3,
       }),
     },
   ],
