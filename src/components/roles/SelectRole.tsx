@@ -314,6 +314,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
                         alt={t(role.labelKey)}
                         className="role-app-icon-img"
                         draggable={false}
+                        fetchPriority="high"
                       />
                     </>
                   ) : (
