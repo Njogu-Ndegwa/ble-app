@@ -66,7 +66,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const fetchItemId = useCallback(async () => {
     const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
     if (!attService) {
-      console.info('[DeviceDetail] ATT_SERVICE not found in attributeList, skipping identification');
       return;
     }
 
@@ -89,9 +88,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
     // Clean arrow characters ("<", ">") that BLE ppid/opid values sometimes contain
     const oemItemId = cleanBatteryId(rawValue);
-    console.info('[DeviceDetail] Identifying device:', {
-      rawOpid, rawPpid, cleaned: oemItemId, source: rawOpid ? 'opid' : 'ppid'
-    });
 
     setIsIdentifying(true);
     setIdentifyError(null);
@@ -135,7 +131,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       if (fetchedItemId) {
         setItemId(fetchedItemId);
         setIdentifyError(null);
-        console.info('[DeviceDetail] Item identified:', fetchedItemId);
       } else {
         const msg = t('Device not found in system for OEM ID: ') + oemItemId;
         setIdentifyError(msg);

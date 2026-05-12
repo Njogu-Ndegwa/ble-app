@@ -147,7 +147,6 @@ export default function SelectRole({ onSwitchSA }: Props) {
     const saApplets = getActiveSAApplets();
 
     if (saApplets.length === 0) {
-      console.info('[SelectRole] No SA applets found — returning empty list');
       return [] as RoleConfig[];
     }
 
@@ -158,8 +157,6 @@ export default function SelectRole({ onSwitchSA }: Props) {
       return slugs.some(s => saApplets.includes(s));
     });
 
-    console.info('[SelectRole] SA applets:', saApplets);
-    console.info('[SelectRole] Visible roles (' + filtered.length + '/' + ALL_ROLES.length + '):', filtered.map(r => r.id));
     return filtered;
   }, []);
 
@@ -169,7 +166,6 @@ export default function SelectRole({ onSwitchSA }: Props) {
   // to show the selection grid in that case (e.g. a rider-only account).
   useEffect(() => {
     if (visibleRoles.length === 1 && !visibleRoles[0].disabled) {
-      console.info('[SelectRole] Single applet SA — auto-navigating to', visibleRoles[0].path);
       router.replace(visibleRoles[0].path);
     }
   }, [visibleRoles, router]);

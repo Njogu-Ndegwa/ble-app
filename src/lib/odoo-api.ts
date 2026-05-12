@@ -22,31 +22,18 @@ const DEFAULT_COMPANY_ID = 14; // OV Kenya (Test)
 function getActiveSAId(): string | null {
   if (typeof window === 'undefined') return null;
   const attendantSaId = localStorage.getItem('oves-attendant-sa-id');
-  const attendantSaData = localStorage.getItem('oves-attendant-sa-data');
   const salesSaId = localStorage.getItem('oves-sales-sa-id');
-  const salesSaData = localStorage.getItem('oves-sales-sa-data');
 
-  // Detect which role is active based on the current page path
   const path = window.location.pathname;
   const isAttendantContext = path.includes('/attendant');
   let resolved: string | null;
-  let source: string;
 
   if (isAttendantContext) {
     resolved = attendantSaId || salesSaId || null;
-    source = resolved === attendantSaId ? 'attendant' : resolved === salesSaId ? 'sales (fallback)' : 'NONE';
   } else {
     resolved = salesSaId || attendantSaId || null;
-    source = resolved === salesSaId ? 'sales' : resolved === attendantSaId ? 'attendant (fallback)' : 'NONE';
   }
 
-  console.info('[getActiveSAId] === ALL USER SAs ===');
-  console.info('[getActiveSAId] Page:', path, '| Context:', isAttendantContext ? 'ATTENDANT' : 'SALES');
-  console.info('[getActiveSAId] Attendant SA ID:', attendantSaId ?? 'NOT SET');
-  console.info('[getActiveSAId] Attendant SA Data:', attendantSaData ?? 'NONE');
-  console.info('[getActiveSAId] Sales SA ID:', salesSaId ?? 'NOT SET');
-  console.info('[getActiveSAId] Sales SA Data:', salesSaData ?? 'NONE');
-  console.info('[getActiveSAId] Resolved X-SA-ID:', resolved ?? 'NONE', `(from ${source})`);
   return resolved;
 }
 
@@ -610,11 +597,6 @@ async function apiRequest<T>(
     ...options.headers,
   };
 
-  console.info(`[Odoo API] >>> ${options.method || 'GET'} ${endpoint}`, {
-    url,
-    body: options.body ? JSON.parse(options.body as string) : undefined,
-  });
-
   try {
     const response = await fetchWithRetry(url, {
       ...options,
@@ -622,8 +604,6 @@ async function apiRequest<T>(
     });
 
     const result = await parseOdooResponse<OdooApiResponse<T>>(response, endpoint);
-
-    console.info(`✅ [Odoo API] <<< ${endpoint} response (HTTP ${response.status})`, JSON.stringify(result, null, 2));
 
     return result;
   } catch (error: unknown) {
@@ -666,10 +646,6 @@ export async function registerCustomer(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  const mergedHeaders = { ...buildOdooHeaders(authToken), ...headers } as Record<string, string>;
-  console.info('[registerCustomer] Headers:', JSON.stringify(mergedHeaders));
-  console.info('[registerCustomer] X-SA-ID:', mergedHeaders['X-SA-ID'] ?? 'NOT SET');
-  
   const response = await apiRequest<RegisterCustomerResponse>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -713,8 +689,6 @@ export async function getProducts(
 
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
   const headers = buildOdooHeaders(authToken);
-  console.info('[getProducts] fetching URL:', url);
-  console.info('[getProducts] headers:', JSON.stringify(headers));
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -727,10 +701,6 @@ export async function getProducts(
   }
 
   const raw = await response.json();
-  console.info('[getProducts] response keys:', Object.keys(raw));
-  console.info('[getProducts] catalog_roots:', JSON.stringify(raw.catalog_roots));
-  console.info('[getProducts] catalog_root_ids:', JSON.stringify(raw.catalog_root_ids));
-  console.info('[getProducts] products count:', raw.products?.length);
 
   const data: OdooProductsResponse = raw;
 
@@ -943,11 +913,6 @@ export async function purchaseMultiProducts(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
 
-  // Log the request payload for debugging
-  console.info('=== PURCHASE MULTI PRODUCTS (CREATE ORDER) - PAYLOAD ===');
-  console.info('URL:', url);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
-
   try {
     const response = await fetchWithRetry(url, {
       method: 'POST',
@@ -956,11 +921,6 @@ export async function purchaseMultiProducts(
     });
 
     const rawData = await response.json();
-
-    // Log the full response for debugging
-    console.info('=== PURCHASE MULTI PRODUCTS (CREATE ORDER) - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(rawData, null, 2));
 
     // Check HTTP status first
     if (!response.ok) {
@@ -1104,11 +1064,6 @@ export async function createPaymentRequest(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  // Log the request payload for debugging
-  console.info('=== CREATE PAYMENT REQUEST - PAYLOAD ===');
-  console.info('URL:', url);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'POST',
@@ -1117,12 +1072,7 @@ export async function createPaymentRequest(
     });
     
     const data: CreatePaymentRequestResponse = await response.json();
-    
-    // Log the full response for debugging
-    console.info('=== CREATE PAYMENT REQUEST - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
-    
+
     // Note: API returns success: false for business rule violations (e.g., existing active request)
     // We return the full response so caller can handle accordingly
     return data;
@@ -1156,23 +1106,11 @@ export async function confirmPaymentManual(
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
-  console.info('[confirmPaymentManual] >>> Sending payment confirmation', {
-    order_id: payload.order_id,
-    receipt: payload.receipt,
-    hasAuthToken: !!authToken,
-  });
-  
   try {
     const result = await apiRequest<ManualConfirmPaymentResponse>('/api/lipay/manual-confirm', {
       method: 'POST',
       body: JSON.stringify(payload),
       headers,
-    });
-
-    console.info('[confirmPaymentManual] <<< Server response', {
-      success: result.success,
-      data: result.data,
-      fullResponse: JSON.stringify(result, null, 2),
     });
 
     return result;
@@ -1584,10 +1522,6 @@ export async function createWorkflowSession(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== CREATE WORKFLOW SESSION - PAYLOAD ===');
-  console.info('URL:', url);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'POST',
@@ -1596,10 +1530,6 @@ export async function createWorkflowSession(
     });
     
     const data = await response.json();
-    
-    console.info('=== CREATE WORKFLOW SESSION - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
     
     if (!response.ok) {
       console.error('Create session error (HTTP):', data);
@@ -1637,12 +1567,6 @@ export async function updateWorkflowSession(
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
   const requestBody = JSON.stringify(payload);
-  console.info('=== UPDATE WORKFLOW SESSION - REQUEST ===');
-  console.info('Method: PUT');
-  console.info('URL:', url);
-  console.info('Order ID:', orderId);
-  console.info('Has Auth Token:', !!authToken);
-  console.info('Request Body:', JSON.stringify(payload, null, 2));
   
   try {
     const response = await fetchWithRetry(url, {
@@ -1664,10 +1588,6 @@ export async function updateWorkflowSession(
       throw new Error(`Failed to parse server response (HTTP ${response.status})`);
     }
     
-    console.info('=== UPDATE WORKFLOW SESSION - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
-    
     if (!response.ok) {
       console.error('❌ === UPDATE WORKFLOW SESSION - HTTP ERROR ===');
       console.error('HTTP Status:', response.status);
@@ -1676,7 +1596,6 @@ export async function updateWorkflowSession(
       throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
     }
     
-    console.info('✅ === UPDATE WORKFLOW SESSION - SUCCESS ===');
     return data as UpdateSessionResponse;
   } catch (error: any) {
     console.error('❌ === UPDATE WORKFLOW SESSION - ERROR ===');
@@ -1704,11 +1623,6 @@ export async function updateWorkflowSessionWithPayment(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== UPDATE SESSION WITH PAYMENT - PAYLOAD ===');
-  console.info('URL:', url);
-  console.info('Order ID:', orderId);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'PUT',
@@ -1717,10 +1631,6 @@ export async function updateWorkflowSessionWithPayment(
     });
     
     const data = await response.json();
-    
-    console.info('=== UPDATE SESSION WITH PAYMENT - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
     
     if (!response.ok) {
       console.error('Update session with payment error (HTTP):', data);
@@ -1750,9 +1660,6 @@ export async function getLatestPendingSession(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== GET LATEST SESSION (latest_updated endpoint) ===');
-  console.info('URL:', url);
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -1760,10 +1667,6 @@ export async function getLatestPendingSession(
     });
     
     const data = await response.json();
-    
-    console.info('=== GET LATEST SESSION - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
     
     if (!response.ok) {
       console.error('Get pending session error (HTTP):', data);
@@ -1831,10 +1734,6 @@ export async function createSalesWorkflowSession(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== CREATE SALES WORKFLOW SESSION - PAYLOAD ===');
-  console.info('URL:', url);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'POST',
@@ -1843,10 +1742,6 @@ export async function createSalesWorkflowSession(
     });
     
     const data = await response.json();
-    
-    console.info('=== CREATE SALES WORKFLOW SESSION - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
     
     if (!response.ok) {
       console.error('Create sales session error (HTTP):', data);
@@ -1886,11 +1781,6 @@ export async function updateWorkflowSessionWithProducts(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== UPDATE SESSION WITH PRODUCTS - PAYLOAD ===');
-  console.info('URL:', url);
-  console.info('Order ID:', orderId);
-  console.info('Payload:', JSON.stringify(payload, null, 2));
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'PUT',
@@ -1899,10 +1789,6 @@ export async function updateWorkflowSessionWithProducts(
     });
     
     const data = await response.json();
-    
-    console.info('=== UPDATE SESSION WITH PRODUCTS - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response:', JSON.stringify(data, null, 2));
     
     if (!response.ok) {
       console.error('Update session with products error (HTTP):', data);
@@ -1960,15 +1846,6 @@ export async function resetPassword(
   const url = `${ODOO_BASE_URL}/api/auth/reset-password`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
-
-  console.info('=== RESET PASSWORD - REQUEST ===');
-  console.info('URL:', url);
-  console.info('Payload (redacted):', JSON.stringify({
-    email: payload.email || undefined,
-    phone: payload.phone || undefined,
-    mobile: payload.mobile || undefined,
-    has_custom_password: !!payload.new_password,
-  }));
 
   try {
     const response = await fetchWithRetry(url, {
@@ -2195,9 +2072,6 @@ export async function getOrdersList(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== GET ORDERS LIST ===');
-  console.info('URL:', url);
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -2205,10 +2079,6 @@ export async function getOrdersList(
     });
     
     const data = await response.json();
-    
-    console.info('=== GET ORDERS LIST - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Orders count:', data.orders?.length || 0);
     
     if (!response.ok) {
       console.error('Get orders error (HTTP):', data);
@@ -2327,12 +2197,6 @@ export async function getCustomerDashboard(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== GET CUSTOMER DASHBOARD ===');
-  console.info('URL:', url);
-  console.info('Customer ID:', customerId);
-  console.info('[getCustomerDashboard] Headers:', JSON.stringify(headers));
-  console.info('[getCustomerDashboard] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -2340,10 +2204,6 @@ export async function getCustomerDashboard(
     });
     
     const data = await response.json();
-    
-    console.info('=== GET CUSTOMER DASHBOARD - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Customer Name:', data.customer?.name);
     
     if (!response.ok) {
       console.error('Get customer dashboard error (HTTP):', data);
@@ -2486,29 +2346,13 @@ export async function getAttendantTransactions(
   
   const headers: HeadersInit = buildOdooHeaders(authToken);
   
-  console.info('=== GET ATTENDANT TRANSACTIONS ===');
-  console.info('URL:', url);
-  console.info('Period:', period);
-  console.info('Has Auth Token:', !!authToken);
-  console.info('Token preview:', authToken ? `${authToken.substring(0, 30)}...` : 'NONE');
-  
   try {
     const response = await fetchWithRetry(url, {
       method: 'GET',
       headers,
     });
     
-    console.info('=== GET ATTENDANT TRANSACTIONS - RESPONSE RECEIVED ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Response OK:', response.ok);
-    console.info('Content-Type:', response.headers.get('content-type'));
-    
     const data = await response.json();
-    
-    console.info('=== GET ATTENDANT TRANSACTIONS - RESPONSE ===');
-    console.info('HTTP Status:', response.status);
-    console.info('Total Transactions:', data.summary?.total_transactions);
-    console.info('Success:', data.success);
     
     if (!response.ok) {
       console.error('Get attendant transactions error (HTTP):', data);
@@ -2652,8 +2496,6 @@ export async function getContacts(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
-  console.info('[getContacts] Headers:', JSON.stringify(headers));
-  console.info('[getContacts] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
@@ -2677,8 +2519,6 @@ export async function getContactById(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
-  console.info('[getContactById] Headers:', JSON.stringify(headers));
-  console.info('[getContactById] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, { method: 'GET', headers });
@@ -2703,8 +2543,6 @@ export async function updateContact(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
-  console.info('[updateContact] Headers:', JSON.stringify(headers));
-  console.info('[updateContact] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, {
@@ -2732,8 +2570,6 @@ export async function createContact(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
-  console.info('[createContact] Headers:', JSON.stringify(headers));
-  console.info('[createContact] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, {
@@ -2766,8 +2602,6 @@ export async function deleteContact(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const headers: HeadersInit = buildOdooHeaders(authToken);
-  console.info('[deleteContact] Headers:', JSON.stringify(headers));
-  console.info('[deleteContact] X-SA-ID:', (headers as Record<string, string>)['X-SA-ID'] ?? 'NOT SET');
 
   try {
     const response = await fetchWithRetry(url, { method: 'DELETE', headers });

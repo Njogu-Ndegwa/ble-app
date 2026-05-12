@@ -4,10 +4,17 @@ import { Clipboard } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
+import { keypadLog, keypadWarn } from './keypadLog';
 
 const START_SENTINEL = '*';
 const END_SENTINEL = '#';
 const REQUIRED_DIGIT_COUNT = 21;
+
+function redactDigitToken(digits: string): string {
+  if (!digits) return '(empty)';
+  if (digits.length <= 8) return `(len=${digits.length})`;
+  return `${digits.slice(0, 4)}…${digits.slice(-4)} (len=${digits.length})`;
+}
 
 interface DeviceDetailProps {
   device: {
@@ -87,6 +94,25 @@ const {
     opidCharacteristic: opidChar,
   };
 }, [attributeList]); // Only depends on attributeList
+
+useEffect(() => {
+  if (!attributeList?.length) {
+    keypadLog('detail: attributeList empty (waiting for BLE services)');
+    return;
+  }
+  keypadLog('detail: services snapshot', {
+    mac: device.macAddress,
+    deviceName: device.name,
+    services: attributeList.map((s: any) => ({
+      serviceNameEnum: s.serviceNameEnum,
+      uuid: typeof s.uuid === 'string' ? `${s.uuid.slice(0, 8)}…` : s.uuid,
+      characteristics: (s.characteristicList ?? []).map((c: any) => ({
+        name: c.name,
+        hasValue: c.realVal !== null && c.realVal !== undefined,
+      })),
+    })),
+  });
+}, [attributeList, device.macAddress, device.name]);
 
 /* ------------------ ensure CMD, STS & ATT are fetched ----------------- */
 useEffect(() => {
@@ -170,7 +196,26 @@ useEffect(() => {
     const connectedMac = sessionStorage.getItem("connectedDeviceMac");
     // Normalize both sides: some Android BLE callbacks return uppercase MACs,
     // others lowercase; trim guards against stray whitespace from the bridge.
-    if (!connectedMac || connectedMac.trim().toLowerCase() !== device.macAddress.trim().toLowerCase()) {
+    const sessionOk =
+      !!connectedMac &&
+      connectedMac.trim().toLowerCase() === device.macAddress.trim().toLowerCase();
+    const valueStr = String(value);
+    keypadLog('write: request', {
+      characteristic: char.name,
+      charUuid: char.uuid,
+      cmdServiceUuid: cmdService.uuid,
+      targetMac: device.macAddress,
+      sessionMac: connectedMac,
+      sessionMatchesTarget: sessionOk,
+      valueLength: valueStr.length,
+      valueHasSentinels: valueStr.includes(START_SENTINEL) && valueStr.includes(END_SENTINEL),
+    });
+
+    if (!sessionOk) {
+      keypadWarn('write: blocked — session MAC mismatch or missing', {
+        sessionMac: connectedMac,
+        targetMac: device.macAddress,
+      });
       toast.error(t("Device not connected. Please reconnect and try again."));
       return;
     }
@@ -179,10 +224,26 @@ useEffect(() => {
 
     writeBleCharacteristic(cmdService.uuid, char.uuid, value, device.macAddress, (responseData: any) => {
       setLoadingStates((prev) => ({ ...prev, [char.uuid]: false }));
-      console.info({ writeResponse: responseData });
+
+      const rawLog =
+        typeof responseData === "string"
+          ? responseData
+          : (() => {
+              try {
+                return JSON.stringify(responseData);
+              } catch {
+                return String(responseData);
+              }
+            })();
+      keypadLog('write: native callback (raw)', rawLog);
+
+      if (responseData === undefined || responseData === null || responseData === '') {
+        keypadWarn('write: empty response from native bridge');
+      }
 
       let writeSuccess = false;
       let errorMessage: string | null = null;
+      let parsePath: string = "none";
 
       try {
         let response: any;
@@ -190,62 +251,73 @@ useEffect(() => {
         if (typeof responseData === "string") {
           try {
             response = JSON.parse(responseData);
+            parsePath = "json-string";
           } catch (_parseErr) {
-            if (
-              responseData.toLowerCase() === "success" ||
-              responseData.toLowerCase() === "ok"
-            ) {
+            const lower = responseData.toLowerCase();
+            if (lower === "success" || lower === "ok") {
               writeSuccess = true;
+              parsePath = "plain-success-string";
             } else {
               errorMessage = responseData;
+              parsePath = "plain-error-string";
             }
           }
-        } else {
+        } else if (responseData != null) {
           response = responseData;
+          parsePath = "object";
         }
 
         if (response) {
           if (response.respCode === "200" || response.respCode === 200) {
             writeSuccess = true;
+            parsePath += "+respCode200";
           } else if (response.respData === true || response.respData === "success") {
             writeSuccess = true;
+            parsePath += "+respDataSuccess";
           } else if (response.success === true) {
             writeSuccess = true;
+            parsePath += "+successTrue";
           } else if (response.respDesc) {
-            errorMessage = response.respDesc;
+            errorMessage = String(response.respDesc);
+            parsePath += "+respDesc";
           } else if (response.error) {
-            errorMessage = response.error;
+            errorMessage = String(response.error);
+            parsePath += "+errorField";
           } else if (response.message) {
-            errorMessage = response.message;
+            errorMessage = String(response.message);
+            parsePath += "+messageField";
           }
         }
       } catch (err) {
-        console.error("Error parsing write response:", err);
+        keypadWarn('write: exception parsing bridge response', err);
         errorMessage = "Unknown write response format";
+        parsePath = "exception";
       }
 
+      keypadLog('write: result', {
+        success: writeSuccess,
+        errorMessage: errorMessage ?? (writeSuccess ? null : 'No success flag matched — inspect raw log'),
+        parsePath,
+        looksInvalid:
+          ((errorMessage ?? "").toLowerCase().includes("invalid") ||
+          rawLog.toLowerCase().includes("invalid")),
+      });
+
       if (writeSuccess) {
-        // toast.success(t("Value written to {name}", { name: char.name }));
         toast.success(t("Success"));
         setTimeout(() => {
           const stillConnected = sessionStorage.getItem("connectedDeviceMac");
           if (stillConnected?.trim().toLowerCase() === device.macAddress.trim().toLowerCase()) {
+            keypadLog('write: success — scheduling afterWrite refresh');
             afterWrite?.();
           } else {
+            keypadWarn('write: after success, device session MAC cleared');
             toast.error(t("Device disconnected. Please reconnect."));
           }
         }, 2000);
       } else {
-        console.error("Write failed:", errorMessage || "Unknown error");
-        // toast.error(
-        //   t("Failed to write {name}: {error}", {
-        //     name: char.name,
-        //     error: errorMessage || t("Write operation failed"),
-        //   })
-        // );
-        toast.error(
-          t("Failed")
-        );
+        keypadWarn('write: failed', errorMessage || 'unknown');
+        toast.error(errorMessage?.trim() ? errorMessage : t('Failed'));
       }
     });
   };
@@ -346,7 +418,17 @@ useEffect(() => {
     if (!isCodeComplete) return toast.error(t('Code must contain 21 digits'));
     if (!pubkCharacteristic) return toast.error(t('Public key characteristic not found'));
     const rawCode = buildRawCode(digitInput);
-    writeCharacteristic(pubkCharacteristic, formatInputCode(rawCode), () => {
+    const payloadFormatted = formatInputCode(rawCode);
+    keypadLog('submit: pubk code', {
+      digitsFingerprint: redactDigitToken(digitInput),
+      rawSkeleton: `${START_SENTINEL}${redactDigitToken(digitInput)}${END_SENTINEL}`,
+      formattedLength: payloadFormatted.length,
+      isLoadingService,
+      hasPubk: !!pubkCharacteristic,
+      hasCmd: !!cmdService,
+      hasSts: !!stsService,
+    });
+    writeCharacteristic(pubkCharacteristic, payloadFormatted, () => {
       // Refresh both Last Code and Days - delay gives device time to process the write
       setTimeout(() => {
         handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name);

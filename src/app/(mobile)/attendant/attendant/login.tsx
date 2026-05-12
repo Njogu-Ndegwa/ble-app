@@ -678,9 +678,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
             }
 
             const authUrl = getMicrosoftAuthUrl();
-            console.info('[Login] Microsoft button clicked. userType:', userType, 'returnPath:', microsoftReturnPath);
             saveMicrosoftPendingContext(microsoftReturnPath, userType);
-            console.info('[Login] Pending context saved.');
 
             // Unregister service worker so the redirect from Odoo
             // hits the network instead of a stale SW cache
@@ -688,11 +686,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
               const regs = await navigator.serviceWorker.getRegistrations();
               for (const reg of regs) {
                 await reg.unregister();
-                console.info('[Login] Unregistered service worker:', reg.scope);
               }
             }
 
-            console.info('[Login] Navigating to:', authUrl);
             window.location.href = authUrl;
           }}
           disabled={isSigningIn}

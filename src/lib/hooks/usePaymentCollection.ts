@@ -434,16 +434,6 @@ export function usePaymentCollection(
 
   const confirmPayment = useCallback(
     async (receipt: string) => {
-      console.info('[usePaymentCollection] confirmPayment called', {
-        receipt,
-        paymentRequestOrderId,
-        paymentRequestCreated,
-        sessionOrderId,
-        expectedPaymentAmount,
-        swapCost: swapData.cost,
-        currency: swapData.currencySymbol,
-        skipOdooConfirmation,
-      });
       setIsProcessing(true);
 
       // MANUAL SWAP MODE: Skip Odoo confirmation entirely
@@ -480,10 +470,8 @@ export function usePaymentCollection(
       try {
         // Ensure payment request was created first
         if (!paymentRequestCreated) {
-          console.info('[usePaymentCollection] Payment request not created yet, initiating...');
           const success = await initiatePayment();
           if (!success) {
-            console.info('[usePaymentCollection] initiatePayment failed, aborting');
             setIsProcessing(false);
             return;
           }
@@ -498,35 +486,16 @@ export function usePaymentCollection(
         const finalOrderId = orderId || paymentRequestOrderId || sessionOrderId;
         
         if (!finalOrderId) {
-          console.info('[usePaymentCollection] No finalOrderId resolved, aborting', {
-            orderId, paymentRequestOrderId, sessionOrderId,
-          });
           toast.error('Payment request not created. Please go back and try again.');
           setIsProcessing(false);
           return;
         }
-        console.info('[usePaymentCollection] Calling confirmPaymentManual', { order_id: finalOrderId, receipt });
         const response = await confirmPaymentManual({ order_id: finalOrderId!, receipt });
-
-        console.info('[usePaymentCollection] confirmPaymentManual raw response', {
-          success: response.success,
-          hasData: !!response.data,
-          responseKeys: Object.keys(response),
-        });
 
         if (response.success) {
           const responseData = response.data || (response as any);
           const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
           const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
-
-          console.info('[usePaymentCollection] Payment amounts parsed', {
-            totalPaid,
-            remainingToPay,
-            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
-            order_id: responseData.order_id,
-            expectedPaymentAmount,
-            requiredAmount: expectedPaymentAmount || Math.floor(swapData.cost),
-          });
 
           setActualAmountPaid(totalPaid);
           setPaymentAmountRemaining(remainingToPay);
@@ -535,15 +504,6 @@ export function usePaymentCollection(
           const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
           if (totalPaid < requiredAmount) {
             const shortfall = requiredAmount - totalPaid;
-            console.info('[usePaymentCollection] PARTIAL PAYMENT detected - customer must pay again', {
-              totalPaid,
-              requiredAmount,
-              shortfall,
-              remainingToPay,
-              currency: swapData.currencySymbol,
-              paymentInputMode,
-              manualPaymentId,
-            });
             toast.error(
               `Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`
             );
@@ -557,10 +517,6 @@ export function usePaymentCollection(
             return;
           }
 
-          console.info('[usePaymentCollection] Payment SUFFICIENT - proceeding with service completion', {
-            totalPaid,
-            requiredAmount,
-          });
           // Payment sufficient - proceed with service completion
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
@@ -570,7 +526,6 @@ export function usePaymentCollection(
           // Report payment - uses original calculated cost for accurate quota tracking
           callPublishRef.current(receipt, false);
         } else {
-          console.info('[usePaymentCollection] Payment confirmation response.success was false');
           throw new Error('Payment confirmation failed');
         }
       } catch (err: any) {
