@@ -12,6 +12,7 @@ import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import KeypadNav, { type KeypadTab } from './components/KeypadNav';
 import { keypadLog, keypadWarn } from './keypadLog';
+import { bleMacForNative } from './bleMac';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
@@ -199,14 +200,21 @@ const KeypadApp: React.FC = () => {
   }, [selectedDevice, handleBackToList]);
 
   const startConnection = (macAddress: string) => {
-    if (macAddress === connectedDevice && attributeList.length > 0) {
-      setSelectedDevice(macAddress);
+    const mac = bleMacForNative(macAddress);
+    if (!mac) return;
+
+    if (mac === connectedDevice && attributeList.length > 0) {
+      setSelectedDevice(mac);
     } else {
       if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
-      setConnectingDeviceId(macAddress);
+      setConnectingDeviceId(mac);
       setProgress(0);
-      connBleByMacAddress(macAddress);
+      console.info('[Keypad MAC] connBleByMacAddress → native', {
+        rawFromUi: macAddress,
+        macPassedToNative: mac,
+      });
+      connBleByMacAddress(mac);
       connectTimeoutRef.current = setTimeout(() => {
         connectTimeoutRef.current = null;
         setIsConnecting(false);
@@ -340,11 +348,19 @@ const KeypadApp: React.FC = () => {
         }
         // Normalize to match the uppercase+trimmed format used in findBleDeviceCallBack.
         const normalizedMac = macAddress.trim().toUpperCase();
+        const sessionMac = bleMacForNative(macAddress) ?? normalizedMac;
+        console.info('[Keypad MAC] bleConnectSuccessCallBack ← native', {
+          rawFromNative: macAddress,
+          typeOf: typeof macAddress,
+          normalizedUpperTrim: normalizedMac,
+          bleMacForNative: sessionMac,
+        });
         keypadLog('BLE connected; initializing ATT service on device', normalizedMac);
-        sessionStorage.setItem("connectedDeviceMac", normalizedMac);
-        setConnectedDevice(normalizedMac);
+        sessionStorage.setItem("connectedDeviceMac", sessionMac);
+        setConnectedDevice(sessionMac);
         setIsScanning(false);
-        const d = { serviceName: "ATT", macAddress: normalizedMac };
+        const d = { serviceName: "ATT", macAddress: sessionMac };
+        console.info('[Keypad MAC] initServiceBleData → attach (post-connect)', d);
         setLoadingService("ATT");
         initServiceBleData(d);
         resp(macAddress);
@@ -585,11 +601,22 @@ const KeypadApp: React.FC = () => {
     setLoadingService(serviceName);
     setProgress(0);
 
+    const raw =
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('connectedDeviceMac')) ||
+      selectedDevice;
+    const mac = bleMacForNative(raw);
+    if (!mac) return;
+
     const data = {
       serviceName,
-      macAddress: selectedDevice,
+      macAddress: mac,
     };
 
+    console.info('[Keypad MAC] initServiceBleData → native (lazy service)', {
+      ...data,
+      connectedDeviceMacRaw: sessionStorage.getItem('connectedDeviceMac'),
+      selectedDevice,
+    });
     keypadLog('initServiceBleData request (lazy service)', data);
     initServiceBleData(data);
   };
@@ -857,7 +884,14 @@ const KeypadApp: React.FC = () => {
 
   const handleDisconnectDevice = useCallback(() => {
     if (!selectedDevice) return;
-    disconnBleByMacAddress(selectedDevice, (resp: any) => {
+    const mac =
+      bleMacForNative(connectedDevice) ||
+      bleMacForNative(
+        typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null
+      ) ||
+      bleMacForNative(selectedDevice);
+    if (!mac) return;
+    disconnBleByMacAddress(mac, (resp: any) => {
       try {
         const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
         const ok = parsed?.respCode === '200' || parsed?.respData === true;
@@ -871,7 +905,7 @@ const KeypadApp: React.FC = () => {
         toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
       }
     });
-  }, [selectedDevice, handleBackToList, t]);
+  }, [selectedDevice, connectedDevice, handleBackToList, t]);
 
   const handleLogout = useCallback(() => {
     try {

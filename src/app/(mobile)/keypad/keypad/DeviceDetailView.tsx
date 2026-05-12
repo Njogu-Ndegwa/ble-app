@@ -5,6 +5,7 @@ import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
 import { keypadLog, keypadWarn } from './keypadLog';
+import { bleMacForNative } from './bleMac';
 
 const START_SENTINEL = '*';
 const END_SENTINEL = '#';
@@ -170,11 +171,26 @@ useEffect(() => {
     characteristicUuid: string,
     name: string
   ) => {
+    const mac = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null
+    );
+    if (!mac) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
+    console.info('[Keypad MAC] readBleCharacteristic → native', {
+      macAddress: mac,
+      connectedDeviceMacRaw: sessionStorage.getItem('connectedDeviceMac'),
+      uiListMac: device.macAddress,
+      serviceUUID: serviceUuid,
+      characteristicUUID: characteristicUuid,
+      characteristicName: name,
+    });
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(
       serviceUuid,
       characteristicUuid,
-      device.macAddress,
+      mac,
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
@@ -193,36 +209,48 @@ useEffect(() => {
   ) => {
     if (!char || !cmdService) return;
 
-    const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-    // Normalize both sides: some Android BLE callbacks return uppercase MACs,
-    // others lowercase; trim guards against stray whitespace from the bridge.
-    const sessionOk =
-      !!connectedMac &&
-      connectedMac.trim().toLowerCase() === device.macAddress.trim().toLowerCase();
+    const connectedRaw =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    const macForBle = bleMacForNative(connectedRaw);
+    if (!macForBle) {
+      keypadWarn('write: blocked — no session MAC (not connected?)');
+      toast.error(t("Device not connected. Please reconnect and try again."));
+      return;
+    }
+
+    const listMac = bleMacForNative(device.macAddress);
+    if (listMac && listMac !== macForBle) {
+      keypadWarn(
+        'keypad: advertisement/list MAC differs from session MAC — using session MAC for GATT',
+        { listMac, sessionMac: macForBle }
+      );
+    }
+
     const valueStr = String(value);
     keypadLog('write: request', {
       characteristic: char.name,
       charUuid: char.uuid,
       cmdServiceUuid: cmdService.uuid,
-      targetMac: device.macAddress,
-      sessionMac: connectedMac,
-      sessionMatchesTarget: sessionOk,
+      uiListMac: device.macAddress,
+      macSentToNative: macForBle,
       valueLength: valueStr.length,
       valueHasSentinels: valueStr.includes(START_SENTINEL) && valueStr.includes(END_SENTINEL),
     });
-
-    if (!sessionOk) {
-      keypadWarn('write: blocked — session MAC mismatch or missing', {
-        sessionMac: connectedMac,
-        targetMac: device.macAddress,
-      });
-      toast.error(t("Device not connected. Please reconnect and try again."));
-      return;
-    }
+    console.info('[Keypad MAC] writeBleCharacteristic → native', {
+      macAddress: macForBle,
+      connectedDeviceMacRaw: connectedRaw,
+      uiListMac: device.macAddress,
+      listMacNormalized: listMac,
+      serviceUUID: cmdService.uuid,
+      characteristicUUID: char.uuid,
+      characteristicName: char.name,
+      valueType: typeof value,
+      valueLength: valueStr.length,
+    });
 
     setLoadingStates((prev) => ({ ...prev, [char.uuid]: true }));
 
-    writeBleCharacteristic(cmdService.uuid, char.uuid, value, device.macAddress, (responseData: any) => {
+    writeBleCharacteristic(cmdService.uuid, char.uuid, value, macForBle, (responseData: any) => {
       setLoadingStates((prev) => ({ ...prev, [char.uuid]: false }));
 
       const rawLog =
@@ -306,12 +334,12 @@ useEffect(() => {
       if (writeSuccess) {
         toast.success(t("Success"));
         setTimeout(() => {
-          const stillConnected = sessionStorage.getItem("connectedDeviceMac");
-          if (stillConnected?.trim().toLowerCase() === device.macAddress.trim().toLowerCase()) {
+          const still = sessionStorage.getItem("connectedDeviceMac");
+          if (still && bleMacForNative(still) === macForBle) {
             keypadLog('write: success — scheduling afterWrite refresh');
             afterWrite?.();
           } else {
-            keypadWarn('write: after success, device session MAC cleared');
+            keypadWarn('write: after success, session MAC changed or cleared');
             toast.error(t("Device disconnected. Please reconnect."));
           }
         }, 2000);
