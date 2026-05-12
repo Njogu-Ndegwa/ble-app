@@ -116,7 +116,12 @@ const KeypadApp: React.FC = () => {
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
-    setDetectedDevices(detectedDevicesRef.current);
+    const list = detectedDevicesRef.current;
+    console.info(
+      '[Keypad BLE] flush → rendering', list.length, 'device(s):',
+      list.map(d => `${d.name} (${d.macAddress}) rssi=${d.rawRssi} smoothed=${d.smoothedRssi.toFixed(1)}`)
+    );
+    setDetectedDevices(list);
   }, []);
 
   const scheduleDeviceBatch = useCallback(() => {
@@ -287,6 +292,12 @@ const KeypadApp: React.FC = () => {
               ? EMA_ALPHA * d.rawRssi + (1 - EMA_ALPHA) * existing.smoothedRssi
               : d.rawRssi;
 
+            if (existing) {
+              console.info(`[Keypad BLE] update  ${d.name} (${d.macAddress}) rawRssi=${raw} smoothed=${smoothedRssi.toFixed(1)}`);
+            } else {
+              console.info(`[Keypad BLE] NEW     ${d.name} (${d.macAddress}) rawRssi=${raw} — total now ${prev.length + 1}`);
+            }
+
             const next = existing
               ? prev.map((p) =>
                   p.macAddress === d.macAddress
@@ -300,10 +311,10 @@ const KeypadApp: React.FC = () => {
 
             resp({ success: true });
           } else {
-            console.warn("Invalid device data format:", d);
+            console.warn('[Keypad BLE] rejected packet (no OVES / missing fields):', d);
           }
         } catch (err: any) {
-          console.error("Error parsing BLE device data:", err);
+          console.error('[Keypad BLE] failed to parse BLE advertisement:', err, '| raw data:', data);
           resp({ success: false, error: err.message });
         }
       }
@@ -316,6 +327,7 @@ const KeypadApp: React.FC = () => {
           clearTimeout(connectTimeoutRef.current);
           connectTimeoutRef.current = null;
         }
+        console.info('[Keypad BLE] connection FAILED — raw:', data);
         setIsConnecting(false);
         setProgress(0);
         toast.error(t('Connection failed! Please try reconnecting again.'), {
@@ -334,6 +346,7 @@ const KeypadApp: React.FC = () => {
         }
         // Normalize to match the uppercase+trimmed format used in findBleDeviceCallBack.
         const normalizedMac = macAddress.trim().toUpperCase();
+        console.info('[Keypad BLE] connected to', normalizedMac, '— starting ATT service init');
         sessionStorage.setItem("connectedDeviceMac", normalizedMac);
         setConnectedDevice(normalizedMac);
         setIsScanning(false);
@@ -599,12 +612,15 @@ const KeypadApp: React.FC = () => {
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
+      console.info('[Keypad BLE] startBleScan called');
       window.WebViewJavascriptBridge.callHandler(
         "startBleScan",
         "",
         () => {}
       );
       setIsScanning(true);
+    } else {
+      console.warn('[Keypad BLE] startBleScan: WebViewJavascriptBridge not available');
     }
   };
 
@@ -615,6 +631,7 @@ const KeypadApp: React.FC = () => {
       flushDeviceBatch();
     }
     if (window.WebViewJavascriptBridge) {
+      console.info('[Keypad BLE] stopBleScan called — total devices found:', detectedDevicesRef.current.length);
       window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
       setIsScanning(false);
     }
@@ -771,8 +788,10 @@ const KeypadApp: React.FC = () => {
 
   const handleBLERescan = () => {
     if (isScanning && detectedDevices.length === 0) {
+      console.info('[Keypad BLE] rescan: already scanning with 0 devices — stopping');
       stopBleScan();
     } else {
+      console.info('[Keypad BLE] rescan: clearing', detectedDevices.length, 'device(s) and restarting scan');
       setConnectedDevice(null);
       detectedDevicesRef.current = [];
       setDetectedDevices([]);
