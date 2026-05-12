@@ -23,7 +23,6 @@ type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
 let bridgeHasBeenInitialized = false;
 
 const EMA_ALPHA = 0.3;
-const SORT_THROTTLE_MS = 2500;
 
 export interface BleDevice {
   macAddress: string;
@@ -141,7 +140,6 @@ const BleDevicesApp: React.FC = () => {
     : undefined;
 
   const detectedDevicesRef = useRef(detectedDevices);
-  const lastSortRef = useRef<number>(0);
   const { bridge } = useBridge();
 
   // Throttle device list updates to avoid re-render storms when many BLE
@@ -177,10 +175,6 @@ const BleDevicesApp: React.FC = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
@@ -330,13 +324,7 @@ const BleDevicesApp: React.FC = () => {
                 )
               : [...prev, { ...d, smoothedRssi }];
 
-            const now = Date.now();
-            if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
-              lastSortRef.current = now;
-              detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
-            } else {
-              detectedDevicesRef.current = next;
-            }
+            detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
             scheduleDeviceBatch();
 
             resp({ success: true });
@@ -768,6 +756,7 @@ const BleDevicesApp: React.FC = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setConnectingDeviceId(null);

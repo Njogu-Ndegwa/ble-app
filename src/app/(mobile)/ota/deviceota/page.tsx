@@ -125,10 +125,6 @@ const AppContainer = () => {
   }, [connectedDevice]);
 
   useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
-
-  useEffect(() => {
     if (selectedDevice) {
       window.history.pushState({ bleDetail: true }, '', window.location.pathname);
     }
@@ -677,6 +673,7 @@ const AppContainer = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setLoadingService(null);

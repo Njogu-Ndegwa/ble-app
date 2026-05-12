@@ -113,10 +113,6 @@ const AppContainer = () => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
 
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
-
   const handleDeviceSelect = (deviceId: string) => {
     setSelectedDevice(deviceId);
   };
@@ -801,6 +797,7 @@ const AppContainer = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setLoadingService(null);

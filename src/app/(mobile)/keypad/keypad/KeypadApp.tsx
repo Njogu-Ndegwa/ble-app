@@ -21,7 +21,6 @@ type KeypadScreen = 'devices' | 'profile';
 let bridgeHasBeenInitialized = false;
 
 const EMA_ALPHA = 0.3;
-const SORT_THROTTLE_MS = 2500;
 
 export interface BleDevice {
   macAddress: string;
@@ -108,7 +107,6 @@ const KeypadApp: React.FC = () => {
     : undefined;
 
   const detectedDevicesRef = useRef(detectedDevices);
-  const lastSortRef = useRef<number>(0);
   const { bridge } = useBridge();
 
   // Throttle device list updates to avoid re-render storms when many BLE
@@ -144,10 +142,6 @@ const KeypadApp: React.FC = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
@@ -301,13 +295,7 @@ const KeypadApp: React.FC = () => {
                 )
               : [...prev, { ...d, smoothedRssi }];
 
-            const now = Date.now();
-            if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
-              lastSortRef.current = now;
-              detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
-            } else {
-              detectedDevicesRef.current = next;
-            }
+            detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
             scheduleDeviceBatch();
 
             resp({ success: true });
@@ -786,6 +774,7 @@ const KeypadApp: React.FC = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setConnectingDeviceId(null);

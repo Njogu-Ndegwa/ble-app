@@ -166,10 +166,6 @@ const MyDevicesApp: React.FC = () => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
 
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
-
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
     selectedDeviceRef.current = selectedDevice;
@@ -786,6 +782,7 @@ const MyDevicesApp: React.FC = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setConnectingDeviceId(null);
