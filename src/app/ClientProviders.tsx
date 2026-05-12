@@ -9,20 +9,33 @@ import { I18nProvider } from '@/i18n';
 import { ThemeProvider } from './context/themeContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-const VCONSOLE_FLAG = '__BLE_APP_VCONSOLE__';
+// VConsole for mobile debugging — same pattern as dennis-master-latest-code (root layout there).
+// Set to false to disable.
+const ENABLE_VCONSOLE = true;
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_DISABLE_VCONSOLE === 'true') return;
+    if (ENABLE_VCONSOLE && typeof window !== 'undefined') {
+      import('vconsole')
+        .then((VConsoleModule) => {
+          const VConsole = VConsoleModule.default;
+          const vConsole = new VConsole({ theme: 'dark' });
+          console.log('[VConsole] Initialized for debugging');
 
-    const w = window as Window & Record<string, unknown>;
-    if (w[VCONSOLE_FLAG]) return;
-    w[VCONSOLE_FLAG] = true;
+          (window as unknown as { __vconsole__: typeof vConsole }).__vconsole__ = vConsole;
+        })
+        .catch((err) => {
+          console.error('[VConsole] Failed to initialize:', err);
+        });
+    }
 
-    void import('vconsole').then(({ default: VConsole }) => {
-      // Mobile WebView builds often have no devtools; VConsole surfaces log/info/warn/error here.
-      new VConsole({ theme: 'dark' });
-    });
+    return () => {
+      const w = window as unknown as { __vconsole__?: { destroy: () => void } };
+      if (w.__vconsole__) {
+        w.__vconsole__.destroy();
+        delete w.__vconsole__;
+      }
+    };
   }, []);
 
   return (
