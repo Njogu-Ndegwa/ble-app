@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
+import { preloadRoleIcons } from '@/lib/preload-icons';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -79,6 +80,10 @@ export default function SplashScreen({
   // Animation timer — only runs once phase becomes 'animating'.
   useEffect(() => {
     if (phase !== 'animating') return;
+
+    // Use the splash window to warm the browser cache for role-grid icons so
+    // they're already fetched by the time SelectRole mounts.
+    preloadRoleIcons();
 
     const timer = setTimeout(() => {
       if (hasCompletedRef.current) return;
