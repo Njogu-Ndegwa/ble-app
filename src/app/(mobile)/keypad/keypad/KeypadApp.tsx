@@ -116,12 +116,6 @@ const KeypadApp: React.FC = () => {
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
     const list = detectedDevicesRef.current;
-    keypadLog(
-      'BLE scan flush → UI list',
-      list.length,
-      'device(s)',
-      list.map((d) => `${d.name} (${d.macAddress}) rssi=${d.rawRssi}`)
-    );
     setDetectedDevices(list);
   }, []);
 
