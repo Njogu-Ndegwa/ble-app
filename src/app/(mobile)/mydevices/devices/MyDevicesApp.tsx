@@ -19,8 +19,6 @@ import { clearAllAuth } from '@/lib/attendant-auth';
 
 type MyDevicesScreen = 'devices' | 'profile';
 
-let bridgeHasBeenInitialized = false;
-
 export interface BleDevice {
   macAddress: string;
   name: string;
@@ -270,13 +268,9 @@ const MyDevicesApp: React.FC = () => {
       return () => bridge.registerHandler(name, noop);
     };
 
-    // NOTE: bridge.init() is already called in bridgeContext.tsx
-    // Do NOT call init() again here as it causes the app to hang / native
-    // force-close, especially when navigating between BLE/Keypad/MyDevices
-    // via the bottom nav (each mount used to re-init the bridge).
-    if (!bridgeHasBeenInitialized) {
-      bridgeHasBeenInitialized = true;
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx — do NOT
+    // call init() again here. Each mount re-initialising the bridge causes
+    // native force-closes when navigating BLE/Keypad/MyDevices via bottom nav.
 
     const offPrint = reg("print", (data: string, resp: any) => {
       try {
@@ -591,10 +585,16 @@ const MyDevicesApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, attributeList, ignoreProgressSet, connectingDeviceId, loadingService]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  // See KeypadApp.tsx for the full rationale. Short version: the previous
+  // gate on a module-level `bridgeHasBeenInitialized` flag deferred scan-
+  // start until the first React state update (setAndroidId or
+  // setIsMqttConnected). After d2e4d27 moved bridge.init() into
+  // BridgeProvider, the buffered native messages that used to drive that
+  // setState no longer reach per-applet handlers, so scan-start ended up
+  // tied to MQTT — 10–20s on marginal cell connections.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-
-    stopBleScan();
+    if (!bridge) return;
 
     const id = setTimeout(() => {
       startBleScan();
@@ -605,7 +605,7 @@ const MyDevicesApp: React.FC = () => {
       stopBleScan();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeHasBeenInitialized]);
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {

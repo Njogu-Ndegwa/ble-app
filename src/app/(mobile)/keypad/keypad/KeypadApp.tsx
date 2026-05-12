@@ -18,8 +18,6 @@ import { clearAllAuth } from '@/lib/attendant-auth';
 
 type KeypadScreen = 'devices' | 'profile';
 
-let bridgeHasBeenInitialized = false;
-
 const EMA_ALPHA = 0.3;
 
 export interface BleDevice {
@@ -251,13 +249,9 @@ const KeypadApp: React.FC = () => {
       return () => bridge.registerHandler(name, noop);
     };
 
-    // NOTE: bridge.init() is already called in bridgeContext.tsx
-    // Do NOT call init() again here as it causes the app to hang / native
-    // force-close, especially when navigating between BLE/Keypad/MyDevices
-    // via the bottom nav (each mount used to re-init the bridge).
-    if (!bridgeHasBeenInitialized) {
-      bridgeHasBeenInitialized = true;
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx — do NOT
+    // call init() again here. Each mount re-initialising the bridge causes
+    // native force-closes when navigating BLE/Keypad/MyDevices via bottom nav.
 
     const offPrint = reg("print", (data: string, resp: any) => {
       try {
@@ -594,10 +588,36 @@ const KeypadApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, attributeList]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  //
+  // We deliberately gate on `bridge` (the React state from useBridge()) and
+  // NOT on a module-level "bridgeHasBeenInitialized" flag. That flag pattern
+  // was broken: a plain `let` doesn't trigger a re-render when flipped, so
+  // the scan effect's deps never appeared to change on the render where
+  // setupBridge ran. The scan therefore couldn't start until some *other*
+  // setState happened to re-render the component — either setAndroidId
+  // (from readDeviceInfo's callback) or setIsMqttConnected (from the MQTT
+  // connect callback).
+  //
+  // Pre-d2e4d27 this never showed up because each applet's setupBridge
+  // also called bridge.init(), which flushes native→JS messages queued
+  // during page boot. Those flushed messages hit the freshly registered
+  // BLE/MQTT handlers and produced an immediate setState, masking the bug.
+  // After d2e4d27 moved bridge.init() into BridgeProvider (to fix native
+  // force-closes), the flush happens before per-applet handlers exist, so
+  // the messages go to BridgeProvider's no-op handler instead and the bug
+  // becomes visible: scan-start ends up tied to the MQTT handshake to
+  // mqtt.omnivoltaic.com:1883, which on a marginal cell connection can
+  // sit at 10–20s. That's the "list empty for 20s before any device
+  // shows" customer report.
+  //
+  // Gating on `bridge` makes React actually observe the change. Effects
+  // within a single render commit in declaration order, and the [bridge]
+  // setupBridge effect above runs before this one — so when `bridge`
+  // flips from null → non-null, handlers are registered first, then the
+  // scan starts in the same commit. Scan-start no longer waits on MQTT.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-
-    stopBleScan();
+    if (!bridge) return;
 
     const id = setTimeout(() => {
       startBleScan();
@@ -608,7 +628,7 @@ const KeypadApp: React.FC = () => {
       stopBleScan();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeHasBeenInitialized]);
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
