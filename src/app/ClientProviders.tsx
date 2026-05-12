@@ -13,6 +13,21 @@ function VConsoleInit() {
   useEffect(() => {
     import('vconsole').then(({ default: VConsole }) => {
       new VConsole({ theme: 'dark' });
+      // Pin the toggle button to the bottom-right corner.
+      // vConsole positions its button with an inline transform, so we need
+      // !important overrides to win; transform: none removes any dragged offset.
+      const style = document.createElement('style');
+      style.textContent = `
+        #__vconsole .vc-switch {
+          position: fixed !important;
+          right: 8px !important;
+          bottom: 80px !important;
+          left: auto !important;
+          top: auto !important;
+          transform: none !important;
+        }
+      `;
+      document.head.appendChild(style);
     });
   }, []);
   return null;
