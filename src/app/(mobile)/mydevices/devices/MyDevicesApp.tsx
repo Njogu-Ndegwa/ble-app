@@ -16,6 +16,7 @@ import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
 import { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from '../../assets/ble-devices/BleDevicesLogin';
 import { clearAllAuth } from '@/lib/attendant-auth';
+import { bleMacForNative } from '@/lib/ble/bleMac';
 
 type MyDevicesScreen = 'devices' | 'profile';
 
@@ -221,14 +222,17 @@ const MyDevicesApp: React.FC = () => {
   }, [selectedDevice, handleBackToList]);
 
   const startConnection = (macAddress: string) => {
-    if (macAddress === connectedDevice && attributeList.length > 0) {
-      setSelectedDevice(macAddress);
+    const mac = bleMacForNative(macAddress);
+    if (!mac) return;
+
+    if (mac === connectedDevice && attributeList.length > 0) {
+      setSelectedDevice(mac);
     } else {
       if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
-      setConnectingDeviceId(macAddress);
+      setConnectingDeviceId(mac);
       setProgress(0);
-      connBleByMacAddress(macAddress);
+      connBleByMacAddress(mac);
       connectTimeoutRef.current = setTimeout(() => {
         connectTimeoutRef.current = null;
         setIsConnecting(false);
@@ -291,6 +295,8 @@ const MyDevicesApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
+            const norm = bleMacForNative(d.macAddress);
+            if (norm) d.macAddress = norm;
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
@@ -342,10 +348,12 @@ const MyDevicesApp: React.FC = () => {
           clearTimeout(connectTimeoutRef.current);
           connectTimeoutRef.current = null;
         }
-        sessionStorage.setItem("connectedDeviceMac", macAddress);
-        setConnectedDevice(macAddress);
+        const normalizedMac = String(macAddress).trim().toUpperCase();
+        const sessionMac = bleMacForNative(macAddress) ?? normalizedMac;
+        sessionStorage.setItem("connectedDeviceMac", sessionMac);
+        setConnectedDevice(sessionMac);
         setIsScanning(false);
-        const d = { serviceName: "ATT", macAddress };
+        const d = { serviceName: "ATT", macAddress: sessionMac };
         setLoadingService("ATT");
         initServiceBleData(d);
         resp(macAddress);
@@ -562,12 +570,16 @@ const MyDevicesApp: React.FC = () => {
     setLoadingService(serviceName);
     setProgress(0);
 
-    const data = {
-      serviceName,
-      macAddress: selectedDevice,
-    };
+    const raw =
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('connectedDeviceMac')) ||
+      selectedDevice;
+    const mac = bleMacForNative(raw);
+    if (!mac) return;
 
-    initServiceBleData(data);
+    initServiceBleData({
+      serviceName,
+      macAddress: mac,
+    });
   };
 
   useEffect(() => {
@@ -796,7 +808,14 @@ const MyDevicesApp: React.FC = () => {
 
   const handleDisconnectDevice = useCallback(() => {
     if (!selectedDevice) return;
-    disconnBleByMacAddress(selectedDevice, (resp: any) => {
+    const mac =
+      bleMacForNative(connectedDevice) ||
+      bleMacForNative(
+        typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null
+      ) ||
+      bleMacForNative(selectedDevice);
+    if (!mac) return;
+    disconnBleByMacAddress(mac, (resp: any) => {
       try {
         const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
         const ok = parsed?.respCode === '200' || parsed?.respData === true;
@@ -810,7 +829,7 @@ const MyDevicesApp: React.FC = () => {
         toast.error(t('Failed to disconnect device'), { id: 'disconnect-error', duration: 1500 });
       }
     });
-  }, [selectedDevice, handleBackToList, t]);
+  }, [selectedDevice, connectedDevice, handleBackToList, t]);
 
   const handleLogout = useCallback(() => {
     // Clear all auth credentials so the user must start fresh

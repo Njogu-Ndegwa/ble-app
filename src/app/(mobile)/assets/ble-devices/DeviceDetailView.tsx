@@ -585,6 +585,7 @@ import { RefreshCw, Clipboard } from "lucide-react";
 import { AsciiStringModal, NumericModal } from "../../../modals";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
+import { bleMacForNative } from '@/lib/ble/bleMac';
 
 export type DeviceDetailMode = 'technical' | 'overview';
 
@@ -749,11 +750,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     characteristicUuid: string,
     name: string
   ) => {
+    const mac = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null,
+    );
+    if (!mac) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(
       serviceUuid,
       characteristicUuid,
-      device.macAddress,
+      mac,
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
@@ -785,14 +793,15 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !activeService) return;
-    
-    // Verify device is still connected before attempting write
-    const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-    if (!connectedMac || connectedMac !== device.macAddress) {
+
+    const macForBle = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null,
+    );
+    if (!macForBle) {
       toast.error(t("Device not connected. Please reconnect and try again."));
       return;
     }
-    
+
     const isNapn = activeCharacteristic.name.toLowerCase().includes("napn");
     
     // Store exactly what the user wrote (for napn and all characteristics)
@@ -814,7 +823,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       activeService.uuid,
       activeCharacteristic.uuid,
       value,
-      device.macAddress,
+      macForBle,
       (responseData: any) => {
         setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: false }));
         
@@ -869,7 +878,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           setTimeout(() => {
             // Verify connection again before read
             const stillConnected = sessionStorage.getItem("connectedDeviceMac");
-            if (stillConnected === device.macAddress) {
+            if (stillConnected && bleMacForNative(stillConnected) === macForBle) {
               handleRead(activeService.uuid, activeCharacteristic.uuid, activeCharacteristic.name);
             } else {
               toast.error(t("Device disconnected. Please reconnect."));

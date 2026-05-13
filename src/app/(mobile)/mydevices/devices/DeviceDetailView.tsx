@@ -12,6 +12,7 @@ import { AsciiStringModal } from '../../../modals';
 import { apiUrl } from '@/lib/apollo-client';
 import { useI18n } from '@/i18n';
 import { cleanBatteryId } from '@/lib/hooks/ble/energyUtils';
+import { bleMacForNative } from '@/lib/ble/bleMac';
 
 type CodeType = 'days' | 'free' | 'reset' | 'retrieve';
 type ResultStatus = 'idle' | 'generating' | 'generated' | 'writing' | 'written' | 'writeFailed' | 'error';
@@ -171,11 +172,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleRead = useCallback(() => {
     if (!cmdService || !pubkCharacteristic) return;
+    const mac = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null,
+    );
+    if (!mac) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     setIsLoading(true);
     readBleCharacteristic(
       cmdService.uuid,
       pubkCharacteristic.uuid,
-      device.macAddress,
+      mac,
       (data: any) => {
         setIsLoading(false);
         if (data) {
@@ -184,21 +192,25 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         }
       }
     );
-  }, [cmdService, pubkCharacteristic, device.macAddress]);
+  }, [cmdService, pubkCharacteristic, t]);
 
   const readRcrd = useCallback(() => {
     if (!stsService || !rcrdCharacteristic) return;
+    const mac = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null,
+    );
+    if (!mac) return;
     readBleCharacteristic(
       stsService.uuid,
       rcrdCharacteristic.uuid,
-      device.macAddress,
+      mac,
       (data: any) => {
         if (data) {
           setUpdatedValues((prev) => ({ ...prev, [rcrdCharacteristic.uuid]: data.realVal }));
         }
       }
     );
-  }, [stsService, rcrdCharacteristic, device.macAddress]);
+  }, [stsService, rcrdCharacteristic]);
 
   const writeCodeToDevice = useCallback((codeDec: string) => {
     const foundCmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
@@ -218,8 +230,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     setActiveCharacteristic(foundPubk);
     setUpdatedValue(codeDec);
 
-    const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-    if (!connectedMac || connectedMac !== device.macAddress) {
+    const macForBle = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null,
+    );
+    if (!macForBle) {
       setResult((prev) => ({ ...prev, status: 'writeFailed', error: t('Device not connected') }));
       return;
     }
@@ -230,7 +244,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       foundCmdService.uuid,
       foundPubk.uuid,
       codeDec,
-      device.macAddress,
+      macForBle,
       (responseData: any) => {
         let writeSuccess = false;
         let errorMessage: string | null = null;
@@ -268,7 +282,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           setResult((prev) => ({ ...prev, status: 'written' }));
           setTimeout(() => {
             const stillConnected = sessionStorage.getItem('connectedDeviceMac');
-            if (stillConnected === device.macAddress) {
+            if (stillConnected && bleMacForNative(stillConnected) === macForBle) {
               handleRead();
               readRcrd();
             }
@@ -278,7 +292,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         }
       }
     );
-  }, [attributeList, device.macAddress, handleRead, readRcrd, t]);
+  }, [attributeList, handleRead, readRcrd, t]);
 
   const [daysInput, setDaysInput] = useState('');
 
@@ -483,11 +497,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWrite = (value: string) => {
     if (!activeCharacteristic || !cmdService) return;
+    const macForBle = bleMacForNative(
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null,
+    );
+    if (!macForBle) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     writeBleCharacteristic(
       cmdService.uuid,
       activeCharacteristic.uuid,
       value,
-      device.macAddress,
+      macForBle,
       (data: any) => {
         if (data) {
           toast.success(t(`Value written to ${activeCharacteristic.name}`));
