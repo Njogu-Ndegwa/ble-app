@@ -737,9 +737,11 @@ export async function getProducts(
   const url = `${ODOO_BASE_URL}/api/products/categories?${qs.toString()}`;
   const headers = buildOdooHeaders(authToken);
 
+  // Avoid browser/WebView default HTTP caching of GET (can serve stale product lists).
   const response = await fetchWithRetry(url, {
     method: 'GET',
     headers,
+    cache: 'no-store',
   });
 
   if (!response.ok) {
@@ -801,7 +803,12 @@ export async function getSubscriptionProducts(
     console.error('[PRODUCTS DEBUG] Auth token present:', !!authToken);
     console.error('[PRODUCTS DEBUG] Auth token preview:', authToken ? authToken.substring(0, 40) + '...' : 'NONE');
 
-    const response = await fetchWithRetry(url, { method: 'GET', headers });
+    // Always bypass browser/WebView HTTP cache so catalog names/prices match Odoo (see stale GET issues).
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
     logSubscriptionProductsResponseHints(response);
     console.error('[PRODUCTS DEBUG] HTTP status:', response.status);
     console.error('[PRODUCTS DEBUG] Content-Type:', response.headers.get('content-type'));
