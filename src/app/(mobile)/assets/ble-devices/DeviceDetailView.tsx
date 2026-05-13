@@ -748,7 +748,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     characteristicUuid: string,
     name: string
   ) => {
-    const mac = device.macAddress?.trim();
+    const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
     if (!mac) {
       toast.error(t('Device not connected. Please reconnect and try again.'));
       return;
@@ -826,7 +826,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       activeService.uuid,
       activeCharacteristic.uuid,
       value,
-      targetMac,
+      connectedMac!.trim(),
       (responseData: any) => {
         setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: false }));
         

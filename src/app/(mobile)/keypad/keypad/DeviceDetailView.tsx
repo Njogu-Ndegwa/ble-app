@@ -169,7 +169,8 @@ useEffect(() => {
     characteristicUuid: string,
     name: string
   ) => {
-    if (!device.macAddress?.trim()) {
+    const connectedMacForRead = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    if (!connectedMacForRead?.trim()) {
       toast.error(t('Device not connected. Please reconnect and try again.'));
       return;
     }
@@ -177,7 +178,7 @@ useEffect(() => {
     readBleCharacteristic(
       serviceUuid,
       characteristicUuid,
-      device.macAddress.trim(),
+      connectedMacForRead.trim(),
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
@@ -231,7 +232,7 @@ useEffect(() => {
 
     setLoadingStates((prev) => ({ ...prev, [char.uuid]: true }));
 
-    writeBleCharacteristic(cmdService.uuid, char.uuid, value, targetMac, (responseData: any) => {
+    writeBleCharacteristic(cmdService.uuid, char.uuid, value, connectedRaw!.trim(), (responseData: any) => {
       setLoadingStates((prev) => ({ ...prev, [char.uuid]: false }));
 
       const rawLog =

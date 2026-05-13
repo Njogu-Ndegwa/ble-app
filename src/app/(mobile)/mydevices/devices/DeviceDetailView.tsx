@@ -171,7 +171,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleRead = useCallback(() => {
     if (!cmdService || !pubkCharacteristic) return;
-    const mac = device.macAddress?.trim();
+    const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
     if (!mac) {
       toast.error(t('Device not connected. Please reconnect and try again.'));
       return;
@@ -193,7 +193,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const readRcrd = useCallback(() => {
     if (!stsService || !rcrdCharacteristic) return;
-    const mac = device.macAddress?.trim();
+    const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
     if (!mac) return;
     readBleCharacteristic(
       stsService.uuid,
@@ -243,7 +243,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       foundCmdService.uuid,
       foundPubk.uuid,
       codeDec,
-      targetMac,
+      connectedMac!.trim(),
       (responseData: any) => {
         let writeSuccess = false;
         let errorMessage: string | null = null;
@@ -513,7 +513,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       cmdService.uuid,
       activeCharacteristic.uuid,
       value,
-      targetMac,
+      connectedMac!.trim(),
       (data: any) => {
         if (data) {
           toast.success(t(`Value written to ${activeCharacteristic.name}`));
