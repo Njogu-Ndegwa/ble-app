@@ -1,21 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { toast } from 'react-hot-toast';
-import { Clipboard } from 'lucide-react';
+'use client';
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Toaster, toast } from 'react-hot-toast';
+import { ArrowLeft, Share2, Clipboard} from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
-import { keypadLog, keypadWarn } from './keypadLog';
-import { bleMacForNative } from './bleMac';
-
-const START_SENTINEL = '*';
-const END_SENTINEL = '#';
-const REQUIRED_DIGIT_COUNT = 21;
-
-function redactDigitToken(digits: string): string {
-  if (!digits) return '(empty)';
-  if (digits.length <= 8) return `(len=${digits.length})`;
-  return `${digits.slice(0, 4)}…${digits.slice(-4)} (len=${digits.length})`;
-}
 
 interface DeviceDetailProps {
   device: {
@@ -49,7 +39,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
-  const [digitInput, setDigitInput] = useState('');
+  const [inputCode, setInputCode] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -95,25 +86,6 @@ const {
     opidCharacteristic: opidChar,
   };
 }, [attributeList]); // Only depends on attributeList
-
-useEffect(() => {
-  if (!attributeList?.length) {
-    keypadLog('detail: attributeList empty (waiting for BLE services)');
-    return;
-  }
-  keypadLog('detail: services snapshot', {
-    mac: device.macAddress,
-    deviceName: device.name,
-    services: attributeList.map((s: any) => ({
-      serviceNameEnum: s.serviceNameEnum,
-      uuid: typeof s.uuid === 'string' ? `${s.uuid.slice(0, 8)}…` : s.uuid,
-      characteristics: (s.characteristicList ?? []).map((c: any) => ({
-        name: c.name,
-        hasValue: c.realVal !== null && c.realVal !== undefined,
-      })),
-    })),
-  });
-}, [attributeList, device.macAddress, device.name]);
 
 /* ------------------ ensure CMD, STS & ATT are fetched ----------------- */
 useEffect(() => {
@@ -171,26 +143,11 @@ useEffect(() => {
     characteristicUuid: string,
     name: string
   ) => {
-    const mac = bleMacForNative(
-      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null
-    );
-    if (!mac) {
-      toast.error(t('Device not connected. Please reconnect and try again.'));
-      return;
-    }
-    console.info('[Keypad MAC] readBleCharacteristic → native', {
-      macAddress: mac,
-      connectedDeviceMacRaw: sessionStorage.getItem('connectedDeviceMac'),
-      uiListMac: device.macAddress,
-      serviceUUID: serviceUuid,
-      characteristicUUID: characteristicUuid,
-      characteristicName: name,
-    });
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(
       serviceUuid,
       characteristicUuid,
-      mac,
+      device.macAddress,
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
@@ -208,169 +165,39 @@ useEffect(() => {
     afterWrite?: () => void
   ) => {
     if (!char || !cmdService) return;
-
-    const connectedRaw =
-      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
-    const macForBle = bleMacForNative(connectedRaw);
-    if (!macForBle) {
-      keypadWarn('write: blocked — no session MAC (not connected?)');
-      toast.error(t("Device not connected. Please reconnect and try again."));
-      return;
-    }
-
-    const listMac = bleMacForNative(device.macAddress);
-    if (listMac && listMac !== macForBle) {
-      keypadWarn(
-        'keypad: advertisement/list MAC differs from session MAC — using session MAC for GATT',
-        { listMac, sessionMac: macForBle }
-      );
-    }
-
-    const valueStr = String(value);
-    keypadLog('write: request', {
-      characteristic: char.name,
-      charUuid: char.uuid,
-      cmdServiceUuid: cmdService.uuid,
-      uiListMac: device.macAddress,
-      macSentToNative: macForBle,
-      valueLength: valueStr.length,
-      valueHasSentinels: valueStr.includes(START_SENTINEL) && valueStr.includes(END_SENTINEL),
-    });
-    console.info('[Keypad MAC] writeBleCharacteristic → native', {
-      macAddress: macForBle,
-      connectedDeviceMacRaw: connectedRaw,
-      uiListMac: device.macAddress,
-      listMacNormalized: listMac,
-      serviceUUID: cmdService.uuid,
-      characteristicUUID: char.uuid,
-      characteristicName: char.name,
-      valueType: typeof value,
-      valueLength: valueStr.length,
-    });
-
-    setLoadingStates((prev) => ({ ...prev, [char.uuid]: true }));
-
-    writeBleCharacteristic(cmdService.uuid, char.uuid, value, macForBle, (responseData: any) => {
-      setLoadingStates((prev) => ({ ...prev, [char.uuid]: false }));
-
-      const rawLog =
-        typeof responseData === "string"
-          ? responseData
-          : (() => {
-              try {
-                return JSON.stringify(responseData);
-              } catch {
-                return String(responseData);
-              }
-            })();
-      keypadLog('write: native callback (raw)', rawLog);
-
-      if (responseData === undefined || responseData === null || responseData === '') {
-        keypadWarn('write: empty response from native bridge');
-      }
-
-      let writeSuccess = false;
-      let errorMessage: string | null = null;
-      let parsePath: string = "none";
-
-      try {
-        let response: any;
-
-        if (typeof responseData === "string") {
-          try {
-            response = JSON.parse(responseData);
-            parsePath = "json-string";
-          } catch (_parseErr) {
-            const lower = responseData.toLowerCase();
-            if (lower === "success" || lower === "ok") {
-              writeSuccess = true;
-              parsePath = "plain-success-string";
-            } else {
-              errorMessage = responseData;
-              parsePath = "plain-error-string";
-            }
-          }
-        } else if (responseData != null) {
-          response = responseData;
-          parsePath = "object";
-        }
-
-        if (response) {
-          if (response.respCode === "200" || response.respCode === 200) {
-            writeSuccess = true;
-            parsePath += "+respCode200";
-          } else if (response.respData === true || response.respData === "success") {
-            writeSuccess = true;
-            parsePath += "+respDataSuccess";
-          } else if (response.success === true) {
-            writeSuccess = true;
-            parsePath += "+successTrue";
-          } else if (response.respDesc) {
-            errorMessage = String(response.respDesc);
-            parsePath += "+respDesc";
-          } else if (response.error) {
-            errorMessage = String(response.error);
-            parsePath += "+errorField";
-          } else if (response.message) {
-            errorMessage = String(response.message);
-            parsePath += "+messageField";
-          }
-        }
-      } catch (err) {
-        keypadWarn('write: exception parsing bridge response', err);
-        errorMessage = "Unknown write response format";
-        parsePath = "exception";
-      }
-
-      keypadLog('write: result', {
-        success: writeSuccess,
-        errorMessage: errorMessage ?? (writeSuccess ? null : 'No success flag matched — inspect raw log'),
-        parsePath,
-        looksInvalid:
-          ((errorMessage ?? "").toLowerCase().includes("invalid") ||
-          rawLog.toLowerCase().includes("invalid")),
-      });
-
-      if (writeSuccess) {
-        toast.success(t("Success"));
-        setTimeout(() => {
-          const still = sessionStorage.getItem("connectedDeviceMac");
-          if (still && bleMacForNative(still) === macForBle) {
-            keypadLog('write: success — scheduling afterWrite refresh');
-            afterWrite?.();
-          } else {
-            keypadWarn('write: after success, session MAC changed or cleared');
-            toast.error(t("Device disconnected. Please reconnect."));
-          }
-        }, 2000);
-      } else {
-        keypadWarn('write: failed', errorMessage || 'unknown');
-        toast.error(errorMessage?.trim() ? errorMessage : t('Failed'));
-      }
+    writeBleCharacteristic(cmdService.uuid, char.uuid, value, device.macAddress, () => {
+      toast.success(t('Value written to {name}', { name: char.name }));
+      afterWrite?.();
     });
   };
 
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !cmdService) return;
-
-    writeCharacteristic(activeCharacteristic, value, () => {
-      handleRead(cmdService.uuid, pubkCharacteristic.uuid, device.name);
-      handleRead(stsService.uuid, rcrdCharacteristic.uuid, device.name);
-    });
+    writeBleCharacteristic(
+      cmdService.uuid,
+      activeCharacteristic.uuid,
+      value,
+      device.macAddress,
+      () => {
+        toast.success(t('Value written to {name}', { name: activeCharacteristic.name }));
+        // Refresh value after write
+        setTimeout(() => {
+          handleRead(cmdService.uuid, pubkCharacteristic.uuid, device.name);
+          handleRead(stsService.uuid, rcrdCharacteristic.uuid, device.name);
+        }, 1000);
+      }
+    );
   };
 
   /* ------------------------------------------------------------------ */
   /* Keypad / input logic */
   /* ------------------------------------------------------------------ */
-  const keypad: (string | null)[][] = [
+  const keypad: string[][] = [
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    [null, '0', null],
+    ['*', '0', '#'],
   ];
-
-  const buildRawCode = (digits: string) =>
-    `${START_SENTINEL}${digits}${digits.length === REQUIRED_DIGIT_COUNT ? END_SENTINEL : ''}`;
 
   const formatInputCode = (code: string) => {
     const raw = code.replace(/\s/g, '');
@@ -386,15 +213,17 @@ useEffect(() => {
     return segs.join(' ');
   };
 
-  const rawInputCode = buildRawCode(digitInput);
-  const formattedInputCode = formatInputCode(rawInputCode);
-  const isCodeComplete = digitInput.length === REQUIRED_DIGIT_COUNT;
-
-  const handleNumpadClick = (key: string | null) => {
-    if (!key || !/^\d$/.test(key)) return;
-    setDigitInput((prev) => {
-      if (prev.length >= REQUIRED_DIGIT_COUNT) return prev;
-      return prev + key;
+  const handleNumpadClick = (key: string) => {
+    setInputCode((prev) => {
+      const raw = prev.replace(/\s/g, '');
+      if (key === 'backspace') {
+        return formatInputCode(raw.slice(0, -1));
+      }
+      if (raw.length >= 23) return prev;
+      if (raw.length === 0 && key !== '*') return prev;
+      if (raw.length === 22 && key !== '#') return prev;
+      if (raw.length >= 1 && raw.length < 22 && !/^[0-9]$/.test(key)) return prev;
+      return formatInputCode(raw + key);
     });
   };
 
@@ -410,77 +239,73 @@ useEffect(() => {
         const clipboardText = await navigator.clipboard.readText();
         pastedText = clipboardText.trim();
       }
-      let rawText = pastedText.replace(/\s/g, '');
-      if (rawText.startsWith(START_SENTINEL)) rawText = rawText.slice(1);
-      if (rawText.endsWith(END_SENTINEL)) rawText = rawText.slice(0, -1);
-
-      if (rawText.length !== REQUIRED_DIGIT_COUNT) {
-        toast.error(t('Code must contain exactly 21 digits'));
+      const rawText = pastedText.replace(/\s/g, '');
+      // Validate pasted code: must be 23 characters, start with *, end with #, and have 21 digits in between
+      if (rawText.length !== 23) {
+        toast.error(t('Pasted code must be 23 characters'));
         return;
       }
-      if (!/^\d+$/.test(rawText)) {
-        toast.error(t('Code can only include digits between the markers'));
+      if (!rawText.startsWith('*') || !rawText.endsWith('#')) {
+        toast.error(t('Code must start with * and end with #'));
         return;
       }
-      setDigitInput(rawText);
-      toast.success(t('Code pasted successfully'));
+      const digits = rawText.slice(1, -1);
+      if (!/^\d{21}$/.test(digits)) {
+        toast.error(t('Code must contain 21 digits between * and #'));
+        return;
+      }
+      setInputCode(formatInputCode(rawText));
+      // toast.success('Code pasted successfully');
     } catch (error) {
       console.error('Failed to paste:', error);
       toast.error(t('Failed to paste code. Please check clipboard permissions.'));
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/[^\d]/g, '');
-    if (digits.length <= REQUIRED_DIGIT_COUNT) {
-      setDigitInput(digits);
-    }
-  };
-
-  const clearInput = () => {
-    setDigitInput((prev) => prev.slice(0, -1));
-  };
+  const clearInput = () => handleNumpadClick('backspace');
 
   const submitInput = () => {
     if (isLoadingService) return toast.error(t('Service is loading, please wait'));
-    if (!isCodeComplete) return toast.error(t('Code must contain 21 digits'));
+    const raw = inputCode.replace(/\s/g, '');
+    if (raw.length !== 23) return toast.error(t('Code must be 23 characters'));
     if (!pubkCharacteristic) return toast.error(t('Public key characteristic not found'));
-    const rawCode = buildRawCode(digitInput);
-    const payloadFormatted = formatInputCode(rawCode);
-    keypadLog('submit: pubk code', {
-      digitsFingerprint: redactDigitToken(digitInput),
-      rawSkeleton: `${START_SENTINEL}${redactDigitToken(digitInput)}${END_SENTINEL}`,
-      formattedLength: payloadFormatted.length,
-      isLoadingService,
-      hasPubk: !!pubkCharacteristic,
-      hasCmd: !!cmdService,
-      hasSts: !!stsService,
+    writeCharacteristic(pubkCharacteristic, formatInputCode(inputCode), () => {
+      setTimeout(() =>
+        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name),
+      1000);
     });
-    writeCharacteristic(pubkCharacteristic, payloadFormatted, () => {
-      // Refresh both Last Code and Days - delay gives device time to process the write
-      setTimeout(() => {
-        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name);
-        if (stsService && rcrdCharacteristic) {
-          handleRead(stsService.uuid, rcrdCharacteristic.uuid, rcrdCharacteristic.name);
-        }
-      }, 1500);
-    });
-    setDigitInput('');
+    setInputCode('');
   };
 
+  const focusInput = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
 
   /* ------------------------------------------------------------------ */
   /* Render */
   /* ------------------------------------------------------------------ */
+  const header = (
+    <div className="p-4 flex items-center">
+      <button onClick={onBack} className="mr-4" aria-label="Back">
+        <ArrowLeft className="w-6 h-6 text-gray-400" />
+      </button>
+      <h1 className="text-lg font-semibold flex-1 truncate">
+        {getDisplayValue(opidCharacteristic) ?? device.name ?? t('Device')}
+      </h1>
+      <Share2 className="w-5 h-5 text-gray-400" />
+    </div>
+  );
 
   const credentialsCards = (
     <div className="flex space-x-4">
       {/* pubk card */}
-      <div className="rounded-lg p-4 w-3/4" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-        <div className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{t('Last Code')}</div>
+      <div className="border border-gray-700 rounded-lg p-4 bg-gray-800 w-3/4">
+        <div className="text-sm text-gray-400 mb-2">{t('Current PUBK Value')}</div>
         {pubkCharacteristic ? (
           <div className="min-h-8 flex items-center">
-            <div className="font-mono text-sm overflow-hidden overflow-ellipsis w-5/6 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
+            <div className="font-mono text-sm overflow-hidden overflow-ellipsis w-5/6 whitespace-nowrap">
               {getDisplayValue(pubkCharacteristic)}
             </div>
             <button
@@ -488,28 +313,25 @@ useEffect(() => {
                 navigator.clipboard.writeText(String(getDisplayValue(pubkCharacteristic)));
                 toast.success(t('Value copied'));
               }}
-              className="ml-1 p-1 transition-colors"
-              style={{ color: 'var(--text-secondary)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+              className="ml-1 p-1 text-gray-400 hover:text-blue-500"
             >
               <Clipboard size={16} />
             </button>
           </div>
         ) : (
-          <div className="w-full flex justify-center py-2 animate-pulse text-sm" style={{ color: 'var(--text-muted)' }}>
+          <div className="w-full flex justify-center py-2 animate-pulse text-sm text-gray-500">
             {t('Loading...')}
           </div>
         )}
       </div>
       {/* rcrd days card */}
-      <div className="rounded-lg p-4 w-1/4 flex flex-col" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-        <div className="text-sm mb-2 text-center" style={{ color: 'var(--text-secondary)' }}>{t('Days')}</div>
+      <div className="border border-gray-700 rounded-lg p-4 bg-gray-800 w-1/4 flex flex-col">
+        <div className="text-sm text-gray-400 mb-2 text-center">{t('Days')}</div>
         <div className="flex items-center justify-center min-h-8">
           {rcrdCharacteristic ? (
-            <span className="text-xl font-medium" style={{ color: 'var(--text-primary)' }}>{getDisplayValue(rcrdCharacteristic)}</span>
+            <span className="text-xl font-medium">{getDisplayValue(rcrdCharacteristic)}</span>
           ) : (
-            <div className="w-full flex justify-center py-2 animate-pulse text-sm" style={{ color: 'var(--text-muted)' }}>
+            <div className="w-full flex justify-center py-2 animate-pulse text-sm text-gray-500">
               {t('Loading...')}
             </div>
           )}
@@ -519,51 +341,43 @@ useEffect(() => {
   );
 
   const inputDisplay = (
-    <div className="rounded-lg p-3" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+    <div className="border border-gray-700 rounded-lg p-3 bg-gray-800">
       <div className="flex justify-between items-center mb-1">
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('New Code:')}</p>
+        <p className="text-sm text-gray-400">{t('Input Code:')}</p>
+        <button
+          onClick={async () => {
+            try {
+              await handlePaste();
+            } catch (error) {
+              toast.error(t('Clipboard access denied. Please paste manually.'));
+            }
+          }}
+          className="text-gray-400 hover:text-blue-500 flex items-center text-xs"
+        >
+          {/* <Clipboard size={14} className="mr-1" /> Paste */}
+        </button>
       </div>
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
-          inputMode="none"
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          value={formattedInputCode}
-          placeholder="(*...#)"
+          value={inputCode}
           onPaste={handlePaste}
-          onChange={handleInputChange}
-          onContextMenu={(e) => {
-            // Allow native context menu (paste) on long-press where supported
-            e.stopPropagation();
+          onChange={(e) => {
+            e.preventDefault();
           }}
-          className="font-mono h-8 mt-1 truncate p-1 rounded w-full pr-10 focus:outline-none focus:ring-0"
+          onClick={focusInput}
+          placeholder="(*...#)"
+          className="font-mono h-8 mt-1 truncate p-1 bg-gray-900 rounded w-full text-white pr-10"
           style={{
-            background: 'var(--bg-tertiary)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border)',
-            outline: 'none',
-            WebkitTapHighlightColor: 'transparent',
             fontSize:
-              formattedInputCode.length > 20
-                ? '0.75rem'
-                : formattedInputCode.length > 15
-                ? '0.875rem'
-                : '1rem',
+              inputCode.length > 20 ? '0.75rem' : inputCode.length > 15 ? '0.875rem' : '1rem',
           }}
         />
-        {digitInput.length > 0 && (
+        {inputCode && (
           <button
-            onPointerDown={(e) => { e.preventDefault(); clearInput(); }}
-            className="absolute right-0 top-0 bottom-0 flex items-center justify-center transition-colors"
-            style={{
-              color: 'var(--text-secondary)',
-              width: '2.5rem',
-              fontSize: '1.25rem',
-            }}
-            aria-label={t('Clear last digit')}
+            onClick={clearInput}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
           >
             ×
           </button>
@@ -572,97 +386,43 @@ useEffect(() => {
     </div>
   );
 
-  const okDisabled = Boolean(isLoadingService) || !isCodeComplete;
-
   const keypadGrid = (
     <>
       <div className="grid grid-cols-3 gap-2">
         {keypad.map((row, i) =>
-          row.map((key, j) =>
-            key ? (
-              <button
-                key={`${i}-${j}`}
-                className="text-xl font-semibold rounded-lg py-3 transition-colors"
-                style={{
-                  background: 'var(--bg-tertiary)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-elevated)';
-                  e.currentTarget.style.borderColor = 'var(--accent)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-tertiary)';
-                  e.currentTarget.style.borderColor = 'var(--border)';
-                }}
-                onClick={() => handleNumpadClick(key)}
-              >
-                {key}
-              </button>
-            ) : (
-              <div key={`${i}-${j}`} />
-            )
-          )
+          row.map((key) => (
+            <button
+              key={`${i}-${key}`}
+              className="bg-gray-700 hover:bg-gray-600 text-white text-xl font-semibold rounded-lg py-3"
+              onClick={() => handleNumpadClick(key)}
+            >
+              {key}
+            </button>
+          ))
         )}
       </div>
       <div className="flex space-x-4 mt-2">
-        <button
-          className="h-14 flex-1 flex items-center justify-center rounded text-xl transition-colors"
-          style={{
-            background: 'var(--bg-tertiary)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--bg-elevated)';
-            e.currentTarget.style.borderColor = 'var(--accent)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'var(--bg-tertiary)';
-            e.currentTarget.style.borderColor = 'var(--border)';
-          }}
+        <div
+          className="h-14 flex-1 flex items-center justify-center rounded bg-gray-600 text-white text-xl cursor-pointer active:bg-gray-500"
           onClick={clearInput}
         >
           ←
-        </button>
-        <button
-          className={`h-14 flex-1 flex items-center justify-center rounded text-xl transition-colors ${
-            okDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
-          }`}
-          style={{
-            background: okDisabled 
-              ? 'var(--bg-tertiary)' 
-              : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
-            color: '#ffffff',
-            opacity: okDisabled ? 0.5 : 1,
-            border: okDisabled ? '1px solid var(--border)' : 'none',
-          }}
-          onMouseEnter={(e) => {
-            if (!okDisabled) {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 24px -8px var(--accent-glow)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!okDisabled) {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }
-          }}
-          onClick={() => {
-            if (!okDisabled) submitInput();
-          }}
-          disabled={okDisabled}
+        </div>
+        <div
+          className={`h-14 flex-1 flex items-center justify-center rounded ${isLoadingService ? 'bg-gray-500' : 'bg-blue-600 active:bg-blue-500'} text-white text-xl cursor-pointer`}
+          onClick={submitInput}
         >
-          {t('Submit')}
-        </button>
+          OK
+        </div>
       </div>
     </>
   );
 
   return (
-    <div style={{ position: 'relative', zIndex: 1 }}>
+    <div className="max-w-md mx-auto bg-gradient-to-b from-[#171923] to-[#0C0C0E] min-h-screen text-white">
+      <Toaster />
+      {/* ---------- header ---------- */}
+      {header}
       {/* ---------- modals ---------- */}
       <AsciiStringModal
         isOpen={asciiModalOpen}
@@ -677,7 +437,7 @@ useEffect(() => {
         title={activeCharacteristic?.name || t('Write')}
       />
       {/* ---------- main content ---------- */}
-      <div className="p-4 space-y-4 max-w-md mx-auto">
+      <div className="p-4 space-y-6">
         {credentialsCards}
         {inputDisplay}
         {keypadGrid}
