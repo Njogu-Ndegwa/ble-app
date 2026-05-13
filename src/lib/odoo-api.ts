@@ -55,6 +55,53 @@ export function buildOdooHeaders(authToken?: string): HeadersInit {
   return headers;
 }
 
+/**
+ * Request headers formatted for console debugging: Bearer token and API key truncated.
+ * `X-SA-ID` and other headers are logged as sent (case per Headers iteration).
+ */
+export function formatOdooRequestHeadersForLog(headers: HeadersInit): Record<string, string> {
+  const h = new Headers(headers as Record<string, string>);
+  const out: Record<string, string> = {};
+  h.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (lower === 'authorization') {
+      const raw = value.replace(/^Bearer\s+/i, '').trim();
+      out[key] = raw.length
+        ? `Bearer ${raw.slice(0, 14)}…(${raw.length} chars)`
+        : 'Bearer (empty)';
+    } else if (lower === 'x-api-key') {
+      out[key] =
+        value.length > 8
+          ? `${value.slice(0, 4)}…${value.slice(-4)} (${value.length} chars)`
+          : '(redacted)';
+    } else {
+      out[key] = value;
+    }
+  });
+  return out;
+}
+
+function logSubscriptionProductsResponseHints(response: Response): void {
+  const pick = (name: string) => response.headers.get(name);
+  console.info('[ODOO API] getSubscriptionProducts response hints (cache / CDN)', {
+    url: response.url,
+    status: response.status,
+    date: pick('date'),
+    age: pick('age'),
+    'cache-control': pick('cache-control'),
+    expires: pick('expires'),
+    etag: pick('etag'),
+    'last-modified': pick('last-modified'),
+    pragma: pick('pragma'),
+    vary: pick('vary'),
+    'cf-cache-status': pick('cf-cache-status'),
+    'x-cache': pick('x-cache'),
+    'x-cache-hits': pick('x-cache-hits'),
+    'x-served-by': pick('x-served-by'),
+    'x-amz-cf-id': pick('x-amz-cf-id'),
+  });
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -745,12 +792,17 @@ export async function getSubscriptionProducts(
   const headers: HeadersInit = buildOdooHeaders(authToken);
 
   try {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      console.info('[ODOO API] Service worker controlling this page:', !!navigator.serviceWorker?.controller, '(Odoo fetch is cross-origin; SW usually does not cache API JSON)');
+    }
+    console.info('[ODOO API] getSubscriptionProducts request headers (sanitized)', formatOdooRequestHeadersForLog(headers));
     console.log('[ODOO API] Making fetch request...');
     console.error('[PRODUCTS DEBUG] URL:', url);
     console.error('[PRODUCTS DEBUG] Auth token present:', !!authToken);
     console.error('[PRODUCTS DEBUG] Auth token preview:', authToken ? authToken.substring(0, 40) + '...' : 'NONE');
 
     const response = await fetchWithRetry(url, { method: 'GET', headers });
+    logSubscriptionProductsResponseHints(response);
     console.error('[PRODUCTS DEBUG] HTTP status:', response.status);
     console.error('[PRODUCTS DEBUG] Content-Type:', response.headers.get('content-type'));
 
