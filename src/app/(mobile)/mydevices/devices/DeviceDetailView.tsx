@@ -1,13 +1,29 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
-import { Toaster, toast } from 'react-hot-toast';
-import { ArrowLeft, Share2, Clipboard, Check, RefreshCw } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import {
+  Clipboard, RefreshCw, Calendar,
+  Unlock, RotateCcw, Clock, CheckCircle, AlertCircle, Loader2, Download,
+} from 'lucide-react';
 import { AsciiStringModal } from '../../../modals';
 import { apiUrl } from '@/lib/apollo-client';
 import { useI18n } from '@/i18n';
+import { cleanBatteryId } from '@/lib/hooks/ble/energyUtils';
+
+type CodeType = 'days' | 'free' | 'reset' | 'retrieve';
+type ResultStatus = 'idle' | 'generating' | 'generated' | 'writing' | 'written' | 'writeFailed' | 'error';
+
+interface ResultState {
+  status: ResultStatus;
+  codeType: CodeType | null;
+  codeDec: string | null;
+  error: string | null;
+}
+
+const INITIAL_RESULT: ResultState = { status: 'idle', codeType: null, codeDec: null, error: null };
 
 interface DeviceDetailProps {
   device: {
@@ -35,113 +51,315 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const router = useRouter();
   const [updatedValue, setUpdatedValue] = useState<string | null>(null);
   const [updatedValues, setUpdatedValues] = useState<{ [key: string]: string }>({});
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [duration, setDuration] = useState<number | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRetrieving, setIsRetrieving] = useState(false);
   const [itemId, setItemId] = useState<string | null>(null);
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
+  const [isIdentifying, setIsIdentifying] = useState(false);
 
-  useEffect(() => {
-    const fetchItemId = async () => {
-      const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
-      if (!attService) {
-        console.log('ATT_SERVICE not yet loaded, skipping fetchItemId');
-        return;
-      }
+  const [result, setResult] = useState<ResultState>(INITIAL_RESULT);
 
-      const oemItemId = attService.characteristicList.find((char: any) => char.name === 'opid')?.realVal || null;
-      if (!oemItemId) {
-        toast.error(t('OEM Item ID not available'), { duration: 1000 });
-        return;
-      }
+  const isBusy = result.status === 'generating' || result.status === 'writing';
 
-      try {
-        const authToken = localStorage.getItem('access_token');
-        if (!authToken) {
-          toast.error(t('Please sign in to fetch item data'), { duration: 5000 });
-          router.push('/signin');
-          return;
-        }
-
-        const query = `
-          query GetItemByOemItemId($oemItemId: ID!) {
-            getItembyOemItemId(oemItemId: $oemItemId) {
-              _id
-            }
-          }
-        `;
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({
-            query,
-            variables: { oemItemId },
-          }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}, Message: ${JSON.stringify(result)}`);
-        }
-
-        if (result.errors) {
-          throw new Error(`GraphQL error: ${result.errors.map((e: { message: any }) => e.message).join(', ')}`);
-        }
-
-        const fetchedItemId = result.data.getItembyOemItemId._id;
-        if (fetchedItemId) {
-          setItemId(fetchedItemId);
-          console.log('Item ID fetched successfully:', fetchedItemId);
-          toast.success(t('Item ID fetched successfully'), { duration: 1000 });
-        } else {
-          throw new Error('No item ID returned in response');
-        }
-      } catch (error) {
-        console.error('Error fetching item ID:', error);
-        // toast.error(t(`Failed to fetch item data: ${error instanceof Error ? error.message : 'Unknown error'}`));
-      }
-    };
-
-    fetchItemId();
-  }, [router, attributeList]);
-
-  // New useEffect to auto-load CMD service
-  useEffect(() => {
-    const cmdService = attributeList.find(
-      (service) => service.serviceNameEnum === 'CMD_SERVICE'
-    );
-    if (!cmdService && isLoadingService !== 'CMD' && onRequestServiceData) {
-      console.log('Auto-loading CMD service');
-      onRequestServiceData('CMD');
-    }
-  }, [attributeList, isLoadingService, onRequestServiceData]);
-
-  const cmdService = attributeList.find(
-    (service) => service.serviceNameEnum === 'CMD_SERVICE'
-  );
-  const pubkCharacteristic = cmdService?.characteristicList.find(
-    (char: any) => char.name.toLowerCase().includes('pubk')
-  );
-
-  const handleBack = () => (onBack ? onBack() : router.back());
-
-  const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDuration(Number(e.target.value));
-  };
-
-  const handleSubmit = async () => {
-    if (!itemId) {
-      toast.error(t('Item ID not available'));
+  const fetchItemId = useCallback(async () => {
+    const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
+    if (!attService) {
       return;
     }
+
+    const getCharValue = (name: string) => {
+      const char = attService.characteristicList.find(
+        (c: any) => c.name?.toLowerCase() === name.toLowerCase()
+      );
+      const val = char?.realVal;
+      return (val !== null && val !== undefined && String(val).trim() !== '') ? String(val).trim() : null;
+    };
+
+    const rawOpid = getCharValue('opid');
+    const rawPpid = getCharValue('ppid');
+    const rawValue = rawOpid || rawPpid;
+    if (!rawValue) {
+      console.info('[DeviceDetail] No opid/ppid value found in ATT_SERVICE (values may still be loading)',
+        { opid: rawOpid, ppid: rawPpid });
+      return;
+    }
+
+    // Clean arrow characters ("<", ">") that BLE ppid/opid values sometimes contain
+    const oemItemId = cleanBatteryId(rawValue);
+
+    setIsIdentifying(true);
+    setIdentifyError(null);
+
+    try {
+      const authToken = localStorage.getItem('access_token');
+      if (!authToken) {
+        toast.error(t('Please sign in to fetch item data'), { duration: 5000 });
+        router.push('/signin');
+        return;
+      }
+
+      const query = `
+        query GetItemByOemItemId($oemItemId: ID!) {
+          getItembyOemItemId(oemItemId: $oemItemId) {
+            _id
+          }
+        }
+      `;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ query, variables: { oemItemId } }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+      if (data.errors) {
+        const errMsg = data.errors.map((e: { message: string }) => e.message).join(', ');
+        if (errMsg.includes('Cannot return null') || errMsg.includes('non-nullable')) {
+          throw new Error(t('Device not found in system for OEM ID: ') + oemItemId);
+        }
+        throw new Error(errMsg);
+      }
+
+      const fetchedItemId = data.data?.getItembyOemItemId?._id;
+      if (fetchedItemId) {
+        setItemId(fetchedItemId);
+        setIdentifyError(null);
+      } else {
+        const msg = t('Device not found in system for OEM ID: ') + oemItemId;
+        setIdentifyError(msg);
+        console.error('[DeviceDetail] getItembyOemItemId returned null for oemItemId:', oemItemId);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      setIdentifyError(msg);
+      console.error('[DeviceDetail] Error fetching item ID:', error);
+    } finally {
+      setIsIdentifying(false);
+    }
+  }, [attributeList, router, t]);
+
+  useEffect(() => {
+    if (!itemId) {
+      fetchItemId();
+    }
+  }, [fetchItemId, itemId]);
+
+  const { cmdService, pubkCharacteristic, stsService, rcrdCharacteristic } = useMemo(() => {
+    const foundCmd = attributeList.find((s) => s.serviceNameEnum === 'CMD_SERVICE');
+    const foundSts = attributeList.find((s) => s.serviceNameEnum === 'STS_SERVICE');
+    return {
+      cmdService: foundCmd ?? null,
+      pubkCharacteristic: foundCmd?.characteristicList?.find((c: any) => c.name.toLowerCase() === 'pubk') ?? null,
+      stsService: foundSts ?? null,
+      rcrdCharacteristic: foundSts?.characteristicList?.find((c: any) => c.name.toLowerCase() === 'rcrd') ?? null,
+    };
+  }, [attributeList]);
+
+  useEffect(() => {
+    if (!onRequestServiceData) return;
+    if (!cmdService) onRequestServiceData('CMD');
+    if (!stsService) onRequestServiceData('STS');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleRead = useCallback(() => {
+    if (!cmdService || !pubkCharacteristic) return;
+    const mac = device.macAddress?.trim();
+    if (!mac) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
+    setIsLoading(true);
+    readBleCharacteristic(
+      cmdService.uuid,
+      pubkCharacteristic.uuid,
+      mac,
+      (data: any) => {
+        setIsLoading(false);
+        if (data) {
+          setUpdatedValue(data.realVal);
+          setUpdatedValues((prev) => ({ ...prev, [pubkCharacteristic.uuid]: data.realVal }));
+        }
+      }
+    );
+  }, [cmdService, pubkCharacteristic, device.macAddress, t]);
+
+  const readRcrd = useCallback(() => {
+    if (!stsService || !rcrdCharacteristic) return;
+    const mac = device.macAddress?.trim();
+    if (!mac) return;
+    readBleCharacteristic(
+      stsService.uuid,
+      rcrdCharacteristic.uuid,
+      mac,
+      (data: any) => {
+        if (data) {
+          setUpdatedValues((prev) => ({ ...prev, [rcrdCharacteristic.uuid]: data.realVal }));
+        }
+      }
+    );
+  }, [stsService, rcrdCharacteristic, device.macAddress]);
+
+  const writeCodeToDevice = useCallback((codeDec: string) => {
+    const foundCmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
+    if (!foundCmdService) {
+      setResult((prev) => ({ ...prev, status: 'writeFailed', error: t('CMD service not available') }));
+      return;
+    }
+    const foundPubk = foundCmdService.characteristicList.find(
+      (char: any) => char.name.toLowerCase() === 'pubk'
+    );
+    if (!foundPubk) {
+      setResult((prev) => ({ ...prev, status: 'writeFailed', error: t('pubk characteristic not found') }));
+      return;
+    }
+
+    setUpdatedValues((prev) => ({ ...prev, [foundPubk.uuid]: codeDec }));
+    setActiveCharacteristic(foundPubk);
+    setUpdatedValue(codeDec);
+
+    const connectedMac =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    const targetMac = device.macAddress?.trim();
+    if (
+      !connectedMac ||
+      !targetMac ||
+      connectedMac.trim().toLowerCase() !== targetMac.toLowerCase()
+    ) {
+      setResult((prev) => ({ ...prev, status: 'writeFailed', error: t('Device not connected') }));
+      return;
+    }
+
+    setResult((prev) => ({ ...prev, status: 'writing' }));
+
+    writeBleCharacteristic(
+      foundCmdService.uuid,
+      foundPubk.uuid,
+      codeDec,
+      targetMac,
+      (responseData: any) => {
+        let writeSuccess = false;
+        let errorMessage: string | null = null;
+
+        try {
+          let response: any;
+          if (typeof responseData === 'string') {
+            try {
+              response = JSON.parse(responseData);
+            } catch {
+              if (responseData.toLowerCase() === 'success' || responseData.toLowerCase() === 'ok') {
+                writeSuccess = true;
+              } else {
+                errorMessage = responseData;
+              }
+            }
+          } else {
+            response = responseData;
+          }
+
+          if (response) {
+            if (response.respCode === '200' || response.respCode === 200) writeSuccess = true;
+            else if (response.respData === true || response.respData === 'success') writeSuccess = true;
+            else if (response.success === true) writeSuccess = true;
+            else if (response.respDesc) errorMessage = response.respDesc;
+            else if (response.error) errorMessage = response.error;
+            else if (response.message) errorMessage = response.message;
+          }
+        } catch (e) {
+          console.error('Error parsing write response:', e);
+          errorMessage = 'Unknown write response format';
+        }
+
+        if (writeSuccess) {
+          setResult((prev) => ({ ...prev, status: 'written' }));
+          setTimeout(() => {
+            const stillConnected = sessionStorage.getItem('connectedDeviceMac');
+            if (
+              stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()
+            ) {
+              handleRead();
+              readRcrd();
+            }
+          }, 2000);
+        } else {
+          setResult((prev) => ({ ...prev, status: 'writeFailed', error: errorMessage || 'Write operation failed' }));
+        }
+      }
+    );
+  }, [attributeList, device.macAddress, handleRead, readRcrd, t]);
+
+  const [daysInput, setDaysInput] = useState('');
+
+  const handleDaysInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '');
+    setDaysInput(val);
+    const parsed = parseInt(val, 10);
+    setDuration(parsed > 0 ? parsed : null);
+  };
+
+  const executeGraphQL = async (query: string, variables: Record<string, any>) => {
+    const authToken = localStorage.getItem('access_token');
+    if (!authToken) {
+      router.push('/signin');
+      return null;
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error ${response.status}: ${errorText}`);
+    }
+
+    const responseData = await response.json();
+    if (responseData.errors) {
+      throw new Error(responseData.errors.map((e: { message: string }) => e.message).join(', '));
+    }
+    return responseData.data;
+  };
+
+  // Trigger write only after React has re-rendered with the latest attributeList.
+  // Calling writeCodeToDevice directly inside the async runCodeOperation captures a
+  // stale closure: if CMD_SERVICE data finishes loading while the API call is in-flight,
+  // the captured writeCodeToDevice still sees the old attributeList and fails to find
+  // CMD_SERVICE, producing an intermittent "CMD service not available" writeFailed.
+  useEffect(() => {
+    if (result.status === 'generated' && result.codeDec) {
+      writeCodeToDevice(result.codeDec);
+    }
+  // writeCodeToDevice is a useCallback that depends on attributeList, so this
+  // always uses the freshest service data available at render time.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.status, result.codeDec]);
+
+  const runCodeOperation = async (codeType: CodeType, apiCall: () => Promise<string>) => {
+    setResult({ status: 'generating', codeType, codeDec: null, error: null });
+    try {
+      const codeDec = await apiCall();
+      // Setting 'generated' triggers the useEffect above to call writeCodeToDevice
+      // with the latest attributeList, avoiding the stale-closure race condition.
+      setResult({ status: 'generated', codeType, codeDec, error: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      setResult({ status: 'error', codeType, codeDec: null, error: message });
+    }
+  };
+
+  const handleGenerateDaysCode = () => {
     if (!duration) {
       toast.error(t('Please select a duration'));
       return;
@@ -150,214 +368,126 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       toast.error(t('Duration must be a positive integer'));
       return;
     }
-
-    setIsSubmitting(true);
-
-    try {
-      const authToken = localStorage.getItem('access_token');
-      if (!authToken) {
-        router.push('/signin');
-        return;
+    if (!itemId) {
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'days', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'days', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
       }
-
+      return;
+    }
+    runCodeOperation('days', async () => {
       const query = `
         mutation GenerateDaysCode($itemId: ID!, $codeDays: Int!) {
-          generateDaysCode(generateDaysCodeInput: {
-            itemId: $itemId,
-            codeDays: $codeDays
-          }) {
+          generateDaysCode(generateDaysCodeInput: { itemId: $itemId, codeDays: $codeDays }) {
             codeType
             codeHex
             codeDec
           }
         }
       `;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          query,
-          variables: { itemId, codeDays: duration },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error ${response.status}: ${errorText}`);
-      }
-
-      const responseData = await response.json();
-
-      if (responseData.errors) {
-        const errorMessages = responseData.errors
-          .map((error: { message: string }) => error.message)
-          .join(', ');
-        throw new Error(`GraphQL error: ${errorMessages}`);
-      }
-
-      const { generateDaysCode } = responseData.data;
-      if (!generateDaysCode) {
-        throw new Error('No data returned from generateDaysCode');
-      }
-
-      const { codeDec } = generateDaysCode;
-      setGeneratedCode(codeDec);
-      toast.success(t(`Code: ${codeDec} generated successfully`), { duration: 1000 });
-
-      console.info('attributeList:', attributeList);
-      const cmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
-      if (cmdService) {
-        console.info('cmdService:', cmdService);
-        const pubkCharacteristic = cmdService.characteristicList.find(
-          (char: any) => char.name.toLowerCase() === 'pubk'
-        );
-        console.info('pubkCharacteristic:', pubkCharacteristic?.name);
-        if (pubkCharacteristic) {
-          setUpdatedValues((prev) => ({
-            ...prev,
-            [pubkCharacteristic.uuid]: codeDec,
-          }));
-          setActiveCharacteristic(pubkCharacteristic);
-          setUpdatedValue(codeDec);
-        } else {
-          toast.error(t('pubk characteristic not found in CMD service'));
-        }
-      } else {
-        toast.error(t('CMD service not available'));
-      }
-    } catch (error) {
-      console.error('Error generating code:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error(t(`Failed to generate code: ${message}`));
-    } finally {
-      setIsSubmitting(false);
-    }
+      const data = await executeGraphQL(query, { itemId, codeDays: duration });
+      if (!data?.generateDaysCode) throw new Error('No data returned');
+      return data.generateDaysCode.codeDec;
+    });
   };
 
-  const handleRetrieveCodes = async () => {
+  const handleGenerateFreeCode = () => {
     if (!itemId) {
-      toast.error(t('Item ID not available'));
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'free', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'free', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
       return;
     }
+    runCodeOperation('free', async () => {
+      const query = `
+        mutation GenerateFreeCode($generateFreeCodeInput: GenerateCodeInput!) {
+          generateFreeCode(generateFreeCodeInput: $generateFreeCodeInput) {
+            codeType
+            codeHex
+            codeDec
+          }
+        }
+      `;
+      const data = await executeGraphQL(query, { generateFreeCodeInput: { itemId } });
+      if (!data?.generateFreeCode) throw new Error('No data returned');
+      return data.generateFreeCode.codeDec;
+    });
+  };
 
+  const handleGenerateResetCode = () => {
+    if (!itemId) {
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'reset', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'reset', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
+      return;
+    }
+    runCodeOperation('reset', async () => {
+      const query = `
+        mutation GenerateResetCode($generateResetCodeInput: GenerateCodeInput!) {
+          generateResetCode(generateResetCodeInput: $generateResetCodeInput) {
+            codeType
+            codeHex
+            codeDec
+          }
+        }
+      `;
+      const data = await executeGraphQL(query, { generateResetCodeInput: { itemId } });
+      if (!data?.generateResetCode) throw new Error('No data returned');
+      return data.generateResetCode.codeDec;
+    });
+  };
+
+  const handleRetrieveCodes = () => {
+    if (!itemId) {
+      if (identifyError) {
+        setResult({ status: 'error', codeType: 'retrieve', codeDec: null, error: identifyError });
+      } else if (isIdentifying) {
+        toast.loading(t('Identifying device, please wait...'), { duration: 2000 });
+      } else {
+        fetchItemId();
+        setResult({ status: 'error', codeType: 'retrieve', codeDec: null, error: t('Device identification in progress. Please try again in a moment.') });
+      }
+      return;
+    }
     const distributorId = localStorage.getItem('distributorId');
     if (!distributorId) {
       toast.error(t('Distributor ID not available. Please sign in.'));
       router.push('/signin');
       return;
     }
-
-    setIsRetrieving(true);
-
-    try {
-      const authToken = localStorage.getItem('access_token');
-      if (!authToken) {
-        toast.error(t('Please sign in to retrieve codes'));
-        router.push('/signin');
-        return;
-      }
-
+    runCodeOperation('retrieve', async () => {
       const query = `
         query GetAllCodeEventsForSpecificItemByDistributor($itemId: ID!, $distributorId: ID!, $first: Int!) {
           getAllCodeEventsForSpecificItemByDistributor(itemId: $itemId, distributorId: $distributorId, first: $first) {
-            page {
-              edges {
-                node {
-                  codeDecString
-                }
-              }
-            }
+            page { edges { node { codeDecString } } }
           }
         }
       `;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          query,
-          variables: { itemId, distributorId, first: 1 },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error ${response.status}: ${errorText}`);
-      }
-
-      const responseData = await response.json();
-
-      if (responseData.errors) {
-        const errorMessages = responseData.errors
-          .map((error: { message: string }) => error.message)
-          .join(', ');
-        throw new Error(`GraphQL error: ${errorMessages}`);
-      }
-
-      const codeEventsData = responseData.data?.getAllCodeEventsForSpecificItemByDistributor?.page?.edges || [];
-      if (codeEventsData.length > 0) {
-        const codeDec = codeEventsData[0].node.codeDecString;
-        setGeneratedCode(codeDec);
-        toast.success(t(`Code: ${codeDec} retrieved successfully`), { duration: 1000 });
-
-        const cmdService = attributeList.find((service) => service.serviceNameEnum === 'CMD_SERVICE');
-        if (cmdService) {
-          const pubkCharacteristic = cmdService.characteristicList.find(
-            (char: any) => char.name.toLowerCase() === 'pubk'
-          );
-          if (pubkCharacteristic) {
-            setUpdatedValues((prev) => ({
-              ...prev,
-              [pubkCharacteristic.uuid]: codeDec,
-            }));
-            setActiveCharacteristic(pubkCharacteristic);
-            setUpdatedValue(codeDec);
-          } else {
-            toast.error(t('pubk characteristic not found in CMD service'));
-          }
-        } else {
-          toast.error(t('CMD service not available'));
-        }
-      } else {
-        toast.error(t('No codes found for this device'));
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error(t(`Failed to retrieve code: ${message}`));
-    } finally {
-      setIsRetrieving(false);
-    }
+      const data = await executeGraphQL(query, { itemId, distributorId, first: 1 });
+      const edges = data?.getAllCodeEventsForSpecificItemByDistributor?.page?.edges || [];
+      if (edges.length === 0) throw new Error('No codes found for this device');
+      return edges[0].node.codeDecString;
+    });
   };
 
-  const handleRead = () => {
-    if (!cmdService || !pubkCharacteristic) return;
-    setIsLoading(true);
-    readBleCharacteristic(
-      cmdService.uuid,
-      pubkCharacteristic.uuid,
-      device.macAddress,
-      (data: any, error: any) => {
-        setIsLoading(false);
-        if (data) {
-          toast.success(t(`${pubkCharacteristic.name} read successfully`));
-          setUpdatedValue(data.realVal);
-          setUpdatedValues((prev) => ({
-            ...prev,
-            [pubkCharacteristic.uuid]: data.realVal,
-          }));
-        } else {
-          console.error('Error Reading Characteristics');
-          toast.error(t(`Failed to read ${pubkCharacteristic.name}`));
-        }
-      }
-    );
+  const handleRetryWrite = () => {
+    if (result.codeDec) {
+      writeCodeToDevice(result.codeDec);
+    }
   };
 
   const handleWriteClick = () => {
@@ -368,19 +498,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWrite = (value: string) => {
     if (!activeCharacteristic || !cmdService) return;
+    const connectedMac =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    const targetMac = device.macAddress?.trim();
+    if (
+      !connectedMac ||
+      !targetMac ||
+      connectedMac.trim().toLowerCase() !== targetMac.toLowerCase()
+    ) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     writeBleCharacteristic(
       cmdService.uuid,
       activeCharacteristic.uuid,
       value,
-      device.macAddress,
-      (data: any, error: any) => {
+      targetMac,
+      (data: any) => {
         if (data) {
           toast.success(t(`Value written to ${activeCharacteristic.name}`));
-          setTimeout(() => {
-            handleRead();
-          }, 1000);
+          setTimeout(() => { handleRead(); readRcrd(); }, 1000);
         } else {
-          console.error('Error Writing Characteristics');
           toast.error(t(`Failed to write ${activeCharacteristic.name}`));
         }
       }
@@ -388,206 +526,564 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   };
 
   const handleRefreshService = () => {
-    if (onRequestServiceData) {
-      onRequestServiceData('CMD');
-    }
+    if (onRequestServiceData) onRequestServiceData('CMD');
   };
-const translateDescription = (desc: string): string => {
-    // Check if the description contains specific patterns
+
+  const translateDescription = (desc: string): string => {
     if (desc.includes('Public Key / Last Code')) {
-      if (desc.includes('GPRS Carrier APN Name')) {
-        return t('Public Key / Last Code / GPRS Carrier APN Name');
-      }
+      if (desc.includes('GPRS Carrier APN Name')) return t('Public Key / Last Code / GPRS Carrier APN Name');
       return t('Public Key / Last Code');
     }
-
-    
     return t(desc);
   };
 
+  const codeTypeLabel = (ct: CodeType | null) => {
+    switch (ct) {
+      case 'days': return t('Days Code');
+      case 'free': return t('Free Code');
+      case 'reset': return t('Reset Code');
+      case 'retrieve': return t('Retrieved Code');
+      default: return t('Code');
+    }
+  };
+
+  const codeTypeColor = (ct: CodeType | null) => {
+    switch (ct) {
+      case 'free': return '#10b981';
+      case 'reset': return '#f59e0b';
+      default: return 'var(--accent)';
+    }
+  };
+
+  const remainingDays = rcrdCharacteristic
+    ? (updatedValues[rcrdCharacteristic.uuid] ?? rcrdCharacteristic.realVal ?? null)
+    : null;
+
+  const pubkValue = pubkCharacteristic
+    ? (updatedValues[pubkCharacteristic.uuid] || updatedValue || pubkCharacteristic.realVal || null)
+    : null;
+
   return (
-    <div className="max-w-md mx-auto bg-gradient-to-b from-[#24272C] to-[#0C0C0E] min-h-screen text-white">
-      <Toaster />
+    <div className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 1 }}>
       <AsciiStringModal
         isOpen={asciiModalOpen}
         onClose={() => setAsciiModalOpen(false)}
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || t('Public Key / Last Code / GPRS Carrier APN Name')}
       />
-      <div className="p-4 flex items-center">
-        <button onClick={handleBack} className="mr-4">
-          <ArrowLeft className="w-6 h-6 text-gray-400" />
-        </button>
-        <h1 className="text-lg font-semibold flex-1">{t('Device Details')}</h1>
-        <Share2 className="w-5 h-5 text-gray-400" />
+
+
+      {/* Device Info */}
+      <div className="flex flex-col items-center p-6 pb-3">
+        <img src={device.imageUrl} alt={device.name || 'Device'} className="w-32 h-32 object-contain mb-3" />
+        <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{device.name || t('Unknown Device')}</h2>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{device.macAddress || t('Unknown MAC')}</p>
       </div>
-      <div className="flex flex-col items-center p-6 pb-2">
-        <img
-          src={device.imageUrl}
-          alt={device.name || 'Device'}
-          className="w-40 h-40 object-contain mb-4"
-        />
-        <h2 className="text-xl font-semibold">{device.name || t('Unknown Device')}</h2>
-        <p className="text-sm text-gray-400 mt-1">{device.macAddress || t('Unknown MAC')}</p>
-        <p className="text-sm text-gray-400 mt-1">{device.rssi || t('Unknown RSSI')}</p>
-      </div>
-      <div className="p-4">
-        <div className="mb-6">
-          <div className="flex items-center space-x-2 mb-3">
-            <label className="text-sm font-medium text-slate-300">{t('Duration')}</label>
+
+      <div className="p-4 max-w-md mx-auto">
+        {/* Stat Row: Remaining Days + Current Code Value */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div
+            className="rounded-xl p-3"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Calendar size={14} style={{ color: 'var(--accent)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Remaining Days')}</span>
+            </div>
+            {rcrdCharacteristic ? (
+              <span className="text-2xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
+                {remainingDays ?? t('N/A')}
+              </span>
+            ) : (
+              <span className="text-sm animate-pulse" style={{ color: 'var(--text-muted)' }}>{t('Loading...')}</span>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { value: 1, label: t('1 Day') },
-              { value: 3, label: t('3 Days') },
-            ].map((option) => (
-              <label
-                key={option.value}
-                className={`relative cursor-pointer transition-all duration-200 ${
-                  duration === option.value
-                    ? 'transform scale-105'
-                    : 'hover:scale-102'
-                }`}
+          <div
+            className="rounded-xl p-3"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Clipboard size={14} style={{ color: 'var(--accent)' }} />
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Current Code')}</span>
+            </div>
+            {pubkCharacteristic ? (
+              <span
+                className="text-lg font-bold font-mono block truncate"
+                style={{ color: 'var(--text-primary)' }}
+                title={pubkValue || 'N/A'}
               >
-                <input
-                  type="radio"
-                  name="duration"
-                  value={option.value}
-                  checked={duration === option.value}
-                  onChange={handleDurationChange}
-                  className="sr-only"
-                />
-                <div
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                    duration === option.value
-                      ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
-                      : 'border-slate-600 bg-slate-700/30 hover:border-slate-500'
-                  }`}
+                {pubkValue || t('N/A')}
+              </span>
+            ) : (
+              <span className="text-sm animate-pulse" style={{ color: 'var(--text-muted)' }}>{t('Loading...')}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Device Identification Status */}
+        {!itemId && (
+          <div
+            className="rounded-xl p-3 mb-4 flex items-center gap-3"
+            style={{
+              background: identifyError ? 'var(--color-error-soft, rgba(239,68,68,0.08))' : 'var(--bg-secondary)',
+              border: `1px solid ${identifyError ? 'var(--color-error)' : 'var(--border)'}`,
+            }}
+          >
+            {isIdentifying ? (
+              <>
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs flex-1" style={{ color: 'var(--text-secondary)' }}>{t('Identifying device...')}</span>
+              </>
+            ) : identifyError ? (
+              <>
+                <AlertCircle size={16} style={{ color: 'var(--color-error)' }} />
+                <span className="text-xs flex-1" style={{ color: 'var(--color-error)' }}>{identifyError}</span>
+                <button
+                  className="text-xs font-semibold px-3 py-1 rounded-lg flex-shrink-0"
+                  style={{ color: 'var(--accent)', background: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}
+                  onClick={fetchItemId}
                 >
-                  <div className="text-center">
-                    <div className="font-semibold text-white">{option.label}</div>
+                  {t('Retry')}
+                </button>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={16} style={{ color: 'var(--text-muted)' }} />
+                <span className="text-xs flex-1" style={{ color: 'var(--text-muted)' }}>{t('Waiting for device identification...')}</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Code Operations */}
+        <div className="space-y-3 mb-4">
+          {/* Days Code */}
+          <div
+            className="rounded-xl p-4"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent-soft)' }}>
+                <Clock size={18} style={{ color: 'var(--accent)' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Days Code')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Time-limited access')}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-1.5 flex-1">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  className="form-input"
+                  style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600, width: '70px', flexShrink: 0 }}
+                  placeholder="0"
+                  value={daysInput}
+                  onChange={handleDaysInputChange}
+                />
+                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                  {t('days')}
+                </span>
+              </div>
+              <button
+                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
+                style={{
+                  minHeight: 40,
+                  padding: '10px 18px',
+                  fontSize: 14,
+                  background: isBusy || !duration
+                    ? 'var(--bg-tertiary)'
+                    : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
+                  color: isBusy || !duration ? 'var(--text-muted)' : '#fff',
+                  opacity: isBusy || !duration ? 0.5 : 1,
+                  border: isBusy || !duration ? '1px solid var(--border)' : 'none',
+                  cursor: isBusy || !duration ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleGenerateDaysCode}
+                disabled={isBusy || !duration}
+              >
+                {isBusy && result.codeType === 'days' ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+                  </span>
+                ) : (
+                  t('Generate')
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Free Code */}
+          <div
+            className="rounded-xl p-4"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#10b98118' }}>
+                <Unlock size={18} style={{ color: '#10b981' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Free Code')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Unlock without time limit')}</p>
+              </div>
+              <button
+                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
+                style={{
+                  minHeight: 40,
+                  padding: '10px 18px',
+                  fontSize: 14,
+                  background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: isBusy ? 'var(--text-muted)' : '#fff',
+                  opacity: isBusy ? 0.5 : 1,
+                  border: isBusy ? '1px solid var(--border)' : 'none',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleGenerateFreeCode}
+                disabled={isBusy}
+              >
+                {isBusy && result.codeType === 'free' ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+                  </span>
+                ) : (
+                  t('Generate')
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Reset Code */}
+          <div
+            className="rounded-xl p-4"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#f59e0b18' }}>
+                <RotateCcw size={18} style={{ color: '#f59e0b' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Reset Code')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Restore to default state')}</p>
+              </div>
+              <button
+                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
+                style={{
+                  minHeight: 40,
+                  padding: '10px 18px',
+                  fontSize: 14,
+                  background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: isBusy ? 'var(--text-muted)' : '#fff',
+                  opacity: isBusy ? 0.5 : 1,
+                  border: isBusy ? '1px solid var(--border)' : 'none',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleGenerateResetCode}
+                disabled={isBusy}
+              >
+                {isBusy && result.codeType === 'reset' ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={14} className="animate-spin" />
+                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
+                  </span>
+                ) : (
+                  t('Generate')
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Result Card */}
+        {result.status !== 'idle' && (
+          <div
+            className="rounded-xl overflow-hidden mb-4 transition-all duration-300"
+            style={{
+              border: `1px solid ${
+                result.status === 'error' ? 'var(--color-error)'
+                : result.status === 'writeFailed' ? '#f59e0b'
+                : result.status === 'written' ? 'var(--color-success)'
+                : result.status === 'generating' ? 'var(--border)'
+                : codeTypeColor(result.codeType) + '66'
+              }`,
+              background: result.status === 'error' ? 'var(--color-error-soft, rgba(239,68,68,0.08))'
+                : result.status === 'writeFailed' ? 'rgba(245,158,11,0.08)'
+                : result.status === 'written' ? 'var(--color-success-soft, rgba(16,185,129,0.08))'
+                : 'var(--bg-secondary)',
+            }}
+          >
+            {/* Generating state */}
+            {result.status === 'generating' && (
+              <div className="p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-tertiary)' }}>
+                  <Loader2 size={20} className="animate-spin" style={{ color: codeTypeColor(result.codeType) }} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {result.codeType === 'retrieve' ? t('Retrieving last code...') : t('Generating code...')}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{codeTypeLabel(result.codeType)}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Generated / Writing / Written states */}
+            {(result.status === 'generated' || result.status === 'writing' || result.status === 'written' || result.status === 'writeFailed') && result.codeDec && (
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-md"
+                      style={{
+                        background: codeTypeColor(result.codeType) + '22',
+                        color: codeTypeColor(result.codeType),
+                      }}
+                    >
+                      {codeTypeLabel(result.codeType)}
+                    </span>
                   </div>
-                  {duration === option.value && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                      <Check className="w-3 h-3 text-white" />
+                  <button
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                    onClick={() => {
+                      if (result.codeDec) {
+                        navigator.clipboard.writeText(result.codeDec);
+                        toast.success(t('Code copied to clipboard'));
+                      }
+                    }}
+                  >
+                    <Clipboard size={16} />
+                  </button>
+                </div>
+                <p
+                  className="text-3xl font-bold font-mono tracking-wider mb-3 text-center"
+                  style={{ color: codeTypeColor(result.codeType) }}
+                >
+                  {result.codeDec}
+                </p>
+                {/* Write status */}
+                <div
+                  className="flex items-center gap-2 rounded-lg px-3 py-2"
+                  style={{ background: 'var(--bg-tertiary)' }}
+                >
+                  {result.status === 'writing' && (
+                    <>
+                      <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                      <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Writing code to device...')}
+                      </span>
+                    </>
+                  )}
+                  {result.status === 'generated' && (
+                    <>
+                      <CheckCircle size={14} style={{ color: 'var(--accent)' }} />
+                      <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        {t('Code generated successfully')}
+                      </span>
+                    </>
+                  )}
+                  {result.status === 'written' && (
+                    <>
+                      <CheckCircle size={14} style={{ color: 'var(--color-success, #10b981)' }} />
+                      <span className="text-xs font-medium" style={{ color: 'var(--color-success, #10b981)' }}>
+                        {t('Written to device successfully')}
+                      </span>
+                    </>
+                  )}
+                  {result.status === 'writeFailed' && (
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={14} style={{ color: '#f59e0b' }} />
+                        <span className="text-xs font-medium" style={{ color: '#f59e0b' }}>
+                          {result.error || t('Failed to write to device')}
+                        </span>
+                      </div>
+                      <button
+                        className="text-xs font-semibold px-2 py-1 rounded-md transition-colors"
+                        style={{ color: 'var(--accent)', background: 'var(--bg-secondary)' }}
+                        onClick={handleRetryWrite}
+                      >
+                        {t('Retry')}
+                      </button>
                     </div>
                   )}
                 </div>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-3 mb-6">
-          <button
-            className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-              isSubmitting || !duration
-                ? 'bg-gray-500 cursor-not-allowed text-slate-400'
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
-            }`}
-            onClick={handleSubmit}
-            disabled={isSubmitting || !duration}
-          >
-            {isSubmitting ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>{t('Generating...')}</span>
               </div>
-            ) : (
-              t('Generate Code')
             )}
-          </button>
-          <button
-            className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-              isRetrieving
-                ? 'bg-slate-600 cursor-not-allowed text-slate-400'
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40'
-            }`}
-            onClick={handleRetrieveCodes}
-            disabled={isRetrieving}
-          >
-            {isRetrieving ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>{t('Retrieving...')}</span>
+
+            {/* Error state */}
+            {result.status === 'error' && (
+              <div className="p-4 flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                  <AlertCircle size={20} style={{ color: 'var(--color-error)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--color-error)' }}>
+                    {result.codeType === 'retrieve' ? t('Failed to retrieve code') : t('Failed to generate code')}
+                  </p>
+                  <p className="text-xs break-words" style={{ color: 'var(--text-secondary)' }}>{result.error}</p>
+                </div>
+                <button
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors"
+                  style={{
+                    color: 'var(--color-error)',
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                  }}
+                  onClick={() => {
+                    if (result.codeType === 'days') handleGenerateDaysCode();
+                    else if (result.codeType === 'free') handleGenerateFreeCode();
+                    else if (result.codeType === 'reset') handleGenerateResetCode();
+                    else if (result.codeType === 'retrieve') handleRetrieveCodes();
+                  }}
+                >
+                  {t('Try Again')}
+                </button>
               </div>
-            ) : (
-              t('Retrieve Last Code')
             )}
-          </button>
-        </div>
-        {isLoadingService === 'CMD' && (
-          <div className="w-full bg-gray-800 h-1 mb-4 rounded-full overflow-hidden">
-            <div
-              className="bg-blue-500 h-full transition-all duration-300 ease-in-out"
-              style={{ width: `${serviceLoadingProgress}%` }}
-            ></div>
           </div>
         )}
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-white">{t('CMD Service')}</h3>
-          <button
+
+        {/* Retrieve Last Code */}
+        <button
+          className="w-full rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-6"
+          style={{
+            minHeight: 44,
+            padding: '12px 16px',
+            fontSize: 14,
+            background: 'transparent',
+            color: isBusy ? 'var(--text-muted)' : 'var(--text-secondary)',
+            border: '1px dashed var(--border)',
+            cursor: isBusy ? 'not-allowed' : 'pointer',
+            opacity: isBusy ? 0.5 : 1,
+          }}
+          onMouseEnter={(e) => {
+            if (!isBusy) {
+              e.currentTarget.style.borderColor = 'var(--accent)';
+              e.currentTarget.style.color = 'var(--accent)';
+              e.currentTarget.style.background = 'var(--bg-secondary)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isBusy) {
+              e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+              e.currentTarget.style.background = 'transparent';
+            }
+          }}
+          onClick={handleRetrieveCodes}
+          disabled={isBusy}
+        >
+          {isBusy && result.codeType === 'retrieve' ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              {t('Retrieving...')}
+            </>
+          ) : (
+            <>
+              <Download size={16} />
+              {t('Retrieve Last Code')}
+            </>
+          )}
+        </button>
+
+        {/* CMD Service */}
+        {isLoadingService === 'CMD' && (
+          <div className="w-full h-1 mb-4 rounded-full overflow-hidden" style={{ background: 'var(--bg-tertiary)' }}>
+            <div
+              className="h-full transition-all duration-300 ease-in-out"
+              style={{ width: `${serviceLoadingProgress}%`, background: 'var(--accent)' }}
+            />
+          </div>
+        )}
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>{t('CMD Service')}</h3>
+          <div
             onClick={handleRefreshService}
-            className="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
-            disabled={isLoadingService !== null}
+            className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all ${isLoadingService ? 'animate-spin' : ''}`}
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-secondary)',
+              cursor: isLoadingService ? 'not-allowed' : 'pointer',
+              opacity: isLoadingService ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoadingService) {
+                e.currentTarget.style.color = 'var(--accent)';
+                e.currentTarget.style.borderColor = 'var(--accent)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoadingService) {
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+              }
+            }}
           >
-            <RefreshCw size={14} className={isLoadingService ? 'animate-spin' : ''} />
-            <span>{t('Refresh')}</span>
-          </button>
+            <RefreshCw size={14} />
+          </div>
         </div>
         {cmdService && pubkCharacteristic ? (
-          <div className="border border-gray-700 rounded-lg overflow-hidden">
-            <div className="flex justify-between items-center bg-gray-800 px-4 py-2">
-              <span className="text-sm font-medium">{pubkCharacteristic.name}</span>
+          <div className="rounded-xl overflow-hidden mb-4" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+            <div className="flex justify-between items-center px-4 py-2" style={{ background: 'var(--bg-tertiary)' }}>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{pubkCharacteristic.name}</span>
               <div className="flex space-x-2">
                 <button
-                  className={`text-xs ${
-                    isLoading ? 'bg-gray-500' : 'bg-gray-700 hover:bg-gray-600'
-                  } px-3 py-1 rounded transition-colors`}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, flex: '0 0 auto' }}
                   onClick={handleRead}
                   disabled={isLoading}
                 >
                   {isLoading ? t('Reading...') : t('Read')}
                 </button>
                 <button
-                  className="text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                  className="btn btn-primary"
+                  style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, flex: '0 0 auto' }}
                   onClick={handleWriteClick}
                 >
-                  Write
+                  {t('Write')}
                 </button>
               </div>
             </div>
-            <div className="p-4 space-y-2">
+            <div className="p-3 space-y-2">
               <div>
-                <p className="text-xs text-gray-400">{t('Description')}</p>
-                <p className="text-sm">{translateDescription(pubkCharacteristic.desc)}</p>
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Description')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-primary)' }}>{translateDescription(pubkCharacteristic.desc)}</p>
               </div>
-              <div className="flex items-center justify-between group">
-                <div className="flex-grow">
-                  <p className="text-xs text-gray-400">{t('Current Value')}</p>
-                  <p className="text-sm font-mono">
-                    {updatedValues[pubkCharacteristic.uuid] || updatedValue || pubkCharacteristic.realVal || 'N/A'}
-                  </p>
+              <div className="flex items-center justify-between">
+                <div className="flex-grow min-w-0">
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Current Value')}</p>
+                  <p className="text-sm font-mono truncate" style={{ color: 'var(--text-primary)' }}>{pubkValue || 'N/A'}</p>
                 </div>
                 <button
-                  className="p-2 text-gray-400 hover:text-blue-500 focus:text-blue-500 transition-colors"
+                  className="p-1.5 transition-colors flex-shrink-0"
+                  style={{ color: 'var(--text-secondary)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
                   onClick={() => {
-                    const valueToCopy = updatedValues[pubkCharacteristic.uuid] || updatedValue || pubkCharacteristic.realVal || 'N/A';
-                    navigator.clipboard.writeText(String(valueToCopy));
+                    navigator.clipboard.writeText(String(pubkValue || 'N/A'));
                     toast.success(t('Value copied to clipboard'));
                   }}
                   aria-label="Copy to clipboard"
                 >
-                  <Clipboard size={16} />
+                  <Clipboard size={14} />
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-4 text-center mb-4" style={{ color: 'var(--text-secondary)' }}>
             {isLoadingService === 'CMD' ? (
-              <p>{t('Loading CMD service data...')}</p>
+              <p className="text-sm">{t('Loading CMD service data...')}</p>
             ) : (
-              <p>{t('No data available for CMD service')}</p>
+              <p className="text-sm">{t('No data available for CMD service')}</p>
             )}
           </div>
         )}
