@@ -206,6 +206,10 @@ const KeypadApp: React.FC = () => {
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
+      keypadLog('startConnection — calling connBleByMacAddress', {
+        macRaw: macAddress,
+        macJson: JSON.stringify(macAddress),
+      });
       connBleByMacAddress(macAddress);
       connectTimeoutRef.current = setTimeout(() => {
         connectTimeoutRef.current = null;
@@ -342,7 +346,11 @@ const KeypadApp: React.FC = () => {
         setConnectedDevice(macAddress);
         setIsScanning(false);
         const d = { serviceName: "ATT", macAddress };
-        keypadLog('BLE connected; initializing ATT service on device', macAddress);
+        keypadLog('BLE connect success — MAC stored to sessionStorage', {
+          macRaw: macAddress,
+          macJson: JSON.stringify(macAddress),
+          macLength: macAddress?.length,
+        });
         setLoadingService("ATT");
         initServiceBleData(d);
         resp(macAddress);

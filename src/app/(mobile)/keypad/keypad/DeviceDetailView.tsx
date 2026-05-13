@@ -200,8 +200,15 @@ useEffect(() => {
     const connectedRaw =
       typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
     const targetMac = device.macAddress?.trim();
-    console.info(targetMac, "Target Mac")
-    console.info(connectedRaw, "Connected Raw")
+
+    keypadLog('write: MAC check', {
+      sessionMacRaw: connectedRaw,
+      sessionMacJson: JSON.stringify(connectedRaw),
+      sessionMacLength: connectedRaw?.length,
+      scanMacRaw: targetMac,
+      scanMacJson: JSON.stringify(targetMac),
+    });
+
     if (!targetMac) {
       keypadWarn('write: blocked — no device MAC');
       toast.error(t("Device not connected. Please reconnect and try again."));
@@ -220,19 +227,21 @@ useEffect(() => {
       return;
     }
 
+    const macToSend = connectedRaw!.trim();
     const valueStr = String(value);
-    keypadLog('write: request', {
+    keypadLog('write: sending to native', {
       characteristic: char.name,
       charUuid: char.uuid,
       cmdServiceUuid: cmdService.uuid,
-      targetMac,
+      macToSendRaw: macToSend,
+      macToSendJson: JSON.stringify(macToSend),
       valueLength: valueStr.length,
       valueHasSentinels: valueStr.includes(START_SENTINEL) && valueStr.includes(END_SENTINEL),
     });
 
     setLoadingStates((prev) => ({ ...prev, [char.uuid]: true }));
 
-    writeBleCharacteristic(cmdService.uuid, char.uuid, value, connectedRaw!.trim(), (responseData: any) => {
+    writeBleCharacteristic(cmdService.uuid, char.uuid, value, macToSend, (responseData: any) => {
       setLoadingStates((prev) => ({ ...prev, [char.uuid]: false }));
 
       const rawLog =
