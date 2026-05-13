@@ -258,6 +258,7 @@ export default function SalesFlow({
       setScannedBatteryPending(battery);
       // Note: No scan success toast here - only show notification when binding is complete
       // This avoids double notifications (scan success + bind success)
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
@@ -266,6 +267,7 @@ export default function SalesFlow({
     },
     onError: (error, requiresReset) => {
       console.error('BLE error via hook:', error, { requiresReset });
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
@@ -817,6 +819,11 @@ export default function SalesFlow({
 
   // Scanner timeout ref - resets isScannerOpening if no result received
   const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  /** True after we asked the native layer to open the scanner (used to recover stale UI if no JS callback fires). */
+  const qrScanInitiatedRef = useRef(false);
+  
+  /** True while we consider a native QR scan "in flight" — updated synchronously (unlike React state). */
+  const qrScannerBusyRef = useRef(false);
   
   // Clear scanner timeout
   const clearScannerTimeout = useCallback(() => {
@@ -828,38 +835,79 @@ export default function SalesFlow({
   
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
-    // Prevent multiple scanner opens
-    if (isScannerOpening) {
-      return;
-    }
-    
-    if (!window.WebViewJavascriptBridge) {
-      toast.error('Unable to access camera');
+    // Use a ref guard: React state (isScannerOpening) is stale until the next render.
+    // handleScanVehicle calls setIsScannerOpening(false) then startQrCodeScan() in the same tick;
+    // with a state-only guard the first tap would no-op ("double tap to scan").
+    if (qrScannerBusyRef.current) {
       return;
     }
 
+    if (!bridge || !isBridgeReady || !window.WebViewJavascriptBridge) {
+      toast.error(
+        t('sales.scannerBridgeNotReady') ||
+          'Scanner is not ready yet. Wait a moment and try again.'
+      );
+      return;
+    }
+
+    qrScannerBusyRef.current = true;
     setIsScannerOpening(true);
+    qrScanInitiatedRef.current = true;
     
     // Safety timeout - reset isScannerOpening if no result after 60 seconds
     // This handles cases where user cancels the scanner or there's an error
     clearScannerTimeout();
     scannerTimeoutRef.current = setTimeout(() => {
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
+      qrScanInitiatedRef.current = false;
     }, 60000);
     
     window.WebViewJavascriptBridge.callHandler(
       'startQrCodeScan',
       999,
       (responseData: string) => {
-        // QR scan initiated
+        console.info('[SalesFlow] startQrCodeScan native ack:', responseData);
       }
     );
+  }, [clearScannerTimeout, bridge, isBridgeReady, t]);
+
+  // If the native scanner closes without invoking scanQrcodeResultCallBack (common on some WebViews),
+  // isScannerOpening can stay true and block all further taps. Mirror AttendantFlow: recover on resume.
+  useEffect(() => {
+    let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => {
+          pendingTimeout = null;
+          if (isScannerOpening) {
+            console.info('[SalesFlow] Resetting scanner UI — returned to app without QR callback');
+            qrScannerBusyRef.current = false;
+            setIsScannerOpening(false);
+            scanTypeRef.current = null;
+            clearScannerTimeout();
+          }
+          qrScanInitiatedRef.current = false;
+          qrScannerBusyRef.current = false;
+        }, 500);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pendingTimeout) clearTimeout(pendingTimeout);
+    };
   }, [isScannerOpening, clearScannerTimeout]);
 
   // Reset scanner state when navigating between steps so a pending
   // scanner open from a previous visit doesn't block interaction.
   useEffect(() => {
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     clearScannerTimeout();
   }, [currentStep, clearScannerTimeout]);
 
@@ -881,7 +929,9 @@ export default function SalesFlow({
   // @param force - If true, forces cancellation even during active reading (used by timeout)
   const cancelBleOperation = useCallback((force?: boolean) => {
     hookCancelOperation(force);
+    qrScannerBusyRef.current = false;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
     scanTypeRef.current = null;
   }, [hookCancelOperation]);
 
@@ -920,6 +970,8 @@ export default function SalesFlow({
       window.WebViewJavascriptBridge.registerHandler(
         'scanQrcodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
+          qrScanInitiatedRef.current = false;
+          qrScannerBusyRef.current = false;
           // Reset scanner opening state and clear timeout when result is received
           clearScannerTimeout();
           setIsScannerOpening(false);
@@ -1537,7 +1589,7 @@ export default function SalesFlow({
   // - Products are added to the order via updateSessionWithProducts (PUT /api/sessions/by-order/{orderId})
   // - No STK push - salesperson collects payment receipt manually from customer
   // - Payment confirmation uses confirmPaymentManual with order_id
-  const initiateOdooPayment = useCallback(async (orderId?: number): Promise<boolean> => {
+  const initiateOdooPayment = useCallback((orderId?: number): boolean => {
     // Use passed orderId or fall back to state
     const orderIdToUse = orderId || paymentRequestOrderId;
     
@@ -1581,13 +1633,14 @@ export default function SalesFlow({
   }, [selectedPackageId, availablePackages, selectedPlanId, availablePlans, paymentRequestOrderId]);
 
   // Handle payment confirmation via QR scan
-  const handlePaymentQrScan = useCallback(async () => {
-    // First initiate payment if not already done
-    if (!paymentInitiated) {
-      await initiateOdooPayment();
-    }
-    
+  const handlePaymentQrScan = useCallback(() => {
     scanTypeRef.current = 'payment';
+    // Keep this synchronous through to startQrCodeScan: some Android WebViews only open
+    // the camera when callHandler runs in the same user-gesture turn (no await/microtask gap).
+    if (!paymentInitiated) {
+      const ok = initiateOdooPayment();
+      if (!ok) return;
+    }
     startQrCodeScan();
   }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
 
@@ -1611,7 +1664,7 @@ export default function SalesFlow({
       // First initiate payment if not already done
       if (!paymentInitiated) {
         console.info('[SalesFlow] Payment not yet initiated, calling initiateOdooPayment...');
-        const initiated = await initiateOdooPayment();
+        const initiated = initiateOdooPayment();
         if (!initiated) {
           console.info('[SalesFlow] initiateOdooPayment failed, aborting');
           setIsProcessing(false);
@@ -1810,7 +1863,9 @@ export default function SalesFlow({
 
   // Handle vehicle scan (QR mode)
   const handleScanVehicle = useCallback(() => {
+    qrScannerBusyRef.current = false;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
     clearScannerTimeout();
     scanTypeRef.current = 'vehicle';
     startQrCodeScan();
@@ -1840,6 +1895,8 @@ export default function SalesFlow({
     
     // Clear scanner state
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     scanTypeRef.current = null;
     
     // Restart BLE scanning for device detection
@@ -1855,6 +1912,8 @@ export default function SalesFlow({
     resetVehicleAssignment();
     autoAdvancedVehicleIdRef.current = null;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     scanTypeRef.current = null;
     toast('Ready to scan a new vehicle');
   }, [resetVehicleAssignment]);
@@ -2172,7 +2231,7 @@ export default function SalesFlow({
           if (purchaseResult && purchaseResult.orderId) {
             // Initialize local payment state
             // Products were already added to order via updateSessionWithProducts
-            const paymentInitiatedSuccess = await initiateOdooPayment(purchaseResult.orderId);
+            const paymentInitiatedSuccess = initiateOdooPayment(purchaseResult.orderId);
             
             // Only advance to payment step if payment initiation was successful
             if (paymentInitiatedSuccess) {

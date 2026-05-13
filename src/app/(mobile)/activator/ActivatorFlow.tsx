@@ -162,12 +162,14 @@ export default function ActivatorFlow({
   } = useFlowBatteryScan({
     onOldBatteryRead: (battery) => {
       setScannedBatteryPending(battery);
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
     onNewBatteryRead: () => {},
     onError: (error, requiresReset) => {
       console.error('BLE error via hook:', error, { requiresReset });
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
@@ -444,6 +446,8 @@ export default function ActivatorFlow({
 
   // Scanner timeout ref
   const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const qrScanInitiatedRef = useRef(false);
+  const qrScannerBusyRef = useRef(false);
 
   const clearScannerTimeout = useCallback(() => {
     if (scannerTimeoutRef.current) {
@@ -454,23 +458,60 @@ export default function ActivatorFlow({
 
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
-    if (isScannerOpening) return;
-    if (!window.WebViewJavascriptBridge) {
-      toast.error('Unable to access camera');
+    if (qrScannerBusyRef.current) return;
+    if (!bridge || !isBridgeReady || !window.WebViewJavascriptBridge) {
+      toast.error(
+        t('activator.scannerBridgeNotReady') ||
+          'Scanner is not ready yet. Wait a moment and try again.'
+      );
       return;
     }
+    qrScannerBusyRef.current = true;
     setIsScannerOpening(true);
+    qrScanInitiatedRef.current = true;
     clearScannerTimeout();
     scannerTimeoutRef.current = setTimeout(() => {
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
+      qrScanInitiatedRef.current = false;
     }, 60000);
     window.WebViewJavascriptBridge.callHandler('startQrCodeScan', 999, () => {});
+  }, [clearScannerTimeout, bridge, isBridgeReady, t]);
+
+  useEffect(() => {
+    let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => {
+          pendingTimeout = null;
+          if (isScannerOpening) {
+            console.info('[ActivatorFlow] Resetting scanner UI — returned without QR callback');
+            qrScannerBusyRef.current = false;
+            setIsScannerOpening(false);
+            scanTypeRef.current = null;
+            clearScannerTimeout();
+          }
+          qrScanInitiatedRef.current = false;
+          qrScannerBusyRef.current = false;
+        }, 500);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pendingTimeout) clearTimeout(pendingTimeout);
+    };
   }, [isScannerOpening, clearScannerTimeout]);
 
   // Reset scanner state when navigating between steps so a pending
   // scanner open from a previous visit doesn't block interaction.
   useEffect(() => {
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     clearScannerTimeout();
   }, [currentStep, clearScannerTimeout]);
 
@@ -479,7 +520,9 @@ export default function ActivatorFlow({
   const stopBleScan = useCallback(() => { hookStopScanning(); }, [hookStopScanning]);
   const cancelBleOperation = useCallback((force?: boolean) => {
     hookCancelOperation(force);
+    qrScannerBusyRef.current = false;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
     scanTypeRef.current = null;
   }, [hookCancelOperation]);
 
@@ -501,6 +544,8 @@ export default function ActivatorFlow({
       window.WebViewJavascriptBridge.registerHandler(
         'scanQrcodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
+          qrScanInitiatedRef.current = false;
+          qrScannerBusyRef.current = false;
           clearScannerTimeout();
           setIsScannerOpening(false);
 
@@ -554,7 +599,9 @@ export default function ActivatorFlow({
 
   // Action handlers
   const handleScanVehicle = useCallback(() => {
+    qrScannerBusyRef.current = false;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
     clearScannerTimeout();
     scanTypeRef.current = 'vehicle';
     startQrCodeScan();
@@ -574,6 +621,8 @@ export default function ActivatorFlow({
     setScannedBatteryPending(null);
     hookResetState();
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     scanTypeRef.current = null;
     if (bleIsReady) startBleScan();
     toast('Ready to scan a new battery');
@@ -584,6 +633,8 @@ export default function ActivatorFlow({
     resetVehicleAssignment();
     autoAdvancedVehicleIdRef.current = null;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     scanTypeRef.current = null;
     toast('Ready to scan a new vehicle');
   }, [resetVehicleAssignment]);

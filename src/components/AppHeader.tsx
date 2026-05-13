@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn, ArrowLeft } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -49,6 +49,7 @@ interface AppHeaderProps {
 
 export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack, title, actions }: AppHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const avatarBtnRef = useRef<HTMLButtonElement>(null);
@@ -60,10 +61,11 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     return getOdooEmployee();
   }, []);
 
+  /** Re-read when routes change so the chip updates after SA selection / switch. */
   const selectedSA = useMemo(() => {
     if (typeof window === 'undefined') return null;
     return getSelectedSA();
-  }, []);
+  }, [pathname]);
 
   const handleBack = useCallback(() => {
     if (onBack) {
@@ -171,8 +173,19 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
             <span className="flow-header-title">{title}</span>
           )}
 
-          {/* Right: theme toggle + contextual actions or avatar */}
+          {/* Right: active SA (when signed in), theme toggle, contextual actions or avatar */}
           <div className="flow-header-right">
+            {selectedSA && !onSignIn && (
+              <button
+                type="button"
+                className="app-header-sa-chip"
+                onClick={handleSwitchSA}
+                aria-label={`${t('sa.switchAccount') || 'Switch Service Account'}: ${selectedSA.name}`}
+              >
+                <Layers size={11} aria-hidden />
+                <span className="app-header-sa-chip-name">{selectedSA.name}</span>
+              </button>
+            )}
             <ThemeToggle />
             {actions != null ? actions : onSignIn ? (
               <button

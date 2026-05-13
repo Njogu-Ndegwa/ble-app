@@ -6572,6 +6572,49 @@ html.theme-transition *::after {
   gap: 8px;
 }
 
+/* Compact current service account — tap runs same flow as profile → Switch SA */
+.app-header-sa-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(148px, 42vw);
+  padding: 5px 8px;
+  background: var(--accent-soft, rgba(0, 229, 229, 0.08));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--color-brand);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.app-header-sa-chip:hover {
+  background: var(--accent-soft, rgba(0, 229, 229, 0.14));
+  border-color: var(--accent);
+}
+
+.app-header-sa-chip:active {
+  transform: scale(0.98);
+}
+
+.app-header-sa-chip svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.app-header-sa-chip-name {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
 .flow-header-back {
   display: flex;
   align-items: center;
