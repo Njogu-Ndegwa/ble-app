@@ -295,8 +295,8 @@ const MyDevicesApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
-            const norm = bleMacForNative(d.macAddress);
-            if (norm) d.macAddress = norm;
+            d.macAddress =
+              bleMacForNative(d.macAddress) ?? String(d.macAddress).trim().toUpperCase();
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);

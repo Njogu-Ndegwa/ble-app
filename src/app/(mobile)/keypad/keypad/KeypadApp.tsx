@@ -277,9 +277,10 @@ const KeypadApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
-            // Normalize MAC to uppercase+trimmed so it always matches the value
-            // stored by bleConnectSuccessCallBack, regardless of OS/device format.
-            d.macAddress = d.macAddress.trim().toUpperCase();
+            // Same normalization as connBleByMacAddress / session MAC so list rows match
+            // selectedDevice after connect (avoids hyphen vs colon mismatches).
+            d.macAddress =
+              bleMacForNative(d.macAddress) ?? d.macAddress.trim().toUpperCase();
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
