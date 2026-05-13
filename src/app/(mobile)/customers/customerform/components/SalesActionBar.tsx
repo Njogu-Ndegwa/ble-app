@@ -26,6 +26,7 @@ interface SalesActionBarProps {
 
 // Icon components for action bar
 const ActionIcons = {
+  qr: <Camera size={18} />,
   arrow: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -71,7 +72,11 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', ha
       // Preview step - Review order before payment
       return { showBack: true, mainTextKey: 'sales.proceedToPayment', mainIcon: 'arrow' };
     case 5:
-      return { showBack: true, mainTextKey: 'sales.confirmPayment', mainIcon: 'check' };
+      return {
+        showBack: true,
+        mainTextKey: 'sales.confirmPayment',
+        mainIcon: paymentInputMode === 'manual' ? 'check' : 'qr',
+      };
     case 6:
       // Vehicle scan step - Show "Continue" if vehicle scanned, "Scan Vehicle" otherwise
       if (hasVehicleScanned) {

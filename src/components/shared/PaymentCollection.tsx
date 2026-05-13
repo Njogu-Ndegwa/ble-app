@@ -2,12 +2,14 @@
 
 import React from 'react';
 import { useI18n } from '@/i18n';
-import { InputMode } from './types';
+import ScannerArea from './ScannerArea';
+import InputModeToggle from './InputModeToggle';
+import { InputMode, getInitials } from './types';
 
 interface CustomerInfo {
   name: string;
   initials?: string;
-  /** Subscription ID - primary identifier for the customer */
+  /** Subscription ID — shown when available instead of name/avatar */
   subscriptionId?: string;
 }
 
@@ -47,27 +49,16 @@ interface PaymentCollectionProps {
 
 /**
  * PaymentCollection - Reusable payment collection component
- * 
+ *
  * Handles the common pattern of:
  * 1. Showing customer and amount
  * 2. Toggle between scan and manual entry
  * 3. QR scanner or text input
  * 4. Partial payment handling
- * 
+ *
  * Used in:
  * - Attendant Step 5: Collect Payment
  * - Sales Step 5: Confirm Payment
- * 
- * @example
- * <PaymentCollection
- *   amount={500}
- *   customer={{ name: "John Doe" }}
- *   inputMode={inputMode}
- *   onInputModeChange={setInputMode}
- *   paymentId={paymentId}
- *   onPaymentIdChange={setPaymentId}
- *   onScan={handleScan}
- * />
  */
 export default function PaymentCollection({
   amount,
@@ -86,27 +77,32 @@ export default function PaymentCollection({
   className = '',
 }: PaymentCollectionProps) {
   const { t } = useI18n();
-  
+
+  const customerInitials = customer?.initials || (customer?.name ? getInitials(customer.name) : '');
   const displayTitle = title || t('attendant.collectPayment') || 'Collect Payment';
   const displayPlaceholder = placeholder || t('sales.enterTransactionId') || 'Enter transaction ID';
-  
+
   const hasPartialPayment = partialPayment && partialPayment.amountPaid > 0;
 
   return (
     <div className={`payment-collection ${className}`}>
-      {/* Compact Customer + Amount Header */}
       <div className="payment-header-compact">
         {customer?.subscriptionId && (
           <div className="payment-customer-mini">
             <span className="payment-subscription-id">{customer.subscriptionId}</span>
           </div>
         )}
+        {customer && !customer.subscriptionId && (
+          <div className="payment-customer-mini">
+            <div className="payment-customer-avatar">{customerInitials}</div>
+            <span className="payment-customer-name">{customer.name}</span>
+          </div>
+        )}
         <div className="payment-amount-large">
           {currencySymbol} {amount.toLocaleString()}
         </div>
       </div>
-      
-      {/* Partial Payment Warning */}
+
       {hasPartialPayment && (
         <PartialPaymentBanner
           amountPaid={partialPayment.amountPaid}
@@ -117,21 +113,62 @@ export default function PaymentCollection({
 
       <div className="payment-scan">
         <h2 className="payment-title">{displayTitle}</h2>
-        
-        <ManualModeContent
-          paymentId={paymentId}
-          onPaymentIdChange={onPaymentIdChange}
-          placeholder={displayPlaceholder}
-          isProcessing={isProcessing}
+
+        <InputModeToggle
+          mode={inputMode}
+          onModeChange={onInputModeChange}
+          scanLabel={t('attendant.scanQr') || 'Scan QR'}
+          manualLabel={t('attendant.enterId') || 'Enter ID'}
+          disabled={isProcessing}
         />
+
+        {inputMode === 'scan' ? (
+          <ScanModeContent
+            onScan={onScan}
+            isScannerOpening={isScannerOpening}
+          />
+        ) : (
+          <ManualModeContent
+            paymentId={paymentId}
+            onPaymentIdChange={onPaymentIdChange}
+            placeholder={displayPlaceholder}
+            isProcessing={isProcessing}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-// ============================================
-// SUB-COMPONENTS
-// ============================================
+function ScanModeContent({
+  onScan,
+  isScannerOpening,
+}: {
+  onScan?: () => void;
+  isScannerOpening: boolean;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div className="payment-input-mode">
+      <p className="payment-subtitle">
+        {t('attendant.enterMpesaCode') || 'Scan M-Pesa payment code'}
+      </p>
+
+      <ScannerArea
+        onClick={onScan || (() => {})}
+        type="qr"
+        disabled={!!isScannerOpening}
+        label={t('common.tapToScan') || 'Tap to scan'}
+      />
+
+      <p className="scan-hint">
+        <InfoIcon />
+        {t('sales.scanPaymentQrCode') || 'Scan the payment QR code'}
+      </p>
+    </div>
+  );
+}
 
 function ManualModeContent({
   paymentId,
@@ -145,7 +182,7 @@ function ManualModeContent({
   isProcessing: boolean;
 }) {
   const { t } = useI18n();
-  
+
   return (
     <div className="payment-input-mode payment-input-mode-manual">
       <div className="manual-entry-form">
@@ -153,9 +190,9 @@ function ManualModeContent({
           <label className="form-label">
             {t('attendant.transactionCode') || 'Transaction Code'}
           </label>
-          <input 
-            type="text" 
-            className="form-input manual-id-input" 
+          <input
+            type="text"
+            className="form-input manual-id-input"
             placeholder={placeholder}
             value={paymentId}
             onChange={(e) => onPaymentIdChange(e.target.value)}
@@ -164,7 +201,7 @@ function ManualModeContent({
           />
         </div>
       </div>
-      
+
       <p className="scan-hint">
         <InfoIcon />
         {t('sales.tapConfirmToProcess') || 'Tap confirm to process payment'}
@@ -183,7 +220,7 @@ function PartialPaymentBanner({
   currencySymbol: string;
 }) {
   const { t } = useI18n();
-  
+
   return (
     <div className="partial-payment-warning" style={{
       background: 'var(--color-warning-soft)',
@@ -193,23 +230,23 @@ function PartialPaymentBanner({
       margin: '0 16px 16px 16px',
       textAlign: 'center',
     }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        gap: '8px', 
-        marginBottom: '8px' 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        marginBottom: '8px',
       }}>
         <WarningIcon />
         <span style={{ fontWeight: '600', color: 'var(--color-warning)', fontSize: '14px' }}>
           {t('attendant.partialPayment') || 'Partial Payment Received'}
         </span>
       </div>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        gap: '16px' 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '16px',
       }}>
         <div style={{ textAlign: 'center', flex: 1 }}>
           <div style={{ fontSize: '12px', color: 'var(--color-warning)', marginBottom: '4px' }}>
@@ -236,18 +273,14 @@ function PartialPaymentBanner({
   );
 }
 
-// ============================================
-// ICON COMPONENTS
-// ============================================
-
 function InfoIcon() {
   return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
       strokeLinejoin="round"
     >
       <circle cx="12" cy="12" r="10"/>
@@ -258,13 +291,13 @@ function InfoIcon() {
 
 function WarningIcon() {
   return (
-    <svg 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       style={{ width: '24px', height: '24px' }}
     >
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>

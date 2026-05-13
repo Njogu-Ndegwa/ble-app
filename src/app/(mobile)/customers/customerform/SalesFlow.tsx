@@ -2202,11 +2202,13 @@ export default function SalesFlow({
           paymentInitiated,
           paymentRequestOrderId,
         });
-        if (manualPaymentId.trim()) {
+        if (paymentInputMode === 'scan') {
+          handlePaymentQrScan();
+        } else if (manualPaymentId.trim()) {
           console.info('[SalesFlow] Confirming payment with transaction ID:', manualPaymentId.trim());
           handleManualPayment(manualPaymentId.trim());
         } else {
-          console.info('[SalesFlow] No transaction ID entered');
+          toast.error(t('sales.enterTransactionId'));
         }
         break;
       case 6:
