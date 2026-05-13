@@ -107,6 +107,7 @@ export default function ActivatorFlow({
     isLoading: catalogLoading,
     errors: catalogErrors,
     selectedPackageId,
+    selectedPackage,
     selectedPlanId,
     selectedPlan,
     setSelectedPackageId,
@@ -1008,6 +1009,17 @@ export default function ActivatorFlow({
       identifyCustomer({ subscriptionCode: confirmedSubscriptionCode, source: 'manual' });
     }
   }, [currentStep, confirmedSubscriptionCode, customerIdentified, isIdentifying, identifyCustomer]);
+
+  // Debug: Step 3 lists service plans — log UI list vs full catalog (backend details logged in useProductCatalog)
+  useEffect(() => {
+    if (currentStep !== 3) return;
+    console.info('[ActivatorFlow] Step 3 Service plans — selected package (drives PRODUCT_SERVICE_MAP filter)', {
+      selectedPackageId,
+      selectedPackageName: selectedPackage?.name,
+    });
+    console.info('[ActivatorFlow] Step 3 Service plans — all loaded from backend (before package filter)', availablePlans);
+    console.info('[ActivatorFlow] Step 3 Service plans — shown in Step3SelectSubscription (filteredPlans)', filteredPlans);
+  }, [currentStep, selectedPackageId, selectedPackage, availablePlans, filteredPlans]);
 
   // Render step content
   const renderStepContent = () => {

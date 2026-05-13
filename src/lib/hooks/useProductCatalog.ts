@@ -502,9 +502,27 @@ export function useProductCatalog(
           setErrors(prev => ({ ...prev, packages: 'No products available from server. Please try again or contact support.' }));
         }
 
-        // Process plans
+        // Process plans (backend: categories.service → SubscriptionProduct[])
         if (data.products?.length > 0) {
+          console.info('[PRODUCT CATALOG] Service plans from backend (raw Odoo / categories.service)', {
+            count: data.products.length,
+            items: data.products.map((p) => ({
+              id: p.id,
+              name: p.name,
+              default_code: p.default_code,
+              description: p.description,
+              list_price: p.list_price,
+              currency_name: p.currency_name,
+              currencySymbol: p.currencySymbol,
+              category_name: p.category_name,
+              recurring_invoice: p.recurring_invoice,
+              pu_category: p.pu_category,
+              pu_metric: p.pu_metric,
+              service_type: p.service_type,
+            })),
+          });
           const transformedPlans = data.products.map(transformPlan);
+          console.info('[PRODUCT CATALOG] Service plans after transformPlan (UI PlanData)', transformedPlans);
           transformedPlans.sort((a, b) => Number(a.price) - Number(b.price));
           setPlans(transformedPlans);
           setErrors(prev => ({ ...prev, plans: null }));
