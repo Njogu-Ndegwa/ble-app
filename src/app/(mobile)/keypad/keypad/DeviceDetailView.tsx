@@ -199,6 +199,8 @@ useEffect(() => {
     const connectedRaw =
       typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
     const targetMac = device.macAddress?.trim();
+    console.info(targetMac, "Target Mac")
+    console.info(connectedRaw, "Connected Raw")
     if (!targetMac) {
       keypadWarn('write: blocked — no device MAC');
       toast.error(t("Device not connected. Please reconnect and try again."));
