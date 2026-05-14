@@ -944,6 +944,7 @@
   "mqtt.reconnectingIn": "Reconnecting in {{seconds}}s...",
   "mqtt.reconnected": "Connection restored",
   "mqtt.reconnectFailed": "Connection failed. Tap to retry.",
+  "mqtt.offlineError": "Unable to connect. Please check your network connection.",
   "mqtt.maxRetriesReached": "Unable to connect after multiple attempts. Please check your network.",
   "mqtt.manualReconnect": "Tap to reconnect",
   "Please log in to find stations.": "Please log in to find stations.",

@@ -105,7 +105,7 @@ export default function SalesCustomers() {
       const token = getSalesRoleToken() || '';
       const result = query?.trim()
         ? await searchCustomers(query, token)
-        : await getAllCustomers(1, 50, token);
+        : await getAllCustomers(1, 20, token);
       setCustomers(result.customers);
     } catch {
       toast.error(t('sales.fetchCustomersError') || 'Failed to load customers');
@@ -246,10 +246,11 @@ export default function SalesCustomers() {
 
     try {
       const token = getSalesRoleToken() || '';
+      const rawPhoneDigits = formData.phone.replace(/\D/g, '');
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email.trim(),
-        phone: formData.phone.replace(/\D/g, ''),
+        phone: rawPhoneDigits.length >= 7 ? rawPhoneDigits : '',
         street: formData.street.trim(),
         city: formData.city.trim(),
         zip: formData.zip.trim(),

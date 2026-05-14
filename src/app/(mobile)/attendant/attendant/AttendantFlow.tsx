@@ -1439,7 +1439,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     }
 
     if (!isMqttConnected) {
-      toast.error('MQTT not connected. Please wait a moment and try again.');
+      toast.error(
+        !navigator.onLine
+          ? 'Unable to connect. Please check your network connection.'
+          : 'MQTT not connected. Please wait a moment and try again.'
+      );
       console.error('Attempted to scan customer but MQTT is not connected');
       return;
     }

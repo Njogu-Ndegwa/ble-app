@@ -1222,10 +1222,9 @@ export default function SalesFlow({
       }
 
       // Phone number is already in E.164 format without + prefix from PhoneInputWithCountry
-      let phoneNumber = '';
-      if (formData.phone.trim()) {
-        phoneNumber = formData.phone.replace(/\D/g, '');
-      }
+      // Use same 7-digit minimum as validation to avoid sending bare dial codes (e.g. "254")
+      const rawPhoneDigits = formData.phone.replace(/\D/g, '');
+      const phoneNumber = rawPhoneDigits.length >= 7 ? rawPhoneDigits : '';
 
       const customerData = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -1945,7 +1944,11 @@ export default function SalesFlow({
   const handleCompleteService = useCallback(async () => {
     // Guard: Check MQTT connection before proceeding
     if (!isMqttConnected) {
-      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      toast.error(
+        !navigator.onLine
+          ? (t('mqtt.offlineError') || 'Unable to connect. Please check your network connection.')
+          : t('MQTT not connected. Please wait a moment and try again.')
+      );
       console.error('[SALES SERVICE] Cannot complete service - MQTT not connected');
       return;
     }

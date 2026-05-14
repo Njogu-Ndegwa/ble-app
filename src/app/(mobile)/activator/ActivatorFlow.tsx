@@ -656,7 +656,11 @@ export default function ActivatorFlow({
   // Complete service - report via MQTT
   const handleCompleteService = useCallback(async () => {
     if (!isMqttConnected) {
-      toast.error(t('activator.mqttNotConnected') || 'MQTT not connected. Please wait a moment and try again.');
+      toast.error(
+        !navigator.onLine
+          ? (t('mqtt.offlineError') || 'Unable to connect. Please check your network connection.')
+          : (t('activator.mqttNotConnected') || 'MQTT not connected. Please wait a moment and try again.')
+      );
       return;
     }
     if (!scannedBatteryPending) {
