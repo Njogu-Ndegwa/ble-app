@@ -32,8 +32,9 @@ import {
 } from './components';
 // ProgressiveLoading removed - using simple loading overlay like Attendant flow
 
-// Import customer service for existing customer selection
+// Import customer service for existing customer selection and creation
 import type { ExistingCustomer } from '@/lib/services/customer-service';
+import { createCustomer } from '@/lib/services/customer-service';
 
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
@@ -57,13 +58,11 @@ import type { WorkflowSessionData } from '@/lib/odoo-api';
 
 // Import Odoo API functions
 import {
-  registerCustomer,
   purchaseMultiProducts,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
   type ProductOrderItem,
-  type RegisterCustomerPayload,
 } from '@/lib/odoo-api';
 
 // Import employee auth to get salesperson token and logout
@@ -1211,74 +1210,54 @@ export default function SalesFlow({
     return Object.keys(errors).length === 0;
   }, [formData]);
 
-  // Register customer in Odoo using /api/auth/register
-  // Sends name, email, phone, street, city, zip (company_id is derived from salesperson token)
+  // Create customer in Odoo using /api/contacts (same endpoint as Customers applet)
   const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
     setIsCreatingCustomer(true);
-    
+
     try {
-      // Get the salesperson's employee token for company association
       const employeeToken = getSalesRoleToken();
-      
+
       if (!employeeToken) {
-        console.warn('No employee token found - customer may not be associated with correct company');
+        console.warn('No employee token found');
       }
-      
+
       // Phone number is already in E.164 format without + prefix from PhoneInputWithCountry
-      // The component handles country code selection (e.g., +228 for Togo, +254 for Kenya)
-      // So we just need to clean it up (remove any spaces or non-digit characters)
       let phoneNumber = '';
       if (formData.phone.trim()) {
-        // Remove spaces and non-digit characters, but keep all digits
-        // PhoneInputWithCountry already includes the country code (e.g., 2281234567890 or 2541234567890)
         phoneNumber = formData.phone.replace(/\D/g, '');
       }
 
-      const registrationPayload: RegisterCustomerPayload = {
+      const customerData = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email.trim(),
+        phone: phoneNumber,
         street: formData.street,
         city: formData.city,
         zip: formData.zip,
+        isCompany: false,
       };
 
-      // Only include email if provided
-      if (formData.email.trim()) {
-        registrationPayload.email = formData.email.trim();
-      }
+      console.log('Creating customer via /api/contacts:', customerData);
 
-      // Only include phone if provided
-      if (phoneNumber) {
-        registrationPayload.phone = phoneNumber;
-      }
+      const response = await createCustomer(customerData, employeeToken || '');
 
-      console.log('Registering customer in Odoo:', registrationPayload);
-
-      // Pass the employee token so Odoo can derive the company_id
-      const response = await registerCustomer(registrationPayload, employeeToken || undefined);
-      
-      // Log full response for debugging
-      console.log('Odoo registration response:', JSON.stringify(response, null, 2));
       console.info('[SalesFlow] Customer creation response:', response);
 
-      if (response.success && response.session) {
-        const { session } = response;
-        
-        console.log('Customer registered successfully:', session.user);
-        
-        // Store customer data
-        setCreatedCustomerId(session.user.id);
-        setCreatedPartnerId(session.user.partner_id);
-        setCustomerSessionToken(session.token);
-        
-        // Store password for display on receipt
-        setCustomerPassword(response.plain_password || null);
-        console.log('Customer password:', response.plain_password || 'null');
-        
-        // Create backend session after customer registration
-        // This creates an order/session linked to the customer
+      if (response.success && response.customer) {
+        const { customer } = response;
+
+        console.log('Customer created successfully:', customer);
+
+        // Store customer data (same fields as existing-customer path)
+        setCreatedCustomerId(customer.id);
+        setCreatedPartnerId(customer.partnerId);
+        setCustomerSessionToken(null);
+        setCustomerPassword(null);
+
+        // Create backend session after customer creation
         try {
           const initialSessionData = buildSalesSessionData({
-            currentStep: 2, // Moving to step 2
+            currentStep: 2,
             maxStepReached: 2,
             actor: {
               id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
@@ -1287,9 +1266,9 @@ export default function SalesFlow({
             formData,
             selectedPackageId,
             selectedPlanId,
-            createdCustomerId: session.user.id,
-            createdPartnerId: session.user.partner_id,
-            customerSessionToken: session.token,
+            createdCustomerId: customer.id,
+            createdPartnerId: customer.partnerId,
+            customerSessionToken: null,
             subscriptionData: null,
             paymentState: {
               initiated: false,
@@ -1313,15 +1292,15 @@ export default function SalesFlow({
             },
             scannedVehicleId: null,
             registrationId: '',
-            customerPassword: response.plain_password || null,
+            customerPassword: null,
           });
-          
+
           const orderId = await createSalesSession(
-            session.user.partner_id, // Use partner_id as customer_id for backend
+            customer.partnerId,
             DEFAULT_COMPANY_ID,
             initialSessionData
           );
-          
+
           if (orderId) {
             console.info('✅ [SalesFlow] Backend session created — sessionOrderId set to:', orderId);
           } else {
@@ -1329,18 +1308,17 @@ export default function SalesFlow({
           }
         } catch (err) {
           console.error('❌ [SalesFlow] Failed to create backend session (non-blocking):', err);
-          console.error('❌ [SalesFlow] sessionOrderId will be NULL — session updates will NOT work');
         }
-        
-        toast.success('Customer registered successfully!');
+
+        toast.success('Customer created successfully!');
         return true;
       } else {
         console.error('Unexpected response structure:', response);
-        throw new Error('Registration failed - no session returned');
+        throw new Error('Customer creation failed');
       }
     } catch (error: any) {
-      console.error('Failed to register customer:', error);
-      toast.error(error.message || 'Failed to register customer. Please try again.');
+      console.error('Failed to create customer:', error);
+      toast.error(error.message || 'Failed to create customer. Please try again.');
       return false;
     } finally {
       setIsCreatingCustomer(false);
@@ -1707,7 +1685,15 @@ export default function SalesFlow({
         // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
         // (Odoo API sometimes returns fields at root level, sometimes wrapped in data)
         const paymentData = response.data || (response as any);
-        
+
+        // Detect already-used receipt before proceeding
+        if (paymentData.is_duplicate || paymentData.receipt_used || paymentData.receipt_status === 'used') {
+          const errorMsg = paymentData.message || paymentData.note || 'Payment reference already used. Please use a different transaction ID.';
+          toast.error(errorMsg);
+          setIsProcessing(false);
+          return;
+        }
+
         // Store subscription code for battery allocation (from response or from subscriptionData state)
         setConfirmedSubscriptionCode(paymentData.subscription_code || subscriptionData?.subscriptionCode || '');
         setPaymentReference(paymentData.receipt || receipt);

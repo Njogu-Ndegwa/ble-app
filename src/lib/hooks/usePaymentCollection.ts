@@ -494,6 +494,15 @@ export function usePaymentCollection(
 
         if (response.success) {
           const responseData = response.data || (response as any);
+
+          // Detect already-used receipt before proceeding
+          if (responseData.is_duplicate || responseData.receipt_used || responseData.receipt_status === 'used') {
+            const errorMsg = responseData.message || responseData.note || 'Payment reference already used. Please use a different transaction ID.';
+            toast.error(errorMsg);
+            setIsProcessing(false);
+            return;
+          }
+
           const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
           const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
 
