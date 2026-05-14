@@ -3,13 +3,8 @@ import { setContext } from "@apollo/client/link/context";
 import { onError } from "@apollo/client/link/error";
 import { REFRESH_TOKEN } from "@/app/(auth)/mutations";
 
-// Determine the API URL based on the current location
-const isWvApp = typeof window !== "undefined" && window.location.origin === "https://wvapp.omnivoltaic.com";
-
 // Federated GraphQL API - for ERM/Thing microservices (BLE Device Manager, etc.)
-export const apiUrl = isWvApp
-  ? "https://federated-graphql-api.omnivoltaic.com/graphql"
-  : "https://dev-federated-graphql-api.omnivoltaic.com/graphql";
+export const apiUrl = "https://federated-graphql-api.omnivoltaic.com/graphql";
 
 // ABS Platform GraphQL API - for Attendant & Sales workflows (customer identification, payment/service)
 export const absApiUrl = "https://abs-platform-dev.omnivoltaic.com/graphql";
