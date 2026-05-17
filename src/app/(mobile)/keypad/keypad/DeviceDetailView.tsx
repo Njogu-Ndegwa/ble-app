@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
-import { Clipboard } from 'lucide-react';
+import { Clipboard, Loader2 } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
@@ -48,6 +48,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -123,7 +124,12 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []); // ← FIXED: Empty array - runs only once on mount
 
-
+  // Clear refreshing indicator once both services finish reloading
+  useEffect(() => {
+    if (isRefreshing && isLoadingService === null) {
+      setIsRefreshing(false);
+    }
+  }, [isLoadingService, isRefreshing]);
 
   /* ----------------- hydrate initial pubk / rcrd ------------------- */
   useEffect(() => {
@@ -457,11 +463,13 @@ useEffect(() => {
         if (rcrdUuid) delete next[rcrdUuid];
         return next;
       });
-      // Re-init CMD & STS so device returns the freshly applied values
+      // Wait 3 s more (2 s already elapsed in writeCharacteristic = 5 s total)
+      // before re-init so the device has time to process the code
       setTimeout(() => {
+        setIsRefreshing(true);
         onRequestServiceData?.('CMD');
         onRequestServiceData?.('STS');
-      }, 500);
+      }, 3000);
     });
     setDigitInput('');
   };
@@ -476,7 +484,12 @@ useEffect(() => {
       {/* pubk card */}
       <div className="rounded-lg p-4 w-3/4" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         <div className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{t('Last Code')}</div>
-        {pubkCharacteristic ? (
+        {isRefreshing ? (
+          <div className="min-h-8 flex items-center gap-1.5">
+            <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
+          </div>
+        ) : pubkCharacteristic ? (
           <div className="min-h-8 flex items-center">
             <div className="font-mono text-sm overflow-hidden overflow-ellipsis w-5/6 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
               {getDisplayValue(pubkCharacteristic)}
@@ -504,7 +517,9 @@ useEffect(() => {
       <div className="rounded-lg p-4 w-1/4 flex flex-col" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         <div className="text-sm mb-2 text-center" style={{ color: 'var(--text-secondary)' }}>{t('Days')}</div>
         <div className="flex items-center justify-center min-h-8">
-          {rcrdCharacteristic ? (
+          {isRefreshing ? (
+            <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+          ) : rcrdCharacteristic ? (
             <span className="text-xl font-medium" style={{ color: 'var(--text-primary)' }}>{getDisplayValue(rcrdCharacteristic)}</span>
           ) : (
             <div className="w-full flex justify-center py-2 animate-pulse text-sm" style={{ color: 'var(--text-muted)' }}>
