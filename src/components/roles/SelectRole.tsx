@@ -131,10 +131,21 @@ const ALL_ROLES: RoleConfig[] = [
 
 const IDLE_THRESHOLD_MS = 2 * 60 * 1000;
 const NAV_TIMEOUT_MS = 3000;
+const ROLE_SEEN_KEY = 'oves-role-seen';
 
 export default function SelectRole({ onSwitchSA }: Props) {
   const router = useRouter();
   const { t } = useI18n();
+
+  // Skip the stagger animation when returning from an applet — the user has
+  // already seen the entrance animation and the delay makes icons look slow.
+  const isReturn = useRef(false);
+  useEffect(() => {
+    try {
+      isReturn.current = sessionStorage.getItem(ROLE_SEEN_KEY) === 'true';
+      sessionStorage.setItem(ROLE_SEEN_KEY, 'true');
+    } catch { /* ignore */ }
+  }, []);
 
   const hiddenAtRef = useRef<number | null>(null);
   const wasIdleRef = useRef(false);
@@ -299,7 +310,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
                 key={role.id}
                 className={`role-app ${role.disabled ? 'disabled' : ''}`}
                 onClick={() => handleRoleClick(role)}
-                style={{ animationDelay: `${i * 30}ms` }}
+                style={{ animationDelay: isReturn.current ? '0ms' : `${i * 30}ms` }}
               >
                 <div className={`role-app-icon ${role.icon.gradient}`}>
                   {role.icon.type === 'image' ? (
