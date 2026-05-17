@@ -37,6 +37,10 @@ import { resetPassword } from '@/lib/odoo-api';
 
 type SubView = 'list' | 'detail' | 'edit' | 'create';
 
+// Session-level cache: survives component remounts so returning to the list
+// is instant while a background refresh runs.
+let _cache: { customers: ExistingCustomer[]; total: number } | null = null;
+
 interface CustomerFormState {
   firstName: string;
   lastName: string;
@@ -65,8 +69,11 @@ export default function SalesCustomers() {
   const [selectedCustomer, setSelectedCustomer] = useState<ExistingCustomer | null>(null);
 
   // List state
-  const [customers, setCustomers] = useState<ExistingCustomer[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [customers, setCustomers] = useState<ExistingCustomer[]>(_cache?.customers ?? []);
+  const [isLoading, setIsLoading] = useState(_cache === null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(_cache?.total ?? 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [period, setPeriod] = useState<ListPeriod>('all');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -99,34 +106,51 @@ export default function SalesCustomers() {
   // ------------------------------------------------------------------
   // Data fetching
   // ------------------------------------------------------------------
-  const fetchCustomers = useCallback(async (query?: string) => {
-    setIsLoading(true);
+  const PAGE_SIZE = 20;
+
+  const fetchCustomers = useCallback(async (query?: string, pageNum = 1, append = false) => {
+    if (append) setIsLoadingMore(true);
+    else setIsLoading(true);
     try {
       const token = getSalesRoleToken() || '';
       const result = query?.trim()
         ? await searchCustomers(query, token)
-        : await getAllCustomers(1, 20, token);
-      setCustomers(result.customers);
+        : await getAllCustomers(pageNum, PAGE_SIZE, token);
+      const incoming = result.customers;
+      setCustomers(prev => append ? [...prev, ...incoming] : incoming);
+      setTotalItems(result.total);
+      setPage(pageNum);
+      // Only cache unfiltered page-1 results
+      if (!query?.trim() && pageNum === 1) {
+        _cache = { customers: incoming, total: result.total };
+      }
     } catch {
       toast.error(t('sales.fetchCustomersError') || 'Failed to load customers');
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   }, [t]);
+
+  const loadMore = useCallback(() => {
+    fetchCustomers(searchQuery, page + 1, true);
+  }, [fetchCustomers, searchQuery, page]);
 
   // Debounced search (also handles the initial load via the first render)
   const isFirstLoadRef = useRef(true);
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const delay = isFirstLoadRef.current ? 0 : 300;
+    // First load: 0ms delay if cache exists (background refresh), else immediate
+    const delay = isFirstLoadRef.current ? (_cache ? 0 : 0) : 300;
     isFirstLoadRef.current = false;
     debounceRef.current = setTimeout(() => {
-      fetchCustomers(searchQuery);
+      fetchCustomers(searchQuery, 1, false);
     }, delay);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchQuery, fetchCustomers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   // Apply date filter client-side
   const filteredCustomers = React.useMemo(() => {
@@ -352,7 +376,7 @@ export default function SalesCustomers() {
         period={period}
         onPeriodChange={setPeriod}
         isLoading={isLoading}
-        onRefresh={() => fetchCustomers()}
+        onRefresh={() => fetchCustomers(searchQuery, 1, false)}
         isEmpty={filteredCustomers.length === 0}
         emptyIcon={<User size={28} className="text-text-muted" />}
         emptyMessage={
@@ -399,6 +423,20 @@ export default function SalesCustomers() {
             </div>
           </button>
         ))}
+        {!searchQuery.trim() && customers.length < totalItems && (
+          <div style={{ padding: '8px 0 4px', display: 'flex', justifyContent: 'center' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              style={{ minWidth: 140 }}
+            >
+              {isLoadingMore
+                ? (t('common.loading') || 'Loading…')
+                : `${t('common.loadMore') || 'Load more'} (${totalItems - customers.length} ${t('sales.remaining') || 'remaining'})`}
+            </button>
+          </div>
+        )}
       </ListScreen>
     );
   }
