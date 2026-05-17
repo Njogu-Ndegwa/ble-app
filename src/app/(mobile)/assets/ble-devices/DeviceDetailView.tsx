@@ -761,13 +761,17 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
-          if (userWrittenValues[characteristicUuid] === undefined) {
-            toast.success(`${name} read successfully`);
-            setUpdatedValues((prev) => ({
-              ...prev,
-              [characteristicUuid]: data.realVal,
-            }));
-          }
+          toast.success(`${name} read successfully`);
+          setUpdatedValues((prev) => ({
+            ...prev,
+            [characteristicUuid]: data.realVal,
+          }));
+          // Device read is ground truth — discard any stale user-written value
+          setUserWrittenValues((prev) => {
+            const next = { ...prev };
+            delete next[characteristicUuid];
+            return next;
+          });
         } else {
           toast.error(`Failed to read ${name}`);
         }
@@ -890,6 +894,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             }
           }, 2000); // Increased to 2000ms for better reliability with multiple devices
         } else {
+          // Write rejected — remove the optimistically stored value so the
+          // display reverts to the real device value and reads work normally
+          setUserWrittenValues((prev) => {
+            const next = { ...prev };
+            delete next[activeCharacteristic.uuid];
+            return next;
+          });
+          setUpdatedValues((prev) => {
+            const next = { ...prev };
+            delete next[activeCharacteristic.uuid];
+            return next;
+          });
           toast.error(
             t("Failed to write {name}: {error}", {
               name: activeCharacteristic.name,
