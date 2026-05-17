@@ -281,11 +281,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           setResult((prev) => ({ ...prev, status: 'written' }));
           setTimeout(() => {
             const stillConnected = sessionStorage.getItem('connectedDeviceMac');
-            if (
-              stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()
-            ) {
-              handleRead();
-              readRcrd();
+            if (stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()) {
+              // Clear stale local reads so fresh service data drives the display
+              setUpdatedValues((prev) => {
+                const next = { ...prev };
+                delete next[foundPubk.uuid];
+                if (rcrdCharacteristic) delete next[rcrdCharacteristic.uuid];
+                return next;
+              });
+              setUpdatedValue(null);
+              // Re-init CMD & STS so device returns freshly applied values
+              onRequestServiceDataRef.current?.('CMD');
+              onRequestServiceDataRef.current?.('STS');
             }
           }, 2000);
         } else {
@@ -294,6 +301,9 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       }
     );
   }, [attributeList, device.macAddress, handleRead, readRcrd, t]);
+
+  const onRequestServiceDataRef = useRef(onRequestServiceData);
+  useEffect(() => { onRequestServiceDataRef.current = onRequestServiceData; });
 
   const [daysInput, setDaysInput] = useState('');
 

@@ -448,13 +448,20 @@ useEffect(() => {
       hasSts: !!stsService,
     });
     writeCharacteristic(pubkCharacteristic, payloadFormatted, () => {
-      // Refresh both Last Code and Days - delay gives device time to process the write
+      // Clear stale local reads so the service reload drives the display
+      const pubkUuid = pubkCharacteristic.uuid;
+      const rcrdUuid = rcrdCharacteristic?.uuid;
+      setUpdatedValues((prev) => {
+        const next = { ...prev };
+        delete next[pubkUuid];
+        if (rcrdUuid) delete next[rcrdUuid];
+        return next;
+      });
+      // Re-init CMD & STS so device returns the freshly applied values
       setTimeout(() => {
-        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name);
-        if (stsService && rcrdCharacteristic) {
-          handleRead(stsService.uuid, rcrdCharacteristic.uuid, rcrdCharacteristic.name);
-        }
-      }, 1500);
+        onRequestServiceData?.('CMD');
+        onRequestServiceData?.('STS');
+      }, 500);
     });
     setDigitInput('');
   };
