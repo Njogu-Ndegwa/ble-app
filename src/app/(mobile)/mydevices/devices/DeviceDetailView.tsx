@@ -60,6 +60,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [isIdentifying, setIsIdentifying] = useState(false);
 
   const [result, setResult] = useState<ResultState>(INITIAL_RESULT);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const isBusy = result.status === 'generating' || result.status === 'writing';
 
@@ -168,6 +169,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     if (!stsService) onRequestServiceData('STS');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Clear refreshing indicator once both services finish reloading
+  useEffect(() => {
+    if (isRefreshing && isLoadingService === null) {
+      setIsRefreshing(false);
+    }
+  }, [isLoadingService, isRefreshing]);
 
   const handleRead = useCallback(() => {
     if (!cmdService || !pubkCharacteristic) return;
@@ -279,6 +287,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
         if (writeSuccess) {
           setResult((prev) => ({ ...prev, status: 'written' }));
+          // Wait 5 s — device needs time to process the code before its BLE
+          // characteristics reflect the new values
           setTimeout(() => {
             const stillConnected = sessionStorage.getItem('connectedDeviceMac');
             if (stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()) {
@@ -290,11 +300,12 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                 return next;
               });
               setUpdatedValue(null);
+              setIsRefreshing(true);
               // Re-init CMD & STS so device returns freshly applied values
               onRequestServiceDataRef.current?.('CMD');
               onRequestServiceDataRef.current?.('STS');
             }
-          }, 2000);
+          }, 5000);
         } else {
           setResult((prev) => ({ ...prev, status: 'writeFailed', error: errorMessage || 'Write operation failed' }));
         }
@@ -594,14 +605,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         {/* Stat Row: Remaining Days + Current Code Value */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div
-            className="rounded-xl p-3"
+            className="rounded-xl p-3 relative overflow-hidden"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-1.5 mb-1">
               <Calendar size={14} style={{ color: 'var(--accent)' }} />
               <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Remaining Days')}</span>
             </div>
-            {rcrdCharacteristic ? (
+            {isRefreshing ? (
+              <div className="flex items-center gap-1.5">
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
+              </div>
+            ) : rcrdCharacteristic ? (
               <span className="text-2xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
                 {remainingDays ?? t('N/A')}
               </span>
@@ -610,14 +626,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             )}
           </div>
           <div
-            className="rounded-xl p-3"
+            className="rounded-xl p-3 relative overflow-hidden"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-1.5 mb-1">
               <Clipboard size={14} style={{ color: 'var(--accent)' }} />
               <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Current Code')}</span>
             </div>
-            {pubkCharacteristic ? (
+            {isRefreshing ? (
+              <div className="flex items-center gap-1.5">
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
+              </div>
+            ) : pubkCharacteristic ? (
               <span
                 className="text-lg font-bold font-mono block truncate"
                 style={{ color: 'var(--text-primary)' }}
