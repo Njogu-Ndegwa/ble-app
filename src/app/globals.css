@@ -972,7 +972,7 @@ html.theme-transition *::after {
   gap: 5px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  animation: appletReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: appletReveal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .role-app.disabled {

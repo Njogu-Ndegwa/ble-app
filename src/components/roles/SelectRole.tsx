@@ -299,7 +299,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
                 key={role.id}
                 className={`role-app ${role.disabled ? 'disabled' : ''}`}
                 onClick={() => handleRoleClick(role)}
-                style={{ animationDelay: `${i * 60}ms` }}
+                style={{ animationDelay: `${i * 30}ms` }}
               >
                 <div className={`role-app-icon ${role.icon.gradient}`}>
                   {role.icon.type === 'image' ? (

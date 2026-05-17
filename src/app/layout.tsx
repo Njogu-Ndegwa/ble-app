@@ -28,6 +28,17 @@ export default function RootLayout({
         <link rel="preconnect" href="https://federated-graphql-api.omnivoltaic.com" />
         <link rel="preconnect" href="https://dev-federated-graphql-api.omnivoltaic.com" />
         <link rel="preconnect" href="https://abs-platform-dev.omnivoltaic.com" />
+        {/* Preload applet grid assets so icons are ready when SelectRole renders */}
+        <link rel="preload" as="image" href="/assets/Bikes Oves.png" />
+        <link rel="preload" as="image" href="/assets/Customer.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Products.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Orders.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Rider.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Activator.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Salesperson.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Attendant2.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/Keypad2.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/BleDeviceAttendant.svg" type="image/svg+xml" />
         <style
           dangerouslySetInnerHTML={{
             __html: `
