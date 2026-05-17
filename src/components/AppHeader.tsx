@@ -52,6 +52,8 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
   const pathname = usePathname();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const navResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const avatarBtnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number }>({ top: 0, right: 16 });
@@ -68,12 +70,16 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
   }, [pathname]);
 
   const handleBack = useCallback(() => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+    if (navResetRef.current) clearTimeout(navResetRef.current);
+    navResetRef.current = setTimeout(() => setIsNavigating(false), 600);
     if (onBack) {
       onBack();
     } else {
       router.back();
     }
-  }, [onBack, router]);
+  }, [onBack, router, isNavigating]);
 
   // When opening, compute the fixed position from the avatar button's viewport rect.
   // This escapes any overflow:hidden ancestor (e.g. select-role-container).
@@ -137,6 +143,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
               <button
                 className="flow-header-back"
                 onClick={handleBack}
+                disabled={isNavigating}
                 aria-label={t('common.back') || 'Back'}
               >
                 <ArrowLeft size={18} />

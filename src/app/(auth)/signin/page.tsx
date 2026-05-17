@@ -96,6 +96,7 @@ const LoginPage = () => {
       return;
     }
 
+    setIsLoading(true)
     const authUrl = getMicrosoftAuthUrl()
     saveMicrosoftPendingContext('/', 'sales')
 

@@ -677,6 +677,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
               return;
             }
 
+            setIsSigningIn(true);
             const authUrl = getMicrosoftAuthUrl();
             saveMicrosoftPendingContext(microsoftReturnPath, userType);
 
