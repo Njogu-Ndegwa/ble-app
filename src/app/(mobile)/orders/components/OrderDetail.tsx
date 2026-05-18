@@ -261,22 +261,32 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       try {
         const result = await getDeliveries({ sale_order_id: orderId, limit: 10 });
         if (!cancelled) {
-          setDeliveries(result.deliveries);
-          if (result.deliveries.length > 0 && !selectedDelivery) {
-            // Auto-select first non-done delivery, else the first one
-            const active = result.deliveries.find(
-              (d) => d.state !== 'done' && d.state !== 'cancel',
-            ) ?? result.deliveries[0];
+          // If the API returned nothing, keep any deliveries already seeded from the order response
+          const list = result.deliveries.length > 0 ? result.deliveries : undefined;
+          if (list) setDeliveries(list);
+
+          const effective = list ?? deliveries;
+          if (effective.length > 0 && !selectedDelivery) {
+            const active =
+              effective.find((d) => d.state !== 'done' && d.state !== 'cancel') ??
+              effective[0];
             setSelectedDelivery(active);
           }
         }
       } catch {
-        /* keep current */
+        // API failed — auto-select from whatever was seeded from the order response
+        if (!cancelled && deliveries.length > 0 && !selectedDelivery) {
+          const active =
+            deliveries.find((d) => d.state !== 'done' && d.state !== 'cancel') ??
+            deliveries[0];
+          setSelectedDelivery(active);
+        }
       } finally {
         if (!cancelled) setDeliveriesLoading(false);
       }
     })();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep, orderId]);
 
   // Load delivery line detail when a delivery is selected
@@ -595,6 +605,24 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       setSendingProforma(false);
     }
   }, [orderId]);
+
+  const handleRefreshDeliveries = useCallback(async () => {
+    setDeliveriesLoading(true);
+    try {
+      const result = await getDeliveries({ sale_order_id: orderId, limit: 10 });
+      if (result.deliveries.length > 0) {
+        setDeliveries(result.deliveries);
+        if (!selectedDelivery) {
+          const active =
+            result.deliveries.find((d) => d.state !== 'done' && d.state !== 'cancel') ??
+            result.deliveries[0];
+          setSelectedDelivery(active);
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setDeliveriesLoading(false);
+    }
+  }, [orderId, selectedDelivery]);
 
   const handleToggleEditMode = useCallback(() => {
     setIsEditingLines((prev) => {
@@ -1185,6 +1213,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               stockMap={stockMap}
               onSelectDelivery={setSelectedDelivery}
               onValidate={handleValidateDelivery}
+              onRefreshDeliveries={handleRefreshDeliveries}
             />
           )}
 
@@ -1430,6 +1459,7 @@ interface DeliveryStepProps {
   stockMap: Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }>;
   onSelectDelivery: (d: DeliveryEntity) => void;
   onValidate: (lines: ValidateDeliveryLine[], forceBackorder: boolean) => void;
+  onRefreshDeliveries: () => void;
 }
 
 function DeliveryStep({
@@ -1443,6 +1473,7 @@ function DeliveryStep({
   stockMap,
   onSelectDelivery,
   onValidate,
+  onRefreshDeliveries,
 }: DeliveryStepProps) {
   // qty_done per move line — keyed by line.id (the move id)
   const [qtyDoneMap, setQtyDoneMap] = useState<Record<number, number>>({});
@@ -1461,8 +1492,12 @@ function DeliveryStep({
 
   const isAssigned = selectedDelivery?.state === 'assigned';
   const canEdit = isAssigned && !isViewingPastStep;
-  const canValidate = !isViewingPastStep && selectedDelivery !== null &&
-    (selectedDelivery.state === 'assigned' || selectedDelivery.state === 'confirmed');
+  // Allow validate for any active state — the API will handle force-validation
+  const canValidate =
+    !isViewingPastStep &&
+    selectedDelivery !== null &&
+    selectedDelivery.state !== 'done' &&
+    selectedDelivery.state !== 'cancel';
 
   const hasPartial = selectedDelivery?.lines?.some((l) => {
     const done = qtyDoneMap[l.id] ?? l.qty_ordered;
@@ -1488,12 +1523,20 @@ function DeliveryStep({
 
       {/* Delivery list / picker */}
       {!deliveriesLoading && deliveries.length === 0 && (
-        <div className="px-4 py-6 text-center">
-          <Truck size={24} className="mx-auto mb-2 text-text-muted" />
-          <p className="text-xs text-text-muted">No delivery orders found for this sale.</p>
-          <p className="text-[11px] text-text-muted mt-1">
-            This may mean the order only contains service products — no physical dispatch needed.
-          </p>
+        <div className="px-4 py-8 text-center space-y-3">
+          <Truck size={28} className="mx-auto text-text-muted" />
+          <div>
+            <p className="text-sm font-medium text-text-secondary">No deliveries found</p>
+            <p className="text-[11px] text-text-muted max-w-[260px] mx-auto mt-1">
+              Odoo may still be creating the picking. Tap Refresh in a few seconds — if it keeps showing empty, the order may only have service lines.
+            </p>
+          </div>
+          <button
+            onClick={onRefreshDeliveries}
+            className="px-4 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary active:scale-[0.98]"
+          >
+            Refresh
+          </button>
         </div>
       )}
 

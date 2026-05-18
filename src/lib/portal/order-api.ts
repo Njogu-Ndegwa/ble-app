@@ -353,7 +353,9 @@ function mapOrder(raw: any): OrderEntity {
     timeline: [],
     deliveries: Array.isArray(raw.deliveries)
       ? raw.deliveries.map(mapDelivery)
-      : [],
+      : Array.isArray(raw.pickings)
+        ? raw.pickings.map(mapDelivery)
+        : [],
     deliveryStatus: raw.delivery_status ?? raw.deliveryStatus ?? null,
     createdAt:
       raw.created_at ?? raw.createdAt ?? raw.create_date ?? raw.date_order ?? null,
@@ -839,9 +841,15 @@ export async function getStockLevels(
   const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
   const raw = await parseResponse<any>(response, endpoint);
 
+  const levels =
+    raw.levels ??
+    raw.stock_levels ??
+    raw.data ??
+    [];
+
   return {
-    levels: Array.isArray(raw.levels) ? raw.levels : [],
-    total: raw.total ?? 0,
+    levels: Array.isArray(levels) ? levels : [],
+    total: raw.total ?? raw.count ?? 0,
   };
 }
 
@@ -906,9 +914,17 @@ export async function getDeliveries(
   const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
   const raw = await parseResponse<any>(response, endpoint);
 
+  // The backend may use 'deliveries', 'pickings', or 'data' as the array key
+  const rawList: any[] =
+    (Array.isArray(raw.deliveries) ? raw.deliveries : null) ??
+    (Array.isArray(raw.pickings) ? raw.pickings : null) ??
+    (Array.isArray(raw.data) ? raw.data : null) ??
+    (Array.isArray(raw.items) ? raw.items : null) ??
+    [];
+
   return {
-    deliveries: Array.isArray(raw.deliveries) ? raw.deliveries.map(mapDelivery) : [],
-    total: raw.total ?? 0,
+    deliveries: rawList.map(mapDelivery),
+    total: raw.total ?? raw.count ?? rawList.length,
   };
 }
 
@@ -919,7 +935,14 @@ export async function getDelivery(deliveryId: number): Promise<DeliveryEntity> {
   const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
   const raw = await parseResponse<any>(response, endpoint);
 
-  return mapDelivery(raw.delivery ?? raw);
+  // Backend may return { delivery: {...} }, { picking: {...} }, or the object directly
+  const deliveryData =
+    raw.delivery ??
+    raw.picking ??
+    raw.data ??
+    raw;
+
+  return mapDelivery(deliveryData);
 }
 
 export interface ValidateDeliveryLine {
