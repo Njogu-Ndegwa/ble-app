@@ -17,13 +17,12 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { LoadingState } from '@/components/ui/State';
+import { LoadingState, EmptyState } from '@/components/ui/State';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getContacts, getProducts, type OdooContact } from '@/lib/odoo-api';
 import type { OdooProduct, OrderEntity, CustomerEntity } from '@/lib/portal/types';
 import {
   createQuotation,
-  sendOrder,
   formatCurrency,
   getPriceLists,
   getPriceListPrice,
@@ -79,6 +78,10 @@ function mapContact(c: OdooContact): CustomerEntity {
 }
 
 export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
+  const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
+  const [clientRef, setClientRef] = useState('');
+  const [note, setNote] = useState('');
+
   const [priceLists, setPriceLists] = useState<PriceList[]>(DEMO_PRICE_LISTS);
   const [priceListsLoading, setPriceListsLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerEntity | null>(null);
@@ -599,6 +602,9 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
       const result = await createQuotation({
         customer_id: Number(selectedCustomer.id),
+        pricelist_id: selectedPriceList.odooId ?? undefined,
+        client_order_ref: clientRef.trim() || undefined,
+        note: note.trim() || undefined,
         products: lines.map((l) => ({
           product_id: l.productId,
           quantity: l.quantity,
@@ -611,13 +617,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         return;
       }
 
-      try {
-        await sendOrder(Number(result.order.id));
-      } catch {
-        // Send may fail but quotation is still created
-      }
-
-      toast.success('Order created!');
+      toast.success('Quotation created!');
       onCreated(result.order);
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to create order.');
@@ -630,145 +630,208 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
   const hasActiveDiscount =
     totalSavings > 0 || (!selectedPriceList.isDefault && (selectedPriceList.rules.length > 0 || selectedPriceList.odooId !== null));
 
+  const WIZARD_STEPS = ['Customer', 'Products', 'Review'];
+
   return (
     <div className="flex flex-col h-full">
       {/* ─── Header ─── */}
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <button
-          onClick={onCancel}
+          onClick={wizardStep > 0 ? () => setWizardStep((wizardStep - 1) as 0 | 1 | 2) : onCancel}
           className="p-2 -ml-2 rounded-lg hover:bg-bg-elevated transition-colors"
           aria-label="Back"
         >
           <ArrowLeft size={20} className="text-text-primary" />
         </button>
         <h2 className="text-lg font-semibold text-text-primary">New Quotation</h2>
-      </div>
-
-      {/* ─── Context bar: Customer + Price List as compact pills ─── */}
-      <div className="px-4 pb-2 flex gap-2">
-        <button
-          ref={customerTriggerRef}
-          onClick={() => {
-            setShowCustomerDropdown(!showCustomerDropdown);
-            if (!showCustomerDropdown) setShowPriceListPicker(false);
-          }}
-          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
-          style={{
-            borderColor: selectedCustomer ? 'var(--color-brand)' : 'var(--border-default)',
-            backgroundColor: selectedCustomer ? 'var(--color-brand-soft, rgba(255,200,0,0.06))' : 'var(--bg-tertiary)',
-          }}
-        >
-          <User size={14} className="shrink-0" style={{ color: selectedCustomer ? 'var(--color-brand)' : 'var(--text-muted)' }} />
-          <span className="text-sm truncate" style={{ color: selectedCustomer ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-            {selectedCustomer ? selectedCustomer.name : 'Customer'}
-          </span>
-          {selectedCustomer ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); }}
-              className="ml-auto shrink-0 p-0.5 rounded"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <X size={13} />
-            </button>
-          ) : (
-            <ChevronDown size={14} className="ml-auto shrink-0 text-text-muted" />
-          )}
-        </button>
-
-        <button
-          ref={priceListTriggerRef}
-          onClick={() => {
-            setShowPriceListPicker(!showPriceListPicker);
-            if (!showPriceListPicker) setShowCustomerDropdown(false);
-          }}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
-          style={{
-            borderColor: hasActiveDiscount ? 'var(--color-success)' : 'var(--border-default)',
-            backgroundColor: hasActiveDiscount ? 'var(--color-success-soft)' : 'var(--bg-tertiary)',
-          }}
-        >
-          <Tag size={13} style={{ color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-muted)' }} />
-          <span
-            className="text-xs font-medium max-w-[100px] truncate"
-            style={{ color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-secondary)' }}
-          >
-            {selectedPriceList.name}
-          </span>
-          <ChevronDown
-            size={12}
-            className="shrink-0 transition-transform"
-            style={{
-              color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-muted)',
-              transform: showPriceListPicker ? 'rotate(180deg)' : undefined,
-            }}
-          />
-        </button>
-      </div>
-
-      {/* ─── Selected customer brief ─── */}
-      {selectedCustomer && !showCustomerDropdown && (
-        <div className="mx-4 mb-2 flex items-center gap-2.5 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold"
-            style={{ backgroundColor: 'var(--color-brand)', color: 'var(--text-inverse, #000)' }}
-          >
-            {selectedCustomer.name.charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-text-primary truncate">{selectedCustomer.name}</p>
-            <p className="text-[11px] text-text-muted truncate">
-              {[selectedCustomer.email, selectedCustomer.phone || selectedCustomer.mobile].filter(Boolean).join(' · ') || 'No contact info'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Customer search dropdown ─── */}
-      {showCustomerDropdown && (
-        <div
-          ref={customerDropdownRef}
-          className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg"
-        >
-          <div className="p-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Search size={14} className="text-text-muted" />
+        {/* Step indicator */}
+        <div className="ml-auto flex items-center gap-1.5">
+          {WIZARD_STEPS.map((label, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors"
+                style={{
+                  backgroundColor: i < wizardStep
+                    ? 'var(--color-success)'
+                    : i === wizardStep
+                      ? 'var(--color-brand)'
+                      : 'var(--bg-elevated)',
+                  color: i <= wizardStep ? 'var(--text-inverse, #000)' : 'var(--text-muted)',
+                }}
+              >
+                {i < wizardStep ? '✓' : i + 1}
               </div>
-              <input
-                type="text"
-                placeholder="Search customers..."
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                autoFocus
-                className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+              {i < WIZARD_STEPS.length - 1 && (
+                <div
+                  className="w-4 h-px"
+                  style={{ backgroundColor: i < wizardStep ? 'var(--color-success)' : 'var(--border-default)' }}
+                />
+              )}
             </div>
-          </div>
-          {customersLoading ? (
-            <div className="py-4"><LoadingState size="sm" inline /></div>
-          ) : customers.length === 0 ? (
-            <p className="text-xs py-4 text-center text-text-muted">No customers found.</p>
-          ) : (
-            <div className="max-h-48 overflow-y-auto px-2 pb-2 space-y-1">
-              {customers.map((c) => (
+          ))}
+        </div>
+      </div>
+
+      {/* ─── Step 0: Customer & Details ─── */}
+      {wizardStep === 0 && (
+        <>
+          {/* Customer selector pill */}
+          <div className="px-4 pb-2">
+            <button
+              ref={customerTriggerRef}
+              onClick={() => setShowCustomerDropdown(!showCustomerDropdown)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
+              style={{
+                borderColor: selectedCustomer ? 'var(--color-brand)' : 'var(--border-default)',
+                backgroundColor: selectedCustomer ? 'var(--color-brand-soft, rgba(255,200,0,0.06))' : 'var(--bg-tertiary)',
+              }}
+            >
+              <User size={14} className="shrink-0" style={{ color: selectedCustomer ? 'var(--color-brand)' : 'var(--text-muted)' }} />
+              <span className="text-sm truncate flex-1 text-left" style={{ color: selectedCustomer ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                {selectedCustomer ? selectedCustomer.name : 'Select customer…'}
+              </span>
+              {selectedCustomer ? (
                 <button
-                  key={c.id}
-                  onClick={() => handleSelectCustomer(c)}
-                  className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated"
+                  onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); }}
+                  className="ml-auto shrink-0 p-0.5 rounded"
+                  style={{ color: 'var(--text-muted)' }}
                 >
-                  <span className="font-medium text-text-primary">{c.name}</span>
-                  {(c.email || c.phone) && (
-                    <span className="text-[11px] ml-2 text-text-muted">{c.email || c.phone}</span>
-                  )}
+                  <X size={13} />
                 </button>
-              ))}
+              ) : (
+                <ChevronDown size={14} className="ml-auto shrink-0 text-text-muted" />
+              )}
+            </button>
+          </div>
+
+          {/* Selected customer brief */}
+          {selectedCustomer && !showCustomerDropdown && (
+            <div className="mx-4 mb-2 flex items-center gap-2.5 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold"
+                style={{ backgroundColor: 'var(--color-brand)', color: 'var(--text-inverse, #000)' }}
+              >
+                {selectedCustomer.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-text-primary truncate">{selectedCustomer.name}</p>
+                <p className="text-[11px] text-text-muted truncate">
+                  {[selectedCustomer.email, selectedCustomer.phone || selectedCustomer.mobile].filter(Boolean).join(' · ') || 'No contact info'}
+                </p>
+              </div>
             </div>
           )}
-        </div>
+
+          {/* Customer search dropdown */}
+          {showCustomerDropdown && (
+            <div
+              ref={customerDropdownRef}
+              className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg"
+            >
+              <div className="p-3">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <Search size={14} className="text-text-muted" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search customers..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    autoFocus
+                    className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none"
+                  />
+                </div>
+              </div>
+              {customersLoading ? (
+                <div className="py-4"><LoadingState size="sm" inline /></div>
+              ) : customers.length === 0 ? (
+                <p className="text-xs py-4 text-center text-text-muted">No customers found.</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto px-2 pb-2 space-y-1">
+                  {customers.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleSelectCustomer(c)}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated"
+                    >
+                      <span className="font-medium text-text-primary">{c.name}</span>
+                      {(c.email || c.phone) && (
+                        <span className="text-[11px] ml-2 text-text-muted">{c.email || c.phone}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Optional fields */}
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
+            <input
+              type="text"
+              placeholder="Client order reference (optional)"
+              value={clientRef}
+              onChange={(e) => setClientRef(e.target.value)}
+              className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none placeholder:text-text-muted"
+            />
+            <textarea
+              placeholder="Notes for this quotation (optional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none resize-none placeholder:text-text-muted"
+            />
+          </div>
+
+          {/* Step 0 footer */}
+          <div className="px-4 py-3 border-t border-border">
+            <button
+              onClick={() => setWizardStep(1)}
+              disabled={!selectedCustomer}
+              style={{ backgroundColor: 'var(--color-brand)' }}
+              className="w-full py-3.5 rounded-xl text-black font-semibold text-sm disabled:opacity-40 active:scale-[0.98] transition-transform"
+            >
+              Next: Add Products →
+            </button>
+          </div>
+        </>
       )}
 
-      {/* ─── Price list picker dropdown ─── */}
-      {showPriceListPicker && (
+      {/* ─── Step 1: Products & Pricing ─── */}
+      {wizardStep === 1 && (
+        <>
+          {/* Pricelist pill */}
+          <div className="px-4 pb-2 flex gap-2">
+            <button
+              ref={priceListTriggerRef}
+              onClick={() => setShowPriceListPicker(!showPriceListPicker)}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors active:scale-[0.98]"
+              style={{
+                borderColor: hasActiveDiscount ? 'var(--color-success)' : 'var(--border-default)',
+                backgroundColor: hasActiveDiscount ? 'var(--color-success-soft)' : 'var(--bg-tertiary)',
+              }}
+            >
+              <Tag size={13} style={{ color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-muted)' }} />
+              <span
+                className="text-xs font-medium max-w-[120px] truncate"
+                style={{ color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-secondary)' }}
+              >
+                {selectedPriceList.name}
+              </span>
+              <ChevronDown
+                size={12}
+                className="shrink-0 transition-transform"
+                style={{
+                  color: hasActiveDiscount ? 'var(--color-success)' : 'var(--text-muted)',
+                  transform: showPriceListPicker ? 'rotate(180deg)' : undefined,
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Price list picker dropdown */}
+          {showPriceListPicker && (
         <div
           ref={priceListDropdownRef}
           className="mx-4 mb-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg"
@@ -964,16 +1027,11 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
         {/* Cart lines */}
         {lines.length === 0 && !showProductDropdown ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
-              style={{ backgroundColor: 'var(--bg-elevated)' }}
-            >
-              <ShoppingCart size={24} className="text-text-muted" />
-            </div>
-            <p className="text-sm font-medium text-text-secondary mb-1">No products yet</p>
-            <p className="text-xs text-text-muted">Tap &ldquo;Add product&rdquo; above to get started</p>
-          </div>
+          <EmptyState
+            title="No products yet"
+            description='Tap "Add product" above to get started'
+            icon={<ShoppingCart size={40} />}
+          />
         ) : lines.length > 0 && (
           <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
             <div className="divide-y divide-border">
@@ -1133,35 +1191,116 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
         )}
       </div>
 
-      {/* ─── Bottom action ─── */}
-      <div className="px-4 py-3 border-t border-border">
-        {/* Over-stock summary warning — only once stock data is loaded */}
-        {stockLoaded && lines.some((l) => {
-          const s = stockMap.get(l.productId);
-          return s !== undefined && l.quantity > s.qty_available;
-        }) && (
-          <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-[11px] font-medium"
-            style={{ backgroundColor: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
-            <AlertCircle size={13} className="shrink-0" />
-            <span>Some items exceed stock — delivery may be delayed.</span>
+          {/* Step 1 footer */}
+          <div className="px-4 py-3 border-t border-border space-y-2">
+            {stockLoaded && lines.some((l) => {
+              const s = stockMap.get(l.productId);
+              return s !== undefined && l.quantity > s.qty_available;
+            }) && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium"
+                style={{ backgroundColor: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+                <AlertCircle size={13} className="shrink-0" />
+                <span>Some items exceed stock — delivery may be delayed.</span>
+              </div>
+            )}
+            <button
+              onClick={() => setWizardStep(2)}
+              disabled={lines.length === 0 || anyLineLoading}
+              style={{ backgroundColor: 'var(--color-brand)' }}
+              className="w-full py-3.5 rounded-xl text-black font-semibold text-sm disabled:opacity-40 active:scale-[0.98] transition-transform"
+            >
+              Review Order →
+            </button>
           </div>
-        )}
-        <button
-          onClick={handleSubmit}
-          disabled={creating || !selectedCustomer || lines.length === 0 || anyLineLoading}
-          style={{ backgroundColor: 'var(--color-brand)' }}
-          className="w-full py-3.5 rounded-xl text-black font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
-        >
-          {creating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Creating...
-            </>
-          ) : (
-            'Create Quotation'
-          )}
-        </button>
-      </div>
+        </>
+      )}
+
+      {/* ─── Step 2: Review & Submit ─── */}
+      {wizardStep === 2 && (
+        <>
+          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
+            {/* Customer summary */}
+            <div className="rounded-xl border border-border bg-bg-tertiary p-3">
+              <p className="text-[10px] uppercase font-medium text-text-muted mb-1">Customer</p>
+              <p className="text-sm font-semibold text-text-primary">{selectedCustomer?.name}</p>
+              {selectedCustomer?.email && <p className="text-xs text-text-secondary">{selectedCustomer.email}</p>}
+              {(selectedCustomer?.phone || selectedCustomer?.mobile) && (
+                <p className="text-xs text-text-secondary">{selectedCustomer.phone || selectedCustomer.mobile}</p>
+              )}
+              {clientRef && <p className="text-xs text-text-muted mt-1">Ref: {clientRef}</p>}
+              <div className="flex items-center gap-1.5 mt-2">
+                <Tag size={11} className="text-text-muted" />
+                <span className="text-xs text-text-secondary">{selectedPriceList.name}</span>
+              </div>
+            </div>
+
+            {/* Order lines */}
+            <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
+              <div className="px-3 py-2 border-b border-border">
+                <p className="text-xs font-semibold text-text-secondary">
+                  Products ({lines.length})
+                </p>
+              </div>
+              <div className="divide-y divide-border">
+                {lines.map((line) => (
+                  <div key={line.tempId} className="px-3 py-2.5 flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-text-primary truncate">{line.productName}</p>
+                      {line.sku && (
+                        <p className="text-[10px] text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>{line.sku}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-sm font-semibold text-text-primary" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {formatCurrency(line.priceUnit * line.quantity)}
+                      </p>
+                      <p className="text-[10px] text-text-muted" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {line.quantity} × {formatCurrency(line.priceUnit)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Totals */}
+              <div className="px-3 py-3 border-t border-border space-y-1">
+                {totalSavings > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-muted">Savings</span>
+                    <span style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}>
+                      -{formatCurrency(totalSavings)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-sm font-bold text-text-primary">Total</span>
+                  <span className="text-base font-bold" style={{ color: 'var(--color-success)', fontFamily: 'var(--font-mono)' }}>
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 2 footer */}
+          <div className="px-4 py-3 border-t border-border">
+            <button
+              onClick={handleSubmit}
+              disabled={creating || anyLineLoading}
+              style={{ backgroundColor: 'var(--color-brand)' }}
+              className="w-full py-3.5 rounded-xl text-black font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
+            >
+              {creating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Quotation'
+              )}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

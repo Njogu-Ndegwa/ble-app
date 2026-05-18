@@ -14,6 +14,7 @@ import type {
   ProductStockDetail,
   DeliveryEntity,
   DeliveryLineEntity,
+  OdooJournal,
 } from './types';
 
 const ODOO_BASE_URL =
@@ -271,6 +272,16 @@ function mapLine(raw: any): OrderLineEntity {
 }
 
 function mapDeliveryLine(raw: any): DeliveryLineEntity {
+  // lot_names may come as array of strings, or array of {id, name} objects, or lot_ids strings
+  let lotNames: string[] = [];
+  if (Array.isArray(raw.lot_names)) {
+    lotNames = raw.lot_names.map((l: any) => (typeof l === 'string' ? l : String(l)));
+  } else if (Array.isArray(raw.lots)) {
+    lotNames = raw.lots.map((l: any) => (typeof l === 'object' ? (l.name ?? String(l.id)) : String(l)));
+  } else if (Array.isArray(raw.lot_ids) && raw.lot_ids.length > 0 && typeof raw.lot_ids[0] === 'string') {
+    lotNames = raw.lot_ids;
+  }
+
   return {
     id: raw.id ?? 0,
     product: { id: raw.product?.id ?? 0, name: raw.product?.name ?? '' },
@@ -278,7 +289,8 @@ function mapDeliveryLine(raw: any): DeliveryLineEntity {
     qty_done: raw.qty_done ?? 0,
     uom: { id: raw.uom?.id ?? 1, name: raw.uom?.name ?? 'Units' },
     state: raw.state ?? 'confirmed',
-    lot_ids: Array.isArray(raw.lot_ids) ? raw.lot_ids : [],
+    lot_ids: Array.isArray(raw.lot_ids) ? raw.lot_ids.filter((x: any) => typeof x === 'number') : [],
+    lot_names: lotNames,
   };
 }
 
@@ -435,6 +447,7 @@ export async function getOrder(orderId: number): Promise<OrderEntity> {
 
 export interface CreateQuotationInput {
   customer_id: number;
+  pricelist_id?: number;
   company_id?: number;
   client_order_ref?: string;
   note?: string;
@@ -453,6 +466,7 @@ export async function createQuotation(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = { customer_id: input.customer_id };
+  if (input.pricelist_id) body.pricelist_id = input.pricelist_id;
   if (input.company_id) body.company_id = input.company_id;
   if (input.client_order_ref) body.client_order_ref = input.client_order_ref;
   if (input.note) body.note = input.note;
@@ -471,6 +485,81 @@ export async function createQuotation(
     order: mapOrder(orderData),
     message: raw.message,
   };
+}
+
+export async function updateQuotation(
+  orderId: number,
+  patch: { client_order_ref?: string; note?: string; pricelist_id?: number },
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function updateOrderLine(
+  orderId: number,
+  lineId: string,
+  patch: { quantity?: number; price_unit?: number },
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/lines/${lineId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function removeOrderLine(
+  orderId: number,
+  lineId: string,
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/lines/${lineId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function addOrderLines(
+  orderId: number,
+  lines: { product_id: number; quantity: number; price_unit: number }[],
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/add-lines`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ lines }),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function getPaymentJournals(): Promise<OdooJournal[]> {
+  const endpoint = '/api/journals';
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  const list = raw.journals ?? raw.data ?? raw.results ?? raw;
+  return Array.isArray(list) ? list : [];
 }
 
 export async function sendOrder(orderId: number): Promise<MutationResponse> {
@@ -561,12 +650,16 @@ export interface RegisterPaymentResult extends MutationResponse {
 export async function registerPayment(
   orderId: number,
   amount: number,
+  journalId?: number,
+  paymentDate?: string,
   memo?: string,
 ): Promise<RegisterPaymentResult> {
   const endpoint = `/api/orders/${orderId}/register-payment`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = { amount };
+  if (journalId) body.journal_id = journalId;
+  if (paymentDate) body.payment_date = paymentDate;
   if (memo) body.memo = memo;
 
   const response = await fetchRetry(url, {
@@ -621,6 +714,22 @@ export async function getProformaPdf(
     contentType: raw.content_type ?? 'application/pdf',
     base64: raw.base64,
   };
+}
+
+export async function postInvoice(
+  orderId: number,
+  invoiceId: string,
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/invoices/${invoiceId}/confirm`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({}),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
 }
 
 // ============================================================================

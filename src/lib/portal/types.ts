@@ -172,6 +172,7 @@ export interface DeliveryLineEntity {
   uom: { id: number; name: string };
   state: string;
   lot_ids: number[];
+  lot_names: string[];
 }
 
 export interface DeliveryEntity {
@@ -286,6 +287,12 @@ export interface ProductUnitMutationResponse {
 export interface MutationResponse {
   success: boolean;
   message: string | null;
+}
+
+export interface OdooJournal {
+  id: number;
+  name: string;
+  type: 'bank' | 'cash' | 'general' | string;
 }
 
 export interface UpdateProductUnitData {
