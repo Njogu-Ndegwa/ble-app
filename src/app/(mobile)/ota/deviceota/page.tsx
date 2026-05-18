@@ -160,6 +160,9 @@ const AppContainer = () => {
     setProgress(0);
     setConnectingDeviceId(null);
     setIsConnecting(false);
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   };
 
   const startConnection = (macAddress: string) => {

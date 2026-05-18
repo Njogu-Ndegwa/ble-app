@@ -199,6 +199,9 @@ const MyDevicesApp: React.FC = () => {
     setConnectedDevice(null);
     setLoadingService(null);
     setProgress(0);
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [t]);
 
   useEffect(() => {

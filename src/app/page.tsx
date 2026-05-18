@@ -155,7 +155,9 @@ export default function Index() {
   /** Determine which authenticated state to show after splash. */
   const resolveAuthState = useCallback(() => {
     if (!isOdooEmployeeLoggedIn()) {
-      router.replace('/signin');
+      // Hard redirect: router.replace can silently fail if the router is
+      // mid-navigation (e.g. returning from a keypad pushState entry).
+      window.location.replace('/signin');
       return;
     }
     const saId = getSelectedSAId();

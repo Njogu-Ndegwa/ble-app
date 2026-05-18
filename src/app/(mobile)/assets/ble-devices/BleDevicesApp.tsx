@@ -208,6 +208,9 @@ const BleDevicesApp: React.FC = () => {
       connectTimeoutRef.current = null;
     }
     setIsConnecting(false);
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [t]);
 
   useEffect(() => {

@@ -177,6 +177,11 @@ const KeypadApp: React.FC = () => {
       connectTimeoutRef.current = null;
     }
     setIsConnecting(false);
+    // Remove the fake pushState entry added when a device was selected so that
+    // hardware-back from the device list doesn't get stuck on the ghost entry.
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [t]);
 
   useEffect(() => {

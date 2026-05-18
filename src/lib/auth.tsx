@@ -58,9 +58,11 @@ export function isAuth(Component: any) {
     /** Client-side redirect for unauthenticated users on private pages */
     useEffect(() => {
       if (!loggedIn && !isPublic) {
-        router.replace("/signin");
+        // Hard redirect so the guard always fires even if the Next.js router
+        // is mid-navigation (e.g. concurrent navigation from another applet).
+        window.location.replace('/signin');
       }
-    }, [loggedIn, isPublic, router]);
+    }, [loggedIn, isPublic]);
 
     /* Avoid flashing protected content while deciding */
     if (!loggedIn && !isPublic) return null;
