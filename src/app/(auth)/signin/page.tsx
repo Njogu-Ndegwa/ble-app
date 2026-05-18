@@ -9,6 +9,11 @@ import PhoneInputWithCountry from '@/components/ui/PhoneInputWithCountry'
 import { odooEmployeeLogin, saveOdooEmployeeSession } from '@/lib/ov-auth'
 import { getMicrosoftAuthUrl, saveMicrosoftPendingContext } from '@/lib/attendant-auth'
 
+// Pre-build at module load time so the anchor tag's href is set before hydration.
+// getMicrosoftCallbackUrl() already falls back to 'https://wvapp.omnivoltaic.com'
+// on the server, so no env var is needed.
+const MICROSOFT_AUTH_URL = getMicrosoftAuthUrl()
+
 type LoginMethod = 'email' | 'phone'
 
 const LoginPage = () => {
@@ -90,23 +95,14 @@ const LoginPage = () => {
     }
   }
 
-  const handleMicrosoftSignIn = async () => {
+  const handleMicrosoftClick = () => {
     if (!navigator.onLine) {
       toast.error('No internet connection. Please check your network and try again.');
       return;
     }
-
-    setIsLoading(true)
-    const authUrl = getMicrosoftAuthUrl()
+    // Both writes are synchronous and complete before the browser follows the href.
     saveMicrosoftPendingContext('/', 'sales')
-
-    // Unregister service workers so the Odoo redirect is not intercepted by a stale cache
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(regs.map(reg => reg.unregister()))
-    }
-
-    window.location.href = authUrl
+    setIsLoading(true)
   }
 
   return (
@@ -314,22 +310,25 @@ const LoginPage = () => {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          {/* Microsoft sign-in — full width, below form, matches attendant login pattern */}
-          <button
-            type="button"
+          {/* Microsoft sign-in — <a> navigates without waiting for React hydration */}
+          <a
+            href={MICROSOFT_AUTH_URL}
+            onClick={handleMicrosoftClick}
             className="btn btn-secondary"
-            onClick={handleMicrosoftSignIn}
-            disabled={isLoading}
-            style={{ width: '100%' }}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}
           >
-            <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
-              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-            </svg>
-            <span>{t('auth.signInWithMicrosoft')}</span>
-          </button>
+            {isLoading ? (
+              <div className="loading-spinner" style={{ width: 16, height: 16, marginRight: 8, marginBottom: 0, borderWidth: 2, flexShrink: 0 }} />
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
+                <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+              </svg>
+            )}
+            <span>{isLoading ? t('auth.signingIn') : t('auth.signInWithMicrosoft')}</span>
+          </a>
 
         </form>
       </div>
