@@ -975,3 +975,15 @@ export async function validateDelivery(
     delivery: raw.delivery ? mapDelivery(raw.delivery) : undefined,
   };
 }
+
+// GET /api/stock/lots?product_id=<id> — resolve numeric lot IDs to serial name strings
+export async function getLotsByProduct(
+  productId: number,
+): Promise<{ id: number; serial: string }[]> {
+  const endpoint = `/api/stock/lots?product_id=${productId}&limit=200`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+  const lots: any[] = raw.lots ?? raw.data ?? [];
+  return lots.map((l: any) => ({ id: l.id ?? 0, serial: l.serial ?? l.name ?? String(l.id) }));
+}

@@ -53,6 +53,7 @@ import {
   getPaymentJournals,
   getStockLevels,
   aggregateStockByProduct,
+  getLotsByProduct,
 } from '@/lib/portal/order-api';
 import type { ValidateDeliveryLine } from '@/lib/portal/order-api';
 import { getProducts } from '@/lib/odoo-api';
@@ -297,6 +298,41 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       setDeliveryDetailLoading(true);
       try {
         const detail = await getDelivery(selectedDelivery.id);
+        if (cancelled) return;
+
+        // Resolve numeric lot_ids → serial name strings if lot_names aren't already populated
+        if (detail.lines) {
+          const needsLotResolution = detail.lines.some(
+            (l) => l.lot_ids.length > 0 && l.lot_names.length === 0,
+          );
+          if (needsLotResolution) {
+            // Collect unique product IDs that need lot resolution
+            const productIds = [...new Set(
+              detail.lines
+                .filter((l) => l.lot_ids.length > 0 && l.lot_names.length === 0)
+                .map((l) => l.product.id),
+            )];
+            // Fetch lot name maps per product
+            const lotMaps = new Map<number, string>();
+            await Promise.allSettled(
+              productIds.map(async (pid) => {
+                try {
+                  const lots = await getLotsByProduct(pid);
+                  lots.forEach((lt) => lotMaps.set(lt.id, lt.serial));
+                } catch { /* ignore */ }
+              }),
+            );
+            // Inject lot_names into lines
+            detail.lines = detail.lines.map((l) => ({
+              ...l,
+              lot_names:
+                l.lot_names.length > 0
+                  ? l.lot_names
+                  : l.lot_ids.map((id) => lotMaps.get(id) ?? `#${id}`),
+            }));
+          }
+        }
+
         if (!cancelled) {
           setSelectedDelivery(detail);
           setDeliveries((prev) => prev.map((d) => (d.id === detail.id ? detail : d)));
@@ -365,13 +401,28 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   }, [handleAction, orderId]);
 
   // Fixed: approval must come BEFORE confirm per Odoo workflow
-  const handleConfirm = useCallback(() => {
-    return handleAction(
-      () => restConfirmOrder(orderId),
-      'Order confirmed — sales order created.',
-      2,
-    );
-  }, [handleAction, orderId]);
+  // Uses a longer delay (2.5s) because Odoo triggers stock.picking creation synchronously
+  // but the SA-scoped delivery query needs the picking to be fully written first.
+  const handleConfirm = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      await restConfirmOrder(orderId);
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Operation failed');
+      setActionLoading(false);
+      return;
+    }
+    toast.success('Order confirmed — delivery order is being created…');
+    await new Promise((r) => setTimeout(r, 2500));
+    try {
+      await refreshOrder(2);
+    } catch {
+      await new Promise((r) => setTimeout(r, 2500));
+      try { await refreshOrder(2); } catch { /* ignore */ }
+    } finally {
+      setActionLoading(false);
+    }
+  }, [orderId, refreshOrder]);
 
   const handleApprove = useCallback(() => {
     return handleAction(
