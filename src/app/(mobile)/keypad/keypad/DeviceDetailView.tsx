@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { Clipboard, Loader2 } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
@@ -49,6 +49,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const reloadRequestedRef = useRef(false);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -124,10 +125,13 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []); // ← FIXED: Empty array - runs only once on mount
 
-  // Clear refreshing indicator once both services finish reloading
+  // Clear refreshing indicator once the service reload we requested has finished.
+  // reloadRequestedRef guards against clearing on the initial null state (before
+  // onRequestServiceData is ever called).
   useEffect(() => {
-    if (isRefreshing && isLoadingService === null) {
+    if (isRefreshing && reloadRequestedRef.current && isLoadingService === null) {
       setIsRefreshing(false);
+      reloadRequestedRef.current = false;
     }
   }, [isLoadingService, isRefreshing]);
 
@@ -199,7 +203,8 @@ useEffect(() => {
   const writeCharacteristic = (
     char: any,
     value: string | number,
-    afterWrite?: () => void
+    afterWrite?: () => void,
+    onFailure?: () => void
   ) => {
     if (!char || !cmdService) return;
 
@@ -338,11 +343,13 @@ useEffect(() => {
           } else {
             keypadWarn('write: after success, session MAC changed or cleared');
             toast.error(t("Device disconnected. Please reconnect."));
+            onFailure?.();
           }
         }, 2000);
       } else {
         keypadWarn('write: failed', errorMessage || 'unknown');
         toast.error(errorMessage?.trim() ? errorMessage : t('Failed'));
+        onFailure?.();
       }
     });
   };
@@ -453,24 +460,39 @@ useEffect(() => {
       hasCmd: !!cmdService,
       hasSts: !!stsService,
     });
-    writeCharacteristic(pubkCharacteristic, payloadFormatted, () => {
-      // Clear stale local reads so the service reload drives the display
-      const pubkUuid = pubkCharacteristic.uuid;
-      const rcrdUuid = rcrdCharacteristic?.uuid;
-      setUpdatedValues((prev) => {
-        const next = { ...prev };
-        delete next[pubkUuid];
-        if (rcrdUuid) delete next[rcrdUuid];
-        return next;
-      });
-      // Wait 3 s more (2 s already elapsed in writeCharacteristic = 5 s total)
-      // before re-init so the device has time to process the code
-      setTimeout(() => {
-        setIsRefreshing(true);
-        onRequestServiceData?.('CMD');
-        onRequestServiceData?.('STS');
-      }, 3000);
-    });
+
+    // Show spinner immediately — the user has to wait ~5 s total for the
+    // device to process the token and for us to reload CMD + STS services.
+    setIsRefreshing(true);
+    reloadRequestedRef.current = false;
+
+    writeCharacteristic(
+      pubkCharacteristic,
+      payloadFormatted,
+      () => {
+        // Clear stale local reads so the service reload drives the display
+        const pubkUuid = pubkCharacteristic.uuid;
+        const rcrdUuid = rcrdCharacteristic?.uuid;
+        setUpdatedValues((prev) => {
+          const next = { ...prev };
+          delete next[pubkUuid];
+          if (rcrdUuid) delete next[rcrdUuid];
+          return next;
+        });
+        // Wait 3 s more (2 s already elapsed in writeCharacteristic = 5 s total)
+        // before re-init so the device has time to process the code
+        setTimeout(() => {
+          reloadRequestedRef.current = true;
+          onRequestServiceData?.('CMD');
+          onRequestServiceData?.('STS');
+        }, 3000);
+      },
+      () => {
+        // Write failed — clear the spinner immediately
+        setIsRefreshing(false);
+        reloadRequestedRef.current = false;
+      }
+    );
     setDigitInput('');
   };
 
@@ -585,7 +607,7 @@ useEffect(() => {
     </div>
   );
 
-  const okDisabled = Boolean(isLoadingService) || !isCodeComplete;
+  const okDisabled = Boolean(isLoadingService) || !isCodeComplete || isRefreshing;
 
   const keypadGrid = (
     <>

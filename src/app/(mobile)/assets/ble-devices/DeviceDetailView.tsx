@@ -581,7 +581,7 @@
 import React, { useState, useRef, useMemo } from "react";
 import { readBleCharacteristic, writeBleCharacteristic } from "../../../utils";
 import { Toaster, toast } from "react-hot-toast";
-import { RefreshCw, Clipboard } from "lucide-react";
+import { RefreshCw, Clipboard, Loader2 } from "lucide-react";
 import { AsciiStringModal, NumericModal } from "../../../modals";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
@@ -1223,10 +1223,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                         </button>
                         {activeTab === "CMD" && (
                           <button
-                            className="btn btn-primary text-xs"
-                            style={{ padding: '4px 12px', fontSize: '11px' }}
-                            onClick={() => handleWriteClick(char)}
+                            className="btn btn-primary text-xs flex items-center gap-1"
+                            style={{
+                              padding: '4px 12px',
+                              fontSize: '11px',
+                              opacity: loadingStates[char.uuid] ? 0.5 : 1,
+                              cursor: loadingStates[char.uuid] ? 'not-allowed' : 'pointer',
+                            }}
+                            onClick={() => { if (!loadingStates[char.uuid]) handleWriteClick(char); }}
+                            disabled={!!loadingStates[char.uuid]}
                           >
+                            {loadingStates[char.uuid] && (
+                              <Loader2 size={10} className="animate-spin" />
+                            )}
                             {t("ble.detail.write")}
                           </button>
                         )}
