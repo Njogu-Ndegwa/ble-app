@@ -398,41 +398,64 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     return handleAction(() => restSendOrder(orderId), 'Quotation sent.', 0);
   }, [handleAction, orderId]);
 
-  const handleRequestApproval = useCallback(() => {
-    return handleAction(() => restRequestApproval(orderId), 'Submitted for approval.', 1);
-  }, [handleAction, orderId]);
-
-  // Fixed: approval must come BEFORE confirm per Odoo workflow
-  // Uses a longer delay (2.5s) because Odoo triggers stock.picking creation synchronously
-  // but the SA-scoped delivery query needs the picking to be fully written first.
-  const handleConfirm = useCallback(async () => {
+  // Unified action: try /confirm first; if backend rejects because approval is
+  // required, automatically fall back to /request-approval. Single button for
+  // the agent — backend decides which path to take.
+  const handleSubmitOrder = useCallback(async () => {
     setActionLoading(true);
     try {
-      await restConfirmOrder(orderId);
+      try {
+        await restConfirmOrder(orderId);
+        toast.success('Order confirmed — delivery order is being created…');
+        await new Promise((r) => setTimeout(r, 2500));
+        try {
+          await refreshOrder(2);
+        } catch {
+          await new Promise((r) => setTimeout(r, 2500));
+          try { await refreshOrder(2); } catch { /* ignore */ }
+        }
+      } catch (err: any) {
+        const msg = String(err?.message ?? '');
+        if (/approval|threshold|staff|not authoriz/i.test(msg)) {
+          await restRequestApproval(orderId);
+          toast.success('Submitted for manager approval.');
+          await refreshOrder(1);
+        } else {
+          throw err;
+        }
+      }
     } catch (err: any) {
       toast.error(err?.message ?? 'Operation failed');
-      setActionLoading(false);
-      return;
-    }
-    toast.success('Order confirmed — delivery order is being created…');
-    await new Promise((r) => setTimeout(r, 2500));
-    try {
-      await refreshOrder(2);
-    } catch {
-      await new Promise((r) => setTimeout(r, 2500));
-      try { await refreshOrder(2); } catch { /* ignore */ }
     } finally {
       setActionLoading(false);
     }
   }, [orderId, refreshOrder]);
 
-  const handleApprove = useCallback(() => {
-    return handleAction(
-      () => restApproveOrder(orderId, approvalNotes || undefined),
-      'Order approved.',
-      1,
-    );
-  }, [handleAction, orderId, approvalNotes]);
+  // After manager approves, also confirm the order so the picking gets created
+  // in the same action — agent doesn't have to come back to confirm separately.
+  const handleApprove = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      const result = await restApproveOrder(orderId, approvalNotes || undefined);
+      if (!result.success) {
+        toast.error(result.message ?? 'Approval failed.');
+        return;
+      }
+      toast.success('Approved — confirming order…');
+      try {
+        await restConfirmOrder(orderId);
+        await new Promise((r) => setTimeout(r, 2500));
+        await refreshOrder(2);
+      } catch (confirmErr: any) {
+        toast.error(confirmErr?.message ?? 'Approval succeeded but confirm failed — try Confirm manually.');
+        await refreshOrder(1);
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Approval failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [orderId, approvalNotes, refreshOrder]);
 
   const handleReject = useCallback(() => {
     return handleAction(
@@ -1060,27 +1083,19 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                     </Button>
                   )}
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="lg"
                     fullWidth
-                    onClick={handleRequestApproval}
+                    onClick={handleSubmitOrder}
                     disabled={actionLoading}
                     loading={actionLoading}
                     loadingText="Submitting…"
                   >
-                    Request Approval
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    onClick={handleConfirm}
-                    disabled={actionLoading}
-                    loading={actionLoading}
-                    loadingText="Confirming…"
-                  >
                     Confirm Order
                   </Button>
+                  <p className="text-[11px] text-text-muted text-center">
+                    Manager approval will be requested automatically if required.
+                  </p>
                 </div>
               )}
               {!isEditingLines && !isViewingPastStep && order.approvalStatus !== 'none' && (
@@ -1183,7 +1198,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                     variant="primary"
                     size="lg"
                     fullWidth
-                    onClick={handleConfirm}
+                    onClick={handleSubmitOrder}
                     disabled={actionLoading}
                     loading={actionLoading}
                     loadingText="Confirming…"
@@ -1254,12 +1269,12 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                     variant="primary"
                     size="lg"
                     fullWidth
-                    onClick={handleRequestApproval}
+                    onClick={handleSubmitOrder}
                     disabled={actionLoading}
                     loading={actionLoading}
                     loadingText="Submitting…"
                   >
-                    Resubmit for Approval
+                    Resubmit Order
                   </Button>
                 </div>
               )}
@@ -1589,7 +1604,7 @@ function DeliveryStep({
 }: DeliveryStepProps) {
   // qty_done per move line — keyed by line.id (the move id)
   const [qtyDoneMap, setQtyDoneMap] = useState<Record<number, number>>({});
-  const [forceBackorder, setForceBackorder] = useState(false);
+  const [backorderModalOpen, setBackorderModalOpen] = useState(false);
 
   // Initialise qty done from delivery lines when they load
   useEffect(() => {
@@ -1599,7 +1614,7 @@ function DeliveryStep({
       init[l.id] = l.qty_done > 0 ? l.qty_done : l.qty_ordered;
     }
     setQtyDoneMap(init);
-    setForceBackorder(false);
+    setBackorderModalOpen(false);
   }, [selectedDelivery?.id, selectedDelivery?.lines]);
 
   const isAssigned = selectedDelivery?.state === 'assigned';
@@ -1624,6 +1639,24 @@ function DeliveryStep({
     }));
   }
 
+  const handleValidateClick = () => {
+    // Partial qty → ask about backorder via modal (Odoo-style)
+    if (hasPartial) {
+      setBackorderModalOpen(true);
+      return;
+    }
+    onValidate(buildValidateLines(), false);
+  };
+
+  const handleBackorderChoice = (createBackorder: boolean) => {
+    setBackorderModalOpen(false);
+    onValidate(buildValidateLines(), createBackorder);
+  };
+
+  const stateMeta = selectedDelivery
+    ? (DELIVERY_STATE_META[selectedDelivery.state] ?? DELIVERY_STATE_META.waiting)
+    : null;
+
   return (
     <div className="divide-y divide-border">
       {/* Header */}
@@ -1633,24 +1666,123 @@ function DeliveryStep({
         {deliveriesLoading && <Loader2 size={13} className="animate-spin text-text-muted ml-1" />}
       </div>
 
-      {/* Delivery list / picker */}
-      {!deliveriesLoading && deliveries.length === 0 && (
-        <div className="px-4 py-8 text-center space-y-3">
-          <Truck size={28} className="mx-auto text-text-muted" />
-          <div>
-            <p className="text-sm font-medium text-text-secondary">No deliveries found</p>
-            <p className="text-[11px] text-text-muted max-w-[260px] mx-auto mt-1">
-              Odoo may still be creating the picking. Tap Refresh in a few seconds — if it keeps showing empty, the order may only have service lines.
-            </p>
-          </div>
-          <button
-            onClick={onRefreshDeliveries}
-            className="px-4 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary active:scale-[0.98]"
+      {/* Sticky validate action bar — Odoo-style top primary action */}
+      {canValidate && selectedDelivery && stateMeta && (
+        <div
+          className="sticky top-0 z-10 px-4 py-2.5 flex items-center gap-2"
+          style={{ backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-default)' }}
+        >
+          <Badge variant={stateMeta.variant} size="xs">{stateMeta.label}</Badge>
+          <span className="text-[11px] text-text-muted truncate flex-1">{selectedDelivery.name}</span>
+          <Button
+            variant="success"
+            size="sm"
+            onClick={handleValidateClick}
+            disabled={validating || !isAssigned}
+            loading={validating}
+            loadingText="Validating…"
+            leftIcon={<Truck size={13} />}
           >
-            Refresh
-          </button>
+            {isAssigned ? 'Validate' : 'Awaiting stock'}
+          </Button>
         </div>
       )}
+
+      {/* Backorder confirm modal (Odoo-style) */}
+      {backorderModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setBackorderModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-4 space-y-3"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-sm font-semibold text-text-primary">Create backorder?</p>
+              <p className="text-xs text-text-muted mt-1">
+                You are dispatching less than the full order. Odoo can open a new picking for the remaining units, or close this one and forget the shortfall.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                onClick={() => handleBackorderChoice(true)}
+                disabled={validating}
+                loading={validating}
+                loadingText="Validating…"
+              >
+                Create Backorder
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
+                onClick={() => handleBackorderChoice(false)}
+                disabled={validating}
+              >
+                No Backorder
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                fullWidth
+                onClick={() => setBackorderModalOpen(false)}
+                disabled={validating}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery list / picker — diagnostic empty state */}
+      {!deliveriesLoading && deliveries.length === 0 && (() => {
+        const isPreConfirm = order.state === 'draft' || order.state === 'sent';
+        const hasPhysical = order.lines.some(
+          (l) => !l.puCategory || l.puCategory === 'physical',
+        );
+        const isServiceOnly = order.lines.length > 0 && !hasPhysical;
+
+        let title = 'No deliveries found';
+        let body = '';
+        let showRefresh = true;
+        if (isPreConfirm) {
+          title = 'Order not yet confirmed';
+          body = 'A delivery picking is created automatically when you confirm the order. Go back to the Quotation step and tap Confirm Order.';
+          showRefresh = false;
+        } else if (isServiceOnly) {
+          title = 'No physical items to dispatch';
+          body = 'This order has only services or contracts — no warehouse dispatch is needed. Skip ahead to the Invoice step.';
+          showRefresh = false;
+        } else {
+          title = 'Picking is being created';
+          body = 'Odoo creates the delivery picking shortly after the order is confirmed. Tap Refresh in a few seconds.';
+        }
+
+        return (
+          <div className="px-4 py-8 text-center space-y-3">
+            <Truck size={28} className="mx-auto text-text-muted" />
+            <div>
+              <p className="text-sm font-medium text-text-secondary">{title}</p>
+              <p className="text-[11px] text-text-muted max-w-[280px] mx-auto mt-1">{body}</p>
+            </div>
+            {showRefresh && (
+              <button
+                onClick={onRefreshDeliveries}
+                className="px-4 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary active:scale-[0.98]"
+              >
+                Refresh
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {deliveries.length > 1 && (
         <div className="px-4 py-3 space-y-2">
@@ -1890,43 +2022,11 @@ function DeliveryStep({
             <p className="text-xs text-text-muted text-center py-2">Line detail not available — validate from Odoo desktop if needed.</p>
           ) : null}
 
-          {/* Backorder toggle — only when partial quantities and in edit mode */}
+          {/* Partial-qty hint when in edit mode (modal handles the actual choice) */}
           {canEdit && hasPartial && (
-            <button
-              onClick={() => setForceBackorder((v) => !v)}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl border transition-colors"
-              style={{
-                borderColor: forceBackorder ? 'var(--color-brand)' : 'var(--border-default)',
-                backgroundColor: forceBackorder ? 'var(--color-brand-soft, rgba(255,200,0,0.06))' : 'var(--bg-elevated)',
-              }}
-            >
-              <div
-                className="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0"
-                style={{ borderColor: forceBackorder ? 'var(--color-brand)' : 'var(--border-default)', backgroundColor: forceBackorder ? 'var(--color-brand)' : 'transparent' }}
-              >
-                {forceBackorder && <Check size={10} className="text-black" />}
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-medium text-text-primary">Create backorder for remaining units</p>
-                <p className="text-[10px] text-text-muted">Odoo will open a new delivery order for the shortfall</p>
-              </div>
-            </button>
-          )}
-
-          {/* Validate button */}
-          {canValidate && (
-            <Button
-              variant="success"
-              size="lg"
-              fullWidth
-              onClick={() => onValidate(buildValidateLines(), forceBackorder)}
-              disabled={validating}
-              loading={validating}
-              loadingText="Validating…"
-              leftIcon={<Truck size={16} />}
-            >
-              {forceBackorder ? 'Validate & Create Backorder' : 'Validate Delivery'}
-            </Button>
+            <p className="text-[11px] text-text-muted text-center">
+              You are dispatching less than the full order — you&apos;ll be asked about a backorder when you validate.
+            </p>
           )}
         </div>
       )}
