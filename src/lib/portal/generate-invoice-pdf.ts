@@ -1,5 +1,6 @@
 import type { OrderEntity } from './types';
 import { formatCurrency } from './order-api';
+import { isAndroidWebView, saveFileViaAndroid } from '@/lib/android-bridge';
 
 const fmt = (amount: number): string => formatCurrency(amount);
 
@@ -290,6 +291,15 @@ export async function generateInvoicePdf(
   }
 
   const filename = `${ref}.pdf`;
+
+  // Android WebView — blob/data URLs don't survive the WebView download pipeline;
+  // route through the JSBridge saveFile handler instead.
+  if (isAndroidWebView()) {
+    const base64 = pdf.output('datauristring');
+    await saveFileViaAndroid(base64, filename);
+    return;
+  }
+
   const blob = pdf.output('blob');
   const file = new File([blob], filename, { type: 'application/pdf' });
 
