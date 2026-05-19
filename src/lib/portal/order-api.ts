@@ -451,6 +451,8 @@ export interface CreateQuotationInput {
   customer_id: number;
   pricelist_id?: number;
   company_id?: number;
+  outlet_id?: number;
+  channel_partner_id?: number;
   client_order_ref?: string;
   note?: string;
   products?: {
@@ -470,6 +472,8 @@ export async function createQuotation(
   const body: Record<string, unknown> = { customer_id: input.customer_id };
   if (input.pricelist_id) body.pricelist_id = input.pricelist_id;
   if (input.company_id) body.company_id = input.company_id;
+  if (input.outlet_id) body.outlet_id = input.outlet_id;
+  if (input.channel_partner_id) body.channel_partner_id = input.channel_partner_id;
   if (input.client_order_ref) body.client_order_ref = input.client_order_ref;
   if (input.note) body.note = input.note;
   if (input.products?.length) body.products = input.products;
@@ -605,13 +609,13 @@ export async function requestApproval(orderId: number): Promise<MutationResponse
 
 export async function approveOrder(
   orderId: number,
-  notes?: string,
+  note?: string,
 ): Promise<MutationResponse> {
   const endpoint = `/api/orders/${orderId}/approve`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = {};
-  if (notes) body.notes = notes;
+  if (note) body.note = note;
 
   const response = await fetchRetry(url, {
     method: 'POST',
@@ -624,13 +628,13 @@ export async function approveOrder(
 
 export async function rejectOrder(
   orderId: number,
-  notes?: string,
+  reason?: string,
 ): Promise<MutationResponse> {
   const endpoint = `/api/orders/${orderId}/reject`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = {};
-  if (notes) body.notes = notes;
+  if (reason) body.reason = reason;
 
   const response = await fetchRetry(url, {
     method: 'POST',
@@ -649,13 +653,20 @@ export interface RegisterPaymentResult extends MutationResponse {
   remainingAmount?: number;
 }
 
+export interface RegisterPaymentInput {
+  amount: number;
+  journalId?: number;
+  paymentDate?: string;
+  memo?: string;
+  invoiceId?: number;
+  paymentSource?: string;
+}
+
 export async function registerPayment(
   orderId: number,
-  amount: number,
-  journalId?: number,
-  paymentDate?: string,
-  memo?: string,
+  input: RegisterPaymentInput,
 ): Promise<RegisterPaymentResult> {
+  const { amount, journalId, paymentDate, memo, invoiceId, paymentSource } = input;
   const endpoint = `/api/orders/${orderId}/register-payment`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
@@ -663,6 +674,8 @@ export async function registerPayment(
   if (journalId) body.journal_id = journalId;
   if (paymentDate) body.payment_date = paymentDate;
   if (memo) body.memo = memo;
+  if (invoiceId) body.invoice_id = invoiceId;
+  if (paymentSource) body.payment_source = paymentSource;
 
   const response = await fetchRetry(url, {
     method: 'POST',
@@ -732,6 +745,25 @@ export async function postInvoice(
   });
   const raw = await parseResponse<any>(response, endpoint);
   return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function createInvoice(
+  orderId: number,
+): Promise<MutationResponse & { invoice?: OrderInvoiceEntity }> {
+  const endpoint = `/api/orders/${orderId}/invoice`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({}),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return {
+    success: raw.success,
+    message: raw.message ?? null,
+    invoice: raw.invoice ? mapInvoice(raw.invoice) : undefined,
+  };
 }
 
 // ============================================================================

@@ -41,6 +41,7 @@ import {
   registerPayment as restRegisterPayment,
   sendProformaPdf as restSendProforma,
   postInvoice as restPostInvoice,
+  createInvoice as restCreateInvoice,
   formatCurrency,
   getPriceLists,
   getPriceListPrice,
@@ -109,6 +110,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const [payMemo, setPayMemo] = useState('');
   const [payJournalId, setPayJournalId] = useState<number | null>(null);
   const [payDate, setPayDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [payInvoiceId, setPayInvoiceId] = useState<number | null>(null);
   const [approvalNotes, setApprovalNotes] = useState('');
 
   // Payment journals fetched from Odoo
@@ -448,6 +450,14 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     );
   }, [handleAction, orderId]);
 
+  const handleCreateInvoice = useCallback(() => {
+    return handleAction(
+      () => restCreateInvoice(orderId),
+      'Invoice created.',
+      3,
+    );
+  }, [handleAction, orderId]);
+
   const handleValidateDelivery = useCallback(async (
     lines: ValidateDeliveryLine[],
     forceBackorder: boolean,
@@ -501,13 +511,18 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     }
     setActionLoading(true);
     try {
-      const result = await restRegisterPayment(
-        orderId,
+      const selectedJournal = journals.find((j) => j.id === payJournalId);
+      const paymentSource = selectedJournal?.type === 'cash'
+        ? selectedJournal.name.toLowerCase().replace(/\s+/g, '_')
+        : selectedJournal?.type;
+      const result = await restRegisterPayment(orderId, {
         amount,
-        payJournalId ?? undefined,
-        payDate || undefined,
-        payMemo || undefined,
-      );
+        journalId: payJournalId ?? undefined,
+        paymentDate: payDate || undefined,
+        memo: payMemo || undefined,
+        invoiceId: payInvoiceId ?? undefined,
+        paymentSource: paymentSource || undefined,
+      });
       toast.success('Payment registered.');
 
       let updated: OrderEntity;
@@ -534,7 +549,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     } finally {
       setActionLoading(false);
     }
-  }, [orderId, payAmount, payMemo, order]);
+  }, [orderId, payAmount, payMemo, payJournalId, payDate, payInvoiceId, journals, order]);
 
 
   // Pricelist selection handler — re-compute all line prices
@@ -1286,8 +1301,23 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               </div>
 
               {order.invoices.length === 0 ? (
-                <div className="rounded-lg p-3 text-xs text-center text-text-muted">
-                  Invoice will appear here once delivery is validated.
+                <div className="rounded-lg p-3 space-y-3 border border-border">
+                  <p className="text-xs text-center text-text-muted">
+                    No invoice has been generated yet. Odoo normally creates one automatically on confirm or delivery; use the button below to create one manually if needed.
+                  </p>
+                  {(order.state === 'sale' || order.state === 'done') && !isViewingPastStep && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      fullWidth
+                      onClick={handleCreateInvoice}
+                      disabled={actionLoading}
+                      loading={actionLoading}
+                      loadingText="Creating…"
+                    >
+                      Create Invoice
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1351,6 +1381,37 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               )}
               {!isViewingPastStep && order.paymentStatus !== 'paid' && (
                 <div className="px-4 pb-4 space-y-3 pt-2 border-t border-border">
+                  {/* Invoice selector — only when multiple unpaid invoices exist */}
+                  {(() => {
+                    const unpaid = order.invoices.filter((inv) => (inv.amountResidual ?? 0) > 0);
+                    if (unpaid.length <= 1) return null;
+                    return (
+                      <div>
+                        <p className="text-xs font-medium text-text-secondary mb-2">Apply to Invoice</p>
+                        <div className="space-y-1.5">
+                          {unpaid.map((inv) => {
+                            const isSelected = payInvoiceId === Number(inv.id);
+                            return (
+                              <button
+                                key={inv.id}
+                                onClick={() => setPayInvoiceId(isSelected ? null : Number(inv.id))}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-colors text-left"
+                                style={{
+                                  borderColor: isSelected ? 'var(--color-brand)' : 'var(--border-default)',
+                                  backgroundColor: isSelected ? 'var(--color-brand-soft, rgba(255,200,0,0.1))' : 'var(--bg-tertiary)',
+                                }}
+                              >
+                                <span className="text-xs font-medium text-text-primary truncate">{inv.name}</span>
+                                <span className="text-xs text-text-muted shrink-0 ml-2" style={{ fontFamily: 'var(--font-mono)' }}>
+                                  {formatCurrency(inv.amountResidual)}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {/* Payment method selector */}
                   <div>
                     <p className="text-xs font-medium text-text-secondary mb-2">Payment Method</p>
