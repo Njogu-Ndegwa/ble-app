@@ -398,28 +398,23 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     return handleAction(() => restSendOrder(orderId), 'Quotation sent.', 0);
   }, [handleAction, orderId]);
 
-  // Unified action: try /confirm first; if backend rejects because approval is
-  // required, automatically fall back to /request-approval. Single button for
-  // the agent — backend decides which path to take.
+  // Unified action: per team workflow every order goes through manager
+  // approval, so try /request-approval first. If the backend signals approval
+  // isn't required for this order, fall back to direct /confirm.
   const handleSubmitOrder = useCallback(async () => {
     setActionLoading(true);
     try {
       try {
-        await restConfirmOrder(orderId);
-        toast.success('Order confirmed — delivery order is being created…');
-        await new Promise((r) => setTimeout(r, 2500));
-        try {
-          await refreshOrder(2);
-        } catch {
-          await new Promise((r) => setTimeout(r, 2500));
-          try { await refreshOrder(2); } catch { /* ignore */ }
-        }
+        await restRequestApproval(orderId);
+        toast.success('Submitted for manager approval.');
+        await refreshOrder();
       } catch (err: any) {
         const msg = String(err?.message ?? '');
-        if (/approval|threshold|staff|not authoriz/i.test(msg)) {
-          await restRequestApproval(orderId);
-          toast.success('Submitted for manager approval.');
-          await refreshOrder(1);
+        if (/not required|not needed|skip|no approval|already approved/i.test(msg)) {
+          await restConfirmOrder(orderId);
+          toast.success('Order confirmed — delivery order is being created…');
+          await new Promise((r) => setTimeout(r, 2500));
+          await refreshOrder();
         } else {
           throw err;
         }
@@ -445,10 +440,10 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       try {
         await restConfirmOrder(orderId);
         await new Promise((r) => setTimeout(r, 2500));
-        await refreshOrder(2);
+        await refreshOrder();
       } catch (confirmErr: any) {
         toast.error(confirmErr?.message ?? 'Approval succeeded but confirm failed — try Confirm manually.');
-        await refreshOrder(1);
+        await refreshOrder();
       }
     } catch (err: any) {
       toast.error(err?.message ?? 'Approval failed.');
