@@ -170,7 +170,6 @@ export default function SalesFlow({
     setSelectedPackageId,
     setSelectedPlanId,
     refetch: fetchProductsAndPlans,
-    restoreSelections: restoreCatalogSelections,
   } = useProductCatalog({ autoFetch: true, workflowType: 'sales' });
 
   // Alias loading/error states for backward compatibility
@@ -486,16 +485,36 @@ export default function SalesFlow({
     // Extract state from session data and restore
     const sessionData = order.session.session_data;
     const restoredState = extractSalesStateFromSession(sessionData);
-    
+
+    console.info('[SalesFlow] handleSelectHistorySession — restoring catalog selections', {
+      orderId: order.id,
+      restoredStep: restoredState.currentStep,
+      rawSessionSelectedPackageId: sessionData.selectedPackageId,
+      rawSessionSelectedPlanId: sessionData.selectedPlanId,
+      extractedSelectedPackageId: restoredState.selectedPackageId,
+      extractedSelectedPlanId: restoredState.selectedPlanId,
+      extractedPackageIdType: typeof restoredState.selectedPackageId,
+      extractedPlanIdType: typeof restoredState.selectedPlanId,
+      hasPackageId: !!restoredState.selectedPackageId,
+      hasPlanId: !!restoredState.selectedPlanId,
+    });
+
+    if (!restoredState.selectedPlanId && (restoredState.currentStep ?? 0) >= 3) {
+      console.warn('[SalesFlow] handleSelectHistorySession — session at step >= 3 has no selectedPlanId; purchase will fail', {
+        orderId: order.id,
+        restoredStep: restoredState.currentStep,
+        rawSessionSelectedPlanId: sessionData.selectedPlanId,
+      });
+    }
+
     // Restore all state from the session
     setCurrentStep(restoredState.currentStep as SalesStep);
     // For read-only sessions, set maxStepReached to 8 to allow viewing all steps
     setMaxStepReached(isReadOnly ? 8 : restoredState.maxStepReached as SalesStep);
     setFormData(restoredState.formData);
-    
-    // Restore selections using the catalog hook's restoreSelections function
-    // Signature: (productId, packageId, planId) — pass undefined for productId since sales flow doesn't persist it separately
-    restoreCatalogSelections(undefined, restoredState.selectedPackageId, restoredState.selectedPlanId);
+
+    setSelectedPackageId(restoredState.selectedPackageId);
+    setSelectedPlanId(restoredState.selectedPlanId);
     
     setCreatedCustomerId(restoredState.createdCustomerId);
     setCreatedPartnerId(restoredState.createdPartnerId);
@@ -534,7 +553,7 @@ export default function SalesFlow({
     } else {
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
-  }, [t, restoreCatalogSelections, setSessionOrderId]);
+  }, [t, setSelectedPackageId, setSelectedPlanId, setSessionOrderId]);
   
   // Effect to automatically restore initial session from props (from sessions screen)
   useEffect(() => {
@@ -1339,13 +1358,50 @@ export default function SalesFlow({
     // Get the selected package and subscription plan
     const currentSelectedPackage = availablePackages.find(p => p.id === selectedPackageId);
     const currentSelectedPlan = availablePlans.find(p => p.id === selectedPlanId);
-    
+
+    console.info('[SalesFlow] purchaseCustomerSubscription — resolving catalog selections', {
+      selectedPackageId,
+      selectedPlanId,
+      selectedPackageIdType: typeof selectedPackageId,
+      selectedPlanIdType: typeof selectedPlanId,
+      availablePackagesCount: availablePackages.length,
+      availablePlansCount: availablePlans.length,
+      availablePackageIds: availablePackages.map(p => p.id),
+      availablePlanIds: availablePlans.map(p => p.id),
+      packageMatched: !!currentSelectedPackage,
+      planMatched: !!currentSelectedPlan,
+    });
+
     if (!currentSelectedPackage) {
+      console.error('[SalesFlow] purchaseCustomerSubscription — package lookup failed', {
+        selectedPackageId,
+        selectedPackageIdEmpty: !selectedPackageId,
+        availablePackagesEmpty: availablePackages.length === 0,
+        availablePackageIds: availablePackages.map(p => p.id),
+        likelyCause: !selectedPackageId
+          ? 'selectedPackageId was never set (session restore did not populate it)'
+          : availablePackages.length === 0
+            ? 'catalog has not finished loading'
+            : 'selectedPackageId does not match any loaded package (type mismatch or stale id)',
+      });
       toast.error('No package selected');
       return null;
     }
-    
+
     if (!currentSelectedPlan) {
+      console.error('[SalesFlow] purchaseCustomerSubscription — plan lookup failed', {
+        selectedPlanId,
+        selectedPlanIdEmpty: !selectedPlanId,
+        availablePlansEmpty: availablePlans.length === 0,
+        availablePlanIds: availablePlans.map(p => p.id),
+        selectedPackageId,
+        selectedPackageName: currentSelectedPackage.name,
+        likelyCause: !selectedPlanId
+          ? 'selectedPlanId was never set (session restore did not populate it)'
+          : availablePlans.length === 0
+            ? 'catalog has not finished loading'
+            : 'selectedPlanId does not match any loaded plan (type mismatch or stale id)',
+      });
       toast.error('No subscription plan selected');
       return null;
     }
