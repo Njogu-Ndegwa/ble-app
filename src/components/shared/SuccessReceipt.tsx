@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useI18n } from '@/i18n';
 import { toast } from 'react-hot-toast';
-import { generateReceiptPdf } from '@/lib/generate-receipt-pdf';
 
 export interface ReceiptRow {
   /** Label for the row */
@@ -104,20 +103,6 @@ export default function SuccessReceipt({
 }: SuccessReceiptProps) {
   const { t } = useI18n();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [downloading, setDownloading] = useState(false);
-
-  const handleDownload = async () => {
-    setDownloading(true);
-    try {
-      await generateReceiptPdf(title, rows, receiptId);
-      toast.success(t('common.downloadSuccess') || 'Receipt saved');
-    } catch (err) {
-      console.error('Receipt PDF error:', err);
-      toast.error(t('common.downloadFailed') || 'Download failed');
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const handleCopy = async (value: string, index: number) => {
     try {
@@ -156,13 +141,13 @@ export default function SuccessReceipt({
         
         {/* Receipt Rows - Label on left, Value on right */}
         {rows.map((row, index) => (
-          <div
-            key={index}
-            className="receipt-row"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+          <div 
+            key={index} 
+            className="receipt-row" 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
               gap: '8px',
               padding: '8px 0',
               borderBottom: '1px solid var(--border-subtle)'
@@ -172,12 +157,12 @@ export default function SuccessReceipt({
             <span className="receipt-label" style={{ flexShrink: 0 }}>
               {row.label}
             </span>
-
+            
             {/* Value on right with optional copy button */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
-              <span
+              <span 
                 className={`receipt-value ${row.mono ? 'font-mono-oves' : ''}`}
-                style={{
+                style={{ 
                   color: row.color || undefined,
                   textAlign: 'right',
                   wordBreak: 'break-word'
@@ -217,33 +202,6 @@ export default function SuccessReceipt({
             </div>
           </div>
         ))}
-
-        {/* Download Receipt Button */}
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="btn btn-primary"
-          style={{ width: '100%', marginTop: '16px' }}
-          aria-label={t('common.downloadReceipt') || 'Download Receipt'}
-        >
-          {downloading ? (
-            <>
-              <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-              </svg>
-              {t('common.downloading') || 'Saving…'}
-            </>
-          ) : (
-            <>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              {t('common.downloadReceipt') || 'Download Receipt'}
-            </>
-          )}
-        </button>
       </div>
     </div>
   );
