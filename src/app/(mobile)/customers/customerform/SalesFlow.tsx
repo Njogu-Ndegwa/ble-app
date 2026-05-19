@@ -494,7 +494,8 @@ export default function SalesFlow({
     setFormData(restoredState.formData);
     
     // Restore selections using the catalog hook's restoreSelections function
-    restoreCatalogSelections(restoredState.selectedPackageId, restoredState.selectedPlanId);
+    // Signature: (productId, packageId, planId) — pass undefined for productId since sales flow doesn't persist it separately
+    restoreCatalogSelections(undefined, restoredState.selectedPackageId, restoredState.selectedPlanId);
     
     setCreatedCustomerId(restoredState.createdCustomerId);
     setCreatedPartnerId(restoredState.createdPartnerId);
