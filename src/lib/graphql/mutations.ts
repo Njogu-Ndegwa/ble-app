@@ -231,6 +231,59 @@ export const REPORT_PAYMENT_AND_SERVICE = gql`
 `;
 
 // ============================================================================
+// Service Plan Template Query (catalog quota lookup)
+// ============================================================================
+
+export interface ServiceConfiguration {
+  serviceId: string;
+  initialQuota: number;
+  maxQuota: number;
+  rateLimitPerDay: number;
+  autoRenewal: boolean;
+  overageAllowed: boolean;
+  overageRate?: number | null;
+}
+
+export interface ServicePlanTemplate {
+  templateId: string;
+  name: string;
+  billingCurrency: string;
+  serviceConfigurations: ServiceConfiguration[];
+}
+
+export const GET_SERVICE_PLAN_TEMPLATE = gql`
+  query ServicePlanTemplate($id: String!) {
+    servicePlanTemplate(id: $id) {
+      templateId
+      name
+      billingCurrency
+      serviceConfigurations {
+        serviceId
+        initialQuota
+        maxQuota
+        rateLimitPerDay
+        autoRenewal
+        overageAllowed
+        overageRate
+      }
+    }
+  }
+`;
+
+export function extractEnergyConfiguration(
+  template: ServicePlanTemplate | null | undefined,
+): ServiceConfiguration | null {
+  const configs = template?.serviceConfigurations;
+  if (!configs || configs.length === 0) return null;
+  return (
+    configs.find((c) => {
+      const id = String(c.serviceId || '').toLowerCase();
+      return id.includes('service-energy') || id.includes('service-electricity');
+    }) || null
+  );
+}
+
+// ============================================================================
 // Type Guards and Helpers
 // ============================================================================
 

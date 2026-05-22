@@ -9,7 +9,14 @@ import { Fingerprint } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
-import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
+import {
+  IDENTIFY_CUSTOMER,
+  parseIdentifyCustomerMetadata,
+  REPORT_PAYMENT_AND_SERVICE,
+  type IdentifyCustomerInput,
+  type ReportPaymentAndServiceInput,
+  type ReportPaymentAndServiceResponse,
+} from '@/lib/graphql/mutations';
 import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
 import {
   RiderNav,
@@ -22,7 +29,9 @@ import {
   RiderTickets,
   QRCodeModal,
   TopUpModal,
+  RiderEnergyTopUp,
 } from './components';
+import type { EnergyTopUpSubmitArgs, EnergyTopUpResult } from './components';
 import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
@@ -163,6 +172,7 @@ const RiderApp: React.FC = () => {
     | 'transactions'
     | 'plans'
     | 'tickets'
+    | 'energy-topup'
   >('home');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
@@ -1826,6 +1836,81 @@ const RiderApp: React.FC = () => {
     }
   };
 
+  // Rider energy top-up via service plan. Sends reportPaymentAndServiceCompletion
+  // with payment_data describing the rider's transfer; service_data shape for a
+  // pure energy top-up still needs ABS backend confirmation (the mutation today
+  // is swap-shaped). See plan Open Item B.
+  const handleEnergyTopUp = useCallback(
+    async (args: EnergyTopUpSubmitArgs): Promise<EnergyTopUpResult> => {
+      const planId = subscription?.subscription_code;
+      if (!planId) {
+        return { success: false, error: 'No active subscription' };
+      }
+      const energyServiceId =
+        args.energyConfig?.serviceId || 'svc-electricity-energy-tracking';
+      const energyKwh = args.energyConfig?.initialQuota ?? 0;
+      const correlationId = `rider-energy-topup-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`;
+
+      const input: ReportPaymentAndServiceInput = {
+        plan_id: planId,
+        correlation_id: correlationId,
+        attendant_station: 'RIDER_APP',
+        payment_data: {
+          service_id: energyServiceId,
+          payment_amount: args.plan.price,
+          payment_reference: args.transactionId,
+          payment_method: args.paymentMethod.toUpperCase(),
+          payment_type: 'TOP_UP',
+        },
+        // TODO(backend): replace with a topup-shaped service_data once ABS
+        // exposes one. Today's schema requires new_battery_id; we send a
+        // sentinel value so the mutation is well-formed end-to-end.
+        service_data: {
+          new_battery_id: 'ENERGY_TOPUP',
+          energy_transferred: energyKwh,
+          service_duration: 0,
+        },
+      };
+
+      try {
+        const result = await absApolloClient.mutate<{
+          reportPaymentAndServiceCompletion: ReportPaymentAndServiceResponse;
+        }>({
+          mutation: REPORT_PAYMENT_AND_SERVICE,
+          variables: { input },
+        });
+
+        if (result.errors && result.errors.length > 0) {
+          return { success: false, error: result.errors[0].message };
+        }
+        const resp = result.data?.reportPaymentAndServiceCompletion;
+        if (!resp) {
+          return { success: false, error: 'No response from server' };
+        }
+        if (!resp.payment_processed && !resp.service_completed) {
+          return { success: false, error: resp.status_message || 'Top-up rejected' };
+        }
+        // Refresh dashboard balance & identification so the credited quota
+        // shows up immediately.
+        const token = localStorage.getItem('authToken_rider');
+        if (token && customer?.partner_id) {
+          fetchDashboardData(token);
+        }
+        if (subscription?.subscription_code) {
+          fetchCustomerIdentificationData(subscription.subscription_code);
+        }
+        return { success: true };
+      } catch (err: any) {
+        console.error('[RIDER] energy top-up failed', err);
+        return { success: false, error: err?.message || 'Top-up failed' };
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [subscription?.subscription_code, customer?.partner_id],
+  );
+
   const handleNavigateToStation = (station: Station) => {
     if (station.lat && station.lng) {
       openExternalMap(
@@ -2220,6 +2305,7 @@ const RiderApp: React.FC = () => {
               onRefreshStations={refetchStations}
               onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
+              onShowEnergyTopUp={() => setCurrentScreen('energy-topup')}
               onSelectStation={handleSelectStation}
               onViewAllStations={() => setCurrentScreen('stations')}
             />
@@ -2274,6 +2360,15 @@ const RiderApp: React.FC = () => {
               partnerId={customer?.partner_id ?? null}
               customer={customer}
               activeSubscriptionId={subscription?.id ?? null}
+            />
+          )}
+
+          {currentScreen === 'energy-topup' && (
+            <RiderEnergyTopUp
+              currency={currency}
+              token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
+              onExit={() => setCurrentScreen('home')}
+              onSubmit={handleEnergyTopUp}
             />
           )}
           
@@ -2358,6 +2453,7 @@ const RiderApp: React.FC = () => {
         currency={currency}
         onConfirmTopUp={handleConfirmTopUp}
       />
+
 
       {/* Plan switcher — bottom-sheet picker, no full-screen navigation */}
       <SelectSheet

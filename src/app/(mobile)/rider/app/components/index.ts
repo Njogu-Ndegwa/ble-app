@@ -9,6 +9,11 @@ export { default as RiderTransactions } from './RiderTransactions';
 export { default as RiderTickets } from './RiderTickets';
 export { default as QRCodeModal } from './QRCodeModal';
 export { default as TopUpModal } from './TopUpModal';
+export { default as RiderEnergyTopUp } from './RiderEnergyTopUp';
+export type {
+  EnergyTopUpSubmitArgs,
+  EnergyTopUpResult,
+} from './RiderEnergyTopUp';
 export type { ActivityItem } from './RiderActivity';
 export type { RiderStation as Station } from '../types';
 export type { RiderPlan } from './RiderPlans';

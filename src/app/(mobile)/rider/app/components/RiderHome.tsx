@@ -56,6 +56,7 @@ interface RiderHomeProps {
   onRefreshStations?: () => void;
   onFindStation: () => void;
   onShowQRCode: () => void;
+  onShowEnergyTopUp?: () => void;
   onSelectStation: (stationId: number) => void;
   onViewAllStations: () => void;
 }
@@ -73,6 +74,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   onRefreshStations,
   onFindStation,
   onShowQRCode,
+  onShowEnergyTopUp,
   onSelectStation,
   onViewAllStations,
 }) => {
@@ -374,6 +376,36 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
+        {onShowEnergyTopUp && (
+          <button
+            type="button"
+            className="rider-quick-pill"
+            onClick={onShowEnergyTopUp}
+          >
+            <span className="rider-quick-pill-icon">
+              <Zap
+                size={20}
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            </span>
+            <span className="rider-quick-pill-label">
+              {t("rider.topUpEnergy") || "Top Up Energy"}
+            </span>
+            <svg
+              className="rider-quick-pill-chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Nearby Stations Section */}
