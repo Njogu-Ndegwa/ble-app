@@ -266,14 +266,16 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
             </button>
           )}
 
-          {/* Sign out */}
-          <button
-            className="app-header-dropdown-item app-header-dropdown-item--danger"
-            onClick={handleSignOut}
-          >
-            <LogOut size={14} />
-            <span>{t('sa.signOut') || 'Sign Out'}</span>
-          </button>
+          {/* Sign out — hidden on the signin page itself */}
+          {pathname !== '/signin' && (
+            <button
+              className="app-header-dropdown-item app-header-dropdown-item--danger"
+              onClick={handleSignOut}
+            >
+              <LogOut size={14} />
+              <span>{t('sa.signOut') || 'Sign Out'}</span>
+            </button>
+          )}
         </div>
       )}
     </>
