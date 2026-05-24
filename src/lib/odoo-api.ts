@@ -495,15 +495,19 @@ function getNetworkErrorMessage(error: Error | unknown): string {
     return 'Request timed out. Please check your connection and try again.';
   }
   
-  if (/Failed to fetch|NetworkError|net::ERR_|ERR_INTERNET_DISCONNECTED/i.test(message)) {
-    return 'Unable to connect to server. Please check your internet connection.';
+  if (/ERR_INTERNET_DISCONNECTED/i.test(message)) {
+    return 'No internet connection. Please check your network and try again.';
   }
-  
+
+  if (/Failed to fetch|NetworkError|net::ERR_/i.test(message)) {
+    return 'Unable to reach the server. Please try again shortly.';
+  }
+
   if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND/i.test(message)) {
     return 'Cannot reach server. Please check your network or VPN connection.';
   }
-  
-  return 'Network error. Please check your internet connection and try again.';
+
+  return 'Something went wrong. Please try again.';
 }
 
 /**
