@@ -1820,12 +1820,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         handleProceedToPayment();
         break;
       case 5:
-        // Handle payment based on input mode
-        // In manual-payment workflow, always use manual entry (no QR scan)
-        if (paymentInputMode === 'scan' && workflowMode !== 'manual-payment') {
+        if (workflowMode === 'manual-payment') {
+          // Auto-generate reference — no user input needed
+          const manualRef = `MANUAL_${sessionOrderId || Date.now()}`;
+          handleManualPayment(manualRef);
+        } else if (paymentInputMode === 'scan') {
           handleConfirmPayment();
         } else {
-          // Manual mode - call backend with manual payment ID
           if (manualPaymentId.trim()) {
             handleManualPayment(manualPaymentId.trim());
           } else {
@@ -1890,8 +1891,32 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           />
         );
       case 5:
+        if (workflowMode === 'manual-payment') {
+          return (
+            <div className="screen active">
+              <div className="payment-collection">
+                <div className="payment-header-compact">
+                  {customerData?.subscriptionId && (
+                    <div className="payment-customer-mini">
+                      <span className="payment-subscription-id">{customerData.subscriptionId}</span>
+                    </div>
+                  )}
+                  <div className="payment-amount-large">
+                    {swapData.currencySymbol} {Math.floor(swapData.cost).toLocaleString()}
+                  </div>
+                </div>
+                <div className="payment-scan">
+                  <h2 className="payment-title">{t('attendant.collectPayment') || 'Collect Payment'}</h2>
+                  <p className="scan-hint" style={{ marginTop: 16, textAlign: 'center' }}>
+                    {t('attendant.paymentCollectedExternally') || 'Payment is collected externally. Tap confirm to proceed.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
-          <Step5Payment 
+          <Step5Payment
             swapData={swapData}
             customerData={customerData}
             isProcessing={isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}

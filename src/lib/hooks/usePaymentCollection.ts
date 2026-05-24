@@ -303,7 +303,7 @@ export function usePaymentCollection(
       setPaymentRequestCreated(true);
       setPaymentRequestOrderId(sessionOrderId ?? null);
       setPaymentInitiated(true);
-      toast.success('Enter transaction ID to confirm payment');
+      toast.success('Confirm payment to proceed');
       return true;
     }
 
@@ -440,12 +440,6 @@ export function usePaymentCollection(
       // The attendant-entered transaction ID is trusted and used directly
       if (skipOdooConfirmation) {
         try {
-          if (!receipt.trim()) {
-            toast.error('Please enter a transaction ID');
-            setIsProcessing(false);
-            return;
-          }
-
           const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
           setActualAmountPaid(requiredAmount);
           setPaymentAmountRemaining(0);
