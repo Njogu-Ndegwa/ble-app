@@ -9,6 +9,7 @@ import {
   ChevronRight,
   RefreshCw,
   AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { toast } from "react-hot-toast";
@@ -54,7 +55,6 @@ interface RiderHomeProps {
   hasSubscription?: boolean;
   /** Trigger a manual re-run of the MQTT → GraphQL stations fetch. */
   onRefreshStations?: () => void;
-  onFindStation: () => void;
   onShowQRCode: () => void;
   onShowEnergyTopUp?: () => void;
   onSelectStation: (stationId: number) => void;
@@ -72,7 +72,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   stationsError = null,
   hasSubscription = true,
   onRefreshStations,
-  onFindStation,
   onShowQRCode,
   onShowEnergyTopUp,
   onSelectStation,
@@ -307,41 +306,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         <button
           type="button"
           className="rider-quick-pill"
-          onClick={onFindStation}
-        >
-          <span className="rider-quick-pill-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-          </span>
-          <span className="rider-quick-pill-label">
-            {t("rider.findStation") || "Find Station"}
-          </span>
-          <svg
-            className="rider-quick-pill-chevron"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="rider-quick-pill"
           onClick={onShowQRCode}
         >
           <span className="rider-quick-pill-icon">
@@ -376,37 +340,56 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
-        {onShowEnergyTopUp && (
+      </div>
+
+      {/* Top Up Energy Section */}
+      {onShowEnergyTopUp && (
+        <div
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'var(--accent-soft)',
+              color: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Zap size={22} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {t("rider.topUpEnergy") || "Top Up Energy"}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {t("rider.topUpDesc") || "Recharge your energy quota"}
+            </div>
+          </div>
           <button
             type="button"
-            className="rider-quick-pill"
+            className="btn btn-primary"
             onClick={onShowEnergyTopUp}
+            style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <span className="rider-quick-pill-icon">
-              <Zap
-                size={20}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </span>
-            <span className="rider-quick-pill-label">
-              {t("rider.topUpEnergy") || "Top Up Energy"}
-            </span>
-            <svg
-              className="rider-quick-pill-chevron"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
+            {t("rider.topUpNow") || "Top Up"}
+            <ArrowRight size={14} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Nearby Stations Section */}
       <div className="rider-section-header">

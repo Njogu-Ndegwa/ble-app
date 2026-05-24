@@ -28,8 +28,7 @@ import {
   RiderTransactions,
   RiderTickets,
   QRCodeModal,
-  TopUpModal,
-  RiderEnergyTopUp,
+  EnergyTopUpModal,
 } from './components';
 import type { EnergyTopUpSubmitArgs, EnergyTopUpResult } from './components';
 import { SelectSheet, type SelectSheetItem } from '@/components/ui';
@@ -172,7 +171,6 @@ const RiderApp: React.FC = () => {
     | 'transactions'
     | 'plans'
     | 'tickets'
-    | 'energy-topup'
   >('home');
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
@@ -1802,39 +1800,6 @@ const RiderApp: React.FC = () => {
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 
-  const handleTopUp = () => {
-    setShowTopUpModal(true);
-  };
-
-  const handleConfirmTopUp = async (amount: number, transactionId: string, paymentMethod: string) => {
-    try {
-      const token = localStorage.getItem('authToken_rider');
-      if (!token) throw new Error('Not authenticated');
-      
-      // TODO: Call actual API endpoint for top-up
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setBalance(prev => prev + amount);
-      
-      const newActivity: ActivityItem = {
-        id: Date.now().toString(),
-        type: 'topup',
-        title: t('rider.balanceTopUp') || 'Balance Top-up',
-        subtitle: paymentMethod === 'mtn' ? t('rider.mtnMobileMoney') : paymentMethod === 'flooz' ? t('rider.flooz') : t('rider.bankTransfer'),
-        amount: amount,
-        currency: currency,
-        isPositive: true,
-        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        date: new Date().toISOString().split('T')[0],
-      };
-      setActivities(prev => [newActivity, ...prev]);
-      toast.success(t('rider.topUpSuccess') || 'Top-up successful');
-    } catch (error: any) {
-      console.error('Top-up error:', error);
-      toast.error(error.message || t('rider.topUpFailed') || 'Top-up failed');
-      throw error;
-    }
-  };
 
   // Rider energy top-up via service plan. Sends reportPaymentAndServiceCompletion
   // with payment_data describing the rider's transfer; service_data shape for a
@@ -2303,9 +2268,8 @@ const RiderApp: React.FC = () => {
               stationsError={stationsError}
               hasSubscription={!!subscription?.subscription_code}
               onRefreshStations={refetchStations}
-              onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
-              onShowEnergyTopUp={() => setCurrentScreen('energy-topup')}
+              onShowEnergyTopUp={() => setShowTopUpModal(true)}
               onSelectStation={handleSelectStation}
               onViewAllStations={() => setCurrentScreen('stations')}
             />
@@ -2363,14 +2327,6 @@ const RiderApp: React.FC = () => {
             />
           )}
 
-          {currentScreen === 'energy-topup' && (
-            <RiderEnergyTopUp
-              currency={currency}
-              token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
-              onExit={() => setCurrentScreen('home')}
-              onSubmit={handleEnergyTopUp}
-            />
-          )}
           
           {currentScreen === 'profile' && (
             <RiderProfile
@@ -2446,12 +2402,13 @@ const RiderApp: React.FC = () => {
         subscriptionCode={subscription?.subscription_code}
       />
 
-      {/* Top-Up Modal */}
-      <TopUpModal
+      {/* Energy Top-Up Modal */}
+      <EnergyTopUpModal
         isOpen={showTopUpModal}
         onClose={() => setShowTopUpModal(false)}
         currency={currency}
-        onConfirmTopUp={handleConfirmTopUp}
+        token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
+        onSubmit={handleEnergyTopUp}
       />
 
 
