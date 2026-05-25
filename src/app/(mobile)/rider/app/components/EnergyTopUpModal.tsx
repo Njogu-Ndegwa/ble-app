@@ -114,7 +114,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
     setQuotaLoading(true);
     try {
-      const lookupId = plan.default_code || String(plan.productId);
+      const lookupId = plan.name;
       const result = await absApolloClient.query<{ servicePlanTemplate: ServicePlanTemplate | null }>({
         query: GET_SERVICE_PLAN_TEMPLATE,
         variables: { id: lookupId },
