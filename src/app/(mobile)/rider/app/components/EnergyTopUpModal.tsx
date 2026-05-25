@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, ChevronDown, AlertCircle, Loader2, Smartphone } from 'lucide-react';
+import { Zap, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
 import {
@@ -42,13 +42,6 @@ interface EnergyTopUpModalProps {
   token?: string | null;
   onSubmit: (args: EnergyTopUpSubmitArgs) => Promise<EnergyTopUpResult>;
 }
-
-// TODO: Fetch from API/config. Single payment detail for now.
-const PAYMENT_DETAIL = {
-  name: 'MTN Mobile Money',
-  phone: '+228 XX XXX XXX',
-  accountName: 'OVES Energy Ltd',
-};
 
 const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   isOpen,
@@ -295,75 +288,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                   >
                     <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
                     <span>{quotaError}</span>
-                  </div>
-                )}
-
-                {/* Payment Detail (single, read-only) */}
-                <label className="form-label">
-                  {t('rider.paymentDetails') || 'Payment Details'}
-                </label>
-                <div className="manual-entry-form" style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        background: 'var(--accent-soft)',
-                        color: 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Smartphone size={16} />
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {PAYMENT_DETAIL.name}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>{t('rider.phone') || 'Phone'}</span>
-                    <span className="manual-id-input" style={{ color: 'var(--text-primary)' }}>
-                      {PAYMENT_DETAIL.phone}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>{t('rider.accountName') || 'Account Name'}</span>
-                    <span style={{ color: 'var(--text-primary)' }}>
-                      {PAYMENT_DETAIL.accountName}
-                    </span>
-                  </div>
-                  {selectedPlan && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>{t('common.amount') || 'Amount'}</span>
-                      <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                        {currency ? `${currency} ` : ''}{selectedPlan.price.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* How to pay */}
-                {selectedPlan && (
-                  <div
-                    style={{
-                      padding: 12,
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      marginBottom: 16,
-                    }}
-                  >
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>
-                      {t('rider.howToPay') || 'How to pay'}
-                    </div>
-                    <ol style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                      <li>{t('rider.payStep1') || 'Send the exact amount to the account above'}</li>
-                      <li>{t('rider.payStep2') || 'Note down your transaction/reference ID'}</li>
-                      <li>{t('rider.payStep3') || 'Enter the reference below and confirm'}</li>
-                    </ol>
                   </div>
                 )}
 
