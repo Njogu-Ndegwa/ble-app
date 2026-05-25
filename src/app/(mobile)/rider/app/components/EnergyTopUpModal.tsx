@@ -29,6 +29,7 @@ export interface EnergyTopUpSubmitArgs {
 
 interface PlanOption {
   name: string;
+  description?: string;
   price: number;
   productId: number;
   default_code: string;
@@ -75,6 +76,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         if (cancelled) return;
         const list = (res.data?.products || []).map<PlanOption>((p) => ({
           name: p.name,
+          description: p.description || undefined,
           price: p.list_price,
           productId: p.id,
           default_code: p.default_code || `P-${p.id}`,
@@ -396,7 +398,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         items={plans.map((p) => ({
           value: String(p.productId),
           label: p.name,
-          description: p.category || p.default_code,
+          description: p.description || p.category || p.default_code,
           meta: `${currency ? `${currency} ` : ''}${p.price.toLocaleString()}`,
         }))}
         onSelect={(item) => {

@@ -8,6 +8,7 @@ import { getSubscriptionProducts } from "@/lib/odoo-api";
 
 export interface RiderPlan {
   name: string;
+  description?: string;
   price: number;
   productId: number;
   default_code: string;
@@ -69,6 +70,7 @@ export default function RiderPlans({
           ...(res.data?.products || []),
         ].map<RiderPlan>((p) => ({
           name: p.name,
+          description: p.description || undefined,
           price: p.list_price,
           productId: p.id,
           default_code: p.default_code || `P-${p.id}`,
@@ -209,7 +211,7 @@ export default function RiderPlans({
           <div className="list-card-body">
             <div className="list-card-content">
               <div className="list-card-primary">{p.name}</div>
-              <div className="list-card-secondary">{p.default_code}</div>
+              <div className="list-card-secondary">{p.description || p.default_code}</div>
               <div className="list-card-meta">
                 <Tag size={10} />
                 <span>
