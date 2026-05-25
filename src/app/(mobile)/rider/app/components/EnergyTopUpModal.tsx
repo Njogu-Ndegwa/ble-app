@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, ChevronDown, AlertCircle, Loader2, Smartphone, Landmark } from 'lucide-react';
+import { Zap, ChevronDown, AlertCircle, Loader2, Smartphone } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
 import {
@@ -43,35 +43,12 @@ interface EnergyTopUpModalProps {
   onSubmit: (args: EnergyTopUpSubmitArgs) => Promise<EnergyTopUpResult>;
 }
 
-const PAYMENT_METHODS = [
-  {
-    key: 'mtn',
-    nameKey: 'rider.mtnMobileMoney',
-    nameFallback: 'MTN Mobile Money',
-    phone: '+228 90 123 456',
-    typeKey: 'rider.instantTransfer',
-    typeFallback: 'Instant transfer',
-    Icon: Smartphone,
-  },
-  {
-    key: 'flooz',
-    nameKey: 'rider.flooz',
-    nameFallback: 'Flooz (Moov)',
-    phone: '+228 97 654 321',
-    typeKey: 'rider.instantTransfer',
-    typeFallback: 'Instant transfer',
-    Icon: Smartphone,
-  },
-  {
-    key: 'bank',
-    nameKey: 'rider.bankTransfer',
-    nameFallback: 'Bank Transfer',
-    phone: '0051234567890',
-    typeKey: 'rider.processingTime',
-    typeFallback: '1-2 business days',
-    Icon: Landmark,
-  },
-] as const;
+// TODO: Fetch from API/config. Single payment detail for now.
+const PAYMENT_DETAIL = {
+  name: 'MTN Mobile Money',
+  phone: '+228 XX XXX XXX',
+  accountName: 'OVES Energy Ltd',
+};
 
 const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   isOpen,
@@ -90,13 +67,10 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const [energyConfig, setEnergyConfig] = useState<ServiceConfiguration | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [transactionId, setTransactionId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Fetch service plans when modal opens (only `products`, not packages)
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -106,9 +80,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
       try {
         const res = await getSubscriptionProducts(1, 50, token || undefined);
         if (cancelled) return;
-        const list = [
-          ...(res.data?.products || []),
-        ].map<PlanOption>((p) => ({
+        const list = (res.data?.products || []).map<PlanOption>((p) => ({
           name: p.name,
           price: p.list_price,
           productId: p.id,
@@ -128,14 +100,12 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     return () => { cancelled = true; };
   }, [isOpen, token]);
 
-  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setStep('payment');
       setSelectedPlan(null);
       setEnergyConfig(null);
       setQuotaError(null);
-      setPaymentMethod('');
       setTransactionId('');
       setSubmitError(null);
       setIsProcessing(false);
@@ -176,7 +146,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   }, [t]);
 
   const handleConfirm = useCallback(async () => {
-    if (!selectedPlan || !transactionId.trim() || !paymentMethod) return;
+    if (!selectedPlan || !transactionId.trim()) return;
     setIsProcessing(true);
     setSubmitError(null);
     try {
@@ -184,7 +154,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         plan: selectedPlan,
         energyConfig,
         transactionId: transactionId.trim(),
-        paymentMethod,
+        paymentMethod: 'mobile_money',
       });
       if (result.success) {
         setStep('success');
@@ -196,7 +166,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedPlan, energyConfig, transactionId, paymentMethod, onSubmit]);
+  }, [selectedPlan, energyConfig, transactionId, onSubmit]);
 
   if (!isOpen) return null;
 
@@ -204,10 +174,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
   const selectedPlanLabel = selectedPlan
     ? `${selectedPlan.name} — ${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`
-    : '';
-
-  const selectedMethodLabel = paymentMethod
-    ? (PAYMENT_METHODS.find((m) => m.key === paymentMethod)?.nameFallback || paymentMethod)
     : '';
 
   return (
@@ -219,7 +185,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         <div className="select-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="select-sheet-handle" aria-hidden="true" />
 
-          {/* Header */}
           <div className="select-sheet-head">
             <div className="select-sheet-title">
               {step === 'success'
@@ -234,29 +199,17 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
           </div>
 
           <div className="select-sheet-body">
-            {/* ── STEP: PAYMENT (merged with confirm) ──────────────── */}
             {step === 'payment' && (
               <div style={{ padding: '4px 0' }}>
                 {/* Plan Selector */}
                 <div style={{ marginBottom: 16 }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: 'var(--text-secondary)',
-                      marginBottom: 6,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                    }}
-                  >
+                  <label className="form-label">
                     {t('rider.energyTopUp.selectPlan') || 'Select Service Plan'}
                   </label>
                   <button
                     type="button"
-                    className="qr-input"
+                    className="form-input"
                     style={{
-                      width: '100%',
                       textAlign: 'left',
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -272,17 +225,17 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                         ? (t('common.loading') || 'Loading...')
                         : selectedPlanLabel || (t('rider.energyTopUp.choosePlan') || 'Choose a plan')}
                     </span>
-                    <ChevronDown size={16} style={{ flexShrink: 0 }} />
+                    <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
                   </button>
                   {plansError && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: 'var(--error, #ef4444)' }}>
-                      <AlertCircle size={12} />
+                    <div className="form-error" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <AlertCircle size={10} />
                       <span>{plansError}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Energy Quota Display */}
+                {/* Energy Quota */}
                 {selectedPlan && (
                   <div
                     className="list-card"
@@ -345,65 +298,51 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                   </div>
                 )}
 
-                {/* Read-only Payment Methods */}
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: 'var(--text-secondary)',
-                    marginBottom: 8,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                  }}
-                >
+                {/* Payment Detail (single, read-only) */}
+                <label className="form-label">
                   {t('rider.paymentDetails') || 'Payment Details'}
                 </label>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                  {PAYMENT_METHODS.map((m) => (
+                <div className="manual-entry-form" style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                     <div
-                      key={m.key}
                       style={{
-                        padding: '10px 12px',
-                        background: 'var(--bg-tertiary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)',
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: '50%',
-                            background: 'var(--accent-soft)',
-                            color: 'var(--accent)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <m.Icon size={16} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {t(m.nameKey) || m.nameFallback}
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            {t(m.typeKey) || m.typeFallback}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '2px 0' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>{m.key === 'bank' ? (t('attendant.accountNumber') || 'Account Number') : (t('rider.phone') || 'Phone')}</span>
-                        <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono, "DM Mono", monospace)' }}>
-                          {m.phone}
-                        </span>
-                      </div>
+                      <Smartphone size={16} />
                     </div>
-                  ))}
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {PAYMENT_DETAIL.name}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('rider.phone') || 'Phone'}</span>
+                    <span className="manual-id-input" style={{ color: 'var(--text-primary)' }}>
+                      {PAYMENT_DETAIL.phone}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('rider.accountName') || 'Account Name'}</span>
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      {PAYMENT_DETAIL.accountName}
+                    </span>
+                  </div>
+                  {selectedPlan && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('common.amount') || 'Amount'}</span>
+                      <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                        {currency ? `${currency} ` : ''}{selectedPlan.price.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* How to pay */}
@@ -421,74 +360,25 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                       {t('rider.howToPay') || 'How to pay'}
                     </div>
                     <ol style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                      <li>
-                        {t('rider.payStep1') || 'Send the exact amount to one of the accounts above'} (
-                        <strong style={{ color: 'var(--text-primary)' }}>
-                          {currency ? `${currency} ` : ''}{selectedPlan.price.toLocaleString()}
-                        </strong>)
-                      </li>
+                      <li>{t('rider.payStep1') || 'Send the exact amount to the account above'}</li>
                       <li>{t('rider.payStep2') || 'Note down your transaction/reference ID'}</li>
-                      <li>{t('rider.payStep3') || 'Fill in the details below and confirm'}</li>
+                      <li>{t('rider.payStep3') || 'Enter the reference below and confirm'}</li>
                     </ol>
                   </div>
                 )}
 
                 {/* Transaction ID */}
-                <div style={{ marginBottom: 14 }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: 'var(--text-secondary)',
-                      marginBottom: 6,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                    }}
-                  >
+                <div style={{ marginBottom: 16 }}>
+                  <label className="form-label">
                     {t('rider.txnIdRef') || 'Transaction ID / Reference'}
                   </label>
                   <input
                     type="text"
-                    className="qr-input"
+                    className="form-input manual-id-input"
                     placeholder={t('rider.enterTxnId') || 'Enter transaction ID'}
                     value={transactionId}
                     onChange={(e) => setTransactionId(e.target.value)}
                   />
-                </div>
-
-                {/* Payment method selector */}
-                <div style={{ marginBottom: 16 }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: 'var(--text-secondary)',
-                      marginBottom: 6,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {t('rider.paymentMethodUsed') || 'Payment Method Used'}
-                  </label>
-                  <button
-                    type="button"
-                    className="qr-input"
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      color: paymentMethod ? 'var(--text-primary)' : 'var(--text-muted)',
-                    }}
-                    onClick={() => setShowPaymentSheet(true)}
-                  >
-                    <span>{selectedMethodLabel || t('rider.selectPaymentMethod') || 'Select payment method'}</span>
-                    <ChevronDown size={16} style={{ flexShrink: 0 }} />
-                  </button>
                 </div>
 
                 {submitError && (
@@ -515,7 +405,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                   type="button"
                   className="btn btn-primary"
                   onClick={handleConfirm}
-                  disabled={!selectedPlan || !transactionId.trim() || !paymentMethod || isProcessing}
+                  disabled={!selectedPlan || !transactionId.trim() || isProcessing}
                   style={{ width: '100%' }}
                 >
                   {isProcessing
@@ -525,7 +415,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
               </div>
             )}
 
-            {/* ── STEP: SUCCESS ─────────────────────────────────────── */}
+            {/* ── SUCCESS ──────────────────────────────────────────── */}
             {step === 'success' && selectedPlan && (
               <div style={{ padding: '16px 0', textAlign: 'center' }}>
                 <div
@@ -584,20 +474,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
           const plan = plans.find((p) => String(p.productId) === item.value);
           if (plan) handlePlanSelect(plan);
         }}
-      />
-
-      {/* Payment method SelectSheet */}
-      <SelectSheet
-        isOpen={showPaymentSheet}
-        onClose={() => setShowPaymentSheet(false)}
-        title={t('rider.paymentMethodUsed') || 'Payment Method'}
-        activeValue={paymentMethod}
-        items={PAYMENT_METHODS.map((m) => ({
-          value: m.key,
-          label: t(m.nameKey) || m.nameFallback,
-          description: t(m.typeKey) || m.typeFallback,
-        }))}
-        onSelect={(item) => setPaymentMethod(item.value as string)}
       />
     </>
   );
