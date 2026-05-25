@@ -34,6 +34,13 @@ function getActiveSAId(): string | null {
     resolved = salesSaId || attendantSaId || null;
   }
 
+  console.warn(
+    '[SA-ID] getActiveSAId resolved:',
+    resolved,
+    '| path:', path,
+    '| attendantSaId:', attendantSaId,
+    '| salesSaId:', salesSaId,
+  );
   return resolved;
 }
 
