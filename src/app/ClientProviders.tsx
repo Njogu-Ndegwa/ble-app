@@ -9,9 +9,8 @@ import { I18nProvider } from '@/i18n';
 import { ThemeProvider } from './context/themeContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-// VConsole for mobile debugging — same pattern as dennis-master-latest-code (root layout there).
-// Set to false to disable.
-const ENABLE_VCONSOLE = true;
+// Set to true to enable, false to disable.
+const ENABLE_VCONSOLE = false;
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -20,7 +19,6 @@ export default function ClientProviders({ children }: { children: React.ReactNod
         .then((VConsoleModule) => {
           const VConsole = VConsoleModule.default;
           const vConsole = new VConsole({ theme: 'dark' });
-          console.log('[VConsole] Initialized for debugging');
 
           (window as unknown as { __vconsole__: typeof vConsole }).__vconsole__ = vConsole;
         })
