@@ -11,7 +11,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // VConsole for mobile debugging — same pattern as dennis-master-latest-code (root layout there).
 // Set to false to disable.
-const ENABLE_VCONSOLE = false;
+const ENABLE_VCONSOLE = true;
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
