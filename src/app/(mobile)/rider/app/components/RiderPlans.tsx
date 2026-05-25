@@ -67,8 +67,6 @@ export default function RiderPlans({
         if (cancelled) return;
         const list = [
           ...(res.data?.products || []),
-          ...(res.data?.mainServiceProducts || []),
-          ...(res.data?.batterySwapProducts || []),
         ].map<RiderPlan>((p) => ({
           name: p.name,
           price: p.list_price,

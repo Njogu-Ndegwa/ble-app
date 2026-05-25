@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, AlertCircle, Loader2, CheckCircle2, Smartphone, Landmark } from 'lucide-react';
+import { Zap, ChevronDown, AlertCircle, Loader2, Smartphone, Landmark } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
 import {
@@ -11,8 +11,9 @@ import {
   type ServiceConfiguration,
 } from '@/lib/graphql/mutations';
 import { getSubscriptionProducts } from '@/lib/odoo-api';
+import { SelectSheet } from '@/components/ui';
 
-export type EnergyTopUpStep = 'payment' | 'confirm' | 'success';
+export type EnergyTopUpStep = 'payment' | 'success';
 
 export interface EnergyTopUpResult {
   success: boolean;
@@ -85,15 +86,17 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const [plansLoading, setPlansLoading] = useState(false);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
+  const [showPlanSheet, setShowPlanSheet] = useState(false);
   const [energyConfig, setEnergyConfig] = useState<ServiceConfiguration | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [transactionId, setTransactionId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Fetch plans when modal opens
+  // Fetch service plans when modal opens (only `products`, not packages)
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -105,8 +108,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         if (cancelled) return;
         const list = [
           ...(res.data?.products || []),
-          ...(res.data?.mainServiceProducts || []),
-          ...(res.data?.batterySwapProducts || []),
         ].map<PlanOption>((p) => ({
           name: p.name,
           price: p.list_price,
@@ -141,13 +142,10 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     }
   }, [isOpen]);
 
-  const handlePlanChange = useCallback(async (productId: string) => {
-    const plan = plans.find(p => String(p.productId) === productId) || null;
+  const handlePlanSelect = useCallback(async (plan: PlanOption) => {
     setSelectedPlan(plan);
     setEnergyConfig(null);
     setQuotaError(null);
-
-    if (!plan) return;
 
     setQuotaLoading(true);
     try {
@@ -175,7 +173,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     } finally {
       setQuotaLoading(false);
     }
-  }, [plans, t]);
+  }, [t]);
 
   const handleConfirm = useCallback(async () => {
     if (!selectedPlan || !transactionId.trim() || !paymentMethod) return;
@@ -203,415 +201,405 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   if (!isOpen) return null;
 
   const energyKwh = energyConfig?.initialQuota ?? null;
-  const canProceedToConfirm = selectedPlan && paymentMethod;
+
+  const selectedPlanLabel = selectedPlan
+    ? `${selectedPlan.name} — ${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`
+    : '';
+
+  const selectedMethodLabel = paymentMethod
+    ? (PAYMENT_METHODS.find((m) => m.key === paymentMethod)?.nameFallback || paymentMethod)
+    : '';
 
   return (
-    <div
-      className="qr-modal-overlay active"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="qr-modal" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-        {/* Header */}
-        <div className="qr-modal-header">
-          <h3 className="qr-modal-title">
-            {step === 'success'
-              ? (t('rider.energyTopUp.success') || 'Energy Credited')
-              : step === 'confirm'
-                ? (t('rider.confirmPayment') || 'Confirm Payment')
+    <>
+      <div
+        className="select-sheet-overlay"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div className="select-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="select-sheet-handle" aria-hidden="true" />
+
+          {/* Header */}
+          <div className="select-sheet-head">
+            <div className="select-sheet-title">
+              {step === 'success'
+                ? (t('rider.energyTopUp.success') || 'Energy Credited')
                 : (t('rider.topUpEnergy') || 'Top Up Energy')}
-          </h3>
-          <button className="qr-modal-close" onClick={onClose}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* ── STEP: PAYMENT ─────────────────────────────────────── */}
-        {step === 'payment' && (
-          <div style={{ padding: '0 20px 20px' }}>
-            {/* Plan Dropdown */}
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: 'var(--text-secondary)',
-                  marginBottom: 6,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                {t('rider.energyTopUp.selectPlan') || 'Select Service Plan'}
-              </label>
-              <select
-                className="qr-input"
-                value={selectedPlan ? String(selectedPlan.productId) : ''}
-                onChange={(e) => handlePlanChange(e.target.value)}
-                disabled={plansLoading}
-              >
-                <option value="">
-                  {plansLoading
-                    ? (t('common.loading') || 'Loading...')
-                    : (t('rider.energyTopUp.choosePlan') || 'Choose a plan')}
-                </option>
-                {plans.map((p) => (
-                  <option key={p.productId} value={String(p.productId)}>
-                    {p.name} — {currency ? `${currency} ` : ''}{p.price.toLocaleString()}
-                  </option>
-                ))}
-              </select>
-              {plansError && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: 'var(--error, #ef4444)' }}>
-                  <AlertCircle size={12} />
-                  <span>{plansError}</span>
-                </div>
-              )}
             </div>
+            <button className="select-sheet-close" onClick={onClose} aria-label={t('common.close') || 'Close'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-            {/* Energy Quota Display */}
-            {selectedPlan && (
-              <div
-                className="list-card"
-                style={{
-                  marginBottom: 16,
-                  padding: 14,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                }}
-              >
+          <div className="select-sheet-body">
+            {/* ── STEP: PAYMENT (merged with confirm) ──────────────── */}
+            {step === 'payment' && (
+              <div style={{ padding: '4px 0' }}>
+                {/* Plan Selector */}
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: 'var(--text-secondary)',
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {t('rider.energyTopUp.selectPlan') || 'Select Service Plan'}
+                  </label>
+                  <button
+                    type="button"
+                    className="qr-input"
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      color: selectedPlan ? 'var(--text-primary)' : 'var(--text-muted)',
+                    }}
+                    onClick={() => setShowPlanSheet(true)}
+                    disabled={plansLoading}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {plansLoading
+                        ? (t('common.loading') || 'Loading...')
+                        : selectedPlanLabel || (t('rider.energyTopUp.choosePlan') || 'Choose a plan')}
+                    </span>
+                    <ChevronDown size={16} style={{ flexShrink: 0 }} />
+                  </button>
+                  {plansError && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: 'var(--error, #ef4444)' }}>
+                      <AlertCircle size={12} />
+                      <span>{plansError}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Energy Quota Display */}
+                {selectedPlan && (
+                  <div
+                    className="list-card"
+                    style={{
+                      marginBottom: 16,
+                      padding: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Zap size={20} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {t('rider.energyTopUp.energyOffered') || "Energy you'll receive"}
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
+                        {quotaLoading
+                          ? '...'
+                          : energyKwh !== null
+                            ? `${energyKwh.toLocaleString()} kWh`
+                            : (t('rider.energyTopUp.quotaUnknown') || 'Quota unavailable')}
+                      </div>
+                    </div>
+                    {quotaLoading && <Loader2 size={16} className="animate-spin" />}
+                  </div>
+                )}
+
+                {quotaError && !quotaLoading && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      padding: 10,
+                      background: 'var(--warning-soft, var(--accent-soft))',
+                      color: 'var(--warning, var(--text-secondary))',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <span>{quotaError}</span>
+                  </div>
+                )}
+
+                {/* Read-only Payment Methods */}
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: 'var(--text-secondary)',
+                    marginBottom: 8,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {t('rider.paymentDetails') || 'Payment Details'}
+                </label>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {PAYMENT_METHODS.map((m) => (
+                    <div
+                      key={m.key}
+                      style={{
+                        padding: '10px 12px',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: 'var(--accent-soft)',
+                            color: 'var(--accent)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <m.Icon size={16} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {t(m.nameKey) || m.nameFallback}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {t(m.typeKey) || m.typeFallback}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '2px 0' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{m.key === 'bank' ? (t('attendant.accountNumber') || 'Account Number') : (t('rider.phone') || 'Phone')}</span>
+                        <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono, "DM Mono", monospace)' }}>
+                          {m.phone}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* How to pay */}
+                {selectedPlan && (
+                  <div
+                    style={{
+                      padding: 12,
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>
+                      {t('rider.howToPay') || 'How to pay'}
+                    </div>
+                    <ol style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                      <li>
+                        {t('rider.payStep1') || 'Send the exact amount to one of the accounts above'} (
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                          {currency ? `${currency} ` : ''}{selectedPlan.price.toLocaleString()}
+                        </strong>)
+                      </li>
+                      <li>{t('rider.payStep2') || 'Note down your transaction/reference ID'}</li>
+                      <li>{t('rider.payStep3') || 'Fill in the details below and confirm'}</li>
+                    </ol>
+                  </div>
+                )}
+
+                {/* Transaction ID */}
+                <div style={{ marginBottom: 14 }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: 'var(--text-secondary)',
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {t('rider.txnIdRef') || 'Transaction ID / Reference'}
+                  </label>
+                  <input
+                    type="text"
+                    className="qr-input"
+                    placeholder={t('rider.enterTxnId') || 'Enter transaction ID'}
+                    value={transactionId}
+                    onChange={(e) => setTransactionId(e.target.value)}
+                  />
+                </div>
+
+                {/* Payment method selector */}
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: 'var(--text-secondary)',
+                      marginBottom: 6,
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {t('rider.paymentMethodUsed') || 'Payment Method Used'}
+                  </label>
+                  <button
+                    type="button"
+                    className="qr-input"
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      color: paymentMethod ? 'var(--text-primary)' : 'var(--text-muted)',
+                    }}
+                    onClick={() => setShowPaymentSheet(true)}
+                  >
+                    <span>{selectedMethodLabel || t('rider.selectPaymentMethod') || 'Select payment method'}</span>
+                    <ChevronDown size={16} style={{ flexShrink: 0 }} />
+                  </button>
+                </div>
+
+                {submitError && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      padding: 12,
+                      background: 'var(--error-soft, var(--bg-secondary))',
+                      color: 'var(--error, var(--text-primary))',
+                      border: '1px solid var(--error, var(--border))',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <span>{submitError}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleConfirm}
+                  disabled={!selectedPlan || !transactionId.trim() || !paymentMethod || isProcessing}
+                  style={{ width: '100%' }}
+                >
+                  {isProcessing
+                    ? (t('common.processing') || 'Processing...')
+                    : (t('rider.madePayment') || "I've Made Payment")}
+                </button>
+              </div>
+            )}
+
+            {/* ── STEP: SUCCESS ─────────────────────────────────────── */}
+            {step === 'success' && selectedPlan && (
+              <div style={{ padding: '16px 0', textAlign: 'center' }}>
                 <div
                   style={{
-                    width: 40,
-                    height: 40,
+                    width: 64,
+                    height: 64,
                     borderRadius: '50%',
                     background: 'var(--accent-soft)',
                     color: 'var(--accent)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    flexShrink: 0,
+                    margin: '0 auto 14px',
                   }}
                 >
-                  <Zap size={20} />
+                  <Zap size={32} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    {t('rider.energyTopUp.energyOffered') || "Energy you'll receive"}
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
-                    {quotaLoading
-                      ? '...'
-                      : energyKwh !== null
-                        ? `${energyKwh.toLocaleString()} kWh`
-                        : (t('rider.energyTopUp.quotaUnknown') || 'Quota unavailable')}
-                  </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {energyKwh !== null
+                    ? `+${energyKwh.toLocaleString()} kWh`
+                    : `+${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`}
                 </div>
-                {quotaLoading && <Loader2 size={16} className="animate-spin" />}
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
+                  {t('rider.energyTopUp.creditedDesc') || 'Your energy quota has been credited successfully'}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={onClose}
+                  style={{ width: '100%', marginTop: 20 }}
+                >
+                  {t('rider.done') || 'Done'}
+                </button>
               </div>
             )}
-
-            {quotaError && !quotaLoading && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 8,
-                  padding: 10,
-                  background: 'var(--warning-soft, var(--accent-soft))',
-                  color: 'var(--warning, var(--text-secondary))',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  marginBottom: 16,
-                }}
-              >
-                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                <span>{quotaError}</span>
-              </div>
-            )}
-
-            {/* Payment Methods */}
-            <label
-              style={{
-                display: 'block',
-                fontSize: 11,
-                fontWeight: 500,
-                color: 'var(--text-secondary)',
-                marginBottom: 8,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-              }}
-            >
-              {t('rider.paymentDetails') || 'Payment Details'}
-            </label>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-              {PAYMENT_METHODS.map((m) => {
-                const isActive = paymentMethod === m.key;
-                return (
-                  <div
-                    key={m.key}
-                    className="list-card"
-                    onClick={() => setPaymentMethod(m.key)}
-                    style={{
-                      cursor: 'pointer',
-                      borderColor: isActive ? 'var(--accent)' : undefined,
-                      boxShadow: isActive ? '0 0 0 2px var(--accent-soft)' : undefined,
-                    }}
-                  >
-                    <div className="list-card-body">
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: '50%',
-                          background: 'var(--accent-soft)',
-                          color: 'var(--accent)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          marginRight: 10,
-                        }}
-                      >
-                        <m.Icon size={16} />
-                      </div>
-                      <div className="list-card-content">
-                        <div className="list-card-primary" style={{ fontSize: 13 }}>
-                          {t(m.nameKey) || m.nameFallback}
-                        </div>
-                        <div className="list-card-meta-mono" style={{ marginTop: 2, fontSize: 12 }}>
-                          {m.phone}
-                        </div>
-                      </div>
-                      {isActive && (
-                        <div className="list-card-actions">
-                          <CheckCircle2 size={18} style={{ color: 'var(--accent)' }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* How to pay */}
-            {selectedPlan && (
-              <div
-                style={{
-                  padding: 12,
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: 20,
-                }}
-              >
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>
-                  {t('rider.howToPay') || 'How to pay'}
-                </div>
-                <ol style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  <li>
-                    {t('rider.payStep1') || 'Send the exact amount to one of the accounts above'} (
-                    <strong style={{ color: 'var(--text-primary)' }}>
-                      {currency ? `${currency} ` : ''}{selectedPlan.price.toLocaleString()}
-                    </strong>)
-                  </li>
-                  <li>{t('rider.payStep2') || 'Note down your transaction/reference ID'}</li>
-                  <li>{t('rider.payStep3') || 'Tap "I\'ve Made Payment" below to confirm'}</li>
-                </ol>
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setStep('confirm')}
-              disabled={!canProceedToConfirm}
-              style={{ width: '100%' }}
-            >
-              {t('rider.madePayment') || "I've Made Payment"}
-            </button>
           </div>
-        )}
-
-        {/* ── STEP: CONFIRM ─────────────────────────────────────── */}
-        {step === 'confirm' && selectedPlan && (
-          <div style={{ padding: '0 20px 20px' }}>
-            {/* Summary */}
-            <div
-              className="list-card"
-              style={{
-                padding: 16,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
-                marginBottom: 16,
-              }}
-            >
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {t('rider.topUpAmount') || 'Top-up Amount'}
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>
-                {currency ? `${currency} ` : ''}{selectedPlan.price.toLocaleString()}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
-                {selectedPlan.name}
-                {energyKwh !== null ? ` · ${energyKwh.toLocaleString()} kWh` : ''}
-              </div>
-            </div>
-
-            {/* Transaction ID */}
-            <div style={{ marginBottom: 14 }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: 'var(--text-secondary)',
-                  marginBottom: 6,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                {t('rider.txnIdRef') || 'Transaction ID / Reference'}
-              </label>
-              <input
-                type="text"
-                className="qr-input"
-                placeholder={t('rider.enterTxnId') || 'Enter transaction ID'}
-                value={transactionId}
-                onChange={(e) => setTransactionId(e.target.value)}
-              />
-            </div>
-
-            {/* Payment method confirm */}
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: 'var(--text-secondary)',
-                  marginBottom: 6,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                {t('rider.paymentMethodUsed') || 'Payment Method Used'}
-              </label>
-              <select
-                className="qr-input"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                <option value="">{t('rider.selectPaymentMethod') || 'Select payment method'}</option>
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m.key} value={m.key}>
-                    {t(m.nameKey) || m.nameFallback}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {submitError && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 8,
-                  padding: 12,
-                  background: 'var(--error-soft, var(--bg-secondary))',
-                  color: 'var(--error, var(--text-primary))',
-                  border: '1px solid var(--error, var(--border))',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  marginBottom: 12,
-                }}
-              >
-                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                <span>{submitError}</span>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setStep('payment')}
-                disabled={isProcessing}
-                style={{ flex: 1 }}
-              >
-                {t('common.back') || 'Back'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleConfirm}
-                disabled={!transactionId.trim() || !paymentMethod || isProcessing}
-                style={{ flex: 1 }}
-              >
-                {isProcessing
-                  ? (t('common.processing') || 'Processing...')
-                  : (t('rider.confirmTopUp') || 'Confirm Top-Up')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP: SUCCESS ─────────────────────────────────────── */}
-        {step === 'success' && selectedPlan && (
-          <div style={{ padding: '0 20px 20px' }}>
-            <div
-              className="list-card"
-              style={{
-                padding: 24,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
-              }}
-            >
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%',
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: 14,
-                }}
-              >
-                <Zap size={32} />
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {energyKwh !== null
-                  ? `+${energyKwh.toLocaleString()} kWh`
-                  : `+${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`}
-              </div>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
-                {t('rider.energyTopUp.creditedDesc') || 'Your energy quota has been credited successfully'}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={onClose}
-              style={{ width: '100%', marginTop: 20 }}
-            >
-              {t('rider.done') || 'Done'}
-            </button>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+
+      {/* Plan SelectSheet */}
+      <SelectSheet
+        isOpen={showPlanSheet}
+        onClose={() => setShowPlanSheet(false)}
+        title={t('rider.energyTopUp.selectPlan') || 'Select Service Plan'}
+        activeValue={selectedPlan ? String(selectedPlan.productId) : null}
+        loading={plansLoading}
+        error={plansError}
+        searchable={plans.length > 6}
+        items={plans.map((p) => ({
+          value: String(p.productId),
+          label: p.name,
+          description: p.category || p.default_code,
+          meta: `${currency ? `${currency} ` : ''}${p.price.toLocaleString()}`,
+        }))}
+        onSelect={(item) => {
+          const plan = plans.find((p) => String(p.productId) === item.value);
+          if (plan) handlePlanSelect(plan);
+        }}
+      />
+
+      {/* Payment method SelectSheet */}
+      <SelectSheet
+        isOpen={showPaymentSheet}
+        onClose={() => setShowPaymentSheet(false)}
+        title={t('rider.paymentMethodUsed') || 'Payment Method'}
+        activeValue={paymentMethod}
+        items={PAYMENT_METHODS.map((m) => ({
+          value: m.key,
+          label: t(m.nameKey) || m.nameFallback,
+          description: t(m.typeKey) || m.typeFallback,
+        }))}
+        onSelect={(item) => setPaymentMethod(item.value as string)}
+      />
+    </>
   );
 };
 

@@ -7935,6 +7935,10 @@ html.theme-transition *::after {
   margin-bottom: 20px;
 }
 
+.rider-quick-pills > :first-child:nth-last-child(3) {
+  grid-column: 1 / -1;
+}
+
 .rider-quick-pill {
   display: flex;
   align-items: center;
@@ -7998,6 +8002,48 @@ html.theme-transition *::after {
 .rider-quick-pill:hover .rider-quick-pill-chevron {
   color: var(--accent);
   transform: translateX(2px);
+}
+
+/* Top-Up amount grid */
+.topup-amount-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.topup-amount-btn {
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.topup-amount-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+.topup-amount-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.topup-custom-input {
+  -moz-appearance: textfield;
+}
+
+.topup-custom-input::-webkit-inner-spin-button,
+.topup-custom-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* Rider skeleton loading bars */
