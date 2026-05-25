@@ -178,13 +178,18 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         <div className="select-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="select-sheet-handle" aria-hidden="true" />
 
-          <div className="select-sheet-head">
-            <div className="select-sheet-title">
+          <div className="select-sheet-head" style={{ position: 'relative' }}>
+            <div className="select-sheet-title" style={{ textAlign: 'center', width: '100%' }}>
               {step === 'success'
                 ? (t('rider.energyTopUp.success') || 'Energy Credited')
                 : (t('rider.topUpEnergy') || 'Top Up Energy')}
             </div>
-            <button className="select-sheet-close" onClick={onClose} aria-label={t('common.close') || 'Close'}>
+            <button
+              className="select-sheet-close"
+              onClick={onClose}
+              aria-label={t('common.close') || 'Close'}
+              style={{ position: 'absolute', right: 16, top: 12 }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
