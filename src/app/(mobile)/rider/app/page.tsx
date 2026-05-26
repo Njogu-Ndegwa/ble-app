@@ -1807,6 +1807,8 @@ const RiderApp: React.FC = () => {
   // is swap-shaped). See plan Open Item B.
   const handleEnergyTopUp = useCallback(
     async (args: EnergyTopUpSubmitArgs): Promise<EnergyTopUpResult> => {
+      // Payment has already been verified by the modal via confirmPaymentManual.
+      // This function only reports the service to ABS.
       const planId = subscription?.subscription_code;
       if (!planId) {
         return { success: false, error: 'No active subscription' };
@@ -1829,9 +1831,6 @@ const RiderApp: React.FC = () => {
           payment_method: args.paymentMethod.toUpperCase(),
           payment_type: 'TOP_UP',
         },
-        // TODO(backend): replace with a topup-shaped service_data once ABS
-        // exposes one. Today's schema requires new_battery_id; we send a
-        // sentinel value so the mutation is well-formed end-to-end.
         service_data: {
           new_battery_id: 'ENERGY_TOPUP',
           energy_transferred: energyKwh,
@@ -1857,8 +1856,6 @@ const RiderApp: React.FC = () => {
         if (!resp.payment_processed && !resp.service_completed) {
           return { success: false, error: resp.status_message || 'Top-up rejected' };
         }
-        // Refresh dashboard balance & identification so the credited quota
-        // shows up immediately.
         const token = localStorage.getItem('authToken_rider');
         if (token && customer?.partner_id) {
           fetchDashboardData(token);
@@ -2408,6 +2405,7 @@ const RiderApp: React.FC = () => {
         onClose={() => setShowTopUpModal(false)}
         currency={currency}
         token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
+        subscriptionCode={subscription?.subscription_code || null}
         onSubmit={handleEnergyTopUp}
       />
 

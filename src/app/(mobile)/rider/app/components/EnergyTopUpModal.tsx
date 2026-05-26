@@ -10,10 +10,16 @@ import {
   type ServicePlanTemplate,
   type ServiceConfiguration,
 } from '@/lib/graphql/mutations';
-import { getSubscriptionProducts } from '@/lib/odoo-api';
+import {
+  getSubscriptionProducts,
+  createPaymentRequest,
+  confirmPaymentManual,
+} from '@/lib/odoo-api';
 import { SelectSheet } from '@/components/ui';
+import { InputModeToggle, WeChatPayment } from '@/components/shared';
+import type { InputMode } from '@/components/shared/types';
 
-export type EnergyTopUpStep = 'payment' | 'success';
+export type EnergyTopUpStep = 'plan' | 'payment' | 'success';
 
 export interface EnergyTopUpResult {
   success: boolean;
@@ -25,6 +31,7 @@ export interface EnergyTopUpSubmitArgs {
   energyConfig: ServiceConfiguration | null;
   transactionId: string;
   paymentMethod: string;
+  orderId: number | null;
 }
 
 interface PlanOption {
@@ -41,6 +48,7 @@ interface EnergyTopUpModalProps {
   onClose: () => void;
   currency?: string;
   token?: string | null;
+  subscriptionCode?: string | null;
   onSubmit: (args: EnergyTopUpSubmitArgs) => Promise<EnergyTopUpResult>;
 }
 
@@ -49,10 +57,11 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   onClose,
   currency = '',
   token,
+  subscriptionCode,
   onSubmit,
 }) => {
   const { t } = useI18n();
-  const [step, setStep] = useState<EnergyTopUpStep>('payment');
+  const [step, setStep] = useState<EnergyTopUpStep>('plan');
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
   const [plansError, setPlansError] = useState<string | null>(null);
@@ -61,10 +70,16 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const [energyConfig, setEnergyConfig] = useState<ServiceConfiguration | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+
+  // Payment state
+  const [paymentMode, setPaymentMode] = useState<InputMode>('manual');
   const [transactionId, setTransactionId] = useState('');
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Fetch plans when modal opens
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -95,13 +110,17 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     return () => { cancelled = true; };
   }, [isOpen, token]);
 
+  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setStep('payment');
+      setStep('plan');
       setSelectedPlan(null);
       setEnergyConfig(null);
       setQuotaError(null);
+      setPaymentMode('manual');
       setTransactionId('');
+      setOrderId(null);
+      setIsCreatingOrder(false);
       setSubmitError(null);
       setIsProcessing(false);
     }
@@ -140,28 +159,110 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     }
   }, [t]);
 
-  const handleConfirm = useCallback(async () => {
-    if (!selectedPlan || !transactionId.trim()) return;
+  // Create payment request in Odoo and move to payment step
+  const handleProceedToPayment = useCallback(async () => {
+    if (!selectedPlan || !subscriptionCode) return;
+
+    setIsCreatingOrder(true);
+    setSubmitError(null);
+
+    try {
+      const amountRequired = Math.floor(selectedPlan.price);
+      const response = await createPaymentRequest({
+        subscription_code: subscriptionCode,
+        amount_required: amountRequired,
+        description: `Energy top-up — ${selectedPlan.name}`,
+      }, token || undefined);
+
+      if (response.success && response.payment_request) {
+        setOrderId(response.payment_request.sale_order.id);
+        setStep('payment');
+      } else {
+        let errorMsg = response.error || 'Failed to create payment request';
+        if (response.existing_request) {
+          const existing = response.existing_request;
+          errorMsg = `${response.message || errorMsg}\n\nExisting request: ${currency} ${existing.amount_remaining} remaining (${existing.status})`;
+        }
+        setSubmitError(errorMsg);
+      }
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Failed to create payment request');
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  }, [selectedPlan, subscriptionCode, token, currency]);
+
+  // Verify payment with Odoo and then report to ABS
+  const verifyAndSubmit = useCallback(async (receipt: string, method: string) => {
+    if (!selectedPlan || !orderId) return;
+
     setIsProcessing(true);
     setSubmitError(null);
+
     try {
+      const verifyResponse = await confirmPaymentManual(
+        { order_id: orderId, receipt },
+        token || undefined,
+      );
+
+      if (!verifyResponse.success) {
+        throw new Error('Payment verification failed');
+      }
+
+      const paymentData = verifyResponse.data || (verifyResponse as any);
+
+      if (paymentData.is_duplicate || paymentData.receipt_used || paymentData.receipt_status === 'used') {
+        setSubmitError(paymentData.message || 'Payment reference already used.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const totalPaid = paymentData.total_paid ?? paymentData.amount_paid ?? 0;
+      const remainingToPay = paymentData.remaining_to_pay ?? paymentData.amount_remaining ?? 0;
+
+      if (totalPaid < Math.floor(selectedPlan.price) && remainingToPay > 0) {
+        setSubmitError(
+          `Insufficient payment: ${currency} ${totalPaid.toLocaleString()} paid of ${currency} ${Math.floor(selectedPlan.price).toLocaleString()}. Remaining: ${currency} ${remainingToPay.toLocaleString()}`
+        );
+        setIsProcessing(false);
+        return;
+      }
+
+      // Payment verified — now report to ABS
       const result = await onSubmit({
         plan: selectedPlan,
         energyConfig,
-        transactionId: transactionId.trim(),
-        paymentMethod: 'mobile_money',
+        transactionId: receipt,
+        paymentMethod: method,
+        orderId,
       });
+
       if (result.success) {
         setStep('success');
       } else {
         setSubmitError(result.error || 'Top-up failed');
       }
     } catch (err: any) {
-      setSubmitError(err?.message || 'Top-up failed');
+      setSubmitError(err?.message || 'Payment verification failed');
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedPlan, energyConfig, transactionId, onSubmit]);
+  }, [selectedPlan, orderId, token, currency, energyConfig, onSubmit]);
+
+  // Manual confirm handler
+  const handleConfirm = useCallback(async () => {
+    if (!selectedPlan || !transactionId.trim()) return;
+    await verifyAndSubmit(transactionId.trim(), 'mobile_money');
+  }, [selectedPlan, transactionId, verifyAndSubmit]);
+
+  // WeChat payment success handler
+  const handleWechatPaid = useCallback(async (tradeNo: string, _totalPaid: number) => {
+    await verifyAndSubmit(tradeNo, 'wechat_pay');
+  }, [verifyAndSubmit]);
+
+  const handleWechatError = useCallback((message: string) => {
+    setSubmitError(message);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -198,8 +299,9 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
             </button>
           </div>
 
-          <div className="select-sheet-body">
-            {step === 'payment' && (
+          <div className="select-sheet-body" style={{ overflowY: 'auto', maxHeight: '70vh' }}>
+            {/* ── STEP 1: PLAN SELECTION ─────────────────────────── */}
+            {step === 'plan' && (
               <div style={{ padding: '4px 0' }}>
                 {/* Plan Selector */}
                 <div style={{ marginBottom: 16 }}>
@@ -298,20 +400,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                   </div>
                 )}
 
-                {/* Transaction ID */}
-                <div style={{ marginBottom: 16 }}>
-                  <label className="form-label">
-                    {t('rider.txnIdRef') || 'Transaction ID / Reference'}
-                  </label>
-                  <input
-                    type="text"
-                    className="form-input manual-id-input"
-                    placeholder={t('rider.enterTxnId') || 'Enter transaction ID'}
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                  />
-                </div>
-
                 {submitError && (
                   <div
                     style={{
@@ -335,13 +423,153 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={handleConfirm}
-                  disabled={!selectedPlan || !transactionId.trim() || isProcessing}
+                  onClick={handleProceedToPayment}
+                  disabled={!selectedPlan || isCreatingOrder || !subscriptionCode}
                   style={{ width: '100%' }}
                 >
-                  {isProcessing
+                  {isCreatingOrder
                     ? (t('common.processing') || 'Processing...')
-                    : (t('rider.madePayment') || "I've Made Payment")}
+                    : (t('rider.proceedToPayment') || 'Proceed to Payment')}
+                </button>
+              </div>
+            )}
+
+            {/* ── STEP 2: PAYMENT COLLECTION ─────────────────────── */}
+            {step === 'payment' && selectedPlan && (
+              <div style={{ padding: '4px 0' }}>
+                {/* Amount header */}
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    {t('rider.amountToPay') || 'Amount to pay'}
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {currency} {Math.floor(selectedPlan.price).toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {selectedPlan.name}
+                  </div>
+                </div>
+
+                {/* Payment mode toggle */}
+                <InputModeToggle
+                  mode={paymentMode}
+                  onModeChange={setPaymentMode}
+                  scanLabel={t('attendant.scanQr') || 'Scan QR'}
+                  manualLabel={t('attendant.enterId') || 'Enter ID'}
+                  showWechat={true}
+                  disabled={isProcessing}
+                />
+
+                {/* Manual / Scan entry */}
+                {(paymentMode === 'manual' || paymentMode === 'scan') && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ marginBottom: 16 }}>
+                      <label className="form-label">
+                        {t('rider.txnIdRef') || 'Transaction ID / Reference'}
+                      </label>
+                      <input
+                        type="text"
+                        className="form-input manual-id-input"
+                        placeholder={t('rider.enterTxnId') || 'Enter transaction ID'}
+                        value={transactionId}
+                        onChange={(e) => setTransactionId(e.target.value)}
+                        disabled={isProcessing}
+                      />
+                    </div>
+
+                    {submitError && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          padding: 12,
+                          background: 'var(--error-soft, var(--bg-secondary))',
+                          color: 'var(--error, var(--text-primary))',
+                          border: '1px solid var(--error, var(--border))',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 12,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span>{submitError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleConfirm}
+                      disabled={!transactionId.trim() || isProcessing}
+                      style={{ width: '100%' }}
+                    >
+                      {isProcessing
+                        ? (t('common.processing') || 'Verifying...')
+                        : (t('rider.madePayment') || "Confirm Payment")}
+                    </button>
+                  </div>
+                )}
+
+                {/* WeChat Pay */}
+                {paymentMode === 'wechat' && (
+                  <div style={{ marginTop: 16 }}>
+                    {orderId ? (
+                      <WeChatPayment
+                        orderId={orderId}
+                        amount={Math.floor(selectedPlan.price)}
+                        productName={selectedPlan.name}
+                        currencySymbol={currency}
+                        authToken={token || undefined}
+                        onPaid={handleWechatPaid}
+                        onError={handleWechatError}
+                        isProcessing={isProcessing}
+                      />
+                    ) : (
+                      <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
+                        Order not ready. Please go back and try again.
+                      </div>
+                    )}
+
+                    {submitError && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          padding: 12,
+                          background: 'var(--error-soft, var(--bg-secondary))',
+                          color: 'var(--error, var(--text-primary))',
+                          border: '1px solid var(--error, var(--border))',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 12,
+                          marginTop: 12,
+                        }}
+                      >
+                        <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span>{submitError}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Back button */}
+                <button
+                  type="button"
+                  style={{
+                    width: '100%',
+                    marginTop: 12,
+                    padding: '10px 0',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => { setStep('plan'); setSubmitError(null); }}
+                  disabled={isProcessing}
+                >
+                  {t('sales.back') || 'Back'}
                 </button>
               </div>
             )}
