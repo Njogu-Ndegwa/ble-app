@@ -4,6 +4,7 @@ import React from 'react';
 import { Camera } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { SalesStep } from './types';
+import type { InputMode } from '@/components/shared/types';
 
 interface SalesActionBarProps {
   currentStep: SalesStep;
@@ -11,7 +12,7 @@ interface SalesActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   isDisabled?: boolean;
-  paymentInputMode?: 'scan' | 'manual'; // For step 5 to show correct button text
+  paymentInputMode?: InputMode; // For step 5 to show correct button text
   hasVehicleScanned?: boolean; // For step 6 to show "Continue" vs "Scan Vehicle"
   hasBatteryScanned?: boolean; // For step 7 to show "Complete Service" vs "Scan Battery"
   /** Whether customer identification is complete (required for step 7 Complete Service) */
@@ -57,7 +58,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', hasVehicleScanned?: boolean, hasBatteryScanned?: boolean): StepActionConfig => {
+const getStepConfig = (step: SalesStep, paymentInputMode?: InputMode, hasVehicleScanned?: boolean, hasBatteryScanned?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Customer Form step

@@ -4,6 +4,7 @@ import React from 'react';
 import { useI18n } from '@/i18n';
 import ScannerArea from './ScannerArea';
 import InputModeToggle from './InputModeToggle';
+import WeChatPayment from './WeChatPayment';
 import { InputMode, getInitials } from './types';
 
 interface CustomerInfo {
@@ -45,6 +46,18 @@ interface PaymentCollectionProps {
   placeholder?: string;
   /** Optional className */
   className?: string;
+  /** Show WeChat Pay tab */
+  showWechat?: boolean;
+  /** Order ID for Z-Pay (WeChat) payment */
+  wechatOrderId?: number | null;
+  /** Auth token for Z-Pay API calls */
+  wechatAuthToken?: string;
+  /** Product name for Z-Pay display */
+  wechatProductName?: string;
+  /** Callback when Z-Pay payment succeeds */
+  onWechatPaid?: (tradeNo: string, totalPaid: number) => void;
+  /** Callback when Z-Pay encounters an error */
+  onWechatError?: (message: string) => void;
 }
 
 /**
@@ -75,6 +88,12 @@ export default function PaymentCollection({
   title,
   placeholder,
   className = '',
+  showWechat = false,
+  wechatOrderId,
+  wechatAuthToken,
+  wechatProductName,
+  onWechatPaid,
+  onWechatError,
 }: PaymentCollectionProps) {
   const { t } = useI18n();
 
@@ -119,6 +138,7 @@ export default function PaymentCollection({
           onModeChange={onInputModeChange}
           scanLabel={t('attendant.scanQr') || 'Scan QR'}
           manualLabel={t('attendant.enterId') || 'Enter ID'}
+          showWechat={showWechat}
           disabled={isProcessing}
         />
 
@@ -127,6 +147,23 @@ export default function PaymentCollection({
             onScan={onScan}
             isScannerOpening={isScannerOpening}
           />
+        ) : inputMode === 'wechat' ? (
+          wechatOrderId ? (
+            <WeChatPayment
+              orderId={wechatOrderId}
+              amount={amount}
+              productName={wechatProductName}
+              currencySymbol={currencySymbol}
+              authToken={wechatAuthToken}
+              onPaid={onWechatPaid || (() => {})}
+              onError={onWechatError || (() => {})}
+              isProcessing={isProcessing}
+            />
+          ) : (
+            <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 14 }}>
+              Order not ready yet. Complete previous steps first.
+            </div>
+          )
         ) : (
           <ManualModeContent
             paymentId={paymentId}

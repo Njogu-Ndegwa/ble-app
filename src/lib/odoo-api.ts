@@ -1310,7 +1310,7 @@ export interface WorkflowSessionData {
   
   // Payment information
   payment?: {
-    inputMode?: 'scan' | 'manual';
+    inputMode?: 'scan' | 'manual' | 'wechat';
     manualPaymentId?: string;
     requestCreated?: boolean;
     requestOrderId?: number | null;
@@ -2678,6 +2678,126 @@ export async function deleteContact(
     return await parseOdooResponse<ContactDeleteApiResponse>(response, endpoint);
   } catch (error) {
     console.error('[Odoo API] deleteContact failed:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Z-Pay (WeChat Pay) API
+// ============================================================================
+
+export interface InitiateZPayPayload {
+  order_id: number;
+  amount?: number;
+  product_name?: string;
+  provider_id?: number;
+}
+
+export interface InitiateZPayResponse {
+  success: boolean;
+  pay_url: string;
+  qr_img: string;
+  trade_no: string;
+  order_id: number;
+  order_name: string;
+  message: string;
+}
+
+export interface VerifyZPayPayload {
+  order_id: number;
+  trade_no?: string;
+}
+
+export interface VerifyZPayResponse {
+  success: boolean;
+  paid: boolean;
+  message: string;
+  total_paid?: number;
+  expected_to_pay?: number;
+  remaining_to_pay?: number;
+  payment_status?: string;
+}
+
+export interface OrderStatusResponse {
+  success: boolean;
+  order: {
+    paid_amount: number;
+    remaining_amount: number;
+    payment_status: string;
+    state: string;
+  };
+}
+
+/**
+ * Initiate a Z-Pay (WeChat) payment — returns a QR code for the customer to scan.
+ *
+ * POST /api/payments/zpay/initiate
+ */
+export async function initiateZPay(
+  payload: InitiateZPayPayload,
+  authToken?: string
+): Promise<InitiateZPayResponse> {
+  const url = `${ODOO_BASE_URL}/api/payments/zpay/initiate`;
+  const headers: HeadersInit = buildOdooHeaders(authToken);
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return await parseOdooResponse<InitiateZPayResponse>(response, '/api/payments/zpay/initiate');
+  } catch (error) {
+    console.error('[Odoo API] initiateZPay failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Manually verify a Z-Pay payment (fallback when webhook/polling misses it).
+ *
+ * POST /api/payments/zpay/verify
+ */
+export async function verifyZPay(
+  payload: VerifyZPayPayload,
+  authToken?: string
+): Promise<VerifyZPayResponse> {
+  const url = `${ODOO_BASE_URL}/api/payments/zpay/verify`;
+  const headers: HeadersInit = buildOdooHeaders(authToken);
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    return await parseOdooResponse<VerifyZPayResponse>(response, '/api/payments/zpay/verify');
+  } catch (error) {
+    console.error('[Odoo API] verifyZPay failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Poll an order's payment status.
+ *
+ * GET /api/orders/{orderId}/status
+ */
+export async function getOrderStatus(
+  orderId: number,
+  authToken?: string
+): Promise<OrderStatusResponse> {
+  const url = `${ODOO_BASE_URL}/api/orders/${orderId}/status`;
+  const headers: HeadersInit = buildOdooHeaders(authToken);
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers,
+    });
+    return await parseOdooResponse<OrderStatusResponse>(response, `/api/orders/${orderId}/status`);
+  } catch (error) {
+    console.error('[Odoo API] getOrderStatus failed:', error);
     throw error;
   }
 }

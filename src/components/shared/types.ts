@@ -85,7 +85,7 @@ export interface FlowError {
 // INPUT MODE TYPES
 // ============================================
 
-export type InputMode = 'scan' | 'manual';
+export type InputMode = 'scan' | 'manual' | 'wechat';
 
 // Battery input mode for battery selection component
 export type BatteryInputMode = 'scan' | 'manual';

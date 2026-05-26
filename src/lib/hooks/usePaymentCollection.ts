@@ -41,6 +41,7 @@ import {
   type PublishPaymentAndServiceParams,
 } from '@/lib/services/hooks';
 import type { CustomerData, SwapData, PaymentInitiation } from '@/app/(mobile)/attendant/attendant/components/types';
+import type { InputMode } from '@/components/shared/types';
 
 // ============================================================================
 // Types
@@ -68,7 +69,7 @@ export interface PaymentCollectionState {
   /** Actual amount paid by customer */
   actualAmountPaid: number;
   /** Input mode for payment step */
-  paymentInputMode: 'scan' | 'manual';
+  paymentInputMode: InputMode;
   /** Manual payment ID input */
   manualPaymentId: string;
   /** Transaction ID (same as receipt, for display) */
@@ -113,18 +114,18 @@ export interface UsePaymentCollectionOptions {
    * Receives: amountPaid, amountRemaining, shortfall, and current payment input state
    */
   onPartialPayment?: (
-    amountPaid: number, 
-    amountRemaining: number, 
-    shortfall: number, 
-    paymentInputState: { inputMode: 'scan' | 'manual'; manualPaymentId: string }
+    amountPaid: number,
+    amountRemaining: number,
+    shortfall: number,
+    paymentInputState: { inputMode: InputMode; manualPaymentId: string }
   ) => void;
 }
 
 export interface UsePaymentCollectionReturn {
   /** Current payment state */
   paymentState: PaymentCollectionState;
-  /** Set payment input mode (scan/manual) */
-  setPaymentInputMode: (mode: 'scan' | 'manual') => void;
+  /** Set payment input mode (scan/manual/wechat) */
+  setPaymentInputMode: (mode: InputMode) => void;
   /** Set manual payment ID */
   setManualPaymentId: (id: string) => void;
   /** Create payment request with Odoo (MUST be called before collecting payment) */
@@ -137,7 +138,7 @@ export interface UsePaymentCollectionReturn {
   resetPayment: () => void;
   /** Restore payment state from session (for session resume scenarios) */
   restorePaymentState: (state: {
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;
@@ -186,7 +187,7 @@ export function usePaymentCollection(
   const [expectedPaymentAmount, setExpectedPaymentAmount] = useState<number>(0);
   const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
   const [actualAmountPaid, setActualAmountPaid] = useState<number>(0);
-  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  const [paymentInputMode, setPaymentInputMode] = useState<InputMode>('scan');
   const [manualPaymentId, setManualPaymentId] = useState<string>('');
   const [transactionId, setTransactionId] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -596,7 +597,7 @@ export function usePaymentCollection(
   // ============================================================================
 
   const restorePaymentState = useCallback((state: {
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;

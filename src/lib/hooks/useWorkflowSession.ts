@@ -27,6 +27,7 @@ import {
 } from '@/lib/odoo-api';
 import { getEmployeeToken, getSalesRoleToken } from '@/lib/attendant-auth';
 import { PAYMENT } from '@/lib/constants';
+import type { InputMode } from '@/components/shared/types';
 
 // Session states for UI
 export type SessionStatus = 
@@ -729,7 +730,7 @@ export function buildAttendantSessionData(state: {
   serviceStates: any[];
   swapData: any;
   paymentState?: {
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;
@@ -850,7 +851,7 @@ export function extractAttendantStateFromSession(sessionData: WorkflowSessionDat
   serviceStates: any[];
   swapData: any;
   paymentState: {
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;
@@ -982,14 +983,14 @@ export interface SalesWorkflowState {
     amountExpected: number;
     amountRemaining: number;
     incomplete: boolean;
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestOrderId: number | null;
   };
-  
+
   // Confirmed subscription code
   confirmedSubscriptionCode: string | null;
-  
+
   // Battery data
   scannedBatteryPending: {
     id: string;
@@ -1181,7 +1182,7 @@ export interface ExtractedSalesState {
     amountExpected: number;
     amountRemaining: number;
     incomplete: boolean;
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestOrderId: number | null;
   };

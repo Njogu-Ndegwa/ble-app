@@ -30,6 +30,7 @@ import {
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 import { BleProgressModal, SessionsHistory } from '@/components/shared';
+import type { InputMode } from '@/components/shared/types';
 import { getCustomerDashboard, getOrdersList, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
@@ -179,7 +180,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   
   // Pending payment state restoration (stored temporarily until restorePaymentState is available)
   const [pendingPaymentRestore, setPendingPaymentRestore] = useState<{
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;
@@ -902,6 +903,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     paymentAmountRemaining,
     actualAmountPaid,
     paymentRequestCreated,
+    paymentRequestOrderId,
   } = paymentState;
 
   // Apply pending payment state restoration (from session resume)
@@ -1723,6 +1725,18 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     confirmPayment(receipt);
   }, [confirmPayment]);
 
+  // Step 5: WeChat (Z-Pay) payment callbacks
+  const handleWechatPaid = useCallback((tradeNo: string, totalPaid: number) => {
+    console.info('[AttendantFlow] WeChat payment received', { tradeNo, totalPaid });
+    // Treat the Z-Pay trade_no as the payment reference and proceed with service completion
+    confirmPayment(tradeNo);
+  }, [confirmPayment]);
+
+  const handleWechatError = useCallback((message: string) => {
+    console.error('[AttendantFlow] WeChat payment error:', message);
+    toast.error(message);
+  }, []);
+
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
     setCurrentStep(1);
@@ -1824,6 +1838,9 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           // Auto-generate reference — no user input needed
           const manualRef = `MANUAL_${sessionOrderId || Date.now()}`;
           handleManualPayment(manualRef);
+        } else if (paymentInputMode === 'wechat') {
+          // WeChat mode — the WeChatPayment component handles its own flow
+          break;
         } else if (paymentInputMode === 'scan') {
           handleConfirmPayment();
         } else {
@@ -1928,6 +1945,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             isScannerOpening={isScanning}
             amountRemaining={paymentAmountRemaining}
             amountPaid={actualAmountPaid}
+            wechatOrderId={paymentRequestOrderId}
+            wechatAuthToken={getSalesRoleToken() || undefined}
+            onWechatPaid={handleWechatPaid}
+            onWechatError={handleWechatError}
           />
         );
       case 6:

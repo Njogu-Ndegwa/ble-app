@@ -43,6 +43,7 @@ import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, SessionsHistory } from '@/components/shared';
+import type { InputMode } from '@/components/shared/types';
 import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -194,7 +195,7 @@ export default function SalesFlow({
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  const [paymentInputMode, setPaymentInputMode] = useState<InputMode>('scan');
   // Manual payment ID input (like Attendant flow)
   const [manualPaymentId, setManualPaymentId] = useState<string>('');
   // Order ID - REQUIRED for confirm payment (from purchaseMultiProducts response)
@@ -1852,11 +1853,34 @@ export default function SalesFlow({
     identifyCustomer,
   ]);
 
+  // Handle successful WeChat (Z-Pay) payment
+  const handleWechatPaid = useCallback((tradeNo: string, totalPaid: number) => {
+    console.info('[SalesFlow] WeChat payment received', { tradeNo, totalPaid, paymentRequestOrderId });
+    setPaymentAmountPaid(totalPaid);
+    setPaymentAmountRemaining(0);
+    setPaymentReference(tradeNo);
+    setConfirmedSubscriptionCode(subscriptionData?.subscriptionCode || '');
+    setPaymentConfirmed(true);
+    setPaymentIncomplete(false);
+    toast.success('WeChat payment confirmed! Proceed to battery assignment.');
+
+    const subCode = subscriptionData?.subscriptionCode;
+    if (subCode && !customerIdentified) {
+      identifyCustomer({ subscriptionCode: subCode, source: 'manual' });
+    }
+    advanceToStep(6);
+  }, [subscriptionData, advanceToStep, customerIdentified, identifyCustomer, paymentRequestOrderId]);
+
+  const handleWechatError = useCallback((message: string) => {
+    console.error('[SalesFlow] WeChat payment error:', message);
+    toast.error(message);
+  }, []);
+
   // Update payment QR ref when handler changes
   useEffect(() => {
     processPaymentQRDataRef.current = handleManualPayment;
   }, [handleManualPayment]);
-  
+
   // Keep vehicle assignment refs in sync
   useEffect(() => {
     assignVehicleRef.current = assignVehicle;
@@ -2307,7 +2331,10 @@ export default function SalesFlow({
           paymentInitiated,
           paymentRequestOrderId,
         });
-        if (paymentInputMode === 'scan') {
+        if (paymentInputMode === 'wechat') {
+          // WeChat mode — the WeChatPayment component handles its own flow
+          break;
+        } else if (paymentInputMode === 'scan') {
           handlePaymentQrScan();
         } else if (manualPaymentId.trim()) {
           console.info('[SalesFlow] Confirming payment with transaction ID:', manualPaymentId.trim());
@@ -2569,7 +2596,7 @@ export default function SalesFlow({
       case 5:
         // Payment collection
         return (
-          <Step5Payment 
+          <Step5Payment
             formData={formData}
             selectedPlanId={selectedPlanId}
             plans={availablePlans}
@@ -2585,6 +2612,11 @@ export default function SalesFlow({
             setInputMode={setPaymentInputMode}
             paymentId={manualPaymentId}
             setPaymentId={setManualPaymentId}
+            wechatOrderId={paymentRequestOrderId}
+            wechatAuthToken={getSalesRoleToken() || undefined}
+            wechatProductName={selectedPackage?.name}
+            onWechatPaid={handleWechatPaid}
+            onWechatError={handleWechatError}
           />
         );
       case 6:
