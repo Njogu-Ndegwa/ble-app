@@ -164,7 +164,7 @@ export default function WeChatPayment({
   const qrSrc = qrData?.qr_img || qrData?.pay_url || '';
 
   return (
-    <div className="wechat-payment" style={{ textAlign: 'center', padding: '0 16px' }}>
+    <div className="wechat-payment" style={{ textAlign: 'center', padding: '0 16px 80px' }}>
       {(status === 'loading') && (
         <div style={{ padding: '40px 0' }}>
           <div className="spinner" style={{
@@ -201,17 +201,8 @@ export default function WeChatPayment({
             <img
               src={qrSrc}
               alt="Scan with WeChat"
-              style={{ width: 200, height: 200, display: 'block' }}
+              style={{ width: 180, height: 180, display: 'block' }}
             />
-          </div>
-
-          <div style={{
-            fontSize: 22,
-            fontWeight: 700,
-            color: 'var(--color-text)',
-            marginBottom: 8,
-          }}>
-            {currencySymbol} {amount.toLocaleString()}
           </div>
 
           {qrData?.trade_no && (
