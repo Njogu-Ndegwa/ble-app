@@ -13,10 +13,11 @@ import {
 } from '@/lib/graphql/mutations';
 import {
   getSubscriptionProducts,
-  createPaymentRequest,
+  createWorkflowSession,
+  updateWorkflowSessionWithProducts,
   confirmPaymentManual,
+  type WorkflowSessionData,
 } from '@/lib/odoo-api';
-import { addOrderLines } from '@/lib/portal/order-api';
 import { SelectSheet } from '@/components/ui';
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
@@ -161,7 +162,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     }
   }, [t]);
 
-  // Create payment request in Odoo, add product line, then move to payment step
+  // Create order via /api/subscription/purchase, add product line, then move to payment step
   const handleProceedToPayment = useCallback(async () => {
     if (!selectedPlan || !subscriptionCode) return;
 
@@ -170,38 +171,44 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
     try {
       const amountRequired = Math.floor(selectedPlan.price);
-      const response = await createPaymentRequest({
+
+      // Step 1: Create order + session via /api/subscription/purchase
+      const sessionData: WorkflowSessionData = {
+        status: 'in_progress',
+        workflowType: 'attendant',
+        currentStep: 1,
+        maxStepReached: 1,
+      };
+
+      const sessionResponse = await createWorkflowSession({
         subscription_code: subscriptionCode,
-        amount_required: amountRequired,
-        description: `Energy top-up — ${selectedPlan.name}`,
+        session_data: sessionData,
       }, token || undefined);
 
-      if (response.success && response.payment_request) {
-        const newOrderId = response.payment_request.sale_order.id;
+      if (!sessionResponse.success || !sessionResponse.order_id) {
+        throw new Error(sessionResponse.message || 'Failed to create order');
+      }
 
-        // Add the service product as an order line before collecting payment
-        await addOrderLines(newOrderId, [{
+      const newOrderId = sessionResponse.order_id;
+
+      // Step 2: Add the service product as an order line
+      await updateWorkflowSessionWithProducts(newOrderId, {
+        session_data: { ...sessionData, currentStep: 2, maxStepReached: 2 },
+        products: [{
           product_id: selectedPlan.productId,
           quantity: 1,
           price_unit: amountRequired,
-        }]);
+        }],
+      }, token || undefined);
 
-        setOrderId(newOrderId);
-        setStep('payment');
-      } else {
-        let errorMsg = response.error || 'Failed to create payment request';
-        if (response.existing_request) {
-          const existing = response.existing_request;
-          errorMsg = `${response.message || errorMsg}\n\nExisting request: ${currency} ${existing.amount_remaining} remaining (${existing.status})`;
-        }
-        setSubmitError(errorMsg);
-      }
+      setOrderId(newOrderId);
+      setStep('payment');
     } catch (err: any) {
-      setSubmitError(err?.message || 'Failed to create payment request');
+      setSubmitError(err?.message || 'Failed to create order');
     } finally {
       setIsCreatingOrder(false);
     }
-  }, [selectedPlan, subscriptionCode, token, currency]);
+  }, [selectedPlan, subscriptionCode, token]);
 
   // Verify payment with Odoo and then report to ABS
   const verifyAndSubmit = useCallback(async (receipt: string, method: string) => {
