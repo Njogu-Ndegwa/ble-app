@@ -32,7 +32,7 @@ interface AppHeaderProps {
    */
   showBack?: boolean;
   /**
-   * Custom back handler. Defaults to router.back().
+   * Custom back handler. Defaults to navigating to '/' (roles page).
    */
   onBack?: () => void;
   /**
@@ -77,7 +77,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      router.push('/');
     }
   }, [onBack, router, isNavigating]);
 
