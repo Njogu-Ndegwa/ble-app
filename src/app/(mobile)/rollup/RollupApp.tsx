@@ -97,10 +97,12 @@ export default function RollupApp(_: RollupAppProps) {
     }
   };
 
+  const headerOnBack = view.kind !== 'dashboard' ? handleBack : undefined;
+
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
-      <AppHeader showBack />
+      <AppHeader showBack onBack={headerOnBack} />
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">
