@@ -1,30 +1,31 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, ChevronLeft, ChevronRight, FolderOpen } from 'lucide-react';
-import FilterChips from '@/components/ui/FilterChips';
+import {
+  Users, ShoppingCart, Target, ChevronRight, ChevronLeft,
+  ArrowLeft, FolderOpen,
+} from 'lucide-react';
+import Card from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/State';
 import { getRollup } from '@/lib/rollup/rollup-api';
 import FileCard from './FileCard';
-import type { RollupResponse, RollupFileType, RollupFile } from '@/lib/rollup/types';
+import type { RollupResponse, RollupFileType, RollupFile, RollupMetrics } from '@/lib/rollup/types';
 
-type RecordFilter = 'all' | 'customers' | 'orders' | 'leads';
+type RecordCategory = 'customer' | 'sale_order' | 'lead';
 
-const FILTER_CHIPS: { key: RecordFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'customers', label: 'Customers' },
-  { key: 'orders', label: 'Orders' },
-  { key: 'leads', label: 'Leads' },
+const CATEGORIES: {
+  type: RecordCategory;
+  label: string;
+  icon: React.FC<{ size?: number; style?: React.CSSProperties }>;
+  color: string;
+  bg: string;
+  metricKey: keyof RollupMetrics;
+}[] = [
+  { type: 'customer', label: 'Customers', icon: Users, color: 'var(--color-brand)', bg: 'rgba(0, 229, 229, 0.1)', metricKey: 'customer' },
+  { type: 'sale_order', label: 'Orders', icon: ShoppingCart, color: 'var(--color-success)', bg: 'var(--color-success-soft)', metricKey: 'sale_order' },
+  { type: 'lead', label: 'Leads', icon: Target, color: 'var(--color-warning)', bg: 'var(--color-warning-soft)', metricKey: 'lead' },
 ];
-
-function filterToTypes(filter: RecordFilter): RollupFileType[] | undefined {
-  switch (filter) {
-    case 'customers': return ['customer'];
-    case 'orders': return ['sale_order'];
-    case 'leads': return ['lead'];
-    default: return undefined;
-  }
-}
 
 interface RollupRecordsProps {
   saId: number;
@@ -32,24 +33,100 @@ interface RollupRecordsProps {
 }
 
 export default function RollupRecords({ saId, onFileClick }: RollupRecordsProps) {
-  const [activeFilter, setActiveFilter] = useState<RecordFilter>('all');
+  const [selectedCategory, setSelectedCategory] = useState<RecordCategory | null>(null);
+  const [metrics, setMetrics] = useState<RollupMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+
+  // Fetch metrics for the category cards on mount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setMetricsLoading(true);
+      try {
+        const result = await getRollup({ saId, page: 1, limit: 1 });
+        if (!cancelled) setMetrics(result.rollup?.metrics ?? null);
+      } catch { /* ignore — cards show without counts */ }
+      finally { if (!cancelled) setMetricsLoading(false); }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [saId]);
+
+  if (selectedCategory) {
+    return (
+      <RecordList
+        saId={saId}
+        category={selectedCategory}
+        onBack={() => setSelectedCategory(null)}
+        onFileClick={onFileClick}
+      />
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', paddingBottom: 'var(--space-20)' }}>
+      <div style={{ padding: 'var(--space-2) 0' }}>
+        <div className="text-h4">Records</div>
+        <div className="text-caption text-muted">Browse items across your managed accounts</div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const count = metrics?.[cat.metricKey] ?? null;
+          return (
+            <Card key={cat.type} variant="default" onClick={() => setSelectedCategory(cat.type)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <div style={{
+                  width: 'var(--space-12)', height: 'var(--space-12)', borderRadius: 'var(--radius-lg)',
+                  backgroundColor: cat.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <Icon size={22} style={{ color: cat.color }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="text-h5">{cat.label}</div>
+                  <div className="text-caption text-muted">
+                    {metricsLoading ? '...' : count !== null ? `${count} across all accounts` : 'Tap to browse'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                  {count !== null && !metricsLoading && (
+                    <Badge variant="secondary" size="sm">{count}</Badge>
+                  )}
+                  <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Inner list view for a single record type
+// ────────────────────────────────────────────────────────────────────────
+
+function RecordList({ saId, category, onBack, onFileClick }: {
+  saId: number;
+  category: RecordCategory;
+  onBack: () => void;
+  onFileClick: (type: RollupFileType, id: number, displayName: string) => void;
+}) {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RollupResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const catConfig = CATEGORIES.find((c) => c.type === category)!;
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const types = filterToTypes(activeFilter);
-      const result = await getRollup({
-        saId,
-        page,
-        limit: 20,
-        kind: 'file',
-        types,
-      });
+      const result = await getRollup({ saId, page, limit: 20, kind: 'file', types: [category] });
       setData(result);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load records');
@@ -57,30 +134,35 @@ export default function RollupRecords({ saId, onFileClick }: RollupRecordsProps)
     } finally {
       setLoading(false);
     }
-  }, [saId, activeFilter, page]);
+  }, [saId, page, category]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setPage(1); }, [activeFilter]);
 
   const stacks = data?.listing?.stacks ?? [];
-  const allFiles: RollupFile[] = stacks.flatMap((s) => s.items);
+  const files: RollupFile[] = stacks.flatMap((s) => s.items);
   const totalPages = data?.listing?.pages ?? 1;
   const totalItems = data?.listing?.total ?? 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', paddingBottom: 'var(--space-20)' }}>
-      {/* Header */}
-      <div style={{ padding: 'var(--space-2) 0' }}>
-        <div className="text-h4">Records</div>
-        <div className="text-caption text-muted">All items across your managed accounts</div>
+      {/* Header with back */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0' }}>
+        <button
+          onClick={onBack}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 'var(--space-9)', height: 'var(--space-9)',
+            borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)', cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <ArrowLeft size={18} style={{ color: 'var(--text-primary)' }} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="text-h4">{catConfig.label}</div>
+          <div className="text-caption text-muted">Across all managed accounts</div>
+        </div>
       </div>
-
-      {/* Filter tabs */}
-      <FilterChips
-        items={FILTER_CHIPS}
-        activeKey={activeFilter}
-        onSelect={(key) => setActiveFilter(key as RecordFilter)}
-      />
 
       {/* Loading */}
       {loading && (
@@ -113,24 +195,21 @@ export default function RollupRecords({ saId, onFileClick }: RollupRecordsProps)
       {/* Content */}
       {!loading && !error && (
         <>
-          {/* Count */}
           <div className="text-caption text-muted">
-            {totalItems} record{totalItems !== 1 ? 's' : ''}
+            {totalItems} {catConfig.label.toLowerCase()}
           </div>
 
-          {/* Empty */}
-          {allFiles.length === 0 && (
+          {files.length === 0 && (
             <EmptyState
-              title="No records found"
-              description={activeFilter === 'all' ? 'No customers, orders, or leads in your managed accounts.' : `No ${activeFilter} found.`}
+              title={`No ${catConfig.label.toLowerCase()}`}
+              description={`No ${catConfig.label.toLowerCase()} found across your managed accounts.`}
               icon={<FolderOpen size={40} />}
             />
           )}
 
-          {/* File list */}
-          {allFiles.length > 0 && (
+          {files.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              {allFiles.map((file) => (
+              {files.map((file) => (
                 <FileCard key={`${file.type}-${file.id}`} file={file} onClick={onFileClick} />
               ))}
             </div>
