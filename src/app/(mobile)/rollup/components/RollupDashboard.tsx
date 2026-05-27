@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   FolderTree, Users, ShoppingCart, ShoppingBag, Target,
-  ChevronRight, RefreshCw, FolderOpen,
+  ChevronRight, ChevronLeft, RefreshCw, FolderOpen,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/Card';
 import Card from '@/components/ui/Card';
@@ -44,6 +44,7 @@ export default function RollupDashboard({
   onOpenApplet,
 }: RollupDashboardProps) {
   const [currentSaId, setCurrentSaId] = useState(initialSaId);
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<RollupResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,16 +53,17 @@ export default function RollupDashboard({
     setLoading(true);
     setError(null);
     try {
-      const result = await getRollup({ saId: currentSaId, page: 1, limit: 20 });
+      const result = await getRollup({ saId: currentSaId, page, limit: 20 });
       setData(result);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load data');
     } finally {
       setLoading(false);
     }
-  }, [currentSaId]);
+  }, [currentSaId, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setPage(1); }, [currentSaId]);
 
   const handleFolderClick = useCallback((saId: number) => {
     setCurrentSaId(saId);
@@ -73,6 +75,7 @@ export default function RollupDashboard({
 
   const metrics = data?.rollup?.metrics;
   const folders = data?.listing?.folders?.items ?? [];
+  const folderPages = data?.listing?.folders?.pages ?? 1;
   const stacks = data?.listing?.stacks ?? [];
   const visibleStacks = stacks.filter((s) => s.total > 0);
 
@@ -153,6 +156,41 @@ export default function RollupDashboard({
                   <FolderCard key={folder.sa_id} folder={folder} onClick={handleFolderClick} />
                 ))}
               </div>
+              {folderPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', padding: 'var(--space-3) 0' }}>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="text-caption"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
+                      padding: 'var(--space-2) var(--space-3)',
+                      backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                      color: page <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                      cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
+                    }}
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+                  <span className="text-caption text-muted">Page {page} of {folderPages}</span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(folderPages, p + 1))}
+                    disabled={page >= folderPages}
+                    className="text-caption"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
+                      padding: 'var(--space-2) var(--space-3)',
+                      backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                      color: page >= folderPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                      cursor: page >= folderPages ? 'not-allowed' : 'pointer', opacity: page >= folderPages ? 0.5 : 1,
+                    }}
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
