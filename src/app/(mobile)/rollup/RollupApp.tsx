@@ -2,10 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import RollupDashboard from './components/RollupDashboard';
-import RollupBrowser from './components/RollupBrowser';
-import RollupRecords from './components/RollupRecords';
 import RollupFileDetail from './components/RollupFileDetail';
-import RollupNav, { type RollupScreen } from './components/RollupNav';
 import AppHeader from '@/components/AppHeader';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
@@ -23,10 +20,8 @@ interface RollupAppProps {
 }
 
 export default function RollupApp(_: RollupAppProps) {
-  const [currentTab, setCurrentTab] = useState<RollupScreen>('dashboard');
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
-  const [drillSaId, setDrillSaId] = useState<number | null>(null);
 
   useEffect(() => {
     document.body.classList.add('overflow-locked');
@@ -39,7 +34,6 @@ export default function RollupApp(_: RollupAppProps) {
 
   const saId = currentSA?.id ?? null;
   const saName = currentSA?.name ?? '';
-  const showDetail = selectedFile !== null;
 
   const handleFileClick = useCallback((type: RollupFileType, id: number, displayName: string) => {
     setSelectedFile({ type, id, displayName });
@@ -47,25 +41,6 @@ export default function RollupApp(_: RollupAppProps) {
 
   const handleBackFromDetail = useCallback(() => {
     setSelectedFile(null);
-  }, []);
-
-  const handleDrillIntoAccount = useCallback((targetSaId: number) => {
-    setDrillSaId(targetSaId);
-    setCurrentTab('accounts');
-  }, []);
-
-  const handleViewAllAccounts = useCallback(() => {
-    setDrillSaId(null);
-    setCurrentTab('accounts');
-  }, []);
-
-  const handleViewRecords = useCallback(() => {
-    setCurrentTab('records');
-  }, []);
-
-  const handleNavigate = useCallback((screen: RollupScreen) => {
-    setSelectedFile(null);
-    setCurrentTab(screen);
   }, []);
 
   if (!saId) return null;
@@ -77,7 +52,7 @@ export default function RollupApp(_: RollupAppProps) {
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">
-          {showDetail ? (
+          {selectedFile ? (
             <RollupFileDetail
               type={selectedFile.type}
               id={selectedFile.id}
@@ -85,38 +60,14 @@ export default function RollupApp(_: RollupAppProps) {
               onBack={handleBackFromDetail}
             />
           ) : (
-            <>
-              {currentTab === 'dashboard' && (
-                <RollupDashboard
-                  saId={saId}
-                  saName={saName}
-                  managerName={undefined}
-                  onDrillIntoAccount={handleDrillIntoAccount}
-                  onViewAllAccounts={handleViewAllAccounts}
-                  onViewRecords={handleViewRecords}
-                />
-              )}
-              {currentTab === 'accounts' && (
-                <RollupBrowser
-                  initialSaId={drillSaId ?? saId}
-                  initialSaName={saName}
-                  onFileClick={handleFileClick}
-                />
-              )}
-              {currentTab === 'records' && (
-                <RollupRecords
-                  saId={saId}
-                  onFileClick={handleFileClick}
-                />
-              )}
-            </>
+            <RollupDashboard
+              initialSaId={saId}
+              initialSaName={saName}
+              onFileClick={handleFileClick}
+            />
           )}
         </div>
       </main>
-
-      {!showDetail && (
-        <RollupNav currentScreen={currentTab} onNavigate={handleNavigate} />
-      )}
     </div>
   );
 }
