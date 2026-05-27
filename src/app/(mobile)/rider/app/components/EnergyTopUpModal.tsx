@@ -307,7 +307,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 {/* Plan Selector */}
                 <div style={{ marginBottom: 16 }}>
                   <label className="form-label">
-                    {t('rider.energyTopUp.selectPlan') || 'Select Service Plan'}
+                    {t('rider.energyTopUp.selectPlan') || 'Select Service Product'}
                   </label>
                   <button
                     type="button"
@@ -326,7 +326,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {plansLoading
                         ? (t('common.loading') || 'Loading...')
-                        : selectedPlanLabel || (t('rider.energyTopUp.choosePlan') || 'Choose a plan')}
+                        : selectedPlanLabel || (t('rider.energyTopUp.choosePlan') || 'Choose a product')}
                     </span>
                     <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
                   </button>
@@ -619,7 +619,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
       <SelectSheet
         isOpen={showPlanSheet}
         onClose={() => setShowPlanSheet(false)}
-        title={t('rider.energyTopUp.selectPlan') || 'Select Service Plan'}
+        title={t('rider.energyTopUp.selectPlan') || 'Select Service Product'}
         activeValue={selectedPlan ? String(selectedPlan.productId) : null}
         loading={plansLoading}
         error={plansError}
