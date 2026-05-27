@@ -16,6 +16,7 @@ import {
   createPaymentRequest,
   confirmPaymentManual,
 } from '@/lib/odoo-api';
+import { addOrderLines } from '@/lib/portal/order-api';
 import { SelectSheet } from '@/components/ui';
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
@@ -160,7 +161,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     }
   }, [t]);
 
-  // Create payment request in Odoo and move to payment step
+  // Create payment request in Odoo, add product line, then move to payment step
   const handleProceedToPayment = useCallback(async () => {
     if (!selectedPlan || !subscriptionCode) return;
 
@@ -176,7 +177,16 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
       }, token || undefined);
 
       if (response.success && response.payment_request) {
-        setOrderId(response.payment_request.sale_order.id);
+        const newOrderId = response.payment_request.sale_order.id;
+
+        // Add the service product as an order line before collecting payment
+        await addOrderLines(newOrderId, [{
+          product_id: selectedPlan.productId,
+          quantity: 1,
+          price_unit: amountRequired,
+        }]);
+
+        setOrderId(newOrderId);
         setStep('payment');
       } else {
         let errorMsg = response.error || 'Failed to create payment request';
