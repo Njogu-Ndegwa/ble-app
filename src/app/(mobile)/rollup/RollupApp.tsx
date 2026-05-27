@@ -1,12 +1,18 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import RollupDashboard from './components/RollupDashboard';
 import RollupFileDetail from './components/RollupFileDetail';
 import AppHeader from '@/components/AppHeader';
 import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 import type { RollupFileType } from '@/lib/rollup/types';
+
+const OrderDetail = dynamic(
+  () => import('../orders/components/OrderDetail'),
+  { ssr: false },
+);
 
 interface SelectedFile {
   type: RollupFileType;
@@ -45,6 +51,29 @@ export default function RollupApp(_: RollupAppProps) {
 
   if (!saId) return null;
 
+  const renderDetail = () => {
+    if (!selectedFile) return null;
+
+    switch (selectedFile.type) {
+      case 'sale_order':
+        return (
+          <OrderDetail
+            orderId={selectedFile.id}
+            onBack={handleBackFromDetail}
+          />
+        );
+      default:
+        return (
+          <RollupFileDetail
+            type={selectedFile.type}
+            id={selectedFile.id}
+            displayName={selectedFile.displayName}
+            onBack={handleBackFromDetail}
+          />
+        );
+    }
+  };
+
   return (
     <div className="sales-container">
       <div className="sales-bg-gradient" />
@@ -53,12 +82,7 @@ export default function RollupApp(_: RollupAppProps) {
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">
           {selectedFile ? (
-            <RollupFileDetail
-              type={selectedFile.type}
-              id={selectedFile.id}
-              displayName={selectedFile.displayName}
-              onBack={handleBackFromDetail}
-            />
+            renderDetail()
           ) : (
             <RollupDashboard
               initialSaId={saId}
