@@ -946,6 +946,8 @@
   "role.ordersDesc": "订单管理",
   "role.products": "产品",
   "role.productsDesc": "产品目录",
+  "role.rollup": "库存",
+  "role.rollupDesc": "SA 浏览器",
   "role.comingSoon": "即将推出",
   "role.switchLanguage": "选择语言",
 

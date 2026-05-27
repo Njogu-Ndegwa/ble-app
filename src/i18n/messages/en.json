@@ -1046,6 +1046,8 @@
   "role.ordersDesc": "Order Management",
   "role.products": "Products",
   "role.productsDesc": "Product Catalog",
+  "role.rollup": "Inventory",
+  "role.rollupDesc": "SA Browser",
   "role.comingSoon": "Coming Soon",
   "role.switchLanguage": "Select Language",
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap } from 'lucide-react';
+import { Zap, FolderTree } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
@@ -50,6 +50,7 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   location: 'location',
   ota: 'ota',
   ticketing: 'ticketing',
+  rollup: 'rollup',
 };
 
 const ALL_ROLES: RoleConfig[] = [
@@ -126,6 +127,14 @@ const ALL_ROLES: RoleConfig[] = [
     path: '/assets/ble-devices',
     // Visible when the SA has either 'assets' OR 'mydevices' in its applet list.
     appletSlug: ['assets', 'mydevices'],
+  },
+  // Row 4: Management
+  {
+    id: 'rollup',
+    labelKey: 'role.rollup',
+    icon: { type: 'lucide', el: <FolderTree size={28} color="#fff" />, gradient: 'role-grad-rollup' },
+    path: '/rollup',
+    appletSlug: 'rollup',
   },
 ];
 
