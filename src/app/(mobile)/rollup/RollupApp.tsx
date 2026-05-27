@@ -9,16 +9,19 @@ import { getSelectedSA } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 import type { RollupFileType } from '@/lib/rollup/types';
 
-const OrderDetail = dynamic(
-  () => import('../orders/components/OrderDetail'),
+const EmbeddedOrders = dynamic(
+  () => import('./components/EmbeddedOrders'),
+  { ssr: false },
+);
+const EmbeddedCustomers = dynamic(
+  () => import('./components/EmbeddedCustomers'),
   { ssr: false },
 );
 
-interface SelectedFile {
-  type: RollupFileType;
-  id: number;
-  displayName: string;
-}
+type View =
+  | { kind: 'dashboard' }
+  | { kind: 'applet'; type: string; label: string }
+  | { kind: 'detail'; type: RollupFileType; id: number; displayName: string };
 
 interface RollupAppProps {
   onLogout?: () => void;
@@ -26,7 +29,7 @@ interface RollupAppProps {
 }
 
 export default function RollupApp(_: RollupAppProps) {
-  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const [view, setView] = useState<View>({ kind: 'dashboard' });
   const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
 
   useEffect(() => {
@@ -41,34 +44,54 @@ export default function RollupApp(_: RollupAppProps) {
   const saId = currentSA?.id ?? null;
   const saName = currentSA?.name ?? '';
 
-  const handleFileClick = useCallback((type: RollupFileType, id: number, displayName: string) => {
-    setSelectedFile({ type, id, displayName });
+  const handleOpenApplet = useCallback((type: string, label: string) => {
+    setView({ kind: 'applet', type, label });
   }, []);
 
-  const handleBackFromDetail = useCallback(() => {
-    setSelectedFile(null);
+  const handleFileClick = useCallback((type: RollupFileType, id: number, displayName: string) => {
+    setView({ kind: 'detail', type, id, displayName });
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setView({ kind: 'dashboard' });
   }, []);
 
   if (!saId) return null;
 
-  const renderDetail = () => {
-    if (!selectedFile) return null;
-
-    switch (selectedFile.type) {
-      case 'sale_order':
+  const renderContent = () => {
+    switch (view.kind) {
+      case 'applet':
+        switch (view.type) {
+          case 'sale_order':
+            return <EmbeddedOrders onBack={handleBack} />;
+          case 'customer':
+            return <EmbeddedCustomers onBack={handleBack} />;
+          default:
+            return (
+              <RollupFileDetail
+                type={view.type as RollupFileType}
+                id={0}
+                displayName={view.label}
+                onBack={handleBack}
+              />
+            );
+        }
+      case 'detail':
         return (
-          <OrderDetail
-            orderId={selectedFile.id}
-            onBack={handleBackFromDetail}
+          <RollupFileDetail
+            type={view.type}
+            id={view.id}
+            displayName={view.displayName}
+            onBack={handleBack}
           />
         );
       default:
         return (
-          <RollupFileDetail
-            type={selectedFile.type}
-            id={selectedFile.id}
-            displayName={selectedFile.displayName}
-            onBack={handleBackFromDetail}
+          <RollupDashboard
+            initialSaId={saId}
+            initialSaName={saName}
+            onFileClick={handleFileClick}
+            onOpenApplet={handleOpenApplet}
           />
         );
     }
@@ -81,15 +104,7 @@ export default function RollupApp(_: RollupAppProps) {
 
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">
-          {selectedFile ? (
-            renderDetail()
-          ) : (
-            <RollupDashboard
-              initialSaId={saId}
-              initialSaName={saName}
-              onFileClick={handleFileClick}
-            />
-          )}
+          {renderContent()}
         </div>
       </main>
     </div>
