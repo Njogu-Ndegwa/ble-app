@@ -13,7 +13,7 @@ export default function RollupStatsRow({ metrics }: RollupStatsRowProps) {
   const stats = [
     {
       value: metrics.descendant_sa_count,
-      label: 'Sub-accounts',
+      label: 'Service Accounts',
       icon: <FolderTree size={20} />,
     },
     {

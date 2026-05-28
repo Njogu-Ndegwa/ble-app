@@ -50,7 +50,7 @@ export default function FolderCard({ folder, onClick }: FolderCardProps) {
             )}
             {folder.child_count > 0 && (
               <span className="text-caption text-muted">
-                {folder.child_count} sub-account{folder.child_count !== 1 ? 's' : ''}
+                {folder.child_count} service account{folder.child_count !== 1 ? 's' : ''}
               </span>
             )}
           </div>
