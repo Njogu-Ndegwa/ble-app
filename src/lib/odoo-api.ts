@@ -184,6 +184,8 @@ export interface SubscriptionProduct {
   image_url?: string | null;  // Cloudinary URL for product images
   company_id?: number;
   company_name: string;
+  x_template_id?: string;          // Canonical service-plan template identifier
+  x_is_swap_product?: boolean;
 }
 
 // Categorized products from API response (new format)

@@ -44,6 +44,10 @@ interface PlanOption {
   productId: number;
   default_code: string;
   category?: string;
+  // Canonical service-plan template identifier returned by Odoo. Use this to
+  // look up quota — the product's display `name` can drift (extra spaces,
+  // translations) from the template id the GraphQL endpoint expects.
+  templateId?: string;
 }
 
 interface EnergyTopUpModalProps {
@@ -99,6 +103,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
           productId: p.id,
           default_code: p.default_code || `P-${p.id}`,
           category: p.category_name || p.pu_category || undefined,
+          templateId: p.x_template_id || undefined,
         }));
         setPlans(list);
       } catch (err: any) {
@@ -136,7 +141,9 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
     setQuotaLoading(true);
     try {
-      const lookupId = plan.name;
+      // Prefer the canonical template id from Odoo; fall back to product name
+      // for older products that haven't been migrated to x_template_id yet.
+      const lookupId = plan.templateId || plan.name;
       const result = await absApolloClient.query<{ servicePlanTemplate: ServicePlanTemplate | null }>({
         query: GET_SERVICE_PLAN_TEMPLATE,
         variables: { id: lookupId },
