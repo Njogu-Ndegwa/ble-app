@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap, FolderTree } from 'lucide-react';
+import { Zap, FolderTree, LifeBuoy } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
@@ -135,6 +135,13 @@ const ALL_ROLES: RoleConfig[] = [
     icon: { type: 'lucide', el: <FolderTree size={28} color="#fff" />, gradient: 'role-grad-rollup' },
     path: '/rollup',
     appletSlug: 'rollup',
+  },
+  {
+    id: 'ticketing',
+    labelKey: 'role.ticketing',
+    icon: { type: 'lucide', el: <LifeBuoy size={28} color="#fff" />, gradient: 'role-grad-ticketing' },
+    path: '/ticketing/app',
+    appletSlug: 'ticketing',
   },
 ];
 
