@@ -325,6 +325,8 @@ interface StatCardProps {
   trendValue?: string;
   /** Custom className */
   className?: string;
+  /** Click handler — makes the card interactive */
+  onClick?: () => void;
 }
 
 /**
@@ -337,11 +339,12 @@ export function StatCard({
   trend,
   trendValue,
   className = '',
+  onClick,
 }: StatCardProps) {
   const trendColor = trend === 'up' ? 'var(--color-success)' : trend === 'down' ? 'var(--color-error)' : 'var(--text-muted)';
 
   return (
-    <Card variant="filled" className={`stat-card ${className}`}>
+    <Card variant="filled" className={`stat-card ${className}`} onClick={onClick}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
           <div className="text-3xl" style={{ fontWeight: 'var(--weight-bold)', marginBottom: 'var(--space-1)' }}>
@@ -349,8 +352,8 @@ export function StatCard({
           </div>
           <div className="text-caption text-muted">{label}</div>
           {trendValue && (
-            <div style={{ 
-              fontSize: 'var(--font-xs)', 
+            <div style={{
+              fontSize: 'var(--font-xs)',
               color: trendColor,
               marginTop: 'var(--space-1)',
               display: 'flex',

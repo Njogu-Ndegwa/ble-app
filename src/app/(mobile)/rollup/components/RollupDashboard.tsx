@@ -31,47 +31,65 @@ function getStackConfig(type: string) {
 }
 
 interface RollupDashboardProps {
-  initialSaId: number;
-  initialSaName: string;
+  saId: number;
+  saName: string;
+  onDrillToSA: (saId: number, saName?: string) => void;
+  onBreadcrumbNavigate: (saId: number) => void;
+  onSaResolved?: (saId: number, saName: string) => void;
   onFileClick: (type: RollupFileType, id: number, displayName: string) => void;
   onOpenApplet: (type: string, label: string) => void;
 }
 
+type DashboardTab = 'overview' | 'service_accounts' | 'records';
+
 export default function RollupDashboard({
-  initialSaId,
-  initialSaName,
+  saId,
+  saName,
+  onDrillToSA,
+  onBreadcrumbNavigate,
+  onSaResolved,
   onFileClick,
   onOpenApplet,
 }: RollupDashboardProps) {
-  const [currentSaId, setCurrentSaId] = useState(initialSaId);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RollupResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<DashboardTab>('overview');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await getRollup({ saId: currentSaId, page, limit: 20 });
+      const result = await getRollup({ saId, page, limit: 20 });
       setData(result);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load data');
     } finally {
       setLoading(false);
     }
-  }, [currentSaId, page]);
+  }, [saId, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setPage(1); }, [currentSaId]);
+  useEffect(() => { setPage(1); setTab('overview'); }, [saId]);
 
-  const handleFolderClick = useCallback((saId: number) => {
-    setCurrentSaId(saId);
-  }, []);
+  // Tell the parent the canonical name once the API resolves it — keeps the
+  // breadcrumb in the header/back-stack readable.
+  useEffect(() => {
+    const resolved = data?.path?.name;
+    if (resolved && data?.path?.sa_id === saId) {
+      onSaResolved?.(saId, resolved);
+    }
+  }, [data?.path?.name, data?.path?.sa_id, saId, onSaResolved]);
 
-  const handleBreadcrumbNavigate = useCallback((saId: number) => {
-    setCurrentSaId(saId);
-  }, []);
+  const handleFolderClick = useCallback((folderSaId: number) => {
+    const folder = data?.listing?.folders?.items.find((f) => f.sa_id === folderSaId);
+    onDrillToSA(folderSaId, folder?.name);
+  }, [data?.listing?.folders?.items, onDrillToSA]);
+
+  const handleBreadcrumbNavigate = useCallback((segSaId: number) => {
+    onBreadcrumbNavigate(segSaId);
+  }, [onBreadcrumbNavigate]);
 
   const metrics = data?.rollup?.metrics;
   const folders = data?.listing?.folders?.items ?? [];
@@ -95,7 +113,7 @@ export default function RollupDashboard({
           <div className="text-caption text-muted">{greeting}</div>
         )}
         <div className="text-h4" style={{ marginTop: 'var(--space-0-5)' }}>
-          {data?.path?.name ?? initialSaName}
+          {data?.path?.name ?? saName}
         </div>
         {data?.sa_manager && (
           <div className="text-caption text-muted" style={{ marginTop: 'var(--space-0-5)' }}>
@@ -137,67 +155,115 @@ export default function RollupDashboard({
         </div>
       )}
 
-      {!loading && !error && metrics && (
-        <>
-          {/* Metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
-            <StatCard value={metrics.descendant_sa_count} label="Sub-accounts" icon={<FolderTree size={20} />} />
-            <StatCard value={metrics.customer} label="Customers" icon={<Users size={20} />} />
-            <StatCard value={metrics.sale_order} label="Total Orders" icon={<ShoppingCart size={20} />} />
-            <StatCard value={metrics.orders_open} label="Open Orders" icon={<ShoppingBag size={20} />} />
-          </div>
+      {!loading && !error && metrics && (() => {
+        const hasFolders = folders.length > 0;
+        const hasRecords = visibleStacks.length > 0;
+        const isEmpty = !hasFolders && !hasRecords;
+        const folderTotal = data?.listing?.folders?.total ?? 0;
+        const recordTotal = visibleStacks.reduce((sum, s) => sum + s.total, 0);
 
-          {/* Sub-accounts */}
-          {folders.length > 0 && (
-            <div>
-              <SectionHeader label="Sub-accounts" count={data?.listing?.folders?.total} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                {folders.map((folder) => (
-                  <FolderCard key={folder.sa_id} folder={folder} onClick={handleFolderClick} />
-                ))}
+        if (isEmpty) {
+          return (
+            <EmptyState
+              title="This account is empty"
+              description="No service accounts or records at this level."
+              icon={<FolderOpen size={40} />}
+            />
+          );
+        }
+
+        const activeTab: DashboardTab =
+          (tab === 'service_accounts' && !hasFolders) ||
+          (tab === 'records' && !hasRecords)
+            ? 'overview'
+            : tab;
+
+        return (
+          <>
+            <TabStrip
+              tab={activeTab}
+              onChange={setTab}
+              folderTotal={folderTotal}
+              recordTotal={recordTotal}
+              showFolders={hasFolders}
+              showRecords={hasRecords}
+            />
+
+            {activeTab === 'overview' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
+                <StatCard
+                  value={metrics.descendant_sa_count}
+                  label="Service Accounts"
+                  icon={<FolderTree size={20} />}
+                  onClick={hasFolders ? () => setTab('service_accounts') : undefined}
+                />
+                <StatCard
+                  value={metrics.customer}
+                  label="Customers"
+                  icon={<Users size={20} />}
+                  onClick={hasRecords ? () => setTab('records') : undefined}
+                />
+                <StatCard
+                  value={metrics.sale_order}
+                  label="Total Orders"
+                  icon={<ShoppingCart size={20} />}
+                  onClick={hasRecords ? () => setTab('records') : undefined}
+                />
+                <StatCard
+                  value={metrics.orders_open}
+                  label="Open Orders"
+                  icon={<ShoppingBag size={20} />}
+                  onClick={hasRecords ? () => setTab('records') : undefined}
+                />
               </div>
-              {folderPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', padding: 'var(--space-3) 0' }}>
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                    className="text-caption"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
-                      padding: 'var(--space-2) var(--space-3)',
-                      backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-                      color: page <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                      cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
-                    }}
-                  >
-                    <ChevronLeft size={14} /> Prev
-                  </button>
-                  <span className="text-caption text-muted">Page {page} of {folderPages}</span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(folderPages, p + 1))}
-                    disabled={page >= folderPages}
-                    className="text-caption"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
-                      padding: 'var(--space-2) var(--space-3)',
-                      backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-                      color: page >= folderPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                      cursor: page >= folderPages ? 'not-allowed' : 'pointer', opacity: page >= folderPages ? 0.5 : 1,
-                    }}
-                  >
-                    Next <ChevronRight size={14} />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+            )}
 
-          {/* Record categories — dynamic, only types with items */}
-          {visibleStacks.length > 0 && (
-            <div>
-              <SectionHeader label="Records" />
+            {activeTab === 'service_accounts' && hasFolders && (
+              <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  {folders.map((folder) => (
+                    <FolderCard key={folder.sa_id} folder={folder} onClick={handleFolderClick} />
+                  ))}
+                </div>
+                {folderPages > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', padding: 'var(--space-3) 0' }}>
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="text-caption"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
+                        padding: 'var(--space-2) var(--space-3)',
+                        backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                        color: page <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                        cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
+                      }}
+                    >
+                      <ChevronLeft size={14} /> Prev
+                    </button>
+                    <span className="text-caption text-muted">Page {page} of {folderPages}</span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(folderPages, p + 1))}
+                      disabled={page >= folderPages}
+                      className="text-caption"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
+                        padding: 'var(--space-2) var(--space-3)',
+                        backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                        color: page >= folderPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                        cursor: page >= folderPages ? 'not-allowed' : 'pointer', opacity: page >= folderPages ? 0.5 : 1,
+                      }}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'records' && hasRecords && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                 {visibleStacks.map((stack) => (
                   <StackCategoryCard
@@ -207,36 +273,73 @@ export default function RollupDashboard({
                   />
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Truly empty */}
-          {folders.length === 0 && visibleStacks.length === 0 && (
-            <EmptyState
-              title="This account is empty"
-              description="No sub-accounts or records at this level."
-              icon={<FolderOpen size={40} />}
-            />
-          )}
-        </>
-      )}
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
 
-function SectionHeader({ label, count }: { label: string; count?: number }) {
+interface TabStripProps {
+  tab: DashboardTab;
+  onChange: (next: DashboardTab) => void;
+  folderTotal: number;
+  recordTotal: number;
+  showFolders: boolean;
+  showRecords: boolean;
+}
+
+function TabStrip({ tab, onChange, folderTotal, recordTotal, showFolders, showRecords }: TabStripProps) {
+  const tabs: Array<{ id: DashboardTab; label: string; count?: number; show: boolean }> = [
+    { id: 'overview', label: 'Overview', show: true },
+    { id: 'service_accounts', label: 'Service Accounts', count: folderTotal, show: showFolders },
+    { id: 'records', label: 'Records', count: recordTotal, show: showRecords },
+  ];
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: 'var(--space-2) 0', marginBottom: 'var(--space-1)',
-    }}>
-      <span className="text-caption" style={{
-        fontWeight: 'var(--weight-semibold)', color: 'var(--text-secondary)',
-        textTransform: 'uppercase', letterSpacing: '0.05em',
-      } as React.CSSProperties}>
-        {label}
-      </span>
-      {count != null && <span className="text-caption text-muted">{count}</span>}
+    <div
+      role="tablist"
+      style={{
+        display: 'flex',
+        gap: 'var(--space-1)',
+        padding: 'var(--space-1)',
+        backgroundColor: 'var(--bg-surface)',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border-default)',
+      }}
+    >
+      {tabs.filter((t) => t.show).map((t) => {
+        const isActive = tab === t.id;
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(t.id)}
+            className="text-caption"
+            style={{
+              flex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 'var(--space-1)',
+              padding: 'var(--space-2) var(--space-2)',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              backgroundColor: isActive ? 'var(--bg-surface-hover)' : 'transparent',
+              color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: isActive ? 'var(--weight-semibold)' : 'var(--weight-medium)',
+              fontFamily: 'var(--font-sans)',
+              cursor: 'pointer',
+              transition: 'var(--transition-fast)',
+            } as React.CSSProperties}
+          >
+            <span>{t.label}</span>
+            {t.count != null && t.count > 0 && (
+              <Badge variant={isActive ? 'secondary' : 'default'} size="xs">{t.count}</Badge>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
