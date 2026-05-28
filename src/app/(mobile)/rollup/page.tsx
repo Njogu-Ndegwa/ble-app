@@ -19,6 +19,11 @@ import {
   hasSASelected,
   clearSelectedSA,
 } from '@/lib/sa-auth';
+import {
+  getSelectedSAId as getGlobalSelectedSAId,
+  getStoredServiceAccounts,
+  selectServiceAccount,
+} from '@/lib/ov-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 
 const AppLoadingFallback = () => (
@@ -57,6 +62,20 @@ function getInitialScreen(): { screen: Screen; user: EmployeeUser | null } {
       return { screen: 'login', user: null };
     }
     if (hasSASelected('sales')) return { screen: 'app', user };
+
+    // The user already picked an SA at the root chooser — that selection
+    // lives in the global ov-auth key. The per-applet legacy 'sales' key
+    // can get cleared by sibling flows (e.g. saveSelectedSA('attendant', ...)
+    // wipes the other role). Re-bridge it so we don't re-prompt for an SA
+    // the user already chose.
+    const globalId = getGlobalSelectedSAId();
+    if (globalId !== null) {
+      const sa = getStoredServiceAccounts().find((s) => s.id === globalId);
+      if (sa) {
+        selectServiceAccount(sa);
+        return { screen: 'app', user };
+      }
+    }
     return { screen: 'selectSA', user };
   } catch {
     clearSalesRoleLogin();
