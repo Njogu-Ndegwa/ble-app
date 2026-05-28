@@ -479,8 +479,8 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 <InputModeToggle
                   mode={paymentMode}
                   onModeChange={setPaymentMode}
-                  scanLabel={t('attendant.scanQr') || 'Scan QR'}
                   manualLabel={t('attendant.enterId') || 'Enter ID'}
+                  showScan={false}
                   showWechat={true}
                   disabled={isProcessing}
                 />

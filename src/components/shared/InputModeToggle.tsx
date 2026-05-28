@@ -16,6 +16,8 @@ interface InputModeToggleProps {
   wechatLabel?: string;
   /** Show the WeChat Pay tab */
   showWechat?: boolean;
+  /** Show the Scan QR tab (default true) */
+  showScan?: boolean;
   /** Disabled state */
   disabled?: boolean;
   /** Optional custom className */
@@ -81,20 +83,23 @@ export default function InputModeToggle({
   manualLabel = 'Enter ID',
   wechatLabel = 'WeChat',
   showWechat = false,
+  showScan = true,
   disabled = false,
   className = '',
 }: InputModeToggleProps) {
   return (
     <div className={`input-toggle ${className}`}>
-      <button
-        className={`toggle-btn ${mode === 'scan' ? 'active' : ''}`}
-        onClick={() => !disabled && onModeChange('scan')}
-        disabled={disabled}
-        type="button"
-      >
-        <QrIcon />
-        {scanLabel}
-      </button>
+      {showScan && (
+        <button
+          className={`toggle-btn ${mode === 'scan' ? 'active' : ''}`}
+          onClick={() => !disabled && onModeChange('scan')}
+          disabled={disabled}
+          type="button"
+        >
+          <QrIcon />
+          {scanLabel}
+        </button>
+      )}
       <button
         className={`toggle-btn ${mode === 'manual' ? 'active' : ''}`}
         onClick={() => !disabled && onModeChange('manual')}
