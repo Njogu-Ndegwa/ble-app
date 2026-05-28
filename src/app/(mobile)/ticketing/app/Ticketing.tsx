@@ -15,13 +15,14 @@ import {
   Calendar,
   Tag,
   Layers,
-  Check,
+  ChevronDown,
   X,
 } from 'lucide-react';
 import DetailScreen, { type DetailSection as DetailSectionType } from '@/components/ui/DetailScreen';
 import { FormInput, FormSection, FormRow } from '@/components/ui';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 import FilterChips from '@/components/ui/FilterChips';
+import SelectSheet, { type SelectSheetItem } from '@/components/ui/SelectSheet';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import {
   searchTickets,
@@ -107,6 +108,10 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [composing, setComposing] = useState('');
   const [isPosting, setIsPosting] = useState(false);
+
+  // Form pickers
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  const [stageOpen, setStageOpen] = useState(false);
 
   // ------------------------------------------------------------------
   // Stages — load once on mount
@@ -760,58 +765,52 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
           </div>
 
           <FormRow columns={2}>
-            <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
-              <label className="text-label" style={{ display: 'block', marginBottom: 4, fontSize: 'var(--font-sm)', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                {t('ticketing.list.filter.priority') || 'Priority'}
-              </label>
-              <select
-                value={formData.priority}
-                onChange={(e) => handleFormChange('priority', e.target.value as TicketPriority)}
-                className="w-full"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  padding: '10px 12px',
-                  fontSize: '13px',
-                  height: 40,
-                }}
-              >
-                {PRIORITIES.map(p => (
-                  <option key={p} value={p}>{priorityLabel(p)}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
-              <label className="text-label" style={{ display: 'block', marginBottom: 4, fontSize: 'var(--font-sm)', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                {t('ticketing.list.filter.stage') || 'Stage'}
-              </label>
-              <select
-                value={formData.stageId ?? ''}
-                onChange={(e) => handleFormChange('stageId', e.target.value ? Number(e.target.value) : null)}
-                disabled={stages.length === 0}
-                className="w-full"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  padding: '10px 12px',
-                  fontSize: '13px',
-                  height: 40,
-                }}
-              >
-                <option value="">{t('ticketing.stage.unknown') || '(no stage)'}</option>
-                {stages.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
+            <SheetField
+              label={t('ticketing.list.filter.priority') || 'Priority'}
+              value={priorityLabel(formData.priority)}
+              icon={<Tag size={14} />}
+              onClick={() => setPriorityOpen(true)}
+            />
+            <SheetField
+              label={t('ticketing.list.filter.stage') || 'Stage'}
+              value={
+                formData.stageId !== null
+                  ? (stages.find(s => s.id === formData.stageId)?.name
+                      ?? (t('ticketing.stage.unknown') || '(no stage)'))
+                  : (t('ticketing.stage.unknown') || '(no stage)')
+              }
+              icon={<Layers size={14} />}
+              placeholder={stages.length === 0 ? (t('common.loading') || 'Loading…') : undefined}
+              disabled={stages.length === 0}
+              onClick={() => setStageOpen(true)}
+            />
           </FormRow>
+
+          <SelectSheet<TicketPriority>
+            isOpen={priorityOpen}
+            onClose={() => setPriorityOpen(false)}
+            title={t('ticketing.list.filter.priority') || 'Priority'}
+            activeValue={formData.priority}
+            items={PRIORITIES.map<SelectSheetItem<TicketPriority>>(p => ({
+              value: p,
+              label: priorityLabel(p),
+            }))}
+            onSelect={(item) => handleFormChange('priority', item.value)}
+          />
+          <SelectSheet<number>
+            isOpen={stageOpen}
+            onClose={() => setStageOpen(false)}
+            title={t('ticketing.list.filter.stage') || 'Stage'}
+            activeValue={formData.stageId ?? undefined}
+            items={stages.map<SelectSheetItem<number>>(s => ({
+              value: s.id,
+              label: s.name,
+              badges: s.fold
+                ? [{ label: t('ticketing.stage.done') || 'Done', variant: 'neutral' }]
+                : undefined,
+            }))}
+            onSelect={(item) => handleFormChange('stageId', item.value)}
+          />
         </FormSection>
 
         <FormSection title={t('ticketing.new.customer') || 'Customer'}>
@@ -855,7 +854,73 @@ function stripHtml(html: string): string {
 }
 
 // ============================================================================
-// CustomerPickerField — inline component for picking a partner (res.partner)
+// SheetField — labeled trigger that opens a SelectSheet. Matches FormInput
+// dimensions so the form reads visually consistent.
+// ============================================================================
+
+function SheetField({
+  label,
+  value,
+  icon,
+  placeholder,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+  placeholder?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const hasValue = value.length > 0;
+  return (
+    <div className="form-group" style={{ marginBottom: 'var(--space-2)' }}>
+      <label
+        className="text-label"
+        style={{
+          display: 'block',
+          marginBottom: 4,
+          fontSize: 'var(--font-sm)',
+          fontWeight: 500,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className="w-full flex items-center gap-2 transition-colors"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-md)',
+          color: hasValue ? 'var(--text-primary)' : 'var(--text-muted)',
+          padding: '10px 12px',
+          fontSize: '13px',
+          height: 40,
+          textAlign: 'left',
+          opacity: disabled ? 0.5 : 1,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {icon && (
+          <span style={{ color: 'var(--text-muted)', display: 'inline-flex' }}>{icon}</span>
+        )}
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {hasValue ? value : placeholder || ''}
+        </span>
+        <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// CustomerPickerField — orders-style inline expand card (avoids absolute
+// dropdown clipping by parent overflow containers).
 // ============================================================================
 
 interface PickedCustomer { id: number; name: string }
@@ -868,114 +933,170 @@ function CustomerPickerField({
   onChange: (c: PickedCustomer | null) => void;
 }) {
   const { t } = useI18n();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<OdooContact[]>([]);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [results, setResults] = useState<OdooContact[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Debounce search input → debouncedQuery
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const q = query.trim();
-      if (!q) {
-        setResults([]);
-        return;
-      }
-      setLoading(true);
-      try {
-        const token = getSalesRoleToken() || '';
-        const res = await getContacts({ q, limit: 10, type: 'all' }, token);
-        setResults(res.contacts ?? []);
-      } catch (err) {
-        console.error('[Ticketing] CustomerPickerField search failed:', err);
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    const id = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(id);
   }, [query]);
 
-  if (value) {
-    return (
-      <div
-        className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5"
-        style={{ background: 'var(--bg-surface)' }}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <User size={14} className="text-text-muted flex-shrink-0" />
-          <span className="text-sm text-text-primary truncate">{value.name}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          aria-label={t('common.clear') || 'Clear'}
-          className="text-text-muted hover:text-text-primary p-1"
-        >
-          <X size={14} />
-        </button>
-      </div>
-    );
-  }
+  // Fetch on open or when debounced query changes — mirrors orders/CreateOrder.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const token = getSalesRoleToken();
+        const res = await getContacts(
+          { q: debouncedQuery.trim() || undefined, limit: 10 },
+          token || undefined,
+        );
+        if (!cancelled) setResults(res.contacts ?? []);
+      } catch (err) {
+        console.error('[Ticketing] customer search failed:', err);
+        if (!cancelled) setResults([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, [open, debouncedQuery]);
 
   return (
-    <div className="relative">
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <SearchIcon size={14} className="text-text-muted" />
-        </div>
-        <input
-          type="text"
-          value={query}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          placeholder={t('ticketing.new.customerPlaceholder') || 'Search customers…'}
-          className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-          style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+    <>
+      {/* Trigger pill — same dimensions as FormInput / SheetField */}
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className="w-full flex items-center gap-2 transition-colors active:scale-[0.98]"
+        style={{
+          backgroundColor: value ? 'var(--color-brand-soft, rgba(255,200,0,0.06))' : 'var(--bg-surface)',
+          border: `1px solid ${value ? 'var(--color-brand)' : 'var(--border-default)'}`,
+          borderRadius: 'var(--radius-md)',
+          color: value ? 'var(--text-primary)' : 'var(--text-muted)',
+          padding: '10px 12px',
+          fontSize: '13px',
+          minHeight: 40,
+          textAlign: 'left',
+        }}
+      >
+        <User
+          size={14}
+          style={{ color: value ? 'var(--color-brand)' : 'var(--text-muted)', flexShrink: 0 }}
         />
-      </div>
-      {open && (query.trim() || loading) && (
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {value ? value.name : (t('ticketing.new.customerPlaceholder') || 'Search customers…')}
+        </span>
+        {value ? (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation();
+                onChange(null);
+              }
+            }}
+            aria-label={t('common.clear') || 'Clear'}
+            style={{ color: 'var(--text-muted)', flexShrink: 0, padding: 2 }}
+          >
+            <X size={14} />
+          </span>
+        ) : (
+          <ChevronDown
+            size={14}
+            style={{
+              color: 'var(--text-muted)',
+              flexShrink: 0,
+              transform: open ? 'rotate(180deg)' : undefined,
+              transition: 'transform 150ms',
+            }}
+          />
+        )}
+      </button>
+
+      {/* Selected customer brief — same as orders */}
+      {value && !open && (
         <div
-          className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-border z-20 max-h-56 overflow-y-auto shadow-lg"
-          style={{ background: 'var(--bg-elevated)' }}
+          className="mt-2 flex items-center gap-2.5 px-3 py-2 rounded-lg"
+          style={{ backgroundColor: 'var(--bg-elevated)' }}
         >
-          {loading && (
-            <div className="px-3 py-2.5 text-xs text-text-muted flex items-center gap-2">
-              <Loader2 size={12} className="animate-spin" />
-              {t('common.searching') || 'Searching…'}
-            </div>
-          )}
-          {!loading && results.length === 0 && query.trim() && (
-            <div className="px-3 py-2.5 text-xs text-text-muted">
-              {t('ticketing.new.noCustomers') || 'No results'}
-            </div>
-          )}
-          {!loading && results.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => {
-                onChange({ id: c.id, name: c.name });
-                setOpen(false);
-                setQuery('');
-              }}
-              className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary border-b border-border last:border-b-0"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              <Check size={10} className="opacity-0" />
-              <span className="truncate flex-1">{c.name}</span>
-              {c.email && (
-                <span className="text-xs text-text-muted truncate max-w-[40%]">
-                  {String(c.email)}
-                </span>
-              )}
-            </button>
-          ))}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold"
+            style={{ backgroundColor: 'var(--color-brand)', color: 'var(--text-inverse, #000)' }}
+          >
+            {value.name.charAt(0).toUpperCase()}
+          </div>
+          <p className="text-xs font-medium text-text-primary truncate flex-1">{value.name}</p>
         </div>
       )}
-    </div>
+
+      {/* Inline expand card with search + results — no absolute positioning,
+          so it can't be clipped by parent overflow. */}
+      {open && (
+        <div
+          className="mt-2 rounded-xl border border-border overflow-hidden shadow-lg"
+          style={{ backgroundColor: 'var(--bg-tertiary)' }}
+        >
+          <div className="p-3">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <SearchIcon size={14} className="text-text-muted" />
+              </div>
+              <input
+                type="text"
+                placeholder={t('ticketing.new.customerPlaceholder') || 'Search customers…'}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+                className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+          {loading ? (
+            <div className="py-4 flex justify-center">
+              <Loader2 size={20} className="animate-spin text-text-muted" />
+            </div>
+          ) : results.length === 0 ? (
+            <p className="text-xs py-4 text-center text-text-muted">
+              {t('ticketing.new.noCustomers') || 'No customers found.'}
+            </p>
+          ) : (
+            <div className="max-h-48 overflow-y-auto px-2 pb-2 space-y-1">
+              {results.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    onChange({ id: c.id, name: c.name });
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors hover:bg-bg-elevated"
+                >
+                  <span className="font-medium text-text-primary">{c.name}</span>
+                  {(c.email || c.phone) && (
+                    <span className="text-[11px] ml-2 text-text-muted">
+                      {String(c.email || c.phone)}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
