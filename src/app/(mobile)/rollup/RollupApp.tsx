@@ -29,7 +29,7 @@ interface RollupAppProps {
   onSwitchSA?: () => void;
 }
 
-export default function RollupApp({ onSwitchSA }: RollupAppProps) {
+export default function RollupApp(_: RollupAppProps) {
   const router = useRouter();
   const [view, setView] = useState<View>({ kind: 'dashboard' });
   const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
@@ -101,14 +101,9 @@ export default function RollupApp({ onSwitchSA }: RollupAppProps) {
       setSaStack((stack) => stack.slice(0, -1));
       return;
     }
-    // At the root SA — return to the SA selection screen (the listing the
-    // user came from), not the roles page.
-    if (onSwitchSA) {
-      onSwitchSA();
-      return;
-    }
+    // At the root SA — return to the roles page.
     router.push('/');
-  }, [view.kind, saStack.length, onSwitchSA, router]);
+  }, [view.kind, saStack.length, router]);
 
   if (!rootSaId || currentSaId == null) return null;
 
