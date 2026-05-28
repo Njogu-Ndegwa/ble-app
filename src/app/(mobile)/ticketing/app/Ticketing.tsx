@@ -65,11 +65,11 @@ const EMPTY_FORM: TicketFormState = {
 };
 
 const PRIORITY_BADGE_CLASS: Record<string, string> = {
-  urgent: 'list-card-badge list-card-badge--error',
-  high: 'list-card-badge list-card-badge--warning',
-  medium: 'list-card-badge list-card-badge--info',
-  low: 'list-card-badge list-card-badge--neutral',
-  none: 'list-card-badge list-card-badge--neutral',
+  urgent: 'list-card-badge list-card-badge--priority-urgent',
+  high: 'list-card-badge list-card-badge--priority-high',
+  medium: 'list-card-badge list-card-badge--priority-medium',
+  low: 'list-card-badge list-card-badge--priority-low',
+  none: 'list-card-badge list-card-badge--priority-none',
 };
 
 const PRIORITIES: TicketPriority[] = ['low', 'medium', 'high', 'urgent'];
@@ -600,7 +600,16 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
       {
         title: t('ticketing.detail.summary') || 'Summary',
         fields: [
-          { icon: <Tag size={15} />, label: t('ticketing.list.filter.priority') || 'Priority', value: priorityLabel(selectedTicket.priority) },
+          {
+            icon: <Tag size={15} />,
+            label: t('ticketing.list.filter.priority') || 'Priority',
+            value: priorityLabel(selectedTicket.priority),
+            renderValue: (
+              <span className={PRIORITY_BADGE_CLASS[selectedTicket.priority] || PRIORITY_BADGE_CLASS.none}>
+                {priorityLabel(selectedTicket.priority)}
+              </span>
+            ),
+          },
           { icon: <Layers size={15} />, label: t('ticketing.list.filter.stage') || 'Stage', value: stageName },
           { icon: <Calendar size={15} />, label: t('ticketing.detail.created') || 'Created', value: formatDate(selectedTicket.createdAt) },
         ],
