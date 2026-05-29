@@ -43,7 +43,12 @@ interface BikeInfo {
 interface RiderHomeProps {
   userName: string;
   balance: number;
+  /** Remaining energy in kWh — shown as the headline value of the balance row. */
+  energyKwh?: number;
   currency?: string;
+  /** Active subscription code (e.g. SUB-XXXX). Shown in the bike card so the
+   *  rider always knows which plan the displayed data belongs to. */
+  subscriptionCode?: string | null;
   bike: BikeInfo;
   nearbyStations: Station[];
   isLoadingStations?: boolean;
@@ -63,7 +68,9 @@ interface RiderHomeProps {
 const RiderHome: React.FC<RiderHomeProps> = ({
   userName,
   balance,
+  energyKwh = 0,
   currency = "",
+  subscriptionCode,
   bike,
   nearbyStations,
   isLoadingStations = false,
@@ -232,13 +239,28 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           <div className="rider-bike-info">
             <div className="rider-bike-detail">
               <span className="rider-bike-detail-label">
+                {t("rider.subscriptionId") || "Subscription"}
+              </span>
+              {isLoadingBike ? (
+                <span className="rider-skeleton rider-skeleton-value" />
+              ) : (
+                <span
+                  className="rider-bike-detail-value"
+                  style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}
+                >
+                  {subscriptionCode || (t("common.notAssigned") || "Not assigned")}
+                </span>
+              )}
+            </div>
+            <div className="rider-bike-detail">
+              <span className="rider-bike-detail-label">
                 {t("rider.vehicleId") || "Vehicle ID"}
               </span>
               {isLoadingBike ? (
                 <span className="rider-skeleton rider-skeleton-value" />
               ) : (
                 <span className="rider-bike-detail-value">
-                  {bike.vehicleId || "N/A"}
+                  {bike.vehicleId || (t("common.notAssigned") || "Not assigned")}
                 </span>
               )}
             </div>
@@ -250,7 +272,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <span className="rider-skeleton rider-skeleton-value" />
               ) : (
                 <span className="rider-bike-detail-value">
-                  {bike.lastSwap || "N/A"}
+                  {bike.lastSwap || (t("rider.noSwapsYet") || "No swaps yet")}
                 </span>
               )}
             </div>
@@ -269,32 +291,35 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           </div>
         </div>
 
-        {/* Account Balance - integrated into the bike card */}
+        {/* Energy Balance - integrated into the bike card. Energy (kWh) is the
+            headline value since that's what the rider is actually paying for;
+            the monetary equivalent is shown as a secondary line. */}
         <div className="rider-bike-balance">
           <div className="rider-bike-balance-label-row">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-              <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-              <path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z" />
-            </svg>
-            <span>{t("rider.accountBalance") || "Account Balance"}</span>
+            <Zap size={16} strokeWidth={2} aria-hidden="true" />
+            <span>{t("rider.energyBalance") || "Energy Balance"}</span>
           </div>
           {isLoadingBike ? (
             <span className="rider-skeleton rider-skeleton-balance" />
           ) : (
             <div className="rider-bike-balance-value">
-              <span className="rider-bike-balance-currency">{currency}</span>
               <span className="rider-bike-balance-amount">
-                {balance.toLocaleString()}
+                {energyKwh.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
+              <span className="rider-bike-balance-currency">kWh</span>
+            </div>
+          )}
+          {!isLoadingBike && (
+            <div
+              className="rider-bike-balance-sub"
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                marginTop: "2px",
+              }}
+            >
+              ≈ {currency ? `${currency} ` : ""}
+              {balance.toLocaleString()}
             </div>
           )}
         </div>

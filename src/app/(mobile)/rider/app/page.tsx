@@ -116,6 +116,7 @@ interface IdentificationCache {
   totalSwaps: number;
   paymentState?: string;
   balance: number;
+  energyKwh: number;
   currency: string;
   cachedAt: number;
 }
@@ -179,6 +180,7 @@ const RiderApp: React.FC = () => {
   
   // Data state
   const [balance, setBalance] = useState(0);
+  const [energyKwh, setEnergyKwh] = useState(0);
   const [currency, setCurrency] = useState('');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
@@ -498,6 +500,7 @@ const RiderApp: React.FC = () => {
     if (!cached) return false;
 
     setBalance(cached.balance);
+    setEnergyKwh(cached.energyKwh || 0);
     setCurrency(cached.currency);
     setBike((prev) => ({
       ...prev,
@@ -650,6 +653,7 @@ const RiderApp: React.FC = () => {
 
       // Update balance with real energy value data
       setBalance(energyValue);
+      setEnergyKwh(energyRemaining);
       setCurrency(billingCurrency);
 
       // Update bike state with real data
@@ -671,6 +675,7 @@ const RiderApp: React.FC = () => {
         totalSwaps: Math.floor(totalSwaps || 0),
         paymentState: paymentState || undefined,
         balance: energyValue,
+        energyKwh: energyRemaining,
         currency: billingCurrency,
         cachedAt: Date.now(),
       });
@@ -2288,7 +2293,9 @@ const RiderApp: React.FC = () => {
             <RiderHome
               userName={customer?.name || t('common.guest')}
               balance={balance}
+              energyKwh={energyKwh}
               currency={currency}
+              subscriptionCode={subscription?.subscription_code ?? null}
               bike={{
                 ...bike,
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || bike.paymentState,
@@ -2375,6 +2382,7 @@ const RiderApp: React.FC = () => {
                   : '--',
                 phone: customer?.phone || '',
                 balance: balance,
+                energyKwh: energyKwh,
                 currency: currency,
                 swapsThisMonth: swapsThisMonth,
                 planName: subscription?.product_name || '',
