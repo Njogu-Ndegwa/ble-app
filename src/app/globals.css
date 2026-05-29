@@ -8192,9 +8192,10 @@ html.theme-transition *::after {
 
 .rider-skeleton-map {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
+  min-height: 260px;
   border-radius: var(--radius-lg);
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .rider-stations-skeleton-list {
@@ -14337,7 +14338,13 @@ html.keyboard-open .customer-panel-unified {
 .rm-home-map {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  /* Map is the primary surface for stations on the home view — the legacy
+     carousel below it was retired, so the map breathes vertically and the
+     colored bolt-pill markers become the per-station readout. Aspect 4/3
+     gives ~270px on a 360-wide phone; min-height keeps it usable on very
+     narrow screens. */
+  aspect-ratio: 4 / 3;
+  min-height: 260px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border);

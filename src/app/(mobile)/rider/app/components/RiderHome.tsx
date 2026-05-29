@@ -5,17 +5,14 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
   Zap,
-  Navigation,
   ChevronRight,
   RefreshCw,
   AlertCircle,
   Lock,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
-import { toast } from "react-hot-toast";
-import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeolocation";
+import { useGeolocation } from "../hooks/useGeolocation";
 import type { RiderStation } from "../types";
-import { googleMapsUrl, openExternalMap } from "../map/deepLinks";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Google Maps is client-only; load dynamically to avoid SSR errors and reuse
@@ -111,19 +108,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const showLoadingSkeleton =
     isLoadingStations && nearbyStations.length === 0 && !loadTimedOut;
 
-  const stationsWithDistance = useMemo(() => {
-    return nearbyStations.map((station) => {
-      if (!userLocation || station.lat == null || station.lng == null) {
-        return { ...station, calculatedDistance: null as string | null };
-      }
-      const km = haversineKm(userLocation, {
-        lat: station.lat,
-        lng: station.lng,
-      });
-      return { ...station, calculatedDistance: formatDistance(km) };
-    });
-  }, [nearbyStations, userLocation]);
-
   // Plot the *entire* list of nearby stations — same source of truth as the
   // full Stations screen so the two maps can never disagree. The underlying
   // `RiderMap` handles crowding via marker clustering.
@@ -183,24 +167,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           ? t("common.active") || "Active"
           : paymentState;
     }
-  };
-
-  const handleStationClick = (station: Station) => {
-    onSelectStation(station.id);
-  };
-
-  const handleNavigate = (station: Station, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (station.lat == null || station.lng == null) {
-      toast.error(
-        t("rider.stationLocationMissing") || "Station location is missing.",
-      );
-      return;
-    }
-    openExternalMap(
-      googleMapsUrl({ lat: station.lat, lng: station.lng }, station.name),
-      (msg) => toast.error(msg),
-    );
   };
 
   const energyDisplay = energyKwh.toLocaleString(undefined, {
@@ -444,24 +410,12 @@ const RiderHome: React.FC<RiderHomeProps> = ({
       </div>
 
       {showLoadingSkeleton ? (
-        /* Stations are legitimately still being fetched. Show a skeleton in
-           place of BOTH the map and the carousel so the rider understands
-           we're still gathering data, instead of staring at an empty map.
-           Capped at `LOAD_TIMEOUT_MS` (see useEffect above) so a wedged
-           MQTT pipeline can't pin us here forever. */
+        /* Stations are still being fetched — show a map-shaped skeleton so
+           the rider understands data is still arriving rather than seeing
+           an empty map. Capped at `LOAD_TIMEOUT_MS` (see useEffect above)
+           so a wedged MQTT pipeline can't pin us here forever. */
         <div className="rider-stations-skeleton">
           <div className="rider-skeleton rider-skeleton-map" />
-          <div className="rider-stations-skeleton-list">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="rider-skeleton-station">
-                <div className="rider-skeleton rider-skeleton-station-icon" />
-                <div className="rider-skeleton-station-body">
-                  <div className="rider-skeleton rider-skeleton-station-name" />
-                  <div className="rider-skeleton rider-skeleton-station-meta" />
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       ) : (
         /* Stations have settled — either with data, without data (empty),
@@ -611,103 +565,14 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 </button>
               )}
             </div>
-          ) : nearbyStations.length === 0 ? (
-            <div
-              style={{
-                background: "var(--bg-secondary)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-lg)",
-                padding: "14px 16px",
-                textAlign: "center",
-                marginTop: "12px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  lineHeight: "1.5",
-                  margin: 0,
-                }}
-              >
-                {t("rider.noStationsFound") ||
-                  "No stations found. Please check your subscription configuration."}
-              </p>
-              {onRefreshStations && (
-                <button
-                  type="button"
-                  onClick={onRefreshStations}
-                  className="rh-mini-cta"
-                  style={{ margin: "10px auto 0" }}
-                >
-                  <RefreshCw size={12} />
-                  <span>{t("common.refresh") || "Refresh"}</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            /* Horizontal carousel — same card as full-screen peek */
-            <div className="rm-carousel rm-carousel--home">
-            {stationsWithDistance.slice(0, 6).map((station) => {
-              const status =
-                station.batteries === 0
-                  ? "empty"
-                  : station.batteries <= 2
-                    ? "low"
-                    : "available";
-              return (
-                <div
-                  key={station.id}
-                  className="rm-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleStationClick(station)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") handleStationClick(station);
-                  }}
-                >
-                  <div className={`rm-card-badge rm-card-badge--${status}`}>
-                    <Zap size={14} />
-                    <span className="rm-card-badge-num">{station.batteries}</span>
-                  </div>
-                  <div className="rm-card-body">
-                    <div className="rm-card-title">{station.name}</div>
-                    <div className="rm-card-sub">
-                      <span>
-                        {status === "empty"
-                          ? t("rider.map.empty") || "Empty"
-                          : status === "low"
-                            ? t("rider.map.low") || "Low"
-                            : t("rider.map.available") || "Available"}
-                      </span>
-                      {(station.calculatedDistance || station.distance) && (
-                        <>
-                          <span className="rm-card-dot" />
-                          {/* Straight-line (haversine) distance + pace-based
-                              ETA label. Real routing distance/ETA only
-                              appears on the full stations screen once the
-                              rider picks a destination, so we mark these as
-                              estimates here to avoid raising expectations. */}
-                          <span>
-                            {station.calculatedDistance || station.distance}
-                            {station.calculatedDistance ? " (est.)" : ""}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="rm-card-cta"
-                    onClick={(e) => handleNavigate(station, e)}
-                    aria-label={t("rider.map.navigate") || "Navigate"}
-                  >
-                    <Navigation size={16} />
-                  </button>
-                </div>
-              );
-            })}
-            </div>
-          )}
+          ) : null}
+          {/* When stations resolve successfully (or are simply empty), the
+              map itself carries all per-station info — the bolt-pill markers
+              encode battery count + availability color, and the in-map
+              "no stations" badge above explains an empty result. The legacy
+              station carousel was retired so the map can breathe. Tapping
+              anywhere on the preview hands the rider off to the full
+              Stations screen for names, distances, and navigation. */}
         </div>
       )}
       </section>
