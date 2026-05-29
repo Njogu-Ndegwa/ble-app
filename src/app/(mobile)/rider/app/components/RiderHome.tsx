@@ -300,7 +300,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               onClick={onShowEnergyTopUp}
             >
               <Zap size={16} strokeWidth={2.4} aria-hidden="true" />
-              <span>{t("rider.topUpEnergy") || "Top Up"}</span>
+              <span>{t("rider.topUp") || "Top Up"}</span>
             </button>
           )}
           <button
