@@ -68,6 +68,13 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 const API_KEY = "abs_connector_secret_key_2024";
 const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV1';
 const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+// Stations + activity caches: short TTL so a stale list never lingers more
+// than a couple of minutes, but long enough that re-entering the home screen
+// after a quick detour paints instantly.
+const RIDER_STATIONS_CACHE_KEY = 'riderStationsCacheV1';
+const RIDER_ACTIVITY_CACHE_KEY = 'riderActivityCacheV1';
+const STATIONS_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+const ACTIVITY_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const LOAD_FAILSAFE_TIMEOUT_MS = 15000;
 
 interface ServiceAccount {
@@ -332,7 +339,6 @@ const RiderApp: React.FC = () => {
             dataLoadStartRef.current = performance.now();
             console.warn('[PERF] 🚀 AUTO-LOGIN (unified) - Starting data load');
 
-            fetchDashboardData(unifiedToken);
             fetchSubscriptionData(customerData.partner_id, unifiedToken);
           }
           setIsCheckingAuth(false);
@@ -367,7 +373,6 @@ const RiderApp: React.FC = () => {
             dataLoadStartRef.current = performance.now();
             console.warn('[PERF] 🚀 AUTO-LOGIN (legacy) - Starting data load');
 
-            fetchDashboardData(token);
             fetchSubscriptionData(customerData.partner_id, token);
           }
         } catch (e) {
@@ -435,41 +440,6 @@ const RiderApp: React.FC = () => {
     }
   }, [isLoggedIn]);
 
-  // Fetch dashboard data from API
-  const fetchDashboardData = async (token: string) => {
-    const startTime = performance.now();
-    console.info('[PERF] ðŸ“Š Dashboard API - Starting...');
-    try {
-      const response = await fetch(`${API_BASE}/customer/dashboard`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': API_KEY,
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const elapsed = Math.round(performance.now() - startTime);
-      console.info(`[PERF] ðŸ“Š Dashboard API - Response received in ${elapsed}ms (Status: ${response.status})`);
-
-      if (response.ok) {
-        const data = await response.json();
-        const totalElapsed = Math.round(performance.now() - startTime);
-        console.info(`[PERF] ðŸ“Š Dashboard API - Parsed in ${totalElapsed}ms`);
-        
-        if (data.summary) {
-          setBalance(data.summary.total_paid || 0);
-        }
-        
-        // Don't use activity_history from dashboard - use GraphQL instead
-        // Activity data will be fetched from GraphQL when subscription is loaded
-      }
-    } catch (error) {
-      const elapsed = Math.round(performance.now() - startTime);
-      console.error(`[PERF] ðŸ“Š Dashboard API - Error after ${elapsed}ms:`, error);
-    }
-  };
-
   // Fetch customer identification data to get vehicle ID and total swaps
   const getIdentificationCache = (subscriptionCode: string): IdentificationCache | null => {
     try {
@@ -493,6 +463,85 @@ const RiderApp: React.FC = () => {
     } catch (error) {
       console.warn('[RIDER] Failed to persist identification cache:', error);
     }
+  };
+
+  // Stations + activity caches mirror the identification pattern above. They
+  // let the home screen paint stations & activity instantly on re-entry, with
+  // a silent background refresh once the network resolves. Keys are scoped by
+  // subscription_code so switching plans never serves stale data from the
+  // previous plan.
+  const getStationsCache = (subscriptionCode: string): { stations: Station[] } | null => {
+    try {
+      const raw = localStorage.getItem(RIDER_STATIONS_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        subscriptionCode: string;
+        stations: Station[];
+        cachedAt: number;
+      };
+      const isStale = Date.now() - parsed.cachedAt > STATIONS_CACHE_MAX_AGE_MS;
+      if (isStale || parsed.subscriptionCode !== subscriptionCode) return null;
+      return { stations: parsed.stations };
+    } catch {
+      return null;
+    }
+  };
+
+  const setStationsCache = (subscriptionCode: string, stationsToCache: Station[]) => {
+    try {
+      localStorage.setItem(
+        RIDER_STATIONS_CACHE_KEY,
+        JSON.stringify({ subscriptionCode, stations: stationsToCache, cachedAt: Date.now() }),
+      );
+    } catch (error) {
+      console.warn('[RIDER] Failed to persist stations cache:', error);
+    }
+  };
+
+  const hydrateStationsCache = (subscriptionCode: string): boolean => {
+    const cached = getStationsCache(subscriptionCode);
+    if (!cached || cached.stations.length === 0) return false;
+    setStations(cached.stations);
+    setIsLoadingStations(false);
+    setStationsError(null);
+    console.info('[PERF] âš¡ Hydrated rider stations from local cache');
+    return true;
+  };
+
+  const getActivityCache = (subscriptionCode: string): { activities: ActivityItem[] } | null => {
+    try {
+      const raw = localStorage.getItem(RIDER_ACTIVITY_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        subscriptionCode: string;
+        activities: ActivityItem[];
+        cachedAt: number;
+      };
+      const isStale = Date.now() - parsed.cachedAt > ACTIVITY_CACHE_MAX_AGE_MS;
+      if (isStale || parsed.subscriptionCode !== subscriptionCode) return null;
+      return { activities: parsed.activities };
+    } catch {
+      return null;
+    }
+  };
+
+  const setActivityCache = (subscriptionCode: string, activityToCache: ActivityItem[]) => {
+    try {
+      localStorage.setItem(
+        RIDER_ACTIVITY_CACHE_KEY,
+        JSON.stringify({ subscriptionCode, activities: activityToCache, cachedAt: Date.now() }),
+      );
+    } catch (error) {
+      console.warn('[RIDER] Failed to persist activity cache:', error);
+    }
+  };
+
+  const hydrateActivityCache = (subscriptionCode: string): boolean => {
+    const cached = getActivityCache(subscriptionCode);
+    if (!cached || cached.activities.length === 0) return false;
+    setActivities(cached.activities);
+    console.info('[PERF] âš¡ Hydrated rider activity from local cache');
+    return true;
   };
 
   const hydrateIdentificationCache = (subscriptionCode: string): boolean => {
@@ -885,6 +934,7 @@ const RiderApp: React.FC = () => {
           });
 
           setActivities(mappedActivities);
+          setActivityCache(subscriptionCode, mappedActivities);
           console.log('Activity data fetched from GraphQL:', mappedActivities.length, 'activities');
         } else {
           console.log('No activity data in GraphQL response');
@@ -997,6 +1047,12 @@ const RiderApp: React.FC = () => {
             const subscriptionCode = active.subscription_code;
             console.log('[PERF] ðŸš€ Starting PARALLEL fetch: Activity + IdentifyCustomer');
             const usedCache = hydrateIdentificationCache(subscriptionCode);
+            // Hydrate stations + activity from local caches so the home screen
+            // paints synchronously on re-entry. Background fetches below still
+            // run and overwrite with fresh data; cached-but-empty results are
+            // ignored so we never trap the user in a stale empty state.
+            hydrateStationsCache(subscriptionCode);
+            hydrateActivityCache(subscriptionCode);
             if (!usedCache) {
               setIsBikeDataResolved(false);
               setIsLoadingBike(true);
@@ -1441,6 +1497,9 @@ const RiderApp: React.FC = () => {
           const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
           console.warn(`[PERF] ðŸ“ STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
           setStations(allStations);
+          if (subscription?.subscription_code) {
+            setStationsCache(subscription.subscription_code, allStations);
+          }
           lastStationsFleetKeyRef.current = fleetKey;
           setStationsError(null);
         } else {
@@ -1585,15 +1644,13 @@ const RiderApp: React.FC = () => {
             setIsLoadingBike(true);
             setIsLoadingStations(true);
             setIsLoggedIn(true);
-            fetchDashboardData(token).then(() => {
-              if (customer.partner_id) {
-                fetchSubscriptionData(customer.partner_id, token);
-              }
-            }).catch((err) => {
-              console.error('[FINGERPRINT] Error during login:', err);
-              toast.error(t("auth.loginFailed") || "Login failed. Please try again.");
-              setIsLoggedIn(false);
-            });
+            if (customer.partner_id) {
+              fetchSubscriptionData(customer.partner_id, token).catch((err) => {
+                console.error('[FINGERPRINT] Error during login:', err);
+                toast.error(t("auth.loginFailed") || "Login failed. Please try again.");
+                setIsLoggedIn(false);
+              });
+            }
           } else {
             toast.error(t("auth.noCredentials") || "No saved credentials found.");
           }
@@ -1648,16 +1705,16 @@ const RiderApp: React.FC = () => {
     setIsLoggedIn(true);
     const token = localStorage.getItem('authToken_rider');
     if (token) {
-      console.warn('[PERF] ðŸš€ Starting parallel fetch: Dashboard + Subscriptions');
-      console.warn('[PERF] Bridge status:', { 
-        bridgeAvailable: !!bridge, 
-        webViewBridgeAvailable: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge 
+      console.warn('[PERF] ðŸš€ Starting fetch: Subscriptions');
+      console.warn('[PERF] Bridge status:', {
+        bridgeAvailable: !!bridge,
+        webViewBridgeAvailable: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge
       });
-      
-      // Fire both fetches - don't await, let them update state independently
-      fetchDashboardData(token);
-      
-      // Fetch subscription data if partner_id is available
+
+      // Fetch subscription data if partner_id is available. Balance and energy
+      // come from the IdentifyCustomer mutation downstream of this call — the
+      // legacy /customer/dashboard fetch was a duplicate source that briefly
+      // flashed an incorrect value before being overwritten.
       if (customerData.partner_id) {
         fetchSubscriptionData(customerData.partner_id, token).then(() => {
           const elapsed = Math.round(performance.now() - dataLoadStartRef.current);
@@ -1902,10 +1959,6 @@ const RiderApp: React.FC = () => {
           return { success: false, error: (reason as string) || 'Top-up rejected' };
         }
 
-        const token = localStorage.getItem('authToken_rider');
-        if (token && customer?.partner_id) {
-          fetchDashboardData(token);
-        }
         if (subscription?.subscription_code) {
           fetchCustomerIdentificationData(subscription.subscription_code);
         }
@@ -2120,8 +2173,7 @@ const RiderApp: React.FC = () => {
                       // Only fetch if prefetch wasn't started
                       if (!wasPrefetched) {
                         dataLoadStartRef.current = performance.now();
-                        console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions (no prefetch)');
-                        fetchDashboardData(token);
+                        console.warn('[PERF] 🚀 Starting fetch: Subscriptions (no prefetch)');
                         if (customer.partner_id) {
                           fetchSubscriptionData(customer.partner_id, token);
                         }

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   RefreshCw,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { toast } from "react-hot-toast";
@@ -202,168 +203,113 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     );
   };
 
+  const energyDisplay = energyKwh.toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+  });
+  const energyAriaLabel = isLoadingBike
+    ? t("common.loading") || "Loading"
+    : `${t("rider.energyRemaining") || "Energy remaining"} ${energyKwh.toLocaleString(
+        undefined,
+        { maximumFractionDigits: 2 },
+      )} kWh`;
+  const gaugeStateClass = !hasSubscription
+    ? "rh-gauge--locked"
+    : isLoadingBike
+      ? "rh-gauge--loading"
+      : energyKwh === 0
+        ? "rh-gauge--empty"
+        : "";
+
   return (
-    <div className="rider-screen active">
-      {/* Dashboard Header */}
-      <div className="rider-dashboard-header">
-        <div className="rider-greeting">{getGreeting()}</div>
-        <div className="rider-name">{userName}</div>
-      </div>
+    <div className="rider-screen active rh-screen">
+      {/* Greeting */}
+      <header
+        className="rh-greeting rh-anim-in"
+        style={{ ["--rh-delay" as string]: "0ms" } as React.CSSProperties}
+      >
+        <p className="rh-greeting__hello">{getGreeting()}</p>
+        <h1 className="rh-greeting__name">{userName}</h1>
+      </header>
 
-      {/* My Bike Card (includes Account Balance) */}
-      <div className="rider-bike-card">
-        <div className="rider-bike-header">
-          <div>
-            <div className="rider-bike-label">
-              {t("rider.myBike") || "My Bike"}
-            </div>
-          </div>
-          <span
-            className={`rider-bike-status ${getPaymentStateClass(
-              bike.paymentState,
-            )}`}
-          >
-            {getPaymentStateLabel(bike.paymentState)}
-          </span>
-        </div>
-        <div className="rider-bike-content">
-          <div className="rider-bike-image">
-            <Image
-              src={bike.imageUrl || "/assets/E-3-one.png"}
-              alt={bike.model}
-              width={140}
-              height={100}
-              style={{ objectFit: "contain" }}
+      {/* HERO — state-of-charge gauge + primary actions */}
+      <section
+        className="rh-hero rh-anim-in"
+        style={{ ["--rh-delay" as string]: "100ms" } as React.CSSProperties}
+        aria-busy={isLoadingBike}
+      >
+        <div
+          className={`rh-gauge ${gaugeStateClass}`.trim()}
+          role="img"
+          aria-label={
+            !hasSubscription
+              ? t("rider.noSubscription") || "No active subscription"
+              : energyAriaLabel
+          }
+        >
+          <svg className="rh-gauge__svg" viewBox="0 0 200 200" aria-hidden="true">
+            <circle
+              className="rh-gauge__track"
+              cx="100"
+              cy="100"
+              r="86"
+              pathLength={100}
             />
-          </div>
-          <div className="rider-bike-info">
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.subscriptionId") || "Subscription"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value" />
-              ) : (
-                <span
-                  className="rider-bike-detail-value"
-                  style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}
-                >
-                  {subscriptionCode || (t("common.notAssigned") || "Not assigned")}
+            {hasSubscription && (
+              <circle
+                className="rh-gauge__ring"
+                cx="100"
+                cy="100"
+                r="86"
+                pathLength={100}
+              />
+            )}
+          </svg>
+          <div className="rh-gauge__inner">
+            {!hasSubscription ? (
+              <>
+                <Lock className="rh-gauge__lock" size={22} aria-hidden="true" />
+                <span className="rh-gauge__sub">
+                  {t("rider.pickPlanShort") || "Pick a plan to ride"}
                 </span>
-              )}
-            </div>
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.vehicleId") || "Vehicle ID"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value" />
-              ) : (
-                <span className="rider-bike-detail-value">
-                  {bike.vehicleId || (t("common.notAssigned") || "Not assigned")}
+              </>
+            ) : isLoadingBike ? (
+              <span className="rider-skeleton rh-gauge__skeleton" />
+            ) : (
+              <>
+                <span className="rh-gauge__value">{energyDisplay}</span>
+                <span className="rh-gauge__unit">kWh</span>
+                <span className="rh-gauge__sub">
+                  ≈ {currency ? `${currency} ` : ""}
+                  {balance.toLocaleString()}
                 </span>
-              )}
-            </div>
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.lastSwap") || "Last Swap"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value" />
-              ) : (
-                <span className="rider-bike-detail-value">
-                  {bike.lastSwap || (t("rider.noSwapsYet") || "No swaps yet")}
-                </span>
-              )}
-            </div>
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.totalSwaps") || "Total Swaps"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value rider-skeleton-value-sm" />
-              ) : (
-                <span className="rider-bike-detail-value">
-                  {bike.totalSwaps}
-                </span>
-              )}
-            </div>
+                {energyKwh === 0 && (
+                  <span className="rh-gauge__caption">
+                    {t("rider.topUpToRide") || "Top up to ride"}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Energy Balance - integrated into the bike card. Energy (kWh) is the
-            headline value since that's what the rider is actually paying for;
-            the monetary equivalent is shown as a secondary line. */}
-        <div className="rider-bike-balance">
-          <div className="rider-bike-balance-label-row">
-            <Zap size={16} strokeWidth={2} aria-hidden="true" />
-            <span>{t("rider.energyBalance") || "Energy Balance"}</span>
-          </div>
-          {isLoadingBike ? (
-            <span className="rider-skeleton rider-skeleton-balance" />
-          ) : (
-            <div className="rider-bike-balance-value">
-              <span className="rider-bike-balance-amount">
-                {energyKwh.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </span>
-              <span className="rider-bike-balance-currency">kWh</span>
-            </div>
-          )}
-          {!isLoadingBike && (
-            <div
-              className="rider-bike-balance-sub"
-              style={{
-                fontSize: "12px",
-                color: "var(--text-muted)",
-                marginTop: "2px",
-              }}
+        <div className="rh-hero__cta">
+          {onShowEnergyTopUp && (
+            <button
+              type="button"
+              className="rh-cta rh-cta--primary"
+              onClick={onShowEnergyTopUp}
             >
-              ≈ {currency ? `${currency} ` : ""}
-              {balance.toLocaleString()}
-            </div>
+              <Zap size={16} strokeWidth={2.4} aria-hidden="true" />
+              <span>{t("rider.topUpEnergy") || "Top Up"}</span>
+            </button>
           )}
-        </div>
-      </div>
-
-      {/* Quick Actions - compact action pills */}
-      <div className="rider-quick-pills">
-        {onShowEnergyTopUp && (
           <button
             type="button"
-            className="rider-quick-pill"
-            onClick={onShowEnergyTopUp}
+            className="rh-cta rh-cta--ghost"
+            onClick={onShowQRCode}
           >
-            <span className="rider-quick-pill-icon">
-              <Zap
-                size={20}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </span>
-            <span className="rider-quick-pill-label">
-              {t("rider.topUpEnergy") || "Top Up Energy"}
-            </span>
             <svg
-              className="rider-quick-pill-chevron"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-        )}
-        <button
-          type="button"
-          className="rider-quick-pill"
-          onClick={onShowQRCode}
-        >
-          <span className="rider-quick-pill-icon">
-            <svg
+              className="rh-cta__icon"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -377,26 +323,84 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               <rect x="14" y="14" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" />
             </svg>
-          </span>
-          <span className="rider-quick-pill-label">
-            {t("rider.myQrCode") || "My QR Code"}
-          </span>
-          <svg
-            className="rider-quick-pill-chevron"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-      </div>
+            <span>{t("rider.myQrCode") || "My QR"}</span>
+          </button>
+        </div>
+      </section>
 
-      {/* Nearby Stations Section */}
+      {/* BIKE strip — demoted metadata. Hidden when there's no subscription. */}
+      {hasSubscription && (
+        <section
+          className="rh-bike rh-anim-in"
+          style={{ ["--rh-delay" as string]: "250ms" } as React.CSSProperties}
+        >
+          <div className="rh-bike__head">
+            <div className="rh-bike__img">
+              <Image
+                src={bike.imageUrl || "/assets/E-3-one.png"}
+                alt={bike.model}
+                width={56}
+                height={40}
+                style={{ objectFit: "contain" }}
+              />
+            </div>
+            <div className="rh-bike__title">
+              <p className="rh-bike__model">{bike.model}</p>
+              <p className="rh-bike__sub">
+                {isLoadingBike
+                  ? "—"
+                  : subscriptionCode ||
+                    (t("common.notAssigned") || "Not assigned")}
+              </p>
+            </div>
+            <span
+              className={`rh-bike__pill rh-bike__pill--${getPaymentStateClass(
+                bike.paymentState,
+              )}`}
+            >
+              {getPaymentStateLabel(bike.paymentState)}
+            </span>
+          </div>
+          <dl className="rh-bike__grid">
+            <div className="rh-bike__cell">
+              <dt>{t("rider.vehicleId") || "Vehicle"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value" />
+                ) : (
+                  bike.vehicleId || "—"
+                )}
+              </dd>
+            </div>
+            <div className="rh-bike__cell">
+              <dt>{t("rider.totalSwaps") || "Swaps"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value rider-skeleton-value-sm" />
+                ) : (
+                  bike.totalSwaps
+                )}
+              </dd>
+            </div>
+            <div className="rh-bike__cell">
+              <dt>{t("rider.lastSwap") || "Last swap"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value" />
+                ) : (
+                  bike.lastSwap || "—"
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
+      {/* STATIONS — wrapper adds entrance animation; inner markup preserved */}
+      <section
+        className="rh-stations rh-anim-in"
+        style={{ ["--rh-delay" as string]: "450ms" } as React.CSSProperties}
+      >
       <div className="rider-section-header">
         <span className="rider-section-title">
           {t("rider.nearbyStations") || "Nearby Stations"}
@@ -599,20 +603,11 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <button
                   type="button"
                   onClick={onRefreshStations}
-                  className="rider-quick-pill"
-                  style={{
-                    display: "inline-flex",
-                    width: "auto",
-                    margin: 0,
-                    padding: "6px 12px",
-                    gap: 6,
-                    flexShrink: 0,
-                  }}
+                  className="rh-mini-cta"
+                  style={{ flexShrink: 0 }}
                 >
                   <RefreshCw size={12} />
-                  <span className="rider-quick-pill-label">
-                    {t("rider.directions.retry") || "Retry"}
-                  </span>
+                  <span>{t("rider.directions.retry") || "Retry"}</span>
                 </button>
               )}
             </div>
@@ -642,19 +637,11 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <button
                   type="button"
                   onClick={onRefreshStations}
-                  className="rider-quick-pill"
-                  style={{
-                    display: "inline-flex",
-                    width: "auto",
-                    margin: "10px auto 0",
-                    padding: "6px 14px",
-                    gap: 6,
-                  }}
+                  className="rh-mini-cta"
+                  style={{ margin: "10px auto 0" }}
                 >
                   <RefreshCw size={12} />
-                  <span className="rider-quick-pill-label">
-                    {t("common.refresh") || "Refresh"}
-                  </span>
+                  <span>{t("common.refresh") || "Refresh"}</span>
                 </button>
               )}
             </div>
@@ -723,6 +710,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
           )}
         </div>
       )}
+      </section>
     </div>
   );
 };
