@@ -35,6 +35,8 @@ export interface EnergyTopUpSubmitArgs {
   transactionId: string;
   paymentMethod: string;
   orderId: number | null;
+  /** Authoritative amount paid, as confirmed by Odoo's confirmPaymentManual. */
+  totalPaid: number;
 }
 
 interface PlanOption {
@@ -260,6 +262,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         transactionId: receipt,
         paymentMethod: method,
         orderId,
+        totalPaid,
       });
 
       if (result.success) {

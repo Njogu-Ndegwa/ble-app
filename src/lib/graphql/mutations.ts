@@ -231,6 +231,61 @@ export const REPORT_PAYMENT_AND_SERVICE = gql`
 `;
 
 // ============================================================================
+// Service Top-Up (rider energy quota top-up, GraphQL mirror of MQTT quota_topup)
+// ============================================================================
+
+/**
+ * Input for the `serviceTopup` mutation. ABS computes the credited quota as
+ * `payment_amount / unit_price` and rounds to 4 decimals. To credit a fixed
+ * bundle of kWh declared by the catalog (Odoo product) — independent of the
+ * service-definition default unit price — pass `unit_price = payment_amount /
+ * declared_kwh` so the inverse arithmetic on the server lands on the declared
+ * value. See plan note in topup.md.
+ */
+export interface ServiceTopupInput {
+  plan_id: string;
+  service_id: string;
+  payment_amount: number;
+  unit_price: number;
+  /** PaymentAction idempotency key — pass the Odoo receipt id. */
+  payment_reference?: string;
+  /**
+   * Agent-layer idempotency key + trace correlation id. Mirrors the MQTT
+   * envelope's `correlation_id`. Pass the same value as `payment_reference`
+   * (or a separate stable id) so retries dedupe at the agent layer too.
+   */
+  correlation_id?: string;
+}
+
+export interface ServiceTopupResponse {
+  service_id: string;
+  additional_quota: number;
+  quota_before: number;
+  quota_after: number;
+  quota_calculation: string;
+  signals: string[];
+  metadata: string | Record<string, unknown>;
+}
+
+/**
+ * GraphQL mutation source kept in sync with the inline copy logged by the
+ * rider page (for GraphQL Playground replay). If you edit one, edit both.
+ */
+export const SERVICE_TOPUP = gql`
+  mutation ServiceTopup($input: ServiceTopupInput!) {
+    serviceTopup(input: $input) {
+      service_id
+      additional_quota
+      quota_before
+      quota_after
+      quota_calculation
+      signals
+      metadata
+    }
+  }
+`;
+
+// ============================================================================
 // Service Plan Template Query (catalog quota lookup)
 // ============================================================================
 

@@ -12,11 +12,12 @@ import { absApolloClient } from '@/lib/apollo-client';
 import {
   IDENTIFY_CUSTOMER,
   parseIdentifyCustomerMetadata,
-  REPORT_PAYMENT_AND_SERVICE,
+  SERVICE_TOPUP,
   type IdentifyCustomerInput,
-  type ReportPaymentAndServiceInput,
-  type ReportPaymentAndServiceResponse,
+  type ServiceTopupInput,
+  type ServiceTopupResponse,
 } from '@/lib/graphql/mutations';
+import { round } from '@/lib/utils';
 import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
 import {
   RiderNav,
@@ -1801,61 +1802,101 @@ const RiderApp: React.FC = () => {
   };
 
 
-  // Rider energy top-up via service plan. Sends reportPaymentAndServiceCompletion
-  // with payment_data describing the rider's transfer; service_data shape for a
-  // pure energy top-up still needs ABS backend confirmation (the mutation today
-  // is swap-shaped). See plan Open Item B.
+  // Rider energy top-up via service plan. Calls the dedicated `serviceTopup`
+  // mutation, which records the payment and credits quota in one shot — no
+  // swap-shaped side-effects. Bundle pricing (e.g. "120 kWh for 1 CFA") is
+  // honoured by sending `unit_price = paymentAmount / declaredKwh`; ABS's
+  // inverse arithmetic (`additional_quota = payment_amount / unit_price`)
+  // then lands on the declared kWh after its 4-dp rounding. Requires the ABS
+  // service layer to honour client-supplied `unit_price` (see topup.md).
   const handleEnergyTopUp = useCallback(
     async (args: EnergyTopUpSubmitArgs): Promise<EnergyTopUpResult> => {
-      // Payment has already been verified by the modal via confirmPaymentManual.
-      // This function only reports the service to ABS.
       const planId = subscription?.subscription_code;
       if (!planId) {
         return { success: false, error: 'No active subscription' };
       }
-      const energyServiceId =
-        args.energyConfig?.serviceId || 'svc-electricity-energy-tracking';
-      const energyKwh = args.energyConfig?.initialQuota ?? 0;
-      const correlationId = `rider-energy-topup-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 9)}`;
+      const serviceId = args.energyConfig?.serviceId;
+      const declaredKwh = args.energyConfig?.initialQuota ?? 0;
+      if (!serviceId || declaredKwh <= 0) {
+        return { success: false, error: 'Top-up plan is missing a declared quota' };
+      }
 
-      const input: ReportPaymentAndServiceInput = {
+      // Money → 2 dp (matches swap-payment.ts conventions).
+      // unit_price stays at full double precision; rounding it here would
+      // diverge from ABS's inverse division. See discussion in topup.md.
+      const paymentAmount = round(args.totalPaid, 2);
+      const unitPrice = paymentAmount / declaredKwh;
+
+      // Pre-flight: confirm the round-trip lands on declaredKwh within ABS's
+      // 4-dp rounding window. If precision would drift, refuse to send so the
+      // customer never gets credited the wrong kWh.
+      const previewKwh = Math.round((paymentAmount / unitPrice) * 10000) / 10000;
+      if (Math.abs(previewKwh - declaredKwh) > 0.0001) {
+        console.error('[RIDER] top-up precision check failed', {
+          paymentAmount, declaredKwh, unitPrice, previewKwh,
+        });
+        return { success: false, error: 'Top-up math precision check failed' };
+      }
+
+      const input: ServiceTopupInput = {
         plan_id: planId,
-        correlation_id: correlationId,
-        attendant_station: 'RIDER_APP',
-        payment_data: {
-          service_id: energyServiceId,
-          payment_amount: args.plan.price,
-          payment_reference: args.transactionId,
-          payment_method: args.paymentMethod.toUpperCase(),
-          payment_type: 'TOP_UP',
-        },
-        service_data: {
-          new_battery_id: 'ENERGY_TOPUP',
-          energy_transferred: energyKwh,
-          service_duration: 0,
-        },
+        service_id: serviceId,
+        payment_amount: paymentAmount,
+        unit_price: unitPrice,
+        // The Odoo receipt is a stable per-payment identifier. Sending it as
+        // both keys lets agent-layer dedupe (correlation_id) and service-
+        // layer dedupe (payment_reference → PaymentAction id) both protect
+        // against double-credits on retries.
+        payment_reference: args.transactionId,
+        correlation_id: args.transactionId,
       };
+
+      // Dump the exact ABS request to the console so it can be replayed in the
+      // GraphQL Playground. Logged as a block: mutation body, then variables JSON.
+      console.groupCollapsed('[RIDER] ABS top-up request (paste into GraphQL Playground)');
+      console.log(
+`mutation ServiceTopup($input: ServiceTopupInput!) {
+  serviceTopup(input: $input) {
+    service_id
+    additional_quota
+    quota_before
+    quota_after
+    quota_calculation
+    signals
+    metadata
+  }
+}`,
+      );
+      console.log('Variables:\n' + JSON.stringify({ input }, null, 2));
+      console.groupEnd();
 
       try {
         const result = await absApolloClient.mutate<{
-          reportPaymentAndServiceCompletion: ReportPaymentAndServiceResponse;
+          serviceTopup: ServiceTopupResponse;
         }>({
-          mutation: REPORT_PAYMENT_AND_SERVICE,
+          mutation: SERVICE_TOPUP,
           variables: { input },
         });
 
         if (result.errors && result.errors.length > 0) {
           return { success: false, error: result.errors[0].message };
         }
-        const resp = result.data?.reportPaymentAndServiceCompletion;
+        const resp = result.data?.serviceTopup;
         if (!resp) {
           return { success: false, error: 'No response from server' };
         }
-        if (!resp.payment_processed && !resp.service_completed) {
-          return { success: false, error: resp.status_message || 'Top-up rejected' };
+        // Success when the agent confirms the quota update OR when it short-
+        // circuits as an idempotent replay (the original credit is still in
+        // place — confirmed against bss-agent-v2.ts:1850-1900 dedupe path).
+        const okSignals = ['SERVICE_QUOTA_UPDATED', 'IDEMPOTENT_OPERATION_DETECTED'];
+        const isOk = resp.signals?.some((s) => okSignals.includes(s));
+        if (!isOk) {
+          const reason = typeof resp.metadata === 'object'
+            ? (resp.metadata as Record<string, unknown>)?.reason
+            : undefined;
+          return { success: false, error: (reason as string) || 'Top-up rejected' };
         }
+
         const token = localStorage.getItem('authToken_rider');
         if (token && customer?.partner_id) {
           fetchDashboardData(token);
