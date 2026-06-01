@@ -545,7 +545,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                         rider can dial, pay, and then paste the SMS reference. */}
                     <div className="topup-mixx-field" style={{ marginBottom: 16 }}>
                       <span className="topup-mixx-label">
-                        {t('rider.payWithMixx') || 'Payez avec Mixx by Yas'}
+                        {t('rider.payWithMixx') || 'Pay with Mixx by Yas'}
                       </span>
                       <button
                         type="button"
@@ -559,11 +559,11 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                         {copiedKey === 'ussd' ? <Check size={16} /> : <Copy size={16} />}
                       </button>
                       <span className="topup-mixx-hint">
-                        {t('rider.ussdHint') || 'Ou suivez les étapes ci-dessous si le code ne fonctionne pas.'}
+                        {t('rider.ussdHint') || "Or follow the steps below if the pre-built code doesn't work on your handset."}
                       </span>
                       <ol className="topup-mixx-steps" style={{ marginTop: 8 }}>
                         <li>
-                          {t('rider.mixxStep1Prefix') || 'Composez'}{' '}
+                          {t('rider.mixxStep1Prefix') || 'Dial'}{' '}
                           <button
                             type="button"
                             className="topup-mixx-inline-copy"
@@ -573,9 +573,9 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                             {copiedKey === 'root' ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                         </li>
-                        <li>{t('rider.mixxStep2') || 'Choisissez « Paiement Marchand »'}</li>
+                        <li>{t('rider.mixxStep2') || 'Choose "Merchant Payment"'}</li>
                         <li>
-                          {t('rider.mixxStep3Prefix') || 'Code marchand :'}{' '}
+                          {t('rider.mixxStep3Prefix') || 'Merchant code:'}{' '}
                           <button
                             type="button"
                             className="topup-mixx-inline-copy"
@@ -587,13 +587,13 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                           {' '}({MIXX_MERCHANT_NAME})
                         </li>
                         <li>
-                          {(t('rider.mixxStep4') || 'Montant : {amount} F CFA').replace(
+                          {(t('rider.mixxStep4') || 'Amount: {amount} F CFA').replace(
                             '{amount}',
                             formatFCFA(selectedPlan.price),
                           )}
                         </li>
-                        <li>{t('rider.mixxStep5') || 'Validez avec votre code PIN Mixx'}</li>
-                        <li>{t('rider.mixxStep6') || 'Notez le code de transaction reçu par SMS'}</li>
+                        <li>{t('rider.mixxStep5') || 'Confirm with your Mixx PIN'}</li>
+                        <li>{t('rider.mixxStep6') || 'Note the transaction code received by SMS'}</li>
                       </ol>
                     </div>
 
