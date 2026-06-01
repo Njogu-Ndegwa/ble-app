@@ -1037,8 +1037,10 @@ export default function ActivatorFlow({
     setIsReadOnlySession(false);
   }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPackageId, setSelectedPlanId]);
 
-  // Explicit mid-flow abandon — clears the backend session pointer so the
-  // resume prompt won't dangle on next entry.
+  // Explicit mid-flow abandon — drops the local orderId pointer and resets
+  // state to Step 1. Local-only: the Odoo draft order persists (no backend
+  // cancel API), so the resume prompt may resurface it on next entry until
+  // a newer session updates the latest-order pointer.
   const handleEndSession = useCallback(() => {
     clearSession();
     handleExitReadOnlyMode();

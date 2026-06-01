@@ -186,7 +186,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
   // End-session confirm dialog state. Mid-flow, the attendant can explicitly
   // abandon the current swap to start a new one — handleNewSwap (defined
-  // further down) resets the local state and calls clearSession.
+  // further down) resets local state and drops the orderId pointer.
+  // NOTE: this is a local reset only. The Odoo draft order itself isn't
+  // cancelled (no backend cancel API exists), so it remains visible to
+  // /api/orders?latest_updated=true until a newer session is created.
   const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
 
   // Read-only mode for viewing completed sessions

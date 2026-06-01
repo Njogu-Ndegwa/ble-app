@@ -2473,9 +2473,11 @@ export default function SalesFlow({
     setIsReadOnlySession(false);
   }, [availablePackages, availableProducts, availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment]);
 
-  // Explicit mid-flow abandon: clears the backend session pointer (so the
-  // resume prompt won't dangle on this employee's next entry) and reuses
+  // Explicit mid-flow abandon: drops the local orderId pointer and reuses
   // the read-only reset path to wipe local state back to Step 1.
+  // NOTE: local-only reset. The Odoo draft order persists (no backend cancel
+  // API), so the resume prompt may surface it again on next entry until a
+  // newer session is created and updates /api/orders?latest_updated=true.
   const handleEndSession = useCallback(() => {
     clearSession();
     handleExitReadOnlyMode();
