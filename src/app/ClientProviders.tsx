@@ -10,7 +10,9 @@ import { ThemeProvider } from './context/themeContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Set to true to enable, false to disable.
-const ENABLE_VCONSOLE = false;
+// Temporarily ON to diagnose SA / pricelist divergence between phone and browser
+// (see useProductCatalog '[CATALOG DIAGNOSTIC]' log).
+const ENABLE_VCONSOLE = true;
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
