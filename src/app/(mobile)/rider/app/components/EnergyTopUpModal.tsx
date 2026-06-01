@@ -356,7 +356,14 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         className="select-sheet-overlay"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="select-sheet" onClick={(e) => e.stopPropagation()}>
+        {/* Stable min-height keeps the sheet from snapping between sizes as
+            the user moves plan → payment → success. Capped by the sheet's
+            own 85vh max-height; body scrolls if content overflows. */}
+        <div
+          className="select-sheet"
+          onClick={(e) => e.stopPropagation()}
+          style={{ minHeight: '65vh' }}
+        >
           <div className="select-sheet-handle" aria-hidden="true" />
 
           <div className="select-sheet-head" style={{ position: 'relative' }}>
@@ -377,7 +384,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
             </button>
           </div>
 
-          <div className="select-sheet-body" style={{ overflowY: 'auto', maxHeight: '70vh' }}>
+          <div className="select-sheet-body" style={{ flex: 1, overflowY: 'auto' }}>
             {/* ── STEP 1: PLAN SELECTION ─────────────────────────── */}
             {step === 'plan' && (
               <div style={{ padding: '4px 0' }}>
