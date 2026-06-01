@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import {
   getSalesRoleUser,
@@ -38,9 +37,6 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
   // first check (same pattern as AttendantApp / SalesApp).
   const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
 
-  // True while activation is mid-flow — blocks bottom-nav tab switches.
-  const [isActivationInProgress, setIsActivationInProgress] = useState(false);
-
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
 
@@ -58,19 +54,12 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
   }, []);
 
   const handleNavigate = useCallback((screen: ActivatorScreen) => {
-    if (isActivationInProgress && screen !== 'activate') {
-      toast.error(
-        t('session.finishBeforeSwitching') ||
-          'Finish the current activation before switching tabs.',
-      );
-      return;
-    }
     if (screen !== 'activate') {
       setSelectedSession(null);
       setSelectedSessionReadOnly(false);
     }
     setCurrentScreen(screen);
-  }, [isActivationInProgress, t]);
+  }, []);
 
   const handleLogout = useCallback(() => {
     clearSalesRoleLogin();
@@ -112,7 +101,6 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
         onInitialSessionConsumed={handleSessionConsumed}
         skipSessionCheck={hasCompletedInitialSessionCheck}
         onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
-        onSessionActiveChange={setIsActivationInProgress}
       />
     );
   }

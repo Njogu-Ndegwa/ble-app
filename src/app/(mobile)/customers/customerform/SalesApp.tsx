@@ -2,8 +2,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-hot-toast';
-import { useI18n } from '@/i18n';
 import {
   getSalesRoleUser,
   clearSalesRoleLogin,
@@ -28,7 +26,6 @@ interface SalesAppProps {
 
 export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
   const router = useRouter();
-  const { t } = useI18n();
   
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<SalesScreen>('sales');
@@ -38,10 +35,6 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
   // Suppress the pending-session prompt on re-entry via bottom nav after the
   // first check (same pattern as AttendantApp).
   const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
-
-  // True while a sales registration is mid-flow — blocks bottom-nav tab
-  // switches so the salesperson can't abandon an in-progress registration.
-  const [isSalesInProgress, setIsSalesInProgress] = useState(false);
 
   // Session management for resuming
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
@@ -64,23 +57,17 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
     setCurrentSA(getSelectedSA('sales'));
   }, []);
 
-  // Handle navigation. Refuse to leave the sales screen mid-flow — the
-  // registration must be finished (it auto-saves and can be resumed later).
+  // Handle navigation. Tabs switch freely — sessions auto-save and can be
+  // resumed via the prompt on next entry. Salespeople who want to abandon
+  // an in-progress registration use the "End session" button in SalesFlow.
   const handleNavigate = useCallback((screen: SalesScreen) => {
-    if (isSalesInProgress && screen !== 'sales') {
-      toast.error(
-        t('session.finishBeforeSwitching') ||
-          'Finish the current registration before switching tabs.',
-      );
-      return;
-    }
     // Clear selected session when navigating away from sales
     if (screen !== 'sales') {
       setSelectedSession(null);
       setSelectedSessionReadOnly(false);
     }
     setCurrentScreen(screen);
-  }, [isSalesInProgress, t]);
+  }, []);
 
   // Handle logout
   const handleLogout = useCallback(() => {
@@ -126,7 +113,6 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
         onInitialSessionConsumed={handleSessionConsumed}
         skipSessionCheck={hasCompletedInitialSessionCheck}
         onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
-        onSessionActiveChange={setIsSalesInProgress}
       />
     );
   }

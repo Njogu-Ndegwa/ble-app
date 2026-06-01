@@ -85,13 +85,11 @@ interface AttendantFlowProps {
   skipSessionCheck?: boolean;
   /** Callback after the initial session check completes, regardless of result */
   onInitialSessionCheckComplete?: () => void;
-  /** Notify parent when this flow has an active in-progress session (used to gate tab switches) */
-  onSessionActiveChange?: (active: boolean) => void;
   /** Workflow mode - standard uses Odoo payment confirmation, manual-payment skips it */
   workflowMode?: AttendantWorkflowMode;
 }
 
-export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, skipSessionCheck, onInitialSessionCheckComplete, onSessionActiveChange, workflowMode = 'standard' }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, skipSessionCheck, onInitialSessionCheckComplete, workflowMode = 'standard' }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { t } = useI18n();
@@ -126,13 +124,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Track the furthest step reached to allow navigation back and forth without losing state
   const [maxStepReached, setMaxStepReached] = useState<AttendantStep>(1);
 
-  // Surface whether this flow has an active in-progress session, so the
-  // parent can refuse bottom-nav switches mid-swap. Active when past Step 1
-  // (customer identified) and before Step 6 (success screen).
-  useEffect(() => {
-    const active = currentStep > 1 && currentStep < 6;
-    onSessionActiveChange?.(active);
-  }, [currentStep, onSessionActiveChange]);
 
   // Helper to advance to a new step - updates maxStepReached if moving forward
   const advanceToStep = useCallback((step: AttendantStep) => {
@@ -192,6 +183,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Pending-session resume modal state
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   const [isRestoringSession, setIsRestoringSession] = useState(false);
+
+  // End-session confirm dialog state. Mid-flow, the attendant can explicitly
+  // abandon the current swap to start a new one — handleNewSwap (defined
+  // further down) resets the local state and calls clearSession.
+  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
 
   // Read-only mode for viewing completed sessions
   const [isReadOnlySession, setIsReadOnlySession] = useState(false);
@@ -2243,7 +2239,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             <Eye size={16} />
             <span>{t('sessions.readOnlyMode') || 'Viewing completed session (read-only)'}</span>
           </div>
-          <button 
+          <button
             className="readonly-banner-exit"
             onClick={handleNewSwap}
             aria-label={t('sessions.exitReview') || 'Exit Review'}
@@ -2251,6 +2247,100 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             <X size={14} />
             <span>{t('sessions.exitReview') || 'Exit'}</span>
           </button>
+        </div>
+      )}
+
+      {/* End-session affordance — visible only while mid-flow. Lets the
+          attendant explicitly abandon the current swap to start a new one,
+          which the lockless bottom-nav alone can't do (just switching tabs
+          leaves the session pending and resumable). */}
+      {!isReadOnlySession && currentStep > 1 && currentStep < 6 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 12px 0' }}>
+          <button
+            type="button"
+            onClick={() => setShowEndSessionConfirm(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              background: 'transparent',
+              border: '1px solid rgba(239,68,68,0.55)',
+              borderRadius: 999,
+              color: '#f87171',
+              fontSize: 11,
+              cursor: 'pointer',
+            }}
+          >
+            <X size={12} />
+            {t('attendant.endSession') || 'End session'}
+          </button>
+        </div>
+      )}
+
+      {/* End-session confirm dialog. */}
+      {showEndSessionConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowEndSessionConfirm(false); }}
+        >
+          <div style={{
+            width: '100%', maxWidth: 380,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 14,
+            padding: 18,
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {t('attendant.endSessionTitle') || 'End this swap?'}
+              </h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {t('attendant.endSessionDesc') || 'You will lose the current progress and start a fresh swap. This cannot be undone.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowEndSessionConfirm(false)}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowEndSessionConfirm(false); handleNewSwap(); }}
+                style={{
+                  padding: '8px 14px',
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('attendant.endSessionConfirm') || 'End session'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

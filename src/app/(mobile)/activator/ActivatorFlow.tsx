@@ -72,8 +72,6 @@ interface ActivatorFlowProps {
   skipSessionCheck?: boolean;
   /** Callback after the initial session check completes */
   onInitialSessionCheckComplete?: () => void;
-  /** Notify parent when this flow has an active in-progress session */
-  onSessionActiveChange?: (active: boolean) => void;
 }
 
 export default function ActivatorFlow({
@@ -85,7 +83,6 @@ export default function ActivatorFlow({
   onInitialSessionConsumed,
   skipSessionCheck,
   onInitialSessionCheckComplete,
-  onSessionActiveChange,
 }: ActivatorFlowProps) {
   const router = useRouter();
   const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
@@ -102,12 +99,6 @@ export default function ActivatorFlow({
   const [currentStep, setCurrentStep] = useState<ActivatorStep>(1);
   const [maxStepReached, setMaxStepReached] = useState<ActivatorStep>(1);
 
-  // Surface in-progress state so ActivatorApp can refuse bottom-nav switches.
-  // Active when past Step 1 and before Step 6 (success).
-  useEffect(() => {
-    const active = currentStep > 1 && currentStep < 6;
-    onSessionActiveChange?.(active);
-  }, [currentStep, onSessionActiveChange]);
 
   // Customer form (existing customer only)
   const [formData, setFormData] = useState<CustomerFormData>({
@@ -1046,6 +1037,16 @@ export default function ActivatorFlow({
     setIsReadOnlySession(false);
   }, [resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment, setSelectedPackageId, setSelectedPlanId]);
 
+  // Explicit mid-flow abandon — clears the backend session pointer so the
+  // resume prompt won't dangle on next entry.
+  const handleEndSession = useCallback(() => {
+    clearSession();
+    handleExitReadOnlyMode();
+  }, [clearSession, handleExitReadOnlyMode]);
+
+  // End-session confirm dialog state.
+  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
+
 
   // Track which vehicleId already triggered auto-advance so navigating back
   // to the vehicle step doesn't immediately kick the user forward again.
@@ -1197,6 +1198,77 @@ export default function ActivatorFlow({
             <X size={14} />
             <span>{t('sessions.exitReview') || 'Exit'}</span>
           </button>
+        </div>
+      )}
+
+      {!isReadOnlySession && currentStep > 1 && currentStep < 6 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 12px 0' }}>
+          <button
+            type="button"
+            onClick={() => setShowEndSessionConfirm(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', background: 'transparent',
+              border: '1px solid rgba(239,68,68,0.55)', borderRadius: 999,
+              color: '#f87171', fontSize: 11, cursor: 'pointer',
+            }}
+          >
+            <X size={12} />
+            {t('activator.endSession') || 'End session'}
+          </button>
+        </div>
+      )}
+
+      {showEndSessionConfirm && (
+        <div
+          role="dialog" aria-modal="true"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowEndSessionConfirm(false); }}
+        >
+          <div style={{
+            width: '100%', maxWidth: 380,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 14, padding: 18,
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {t('activator.endSessionTitle') || 'End this activation?'}
+              </h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {t('activator.endSessionDesc') || 'You will lose the current progress and start fresh. This cannot be undone.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowEndSessionConfirm(false)}
+                style={{
+                  padding: '8px 14px', background: 'transparent',
+                  border: '1px solid var(--border)', borderRadius: 8,
+                  color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowEndSessionConfirm(false); handleEndSession(); }}
+                style={{
+                  padding: '8px 14px', background: '#ef4444', border: 'none',
+                  borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {t('activator.endSessionConfirm') || 'End session'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

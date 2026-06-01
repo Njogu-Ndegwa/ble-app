@@ -109,8 +109,6 @@ interface SalesFlowProps {
   skipSessionCheck?: boolean;
   /** Callback after the initial session check completes */
   onInitialSessionCheckComplete?: () => void;
-  /** Notify parent when this flow has an active in-progress session */
-  onSessionActiveChange?: (active: boolean) => void;
 }
 
 export default function SalesFlow({
@@ -122,7 +120,6 @@ export default function SalesFlow({
   onInitialSessionConsumed,
   skipSessionCheck,
   onInitialSessionCheckComplete,
-  onSessionActiveChange,
 }: SalesFlowProps) {
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
@@ -147,12 +144,6 @@ export default function SalesFlow({
     console.info(`🔵 [SalesFlow] currentStep state is now: ${currentStep}`, { currentStep, maxStepReached });
   }, [currentStep, maxStepReached]);
 
-  // Surface in-progress state so SalesApp can refuse bottom-nav switches.
-  // Active when past Step 1 and before Step 8 (success).
-  useEffect(() => {
-    const active = currentStep > 1 && currentStep < 8;
-    onSessionActiveChange?.(active);
-  }, [currentStep, onSessionActiveChange]);
 
   // Form data - fields for Odoo /api/auth/register (company_id from salesperson token)
   const [formData, setFormData] = useState<CustomerFormData>({
@@ -465,6 +456,10 @@ export default function SalesFlow({
   // Pending-session resume modal state
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
   const [isRestoringSession, setIsRestoringSession] = useState(false);
+
+  // End-session confirm dialog — lets the salesperson explicitly abandon
+  // a half-finished registration to start fresh.
+  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
 
   // Check for a pending session from the backend on first mount.
   // Same skip rules as AttendantFlow — explicit initialSession or bottom-nav re-entry suppress it.
@@ -2478,6 +2473,14 @@ export default function SalesFlow({
     setIsReadOnlySession(false);
   }, [availablePackages, availableProducts, availablePlans, resetCustomerIdentification, resetPaymentAndService, resetVehicleAssignment]);
 
+  // Explicit mid-flow abandon: clears the backend session pointer (so the
+  // resume prompt won't dangle on this employee's next entry) and reuses
+  // the read-only reset path to wipe local state back to Step 1.
+  const handleEndSession = useCallback(() => {
+    clearSession();
+    handleExitReadOnlyMode();
+  }, [clearSession, handleExitReadOnlyMode]);
+
 
   // Render step content
   // NOTE: selectedPackage and selectedPlan are provided by useProductCatalog hook
@@ -2633,7 +2636,7 @@ export default function SalesFlow({
             <Eye size={16} />
             <span>{t('sessions.readOnlyMode') || 'Viewing completed session (read-only)'}</span>
           </div>
-          <button 
+          <button
             className="readonly-banner-exit"
             onClick={handleExitReadOnlyMode}
             aria-label={t('sessions.exitReview') || 'Exit Review'}
@@ -2641,6 +2644,78 @@ export default function SalesFlow({
             <X size={14} />
             <span>{t('sessions.exitReview') || 'Exit'}</span>
           </button>
+        </div>
+      )}
+
+      {/* End-session affordance — visible only mid-flow. */}
+      {!isReadOnlySession && currentStep > 1 && currentStep < 8 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 12px 0' }}>
+          <button
+            type="button"
+            onClick={() => setShowEndSessionConfirm(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', background: 'transparent',
+              border: '1px solid rgba(239,68,68,0.55)', borderRadius: 999,
+              color: '#f87171', fontSize: 11, cursor: 'pointer',
+            }}
+          >
+            <X size={12} />
+            {t('sales.endSession') || 'End session'}
+          </button>
+        </div>
+      )}
+
+      {showEndSessionConfirm && (
+        <div
+          role="dialog" aria-modal="true"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowEndSessionConfirm(false); }}
+        >
+          <div style={{
+            width: '100%', maxWidth: 380,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 14, padding: 18,
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {t('sales.endSessionTitle') || 'End this registration?'}
+              </h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {t('sales.endSessionDesc') || 'You will lose the current progress and start fresh. This cannot be undone.'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowEndSessionConfirm(false)}
+                style={{
+                  padding: '8px 14px', background: 'transparent',
+                  border: '1px solid var(--border)', borderRadius: 8,
+                  color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowEndSessionConfirm(false); handleEndSession(); }}
+                style={{
+                  padding: '8px 14px', background: '#ef4444', border: 'none',
+                  borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {t('sales.endSessionConfirm') || 'End session'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

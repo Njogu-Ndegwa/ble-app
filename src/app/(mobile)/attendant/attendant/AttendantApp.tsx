@@ -41,12 +41,6 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
   // came from another tab, they're not freshly entering the role.
   const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
 
-  // True while a swap is mid-flow — blocks bottom-nav tab switches so the
-  // attendant can't abandon an in-progress session to start another. The
-  // session itself is auto-saved, so it can be resumed (see #1) — just not
-  // bailed out of while it's open.
-  const [isSwapInProgress, setIsSwapInProgress] = useState(false);
-
   // Selected session to restore (from sessions screen)
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
@@ -110,19 +104,13 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
     }
   }, [onLogout, router, t]);
 
-  // Handle navigation. Refuse to leave the swap screen mid-flow — the
-  // attendant must finish (or the session auto-saves and they can resume
-  // later via the prompt on next entry).
+  // Handle navigation. Tabs switch freely — the session auto-saves and can
+  // be resumed via the prompt on next entry. Mid-flow employees who want to
+  // abandon their session entirely use the "End session" button inside the
+  // flow itself.
   const handleNavigate = useCallback((screen: AttendantScreen) => {
-    if (isSwapInProgress && screen !== 'swap') {
-      toast.error(
-        t('session.finishBeforeSwitching') ||
-          'Finish the current swap before switching tabs.',
-      );
-      return;
-    }
     setCurrentScreen(screen);
-  }, [isSwapInProgress, t]);
+  }, []);
 
   // Handle session selection from sessions screen
   const handleSelectSession = useCallback((order: OrderListItem, isReadOnly: boolean) => {
@@ -160,7 +148,6 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
         onInitialSessionConsumed={handleSessionConsumed}
         skipSessionCheck={hasCompletedInitialSessionCheck}
         onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
-        onSessionActiveChange={setIsSwapInProgress}
         workflowMode={workflowMode}
       />
     );
