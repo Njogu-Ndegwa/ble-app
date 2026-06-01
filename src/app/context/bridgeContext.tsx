@@ -220,15 +220,9 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
   // Initialize MQTT connection when bridge is FULLY ready (after init() is called)
   useEffect(() => {
     if (!bridge || !isBridgeReady || mqttInitializedRef.current) {
-      if (!bridge) {
-        console.info('MQTT: Waiting for bridge...');
-      } else if (!isBridgeReady) {
-        console.info('MQTT: Bridge exists but not yet initialized...');
-      }
       return;
     }
 
-    console.info('=== Bridge is Ready, Initializing MQTT Connection ===');
     mqttInitializedRef.current = true;
 
     // Generate unique client ID to avoid conflicts when multiple devices connect
@@ -253,22 +247,16 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
         reconnectPeriod: 1000,
       };
 
-      console.info('=== Initiating Global MQTT Connection ===');
-      console.info('MQTT Config:', { ...mqttConfig, password: '***' });
-
       // Connect to MQTT
       bridge.callHandler('connectMqtt', mqttConfig, (resp: string) => {
         try {
           const p = typeof resp === 'string' ? JSON.parse(resp) : resp;
-          console.info('=== Global MQTT Connect Response ===');
-          console.info('Connect Response:', JSON.stringify(p, null, 2));
 
           // Handle nested data structure
           let actualResp = p;
           if (p?.responseData && typeof p.responseData === 'string') {
             try {
               actualResp = JSON.parse(p.responseData);
-              console.info('Parsed nested responseData:', JSON.stringify(actualResp, null, 2));
             } catch {
               actualResp = p;
             }
@@ -284,7 +272,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
               scheduleReconnect(String(errorMsg));
             }
           } else if (p.respCode === '200' || actualResp.respCode === '200' || p.success === true || actualResp.respData === true) {
-            console.info('Global MQTT connection initiated successfully');
             // Connection state will be confirmed by connectMqttCallBack
           } else {
             console.warn('Global MQTT connection response indicates potential issue:', p);
@@ -305,15 +292,12 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       (data: string, responseCallback: (response: any) => void) => {
         try {
           const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
-          console.info('=== Global MQTT Connection Callback ===');
-          console.info('Connection Callback Data:', JSON.stringify(parsedData, null, 2));
 
           // Handle nested data structure - the actual response may be inside a 'data' field as a string
           let actualData = parsedData;
           if (parsedData?.data && typeof parsedData.data === 'string') {
             try {
               actualData = JSON.parse(parsedData.data);
-              console.info('Parsed nested data:', JSON.stringify(actualData, null, 2));
             } catch {
               // If nested data parsing fails, use the original
               actualData = parsedData;
@@ -345,7 +329,6 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
             actualData?.respDesc?.toLowerCase().includes('failed');
 
           if (isConnected && !isExplicitFailure && !isDisconnected) {
-            console.info('Global MQTT connection confirmed as connected');
             setIsMqttConnected(true);
             wasConnectedRef.current = true;  // Mark that we have been connected
             reconnectAttemptRef.current = 0; // Reset retry count on success
@@ -370,11 +353,9 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
             
             // If we were previously connected, this is a disconnection - trigger reconnection
             if (wasConnectedRef.current || isDisconnected) {
-              console.info('MQTT: Detected disconnection, initiating auto-reconnect...');
               scheduleReconnect(errorMessage);
             } else if (reconnectAttemptRef.current < MQTT_RECONNECT_CONFIG.maxRetries) {
               // Initial connection failure - schedule retry
-              console.info('MQTT: Initial connection failed, scheduling retry...');
               scheduleReconnect(errorMessage);
             } else {
               console.error('MQTT: Connection failed after maximum retries');
@@ -398,12 +379,10 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
 
     // Initial connection attempt (small delay to ensure callback handler is registered first)
     setTimeout(() => {
-      console.info('=== Starting MQTT Connection (after 500ms delay) ===');
       connectToMqtt();
     }, 500);
 
     return () => {
-      console.info('Cleaning up global MQTT connection handlers');
       mqttInitializedRef.current = false;
       connectToMqttRef.current = null;
       
@@ -440,13 +419,11 @@ export const BridgeProvider: React.FC<BridgeProviderProps> = ({ children }) => {
       const idleMs = Date.now() - hiddenAt;
 
       if (idleMs >= FULL_RELOAD_MS) {
-        console.info(`App idle for ${Math.round(idleMs / 1000)}s — forcing full reload`);
         window.location.reload();
         return;
       }
 
       if (idleMs >= MQTT_RECOVERY_MS && !isMqttConnected && connectToMqttRef.current) {
-        console.info(`App idle for ${Math.round(idleMs / 1000)}s — resetting MQTT reconnection`);
         reconnectAttemptRef.current = 0;
         reconnectMqtt();
       }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Globe } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -21,6 +21,8 @@ interface FlowHeaderProps {
 export default function FlowHeader({ showBack = true, backPath, onBack, title }: FlowHeaderProps) {
   const { locale, setLocale, t } = useI18n();
   const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
+  const navResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Lock body overflow when this component mounts (for fixed container pages)
   useEffect(() => {
@@ -30,7 +32,11 @@ export default function FlowHeader({ showBack = true, backPath, onBack, title }:
     };
   }, []);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+    if (navResetRef.current) clearTimeout(navResetRef.current);
+    navResetRef.current = setTimeout(() => setIsNavigating(false), 600);
     if (onBack) {
       onBack();
     } else if (backPath) {
@@ -38,7 +44,7 @@ export default function FlowHeader({ showBack = true, backPath, onBack, title }:
     } else {
       router.back();
     }
-  };
+  }, [onBack, backPath, router, isNavigating]);
 
   const toggleLocale = () => {
     const nextLocale = locale === 'en' ? 'fr' : locale === 'fr' ? 'zh' : 'en';
@@ -52,6 +58,7 @@ export default function FlowHeader({ showBack = true, backPath, onBack, title }:
           <button
             className="flow-header-back"
             onClick={handleBack}
+            disabled={isNavigating}
             aria-label={t('Back')}
           >
             <ArrowLeft size={18} />

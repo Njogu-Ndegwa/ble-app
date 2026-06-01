@@ -599,6 +599,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
 
       const result = await createQuotation({
         customer_id: Number(selectedCustomer.id),
+        pricelist_id: selectedPriceList.odooId ?? undefined,
         products: lines.map((l) => ({
           product_id: l.productId,
           quantity: l.quantity,

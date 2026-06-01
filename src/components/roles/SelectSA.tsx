@@ -12,6 +12,7 @@ import {
   fetchAndCacheServiceAccounts,
 } from '@/lib/ov-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
+import { preloadRoleIcons } from '@/lib/preload-icons';
 
 interface Props {
   onSelected: () => void;
@@ -26,6 +27,10 @@ export default function SelectSA({ onSelected, onSwitchAccount }: Props) {
   const [fetchingAccounts, setFetchingAccounts] = useState(false);
 
   useEffect(() => {
+    // Pre-fetch role-grid icons while the user is choosing an SA so they're
+    // already in the browser cache when SelectRole mounts.
+    preloadRoleIcons();
+
     const stored = getStoredServiceAccounts();
     setServiceAccounts(stored);
 

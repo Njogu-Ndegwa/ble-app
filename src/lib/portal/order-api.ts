@@ -14,6 +14,7 @@ import type {
   ProductStockDetail,
   DeliveryEntity,
   DeliveryLineEntity,
+  OdooJournal,
 } from './types';
 
 const ODOO_BASE_URL =
@@ -271,6 +272,16 @@ function mapLine(raw: any): OrderLineEntity {
 }
 
 function mapDeliveryLine(raw: any): DeliveryLineEntity {
+  // lot_names may come as array of strings, or array of {id, name} objects, or lot_ids strings
+  let lotNames: string[] = [];
+  if (Array.isArray(raw.lot_names)) {
+    lotNames = raw.lot_names.map((l: any) => (typeof l === 'string' ? l : String(l)));
+  } else if (Array.isArray(raw.lots)) {
+    lotNames = raw.lots.map((l: any) => (typeof l === 'object' ? (l.name ?? String(l.id)) : String(l)));
+  } else if (Array.isArray(raw.lot_ids) && raw.lot_ids.length > 0 && typeof raw.lot_ids[0] === 'string') {
+    lotNames = raw.lot_ids;
+  }
+
   return {
     id: raw.id ?? 0,
     product: { id: raw.product?.id ?? 0, name: raw.product?.name ?? '' },
@@ -278,7 +289,8 @@ function mapDeliveryLine(raw: any): DeliveryLineEntity {
     qty_done: raw.qty_done ?? 0,
     uom: { id: raw.uom?.id ?? 1, name: raw.uom?.name ?? 'Units' },
     state: raw.state ?? 'confirmed',
-    lot_ids: Array.isArray(raw.lot_ids) ? raw.lot_ids : [],
+    lot_ids: Array.isArray(raw.lot_ids) ? raw.lot_ids.filter((x: any) => typeof x === 'number') : [],
+    lot_names: lotNames,
   };
 }
 
@@ -341,7 +353,9 @@ function mapOrder(raw: any): OrderEntity {
     timeline: [],
     deliveries: Array.isArray(raw.deliveries)
       ? raw.deliveries.map(mapDelivery)
-      : [],
+      : Array.isArray(raw.pickings)
+        ? raw.pickings.map(mapDelivery)
+        : [],
     deliveryStatus: raw.delivery_status ?? raw.deliveryStatus ?? null,
     createdAt:
       raw.created_at ?? raw.createdAt ?? raw.create_date ?? raw.date_order ?? null,
@@ -435,7 +449,10 @@ export async function getOrder(orderId: number): Promise<OrderEntity> {
 
 export interface CreateQuotationInput {
   customer_id: number;
+  pricelist_id?: number;
   company_id?: number;
+  outlet_id?: number;
+  channel_partner_id?: number;
   client_order_ref?: string;
   note?: string;
   products?: {
@@ -453,7 +470,10 @@ export async function createQuotation(
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = { customer_id: input.customer_id };
+  if (input.pricelist_id) body.pricelist_id = input.pricelist_id;
   if (input.company_id) body.company_id = input.company_id;
+  if (input.outlet_id) body.outlet_id = input.outlet_id;
+  if (input.channel_partner_id) body.channel_partner_id = input.channel_partner_id;
   if (input.client_order_ref) body.client_order_ref = input.client_order_ref;
   if (input.note) body.note = input.note;
   if (input.products?.length) body.products = input.products;
@@ -471,6 +491,81 @@ export async function createQuotation(
     order: mapOrder(orderData),
     message: raw.message,
   };
+}
+
+export async function updateQuotation(
+  orderId: number,
+  patch: { client_order_ref?: string; note?: string; pricelist_id?: number },
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function updateOrderLine(
+  orderId: number,
+  lineId: string,
+  patch: { quantity?: number; price_unit?: number },
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/lines/${lineId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function removeOrderLine(
+  orderId: number,
+  lineId: string,
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/lines/${lineId}`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function addOrderLines(
+  orderId: number,
+  lines: { product_id: number; quantity: number; price_unit: number }[],
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/add-lines`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ lines }),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function getPaymentJournals(): Promise<OdooJournal[]> {
+  const endpoint = '/api/journals';
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+
+  const list = raw.journals ?? raw.data ?? raw.results ?? raw;
+  return Array.isArray(list) ? list : [];
 }
 
 export async function sendOrder(orderId: number): Promise<MutationResponse> {
@@ -514,13 +609,13 @@ export async function requestApproval(orderId: number): Promise<MutationResponse
 
 export async function approveOrder(
   orderId: number,
-  notes?: string,
+  note?: string,
 ): Promise<MutationResponse> {
   const endpoint = `/api/orders/${orderId}/approve`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = {};
-  if (notes) body.notes = notes;
+  if (note) body.note = note;
 
   const response = await fetchRetry(url, {
     method: 'POST',
@@ -533,13 +628,13 @@ export async function approveOrder(
 
 export async function rejectOrder(
   orderId: number,
-  notes?: string,
+  reason?: string,
 ): Promise<MutationResponse> {
   const endpoint = `/api/orders/${orderId}/reject`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = {};
-  if (notes) body.notes = notes;
+  if (reason) body.reason = reason;
 
   const response = await fetchRetry(url, {
     method: 'POST',
@@ -558,16 +653,29 @@ export interface RegisterPaymentResult extends MutationResponse {
   remainingAmount?: number;
 }
 
+export interface RegisterPaymentInput {
+  amount: number;
+  journalId?: number;
+  paymentDate?: string;
+  memo?: string;
+  invoiceId?: number;
+  paymentSource?: string;
+}
+
 export async function registerPayment(
   orderId: number,
-  amount: number,
-  memo?: string,
+  input: RegisterPaymentInput,
 ): Promise<RegisterPaymentResult> {
+  const { amount, journalId, paymentDate, memo, invoiceId, paymentSource } = input;
   const endpoint = `/api/orders/${orderId}/register-payment`;
   const url = `${ODOO_BASE_URL}${endpoint}`;
 
   const body: Record<string, unknown> = { amount };
+  if (journalId) body.journal_id = journalId;
+  if (paymentDate) body.payment_date = paymentDate;
   if (memo) body.memo = memo;
+  if (invoiceId) body.invoice_id = invoiceId;
+  if (paymentSource) body.payment_source = paymentSource;
 
   const response = await fetchRetry(url, {
     method: 'POST',
@@ -620,6 +728,41 @@ export async function getProformaPdf(
     filename: raw.filename ?? `proforma-${orderId}.pdf`,
     contentType: raw.content_type ?? 'application/pdf',
     base64: raw.base64,
+  };
+}
+
+export async function postInvoice(
+  orderId: number,
+  invoiceId: string,
+): Promise<MutationResponse> {
+  const endpoint = `/api/orders/${orderId}/invoices/${invoiceId}/confirm`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({}),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return { success: raw.success, message: raw.message ?? null };
+}
+
+export async function createInvoice(
+  orderId: number,
+): Promise<MutationResponse & { invoice?: OrderInvoiceEntity }> {
+  const endpoint = `/api/orders/${orderId}/invoice`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+
+  const response = await fetchRetry(url, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({}),
+  });
+  const raw = await parseResponse<any>(response, endpoint);
+  return {
+    success: raw.success,
+    message: raw.message ?? null,
+    invoice: raw.invoice ? mapInvoice(raw.invoice) : undefined,
   };
 }
 
@@ -730,9 +873,15 @@ export async function getStockLevels(
   const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
   const raw = await parseResponse<any>(response, endpoint);
 
+  const levels =
+    raw.levels ??
+    raw.stock_levels ??
+    raw.data ??
+    [];
+
   return {
-    levels: Array.isArray(raw.levels) ? raw.levels : [],
-    total: raw.total ?? 0,
+    levels: Array.isArray(levels) ? levels : [],
+    total: raw.total ?? raw.count ?? 0,
   };
 }
 
@@ -797,9 +946,17 @@ export async function getDeliveries(
   const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
   const raw = await parseResponse<any>(response, endpoint);
 
+  // The backend may use 'deliveries', 'pickings', or 'data' as the array key
+  const rawList: any[] =
+    (Array.isArray(raw.deliveries) ? raw.deliveries : null) ??
+    (Array.isArray(raw.pickings) ? raw.pickings : null) ??
+    (Array.isArray(raw.data) ? raw.data : null) ??
+    (Array.isArray(raw.items) ? raw.items : null) ??
+    [];
+
   return {
-    deliveries: Array.isArray(raw.deliveries) ? raw.deliveries.map(mapDelivery) : [],
-    total: raw.total ?? 0,
+    deliveries: rawList.map(mapDelivery),
+    total: raw.total ?? raw.count ?? rawList.length,
   };
 }
 
@@ -810,7 +967,14 @@ export async function getDelivery(deliveryId: number): Promise<DeliveryEntity> {
   const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
   const raw = await parseResponse<any>(response, endpoint);
 
-  return mapDelivery(raw.delivery ?? raw);
+  // Backend may return { delivery: {...} }, { picking: {...} }, or the object directly
+  const deliveryData =
+    raw.delivery ??
+    raw.picking ??
+    raw.data ??
+    raw;
+
+  return mapDelivery(deliveryData);
 }
 
 export interface ValidateDeliveryLine {
@@ -842,4 +1006,16 @@ export async function validateDelivery(
     message: raw.message ?? null,
     delivery: raw.delivery ? mapDelivery(raw.delivery) : undefined,
   };
+}
+
+// GET /api/stock/lots?product_id=<id> — resolve numeric lot IDs to serial name strings
+export async function getLotsByProduct(
+  productId: number,
+): Promise<{ id: number; serial: string }[]> {
+  const endpoint = `/api/stock/lots?product_id=${productId}&limit=200`;
+  const url = `${ODOO_BASE_URL}${endpoint}`;
+  const response = await fetchRetry(url, { method: 'GET', headers: authHeaders() });
+  const raw = await parseResponse<any>(response, endpoint);
+  const lots: any[] = raw.lots ?? raw.data ?? [];
+  return lots.map((l: any) => ({ id: l.id ?? 0, serial: l.serial ?? l.name ?? String(l.id) }));
 }

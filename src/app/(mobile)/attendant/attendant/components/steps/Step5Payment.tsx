@@ -17,6 +17,11 @@ interface Step5Props {
   isScannerOpening?: boolean;
   amountRemaining?: number;
   amountPaid?: number;
+  wechatOrderId?: number | null;
+  wechatAuthToken?: string;
+  wechatProductName?: string;
+  onWechatPaid?: (tradeNo: string, totalPaid: number) => void;
+  onWechatError?: (message: string) => void;
 }
 
 /**
@@ -38,6 +43,11 @@ export default function Step5Payment({
   isScannerOpening = false,
   amountRemaining = 0,
   amountPaid = 0,
+  wechatOrderId,
+  wechatAuthToken,
+  wechatProductName,
+  onWechatPaid,
+  onWechatError,
 }: Step5Props) {
   const hasPartialPayment = amountRemaining > 0 && amountPaid > 0;
   
@@ -59,6 +69,12 @@ export default function Step5Payment({
         isScannerOpening={isScannerOpening}
         isProcessing={isProcessing}
         partialPayment={hasPartialPayment ? { amountPaid, amountRemaining } : null}
+        showWechat={true}
+        wechatOrderId={wechatOrderId}
+        wechatAuthToken={wechatAuthToken}
+        wechatProductName={wechatProductName}
+        onWechatPaid={onWechatPaid}
+        onWechatError={onWechatError}
       />
     </div>
   );

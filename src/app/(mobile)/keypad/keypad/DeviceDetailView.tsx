@@ -1,13 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { Clipboard } from 'lucide-react';
+import { Clipboard, Loader2 } from 'lucide-react';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { AsciiStringModal, NumericModal } from '../../../modals';
 import { useI18n } from '@/i18n';
-
+import { keypadLog, keypadWarn } from './keypadLog';
 const START_SENTINEL = '*';
 const END_SENTINEL = '#';
 const REQUIRED_DIGIT_COUNT = 21;
+
+function redactDigitToken(digits: string): string {
+  if (!digits) return '(empty)';
+  if (digits.length <= 8) return `(len=${digits.length})`;
+  return `${digits.slice(0, 4)}…${digits.slice(-4)} (len=${digits.length})`;
+}
 
 interface DeviceDetailProps {
   device: {
@@ -42,6 +48,8 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [numericModalOpen, setNumericModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const reloadRequestedRef = useRef(false);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -88,6 +96,25 @@ const {
   };
 }, [attributeList]); // Only depends on attributeList
 
+useEffect(() => {
+  if (!attributeList?.length) {
+    keypadLog('detail: attributeList empty (waiting for BLE services)');
+    return;
+  }
+  keypadLog('detail: services snapshot', {
+    mac: device.macAddress,
+    deviceName: device.name,
+    services: attributeList.map((s: any) => ({
+      serviceNameEnum: s.serviceNameEnum,
+      uuid: typeof s.uuid === 'string' ? `${s.uuid.slice(0, 8)}…` : s.uuid,
+      characteristics: (s.characteristicList ?? []).map((c: any) => ({
+        name: c.name,
+        hasValue: c.realVal !== null && c.realVal !== undefined,
+      })),
+    })),
+  });
+}, [attributeList, device.macAddress, device.name]);
+
 /* ------------------ ensure CMD, STS & ATT are fetched ----------------- */
 useEffect(() => {
   if (onRequestServiceData) {
@@ -98,7 +125,15 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []); // ← FIXED: Empty array - runs only once on mount
 
-
+  // Clear refreshing indicator once the service reload we requested has finished.
+  // reloadRequestedRef guards against clearing on the initial null state (before
+  // onRequestServiceData is ever called).
+  useEffect(() => {
+    if (isRefreshing && reloadRequestedRef.current && isLoadingService === null) {
+      setIsRefreshing(false);
+      reloadRequestedRef.current = false;
+    }
+  }, [isLoadingService, isRefreshing]);
 
   /* ----------------- hydrate initial pubk / rcrd ------------------- */
   useEffect(() => {
@@ -144,11 +179,16 @@ useEffect(() => {
     characteristicUuid: string,
     name: string
   ) => {
+    const connectedMacForRead = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    if (!connectedMacForRead?.trim()) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(
       serviceUuid,
       characteristicUuid,
-      device.macAddress,
+      connectedMacForRead.trim(),
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
@@ -163,24 +203,77 @@ useEffect(() => {
   const writeCharacteristic = (
     char: any,
     value: string | number,
-    afterWrite?: () => void
+    afterWrite?: () => void,
+    onFailure?: () => void
   ) => {
     if (!char || !cmdService) return;
 
-    const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-    if (!connectedMac || connectedMac !== device.macAddress) {
+    const connectedRaw =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    const targetMac = device.macAddress?.trim();
+
+    keypadLog('write: MAC check', {
+      sessionMacRaw: connectedRaw,
+      sessionMacJson: JSON.stringify(connectedRaw),
+      sessionMacLength: connectedRaw?.length,
+      scanMacRaw: targetMac,
+      scanMacJson: JSON.stringify(targetMac),
+    });
+
+    if (!targetMac) {
+      keypadWarn('write: blocked — no device MAC');
       toast.error(t("Device not connected. Please reconnect and try again."));
       return;
     }
 
+    const sessionMatches =
+      !!connectedRaw &&
+      connectedRaw.trim().toLowerCase() === targetMac.toLowerCase();
+    if (!sessionMatches) {
+      keypadWarn('write: blocked — session MAC mismatch or missing', {
+        sessionMac: connectedRaw,
+        targetMac,
+      });
+      toast.error(t("Device not connected. Please reconnect and try again."));
+      return;
+    }
+
+    const macToSend = connectedRaw!.trim();
+    const valueStr = String(value);
+    keypadLog('write: sending to native', {
+      characteristic: char.name,
+      charUuid: char.uuid,
+      cmdServiceUuid: cmdService.uuid,
+      macToSendRaw: macToSend,
+      macToSendJson: JSON.stringify(macToSend),
+      valueLength: valueStr.length,
+      valueHasSentinels: valueStr.includes(START_SENTINEL) && valueStr.includes(END_SENTINEL),
+    });
+
     setLoadingStates((prev) => ({ ...prev, [char.uuid]: true }));
 
-    writeBleCharacteristic(cmdService.uuid, char.uuid, value, device.macAddress, (responseData: any) => {
+    writeBleCharacteristic(cmdService.uuid, char.uuid, value, macToSend, (responseData: any) => {
       setLoadingStates((prev) => ({ ...prev, [char.uuid]: false }));
-      console.info({ writeResponse: responseData });
+
+      const rawLog =
+        typeof responseData === "string"
+          ? responseData
+          : (() => {
+              try {
+                return JSON.stringify(responseData);
+              } catch {
+                return String(responseData);
+              }
+            })();
+      keypadLog('write: native callback (raw)', rawLog);
+
+      if (responseData === undefined || responseData === null || responseData === '') {
+        keypadWarn('write: empty response from native bridge');
+      }
 
       let writeSuccess = false;
       let errorMessage: string | null = null;
+      let parsePath: string = "none";
 
       try {
         let response: any;
@@ -188,62 +281,75 @@ useEffect(() => {
         if (typeof responseData === "string") {
           try {
             response = JSON.parse(responseData);
+            parsePath = "json-string";
           } catch (_parseErr) {
-            if (
-              responseData.toLowerCase() === "success" ||
-              responseData.toLowerCase() === "ok"
-            ) {
+            const lower = responseData.toLowerCase();
+            if (lower === "success" || lower === "ok") {
               writeSuccess = true;
+              parsePath = "plain-success-string";
             } else {
               errorMessage = responseData;
+              parsePath = "plain-error-string";
             }
           }
-        } else {
+        } else if (responseData != null) {
           response = responseData;
+          parsePath = "object";
         }
 
         if (response) {
           if (response.respCode === "200" || response.respCode === 200) {
             writeSuccess = true;
+            parsePath += "+respCode200";
           } else if (response.respData === true || response.respData === "success") {
             writeSuccess = true;
+            parsePath += "+respDataSuccess";
           } else if (response.success === true) {
             writeSuccess = true;
+            parsePath += "+successTrue";
           } else if (response.respDesc) {
-            errorMessage = response.respDesc;
+            errorMessage = String(response.respDesc);
+            parsePath += "+respDesc";
           } else if (response.error) {
-            errorMessage = response.error;
+            errorMessage = String(response.error);
+            parsePath += "+errorField";
           } else if (response.message) {
-            errorMessage = response.message;
+            errorMessage = String(response.message);
+            parsePath += "+messageField";
           }
         }
       } catch (err) {
-        console.error("Error parsing write response:", err);
+        keypadWarn('write: exception parsing bridge response', err);
         errorMessage = "Unknown write response format";
+        parsePath = "exception";
       }
 
+      keypadLog('write: result', {
+        success: writeSuccess,
+        errorMessage: errorMessage ?? (writeSuccess ? null : 'No success flag matched — inspect raw log'),
+        parsePath,
+        looksInvalid:
+          ((errorMessage ?? "").toLowerCase().includes("invalid") ||
+          rawLog.toLowerCase().includes("invalid")),
+      });
+
       if (writeSuccess) {
-        // toast.success(t("Value written to {name}", { name: char.name }));
         toast.success(t("Success"));
         setTimeout(() => {
-          const stillConnected = sessionStorage.getItem("connectedDeviceMac");
-          if (stillConnected === device.macAddress) {
+          const still = sessionStorage.getItem("connectedDeviceMac");
+          if (still?.trim().toLowerCase() === targetMac.toLowerCase()) {
+            keypadLog('write: success — scheduling afterWrite refresh');
             afterWrite?.();
           } else {
+            keypadWarn('write: after success, session MAC changed or cleared');
             toast.error(t("Device disconnected. Please reconnect."));
+            onFailure?.();
           }
         }, 2000);
       } else {
-        console.error("Write failed:", errorMessage || "Unknown error");
-        // toast.error(
-        //   t("Failed to write {name}: {error}", {
-        //     name: char.name,
-        //     error: errorMessage || t("Write operation failed"),
-        //   })
-        // );
-        toast.error(
-          t("Failed")
-        );
+        keypadWarn('write: failed', errorMessage || 'unknown');
+        toast.error(errorMessage?.trim() ? errorMessage : t('Failed'));
+        onFailure?.();
       }
     });
   };
@@ -344,15 +450,49 @@ useEffect(() => {
     if (!isCodeComplete) return toast.error(t('Code must contain 21 digits'));
     if (!pubkCharacteristic) return toast.error(t('Public key characteristic not found'));
     const rawCode = buildRawCode(digitInput);
-    writeCharacteristic(pubkCharacteristic, formatInputCode(rawCode), () => {
-      // Refresh both Last Code and Days - delay gives device time to process the write
-      setTimeout(() => {
-        handleRead(cmdService!.uuid, pubkCharacteristic.uuid, pubkCharacteristic.name);
-        if (stsService && rcrdCharacteristic) {
-          handleRead(stsService.uuid, rcrdCharacteristic.uuid, rcrdCharacteristic.name);
-        }
-      }, 1500);
+    const payloadFormatted = formatInputCode(rawCode);
+    keypadLog('submit: pubk code', {
+      digitsFingerprint: redactDigitToken(digitInput),
+      rawSkeleton: `${START_SENTINEL}${redactDigitToken(digitInput)}${END_SENTINEL}`,
+      formattedLength: payloadFormatted.length,
+      isLoadingService,
+      hasPubk: !!pubkCharacteristic,
+      hasCmd: !!cmdService,
+      hasSts: !!stsService,
     });
+
+    // Show spinner immediately — the user has to wait ~5 s total for the
+    // device to process the token and for us to reload CMD + STS services.
+    setIsRefreshing(true);
+    reloadRequestedRef.current = false;
+
+    writeCharacteristic(
+      pubkCharacteristic,
+      payloadFormatted,
+      () => {
+        // Clear stale local reads so the service reload drives the display
+        const pubkUuid = pubkCharacteristic.uuid;
+        const rcrdUuid = rcrdCharacteristic?.uuid;
+        setUpdatedValues((prev) => {
+          const next = { ...prev };
+          delete next[pubkUuid];
+          if (rcrdUuid) delete next[rcrdUuid];
+          return next;
+        });
+        // Wait 3 s more (2 s already elapsed in writeCharacteristic = 5 s total)
+        // before re-init so the device has time to process the code
+        setTimeout(() => {
+          reloadRequestedRef.current = true;
+          onRequestServiceData?.('CMD');
+          onRequestServiceData?.('STS');
+        }, 3000);
+      },
+      () => {
+        // Write failed — clear the spinner immediately
+        setIsRefreshing(false);
+        reloadRequestedRef.current = false;
+      }
+    );
     setDigitInput('');
   };
 
@@ -366,7 +506,12 @@ useEffect(() => {
       {/* pubk card */}
       <div className="rounded-lg p-4 w-3/4" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         <div className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{t('Last Code')}</div>
-        {pubkCharacteristic ? (
+        {isRefreshing ? (
+          <div className="min-h-8 flex items-center gap-1.5">
+            <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
+          </div>
+        ) : pubkCharacteristic ? (
           <div className="min-h-8 flex items-center">
             <div className="font-mono text-sm overflow-hidden overflow-ellipsis w-5/6 whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
               {getDisplayValue(pubkCharacteristic)}
@@ -394,7 +539,9 @@ useEffect(() => {
       <div className="rounded-lg p-4 w-1/4 flex flex-col" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         <div className="text-sm mb-2 text-center" style={{ color: 'var(--text-secondary)' }}>{t('Days')}</div>
         <div className="flex items-center justify-center min-h-8">
-          {rcrdCharacteristic ? (
+          {isRefreshing ? (
+            <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
+          ) : rcrdCharacteristic ? (
             <span className="text-xl font-medium" style={{ color: 'var(--text-primary)' }}>{getDisplayValue(rcrdCharacteristic)}</span>
           ) : (
             <div className="w-full flex justify-center py-2 animate-pulse text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -460,7 +607,7 @@ useEffect(() => {
     </div>
   );
 
-  const okDisabled = Boolean(isLoadingService) || !isCodeComplete;
+  const okDisabled = Boolean(isLoadingService) || !isCodeComplete || isRefreshing;
 
   const keypadGrid = (
     <>

@@ -5,16 +5,14 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
   Zap,
-  Navigation,
   ChevronRight,
   RefreshCw,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 import { useI18n } from "@/i18n";
-import { toast } from "react-hot-toast";
-import { useGeolocation, haversineKm, formatDistance } from "../hooks/useGeolocation";
+import { useGeolocation } from "../hooks/useGeolocation";
 import type { RiderStation } from "../types";
-import { googleMapsUrl, openExternalMap } from "../map/deepLinks";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Google Maps is client-only; load dynamically to avoid SSR errors and reuse
@@ -43,7 +41,12 @@ interface BikeInfo {
 interface RiderHomeProps {
   userName: string;
   balance: number;
+  /** Remaining energy in kWh — shown as the headline value of the balance row. */
+  energyKwh?: number;
   currency?: string;
+  /** Active subscription code (e.g. SUB-XXXX). Shown in the bike card so the
+   *  rider always knows which plan the displayed data belongs to. */
+  subscriptionCode?: string | null;
   bike: BikeInfo;
   nearbyStations: Station[];
   isLoadingStations?: boolean;
@@ -54,8 +57,8 @@ interface RiderHomeProps {
   hasSubscription?: boolean;
   /** Trigger a manual re-run of the MQTT → GraphQL stations fetch. */
   onRefreshStations?: () => void;
-  onFindStation: () => void;
   onShowQRCode: () => void;
+  onShowEnergyTopUp?: () => void;
   onSelectStation: (stationId: number) => void;
   onViewAllStations: () => void;
 }
@@ -63,7 +66,9 @@ interface RiderHomeProps {
 const RiderHome: React.FC<RiderHomeProps> = ({
   userName,
   balance,
+  energyKwh = 0,
   currency = "",
+  subscriptionCode,
   bike,
   nearbyStations,
   isLoadingStations = false,
@@ -71,8 +76,8 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   stationsError = null,
   hasSubscription = true,
   onRefreshStations,
-  onFindStation,
   onShowQRCode,
+  onShowEnergyTopUp,
   onSelectStation,
   onViewAllStations,
 }) => {
@@ -102,19 +107,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
    *  Timed-out loads collapse to "done, but empty" so the UI can render a map. */
   const showLoadingSkeleton =
     isLoadingStations && nearbyStations.length === 0 && !loadTimedOut;
-
-  const stationsWithDistance = useMemo(() => {
-    return nearbyStations.map((station) => {
-      if (!userLocation || station.lat == null || station.lng == null) {
-        return { ...station, calculatedDistance: null as string | null };
-      }
-      const km = haversineKm(userLocation, {
-        lat: station.lat,
-        lng: station.lng,
-      });
-      return { ...station, calculatedDistance: formatDistance(km) };
-    });
-  }, [nearbyStations, userLocation]);
 
   // Plot the *entire* list of nearby stations — same source of truth as the
   // full Stations screen so the two maps can never disagree. The underlying
@@ -177,173 +169,113 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     }
   };
 
-  const handleStationClick = (station: Station) => {
-    onSelectStation(station.id);
-  };
-
-  const handleNavigate = (station: Station, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (station.lat == null || station.lng == null) {
-      toast.error(
-        t("rider.stationLocationMissing") || "Station location is missing.",
-      );
-      return;
-    }
-    openExternalMap(
-      googleMapsUrl({ lat: station.lat, lng: station.lng }, station.name),
-      (msg) => toast.error(msg),
-    );
-  };
+  const energyDisplay = energyKwh.toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+  });
+  const energyAriaLabel = isLoadingBike
+    ? t("common.loading") || "Loading"
+    : `${t("rider.energyRemaining") || "Energy remaining"} ${energyKwh.toLocaleString(
+        undefined,
+        { maximumFractionDigits: 2 },
+      )} kWh`;
+  const gaugeStateClass = !hasSubscription
+    ? "rh-gauge--locked"
+    : isLoadingBike
+      ? "rh-gauge--loading"
+      : energyKwh === 0
+        ? "rh-gauge--empty"
+        : "";
 
   return (
-    <div className="rider-screen active">
-      {/* Dashboard Header */}
-      <div className="rider-dashboard-header">
-        <div className="rider-greeting">{getGreeting()}</div>
-        <div className="rider-name">{userName}</div>
-      </div>
+    <div className="rider-screen active rh-screen">
+      {/* Greeting */}
+      <header
+        className="rh-greeting rh-anim-in"
+        style={{ ["--rh-delay" as string]: "0ms" } as React.CSSProperties}
+      >
+        <p className="rh-greeting__hello">{getGreeting()}</p>
+        <h1 className="rh-greeting__name">{userName}</h1>
+      </header>
 
-      {/* My Bike Card (includes Account Balance) */}
-      <div className="rider-bike-card">
-        <div className="rider-bike-header">
-          <div>
-            <div className="rider-bike-label">
-              {t("rider.myBike") || "My Bike"}
-            </div>
-          </div>
-          <span
-            className={`rider-bike-status ${getPaymentStateClass(
-              bike.paymentState,
-            )}`}
-          >
-            {getPaymentStateLabel(bike.paymentState)}
-          </span>
-        </div>
-        <div className="rider-bike-content">
-          <div className="rider-bike-image">
-            <Image
-              src={bike.imageUrl || "/assets/E-3-one.png"}
-              alt={bike.model}
-              width={140}
-              height={100}
-              style={{ objectFit: "contain" }}
+      {/* HERO — state-of-charge gauge + primary actions */}
+      <section
+        className="rh-hero rh-anim-in"
+        style={{ ["--rh-delay" as string]: "100ms" } as React.CSSProperties}
+        aria-busy={isLoadingBike}
+      >
+        <div
+          className={`rh-gauge ${gaugeStateClass}`.trim()}
+          role="img"
+          aria-label={
+            !hasSubscription
+              ? t("rider.noSubscription") || "No active subscription"
+              : energyAriaLabel
+          }
+        >
+          <svg className="rh-gauge__svg" viewBox="0 0 200 200" aria-hidden="true">
+            <circle
+              className="rh-gauge__track"
+              cx="100"
+              cy="100"
+              r="86"
+              pathLength={100}
             />
-          </div>
-          <div className="rider-bike-info">
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.vehicleId") || "Vehicle ID"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value" />
-              ) : (
-                <span className="rider-bike-detail-value">
-                  {bike.vehicleId || "N/A"}
-                </span>
-              )}
-            </div>
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.lastSwap") || "Last Swap"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value" />
-              ) : (
-                <span className="rider-bike-detail-value">
-                  {bike.lastSwap || "N/A"}
-                </span>
-              )}
-            </div>
-            <div className="rider-bike-detail">
-              <span className="rider-bike-detail-label">
-                {t("rider.totalSwaps") || "Total Swaps"}
-              </span>
-              {isLoadingBike ? (
-                <span className="rider-skeleton rider-skeleton-value rider-skeleton-value-sm" />
-              ) : (
-                <span className="rider-bike-detail-value">
-                  {bike.totalSwaps}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Account Balance - integrated into the bike card */}
-        <div className="rider-bike-balance">
-          <div className="rider-bike-balance-label-row">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-              <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-              <path d="M18 12a2 2 0 0 0 0 4h4v-4h-4z" />
-            </svg>
-            <span>{t("rider.accountBalance") || "Account Balance"}</span>
-          </div>
-          {isLoadingBike ? (
-            <span className="rider-skeleton rider-skeleton-balance" />
-          ) : (
-            <div className="rider-bike-balance-value">
-              <span className="rider-bike-balance-currency">{currency}</span>
-              <span className="rider-bike-balance-amount">
-                {balance.toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Actions - compact action pills */}
-      <div className="rider-quick-pills">
-        <button
-          type="button"
-          className="rider-quick-pill"
-          onClick={onFindStation}
-        >
-          <span className="rider-quick-pill-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-          </span>
-          <span className="rider-quick-pill-label">
-            {t("rider.findStation") || "Find Station"}
-          </span>
-          <svg
-            className="rider-quick-pill-chevron"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
+            {hasSubscription && (
+              <circle
+                className="rh-gauge__ring"
+                cx="100"
+                cy="100"
+                r="86"
+                pathLength={100}
+              />
+            )}
           </svg>
-        </button>
-        <button
-          type="button"
-          className="rider-quick-pill"
-          onClick={onShowQRCode}
-        >
-          <span className="rider-quick-pill-icon">
+          <div className="rh-gauge__inner">
+            {!hasSubscription ? (
+              <>
+                <Lock className="rh-gauge__lock" size={22} aria-hidden="true" />
+                <span className="rh-gauge__sub">
+                  {t("rider.pickPlanShort") || "Pick a plan to ride"}
+                </span>
+              </>
+            ) : isLoadingBike ? (
+              <span className="rider-skeleton rh-gauge__skeleton" />
+            ) : (
+              <>
+                <span className="rh-gauge__value">{energyDisplay}</span>
+                <span className="rh-gauge__unit">kWh</span>
+                <span className="rh-gauge__sub">
+                  ≈ {currency ? `${currency} ` : ""}
+                  {balance.toLocaleString()}
+                </span>
+                {energyKwh === 0 && (
+                  <span className="rh-gauge__caption">
+                    {t("rider.topUpToRide") || "Top up to ride"}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="rh-hero__cta">
+          {onShowEnergyTopUp && (
+            <button
+              type="button"
+              className="rh-cta rh-cta--primary"
+              onClick={onShowEnergyTopUp}
+            >
+              <Zap size={16} strokeWidth={2.4} aria-hidden="true" />
+              <span>{t("rider.topUp") || "Top Up"}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="rh-cta rh-cta--ghost"
+            onClick={onShowQRCode}
+          >
             <svg
+              className="rh-cta__icon"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -357,26 +289,84 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               <rect x="14" y="14" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" />
             </svg>
-          </span>
-          <span className="rider-quick-pill-label">
-            {t("rider.myQrCode") || "My QR Code"}
-          </span>
-          <svg
-            className="rider-quick-pill-chevron"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-      </div>
+            <span>{t("rider.myQrCode") || "My QR"}</span>
+          </button>
+        </div>
+      </section>
 
-      {/* Nearby Stations Section */}
+      {/* BIKE strip — demoted metadata. Hidden when there's no subscription. */}
+      {hasSubscription && (
+        <section
+          className="rh-bike rh-anim-in"
+          style={{ ["--rh-delay" as string]: "250ms" } as React.CSSProperties}
+        >
+          <div className="rh-bike__head">
+            <div className="rh-bike__img">
+              <Image
+                src={bike.imageUrl || "/assets/E-3-one.png"}
+                alt={bike.model}
+                width={56}
+                height={40}
+                style={{ objectFit: "contain" }}
+              />
+            </div>
+            <div className="rh-bike__title">
+              <p className="rh-bike__model">{bike.model}</p>
+              <p className="rh-bike__sub">
+                {isLoadingBike
+                  ? "—"
+                  : subscriptionCode ||
+                    (t("common.notAssigned") || "Not assigned")}
+              </p>
+            </div>
+            <span
+              className={`rh-bike__pill rh-bike__pill--${getPaymentStateClass(
+                bike.paymentState,
+              )}`}
+            >
+              {getPaymentStateLabel(bike.paymentState)}
+            </span>
+          </div>
+          <dl className="rh-bike__grid">
+            <div className="rh-bike__cell">
+              <dt>{t("rider.vehicleId") || "Vehicle"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value" />
+                ) : (
+                  bike.vehicleId || "—"
+                )}
+              </dd>
+            </div>
+            <div className="rh-bike__cell">
+              <dt>{t("rider.totalSwaps") || "Swaps"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value rider-skeleton-value-sm" />
+                ) : (
+                  bike.totalSwaps
+                )}
+              </dd>
+            </div>
+            <div className="rh-bike__cell">
+              <dt>{t("rider.lastSwap") || "Last swap"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value" />
+                ) : (
+                  bike.lastSwap || "—"
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
+      {/* STATIONS — wrapper adds entrance animation; inner markup preserved */}
+      <section
+        className="rh-stations rh-anim-in"
+        style={{ ["--rh-delay" as string]: "450ms" } as React.CSSProperties}
+      >
       <div className="rider-section-header">
         <span className="rider-section-title">
           {t("rider.nearbyStations") || "Nearby Stations"}
@@ -419,80 +409,13 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         </div>
       </div>
 
-      {!hasSubscription && nearbyStations.length === 0 ? (
-        /* Hard stop: without an active subscription the rider can't use the
-           app at all, so there's nothing useful to show on a map. Keep the
-           old full-bleed "subscribe first" card here. */
-        <div
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "24px 20px",
-            textAlign: "center",
-            marginTop: "12px",
-          }}
-        >
-          <div
-            style={{
-              width: "60px",
-              height: "60px",
-              margin: "0 auto 16px",
-              borderRadius: "50%",
-              background: "var(--bg-tertiary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                width: "30px",
-                height: "30px",
-                color: "var(--text-muted)",
-              }}
-            >
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-          </div>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "var(--text-muted)",
-              lineHeight: "1.5",
-              margin: 0,
-            }}
-          >
-            {t("rider.noStationsDesc") ||
-              "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
-          </p>
-        </div>
-      ) : showLoadingSkeleton ? (
-        /* Stations are legitimately still being fetched. Show a skeleton in
-           place of BOTH the map and the carousel so the rider understands
-           we're still gathering data, instead of staring at an empty map.
-           Capped at `LOAD_TIMEOUT_MS` (see useEffect above) so a wedged
-           MQTT pipeline can't pin us here forever. */
+      {showLoadingSkeleton ? (
+        /* Stations are still being fetched — show a map-shaped skeleton so
+           the rider understands data is still arriving rather than seeing
+           an empty map. Capped at `LOAD_TIMEOUT_MS` (see useEffect above)
+           so a wedged MQTT pipeline can't pin us here forever. */
         <div className="rider-stations-skeleton">
           <div className="rider-skeleton rider-skeleton-map" />
-          <div className="rider-stations-skeleton-list">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="rider-skeleton-station">
-                <div className="rider-skeleton rider-skeleton-station-icon" />
-                <div className="rider-skeleton-station-body">
-                  <div className="rider-skeleton rider-skeleton-station-name" />
-                  <div className="rider-skeleton rider-skeleton-station-meta" />
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       ) : (
         /* Stations have settled — either with data, without data (empty),
@@ -537,7 +460,62 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             )}
           </div>
 
-          {nearbyStations.length === 0 && stationsError ? (
+          {!hasSubscription && nearbyStations.length === 0 ? (
+            /* Without an active subscription the rider can't use stations,
+               but we still show the map (user location or half-world view)
+               so the empty state isn't tied to a hard-coded city. */
+            <div
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)",
+                padding: "24px 20px",
+                textAlign: "center",
+                marginTop: "12px",
+              }}
+            >
+              <div
+                style={{
+                  width: "60px",
+                  height: "60px",
+                  margin: "0 auto 16px",
+                  borderRadius: "50%",
+                  background: "var(--bg-tertiary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    width: "30px",
+                    height: "30px",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </div>
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "var(--text-muted)",
+                  lineHeight: "1.5",
+                  margin: 0,
+                }}
+              >
+                {t("rider.noStationsDesc") ||
+                  "You need an active subscription to view available swap stations. Please subscribe to a plan to access stations."}
+              </p>
+            </div>
+          ) : nearbyStations.length === 0 && stationsError ? (
             <div
               style={{
                 background: "var(--bg-secondary)",
@@ -579,130 +557,25 @@ const RiderHome: React.FC<RiderHomeProps> = ({
                 <button
                   type="button"
                   onClick={onRefreshStations}
-                  className="rider-quick-pill"
-                  style={{
-                    display: "inline-flex",
-                    width: "auto",
-                    margin: 0,
-                    padding: "6px 12px",
-                    gap: 6,
-                    flexShrink: 0,
-                  }}
+                  className="rh-mini-cta"
+                  style={{ flexShrink: 0 }}
                 >
                   <RefreshCw size={12} />
-                  <span className="rider-quick-pill-label">
-                    {t("rider.directions.retry") || "Retry"}
-                  </span>
+                  <span>{t("rider.directions.retry") || "Retry"}</span>
                 </button>
               )}
             </div>
-          ) : nearbyStations.length === 0 ? (
-            <div
-              style={{
-                background: "var(--bg-secondary)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-lg)",
-                padding: "14px 16px",
-                textAlign: "center",
-                marginTop: "12px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  lineHeight: "1.5",
-                  margin: 0,
-                }}
-              >
-                {t("rider.noStationsFound") ||
-                  "No stations found. Please check your subscription configuration."}
-              </p>
-              {onRefreshStations && (
-                <button
-                  type="button"
-                  onClick={onRefreshStations}
-                  className="rider-quick-pill"
-                  style={{
-                    display: "inline-flex",
-                    width: "auto",
-                    margin: "10px auto 0",
-                    padding: "6px 14px",
-                    gap: 6,
-                  }}
-                >
-                  <RefreshCw size={12} />
-                  <span className="rider-quick-pill-label">
-                    {t("common.refresh") || "Refresh"}
-                  </span>
-                </button>
-              )}
-            </div>
-          ) : (
-            /* Horizontal carousel — same card as full-screen peek */
-            <div className="rm-carousel rm-carousel--home">
-            {stationsWithDistance.slice(0, 6).map((station) => {
-              const status =
-                station.batteries === 0
-                  ? "empty"
-                  : station.batteries <= 2
-                    ? "low"
-                    : "available";
-              return (
-                <div
-                  key={station.id}
-                  className="rm-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleStationClick(station)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") handleStationClick(station);
-                  }}
-                >
-                  <div className={`rm-card-badge rm-card-badge--${status}`}>
-                    <Zap size={14} />
-                    <span className="rm-card-badge-num">{station.batteries}</span>
-                  </div>
-                  <div className="rm-card-body">
-                    <div className="rm-card-title">{station.name}</div>
-                    <div className="rm-card-sub">
-                      <span>
-                        {status === "empty"
-                          ? t("rider.map.empty") || "Empty"
-                          : status === "low"
-                            ? t("rider.map.low") || "Low"
-                            : t("rider.map.available") || "Available"}
-                      </span>
-                      {(station.calculatedDistance || station.distance) && (
-                        <>
-                          <span className="rm-card-dot" />
-                          {/* Straight-line (haversine) distance + pace-based
-                              ETA label. Real routing distance/ETA only
-                              appears on the full stations screen once the
-                              rider picks a destination, so we mark these as
-                              estimates here to avoid raising expectations. */}
-                          <span>
-                            {station.calculatedDistance || station.distance}
-                            {station.calculatedDistance ? " (est.)" : ""}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="rm-card-cta"
-                    onClick={(e) => handleNavigate(station, e)}
-                    aria-label={t("rider.map.navigate") || "Navigate"}
-                  >
-                    <Navigation size={16} />
-                  </button>
-                </div>
-              );
-            })}
-            </div>
-          )}
+          ) : null}
+          {/* When stations resolve successfully (or are simply empty), the
+              map itself carries all per-station info — the bolt-pill markers
+              encode battery count + availability color, and the in-map
+              "no stations" badge above explains an empty result. The legacy
+              station carousel was retired so the map can breathe. Tapping
+              anywhere on the preview hands the rider off to the full
+              Stations screen for names, distances, and navigation. */}
         </div>
       )}
+      </section>
     </div>
   );
 };

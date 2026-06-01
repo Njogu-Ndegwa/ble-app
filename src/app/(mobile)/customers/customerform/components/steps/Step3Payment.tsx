@@ -22,6 +22,11 @@ interface Step3Props {
   setInputMode: (mode: InputMode) => void;
   paymentId: string;
   setPaymentId: (id: string) => void;
+  wechatOrderId?: number | null;
+  wechatAuthToken?: string;
+  wechatProductName?: string;
+  onWechatPaid?: (tradeNo: string, totalPaid: number) => void;
+  onWechatError?: (message: string) => void;
 }
 
 /**
@@ -44,6 +49,11 @@ export default function Step3Payment({
   setInputMode,
   paymentId,
   setPaymentId,
+  wechatOrderId,
+  wechatAuthToken,
+  wechatProductName,
+  onWechatPaid,
+  onWechatError,
 }: Step3Props) {
   const { t } = useI18n();
 
@@ -73,6 +83,12 @@ export default function Step3Payment({
         isProcessing={isProcessing}
         partialPayment={hasPartialPayment ? { amountPaid, amountRemaining } : null}
         title={t('sales.confirmPayment')}
+        showWechat={true}
+        wechatOrderId={wechatOrderId}
+        wechatAuthToken={wechatAuthToken}
+        wechatProductName={wechatProductName}
+        onWechatPaid={onWechatPaid}
+        onWechatError={onWechatError}
       />
     </div>
   );

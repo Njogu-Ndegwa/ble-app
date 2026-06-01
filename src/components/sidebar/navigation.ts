@@ -206,8 +206,7 @@ export const menuConfig: {
       labelKey: 'nav.ticketing',
       icon: 'help',
       children: [
-        { id: 'support',    labelKey: 'nav.ticketing.support',    href: '/ticketing/support'     },
-     
+        { id: 'app', labelKey: 'nav.ticketing.app', href: '/ticketing/app' },
       ],
     },
     {

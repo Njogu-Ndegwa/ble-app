@@ -11,6 +11,8 @@ interface ProfileData {
   initials: string;
   phone: string;
   balance: number;
+  /** Remaining energy in kWh — shown as the headline of the balance stat. */
+  energyKwh?: number;
   currency?: string;
   swapsThisMonth: number;
   planName: string;
@@ -163,25 +165,25 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
 
         {/* Stats - Stacked vertically with icons */}
         <div className="energy-service-stats-vertical">
-          {/* Account Balance */}
+          {/* Energy Balance — kWh as the headline, monetary equivalent below. */}
           <div className="energy-stat-row highlighted">
             <div className="energy-stat-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6v12M8 10h8M8 14h8"></path>
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             </div>
             <div className="energy-stat-content">
               <div className="energy-stat-value">
-                {profile.currency ? `${profile.currency} ` : ''}{profile.balance.toLocaleString()}
+                {(profile.energyKwh ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                <span style={{ fontSize: '0.65em', fontWeight: 500, marginLeft: 4, opacity: 0.75 }}>
+                  kWh
+                </span>
               </div>
               <div className="energy-stat-label">
-                {t("rider.accountBalance") || "Account Balance"}
+                {t("rider.energyBalance") || "Energy Balance"}
+                <span style={{ marginLeft: 6, opacity: 0.8 }}>
+                  ≈ {profile.currency ? `${profile.currency} ` : ''}{profile.balance.toLocaleString()}
+                </span>
               </div>
             </div>
           </div>

@@ -20,10 +20,7 @@ import { clearAllAuth } from '@/lib/attendant-auth';
 
 type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
 
-let bridgeHasBeenInitialized = false;
-
 const EMA_ALPHA = 0.3;
-const SORT_THROTTLE_MS = 2500;
 
 export interface BleDevice {
   macAddress: string;
@@ -141,13 +138,13 @@ const BleDevicesApp: React.FC = () => {
     : undefined;
 
   const detectedDevicesRef = useRef(detectedDevices);
-  const lastSortRef = useRef<number>(0);
   const { bridge } = useBridge();
 
   // Throttle device list updates to avoid re-render storms when many BLE
   // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
   // ref and flushed to React state at most every 300 ms.
   const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
     setDetectedDevices(detectedDevicesRef.current);
@@ -165,6 +162,10 @@ const BleDevicesApp: React.FC = () => {
         clearTimeout(deviceBatchTimerRef.current);
         deviceBatchTimerRef.current = null;
       }
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -172,10 +173,6 @@ const BleDevicesApp: React.FC = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
@@ -206,7 +203,14 @@ const BleDevicesApp: React.FC = () => {
     setLoadingService(null);
     setProgress(0);
     setConnectingDeviceId(null);
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     setIsConnecting(false);
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [t]);
 
   useEffect(() => {
@@ -231,10 +235,17 @@ const BleDevicesApp: React.FC = () => {
     if (macAddress === connectedDevice && attributeList.length > 0) {
       setSelectedDevice(macAddress);
     } else {
+      if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
       connBleByMacAddress(macAddress);
+      connectTimeoutRef.current = setTimeout(() => {
+        connectTimeoutRef.current = null;
+        setIsConnecting(false);
+        setProgress(0);
+        toast.error(t('Connection timed out. Please try again.'), { id: 'connect-toast' });
+      }, 30_000);
     }
   };
 
@@ -268,13 +279,9 @@ const BleDevicesApp: React.FC = () => {
       return () => bridge.registerHandler(name, noop);
     };
 
-    // NOTE: bridge.init() is already called in bridgeContext.tsx
-    // Do NOT call init() again here as it causes the app to hang / native
-    // force-close, especially when navigating between BLE/Keypad/MyDevices
-    // via the bottom nav (each mount used to re-init the bridge).
-    if (!bridgeHasBeenInitialized) {
-      bridgeHasBeenInitialized = true;
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx — do NOT
+    // call init() again here. Each mount re-initialising the bridge causes
+    // native force-closes when navigating BLE/Keypad/MyDevices via bottom nav.
 
     const offPrint = reg("print", (data: string, resp: any) => {
       try {
@@ -295,6 +302,7 @@ const BleDevicesApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
+            d.macAddress = d.macAddress.trim().toUpperCase();
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
@@ -314,13 +322,7 @@ const BleDevicesApp: React.FC = () => {
                 )
               : [...prev, { ...d, smoothedRssi }];
 
-            const now = Date.now();
-            if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
-              lastSortRef.current = now;
-              detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
-            } else {
-              detectedDevicesRef.current = next;
-            }
+            detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
             scheduleDeviceBatch();
 
             resp({ success: true });
@@ -334,6 +336,10 @@ const BleDevicesApp: React.FC = () => {
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         console.warn('[BLE DevMgr] Connection FAILED raw:', data);
         setIsConnecting(false);
         setProgress(0);
@@ -347,6 +353,10 @@ const BleDevicesApp: React.FC = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         console.warn('[BLE DevMgr] Connected to device:', macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         setConnectedDevice(macAddress);
@@ -545,12 +555,10 @@ const BleDevicesApp: React.FC = () => {
     setLoadingService(serviceName);
     setProgress(0);
 
-    const data = {
+    initServiceBleData({
       serviceName,
       macAddress: selectedDevice,
-    };
-
-    initServiceBleData(data);
+    });
   };
 
   useEffect(() => {
@@ -563,10 +571,16 @@ const BleDevicesApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, attributeList]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  // See KeypadApp.tsx for the full rationale. Short version: the previous
+  // gate on a module-level `bridgeHasBeenInitialized` flag deferred scan-
+  // start until the first React state update (setAndroidId or
+  // setIsMqttConnected). After d2e4d27 moved bridge.init() into
+  // BridgeProvider, the buffered native messages that used to drive that
+  // setState no longer reach per-applet handlers, so scan-start ended up
+  // tied to MQTT — 10–20s on marginal cell connections.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-
-    stopBleScan();
+    if (!bridge) return;
 
     const id = setTimeout(() => {
       startBleScan();
@@ -577,7 +591,7 @@ const BleDevicesApp: React.FC = () => {
       stopBleScan();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeHasBeenInitialized]);
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
@@ -744,6 +758,7 @@ const BleDevicesApp: React.FC = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setConnectingDeviceId(null);

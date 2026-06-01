@@ -271,11 +271,11 @@ export function getSalesActionConfig(
         icon: 'arrow' 
       };
     case 5:
-      return { 
-        showBack: true, 
-        textKey: 'sales.confirmPayment', 
+      return {
+        showBack: true,
+        textKey: 'sales.confirmPayment',
         fallbackText: 'Confirm Payment',
-        icon: 'check' 
+        icon: paymentInputMode === 'manual' ? 'check' : 'qr',
       };
     case 6:
       return { 

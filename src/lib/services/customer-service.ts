@@ -93,7 +93,7 @@ export async function searchCustomers(
 ): Promise<CustomerListResponse> {
   const trimmed = query.trim();
   const result = await getContacts(
-    trimmed ? { q: trimmed, type } : { limit: 50, type },
+    trimmed ? { q: trimmed, type } : { limit: 20, type },
     authToken
   );
 

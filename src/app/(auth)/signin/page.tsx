@@ -9,6 +9,11 @@ import PhoneInputWithCountry from '@/components/ui/PhoneInputWithCountry'
 import { odooEmployeeLogin, saveOdooEmployeeSession } from '@/lib/ov-auth'
 import { getMicrosoftAuthUrl, saveMicrosoftPendingContext } from '@/lib/attendant-auth'
 
+// Pre-build at module load time so the anchor tag's href is set before hydration.
+// getMicrosoftCallbackUrl() already falls back to 'https://wvapp.omnivoltaic.com'
+// on the server, so no env var is needed.
+const MICROSOFT_AUTH_URL = getMicrosoftAuthUrl()
+
 type LoginMethod = 'email' | 'phone'
 
 const LoginPage = () => {
@@ -90,24 +95,14 @@ const LoginPage = () => {
     }
   }
 
-  const handleMicrosoftSignIn = async () => {
+  const handleMicrosoftClick = () => {
     if (!navigator.onLine) {
       toast.error('No internet connection. Please check your network and try again.');
       return;
     }
-
-    const authUrl = getMicrosoftAuthUrl()
+    // Both writes are synchronous and complete before the browser follows the href.
     saveMicrosoftPendingContext('/', 'sales')
-
-    // Unregister service workers so the Odoo redirect is not intercepted by a stale cache
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations()
-      for (const reg of regs) {
-        await reg.unregister()
-      }
-    }
-
-    window.location.href = authUrl
+    setIsLoading(true)
   }
 
   return (
@@ -146,6 +141,35 @@ const LoginPage = () => {
         </div>
 
         <form onSubmit={handleLogin} className="login-form">
+          {/* Keypad public access — placed at the top of the form so the
+              majority of users (who use the keypad) see it first. Styled as a
+              callout/link (not a button) so it doesn't read as a sign-in option. */}
+          <a
+            href="/keypad/keypad"
+            onClick={(e) => { e.preventDefault(); router.push('/keypad/keypad') }}
+            className="keypad-access"
+          >
+            <span className="keypad-access__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                <rect x="2" y="3" width="20" height="18" rx="2"/>
+                <line x1="8" y1="9" x2="8" y2="9.01"/>
+                <line x1="12" y1="9" x2="12" y2="9.01"/>
+                <line x1="16" y1="9" x2="16" y2="9.01"/>
+                <line x1="8" y1="13" x2="8" y2="13.01"/>
+                <line x1="12" y1="13" x2="12" y2="13.01"/>
+                <line x1="16" y1="13" x2="16" y2="13.01"/>
+                <line x1="8" y1="17" x2="16" y2="17"/>
+              </svg>
+            </span>
+            <span className="keypad-access__text">
+              <span className="keypad-access__title">{t('role.keypad') || 'Keypad'}</span>
+              <span className="keypad-access__subtitle">{t('auth.noSignInRequired') || 'No sign-in required'}</span>
+            </span>
+            <svg className="keypad-access__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </a>
+
           {/* Email / Phone toggle */}
           <div style={{
             display: 'flex',
@@ -278,34 +302,6 @@ const LoginPage = () => {
             )}
           </button>
 
-          {/* Keypad public access */}
-          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ padding: '0 12px', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              or
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => router.push('/keypad/keypad')}
-            style={{ width: '100%' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" style={{ marginRight: 8, flexShrink: 0 }}>
-              <rect x="2" y="3" width="20" height="18" rx="2"/>
-              <line x1="8" y1="9" x2="8" y2="9.01"/>
-              <line x1="12" y1="9" x2="12" y2="9.01"/>
-              <line x1="16" y1="9" x2="16" y2="9.01"/>
-              <line x1="8" y1="13" x2="8" y2="13.01"/>
-              <line x1="12" y1="13" x2="12" y2="13.01"/>
-              <line x1="16" y1="13" x2="16" y2="13.01"/>
-              <line x1="8" y1="17" x2="16" y2="17"/>
-            </svg>
-            <span>{t('role.keypad') || 'Keypad'} — {t('auth.noSignInRequired') || 'No sign-in required'}</span>
-          </button>
-
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 10px' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
@@ -315,22 +311,25 @@ const LoginPage = () => {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          {/* Microsoft sign-in — full width, below form, matches attendant login pattern */}
-          <button
-            type="button"
+          {/* Microsoft sign-in — <a> navigates without waiting for React hydration */}
+          <a
+            href={MICROSOFT_AUTH_URL}
+            onClick={handleMicrosoftClick}
             className="btn btn-secondary"
-            onClick={handleMicrosoftSignIn}
-            disabled={isLoading}
-            style={{ width: '100%' }}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}
           >
-            <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
-              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-            </svg>
-            <span>{t('auth.signInWithMicrosoft')}</span>
-          </button>
+            {isLoading ? (
+              <div className="loading-spinner" style={{ width: 16, height: 16, marginRight: 8, marginBottom: 0, borderWidth: 2, flexShrink: 0 }} />
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: 8, flexShrink: 0 }}>
+                <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+                <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+                <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+                <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+              </svg>
+            )}
+            <span>{isLoading ? t('auth.signingIn') : t('auth.signInWithMicrosoft')}</span>
+          </a>
 
         </form>
       </div>

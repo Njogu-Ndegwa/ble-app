@@ -114,8 +114,19 @@ export function useRiderActivity(params: UseRiderActivityParams) {
         });
       });
 
-      (data.serviceActions || []).forEach((a: any) => {
-        const d = new Date(a.createdAt);
+      // Group electricity + swap service actions that occur within 2 min of each
+      // other so a single battery swap renders as one unified row.
+      const serviceGroups = groupServiceActions(data.serviceActions || []);
+
+      serviceGroups.forEach((group) => {
+        const hasElec = group.some((g) =>
+          String(g.serviceType || '').includes('electricity')
+        );
+        const hasSwap = group.some(
+          (g) => !String(g.serviceType || '').includes('electricity')
+        );
+
+        const d = new Date(group[0].createdAt);
         if (!latestSwap || d > latestSwap) latestSwap = d;
         const dateStr = d.toISOString().split('T')[0];
         const timeStr = d.toLocaleTimeString('en-US', {
@@ -123,18 +134,39 @@ export function useRiderActivity(params: UseRiderActivityParams) {
           minute: '2-digit',
           hour12: false,
         });
-        const isElec = String(a.serviceType || '').includes('electricity');
-        items.push({
-          id: a.serviceActionId || `service-${d.getTime()}`,
-          type: 'swap',
-          title: isElec ? tElectricity : tBatterySwap,
-          subtitle: isElec ? `${a.serviceAmount || 0} kWh` : tBatterySwapSubtitle,
-          amount: Math.abs(a.serviceAmount || 0),
-          currency,
-          isPositive: false,
-          time: timeStr,
-          date: dateStr,
-        });
+
+        if (hasElec && hasSwap && group.length === 2) {
+          // Unified battery swap row — show energy, no price.
+          const elecAction = group.find((g) =>
+            String(g.serviceType || '').includes('electricity')
+          )!;
+          items.push({
+            id: elecAction.serviceActionId || `swap-${d.getTime()}`,
+            type: 'swap',
+            title: tBatterySwap,
+            subtitle: tBatterySwapSubtitle,
+            energy: `${elecAction.serviceAmount || 0} kWh`,
+            isPositive: false,
+            time: timeStr,
+            date: dateStr,
+          });
+        } else {
+          // Fallback: render each action individually.
+          group.forEach((a) => {
+            const isElec = String(a.serviceType || '').includes('electricity');
+            items.push({
+              id: a.serviceActionId || `service-${d.getTime()}-${Math.random()}`,
+              type: 'swap',
+              title: isElec ? tElectricity : tBatterySwap,
+              subtitle: isElec
+                ? `${a.serviceAmount || 0} kWh`
+                : tBatterySwapSubtitle,
+              isPositive: false,
+              time: timeStr,
+              date: dateStr,
+            });
+          });
+        }
       });
 
       items.sort((a, b) => {
@@ -169,6 +201,48 @@ export function useRiderActivity(params: UseRiderActivityParams) {
   }, [fetchActivity]);
 
   return { activities, isLoading, error, lastSwapAt, refetch: fetchActivity, setActivities };
+}
+
+/**
+ * Group related service actions (electricity + swap) that happen within a
+ * short time window so they can be rendered as a single battery swap event.
+ */
+export function groupServiceActions(actions: any[]): any[][] {
+  const sorted = [...actions].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  const groups: any[][] = [];
+
+  for (const action of sorted) {
+    const actionTime = new Date(action.createdAt).getTime();
+    const isElec = String(action.serviceType || '').includes('electricity');
+
+    let added = false;
+    for (const group of groups) {
+      const groupTime = new Date(group[0].createdAt).getTime();
+      const hasElec = group.some((g) =>
+        String(g.serviceType || '').includes('electricity')
+      );
+      const hasSwap = group.some(
+        (g) => !String(g.serviceType || '').includes('electricity')
+      );
+
+      if (Math.abs(actionTime - groupTime) <= 2 * 60 * 1000) {
+        if ((isElec && !hasElec) || (!isElec && !hasSwap)) {
+          group.push(action);
+          added = true;
+          break;
+        }
+      }
+    }
+
+    if (!added) {
+      groups.push([action]);
+    }
+  }
+
+  return groups;
 }
 
 /**

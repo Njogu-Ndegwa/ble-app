@@ -32,8 +32,9 @@ import {
 } from './components';
 // ProgressiveLoading removed - using simple loading overlay like Attendant flow
 
-// Import customer service for existing customer selection
+// Import customer service for existing customer selection and creation
 import type { ExistingCustomer } from '@/lib/services/customer-service';
+import { createCustomer } from '@/lib/services/customer-service';
 
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
@@ -43,6 +44,7 @@ import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, SessionsHistory } from '@/components/shared';
 import SessionResumePrompt from '@/components/shared/SessionResumePrompt';
+import type { InputMode } from '@/components/shared/types';
 import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -58,13 +60,11 @@ import type { WorkflowSessionData } from '@/lib/odoo-api';
 
 // Import Odoo API functions
 import {
-  registerCustomer,
   purchaseMultiProducts,
   confirmPaymentManual,
   getCycleUnitFromPeriod,
   DEFAULT_COMPANY_ID,
   type ProductOrderItem,
-  type RegisterCustomerPayload,
 } from '@/lib/odoo-api';
 
 // Import employee auth to get salesperson token and logout
@@ -179,7 +179,6 @@ export default function SalesFlow({
     setSelectedPackageId,
     setSelectedPlanId,
     refetch: fetchProductsAndPlans,
-    restoreSelections: restoreCatalogSelections,
   } = useProductCatalog({ autoFetch: true, workflowType: 'sales' });
 
   // Alias loading/error states for backward compatibility
@@ -204,7 +203,7 @@ export default function SalesFlow({
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentInitiated, setPaymentInitiated] = useState(false);
-  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  const [paymentInputMode, setPaymentInputMode] = useState<InputMode>('scan');
   // Manual payment ID input (like Attendant flow)
   const [manualPaymentId, setManualPaymentId] = useState<string>('');
   // Order ID - REQUIRED for confirm payment (from purchaseMultiProducts response)
@@ -266,6 +265,7 @@ export default function SalesFlow({
       setScannedBatteryPending(battery);
       // Note: No scan success toast here - only show notification when binding is complete
       // This avoids double notifications (scan success + bind success)
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
@@ -274,6 +274,7 @@ export default function SalesFlow({
     },
     onError: (error, requiresReset) => {
       console.error('BLE error via hook:', error, { requiresReset });
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
       scanTypeRef.current = null;
     },
@@ -550,15 +551,36 @@ export default function SalesFlow({
     // Extract state from session data and restore
     const sessionData = order.session.session_data;
     const restoredState = extractSalesStateFromSession(sessionData);
-    
+
+    console.info('[SalesFlow] handleSelectHistorySession — restoring catalog selections', {
+      orderId: order.id,
+      restoredStep: restoredState.currentStep,
+      rawSessionSelectedPackageId: sessionData.selectedPackageId,
+      rawSessionSelectedPlanId: sessionData.selectedPlanId,
+      extractedSelectedPackageId: restoredState.selectedPackageId,
+      extractedSelectedPlanId: restoredState.selectedPlanId,
+      extractedPackageIdType: typeof restoredState.selectedPackageId,
+      extractedPlanIdType: typeof restoredState.selectedPlanId,
+      hasPackageId: !!restoredState.selectedPackageId,
+      hasPlanId: !!restoredState.selectedPlanId,
+    });
+
+    if (!restoredState.selectedPlanId && (restoredState.currentStep ?? 0) >= 3) {
+      console.warn('[SalesFlow] handleSelectHistorySession — session at step >= 3 has no selectedPlanId; purchase will fail', {
+        orderId: order.id,
+        restoredStep: restoredState.currentStep,
+        rawSessionSelectedPlanId: sessionData.selectedPlanId,
+      });
+    }
+
     // Restore all state from the session
     setCurrentStep(restoredState.currentStep as SalesStep);
     // For read-only sessions, set maxStepReached to 8 to allow viewing all steps
     setMaxStepReached(isReadOnly ? 8 : restoredState.maxStepReached as SalesStep);
     setFormData(restoredState.formData);
-    
-    // Restore selections using the catalog hook's restoreSelections function
-    restoreCatalogSelections(restoredState.selectedPackageId, restoredState.selectedPlanId);
+
+    setSelectedPackageId(restoredState.selectedPackageId);
+    setSelectedPlanId(restoredState.selectedPlanId);
     
     setCreatedCustomerId(restoredState.createdCustomerId);
     setCreatedPartnerId(restoredState.createdPartnerId);
@@ -597,7 +619,7 @@ export default function SalesFlow({
     } else {
       toast.success(`${t('session.sessionRestored') || 'Session restored - continuing from step'} ${restoredState.currentStep}`);
     }
-  }, [t, restoreCatalogSelections, setSessionOrderId]);
+  }, [t, setSelectedPackageId, setSelectedPlanId, setSessionOrderId]);
   
   // Effect to automatically restore initial session from props (from sessions screen)
   useEffect(() => {
@@ -882,6 +904,11 @@ export default function SalesFlow({
 
   // Scanner timeout ref - resets isScannerOpening if no result received
   const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  /** True after we asked the native layer to open the scanner (used to recover stale UI if no JS callback fires). */
+  const qrScanInitiatedRef = useRef(false);
+  
+  /** True while we consider a native QR scan "in flight" — updated synchronously (unlike React state). */
+  const qrScannerBusyRef = useRef(false);
   
   // Clear scanner timeout
   const clearScannerTimeout = useCallback(() => {
@@ -893,38 +920,79 @@ export default function SalesFlow({
   
   // Start QR code scan
   const startQrCodeScan = useCallback(() => {
-    // Prevent multiple scanner opens
-    if (isScannerOpening) {
-      return;
-    }
-    
-    if (!window.WebViewJavascriptBridge) {
-      toast.error('Unable to access camera');
+    // Use a ref guard: React state (isScannerOpening) is stale until the next render.
+    // handleScanVehicle calls setIsScannerOpening(false) then startQrCodeScan() in the same tick;
+    // with a state-only guard the first tap would no-op ("double tap to scan").
+    if (qrScannerBusyRef.current) {
       return;
     }
 
+    if (!bridge || !isBridgeReady || !window.WebViewJavascriptBridge) {
+      toast.error(
+        t('sales.scannerBridgeNotReady') ||
+          'Scanner is not ready yet. Wait a moment and try again.'
+      );
+      return;
+    }
+
+    qrScannerBusyRef.current = true;
     setIsScannerOpening(true);
+    qrScanInitiatedRef.current = true;
     
     // Safety timeout - reset isScannerOpening if no result after 60 seconds
     // This handles cases where user cancels the scanner or there's an error
     clearScannerTimeout();
     scannerTimeoutRef.current = setTimeout(() => {
+      qrScannerBusyRef.current = false;
       setIsScannerOpening(false);
+      qrScanInitiatedRef.current = false;
     }, 60000);
     
     window.WebViewJavascriptBridge.callHandler(
       'startQrCodeScan',
       999,
       (responseData: string) => {
-        // QR scan initiated
+        console.info('[SalesFlow] startQrCodeScan native ack:', responseData);
       }
     );
+  }, [clearScannerTimeout, bridge, isBridgeReady, t]);
+
+  // If the native scanner closes without invoking scanQrcodeResultCallBack (common on some WebViews),
+  // isScannerOpening can stay true and block all further taps. Mirror AttendantFlow: recover on resume.
+  useEffect(() => {
+    let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && qrScanInitiatedRef.current) {
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => {
+          pendingTimeout = null;
+          if (isScannerOpening) {
+            console.info('[SalesFlow] Resetting scanner UI — returned to app without QR callback');
+            qrScannerBusyRef.current = false;
+            setIsScannerOpening(false);
+            scanTypeRef.current = null;
+            clearScannerTimeout();
+          }
+          qrScanInitiatedRef.current = false;
+          qrScannerBusyRef.current = false;
+        }, 500);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pendingTimeout) clearTimeout(pendingTimeout);
+    };
   }, [isScannerOpening, clearScannerTimeout]);
 
   // Reset scanner state when navigating between steps so a pending
   // scanner open from a previous visit doesn't block interaction.
   useEffect(() => {
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     clearScannerTimeout();
   }, [currentStep, clearScannerTimeout]);
 
@@ -946,7 +1014,9 @@ export default function SalesFlow({
   // @param force - If true, forces cancellation even during active reading (used by timeout)
   const cancelBleOperation = useCallback((force?: boolean) => {
     hookCancelOperation(force);
+    qrScannerBusyRef.current = false;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
     scanTypeRef.current = null;
   }, [hookCancelOperation]);
 
@@ -985,6 +1055,8 @@ export default function SalesFlow({
       window.WebViewJavascriptBridge.registerHandler(
         'scanQrcodeResultCallBack',
         (data: string, responseCallback: (response: any) => void) => {
+          qrScanInitiatedRef.current = false;
+          qrScannerBusyRef.current = false;
           // Reset scanner opening state and clear timeout when result is received
           clearScannerTimeout();
           setIsScannerOpening(false);
@@ -1224,74 +1296,53 @@ export default function SalesFlow({
     return Object.keys(errors).length === 0;
   }, [formData]);
 
-  // Register customer in Odoo using /api/auth/register
-  // Sends name, email, phone, street, city, zip (company_id is derived from salesperson token)
+  // Create customer in Odoo using /api/contacts (same endpoint as Customers applet)
   const createCustomerInOdoo = useCallback(async (): Promise<boolean> => {
     setIsCreatingCustomer(true);
-    
+
     try {
-      // Get the salesperson's employee token for company association
       const employeeToken = getSalesRoleToken();
-      
+
       if (!employeeToken) {
-        console.warn('No employee token found - customer may not be associated with correct company');
-      }
-      
-      // Phone number is already in E.164 format without + prefix from PhoneInputWithCountry
-      // The component handles country code selection (e.g., +228 for Togo, +254 for Kenya)
-      // So we just need to clean it up (remove any spaces or non-digit characters)
-      let phoneNumber = '';
-      if (formData.phone.trim()) {
-        // Remove spaces and non-digit characters, but keep all digits
-        // PhoneInputWithCountry already includes the country code (e.g., 2281234567890 or 2541234567890)
-        phoneNumber = formData.phone.replace(/\D/g, '');
+        console.warn('No employee token found');
       }
 
-      const registrationPayload: RegisterCustomerPayload = {
+      // Phone number is already in E.164 format without + prefix from PhoneInputWithCountry
+      // Use same 7-digit minimum as validation to avoid sending bare dial codes (e.g. "254")
+      const rawPhoneDigits = formData.phone.replace(/\D/g, '');
+      const phoneNumber = rawPhoneDigits.length >= 7 ? rawPhoneDigits : '';
+
+      const customerData = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email.trim(),
+        phone: phoneNumber,
         street: formData.street,
         city: formData.city,
         zip: formData.zip,
+        isCompany: false,
       };
 
-      // Only include email if provided
-      if (formData.email.trim()) {
-        registrationPayload.email = formData.email.trim();
-      }
+      console.log('Creating customer via /api/contacts:', customerData);
 
-      // Only include phone if provided
-      if (phoneNumber) {
-        registrationPayload.phone = phoneNumber;
-      }
+      const response = await createCustomer(customerData, employeeToken || '');
 
-      console.log('Registering customer in Odoo:', registrationPayload);
-
-      // Pass the employee token so Odoo can derive the company_id
-      const response = await registerCustomer(registrationPayload, employeeToken || undefined);
-      
-      // Log full response for debugging
-      console.log('Odoo registration response:', JSON.stringify(response, null, 2));
       console.info('[SalesFlow] Customer creation response:', response);
 
-      if (response.success && response.session) {
-        const { session } = response;
-        
-        console.log('Customer registered successfully:', session.user);
-        
-        // Store customer data
-        setCreatedCustomerId(session.user.id);
-        setCreatedPartnerId(session.user.partner_id);
-        setCustomerSessionToken(session.token);
-        
-        // Store password for display on receipt
-        setCustomerPassword(response.plain_password || null);
-        console.log('Customer password:', response.plain_password || 'null');
-        
-        // Create backend session after customer registration
-        // This creates an order/session linked to the customer
+      if (response.success && response.customer) {
+        const { customer } = response;
+
+        console.log('Customer created successfully:', customer);
+
+        // Store customer data (same fields as existing-customer path)
+        setCreatedCustomerId(customer.id);
+        setCreatedPartnerId(customer.partnerId);
+        setCustomerSessionToken(null);
+        setCustomerPassword(null);
+
+        // Create backend session after customer creation
         try {
           const initialSessionData = buildSalesSessionData({
-            currentStep: 2, // Moving to step 2
+            currentStep: 2,
             maxStepReached: 2,
             actor: {
               id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
@@ -1300,9 +1351,9 @@ export default function SalesFlow({
             formData,
             selectedPackageId,
             selectedPlanId,
-            createdCustomerId: session.user.id,
-            createdPartnerId: session.user.partner_id,
-            customerSessionToken: session.token,
+            createdCustomerId: customer.id,
+            createdPartnerId: customer.partnerId,
+            customerSessionToken: null,
             subscriptionData: null,
             paymentState: {
               initiated: false,
@@ -1326,15 +1377,15 @@ export default function SalesFlow({
             },
             scannedVehicleId: null,
             registrationId: '',
-            customerPassword: response.plain_password || null,
+            customerPassword: null,
           });
-          
+
           const orderId = await createSalesSession(
-            session.user.partner_id, // Use partner_id as customer_id for backend
+            customer.partnerId,
             DEFAULT_COMPANY_ID,
             initialSessionData
           );
-          
+
           if (orderId) {
             console.info('✅ [SalesFlow] Backend session created — sessionOrderId set to:', orderId);
           } else {
@@ -1342,18 +1393,17 @@ export default function SalesFlow({
           }
         } catch (err) {
           console.error('❌ [SalesFlow] Failed to create backend session (non-blocking):', err);
-          console.error('❌ [SalesFlow] sessionOrderId will be NULL — session updates will NOT work');
         }
-        
-        toast.success('Customer registered successfully!');
+
+        toast.success('Customer created successfully!');
         return true;
       } else {
         console.error('Unexpected response structure:', response);
-        throw new Error('Registration failed - no session returned');
+        throw new Error('Customer creation failed');
       }
     } catch (error: any) {
-      console.error('Failed to register customer:', error);
-      toast.error(error.message || 'Failed to register customer. Please try again.');
+      console.error('Failed to create customer:', error);
+      toast.error(error.message || 'Failed to create customer. Please try again.');
       return false;
     } finally {
       setIsCreatingCustomer(false);
@@ -1374,13 +1424,50 @@ export default function SalesFlow({
     // Get the selected package and subscription plan
     const currentSelectedPackage = availablePackages.find(p => p.id === selectedPackageId);
     const currentSelectedPlan = availablePlans.find(p => p.id === selectedPlanId);
-    
+
+    console.info('[SalesFlow] purchaseCustomerSubscription — resolving catalog selections', {
+      selectedPackageId,
+      selectedPlanId,
+      selectedPackageIdType: typeof selectedPackageId,
+      selectedPlanIdType: typeof selectedPlanId,
+      availablePackagesCount: availablePackages.length,
+      availablePlansCount: availablePlans.length,
+      availablePackageIds: availablePackages.map(p => p.id),
+      availablePlanIds: availablePlans.map(p => p.id),
+      packageMatched: !!currentSelectedPackage,
+      planMatched: !!currentSelectedPlan,
+    });
+
     if (!currentSelectedPackage) {
+      console.error('[SalesFlow] purchaseCustomerSubscription — package lookup failed', {
+        selectedPackageId,
+        selectedPackageIdEmpty: !selectedPackageId,
+        availablePackagesEmpty: availablePackages.length === 0,
+        availablePackageIds: availablePackages.map(p => p.id),
+        likelyCause: !selectedPackageId
+          ? 'selectedPackageId was never set (session restore did not populate it)'
+          : availablePackages.length === 0
+            ? 'catalog has not finished loading'
+            : 'selectedPackageId does not match any loaded package (type mismatch or stale id)',
+      });
       toast.error('No package selected');
       return null;
     }
-    
+
     if (!currentSelectedPlan) {
+      console.error('[SalesFlow] purchaseCustomerSubscription — plan lookup failed', {
+        selectedPlanId,
+        selectedPlanIdEmpty: !selectedPlanId,
+        availablePlansEmpty: availablePlans.length === 0,
+        availablePlanIds: availablePlans.map(p => p.id),
+        selectedPackageId,
+        selectedPackageName: currentSelectedPackage.name,
+        likelyCause: !selectedPlanId
+          ? 'selectedPlanId was never set (session restore did not populate it)'
+          : availablePlans.length === 0
+            ? 'catalog has not finished loading'
+            : 'selectedPlanId does not match any loaded plan (type mismatch or stale id)',
+      });
       toast.error('No subscription plan selected');
       return null;
     }
@@ -1602,7 +1689,7 @@ export default function SalesFlow({
   // - Products are added to the order via updateSessionWithProducts (PUT /api/sessions/by-order/{orderId})
   // - No STK push - salesperson collects payment receipt manually from customer
   // - Payment confirmation uses confirmPaymentManual with order_id
-  const initiateOdooPayment = useCallback(async (orderId?: number): Promise<boolean> => {
+  const initiateOdooPayment = useCallback((orderId?: number): boolean => {
     // Use passed orderId or fall back to state
     const orderIdToUse = orderId || paymentRequestOrderId;
     
@@ -1646,13 +1733,14 @@ export default function SalesFlow({
   }, [selectedPackageId, availablePackages, selectedPlanId, availablePlans, paymentRequestOrderId]);
 
   // Handle payment confirmation via QR scan
-  const handlePaymentQrScan = useCallback(async () => {
-    // First initiate payment if not already done
-    if (!paymentInitiated) {
-      await initiateOdooPayment();
-    }
-    
+  const handlePaymentQrScan = useCallback(() => {
     scanTypeRef.current = 'payment';
+    // Keep this synchronous through to startQrCodeScan: some Android WebViews only open
+    // the camera when callHandler runs in the same user-gesture turn (no await/microtask gap).
+    if (!paymentInitiated) {
+      const ok = initiateOdooPayment();
+      if (!ok) return;
+    }
     startQrCodeScan();
   }, [startQrCodeScan, paymentInitiated, initiateOdooPayment]);
 
@@ -1676,7 +1764,7 @@ export default function SalesFlow({
       // First initiate payment if not already done
       if (!paymentInitiated) {
         console.info('[SalesFlow] Payment not yet initiated, calling initiateOdooPayment...');
-        const initiated = await initiateOdooPayment();
+        const initiated = initiateOdooPayment();
         if (!initiated) {
           console.info('[SalesFlow] initiateOdooPayment failed, aborting');
           setIsProcessing(false);
@@ -1719,7 +1807,15 @@ export default function SalesFlow({
         // Handle both wrapped (response.data.X) and unwrapped (response.X) response formats
         // (Odoo API sometimes returns fields at root level, sometimes wrapped in data)
         const paymentData = response.data || (response as any);
-        
+
+        // Detect already-used receipt before proceeding
+        if (paymentData.is_duplicate || paymentData.receipt_used || paymentData.receipt_status === 'used') {
+          const errorMsg = paymentData.message || paymentData.note || 'Payment reference already used. Please use a different transaction ID.';
+          toast.error(errorMsg);
+          setIsProcessing(false);
+          return;
+        }
+
         // Store subscription code for battery allocation (from response or from subscriptionData state)
         setConfirmedSubscriptionCode(paymentData.subscription_code || subscriptionData?.subscriptionCode || '');
         setPaymentReference(paymentData.receipt || receipt);
@@ -1822,11 +1918,34 @@ export default function SalesFlow({
     identifyCustomer,
   ]);
 
+  // Handle successful WeChat (Z-Pay) payment
+  const handleWechatPaid = useCallback((tradeNo: string, totalPaid: number) => {
+    console.info('[SalesFlow] WeChat payment received', { tradeNo, totalPaid, paymentRequestOrderId });
+    setPaymentAmountPaid(totalPaid);
+    setPaymentAmountRemaining(0);
+    setPaymentReference(tradeNo);
+    setConfirmedSubscriptionCode(subscriptionData?.subscriptionCode || '');
+    setPaymentConfirmed(true);
+    setPaymentIncomplete(false);
+    toast.success('WeChat payment confirmed! Proceed to battery assignment.');
+
+    const subCode = subscriptionData?.subscriptionCode;
+    if (subCode && !customerIdentified) {
+      identifyCustomer({ subscriptionCode: subCode, source: 'manual' });
+    }
+    advanceToStep(6);
+  }, [subscriptionData, advanceToStep, customerIdentified, identifyCustomer, paymentRequestOrderId]);
+
+  const handleWechatError = useCallback((message: string) => {
+    console.error('[SalesFlow] WeChat payment error:', message);
+    toast.error(message);
+  }, []);
+
   // Update payment QR ref when handler changes
   useEffect(() => {
     processPaymentQRDataRef.current = handleManualPayment;
   }, [handleManualPayment]);
-  
+
   // Keep vehicle assignment refs in sync
   useEffect(() => {
     assignVehicleRef.current = assignVehicle;
@@ -1875,7 +1994,9 @@ export default function SalesFlow({
 
   // Handle vehicle scan (QR mode)
   const handleScanVehicle = useCallback(() => {
+    qrScannerBusyRef.current = false;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
     clearScannerTimeout();
     scanTypeRef.current = 'vehicle';
     startQrCodeScan();
@@ -1905,6 +2026,8 @@ export default function SalesFlow({
     
     // Clear scanner state
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     scanTypeRef.current = null;
     
     // Restart BLE scanning for device detection
@@ -1920,6 +2043,8 @@ export default function SalesFlow({
     resetVehicleAssignment();
     autoAdvancedVehicleIdRef.current = null;
     setIsScannerOpening(false);
+    qrScanInitiatedRef.current = false;
+    qrScannerBusyRef.current = false;
     scanTypeRef.current = null;
     toast('Ready to scan a new vehicle');
   }, [resetVehicleAssignment]);
@@ -1965,7 +2090,11 @@ export default function SalesFlow({
   const handleCompleteService = useCallback(async () => {
     // Guard: Check MQTT connection before proceeding
     if (!isMqttConnected) {
-      toast.error(t('MQTT not connected. Please wait a moment and try again.'));
+      toast.error(
+        !navigator.onLine
+          ? (t('mqtt.offlineError') || 'Unable to connect. Please check your network connection.')
+          : t('MQTT not connected. Please wait a moment and try again.')
+      );
       console.error('[SALES SERVICE] Cannot complete service - MQTT not connected');
       return;
     }
@@ -2237,7 +2366,7 @@ export default function SalesFlow({
           if (purchaseResult && purchaseResult.orderId) {
             // Initialize local payment state
             // Products were already added to order via updateSessionWithProducts
-            const paymentInitiatedSuccess = await initiateOdooPayment(purchaseResult.orderId);
+            const paymentInitiatedSuccess = initiateOdooPayment(purchaseResult.orderId);
             
             // Only advance to payment step if payment initiation was successful
             if (paymentInitiatedSuccess) {
@@ -2267,11 +2396,16 @@ export default function SalesFlow({
           paymentInitiated,
           paymentRequestOrderId,
         });
-        if (manualPaymentId.trim()) {
+        if (paymentInputMode === 'wechat') {
+          // WeChat mode — the WeChatPayment component handles its own flow
+          break;
+        } else if (paymentInputMode === 'scan') {
+          handlePaymentQrScan();
+        } else if (manualPaymentId.trim()) {
           console.info('[SalesFlow] Confirming payment with transaction ID:', manualPaymentId.trim());
           handleManualPayment(manualPaymentId.trim());
         } else {
-          console.info('[SalesFlow] No transaction ID entered');
+          toast.error(t('sales.enterTransactionId'));
         }
         break;
       case 6:
@@ -2537,7 +2671,7 @@ export default function SalesFlow({
       case 5:
         // Payment collection
         return (
-          <Step5Payment 
+          <Step5Payment
             formData={formData}
             selectedPlanId={selectedPlanId}
             plans={availablePlans}
@@ -2553,6 +2687,11 @@ export default function SalesFlow({
             setInputMode={setPaymentInputMode}
             paymentId={manualPaymentId}
             setPaymentId={setManualPaymentId}
+            wechatOrderId={paymentRequestOrderId}
+            wechatAuthToken={getSalesRoleToken() || undefined}
+            wechatProductName={selectedPackage?.name}
+            onWechatPaid={handleWechatPaid}
+            onWechatError={handleWechatError}
           />
         );
       case 6:

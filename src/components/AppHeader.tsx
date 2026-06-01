@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn, ArrowLeft } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -32,7 +32,7 @@ interface AppHeaderProps {
    */
   showBack?: boolean;
   /**
-   * Custom back handler. Defaults to router.back().
+   * Custom back handler. Defaults to navigating to '/' (roles page).
    */
   onBack?: () => void;
   /**
@@ -49,8 +49,11 @@ interface AppHeaderProps {
 
 export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack, title, actions }: AppHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const navResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const avatarBtnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number }>({ top: 0, right: 16 });
@@ -60,18 +63,23 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     return getOdooEmployee();
   }, []);
 
+  /** Re-read when routes change so the chip updates after SA selection / switch. */
   const selectedSA = useMemo(() => {
     if (typeof window === 'undefined') return null;
     return getSelectedSA();
-  }, []);
+  }, [pathname]);
 
   const handleBack = useCallback(() => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+    if (navResetRef.current) clearTimeout(navResetRef.current);
+    navResetRef.current = setTimeout(() => setIsNavigating(false), 600);
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      router.push('/');
     }
-  }, [onBack, router]);
+  }, [onBack, router, isNavigating]);
 
   // When opening, compute the fixed position from the avatar button's viewport rect.
   // This escapes any overflow:hidden ancestor (e.g. select-role-container).
@@ -135,6 +143,7 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
               <button
                 className="flow-header-back"
                 onClick={handleBack}
+                disabled={isNavigating}
                 aria-label={t('common.back') || 'Back'}
               >
                 <ArrowLeft size={18} />
@@ -171,8 +180,19 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
             <span className="flow-header-title">{title}</span>
           )}
 
-          {/* Right: theme toggle + contextual actions or avatar */}
+          {/* Right: active SA (when signed in), theme toggle, contextual actions or avatar */}
           <div className="flow-header-right">
+            {selectedSA && !onSignIn && (
+              <button
+                type="button"
+                className="app-header-sa-chip"
+                onClick={handleSwitchSA}
+                aria-label={`${t('sa.switchAccount') || 'Switch Service Account'}: ${selectedSA.name}`}
+              >
+                <Layers size={11} aria-hidden />
+                <span className="app-header-sa-chip-name">{selectedSA.name}</span>
+              </button>
+            )}
             <ThemeToggle />
             {actions != null ? actions : onSignIn ? (
               <button
@@ -246,14 +266,16 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
             </button>
           )}
 
-          {/* Sign out */}
-          <button
-            className="app-header-dropdown-item app-header-dropdown-item--danger"
-            onClick={handleSignOut}
-          >
-            <LogOut size={14} />
-            <span>{t('sa.signOut') || 'Sign Out'}</span>
-          </button>
+          {/* Sign out — hidden on the signin page itself */}
+          {pathname !== '/signin' && (
+            <button
+              className="app-header-dropdown-item app-header-dropdown-item--danger"
+              onClick={handleSignOut}
+            >
+              <LogOut size={14} />
+              <span>{t('sa.signOut') || 'Sign Out'}</span>
+            </button>
+          )}
         </div>
       )}
     </>

@@ -9,7 +9,19 @@ import { Fingerprint } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
-import { IDENTIFY_CUSTOMER, parseIdentifyCustomerMetadata, type IdentifyCustomerInput } from '@/lib/graphql/mutations';
+import {
+  IDENTIFY_CUSTOMER,
+  parseIdentifyCustomerMetadata,
+  SERVICE_TOPUP,
+  GET_REQUIRED_ASSET_IDS,
+  parseGetRequiredAssetIdsFleetIds,
+  type IdentifyCustomerInput,
+  type ServiceTopupInput,
+  type ServiceTopupResponse,
+  type GetRequiredAssetIdsInput,
+  type GetRequiredAssetIdsResponse,
+} from '@/lib/graphql/mutations';
+import { round } from '@/lib/utils';
 import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
 import {
   RiderNav,
@@ -21,12 +33,14 @@ import {
   RiderTransactions,
   RiderTickets,
   QRCodeModal,
-  TopUpModal,
+  EnergyTopUpModal,
 } from './components';
+import type { EnergyTopUpSubmitArgs, EnergyTopUpResult } from './components';
 import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 import { googleMapsUrl, openExternalMap } from './map/deepLinks';
+import { groupServiceActions } from './hooks/useRiderActivity';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
 
@@ -42,7 +56,14 @@ import AppHeader from '@/components/AppHeader';
  */
 const RiderMapProvider = dynamic(
   () => import('./map/RiderMap').then((m) => m.RiderMapProvider),
-  { ssr: false },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)' }} />
+      </div>
+    ),
+  },
 );
 
 const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
@@ -51,6 +72,13 @@ const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
 const API_KEY = "abs_connector_secret_key_2024";
 const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV1';
 const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+// Stations + activity caches: short TTL so a stale list never lingers more
+// than a couple of minutes, but long enough that re-entering the home screen
+// after a quick detour paints instantly.
+const RIDER_STATIONS_CACHE_KEY = 'riderStationsCacheV1';
+const RIDER_ACTIVITY_CACHE_KEY = 'riderActivityCacheV1';
+const STATIONS_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+const ACTIVITY_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const LOAD_FAILSAFE_TIMEOUT_MS = 15000;
 
 interface ServiceAccount {
@@ -85,6 +113,13 @@ interface Subscription {
   status: string;
   product_id: number;
   product_name: string;
+  plan_product_id?: number;
+  plan_product_name?: string;
+  package_product_id?: number;
+  // The physical product name (e.g. "Test Bike", "E-Trike 3X"). Prefer this
+  // over `product_name` (which is the energy plan) when displaying what the
+  // rider physically owns.
+  package_product_name?: string;
   start_date: string;
   next_cycle_date: string;
   price_at_signup: number;
@@ -99,6 +134,7 @@ interface IdentificationCache {
   totalSwaps: number;
   paymentState?: string;
   balance: number;
+  energyKwh: number;
   currency: string;
   cachedAt: number;
 }
@@ -128,7 +164,6 @@ const RiderApp: React.FC = () => {
   const router = useRouter();
   const { t } = useI18n();
   const { bridge } = useBridge();
-  const stationsSubscriptionRef = useRef<(() => void) | null>(null);
   const lastStationsFleetKeyRef = useRef<string | null>(null);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
   // Monotonically-incrementing nonce that user-driven retries bump to force
@@ -162,6 +197,7 @@ const RiderApp: React.FC = () => {
   
   // Data state
   const [balance, setBalance] = useState(0);
+  const [energyKwh, setEnergyKwh] = useState(0);
   const [currency, setCurrency] = useState('');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
@@ -173,7 +209,10 @@ const RiderApp: React.FC = () => {
   const [isLoadingBike, setIsLoadingBike] = useState(false);
   const [isBikeDataResolved, setIsBikeDataResolved] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
-    model: 'E-Trike 3X',
+    // Empty until the subscription resolves; we then fill from
+    // `package_product_name`. Never hardcode a real product name here —
+    // it leaks into the UI before data arrives.
+    model: '',
     vehicleId: null,
     totalSwaps: 0,
     lastSwap: null,
@@ -313,7 +352,6 @@ const RiderApp: React.FC = () => {
             dataLoadStartRef.current = performance.now();
             console.warn('[PERF] 🚀 AUTO-LOGIN (unified) - Starting data load');
 
-            fetchDashboardData(unifiedToken);
             fetchSubscriptionData(customerData.partner_id, unifiedToken);
           }
           setIsCheckingAuth(false);
@@ -348,7 +386,6 @@ const RiderApp: React.FC = () => {
             dataLoadStartRef.current = performance.now();
             console.warn('[PERF] 🚀 AUTO-LOGIN (legacy) - Starting data load');
 
-            fetchDashboardData(token);
             fetchSubscriptionData(customerData.partner_id, token);
           }
         } catch (e) {
@@ -416,41 +453,6 @@ const RiderApp: React.FC = () => {
     }
   }, [isLoggedIn]);
 
-  // Fetch dashboard data from API
-  const fetchDashboardData = async (token: string) => {
-    const startTime = performance.now();
-    console.info('[PERF] ðŸ“Š Dashboard API - Starting...');
-    try {
-      const response = await fetch(`${API_BASE}/customer/dashboard`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': API_KEY,
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const elapsed = Math.round(performance.now() - startTime);
-      console.info(`[PERF] ðŸ“Š Dashboard API - Response received in ${elapsed}ms (Status: ${response.status})`);
-
-      if (response.ok) {
-        const data = await response.json();
-        const totalElapsed = Math.round(performance.now() - startTime);
-        console.info(`[PERF] ðŸ“Š Dashboard API - Parsed in ${totalElapsed}ms`);
-        
-        if (data.summary) {
-          setBalance(data.summary.total_paid || 0);
-        }
-        
-        // Don't use activity_history from dashboard - use GraphQL instead
-        // Activity data will be fetched from GraphQL when subscription is loaded
-      }
-    } catch (error) {
-      const elapsed = Math.round(performance.now() - startTime);
-      console.error(`[PERF] ðŸ“Š Dashboard API - Error after ${elapsed}ms:`, error);
-    }
-  };
-
   // Fetch customer identification data to get vehicle ID and total swaps
   const getIdentificationCache = (subscriptionCode: string): IdentificationCache | null => {
     try {
@@ -476,11 +478,91 @@ const RiderApp: React.FC = () => {
     }
   };
 
+  // Stations + activity caches mirror the identification pattern above. They
+  // let the home screen paint stations & activity instantly on re-entry, with
+  // a silent background refresh once the network resolves. Keys are scoped by
+  // subscription_code so switching plans never serves stale data from the
+  // previous plan.
+  const getStationsCache = (subscriptionCode: string): { stations: Station[] } | null => {
+    try {
+      const raw = localStorage.getItem(RIDER_STATIONS_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        subscriptionCode: string;
+        stations: Station[];
+        cachedAt: number;
+      };
+      const isStale = Date.now() - parsed.cachedAt > STATIONS_CACHE_MAX_AGE_MS;
+      if (isStale || parsed.subscriptionCode !== subscriptionCode) return null;
+      return { stations: parsed.stations };
+    } catch {
+      return null;
+    }
+  };
+
+  const setStationsCache = (subscriptionCode: string, stationsToCache: Station[]) => {
+    try {
+      localStorage.setItem(
+        RIDER_STATIONS_CACHE_KEY,
+        JSON.stringify({ subscriptionCode, stations: stationsToCache, cachedAt: Date.now() }),
+      );
+    } catch (error) {
+      console.warn('[RIDER] Failed to persist stations cache:', error);
+    }
+  };
+
+  const hydrateStationsCache = (subscriptionCode: string): boolean => {
+    const cached = getStationsCache(subscriptionCode);
+    if (!cached || cached.stations.length === 0) return false;
+    setStations(cached.stations);
+    setIsLoadingStations(false);
+    setStationsError(null);
+    console.info('[PERF] âš¡ Hydrated rider stations from local cache');
+    return true;
+  };
+
+  const getActivityCache = (subscriptionCode: string): { activities: ActivityItem[] } | null => {
+    try {
+      const raw = localStorage.getItem(RIDER_ACTIVITY_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        subscriptionCode: string;
+        activities: ActivityItem[];
+        cachedAt: number;
+      };
+      const isStale = Date.now() - parsed.cachedAt > ACTIVITY_CACHE_MAX_AGE_MS;
+      if (isStale || parsed.subscriptionCode !== subscriptionCode) return null;
+      return { activities: parsed.activities };
+    } catch {
+      return null;
+    }
+  };
+
+  const setActivityCache = (subscriptionCode: string, activityToCache: ActivityItem[]) => {
+    try {
+      localStorage.setItem(
+        RIDER_ACTIVITY_CACHE_KEY,
+        JSON.stringify({ subscriptionCode, activities: activityToCache, cachedAt: Date.now() }),
+      );
+    } catch (error) {
+      console.warn('[RIDER] Failed to persist activity cache:', error);
+    }
+  };
+
+  const hydrateActivityCache = (subscriptionCode: string): boolean => {
+    const cached = getActivityCache(subscriptionCode);
+    if (!cached || cached.activities.length === 0) return false;
+    setActivities(cached.activities);
+    console.info('[PERF] âš¡ Hydrated rider activity from local cache');
+    return true;
+  };
+
   const hydrateIdentificationCache = (subscriptionCode: string): boolean => {
     const cached = getIdentificationCache(subscriptionCode);
     if (!cached) return false;
 
     setBalance(cached.balance);
+    setEnergyKwh(cached.energyKwh || 0);
     setCurrency(cached.currency);
     setBike((prev) => ({
       ...prev,
@@ -633,6 +715,7 @@ const RiderApp: React.FC = () => {
 
       // Update balance with real energy value data
       setBalance(energyValue);
+      setEnergyKwh(energyRemaining);
       setCurrency(billingCurrency);
 
       // Update bike state with real data
@@ -654,6 +737,7 @@ const RiderApp: React.FC = () => {
         totalSwaps: Math.floor(totalSwaps || 0),
         paymentState: paymentState || undefined,
         balance: energyValue,
+        energyKwh: energyRemaining,
         currency: billingCurrency,
         cachedAt: Date.now(),
       });
@@ -764,46 +848,67 @@ const RiderApp: React.FC = () => {
           if (serviceActions && Array.isArray(serviceActions)) {
             // Find the most recent service action for last swap
             let latestServiceAction: any = null;
-            
-            serviceActions.forEach((action: any) => {
-              const date = new Date(action.createdAt);
-              const formattedDate = date.toISOString().split('T')[0];
-              const timeStr = date.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                hour12: false 
-              });
 
-              // Track the latest service action
+            serviceActions.forEach((action: any) => {
               if (!latestServiceAction || new Date(action.createdAt) > new Date(latestServiceAction.createdAt)) {
                 latestServiceAction = action;
               }
+            });
 
-              let title = '';
-              let subtitle = '';
-              
-              if (action.serviceType?.includes('swap')) {
-                title = t('rider.batterySwap') || 'Battery Swap';
-                subtitle = t('rider.batterySwapTransaction') || 'Battery swap transaction';
-              } else if (action.serviceType?.includes('electricity')) {
-                title = t('rider.electricityUsage') || 'Electricity Usage';
-                subtitle = `${action.serviceAmount || 0} kWh`;
-              } else {
-                title = t('rider.batterySwap') || 'Battery Swap';
-                subtitle = action.serviceType || '';
-              }
+            // Group electricity + swap actions that occur within 2 min of each other
+            // so a single battery swap renders as one unified row.
+            const serviceGroups = groupServiceActions(serviceActions);
 
-              mappedActivities.push({
-                id: action.serviceActionId || `service-${Date.now()}`,
-                type: 'swap', // All serviceActions are swaps
-                title: title,
-                subtitle: subtitle,
-                amount: Math.abs(action.serviceAmount || 0),
-                currency: currency,
-                isPositive: false,
-                time: timeStr,
-                date: formattedDate,
+            serviceGroups.forEach((group) => {
+              const hasElec = group.some((g: any) =>
+                String(g.serviceType || '').includes('electricity')
+              );
+              const hasSwap = group.some(
+                (g: any) => !String(g.serviceType || '').includes('electricity')
+              );
+
+              const date = new Date(group[0].createdAt);
+              const formattedDate = date.toISOString().split('T')[0];
+              const timeStr = date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
               });
+
+              if (hasElec && hasSwap && group.length === 2) {
+                // Unified battery swap row — show energy, no price.
+                const elecAction = group.find((g: any) =>
+                  String(g.serviceType || '').includes('electricity')
+                )!;
+                mappedActivities.push({
+                  id: elecAction.serviceActionId || `swap-${Date.now()}`,
+                  type: 'swap',
+                  title: t('rider.batterySwap') || 'Battery Swap',
+                  subtitle: t('rider.batterySwapTransaction') || 'Battery swap transaction',
+                  energy: `${elecAction.serviceAmount || 0} kWh`,
+                  isPositive: false,
+                  time: timeStr,
+                  date: formattedDate,
+                });
+              } else {
+                // Fallback: render each action individually.
+                group.forEach((action: any) => {
+                  const isElec = String(action.serviceType || '').includes('electricity');
+                  mappedActivities.push({
+                    id: action.serviceActionId || `service-${Date.now()}`,
+                    type: 'swap',
+                    title: isElec
+                      ? t('rider.electricityUsage') || 'Electricity Usage'
+                      : t('rider.batterySwap') || 'Battery Swap',
+                    subtitle: isElec
+                      ? `${action.serviceAmount || 0} kWh`
+                      : t('rider.batterySwapTransaction') || 'Battery swap transaction',
+                    isPositive: false,
+                    time: timeStr,
+                    date: formattedDate,
+                  });
+                });
+              }
             });
 
             // Update last swap in bike state if we found any service actions
@@ -813,7 +918,7 @@ const RiderApp: React.FC = () => {
               const diffMs = now.getTime() - lastSwapDate.getTime();
               const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
               const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              
+
               let lastSwapText: string;
               if (diffHours < 1) {
                 lastSwapText = t('rider.justNow') || 'Just now';
@@ -826,7 +931,7 @@ const RiderApp: React.FC = () => {
               } else {
                 lastSwapText = lastSwapDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               }
-              
+
               setBike((prev) => ({
                 ...prev,
                 lastSwap: lastSwapText,
@@ -842,6 +947,7 @@ const RiderApp: React.FC = () => {
           });
 
           setActivities(mappedActivities);
+          setActivityCache(subscriptionCode, mappedActivities);
           console.log('Activity data fetched from GraphQL:', mappedActivities.length, 'activities');
         } else {
           console.log('No activity data in GraphQL response');
@@ -943,9 +1049,13 @@ const RiderApp: React.FC = () => {
           });
           setSubscription(active);
 
-          // Update bike payment state with subscription status
+          // Update bike payment state and physical product name from the
+          // subscription. `package_product_name` is the physical bike the
+          // rider owns; `product_name` is the energy plan, so we only fall
+          // back to it (or the initial value) if the package name is absent.
           setBike(prev => ({
             ...prev,
+            model: active.package_product_name || prev.model,
             paymentState: active.status === 'active' ? 'active' : active.status,
           }));
 
@@ -954,6 +1064,12 @@ const RiderApp: React.FC = () => {
             const subscriptionCode = active.subscription_code;
             console.log('[PERF] ðŸš€ Starting PARALLEL fetch: Activity + IdentifyCustomer');
             const usedCache = hydrateIdentificationCache(subscriptionCode);
+            // Hydrate stations + activity from local caches so the home screen
+            // paints synchronously on re-entry. Background fetches below still
+            // run and overwrite with fresh data; cached-but-empty results are
+            // ignored so we never trap the user in a stale empty state.
+            hydrateStationsCache(subscriptionCode);
+            hydrateActivityCache(subscriptionCode);
             if (!usedCache) {
               setIsBikeDataResolved(false);
               setIsLoadingBike(true);
@@ -1006,16 +1122,23 @@ const RiderApp: React.FC = () => {
     }
   };
 
-  // Fetch stations via MQTT - using direct bridge calls like serviceplan1
-  // Now also supports prefetching: triggers when prefetch started OR when logged in
+  // Fetch fleet IDs for this subscription via the ABS `getRequiredAssetIds`
+  // GraphQL query. This replaces the previous MQTT round-trip (which used
+  // `call/uxi/service/plan/{planId}/get_assets`), eliminating an entire class
+  // of intermittency: bridge-not-ready races, MQTT-connection drops,
+  // subscribe-then-publish ordering, single-global-handler collisions, and
+  // silent "publish-into-the-void" failures. The handler on the backend is
+  // identical to the one the MQTT call routed to, so the response shape is
+  // guaranteed to match.
   useEffect(() => {
-    // Allow MQTT to start if either: logged in, OR prefetch has started (welcome screen visible)
+    // Allow fetch to start if either: logged in, OR prefetch has started
+    // (welcome screen visible).
     const canFetch = isLoggedIn || prefetchStartedRef.current;
     const hasFleetIds = fleetIds.length > 0;
 
     if (!canFetch || !subscription?.subscription_code || !customer) {
       if (canFetch) {
-        console.warn('[PERF] ðŸ“¡ MQTT - Waiting for dependencies:', {
+        console.warn('[PERF] Stations - Waiting for dependencies:', {
           hasSubscription: !!subscription?.subscription_code,
           hasCustomer: !!customer,
           isPrefetch: prefetchStartedRef.current && !isLoggedIn,
@@ -1023,218 +1146,91 @@ const RiderApp: React.FC = () => {
       }
       return;
     }
-    // Fleet IDs already resolved, avoid re-subscribing and re-entering loading state.
+    // Fleet IDs already resolved, avoid re-fetching and re-entering loading state.
     if (hasFleetIds) {
       if (isLoggedIn) {
         setIsLoadingStations(false);
       }
       return;
     }
-    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) {
-      console.warn('[PERF] ðŸ“¡ MQTT - Bridge NOT ready:', {
-        bridge: !!bridge,
-        webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
-      });
-      if (isLoggedIn) {
-        setIsLoadingStations(false);
-      }
-      return;
-    }
 
-    // Only set loading state if user is logged in (not during prefetch - don't show loading on welcome screen)
     if (isLoggedIn) {
       setIsLoadingStations(true);
     }
 
     const planId = subscription.subscription_code;
-    const requestTopic = `call/uxi/service/plan/${planId}/get_assets`;
-    const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
-
-    const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 0;
-    console.warn(`[PERF] ðŸ“¡ MQTT - Starting at ${totalElapsed}ms from data load start`);
-    console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
-    const mqttStartTime = performance.now();
-    console.info('[PERF] ðŸ“¡ MQTT Fleet IDs Request - Starting...');
-
-    // Failsafe timeout: if MQTT never responds with fleet IDs, stop the loader
-    // so the user isn't stuck watching a spinner forever.
-    let fleetIdsReceived = false;
-    const mqttFailsafeTimer = window.setTimeout(() => {
-      if (fleetIdsReceived) return;
-      const waited = Math.round(performance.now() - mqttStartTime);
-      console.warn(`[PERF] â±ï¸ MQTT Fleet IDs - timeout after ${waited}ms, no response received. Stopping stations loader.`);
-      setIsLoadingStations(false);
-      setStations([]);
-      setStationsError('mqtt-timeout');
-    }, LOAD_FAILSAFE_TIMEOUT_MS);
-
-    // Generate unique correlation ID
     const correlationId = `asset-discovery-${Date.now()}`;
-    
-    // Format timestamp without milliseconds
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
-    
-    const content = {
-      timestamp: timestamp,
+    const startedAt = performance.now();
+    const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 0;
+    console.warn(`[PERF] Stations - Fetching fleet IDs at ${totalElapsed}ms from data load start`);
+    console.info('[STATIONS] getRequiredAssetIds query - plan:', planId);
+
+    let cancelled = false;
+    const input: GetRequiredAssetIdsInput = {
       plan_id: planId,
       correlation_id: correlationId,
-      actor: {
-        type: "customer",
-        id: "CUST-RIDER-001"
-      },
-      data: {
-        action: "GET_REQUIRED_ASSET_IDS",
-        search_radius: 10
-      }
+      search_radius: 10,
     };
 
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content,
-    };
+    absApolloClient
+      .query<{ getRequiredAssetIds: GetRequiredAssetIdsResponse }>({
+        query: GET_REQUIRED_ASSET_IDS,
+        variables: { input },
+        // Always go to network. A stale Apollo cache can't be allowed to
+        // serve old fleet IDs after a plan switch or re-login.
+        fetchPolicy: 'network-only',
+      })
+      .then((result) => {
+        if (cancelled) return;
 
-    // Helper function to register handlers (same pattern as serviceplan1)
-    const reg = (name: string, handler: any) => {
-      bridge.registerHandler(name, handler);
-      return () => bridge.registerHandler(name, () => {});
-    };
-
-    // Register MQTT response handler FIRST (before subscribing/publishing)
-    console.info('[STATIONS MQTT] Registering mqttMsgArrivedCallBack handler');
-    const offResponseHandler = reg(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedData = JSON.parse(data);
-          console.info('========================================');
-          console.info('[STATIONS MQTT] Received MQTT arrived callback data:', parsedData);
-
-          const message = parsedData;
-          const topic = message.topic;
-          const rawMessageContent = message.message;
-
-          console.info('[STATIONS MQTT] Topic:', topic);
-          console.info('[STATIONS MQTT] Expected topic:', responseTopic);
-          console.info('[STATIONS MQTT] Topic match:', topic === responseTopic);
-
-          if (topic === responseTopic) {
-            console.info('[STATIONS MQTT] âœ… Response received from rtrn topic!');
-            console.info('[STATIONS MQTT] Full message:', JSON.stringify(message, null, 2));
-            
-            let responseData;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch (parseErr) {
-              console.error('[STATIONS MQTT] Error parsing message content:', parseErr);
-              responseData = rawMessageContent;
-            }
-
-            console.info('[STATIONS MQTT] Parsed response data:', JSON.stringify(responseData, null, 2));
-
-            // Extract fleet IDs from response
-            const fleetIdsData = responseData?.data?.metadata?.fleet_ids;
-            const swapStationFleetIds = fleetIdsData?.swap_station_fleet;
-
-            if (swapStationFleetIds && Array.isArray(swapStationFleetIds) && swapStationFleetIds.length > 0) {
-              const mqttElapsed = Math.round(performance.now() - mqttStartTime);
-              console.info(`[PERF] ðŸ“¡ MQTT Fleet IDs - Response received in ${mqttElapsed}ms`);
-              console.info('[STATIONS MQTT] âœ… Found swap station fleet IDs:', swapStationFleetIds);
-              fleetIdsReceived = true;
-              window.clearTimeout(mqttFailsafeTimer);
-              setStationsError(null);
-              setFleetIds(swapStationFleetIds);
-            } else {
-              console.warn('[STATIONS MQTT] No swap_station_fleet IDs found in response');
-              console.warn('[STATIONS MQTT] Response structure:', {
-                hasData: !!responseData?.data,
-                hasMetadata: !!responseData?.data?.metadata,
-                hasFleetIds: !!responseData?.data?.metadata?.fleet_ids,
-                fleetIds: responseData?.data?.metadata?.fleet_ids,
-                fullResponse: responseData,
-              });
-              fleetIdsReceived = true;
-              window.clearTimeout(mqttFailsafeTimer);
-              setIsLoadingStations(false);
-              setStations([]);
-              // Empty fleet list is a legitimate "no stations assigned" state,
-              // not a failure — clear any stale error so the user isn't shown
-              // a Retry card for an API response that came back correctly.
-              setStationsError(null);
-            }
-            responseCallback({ success: true });
-          } else {
-            console.info('[STATIONS MQTT] Topic mismatch, ignoring. Expected:', responseTopic, 'Got:', topic);
-            responseCallback({ success: true });
-          }
-        } catch (err) {
-          console.error('[STATIONS MQTT] Error parsing MQTT arrived callback:', err);
-          responseCallback({ success: false, error: err });
+        if (result.errors && result.errors.length > 0) {
+          console.error('[STATIONS] getRequiredAssetIds GraphQL errors:', result.errors);
+          setIsLoadingStations(false);
+          setStations([]);
+          setStationsError('graphql-errors');
+          return;
         }
-        console.info('========================================');
-      }
-    );
 
-    // Subscribe to response topic using mqttSubTopic (same as serviceplan1)
-    console.info('[STATIONS MQTT] Subscribing to response topic:', responseTopic);
-    if (!window.WebViewJavascriptBridge) {
-      console.error('[STATIONS MQTT] WebViewJavascriptBridge not available');
-      return;
-    }
-    
-    window.WebViewJavascriptBridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse) => {
-        console.info('[STATIONS MQTT] Subscribe response:', subscribeResponse);
-        try {
-          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
-          if (subResp.respCode === "200") {
-            console.info('[STATIONS MQTT] âœ… Subscribed to response topic successfully');
-            
-            // Publish request AFTER subscription is confirmed
-            console.info('[STATIONS MQTT] Publishing request:', JSON.stringify(dataToPublish, null, 2));
-            if (window.WebViewJavascriptBridge) {
-              window.WebViewJavascriptBridge.callHandler(
-                "mqttPublishMsg",
-                JSON.stringify(dataToPublish),
-                (publishResponse) => {
-                  console.info('[STATIONS MQTT] Publish response:', publishResponse);
-                  try {
-                    const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                    if (pubResp.respCode === "200") {
-                      console.info('[STATIONS MQTT] âœ… Successfully published request');
-                    } else {
-                      console.error('[STATIONS MQTT] Publish failed:', pubResp.respDesc || pubResp.error);
-                    }
-                  } catch (err) {
-                    console.error('[STATIONS MQTT] Error parsing publish response:', err);
-                  }
-                }
-              );
-            }
-          } else {
-            console.error('[STATIONS MQTT] Subscribe failed:', subResp.respDesc || subResp.error);
-          }
-        } catch (err) {
-          console.error('[STATIONS MQTT] Error parsing subscribe response:', err);
+        const payload = result.data?.getRequiredAssetIds;
+        if (!payload) {
+          console.warn('[STATIONS] getRequiredAssetIds returned no data');
+          setIsLoadingStations(false);
+          setStations([]);
+          setStationsError('graphql-empty');
+          return;
         }
-      }
-    );
 
-    // Store cleanup function
-    stationsSubscriptionRef.current = offResponseHandler;
+        const elapsed = Math.round(performance.now() - startedAt);
+        console.info(`[PERF] Stations - Fleet IDs resolved in ${elapsed}ms`);
 
-    // Cleanup on unmount or when dependencies change
+        const { swap_station_fleet } = parseGetRequiredAssetIdsFleetIds(payload.fleet_ids);
+
+        if (swap_station_fleet.length > 0) {
+          console.info('[STATIONS] swap_station_fleet ids:', swap_station_fleet);
+          setStationsError(null);
+          setFleetIds(swap_station_fleet);
+        } else {
+          // Empty fleet list is a legitimate "no stations assigned to this
+          // plan" state, not a failure — show the no-stations badge, don't
+          // surface a retry card.
+          console.warn('[STATIONS] No swap_station_fleet ids returned for plan', planId, 'signals:', payload.signals);
+          setIsLoadingStations(false);
+          setStations([]);
+          setStationsError(null);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[STATIONS] getRequiredAssetIds request failed:', err);
+        setIsLoadingStations(false);
+        setStations([]);
+        setStationsError('graphql-network');
+      });
+
     return () => {
-      window.clearTimeout(mqttFailsafeTimer);
-      if (stationsSubscriptionRef.current) {
-        stationsSubscriptionRef.current();
-        stationsSubscriptionRef.current = null;
-      }
+      cancelled = true;
     };
-  }, [isLoggedIn, subscription?.subscription_code, customer, bridge, fleetIds.length, stationsRetryNonce]);
+  }, [isLoggedIn, subscription?.subscription_code, customer, fleetIds.length, stationsRetryNonce]);
 
   // Fetch stations from GraphQL when fleet IDs are available from MQTT response
   useEffect(() => {
@@ -1398,6 +1394,9 @@ const RiderApp: React.FC = () => {
           const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 'N/A';
           console.warn(`[PERF] ðŸ“ STATIONS READY - ${allStations.length} stations loaded in ${totalElapsed}ms from data load start`);
           setStations(allStations);
+          if (subscription?.subscription_code) {
+            setStationsCache(subscription.subscription_code, allStations);
+          }
           lastStationsFleetKeyRef.current = fleetKey;
           setStationsError(null);
         } else {
@@ -1542,15 +1541,13 @@ const RiderApp: React.FC = () => {
             setIsLoadingBike(true);
             setIsLoadingStations(true);
             setIsLoggedIn(true);
-            fetchDashboardData(token).then(() => {
-              if (customer.partner_id) {
-                fetchSubscriptionData(customer.partner_id, token);
-              }
-            }).catch((err) => {
-              console.error('[FINGERPRINT] Error during login:', err);
-              toast.error(t("auth.loginFailed") || "Login failed. Please try again.");
-              setIsLoggedIn(false);
-            });
+            if (customer.partner_id) {
+              fetchSubscriptionData(customer.partner_id, token).catch((err) => {
+                console.error('[FINGERPRINT] Error during login:', err);
+                toast.error(t("auth.loginFailed") || "Login failed. Please try again.");
+                setIsLoggedIn(false);
+              });
+            }
           } else {
             toast.error(t("auth.noCredentials") || "No saved credentials found.");
           }
@@ -1605,16 +1602,16 @@ const RiderApp: React.FC = () => {
     setIsLoggedIn(true);
     const token = localStorage.getItem('authToken_rider');
     if (token) {
-      console.warn('[PERF] ðŸš€ Starting parallel fetch: Dashboard + Subscriptions');
-      console.warn('[PERF] Bridge status:', { 
-        bridgeAvailable: !!bridge, 
-        webViewBridgeAvailable: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge 
+      console.warn('[PERF] ðŸš€ Starting fetch: Subscriptions');
+      console.warn('[PERF] Bridge status:', {
+        bridgeAvailable: !!bridge,
+        webViewBridgeAvailable: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge
       });
-      
-      // Fire both fetches - don't await, let them update state independently
-      fetchDashboardData(token);
-      
-      // Fetch subscription data if partner_id is available
+
+      // Fetch subscription data if partner_id is available. Balance and energy
+      // come from the IdentifyCustomer mutation downstream of this call — the
+      // legacy /customer/dashboard fetch was a duplicate source that briefly
+      // flashed an incorrect value before being overwritten.
       if (customerData.partner_id) {
         fetchSubscriptionData(customerData.partner_id, token).then(() => {
           const elapsed = Math.round(performance.now() - dataLoadStartRef.current);
@@ -1638,6 +1635,11 @@ const RiderApp: React.FC = () => {
       return;
     }
     setSubscription(sub);
+    setBike((prev) => ({
+      ...prev,
+      model: sub.package_product_name || prev.model,
+      paymentState: sub.status === 'active' ? 'active' : sub.status,
+    }));
     try {
       localStorage.setItem(ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY, sub.subscription_code);
     } catch {}
@@ -1763,39 +1765,114 @@ const RiderApp: React.FC = () => {
     toast.success(t('common.logoutSuccess') || 'Logged out successfully');
   };
 
-  const handleTopUp = () => {
-    setShowTopUpModal(true);
-  };
 
-  const handleConfirmTopUp = async (amount: number, transactionId: string, paymentMethod: string) => {
-    try {
-      const token = localStorage.getItem('authToken_rider');
-      if (!token) throw new Error('Not authenticated');
-      
-      // TODO: Call actual API endpoint for top-up
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setBalance(prev => prev + amount);
-      
-      const newActivity: ActivityItem = {
-        id: Date.now().toString(),
-        type: 'topup',
-        title: t('rider.balanceTopUp') || 'Balance Top-up',
-        subtitle: paymentMethod === 'mtn' ? t('rider.mtnMobileMoney') : paymentMethod === 'flooz' ? t('rider.flooz') : t('rider.bankTransfer'),
-        amount: amount,
-        currency: currency,
-        isPositive: true,
-        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        date: new Date().toISOString().split('T')[0],
+  // Rider energy top-up via service plan. Calls the dedicated `serviceTopup`
+  // mutation, which records the payment and credits quota in one shot — no
+  // swap-shaped side-effects. Bundle pricing (e.g. "120 kWh for 1 CFA") is
+  // honoured by sending `unit_price = paymentAmount / declaredKwh`; ABS's
+  // inverse arithmetic (`additional_quota = payment_amount / unit_price`)
+  // then lands on the declared kWh after its 4-dp rounding. Requires the ABS
+  // service layer to honour client-supplied `unit_price` (see topup.md).
+  const handleEnergyTopUp = useCallback(
+    async (args: EnergyTopUpSubmitArgs): Promise<EnergyTopUpResult> => {
+      const planId = subscription?.subscription_code;
+      if (!planId) {
+        return { success: false, error: 'No active subscription' };
+      }
+      const serviceId = args.energyConfig?.serviceId;
+      const declaredKwh = args.energyConfig?.initialQuota ?? 0;
+      if (!serviceId || declaredKwh <= 0) {
+        return { success: false, error: 'Top-up plan is missing a declared quota' };
+      }
+
+      // Money → 2 dp (matches swap-payment.ts conventions).
+      // unit_price stays at full double precision; rounding it here would
+      // diverge from ABS's inverse division. See discussion in topup.md.
+      const paymentAmount = round(args.totalPaid, 2);
+      const unitPrice = paymentAmount / declaredKwh;
+
+      // Pre-flight: confirm the round-trip lands on declaredKwh within ABS's
+      // 4-dp rounding window. If precision would drift, refuse to send so the
+      // customer never gets credited the wrong kWh.
+      const previewKwh = Math.round((paymentAmount / unitPrice) * 10000) / 10000;
+      if (Math.abs(previewKwh - declaredKwh) > 0.0001) {
+        console.error('[RIDER] top-up precision check failed', {
+          paymentAmount, declaredKwh, unitPrice, previewKwh,
+        });
+        return { success: false, error: 'Top-up math precision check failed' };
+      }
+
+      const input: ServiceTopupInput = {
+        plan_id: planId,
+        service_id: serviceId,
+        payment_amount: paymentAmount,
+        unit_price: unitPrice,
+        // The Odoo receipt is a stable per-payment identifier. Sending it as
+        // both keys lets agent-layer dedupe (correlation_id) and service-
+        // layer dedupe (payment_reference → PaymentAction id) both protect
+        // against double-credits on retries.
+        payment_reference: args.transactionId,
+        correlation_id: args.transactionId,
       };
-      setActivities(prev => [newActivity, ...prev]);
-      toast.success(t('rider.topUpSuccess') || 'Top-up successful');
-    } catch (error: any) {
-      console.error('Top-up error:', error);
-      toast.error(error.message || t('rider.topUpFailed') || 'Top-up failed');
-      throw error;
-    }
-  };
+
+      // Dump the exact ABS request to the console so it can be replayed in the
+      // GraphQL Playground. Logged as a block: mutation body, then variables JSON.
+      console.groupCollapsed('[RIDER] ABS top-up request (paste into GraphQL Playground)');
+      console.log(
+`mutation ServiceTopup($input: ServiceTopupInput!) {
+  serviceTopup(input: $input) {
+    service_id
+    additional_quota
+    quota_before
+    quota_after
+    quota_calculation
+    signals
+    metadata
+  }
+}`,
+      );
+      console.log('Variables:\n' + JSON.stringify({ input }, null, 2));
+      console.groupEnd();
+
+      try {
+        const result = await absApolloClient.mutate<{
+          serviceTopup: ServiceTopupResponse;
+        }>({
+          mutation: SERVICE_TOPUP,
+          variables: { input },
+        });
+
+        if (result.errors && result.errors.length > 0) {
+          return { success: false, error: result.errors[0].message };
+        }
+        const resp = result.data?.serviceTopup;
+        if (!resp) {
+          return { success: false, error: 'No response from server' };
+        }
+        // Success when the agent confirms the quota update OR when it short-
+        // circuits as an idempotent replay (the original credit is still in
+        // place — confirmed against bss-agent-v2.ts:1850-1900 dedupe path).
+        const okSignals = ['SERVICE_QUOTA_UPDATED', 'IDEMPOTENT_OPERATION_DETECTED'];
+        const isOk = resp.signals?.some((s) => okSignals.includes(s));
+        if (!isOk) {
+          const reason = typeof resp.metadata === 'object'
+            ? (resp.metadata as Record<string, unknown>)?.reason
+            : undefined;
+          return { success: false, error: (reason as string) || 'Top-up rejected' };
+        }
+
+        if (subscription?.subscription_code) {
+          fetchCustomerIdentificationData(subscription.subscription_code);
+        }
+        return { success: true };
+      } catch (err: any) {
+        console.error('[RIDER] energy top-up failed', err);
+        return { success: false, error: err?.message || 'Top-up failed' };
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [subscription?.subscription_code, customer?.partner_id],
+  );
 
   const handleNavigateToStation = (station: Station) => {
     if (station.lat && station.lng) {
@@ -1998,8 +2075,7 @@ const RiderApp: React.FC = () => {
                       // Only fetch if prefetch wasn't started
                       if (!wasPrefetched) {
                         dataLoadStartRef.current = performance.now();
-                        console.warn('[PERF] 🚀 Starting parallel fetch: Dashboard + Subscriptions (no prefetch)');
-                        fetchDashboardData(token);
+                        console.warn('[PERF] 🚀 Starting fetch: Subscriptions (no prefetch)');
                         if (customer.partner_id) {
                           fetchSubscriptionData(customer.partner_id, token);
                         }
@@ -2171,7 +2247,9 @@ const RiderApp: React.FC = () => {
             <RiderHome
               userName={customer?.name || t('common.guest')}
               balance={balance}
+              energyKwh={energyKwh}
               currency={currency}
+              subscriptionCode={subscription?.subscription_code ?? null}
               bike={{
                 ...bike,
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || bike.paymentState,
@@ -2189,8 +2267,8 @@ const RiderApp: React.FC = () => {
               stationsError={stationsError}
               hasSubscription={!!subscription?.subscription_code}
               onRefreshStations={refetchStations}
-              onFindStation={() => setCurrentScreen('stations')}
               onShowQRCode={() => setShowQRModal(true)}
+              onShowEnergyTopUp={() => setShowTopUpModal(true)}
               onSelectStation={handleSelectStation}
               onViewAllStations={() => setCurrentScreen('stations')}
             />
@@ -2222,7 +2300,7 @@ const RiderApp: React.FC = () => {
                   id: a.id,
                   reference: a.subtitle,
                   planName: a.title,
-                  amount: a.amount,
+                  amount: a.amount ?? 0,
                   currency: a.currency,
                   date: `${a.date} ${a.time}`,
                   status: a.isPositive ? 'completed' : 'completed',
@@ -2247,6 +2325,7 @@ const RiderApp: React.FC = () => {
               activeSubscriptionId={subscription?.id ?? null}
             />
           )}
+
           
           {currentScreen === 'profile' && (
             <RiderProfile
@@ -2257,6 +2336,7 @@ const RiderApp: React.FC = () => {
                   : '--',
                 phone: customer?.phone || '',
                 balance: balance,
+                energyKwh: energyKwh,
                 currency: currency,
                 swapsThisMonth: swapsThisMonth,
                 planName: subscription?.product_name || '',
@@ -2322,13 +2402,16 @@ const RiderApp: React.FC = () => {
         subscriptionCode={subscription?.subscription_code}
       />
 
-      {/* Top-Up Modal */}
-      <TopUpModal
+      {/* Energy Top-Up Modal */}
+      <EnergyTopUpModal
         isOpen={showTopUpModal}
         onClose={() => setShowTopUpModal(false)}
         currency={currency}
-        onConfirmTopUp={handleConfirmTopUp}
+        token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
+        subscriptionCode={subscription?.subscription_code || null}
+        onSubmit={handleEnergyTopUp}
       />
+
 
       {/* Plan switcher — bottom-sheet picker, no full-screen navigation */}
       <SelectSheet

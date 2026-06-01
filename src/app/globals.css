@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap');
-
 /* Import Design System Tokens & Utilities */
 @import '../styles/design-system.css';
 
@@ -974,7 +972,7 @@ html.theme-transition *::after {
   gap: 5px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  animation: appletReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: appletReveal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .role-app.disabled {
@@ -1163,6 +1161,14 @@ html.theme-transition *::after {
   background: linear-gradient(155deg, #F97316 0%, #EA580C 100%);
 }
 
+.role-grad-rollup {
+  background: linear-gradient(155deg, #14B8A6 0%, #0D9488 100%);
+}
+
+.role-grad-ticketing {
+  background: linear-gradient(155deg, #E879F9 0%, #C026D3 100%);
+}
+
 /* ------- Light theme (slightly brighter stops) ------- */
 [data-theme="light"] .select-role-bg-gradient {
   background:
@@ -1210,6 +1216,14 @@ html.theme-transition *::after {
 
 [data-theme="light"] .role-grad-products {
   background: linear-gradient(155deg, #FB923C 0%, #F97316 100%);
+}
+
+[data-theme="light"] .role-grad-rollup {
+  background: linear-gradient(155deg, #2DD4BF 0%, #14B8A6 100%);
+}
+
+[data-theme="light"] .role-grad-ticketing {
+  background: linear-gradient(155deg, #F0ABFC 0%, #D946EF 100%);
 }
 
 /* ------- Compact screens (small phones / landscape) ------- */
@@ -2851,6 +2865,77 @@ html.theme-transition *::after {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 16px;
+}
+
+/* Keypad public-access callout on the sign-in page.
+   The keypad is a public tool, not a sign-in method — this callout sits at
+   the top of the form for visibility, but deliberately avoids button shapes
+   (no gradient fill, no full-width primary look) so it doesn't read as a
+   "Sign in with Keypad" option. */
+.keypad-access {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.keypad-access:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.keypad-access:hover .keypad-access__arrow {
+  transform: translateX(3px);
+}
+
+.keypad-access__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.keypad-access__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.keypad-access__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.keypad-access__subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.keypad-access__arrow {
+  color: var(--accent);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
 }
 
 /* Status Alert */
@@ -6574,6 +6659,49 @@ html.theme-transition *::after {
   gap: 8px;
 }
 
+/* Compact current service account — tap runs same flow as profile → Switch SA */
+.app-header-sa-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(148px, 42vw);
+  padding: 5px 8px;
+  background: var(--accent-soft, rgba(0, 229, 229, 0.08));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--color-brand);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.app-header-sa-chip:hover {
+  background: var(--accent-soft, rgba(0, 229, 229, 0.14));
+  border-color: var(--accent);
+}
+
+.app-header-sa-chip:active {
+  transform: scale(0.98);
+}
+
+.app-header-sa-chip svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.app-header-sa-chip-name {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
 .flow-header-back {
   display: flex;
   align-items: center;
@@ -7613,279 +7741,406 @@ html.theme-transition *::after {
   /* Uses base .bottom-nav styles */
 }
 
-/* Rider Dashboard Header */
-.rider-dashboard-header {
-  margin-bottom: 16px;
-  padding-top: 8px;
+/* ===================================================================
+   Rider Home v2 — Tesla-style premium hero
+   Replaces the legacy .rider-dashboard-header / .rider-bike-* /
+   .rider-quick-pill* classes. Reuses existing tokens (--accent,
+   --bg-secondary, --border, etc.) so dark + light themes both work.
+   =================================================================== */
+
+.rh-screen { padding-top: 4px; }
+
+/* Entrance animation: each block sets its own --rh-delay inline. */
+.rh-anim-in {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: rh-rise 380ms var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) forwards;
+  animation-delay: var(--rh-delay, 0ms);
+}
+@keyframes rh-rise {
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.rider-greeting {
+/* Greeting */
+.rh-greeting {
+  margin: 4px 0 18px;
+}
+.rh-greeting__hello {
+  margin: 0 0 2px;
   font-size: 13px;
   color: var(--text-secondary);
-  margin-bottom: 2px;
+  letter-spacing: -0.005em;
 }
-
-.rider-name {
-  font-size: 20px;
+.rh-greeting__name {
+  margin: 0;
+  font-size: clamp(22px, 6vw, 28px);
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  word-break: break-word;
 }
 
-/* Rider Bike Card - Shows rider's vehicle */
-.rider-bike-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px;
-  margin-bottom: 12px;
+/* HERO card — frames the energy gauge + primary CTAs */
+.rh-hero {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 28px 20px 20px;
+  margin-bottom: 16px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--accent-soft) 0%, transparent 60%),
+    var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
-
-.rider-bike-card::before {
+.rh-hero::before {
   content: '';
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 150px;
-  height: 150px;
-  background: radial-gradient(circle at top right, var(--accent-soft) 0%, transparent 70%);
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.55;
   pointer-events: none;
 }
 
-.rider-bike-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
+/* Gauge — SVG ring + central readout */
+.rh-gauge {
   position: relative;
-  z-index: 1;
+  width: min(220px, 64vw);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
 }
-
-.rider-bike-label {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 2px;
-}
-
-.rider-bike-model {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.rider-bike-status {
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.rider-bike-status.active {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.rider-bike-status.warning {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-}
-
-.rider-bike-status.inactive {
-  background: var(--error-soft);
-  color: var(--error);
-}
-
-.rider-bike-status.pending {
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
-}
-
-.rider-bike-content {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  position: relative;
-  z-index: 1;
-}
-
-.rider-bike-image {
-  width: 140px;
-  height: 100px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.rider-bike-image img {
+.rh-gauge__svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+}
+.rh-gauge__track {
+  fill: none;
+  stroke: var(--bg-tertiary);
+  stroke-width: 8;
+}
+.rh-gauge__ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  animation: rh-sweep 950ms var(--ease-out, ease-out) 280ms forwards;
+  filter: drop-shadow(0 0 14px var(--accent-glow, rgba(0, 229, 229, 0.4)));
+}
+@keyframes rh-sweep {
+  to { stroke-dashoffset: 0; }
 }
 
-.rider-bike-info {
+.rh-gauge__inner {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-
-.rider-bike-detail {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-}
-
-.rider-bike-detail-label {
-  font-size: 9px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.rider-bike-detail-value {
-  font-size: 12px;
-  font-weight: 500;
+  gap: 2px;
   color: var(--text-primary);
-  font-family: 'DM Mono', monospace;
-  text-align: right;
+  text-align: center;
 }
-
-/* Account Balance - integrated into the My Bike card */
-.rider-bike-balance {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-  position: relative;
-  z-index: 1;
+.rh-gauge__value {
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  font-size: clamp(36px, 11vw, 52px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
 }
-
-.rider-bike-balance-label-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  min-width: 0;
-}
-
-.rider-bike-balance-label-row svg {
-  width: 14px;
-  height: 14px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.rider-bike-balance-value {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  font-family: 'DM Mono', monospace;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.rider-bike-balance-currency {
+.rh-gauge__unit {
+  margin-top: 4px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+}
+.rh-gauge__sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-sans, inherit);
+}
+.rh-gauge__caption {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f59e0b;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rh-gauge__skeleton {
+  width: 120px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+}
+.rh-gauge__lock {
+  color: var(--text-muted);
+  margin-bottom: 4px;
 }
 
-.rider-bike-balance-amount {
-  font-size: 20px;
-  font-weight: 700;
+/* Gauge states */
+.rh-gauge--empty .rh-gauge__value { color: #f59e0b; }
+.rh-gauge--empty .rh-gauge__ring {
+  stroke: #f59e0b;
+  filter: none;
+  animation: none;
+  stroke-dashoffset: 100;
+}
+.rh-gauge--locked .rh-gauge__sub {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.rh-gauge--loading .rh-gauge__ring {
+  stroke: var(--bg-tertiary);
+  animation: none;
+  stroke-dashoffset: 0;
+  filter: none;
 }
 
-/* Quick action pills - compact horizontal buttons (Find Station / My QR Code) */
-.rider-quick-pills {
+/* Hero CTAs (Top Up + QR) — equal width */
+.rh-hero__cta {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.rh-hero__cta > :only-child {
+  grid-column: 1 / -1;
+}
+.rh-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-bottom: 20px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: var(--transition-fast, all 120ms ease-out);
+}
+.rh-cta--primary {
+  background: var(--accent);
+  color: #0a0f0f;
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 22px -10px var(--accent-glow, rgba(0, 229, 229, 0.55));
+}
+.rh-cta--primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
+.rh-cta--primary:active { transform: scale(0.98); }
+.rh-cta--ghost {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.rh-cta--ghost:hover { border-color: var(--accent); color: var(--accent); }
+.rh-cta--ghost:active { transform: scale(0.98); }
+.rh-cta__icon { width: 16px; height: 16px; }
+
+/* When the gauge is empty (no kWh), amber-glow the primary CTA so the
+   user is steered to the resolution path (Top Up). Uses :has() — safe to
+   degrade silently in any browser that doesn't support it. */
+.rh-hero:has(.rh-gauge--empty) .rh-cta--primary {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #0a0f0f;
+  box-shadow: 0 8px 22px -10px rgba(245, 158, 11, 0.55);
 }
 
-.rider-quick-pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+/* BIKE strip — secondary metadata card */
+.rh-bike {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-  text-align: left;
-  width: 100%;
+  padding: 14px 14px 12px;
+  margin-bottom: 20px;
 }
-
-.rider-quick-pill:hover {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
-}
-
-.rider-quick-pill:active {
-  transform: scale(0.98);
-}
-
-.rider-quick-pill-icon {
-  width: 30px;
-  height: 30px;
+.rh-bike__head {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rh-bike__img {
+  width: 64px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-tertiary);
   border-radius: var(--radius-sm);
-  background: var(--accent-soft);
   flex-shrink: 0;
+  overflow: hidden;
 }
-
-.rider-quick-pill-icon svg {
-  width: 16px;
-  height: 16px;
-  color: var(--accent);
+.rh-bike__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* The bike PNG has its content biased toward the bottom of the source
+     canvas (more transparent space above the bike than below). A negative
+     translateY plus the taller wrapper above keep clear background on both
+     top and bottom so the bike reads as visually centered in light + dark
+     themes. */
+  transform: translateY(-3px);
 }
-
-.rider-quick-pill-label {
-  font-size: 12px;
+.rh-bike__title { flex: 1; min-width: 0; }
+.rh-bike__model {
+  margin: 0;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  flex: 1;
+  letter-spacing: -0.01em;
+}
+.rh-bike__sub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rh-bike__pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.rh-bike__pill--active   { background: var(--success-soft); color: var(--success); }
+.rh-bike__pill--warning  { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.rh-bike__pill--inactive { background: var(--error-soft); color: var(--error); }
+.rh-bike__pill--pending  { background: var(--bg-tertiary); color: var(--text-muted); }
+
+.rh-bike__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin: 0;
+}
+.rh-bike__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
   min-width: 0;
+}
+.rh-bike__cell dt {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.rh-bike__cell dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.rider-quick-pill-chevron {
-  width: 14px;
-  height: 14px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  transition: transform 0.2s ease, color 0.2s ease;
+/* Stations wrapper — only animates entrance; inner classes are reused */
+.rh-stations {
+  /* No extra styling beyond the rh-anim-in entrance. */
 }
 
-.rider-quick-pill:hover .rider-quick-pill-chevron {
+/* Small inline retry/refresh button used inside stations error + empty states.
+   Same family as .rh-cta but compact (no min-height). */
+.rh-mini-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast, all 120ms ease-out);
+}
+.rh-mini-cta:hover { border-color: var(--accent); color: var(--accent); }
+.rh-mini-cta:active { transform: scale(0.98); }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .rh-anim-in { animation: none; opacity: 1; transform: none; }
+  .rh-gauge__ring { animation: none; stroke-dashoffset: 0; }
+  .rh-cta:active { transform: none; }
+}
+
+/* Narrow screens: tighten hero */
+@media (max-width: 380px) {
+  .rh-hero { padding: 22px 16px 18px; gap: 14px; }
+  .rh-gauge { width: min(180px, 60vw); }
+  .rh-bike__grid { gap: 2px; }
+}
+
+/* Top-Up amount grid */
+.topup-amount-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.topup-amount-btn {
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.topup-amount-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+.topup-amount-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent);
-  transform: translateX(2px);
+}
+
+.topup-custom-input {
+  -moz-appearance: textfield;
+}
+
+.topup-custom-input::-webkit-inner-spin-button,
+.topup-custom-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* Rider skeleton loading bars */
@@ -7937,9 +8192,10 @@ html.theme-transition *::after {
 
 .rider-skeleton-map {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
+  min-height: 260px;
   border-radius: var(--radius-lg);
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .rider-stations-skeleton-list {
@@ -10198,52 +10454,21 @@ html.theme-transition *::after {
     height: 200px;
   }
   
-  .rider-dashboard-header {
+  /* Short-screen overrides for the v2 rider home (Tesla-style) */
+  .rh-greeting { margin: 2px 0 12px; }
+  .rh-greeting__name { font-size: clamp(20px, 5.4vw, 24px); }
+
+  .rh-hero {
+    padding: 20px 16px 16px;
+    gap: 12px;
     margin-bottom: 12px;
-    padding-top: 4px;
   }
-  
-  .rider-name {
-    font-size: 18px;
-  }
-  
-  .rider-bike-card {
-    padding: 12px;
-    margin-bottom: 10px;
-  }
-  
-  .rider-bike-image {
-    width: 120px;
-    height: 85px;
-  }
-  
-  .rider-bike-balance {
-    margin-top: 12px;
-    padding-top: 12px;
-  }
+  .rh-gauge { width: min(170px, 56vw); }
+  .rh-gauge__value { font-size: clamp(30px, 9vw, 42px); }
 
-  .rider-bike-balance-amount {
-    font-size: 18px;
-  }
-
-  .rider-quick-pills {
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .rider-quick-pill {
-    padding: 10px;
-    gap: 8px;
-  }
-
-  .rider-quick-pill-icon {
-    width: 28px;
-    height: 28px;
-  }
-
-  .rider-quick-pill-label {
-    font-size: 11px;
-  }
+  .rh-bike { padding: 12px 12px 10px; margin-bottom: 14px; }
+  .rh-bike__head { margin-bottom: 10px; padding-bottom: 10px; }
+  .rh-bike__img { width: 56px; height: 44px; }
   
   .stations-map {
     height: 100px;
@@ -13052,6 +13277,32 @@ html.theme-transition *::after {
   color: var(--color-brand, #00e5e5);
 }
 
+/* Priority badges (ticketing) — red → orange → amber → green → grey */
+.list-card-badge--priority-urgent {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+
+.list-card-badge--priority-high {
+  background: rgba(249, 115, 22, 0.14);
+  color: #f97316;
+}
+
+.list-card-badge--priority-medium {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+}
+
+.list-card-badge--priority-low {
+  background: rgba(34, 197, 94, 0.14);
+  color: #22c55e;
+}
+
+.list-card-badge--priority-none {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
 .list-card-selected {
   border-color: var(--color-brand, #00e5e5) !important;
   background: var(--accent-soft, rgba(0, 229, 229, 0.06)) !important;
@@ -14087,7 +14338,13 @@ html.keyboard-open .customer-panel-unified {
 .rm-home-map {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  /* Map is the primary surface for stations on the home view — the legacy
+     carousel below it was retired, so the map breathes vertically and the
+     colored bolt-pill markers become the per-station readout. Aspect 4/3
+     gives ~270px on a 360-wide phone; min-height keeps it usable on very
+     narrow screens. */
+  aspect-ratio: 4 / 3;
+  min-height: 260px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border);

@@ -4,14 +4,15 @@ import React from 'react';
 import { Camera } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { AttendantStep } from './types';
+import type { InputMode } from '@/components/shared/types';
 
 interface ActionBarProps {
   currentStep: AttendantStep;
   onBack: () => void;
   onMainAction: () => void;
   isLoading: boolean;
-  inputMode?: 'scan' | 'manual';
-  paymentInputMode?: 'scan' | 'manual';
+  inputMode?: InputMode;
+  paymentInputMode?: InputMode;
   hasSufficientQuota?: boolean;
   swapCost?: number;
   readOnly?: boolean;
@@ -55,7 +56,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep, inputMode?: 'scan' | 'manual', hasSufficientQuota?: boolean, paymentInputMode?: 'scan' | 'manual', swapCost?: number): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficientQuota?: boolean, paymentInputMode?: InputMode, swapCost?: number): StepActionConfig => {
   switch (step) {
     case 1:
       // Show different text/icon based on input mode

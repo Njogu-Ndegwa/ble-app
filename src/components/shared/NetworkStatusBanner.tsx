@@ -187,16 +187,16 @@ export function getNetworkErrorMessage(
   }
   
   if (/Failed to fetch|NetworkError|net::ERR_/i.test(errorMessage)) {
-    return t?.('network.errorFetch') || 'Unable to connect. Please check your internet or VPN connection.';
+    return t?.('network.errorFetch') || 'Unable to reach the server. Please try again shortly.';
   }
-  
+
   if (/CORS/i.test(errorMessage)) {
-    return t?.('network.errorCors') || 'Connection blocked. This may be a network or VPN issue.';
+    return t?.('network.errorCors') || 'Connection blocked. This may be a temporary server issue.';
   }
 
   // Generic network error
   if (isNetworkError(error)) {
-    return t?.('network.errorGeneric') || 'Network error. Please check your internet connection.';
+    return t?.('network.errorGeneric') || 'Something went wrong. Please try again.';
   }
 
   // Not a network error - return original message

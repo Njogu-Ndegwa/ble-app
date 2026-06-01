@@ -1019,9 +1019,12 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
           
           // Also check for MAC address mismatch error
           const checkForMacMismatch = (str: string) => {
-            return str.toLowerCase().includes('macaddress is not match') ||
-                   str.toLowerCase().includes('mac address is not match') ||
-                   str.toLowerCase().includes('macaddress not match');
+            const s = str.toLowerCase();
+            return s.includes('macaddress is not match') ||
+                   s.includes('mac address is not match') ||
+                   s.includes('macaddress not match') ||
+                   s.includes('mac address is not a match') ||
+                   s.includes('bluetooth mac address is not a match');
           };
           
           try {

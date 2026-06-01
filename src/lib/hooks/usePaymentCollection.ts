@@ -41,6 +41,7 @@ import {
   type PublishPaymentAndServiceParams,
 } from '@/lib/services/hooks';
 import type { CustomerData, SwapData, PaymentInitiation } from '@/app/(mobile)/attendant/attendant/components/types';
+import type { InputMode } from '@/components/shared/types';
 
 // ============================================================================
 // Types
@@ -68,7 +69,7 @@ export interface PaymentCollectionState {
   /** Actual amount paid by customer */
   actualAmountPaid: number;
   /** Input mode for payment step */
-  paymentInputMode: 'scan' | 'manual';
+  paymentInputMode: InputMode;
   /** Manual payment ID input */
   manualPaymentId: string;
   /** Transaction ID (same as receipt, for display) */
@@ -113,18 +114,18 @@ export interface UsePaymentCollectionOptions {
    * Receives: amountPaid, amountRemaining, shortfall, and current payment input state
    */
   onPartialPayment?: (
-    amountPaid: number, 
-    amountRemaining: number, 
-    shortfall: number, 
-    paymentInputState: { inputMode: 'scan' | 'manual'; manualPaymentId: string }
+    amountPaid: number,
+    amountRemaining: number,
+    shortfall: number,
+    paymentInputState: { inputMode: InputMode; manualPaymentId: string }
   ) => void;
 }
 
 export interface UsePaymentCollectionReturn {
   /** Current payment state */
   paymentState: PaymentCollectionState;
-  /** Set payment input mode (scan/manual) */
-  setPaymentInputMode: (mode: 'scan' | 'manual') => void;
+  /** Set payment input mode (scan/manual/wechat) */
+  setPaymentInputMode: (mode: InputMode) => void;
   /** Set manual payment ID */
   setManualPaymentId: (id: string) => void;
   /** Create payment request with Odoo (MUST be called before collecting payment) */
@@ -137,7 +138,7 @@ export interface UsePaymentCollectionReturn {
   resetPayment: () => void;
   /** Restore payment state from session (for session resume scenarios) */
   restorePaymentState: (state: {
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;
@@ -186,7 +187,7 @@ export function usePaymentCollection(
   const [expectedPaymentAmount, setExpectedPaymentAmount] = useState<number>(0);
   const [paymentAmountRemaining, setPaymentAmountRemaining] = useState<number>(0);
   const [actualAmountPaid, setActualAmountPaid] = useState<number>(0);
-  const [paymentInputMode, setPaymentInputMode] = useState<'scan' | 'manual'>('scan');
+  const [paymentInputMode, setPaymentInputMode] = useState<InputMode>('scan');
   const [manualPaymentId, setManualPaymentId] = useState<string>('');
   const [transactionId, setTransactionId] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -303,7 +304,7 @@ export function usePaymentCollection(
       setPaymentRequestCreated(true);
       setPaymentRequestOrderId(sessionOrderId ?? null);
       setPaymentInitiated(true);
-      toast.success('Enter transaction ID to confirm payment');
+      toast.success('Confirm payment to proceed');
       return true;
     }
 
@@ -434,28 +435,12 @@ export function usePaymentCollection(
 
   const confirmPayment = useCallback(
     async (receipt: string) => {
-      console.info('[usePaymentCollection] confirmPayment called', {
-        receipt,
-        paymentRequestOrderId,
-        paymentRequestCreated,
-        sessionOrderId,
-        expectedPaymentAmount,
-        swapCost: swapData.cost,
-        currency: swapData.currencySymbol,
-        skipOdooConfirmation,
-      });
       setIsProcessing(true);
 
       // MANUAL SWAP MODE: Skip Odoo confirmation entirely
       // The attendant-entered transaction ID is trusted and used directly
       if (skipOdooConfirmation) {
         try {
-          if (!receipt.trim()) {
-            toast.error('Please enter a transaction ID');
-            setIsProcessing(false);
-            return;
-          }
-
           const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
           setActualAmountPaid(requiredAmount);
           setPaymentAmountRemaining(0);
@@ -480,10 +465,8 @@ export function usePaymentCollection(
       try {
         // Ensure payment request was created first
         if (!paymentRequestCreated) {
-          console.info('[usePaymentCollection] Payment request not created yet, initiating...');
           const success = await initiatePayment();
           if (!success) {
-            console.info('[usePaymentCollection] initiatePayment failed, aborting');
             setIsProcessing(false);
             return;
           }
@@ -498,35 +481,25 @@ export function usePaymentCollection(
         const finalOrderId = orderId || paymentRequestOrderId || sessionOrderId;
         
         if (!finalOrderId) {
-          console.info('[usePaymentCollection] No finalOrderId resolved, aborting', {
-            orderId, paymentRequestOrderId, sessionOrderId,
-          });
           toast.error('Payment request not created. Please go back and try again.');
           setIsProcessing(false);
           return;
         }
-        console.info('[usePaymentCollection] Calling confirmPaymentManual', { order_id: finalOrderId, receipt });
         const response = await confirmPaymentManual({ order_id: finalOrderId!, receipt });
-
-        console.info('[usePaymentCollection] confirmPaymentManual raw response', {
-          success: response.success,
-          hasData: !!response.data,
-          responseKeys: Object.keys(response),
-        });
 
         if (response.success) {
           const responseData = response.data || (response as any);
+
+          // Detect already-used receipt before proceeding
+          if (responseData.is_duplicate || responseData.receipt_used || responseData.receipt_status === 'used') {
+            const errorMsg = responseData.message || responseData.note || 'Payment reference already used. Please use a different transaction ID.';
+            toast.error(errorMsg);
+            setIsProcessing(false);
+            return;
+          }
+
           const totalPaid = responseData.total_paid ?? responseData.amount_paid ?? 0;
           const remainingToPay = responseData.remaining_to_pay ?? responseData.amount_remaining ?? 0;
-
-          console.info('[usePaymentCollection] Payment amounts parsed', {
-            totalPaid,
-            remainingToPay,
-            expected_to_pay: responseData.expected_to_pay ?? responseData.amount_expected,
-            order_id: responseData.order_id,
-            expectedPaymentAmount,
-            requiredAmount: expectedPaymentAmount || Math.floor(swapData.cost),
-          });
 
           setActualAmountPaid(totalPaid);
           setPaymentAmountRemaining(remainingToPay);
@@ -535,15 +508,6 @@ export function usePaymentCollection(
           const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
           if (totalPaid < requiredAmount) {
             const shortfall = requiredAmount - totalPaid;
-            console.info('[usePaymentCollection] PARTIAL PAYMENT detected - customer must pay again', {
-              totalPaid,
-              requiredAmount,
-              shortfall,
-              remainingToPay,
-              currency: swapData.currencySymbol,
-              paymentInputMode,
-              manualPaymentId,
-            });
             toast.error(
               `Payment insufficient. Customer paid ${swapData.currencySymbol} ${totalPaid}, but needs to pay ${swapData.currencySymbol} ${requiredAmount}. Short by ${swapData.currencySymbol} ${shortfall}`
             );
@@ -557,10 +521,6 @@ export function usePaymentCollection(
             return;
           }
 
-          console.info('[usePaymentCollection] Payment SUFFICIENT - proceeding with service completion', {
-            totalPaid,
-            requiredAmount,
-          });
           // Payment sufficient - proceed with service completion
           setPaymentConfirmed(true);
           setPaymentReceipt(receipt);
@@ -570,7 +530,6 @@ export function usePaymentCollection(
           // Report payment - uses original calculated cost for accurate quota tracking
           callPublishRef.current(receipt, false);
         } else {
-          console.info('[usePaymentCollection] Payment confirmation response.success was false');
           throw new Error('Payment confirmation failed');
         }
       } catch (err: any) {
@@ -638,7 +597,7 @@ export function usePaymentCollection(
   // ============================================================================
 
   const restorePaymentState = useCallback((state: {
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;

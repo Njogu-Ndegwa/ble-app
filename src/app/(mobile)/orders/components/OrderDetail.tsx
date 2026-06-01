@@ -7,15 +7,13 @@ import {
   ChevronRight,
   CheckCircle2,
   ClipboardList,
-  RefreshCw,
   ShieldCheck,
   Truck,
   CreditCard,
-  FileCheck,
+  FileText,
   User,
   Package,
   ArrowLeft,
-  Pencil,
   X,
   Download,
   Mail,
@@ -24,10 +22,15 @@ import {
   Check,
   MapPin,
   AlertCircle,
+  Pencil,
+  Search,
+  Plus,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 import { StepProgress } from '@/components/ui/Progress';
-import { LoadingState } from '@/components/ui/State';
+import { LoadingState, ErrorState } from '@/components/ui/State';
 import {
   getOrder,
   sendOrder as restSendOrder,
@@ -37,40 +40,57 @@ import {
   rejectOrder as restRejectOrder,
   registerPayment as restRegisterPayment,
   sendProformaPdf as restSendProforma,
+  postInvoice as restPostInvoice,
+  createInvoice as restCreateInvoice,
   formatCurrency,
   getPriceLists,
   getPriceListPrice,
   getDeliveries,
   getDelivery,
   validateDelivery,
+  updateOrderLine,
+  removeOrderLine,
+  addOrderLines,
+  getPaymentJournals,
+  getStockLevels,
+  aggregateStockByProduct,
+  getLotsByProduct,
 } from '@/lib/portal/order-api';
+import type { ValidateDeliveryLine } from '@/lib/portal/order-api';
+import { getProducts } from '@/lib/odoo-api';
+import { getSalesRoleToken } from '@/lib/attendant-auth';
 import {
   PIPELINE_STEPS,
   getOrderStepIndex,
-  STEP_ACTIONS,
   getDeliveryState,
   isDeliveryDone,
 } from '@/lib/portal/order-constants';
 import { mapOdooPriceList, type PriceList } from '@/lib/portal/price-list-data';
-import type { OrderEntity, OrderLineEntity, PaymentStatus, DeliveryEntity } from '@/lib/portal/types';
+import type { OrderEntity, OrderLineEntity, PaymentStatus, DeliveryEntity, OdooJournal, OdooProduct } from '@/lib/portal/types';
 
-const STEP_ICONS = [ClipboardList, RefreshCw, ShieldCheck, Truck, CreditCard, FileCheck];
+const STEP_ICONS = [ClipboardList, ShieldCheck, Truck, FileText, CreditCard];
 
-const STATE_BADGES: Record<string, { label: string; cls: string }> = {
-  draft:  { label: 'Draft',     cls: 'list-card-badge list-card-badge--default'   },
-  sent:   { label: 'Sent',      cls: 'list-card-badge list-card-badge--progress'  },
-  sale:   { label: 'Confirmed', cls: 'list-card-badge list-card-badge--completed' },
-  done:   { label: 'Done',      cls: 'list-card-badge list-card-badge--completed' },
-  cancel: { label: 'Cancelled', cls: 'list-card-badge list-card-badge--default'   },
+const FALLBACK_JOURNALS: OdooJournal[] = [
+  { id: 0, name: 'Bank', type: 'bank' },
+  { id: 0, name: 'Cash', type: 'cash' },
+  { id: 0, name: 'Mobile', type: 'cash' },
+];
+
+const ORDER_STATE_META: Record<string, { label: string; variant: 'default' | 'warning' | 'success' | 'error' }> = {
+  draft:  { label: 'Draft',     variant: 'default'  },
+  sent:   { label: 'Sent',      variant: 'warning'  },
+  sale:   { label: 'Confirmed', variant: 'success'  },
+  done:   { label: 'Done',      variant: 'success'  },
+  cancel: { label: 'Cancelled', variant: 'error'    },
 };
 
-const DELIVERY_STATE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'Draft',            color: 'var(--text-muted)',       bg: 'var(--bg-elevated)'            },
-  waiting:   { label: 'Waiting',          color: 'var(--color-warning)',    bg: 'var(--color-warning-soft)'     },
-  confirmed: { label: 'Confirmed',        color: 'var(--color-warning)',    bg: 'var(--color-warning-soft)'     },
-  assigned:  { label: 'Ready to Deliver', color: 'var(--color-success)',    bg: 'var(--color-success-soft)'     },
-  done:      { label: 'Delivered',        color: 'var(--color-success)',    bg: 'var(--color-success-soft)'     },
-  cancel:    { label: 'Cancelled',        color: 'var(--text-muted)',       bg: 'var(--bg-elevated)'            },
+const DELIVERY_STATE_META: Record<string, { label: string; variant: 'default' | 'warning' | 'success' | 'error' }> = {
+  draft:     { label: 'Draft',            variant: 'default'  },
+  waiting:   { label: 'Waiting',          variant: 'warning'  },
+  confirmed: { label: 'Confirmed',        variant: 'warning'  },
+  assigned:  { label: 'Ready to Deliver', variant: 'success'  },
+  done:      { label: 'Delivered',        variant: 'success'  },
+  cancel:    { label: 'Cancelled',        variant: 'default'  },
 };
 
 interface OrderDetailProps {
@@ -88,7 +108,25 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
   const [payAmount, setPayAmount] = useState('');
   const [payMemo, setPayMemo] = useState('');
+  const [payJournalId, setPayJournalId] = useState<number | null>(null);
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [payInvoiceId, setPayInvoiceId] = useState<number | null>(null);
   const [approvalNotes, setApprovalNotes] = useState('');
+
+  // Payment journals fetched from Odoo
+  const [journals, setJournals] = useState<OdooJournal[]>([]);
+
+  // Edit mode for draft quotation lines
+  const [isEditingLines, setIsEditingLines] = useState(false);
+  const [savingEdits, setSavingEdits] = useState(false);
+  const [showEditProductPicker, setShowEditProductPicker] = useState(false);
+  const [editProductSearch, setEditProductSearch] = useState('');
+  const [debouncedEditProductSearch, setDebouncedEditProductSearch] = useState('');
+  const [editProducts, setEditProducts] = useState<OdooProduct[]>([]);
+  const [editProductsLoading, setEditProductsLoading] = useState(false);
+
+  // Step tab container ref for scroll-into-view
+  const stepTabsRef = useRef<HTMLDivElement | null>(null);
 
   // Editable lines state for the Revise & Confirm step
   const [editableLines, setEditableLines] = useState<OrderLineEntity[]>([]);
@@ -112,6 +150,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryEntity | null>(null);
   const [deliveryDetailLoading, setDeliveryDetailLoading] = useState(false);
   const [validatingDelivery, setValidatingDelivery] = useState(false);
+  const [stockMap, setStockMap] = useState<Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }>>(new Map());
 
   // PDF download state
   const [pdfLoading, setPdfLoading] = useState<'proforma' | 'invoice' | null>(null);
@@ -162,31 +201,95 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     };
   }, []);
 
-  // Load deliveries when user navigates to the Delivery step
+  // Fetch payment journals once on mount
   useEffect(() => {
-    if (activeStep !== 3) return;
+    let cancelled = false;
+    getPaymentJournals()
+      .then((list) => { if (!cancelled && list.length > 0) setJournals(list); })
+      .catch(() => { /* keep fallback */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounce edit-mode product search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedEditProductSearch(editProductSearch), 300);
+    return () => clearTimeout(t);
+  }, [editProductSearch]);
+
+  // Fetch products when edit product picker is open
+  useEffect(() => {
+    if (!showEditProductPicker) return;
+    let cancelled = false;
+    (async () => {
+      setEditProductsLoading(true);
+      try {
+        const token = getSalesRoleToken();
+        const data = await getProducts(
+          { limit: 20, search: debouncedEditProductSearch || undefined },
+          token || undefined,
+        );
+        if (!cancelled) setEditProducts(data.products ?? []);
+      } catch {
+        if (!cancelled) setEditProducts([]);
+      } finally {
+        if (!cancelled) setEditProductsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showEditProductPicker, debouncedEditProductSearch]);
+
+  // Scroll active step tab into view
+  useEffect(() => {
+    if (!stepTabsRef.current) return;
+    const tab = stepTabsRef.current.children[activeStep] as HTMLElement | undefined;
+    if (tab) tab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [activeStep]);
+
+  // Fetch stock levels once when the Delivery step is first opened
+  useEffect(() => {
+    if (activeStep !== 2) return;
+    let cancelled = false;
+    getStockLevels({ limit: 500 })
+      .then((data) => { if (!cancelled) setStockMap(aggregateStockByProduct(data.levels)); })
+      .catch(() => { /* show delivery without stock context */ });
+    return () => { cancelled = true; };
+  }, [activeStep]);
+
+  // Load deliveries when user navigates to the Delivery step (step 2)
+  useEffect(() => {
+    if (activeStep !== 2) return;
     let cancelled = false;
     (async () => {
       setDeliveriesLoading(true);
       try {
         const result = await getDeliveries({ sale_order_id: orderId, limit: 10 });
         if (!cancelled) {
-          setDeliveries(result.deliveries);
-          if (result.deliveries.length > 0 && !selectedDelivery) {
-            // Auto-select first non-done delivery, else the first one
-            const active = result.deliveries.find(
-              (d) => d.state !== 'done' && d.state !== 'cancel',
-            ) ?? result.deliveries[0];
+          // If the API returned nothing, keep any deliveries already seeded from the order response
+          const list = result.deliveries.length > 0 ? result.deliveries : undefined;
+          if (list) setDeliveries(list);
+
+          const effective = list ?? deliveries;
+          if (effective.length > 0 && !selectedDelivery) {
+            const active =
+              effective.find((d) => d.state !== 'done' && d.state !== 'cancel') ??
+              effective[0];
             setSelectedDelivery(active);
           }
         }
       } catch {
-        /* keep current */
+        // API failed — auto-select from whatever was seeded from the order response
+        if (!cancelled && deliveries.length > 0 && !selectedDelivery) {
+          const active =
+            deliveries.find((d) => d.state !== 'done' && d.state !== 'cancel') ??
+            deliveries[0];
+          setSelectedDelivery(active);
+        }
       } finally {
         if (!cancelled) setDeliveriesLoading(false);
       }
     })();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep, orderId]);
 
   // Load delivery line detail when a delivery is selected
@@ -197,6 +300,41 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
       setDeliveryDetailLoading(true);
       try {
         const detail = await getDelivery(selectedDelivery.id);
+        if (cancelled) return;
+
+        // Resolve numeric lot_ids → serial name strings if lot_names aren't already populated
+        if (detail.lines) {
+          const needsLotResolution = detail.lines.some(
+            (l) => l.lot_ids.length > 0 && l.lot_names.length === 0,
+          );
+          if (needsLotResolution) {
+            // Collect unique product IDs that need lot resolution
+            const productIds = [...new Set(
+              detail.lines
+                .filter((l) => l.lot_ids.length > 0 && l.lot_names.length === 0)
+                .map((l) => l.product.id),
+            )];
+            // Fetch lot name maps per product
+            const lotMaps = new Map<number, string>();
+            await Promise.allSettled(
+              productIds.map(async (pid) => {
+                try {
+                  const lots = await getLotsByProduct(pid);
+                  lots.forEach((lt) => lotMaps.set(lt.id, lt.serial));
+                } catch { /* ignore */ }
+              }),
+            );
+            // Inject lot_names into lines
+            detail.lines = detail.lines.map((l) => ({
+              ...l,
+              lot_names:
+                l.lot_names.length > 0
+                  ? l.lot_names
+                  : l.lot_ids.map((id) => lotMaps.get(id) ?? `#${id}`),
+            }));
+          }
+        }
+
         if (!cancelled) {
           setSelectedDelivery(detail);
           setDeliveries((prev) => prev.map((d) => (d.id === detail.id ? detail : d)));
@@ -257,45 +395,107 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   );
 
   const handleSend = useCallback(() => {
-    return handleAction(() => restSendOrder(orderId), 'Quotation sent.', 1);
+    return handleAction(() => restSendOrder(orderId), 'Quotation sent.', 0);
   }, [handleAction, orderId]);
 
-  const handleConfirm = useCallback(() => {
-    return handleAction(
-      async () => {
-        await restConfirmOrder(orderId);
+  // Unified action: per team workflow every order goes through manager
+  // approval, so try /request-approval first. If the backend signals approval
+  // isn't required for this order, fall back to direct /confirm.
+  const handleSubmitOrder = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      try {
         await restRequestApproval(orderId);
-      },
-      'Order confirmed & submitted for approval.',
-      2,
-    );
-  }, [handleAction, orderId]);
+        toast.success('Submitted for manager approval.');
+        await refreshOrder();
+      } catch (err: any) {
+        const msg = String(err?.message ?? '');
+        if (/not required|not needed|skip|no approval|already approved/i.test(msg)) {
+          await restConfirmOrder(orderId);
+          toast.success('Order confirmed — delivery order is being created…');
+          await new Promise((r) => setTimeout(r, 2500));
+          await refreshOrder();
+        } else {
+          throw err;
+        }
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Operation failed');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [orderId, refreshOrder]);
 
-  const handleApprove = useCallback(() => {
-    return handleAction(
-      () => restApproveOrder(orderId, approvalNotes || undefined),
-      'Order approved.',
-    );
-  }, [handleAction, orderId, approvalNotes]);
+  // After manager approves, also confirm the order so the picking gets created
+  // in the same action — agent doesn't have to come back to confirm separately.
+  const handleApprove = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      const result = await restApproveOrder(orderId, approvalNotes || undefined);
+      if (!result.success) {
+        toast.error(result.message ?? 'Approval failed.');
+        return;
+      }
+      toast.success('Approved — confirming order…');
+      try {
+        await restConfirmOrder(orderId);
+        await new Promise((r) => setTimeout(r, 2500));
+        await refreshOrder();
+      } catch (confirmErr: any) {
+        toast.error(confirmErr?.message ?? 'Approval succeeded but confirm failed — try Confirm manually.');
+        await refreshOrder();
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Approval failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  }, [orderId, approvalNotes, refreshOrder]);
 
   const handleReject = useCallback(() => {
     return handleAction(
       () => restRejectOrder(orderId, approvalNotes || undefined),
       'Order rejected.',
+      1,
     );
   }, [handleAction, orderId, approvalNotes]);
 
-  const handleValidateDelivery = useCallback(async () => {
+  const handlePostInvoice = useCallback((invoiceId: string) => {
+    return handleAction(
+      () => restPostInvoice(orderId, invoiceId),
+      'Invoice posted.',
+      4,
+    );
+  }, [handleAction, orderId]);
+
+  const handleCreateInvoice = useCallback(() => {
+    return handleAction(
+      () => restCreateInvoice(orderId),
+      'Invoice created.',
+      3,
+    );
+  }, [handleAction, orderId]);
+
+  const handleValidateDelivery = useCallback(async (
+    lines: ValidateDeliveryLine[],
+    forceBackorder: boolean,
+  ) => {
     if (!selectedDelivery) return;
     setValidatingDelivery(true);
     try {
-      const result = await validateDelivery(selectedDelivery.id);
+      const result = await validateDelivery(
+        selectedDelivery.id,
+        lines.length > 0 ? lines : undefined,
+        forceBackorder,
+      );
       if (!result.success) {
         toast.error(result.message ?? 'Delivery validation failed.');
         return;
       }
-      toast.success('Delivery validated — stock decremented.');
-      // Refresh deliveries and order
+      const msg = forceBackorder
+        ? 'Partial delivery validated — backorder created for remaining units.'
+        : 'Delivery validated — stock decremented.';
+      toast.success(msg);
       try {
         const [fresh, deliResult] = await Promise.all([
           getOrder(orderId),
@@ -329,7 +529,18 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     }
     setActionLoading(true);
     try {
-      const result = await restRegisterPayment(orderId, amount, payMemo || undefined);
+      const selectedJournal = journals.find((j) => j.id === payJournalId);
+      const paymentSource = selectedJournal?.type === 'cash'
+        ? selectedJournal.name.toLowerCase().replace(/\s+/g, '_')
+        : selectedJournal?.type;
+      const result = await restRegisterPayment(orderId, {
+        amount,
+        journalId: payJournalId ?? undefined,
+        paymentDate: payDate || undefined,
+        memo: payMemo || undefined,
+        invoiceId: payInvoiceId ?? undefined,
+        paymentSource: paymentSource || undefined,
+      });
       toast.success('Payment registered.');
 
       let updated: OrderEntity;
@@ -356,21 +567,8 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     } finally {
       setActionLoading(false);
     }
-  }, [orderId, payAmount, payMemo, order]);
+  }, [orderId, payAmount, payMemo, payJournalId, payDate, payInvoiceId, journals, order]);
 
-  const handleStepAction = useCallback(async () => {
-    switch (backendStep) {
-      case 0:
-        await handleSend();
-        break;
-      case 1:
-        await handleConfirm();
-        break;
-      default:
-        await refreshOrder();
-        break;
-    }
-  }, [backendStep, handleSend, handleConfirm, refreshOrder]);
 
   // Pricelist selection handler — re-compute all line prices
   const handleRevisePLSelect = useCallback(async (pl: PriceList) => {
@@ -492,30 +690,142 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     }
   }, [orderId]);
 
+  const handleRefreshDeliveries = useCallback(async () => {
+    setDeliveriesLoading(true);
+    try {
+      const result = await getDeliveries({ sale_order_id: orderId, limit: 10 });
+      if (result.deliveries.length > 0) {
+        setDeliveries(result.deliveries);
+        if (!selectedDelivery) {
+          const active =
+            result.deliveries.find((d) => d.state !== 'done' && d.state !== 'cancel') ??
+            result.deliveries[0];
+          setSelectedDelivery(active);
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setDeliveriesLoading(false);
+    }
+  }, [orderId, selectedDelivery]);
+
+  const handleToggleEditMode = useCallback(() => {
+    setIsEditingLines((prev) => {
+      if (prev) {
+        // Cancelling — reset editable lines from server state
+        setEditableLines(order ? order.lines.map((l) => ({ ...l })) : []);
+        setShowEditProductPicker(false);
+        setEditProductSearch('');
+      }
+      return !prev;
+    });
+  }, [order]);
+
+  const handleAddEditProduct = useCallback(
+    async (p: OdooProduct) => {
+      const existing = editableLines.find((l) => l.productId === p.id);
+      if (existing) {
+        handleLineQtyChange(existing.id, existing.quantity + 1);
+      } else {
+        const tempId = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        let priceUnit = p.list_price;
+        const pl = selectedRevisePLRef.current;
+        if (pl?.odooId) {
+          try {
+            const result = await getPriceListPrice(pl.odooId, p.id, 1);
+            priceUnit = result.unit_price;
+          } catch { /* fallback to list_price */ }
+        }
+        setEditableLines((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            productId: p.id,
+            productName: p.name,
+            sku: p.default_code || null,
+            puCategory: (p.pu_category as string) || null,
+            puMetric: null,
+            serviceType: null,
+            contractType: null,
+            description: null,
+            quantity: 1,
+            priceUnit,
+            priceSubtotal: priceUnit,
+            durationMonths: null,
+          },
+        ]);
+      }
+      setShowEditProductPicker(false);
+      setEditProductSearch('');
+    },
+    [editableLines, handleLineQtyChange],
+  );
+
+  const handleSaveEdits = useCallback(async () => {
+    if (!order) return;
+    setSavingEdits(true);
+    try {
+      const editableIds = new Set(
+        editableLines.filter((l) => !l.id.startsWith('new-')).map((l) => l.id),
+      );
+
+      const toRemove = order.lines.filter((l) => !editableIds.has(l.id));
+      const toUpdate = editableLines.filter((l) => !l.id.startsWith('new-')).filter((l) => {
+        const orig = order.lines.find((ol) => ol.id === l.id);
+        return orig && (orig.quantity !== l.quantity || orig.priceUnit !== l.priceUnit);
+      });
+      const toAdd = editableLines.filter((l) => l.id.startsWith('new-'));
+
+      const ops: Promise<any>[] = [];
+      toRemove.forEach((l) => ops.push(removeOrderLine(Number(order.id), l.id)));
+      toUpdate.forEach((l) =>
+        ops.push(updateOrderLine(Number(order.id), l.id, { quantity: l.quantity, price_unit: l.priceUnit })),
+      );
+      if (toAdd.length > 0) {
+        ops.push(
+          addOrderLines(
+            Number(order.id),
+            toAdd.map((l) => ({
+              product_id: l.productId,
+              quantity: l.quantity,
+              price_unit: l.priceUnit,
+            })),
+          ),
+        );
+      }
+
+      if (ops.length === 0) {
+        toast('No changes to save.');
+        setIsEditingLines(false);
+        return;
+      }
+
+      await Promise.all(ops);
+      toast.success('Changes saved.');
+      setIsEditingLines(false);
+      setShowEditProductPicker(false);
+      await fetchOrderData();
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to save changes.');
+    } finally {
+      setSavingEdits(false);
+    }
+  }, [order, editableLines, fetchOrderData]);
+
   if (loading) {
     return <LoadingState message="Loading order..." />;
   }
 
   if (error || !order) {
     return (
-      <div className="p-4">
-        <div
-          className="rounded-xl p-4 text-sm"
-          style={{ background: 'var(--color-error-soft)', color: 'var(--color-error)' }}
-        >
-          {error ?? 'Order not found.'}
-        </div>
-      </div>
+      <ErrorState
+        message={error ?? 'Order not found.'}
+        onRetry={fetchOrderData}
+      />
     );
   }
 
-  const st = STATE_BADGES[order.state] ?? STATE_BADGES.draft;
+  const st = ORDER_STATE_META[order.state] ?? ORDER_STATE_META.draft;
   const isViewingPastStep = activeStep < backendStep;
-  const sa = STEP_ACTIONS[activeStep];
-  // Step 4 is Payment — block next if not yet paid
-  const needsFullPayment = activeStep === 4 && order.paymentStatus !== 'paid';
-  const nextDisabled = actionLoading || needsFullPayment;
-  const isReviseEditable = activeStep === 1 && !isViewingPastStep;
 
   return (
     <div className="flex flex-col h-full">
@@ -530,7 +840,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
         </button>
         <h2 className="text-lg font-semibold text-text-primary">{order.name}</h2>
         <span className="flex-1" />
-        <span className={st.cls}>{st.label}</span>
+        <Badge variant={st.variant} size="sm">{st.label}</Badge>
       </div>
 
       {/* Scrollable content */}
@@ -580,7 +890,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
 
         {/* Pipeline step buttons */}
         <div className="rounded-xl border border-border bg-bg-tertiary p-3 mb-4">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar">
+          <div ref={stepTabsRef} className="flex gap-1 overflow-x-auto no-scrollbar">
             {PIPELINE_STEPS.map((step, i) => {
               const Icon = STEP_ICONS[i];
               const isActive = i === activeStep;
@@ -614,194 +924,224 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
           {/* ── Step 0: Quotation ── */}
           {activeStep === 0 && (
             <div>
+              {/* Customer section */}
               <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                 <User size={15} className="text-text-muted" />
                 <span className="text-sm font-semibold text-text-primary">Customer</span>
+                {(order.state === 'draft' || order.state === 'sent') && !isViewingPastStep && (
+                  <button
+                    onClick={handleToggleEditMode}
+                    className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border text-text-secondary active:scale-[0.97] transition-transform"
+                  >
+                    <Pencil size={11} />
+                    {isEditingLines ? 'Cancel' : 'Edit Lines'}
+                  </button>
+                )}
               </div>
               <div className="px-4 py-3">
                 <p className="text-sm font-medium text-text-primary">{order.partnerName}</p>
                 {order.partnerEmail && <p className="text-xs text-text-secondary">{order.partnerEmail}</p>}
                 {order.partnerPhone && <p className="text-xs text-text-secondary">{order.partnerPhone}</p>}
-              </div>
-              <OrderLines lines={order.lines} />
-            </div>
-          )}
-
-          {/* ── Step 1: Revise & Confirm ── */}
-          {activeStep === 1 && (
-            <div>
-              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                <span className="text-sm font-semibold text-text-primary">Revise & Confirm</span>
-                {isReviseEditable && (
-                  <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.15))', color: 'var(--color-brand)' }}>
-                    <Pencil size={10} /> Editable
-                  </span>
-                )}
-                {isViewingPastStep && (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full text-text-muted"
-                    style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                    Read-only
-                  </span>
+                {order.clientOrderRef && (
+                  <p className="text-xs text-text-muted mt-1">Ref: {order.clientOrderRef}</p>
                 )}
               </div>
 
-              {/* Pricelist picker */}
-              {isReviseEditable && (
-                <div className="px-4 pt-3">
-                  <button
-                    onClick={() => setShowRevisePLPicker(!showRevisePLPicker)}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors active:scale-[0.98]"
-                    style={{
-                      borderColor: selectedRevisePL ? 'var(--color-success)' : 'var(--border-default)',
-                      backgroundColor: selectedRevisePL ? 'var(--color-success-soft)' : 'var(--bg-tertiary)',
-                    }}
-                  >
-                    <Tag size={13} style={{ color: selectedRevisePL ? 'var(--color-success)' : 'var(--text-muted)' }} />
-                    <span
-                      className="text-xs font-medium truncate"
-                      style={{ color: selectedRevisePL ? 'var(--color-success)' : 'var(--text-secondary)' }}
+              {/* Lines — read-only or editable */}
+              {isEditingLines ? (
+                <>
+                  {/* Pricelist picker for repricing in edit mode */}
+                  <div className="px-4 pb-2 border-t border-border pt-2">
+                    <button
+                      onClick={() => setShowRevisePLPicker((v) => !v)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary active:scale-[0.97]"
                     >
-                      {selectedRevisePL ? selectedRevisePL.name : 'Select Pricelist'}
-                    </span>
-                    <ChevronDown
-                      size={12}
-                      className="ml-auto shrink-0 transition-transform"
-                      style={{
-                        color: selectedRevisePL ? 'var(--color-success)' : 'var(--text-muted)',
-                        transform: showRevisePLPicker ? 'rotate(180deg)' : undefined,
-                      }}
-                    />
-                  </button>
-
-                  {showRevisePLPicker && (
-                    <div className="mt-2 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
-                      <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                      <Tag size={11} />
+                      {selectedRevisePL?.name ?? 'Reprice with pricelist…'}
+                      <ChevronDown size={11} className="ml-1" style={{ transform: showRevisePLPicker ? 'rotate(180deg)' : undefined }} />
+                    </button>
+                    {showRevisePLPicker && (
+                      <div className="mt-1 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
                         {revisePLLoading ? (
-                          <div className="py-4"><LoadingState size="sm" inline /></div>
-                        ) : revisePriceLists.map((pl) => {
-                          const isSelected = pl.id === selectedRevisePL?.id;
-                          return (
-                            <button
-                              key={pl.id}
-                              onClick={() => handleRevisePLSelect(pl)}
-                              className="w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-colors hover:bg-bg-elevated"
-                              style={isSelected ? { backgroundColor: 'var(--color-brand-soft, rgba(255,200,0,0.08))' } : undefined}
-                            >
-                              <div
-                                className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 border"
-                                style={isSelected
-                                  ? { backgroundColor: 'var(--color-brand)', borderColor: 'var(--color-brand)' }
-                                  : { borderColor: 'var(--border-default)' }}
+                          <p className="text-xs text-center py-3 text-text-muted">Loading…</p>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                            {revisePriceLists.map((pl) => (
+                              <button
+                                key={pl.id}
+                                onClick={() => handleRevisePLSelect(pl)}
+                                className="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 hover:bg-bg-elevated"
                               >
-                                {isSelected && <Check size={12} className="text-black" />}
-                              </div>
-                              <span className="text-sm font-medium text-text-primary">{pl.name}</span>
-                            </button>
-                          );
-                        })}
+                                <Check size={11} className={pl.id === selectedRevisePL?.id ? 'text-brand' : 'opacity-0'} />
+                                {pl.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {isReviseEditable && order.approvalStatus === 'rejected' && order.approval && (
-                <div className="mx-4 mt-3 rounded-lg p-3 text-xs"
-                  style={{ background: 'var(--color-error-soft)', color: 'var(--color-error)' }}>
-                  <span className="font-semibold">Rejected</span>
-                  {order.approval.approvedBy && ` by ${order.approval.approvedBy}`}.
-                  {order.approval.notes && ` Reason: "${order.approval.notes}"`}
-                  {' '}Please revise and re-confirm.
-                </div>
-              )}
-
-              {isReviseEditable && order.approvalStatus !== 'rejected' && (
-                <div className="mx-4 mt-3 rounded-lg p-3 text-xs flex items-start gap-2"
-                  style={{ background: 'var(--color-brand-soft, rgba(255,200,0,0.1))', color: 'var(--text-primary)' }}>
-                  <Pencil size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--color-brand)' }} />
-                  <span>
-                    Quotation is <strong>editable</strong>. Update quantities below{selectedRevisePL ? ' or change the pricelist' : ''}, then tap <strong>Confirm</strong>.
-                  </span>
-                </div>
-              )}
-
-              {isReviseEditable ? (
-                <EditableOrderLines
-                  lines={editableLines}
-                  onQtyChange={handleLineQtyChange}
-                  onRemoveLine={handleRemoveLine}
-                  loadingLineIds={linePriceLoadingIds}
-                />
+                    )}
+                  </div>
+                  <EditableOrderLines
+                    lines={editableLines}
+                    onQtyChange={handleLineQtyChange}
+                    onRemoveLine={handleRemoveLine}
+                    loadingLineIds={linePriceLoadingIds}
+                  />
+                  {/* Add product button */}
+                  <div className="px-4 pb-2">
+                    <button
+                      onClick={() => setShowEditProductPicker((v) => !v)}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-border text-text-muted text-sm hover:bg-bg-elevated active:scale-[0.99]"
+                    >
+                      <Plus size={14} />
+                      Add product
+                    </button>
+                    {showEditProductPicker && (
+                      <div className="mt-1 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+                        <div className="p-2">
+                          <div className="relative">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                            <input
+                              type="text"
+                              placeholder="Search products…"
+                              value={editProductSearch}
+                              onChange={(e) => setEditProductSearch(e.target.value)}
+                              autoFocus
+                              className="w-full pl-8 pr-3 py-2 rounded-lg border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        {editProductsLoading ? (
+                          <p className="text-xs text-center py-3 text-text-muted">Loading…</p>
+                        ) : editProducts.length === 0 ? (
+                          <p className="text-xs text-center py-3 text-text-muted">No products found.</p>
+                        ) : (
+                          <div className="max-h-52 overflow-y-auto px-2 pb-2 space-y-0.5">
+                            {editProducts.map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => handleAddEditProduct(p)}
+                                className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-bg-elevated"
+                              >
+                                <span className="font-medium text-text-primary">{p.name}</span>
+                                {p.pu_category && (
+                                  <span className="ml-2 text-[10px] text-text-muted">{p.pu_category as string}</span>
+                                )}
+                                <span className="ml-2 text-xs text-text-secondary" style={{ fontFamily: 'var(--font-mono)' }}>
+                                  {formatCurrency(p.list_price)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {/* Save / Cancel */}
+                  <div className="px-4 pb-4 pt-2 border-t border-border flex gap-2">
+                    <Button variant="secondary" size="md" fullWidth onClick={handleToggleEditMode}>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      fullWidth
+                      onClick={handleSaveEdits}
+                      loading={savingEdits}
+                      loadingText="Saving…"
+                    >
+                      Save Changes
+                    </Button>
+                  </div>
+                </>
               ) : (
-                <OrderLines lines={order.lines} />
+                <>
+                  <OrderLines lines={order.lines} />
+                  <div className="px-4 py-3 border-t border-border">
+                    <OrderSummary order={order} />
+                  </div>
+                </>
               )}
 
-              <div className="px-4 py-3 border-t border-border">
-                <OrderSummary order={order} />
-              </div>
+              {/* Action buttons (only when not in edit mode) */}
+              {!isEditingLines && !isViewingPastStep && order.approvalStatus === 'none' && (
+                <div className="px-4 pb-4 pt-2 space-y-2 border-t border-border">
+                  {order.state === 'draft' && (
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      fullWidth
+                      onClick={handleSend}
+                      disabled={actionLoading}
+                    >
+                      Send to Customer
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    onClick={handleSubmitOrder}
+                    disabled={actionLoading}
+                    loading={actionLoading}
+                    loadingText="Submitting…"
+                  >
+                    Confirm Order
+                  </Button>
+                  <p className="text-[11px] text-text-muted text-center">
+                    Manager approval will be requested automatically if required.
+                  </p>
+                </div>
+              )}
+              {!isEditingLines && !isViewingPastStep && order.approvalStatus !== 'none' && (
+                <div className="px-4 pb-4 pt-2 border-t border-border">
+                  <Button variant="secondary" size="lg" fullWidth onClick={() => setActiveStep(1)}>
+                    View Approval Status →
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* ── Step 2: Approval ── */}
-          {activeStep === 2 && (
+          {/* ── Step 1: Approval ── */}
+          {activeStep === 1 && (
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-text-primary">Approval</p>
-                {(order.approvalStatus === 'approved' || order.approvalStatus === 'pending') && (
-                  <button
-                    onClick={() => handleDownloadPdf('proforma')}
-                    disabled={!!pdfLoading}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-border text-text-secondary active:scale-[0.97] transition-transform disabled:opacity-50"
-                  >
-                    {pdfLoading === 'proforma' ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Download size={12} />
-                    )}
-                    Proforma PDF
-                  </button>
-                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleDownloadPdf('proforma')}
+                  disabled={!!pdfLoading}
+                  loading={pdfLoading === 'proforma'}
+                  leftIcon={<Download size={12} />}
+                >
+                  Proforma PDF
+                </Button>
               </div>
 
               {order.approvalStatus === 'pending' && (
                 <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
-                  Awaiting approval from manager.
+                  <span className="font-semibold">Awaiting manager approval</span>
+                  {order.approval?.submittedAt && ` — submitted ${order.approval.submittedAt.split('T')[0]}`}.
                 </div>
               )}
               {order.approvalStatus === 'approved' && (
                 <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
-                  Order has been approved.
+                  <span className="font-semibold">Approved</span>
+                  {order.approval?.approvedBy && ` by ${order.approval.approvedBy}`}
+                  {order.approval?.approvedAt && ` on ${order.approval.approvedAt.split('T')[0]}`}.
                 </div>
               )}
               {order.approvalStatus === 'rejected' && (
                 <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--color-error-soft)', color: 'var(--color-error)' }}>
-                  Order was rejected. {order.approval?.notes && `Reason: ${order.approval.notes}`}
+                  <span className="font-semibold">Rejected</span>
+                  {order.approval?.approvedBy && ` by ${order.approval.approvedBy}`}.
+                  {order.approval?.notes && ` Reason: "${order.approval.notes}"`}
                 </div>
               )}
 
-              {order.approvalStatus === 'approved' && !isViewingPastStep && (
-                <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={handleSendProforma}
-                    disabled={sendingProforma}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--color-brand)' }}
-                  >
-                    {sendingProforma ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                    Email to Customer
-                  </button>
-                  <button
-                    onClick={() => handleDownloadPdf('proforma')}
-                    disabled={!!pdfLoading}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary disabled:opacity-50"
-                  >
-                    {pdfLoading === 'proforma' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                    PDF
-                  </button>
-                </div>
-              )}
-
+              {/* Manager: approve / reject when pending */}
               {!isViewingPastStep && order.approvalStatus === 'pending' && (
                 <>
                   <textarea
@@ -812,30 +1152,132 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                     className="w-full rounded-lg border border-border bg-bg-tertiary p-2 text-sm text-text-primary outline-none resize-none placeholder:text-text-muted"
                   />
                   <div className="flex gap-2">
-                    <button
-                      onClick={handleApprove}
-                      disabled={actionLoading}
-                      className="flex-1 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-success)' }}
-                    >
+                    <Button variant="success" size="md" fullWidth onClick={handleApprove} disabled={actionLoading}>
                       Approve
-                    </button>
-                    <button
-                      onClick={handleReject}
-                      disabled={actionLoading}
-                      className="flex-1 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-error)' }}
-                    >
+                    </Button>
+                    <Button variant="danger" size="md" fullWidth onClick={handleReject} disabled={actionLoading}>
                       Reject
-                    </button>
+                    </Button>
                   </div>
                 </>
+              )}
+
+              {/* Agent: confirm once approved */}
+              {!isViewingPastStep && order.approvalStatus === 'approved' && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      onClick={handleSendProforma}
+                      disabled={sendingProforma}
+                      loading={sendingProforma}
+                      loadingText="Sending…"
+                      leftIcon={<Mail size={13} />}
+                    >
+                      Email Proforma
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleDownloadPdf('proforma')}
+                      disabled={!!pdfLoading}
+                      loading={pdfLoading === 'proforma'}
+                      leftIcon={<Download size={13} />}
+                    >
+                      PDF
+                    </Button>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    onClick={handleSubmitOrder}
+                    disabled={actionLoading}
+                    loading={actionLoading}
+                    loadingText="Confirming…"
+                  >
+                    Confirm as Sales Order
+                  </Button>
+                </div>
+              )}
+
+              {/* Agent: edit lines and resubmit when rejected */}
+              {!isViewingPastStep && order.approvalStatus === 'rejected' && (
+                <div className="space-y-3 pt-1">
+                  {/* Pricelist re-pricer */}
+                  <div>
+                    <button
+                      onClick={() => setShowRevisePLPicker((v) => !v)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary active:scale-[0.97]"
+                    >
+                      <Tag size={11} />
+                      {selectedRevisePL?.name ?? 'Reprice with pricelist…'}
+                      <ChevronDown size={11} className="ml-1" style={{ transform: showRevisePLPicker ? 'rotate(180deg)' : undefined }} />
+                    </button>
+                    {showRevisePLPicker && (
+                      <div className="mt-1 rounded-xl border border-border bg-bg-tertiary overflow-hidden shadow-lg">
+                        {revisePLLoading ? (
+                          <p className="text-xs text-center py-3 text-text-muted">Loading…</p>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                            {revisePriceLists.map((pl) => (
+                              <button
+                                key={pl.id}
+                                onClick={() => handleRevisePLSelect(pl)}
+                                className="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 hover:bg-bg-elevated"
+                              >
+                                <Check size={11} className={pl.id === selectedRevisePL?.id ? 'text-brand' : 'opacity-0'} />
+                                {pl.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Editable lines */}
+                  <div className="-mx-4 border-t border-border">
+                    <EditableOrderLines
+                      lines={editableLines}
+                      onQtyChange={handleLineQtyChange}
+                      onRemoveLine={handleRemoveLine}
+                      loadingLineIds={linePriceLoadingIds}
+                    />
+                  </div>
+
+                  {/* Save edits */}
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    fullWidth
+                    onClick={handleSaveEdits}
+                    loading={savingEdits}
+                    loadingText="Saving…"
+                  >
+                    Save Line Edits
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    onClick={handleSubmitOrder}
+                    disabled={actionLoading}
+                    loading={actionLoading}
+                    loadingText="Submitting…"
+                  >
+                    Resubmit Order
+                  </Button>
+                </div>
               )}
             </div>
           )}
 
-          {/* ── Step 3: Delivery ── */}
-          {activeStep === 3 && (
+          {/* ── Step 2: Delivery ── */}
+          {activeStep === 2 && (
             <DeliveryStep
               order={order}
               deliveries={deliveries}
@@ -844,9 +1286,82 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
               detailLoading={deliveryDetailLoading}
               validating={validatingDelivery}
               isViewingPastStep={isViewingPastStep}
+              stockMap={stockMap}
               onSelectDelivery={setSelectedDelivery}
               onValidate={handleValidateDelivery}
+              onRefreshDeliveries={handleRefreshDeliveries}
             />
+          )}
+
+          {/* ── Step 3: Invoice ── */}
+          {activeStep === 3 && (
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-text-primary">Invoice</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleDownloadPdf('invoice')}
+                  disabled={!!pdfLoading}
+                  loading={pdfLoading === 'invoice'}
+                  leftIcon={<Download size={12} />}
+                >
+                  Invoice PDF
+                </Button>
+              </div>
+
+              {order.invoices.length === 0 ? (
+                <div className="rounded-lg p-3 space-y-3 border border-border">
+                  <p className="text-xs text-center text-text-muted">
+                    No invoice has been generated yet. Odoo normally creates one automatically on confirm or delivery; use the button below to create one manually if needed.
+                  </p>
+                  {(order.state === 'sale' || order.state === 'done') && !isViewingPastStep && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      fullWidth
+                      onClick={handleCreateInvoice}
+                      disabled={actionLoading}
+                      loading={actionLoading}
+                      loadingText="Creating…"
+                    >
+                      Create Invoice
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {order.invoices.map((inv) => (
+                    <div key={inv.id} className="rounded-lg p-3 border border-border space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-text-primary">{inv.name}</span>
+                        <Badge variant={inv.state === 'posted' ? 'success' : 'default'} size="xs">
+                          {inv.state === 'posted' ? 'Posted' : 'Draft'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-text-secondary">
+                        Total: {formatCurrency(inv.amountTotal)}
+                        {inv.amountResidual > 0 && ` · Due: ${formatCurrency(inv.amountResidual)}`}
+                      </p>
+                      {inv.state !== 'posted' && !isViewingPastStep && (
+                        <Button
+                          variant="primary"
+                          size="md"
+                          fullWidth
+                          onClick={() => handlePostInvoice(inv.id)}
+                          disabled={actionLoading}
+                          loading={actionLoading}
+                          loadingText="Posting…"
+                        >
+                          Post Invoice
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <OrderSummary order={order} />
+            </div>
           )}
 
           {/* ── Step 4: Payment ── */}
@@ -862,16 +1377,84 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                   {order.payments.map((pay) => (
                     <div key={pay.id} className="flex items-center justify-between rounded-lg p-2 border border-border text-xs">
                       <span className="text-text-primary" style={{ fontFamily: 'var(--font-mono)' }}>{formatCurrency(pay.amount)}</span>
-                      <span className="text-text-muted">{pay.paymentDate}</span>
+                      <span className="text-text-muted">
+                        {pay.paymentDate}{pay.paymentMethod ? ` · ${pay.paymentMethod}` : ''}
+                      </span>
                     </div>
                   ))}
                 </div>
               )}
+              {order.paymentStatus === 'paid' && (
+                <div className="mx-4 rounded-lg p-3" style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
+                  <p className="text-sm font-semibold text-center">Fully Paid</p>
+                </div>
+              )}
               {!isViewingPastStep && order.paymentStatus !== 'paid' && (
-                <div className="px-4 pb-4 space-y-2 pt-2 border-t border-border">
+                <div className="px-4 pb-4 space-y-3 pt-2 border-t border-border">
+                  {/* Invoice selector — only when multiple unpaid invoices exist */}
+                  {(() => {
+                    const unpaid = order.invoices.filter((inv) => (inv.amountResidual ?? 0) > 0);
+                    if (unpaid.length <= 1) return null;
+                    return (
+                      <div>
+                        <p className="text-xs font-medium text-text-secondary mb-2">Apply to Invoice</p>
+                        <div className="space-y-1.5">
+                          {unpaid.map((inv) => {
+                            const isSelected = payInvoiceId === Number(inv.id);
+                            return (
+                              <button
+                                key={inv.id}
+                                onClick={() => setPayInvoiceId(isSelected ? null : Number(inv.id))}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-colors text-left"
+                                style={{
+                                  borderColor: isSelected ? 'var(--color-brand)' : 'var(--border-default)',
+                                  backgroundColor: isSelected ? 'var(--color-brand-soft, rgba(255,200,0,0.1))' : 'var(--bg-tertiary)',
+                                }}
+                              >
+                                <span className="text-xs font-medium text-text-primary truncate">{inv.name}</span>
+                                <span className="text-xs text-text-muted shrink-0 ml-2" style={{ fontFamily: 'var(--font-mono)' }}>
+                                  {formatCurrency(inv.amountResidual)}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {/* Payment method selector */}
+                  <div>
+                    <p className="text-xs font-medium text-text-secondary mb-2">Payment Method</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(journals.length > 0 ? journals : FALLBACK_JOURNALS).map((j) => {
+                        const isSelected = j.id !== 0 ? payJournalId === j.id : payJournalId === null && journals.length === 0;
+                        return (
+                          <button
+                            key={j.id !== 0 ? j.id : j.name}
+                            onClick={() => setPayJournalId(isSelected ? null : (j.id !== 0 ? j.id : null))}
+                            className="py-2 rounded-lg text-xs font-medium border transition-colors active:scale-[0.97]"
+                            style={{
+                              borderColor: isSelected ? 'var(--color-brand)' : 'var(--border-default)',
+                              backgroundColor: isSelected ? 'var(--color-brand-soft, rgba(255,200,0,0.1))' : 'var(--bg-tertiary)',
+                              color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            }}
+                          >
+                            {j.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* Payment date */}
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none"
+                  />
                   <input
                     type="number"
-                    placeholder="Payment amount"
+                    placeholder={`Amount (remaining: ${formatCurrency(order.remainingAmount)})`}
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value)}
                     className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none placeholder:text-text-muted"
@@ -883,68 +1466,17 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                     onChange={(e) => setPayMemo(e.target.value)}
                     className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none placeholder:text-text-muted"
                   />
-                  <button
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                     onClick={handleRegisterPayment}
                     disabled={actionLoading}
-                    style={{ backgroundColor: 'var(--color-brand)' }}
-                    className="w-full py-2.5 rounded-lg text-sm font-medium text-black disabled:opacity-50"
+                    loading={actionLoading}
+                    loadingText="Processing…"
                   >
-                    {actionLoading ? 'Processing...' : 'Register Payment'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Step 5: Final Invoice ── */}
-          {activeStep === 5 && (
-            <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-text-primary">Final Invoice</p>
-                <button
-                  onClick={() => handleDownloadPdf('invoice')}
-                  disabled={!!pdfLoading}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-border text-text-secondary active:scale-[0.97] transition-transform disabled:opacity-50"
-                >
-                  {pdfLoading === 'invoice' ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Download size={12} />
-                  )}
-                  Invoice PDF
-                </button>
-              </div>
-              {order.invoices.length > 0 ? (
-                <div className="space-y-2">
-                  {order.invoices.map((inv) => (
-                    <div key={inv.id} className="rounded-lg p-3 border border-border">
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium text-text-primary">{inv.name}</span>
-                        <span className={inv.state === 'posted' ? 'list-card-badge list-card-badge--completed' : 'list-card-badge list-card-badge--default'}>
-                          {inv.state}
-                        </span>
-                      </div>
-                      <p className="text-xs text-text-secondary mt-1">
-                        Total: {formatCurrency(inv.amountTotal)} · Residual: {formatCurrency(inv.amountResidual)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-lg p-3 text-xs text-center text-text-muted">
-                  No invoices yet.
-                </div>
-              )}
-              <OrderSummary order={order} />
-
-              {order.paymentStatus === 'paid' && (
-                <div className="rounded-lg p-3 border border-border text-right space-y-1">
-                  <p className="text-xs font-semibold" style={{ color: 'var(--color-success)' }}>
-                    Paid{order.payments[0]?.paymentMethod ? ` (${order.payments[0].paymentMethod})` : ''}: -{formatCurrency(order.paidAmount)}
-                  </p>
-                  <p className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>
-                    Amount Due: {formatCurrency(0)}
-                  </p>
+                    Register Payment
+                  </Button>
                 </div>
               )}
             </div>
@@ -1008,23 +1540,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             {PIPELINE_STEPS[activeStep + 1]?.label ?? 'Next'}
             <ChevronRight size={16} />
           </button>
-        ) : activeStep < 5 && sa.nextLabel ? (
-          <button
-            onClick={handleStepAction}
-            disabled={nextDisabled}
-            style={{ backgroundColor: 'var(--color-brand)' }}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-black disabled:opacity-50 active:scale-[0.98] transition-transform"
-          >
-            {actionLoading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <>
-                {sa.nextLabel}
-                <ChevronRight size={16} />
-              </>
-            )}
-          </button>
-        ) : activeStep === 5 ? (
+        ) : activeStep === 4 && order.paymentStatus === 'paid' ? (
           <button
             onClick={onBack}
             className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-white active:scale-[0.98] transition-transform"
@@ -1049,15 +1565,8 @@ function DeliveryStatusBadge({ order }: { order: OrderEntity }) {
       </span>
     );
   }
-  const meta = DELIVERY_STATE_LABELS[state] ?? DELIVERY_STATE_LABELS.waiting;
-  return (
-    <span
-      className="text-[11px] font-medium px-2 py-0.5 rounded-full"
-      style={{ backgroundColor: meta.bg, color: meta.color }}
-    >
-      {meta.label}
-    </span>
-  );
+  const meta = DELIVERY_STATE_META[state] ?? DELIVERY_STATE_META.waiting;
+  return <Badge variant={meta.variant} size="xs">{meta.label}</Badge>;
 }
 
 /* ── Delivery step ── */
@@ -1069,8 +1578,10 @@ interface DeliveryStepProps {
   detailLoading: boolean;
   validating: boolean;
   isViewingPastStep: boolean;
+  stockMap: Map<number, { qty_on_hand: number; qty_reserved: number; qty_available: number }>;
   onSelectDelivery: (d: DeliveryEntity) => void;
-  onValidate: () => void;
+  onValidate: (lines: ValidateDeliveryLine[], forceBackorder: boolean) => void;
+  onRefreshDeliveries: () => void;
 }
 
 function DeliveryStep({
@@ -1081,13 +1592,65 @@ function DeliveryStep({
   detailLoading,
   validating,
   isViewingPastStep,
+  stockMap,
   onSelectDelivery,
   onValidate,
+  onRefreshDeliveries,
 }: DeliveryStepProps) {
+  // qty_done per move line — keyed by line.id (the move id)
+  const [qtyDoneMap, setQtyDoneMap] = useState<Record<number, number>>({});
+  const [backorderModalOpen, setBackorderModalOpen] = useState(false);
+
+  // Initialise qty done from delivery lines when they load
+  useEffect(() => {
+    if (!selectedDelivery?.lines) return;
+    const init: Record<number, number> = {};
+    for (const l of selectedDelivery.lines) {
+      init[l.id] = l.qty_done > 0 ? l.qty_done : l.qty_ordered;
+    }
+    setQtyDoneMap(init);
+    setBackorderModalOpen(false);
+  }, [selectedDelivery?.id, selectedDelivery?.lines]);
+
+  const isAssigned = selectedDelivery?.state === 'assigned';
+  const canEdit = isAssigned && !isViewingPastStep;
+  // Allow validate for any active state — the API will handle force-validation
   const canValidate =
     !isViewingPastStep &&
     selectedDelivery !== null &&
-    (selectedDelivery.state === 'assigned' || selectedDelivery.state === 'confirmed');
+    selectedDelivery.state !== 'done' &&
+    selectedDelivery.state !== 'cancel';
+
+  const hasPartial = selectedDelivery?.lines?.some((l) => {
+    const done = qtyDoneMap[l.id] ?? l.qty_ordered;
+    return done < l.qty_ordered;
+  }) ?? false;
+
+  function buildValidateLines(): ValidateDeliveryLine[] {
+    if (!selectedDelivery?.lines) return [];
+    return selectedDelivery.lines.map((l) => ({
+      move_id: l.id,
+      qty_done: qtyDoneMap[l.id] ?? l.qty_ordered,
+    }));
+  }
+
+  const handleValidateClick = () => {
+    // Partial qty → ask about backorder via modal (Odoo-style)
+    if (hasPartial) {
+      setBackorderModalOpen(true);
+      return;
+    }
+    onValidate(buildValidateLines(), false);
+  };
+
+  const handleBackorderChoice = (createBackorder: boolean) => {
+    setBackorderModalOpen(false);
+    onValidate(buildValidateLines(), createBackorder);
+  };
+
+  const stateMeta = selectedDelivery
+    ? (DELIVERY_STATE_META[selectedDelivery.state] ?? DELIVERY_STATE_META.waiting)
+    : null;
 
   return (
     <div className="divide-y divide-border">
@@ -1098,31 +1661,129 @@ function DeliveryStep({
         {deliveriesLoading && <Loader2 size={13} className="animate-spin text-text-muted ml-1" />}
       </div>
 
-      {/* Explanation */}
-      <div className="px-4 py-3">
-        <div className="rounded-lg p-3 text-xs flex items-center gap-2"
-          style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
-          <AlertCircle size={13} className="shrink-0 text-text-muted" />
-          <span>Tap <strong>Validate</strong> once goods have been dispatched to the customer.</span>
-        </div>
-      </div>
-
-      {/* Delivery list / picker */}
-      {!deliveriesLoading && deliveries.length === 0 && (
-        <div className="px-4 py-6 text-center">
-          <Truck size={24} className="mx-auto mb-2 text-text-muted" />
-          <p className="text-xs text-text-muted">No delivery orders found for this sale.</p>
-          <p className="text-[11px] text-text-muted mt-1">
-            This may mean the order only contains service products (no physical delivery needed).
-          </p>
+      {/* Sticky validate action bar — Odoo-style top primary action */}
+      {canValidate && selectedDelivery && stateMeta && (
+        <div
+          className="sticky top-0 z-10 px-4 py-2.5 flex items-center gap-2"
+          style={{ backgroundColor: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border-default)' }}
+        >
+          <Badge variant={stateMeta.variant} size="xs">{stateMeta.label}</Badge>
+          <span className="text-[11px] text-text-muted truncate flex-1">{selectedDelivery.name}</span>
+          <Button
+            variant="success"
+            size="sm"
+            onClick={handleValidateClick}
+            disabled={validating || !isAssigned}
+            loading={validating}
+            loadingText="Validating…"
+            leftIcon={<Truck size={13} />}
+          >
+            {isAssigned ? 'Validate' : 'Awaiting stock'}
+          </Button>
         </div>
       )}
+
+      {/* Backorder confirm modal (Odoo-style) */}
+      {backorderModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setBackorderModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-4 space-y-3"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-sm font-semibold text-text-primary">Create backorder?</p>
+              <p className="text-xs text-text-muted mt-1">
+                You are dispatching less than the full order. Odoo can open a new picking for the remaining units, or close this one and forget the shortfall.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                onClick={() => handleBackorderChoice(true)}
+                disabled={validating}
+                loading={validating}
+                loadingText="Validating…"
+              >
+                Create Backorder
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
+                onClick={() => handleBackorderChoice(false)}
+                disabled={validating}
+              >
+                No Backorder
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                fullWidth
+                onClick={() => setBackorderModalOpen(false)}
+                disabled={validating}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery list / picker — diagnostic empty state */}
+      {!deliveriesLoading && deliveries.length === 0 && (() => {
+        const isPreConfirm = order.state === 'draft' || order.state === 'sent';
+        const hasPhysical = order.lines.some(
+          (l) => !l.puCategory || l.puCategory === 'physical',
+        );
+        const isServiceOnly = order.lines.length > 0 && !hasPhysical;
+
+        let title = 'No deliveries found';
+        let body = '';
+        let showRefresh = true;
+        if (isPreConfirm) {
+          title = 'Order not yet confirmed';
+          body = 'A delivery picking is created automatically when you confirm the order. Go back to the Quotation step and tap Confirm Order.';
+          showRefresh = false;
+        } else if (isServiceOnly) {
+          title = 'No physical items to dispatch';
+          body = 'This order has only services or contracts — no warehouse dispatch is needed. Skip ahead to the Invoice step.';
+          showRefresh = false;
+        } else {
+          title = 'Picking is being created';
+          body = 'Odoo creates the delivery picking shortly after the order is confirmed. Tap Refresh in a few seconds.';
+        }
+
+        return (
+          <div className="px-4 py-8 text-center space-y-3">
+            <Truck size={28} className="mx-auto text-text-muted" />
+            <div>
+              <p className="text-sm font-medium text-text-secondary">{title}</p>
+              <p className="text-[11px] text-text-muted max-w-[280px] mx-auto mt-1">{body}</p>
+            </div>
+            {showRefresh && (
+              <button
+                onClick={onRefreshDeliveries}
+                className="px-4 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary active:scale-[0.98]"
+              >
+                Refresh
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {deliveries.length > 1 && (
         <div className="px-4 py-3 space-y-2">
           <p className="text-xs font-medium text-text-secondary">Select delivery</p>
           {deliveries.map((d) => {
-            const meta = DELIVERY_STATE_LABELS[d.state] ?? DELIVERY_STATE_LABELS.waiting;
+            const meta = DELIVERY_STATE_META[d.state] ?? DELIVERY_STATE_META.waiting;
             const isSelected = selectedDelivery?.id === d.id;
             return (
               <button
@@ -1136,12 +1797,7 @@ function DeliveryStep({
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-text-primary">{d.name}</span>
-                  <span
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: meta.bg, color: meta.color }}
-                  >
-                    {meta.label}
-                  </span>
+                  <Badge variant={meta.variant} size="xs">{meta.label}</Badge>
                 </div>
                 {d.scheduled_date && (
                   <p className="text-[11px] text-text-muted mt-0.5">
@@ -1157,24 +1813,17 @@ function DeliveryStep({
       {/* Selected delivery detail */}
       {selectedDelivery && (
         <div className="px-4 py-3 space-y-3">
-          {/* Delivery header */}
-          <div className="flex items-center justify-between">
-            <div>
+          {/* Delivery header + status */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-text-primary">{selectedDelivery.name}</p>
               {selectedDelivery.origin && (
                 <p className="text-[11px] text-text-muted">Origin: {selectedDelivery.origin}</p>
               )}
             </div>
             {(() => {
-              const meta = DELIVERY_STATE_LABELS[selectedDelivery.state] ?? DELIVERY_STATE_LABELS.waiting;
-              return (
-                <span
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-                  style={{ backgroundColor: meta.bg, color: meta.color }}
-                >
-                  {meta.label}
-                </span>
-              );
+              const meta = DELIVERY_STATE_META[selectedDelivery.state] ?? DELIVERY_STATE_META.waiting;
+              return <Badge variant={meta.variant} size="sm" className="shrink-0">{meta.label}</Badge>;
             })()}
           </div>
 
@@ -1208,6 +1857,42 @@ function DeliveryStep({
             )}
           </div>
 
+          {/* State explanation banners */}
+          {selectedDelivery.state === 'done' && (
+            <div className="rounded-lg p-3 text-xs flex items-center gap-2"
+              style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
+              <CheckCircle2 size={14} className="shrink-0" />
+              <span>Delivery completed. Stock decremented from <strong>{selectedDelivery.location_from?.name ?? 'warehouse'}</strong>.</span>
+            </div>
+          )}
+          {selectedDelivery.state === 'waiting' && (
+            <div className="rounded-lg p-3 text-xs flex items-start gap-2"
+              style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>
+                <strong>Waiting on incoming stock.</strong> A prior receipt or production order must be validated before this delivery can be picked.
+              </span>
+            </div>
+          )}
+          {selectedDelivery.state === 'confirmed' && (
+            <div className="rounded-lg p-3 text-xs flex items-start gap-2"
+              style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>
+                <strong>Availability not yet confirmed.</strong> Odoo has not reserved stock for this delivery. A warehouse manager can force-reserve from the Odoo backend.
+              </span>
+            </div>
+          )}
+          {selectedDelivery.state === 'assigned' && (
+            <div className="rounded-lg p-3 text-xs flex items-center gap-2"
+              style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
+              <CheckCircle2 size={14} className="shrink-0" />
+              <span>
+                <strong>Stock reserved.</strong> Units are allocated in the warehouse and ready to dispatch.
+              </span>
+            </div>
+          )}
+
           {/* Move lines */}
           {detailLoading ? (
             <div className="py-4"><LoadingState size="sm" inline /></div>
@@ -1219,97 +1904,124 @@ function DeliveryStep({
                 <span className="text-xs font-semibold text-text-secondary">
                   Products ({selectedDelivery.lines.length})
                 </span>
+                {canEdit && (
+                  <span className="ml-auto text-[10px] text-text-muted">Set qty dispatched →</span>
+                )}
               </div>
               <div className="divide-y divide-border">
                 {selectedDelivery.lines.map((line) => {
-                  const isDone = line.qty_done >= line.qty_ordered && line.qty_ordered > 0;
-                  const isPartial = line.qty_done > 0 && line.qty_done < line.qty_ordered;
+                  const qtyDone = qtyDoneMap[line.id] ?? line.qty_ordered;
+                  const isDone = qtyDone >= line.qty_ordered && line.qty_ordered > 0;
+                  const isShort = qtyDone < line.qty_ordered;
+                  const stockEntry = stockMap.get(line.product.id);
                   return (
-                    <div key={line.id} className="px-3 py-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-medium text-text-primary truncate flex-1">
-                          {line.product.name}
-                        </p>
-                        {isDone && (
-                          <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-[11px] text-text-muted">
-                          Demand: <strong className="text-text-primary">{line.qty_ordered}</strong>
-                        </span>
-                        <span className="text-[11px] text-text-muted">
-                          Done:{' '}
-                          <strong
-                            style={{
-                              color: isDone
-                                ? 'var(--color-success)'
-                                : isPartial
-                                  ? 'var(--color-warning)'
-                                  : 'var(--text-primary)',
-                            }}
-                          >
-                            {line.qty_done}
-                          </strong>
-                        </span>
-                        {line.uom?.name && (
-                          <span className="text-[11px] text-text-muted">{line.uom.name}</span>
-                        )}
-                      </div>
-                      {line.lot_ids && line.lot_ids.length > 0 && (
-                        <div className="mt-1.5">
-                          <span
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                          >
-                            {line.lot_ids.length} serial{line.lot_ids.length > 1 ? 's' : ''} assigned
-                          </span>
+                    <div key={line.id} className="px-3 py-3 space-y-2">
+                      {/* Product name + done badge */}
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-text-primary">{line.product.name}</p>
+                          {line.uom?.name && (
+                            <p className="text-[10px] text-text-muted">{line.uom.name}</p>
+                          )}
                         </div>
+                        {isDone && !canEdit && (
+                          <CheckCircle2 size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--color-success)' }} />
+                        )}
+                      </div>
+
+                      {/* Qty row — editable when assigned */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                            <p className="text-[9px] uppercase font-medium text-text-muted">Demand</p>
+                            <p className="text-sm font-bold text-text-primary">{line.qty_ordered}</p>
+                          </div>
+                          <div className="rounded-lg px-2.5 py-2"
+                            style={{
+                              backgroundColor: isDone ? 'var(--color-success-soft)' : isShort ? 'var(--color-warning-soft)' : 'var(--bg-elevated)',
+                            }}>
+                            <p className="text-[9px] uppercase font-medium"
+                              style={{ color: isDone ? 'var(--color-success)' : isShort ? 'var(--color-warning)' : 'var(--text-muted)' }}>
+                              {canEdit ? 'Dispatching' : 'Done'}
+                            </p>
+                            {canEdit ? (
+                              <input
+                                type="number"
+                                min={0}
+                                max={line.qty_ordered}
+                                value={qtyDone === 0 ? '' : qtyDone}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10);
+                                  setQtyDoneMap((prev) => ({ ...prev, [line.id]: Number.isNaN(v) ? 0 : Math.min(v, line.qty_ordered) }));
+                                }}
+                                onBlur={(e) => {
+                                  if (e.target.value === '') {
+                                    setQtyDoneMap((prev) => ({ ...prev, [line.id]: 0 }));
+                                  }
+                                }}
+                                className="w-full text-sm font-bold outline-none bg-transparent"
+                                style={{ color: isDone ? 'var(--color-success)' : isShort ? 'var(--color-warning)' : 'var(--text-primary)' }}
+                              />
+                            ) : (
+                              <p className="text-sm font-bold"
+                                style={{ color: isDone ? 'var(--color-success)' : isShort ? 'var(--color-warning)' : 'var(--text-primary)' }}>
+                                {line.qty_done}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Stock context mini-card */}
+                      {stockEntry && (
+                        <div className="flex items-center gap-2 text-[10px] text-text-muted">
+                          <span>Warehouse:</span>
+                          <span className="font-medium" style={{ color: stockEntry.qty_available >= line.qty_ordered ? 'var(--color-success)' : stockEntry.qty_available > 0 ? 'var(--color-warning)' : 'var(--color-error)' }}>
+                            {stockEntry.qty_available} avail
+                          </span>
+                          <span>·</span>
+                          <span>{stockEntry.qty_reserved} reserved</span>
+                          <span>·</span>
+                          <span>{stockEntry.qty_on_hand} on hand</span>
+                        </div>
+                      )}
+
+                      {/* Serial / lot chips */}
+                      {line.lot_names.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[9px] uppercase font-medium text-text-muted">Assigned serials</p>
+                          <div className="flex flex-wrap gap-1">
+                            {line.lot_names.map((sn) => (
+                              <span
+                                key={sn}
+                                className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md border"
+                                style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                              >
+                                {sn}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {line.lot_names.length === 0 && (line.lot_ids.length > 0) && (
+                        <p className="text-[10px] text-text-muted">
+                          {line.lot_ids.length} serial{line.lot_ids.length !== 1 ? 's' : ''} assigned (names not returned by API)
+                        </p>
                       )}
                     </div>
                   );
                 })}
               </div>
             </div>
-          ) : (
-            <p className="text-xs text-text-muted text-center py-2">No line detail available.</p>
-          )}
+          ) : !detailLoading && selectedDelivery.state !== 'done' ? (
+            <p className="text-xs text-text-muted text-center py-2">Line detail not available — validate from Odoo desktop if needed.</p>
+          ) : null}
 
-          {/* Done delivery note */}
-          {selectedDelivery.state === 'done' && (
-            <div className="rounded-lg p-3 text-xs flex items-center gap-2"
-              style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}>
-              <CheckCircle2 size={14} className="shrink-0" />
-              <span>Delivery completed. Stock has been decremented from warehouse inventory.</span>
-            </div>
-          )}
-
-          {/* Waiting note */}
-          {(selectedDelivery.state === 'waiting' || selectedDelivery.state === 'confirmed') && (
-            <div className="rounded-lg p-3 text-xs flex items-start gap-2"
-              style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>
-                Stock is <strong>reserved</strong> for this delivery but not yet dispatched.
-                The delivery will be ready once stock is confirmed at the warehouse.
-              </span>
-            </div>
-          )}
-
-          {/* Validate button */}
-          {canValidate && (
-            <button
-              onClick={onValidate}
-              disabled={validating}
-              className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform"
-              style={{ backgroundColor: 'var(--color-success)', color: '#fff' }}
-            >
-              {validating ? (
-                <><Loader2 size={16} className="animate-spin" /> Validating...</>
-              ) : (
-                <><Truck size={16} /> Validate Delivery</>
-              )}
-            </button>
+          {/* Partial-qty hint when in edit mode (modal handles the actual choice) */}
+          {canEdit && hasPartial && (
+            <p className="text-[11px] text-text-muted text-center">
+              You are dispatching less than the full order — you&apos;ll be asked about a backorder when you validate.
+            </p>
           )}
         </div>
       )}
@@ -1346,9 +2058,9 @@ function OrderLines({ lines }: { lines: OrderLineEntity[] }) {
                   </span>
                 )}
                 {line.puCategory && (
-                  <span className={`list-card-badge ${line.puCategory === 'physical' ? 'list-card-badge--progress' : 'list-card-badge--default'}`}>
+                  <Badge variant={line.puCategory === 'physical' ? 'warning' : 'default'} size="xs">
                     {line.puCategory}
-                  </span>
+                  </Badge>
                 )}
               </div>
             </div>
@@ -1409,9 +2121,9 @@ function EditableOrderLines({
                       </span>
                     )}
                     {line.puCategory && (
-                      <span className={`list-card-badge ${line.puCategory === 'physical' ? 'list-card-badge--progress' : 'list-card-badge--default'}`}>
+                      <Badge variant={line.puCategory === 'physical' ? 'warning' : 'default'} size="xs">
                         {line.puCategory}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                 </div>

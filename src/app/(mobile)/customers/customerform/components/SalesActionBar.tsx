@@ -4,6 +4,7 @@ import React from 'react';
 import { Camera } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { SalesStep } from './types';
+import type { InputMode } from '@/components/shared/types';
 
 interface SalesActionBarProps {
   currentStep: SalesStep;
@@ -11,7 +12,7 @@ interface SalesActionBarProps {
   onMainAction: () => void;
   isLoading: boolean;
   isDisabled?: boolean;
-  paymentInputMode?: 'scan' | 'manual'; // For step 5 to show correct button text
+  paymentInputMode?: InputMode; // For step 5 to show correct button text
   hasVehicleScanned?: boolean; // For step 6 to show "Continue" vs "Scan Vehicle"
   hasBatteryScanned?: boolean; // For step 7 to show "Complete Service" vs "Scan Battery"
   /** Whether customer identification is complete (required for step 7 Complete Service) */
@@ -26,6 +27,7 @@ interface SalesActionBarProps {
 
 // Icon components for action bar
 const ActionIcons = {
+  qr: <Camera size={18} />,
   arrow: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -56,7 +58,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', hasVehicleScanned?: boolean, hasBatteryScanned?: boolean): StepActionConfig => {
+const getStepConfig = (step: SalesStep, paymentInputMode?: InputMode, hasVehicleScanned?: boolean, hasBatteryScanned?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Customer Form step
@@ -71,7 +73,11 @@ const getStepConfig = (step: SalesStep, paymentInputMode?: 'scan' | 'manual', ha
       // Preview step - Review order before payment
       return { showBack: true, mainTextKey: 'sales.proceedToPayment', mainIcon: 'arrow' };
     case 5:
-      return { showBack: true, mainTextKey: 'sales.confirmPayment', mainIcon: 'check' };
+      return {
+        showBack: true,
+        mainTextKey: 'sales.confirmPayment',
+        mainIcon: paymentInputMode === 'manual' ? 'check' : 'qr',
+      };
     case 6:
       // Vehicle scan step - Show "Continue" if vehicle scanned, "Scan Vehicle" otherwise
       if (hasVehicleScanned) {

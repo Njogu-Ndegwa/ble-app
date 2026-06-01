@@ -71,7 +71,7 @@ export default function RiderActivity({
     const swaps = activities.filter((a) => a.type === "swap").length;
     const totalSpent = activities
       .filter((a) => a.type === "payment" && !a.isPositive)
-      .reduce((s, a) => s + a.amount, 0);
+      .reduce((s, a) => s + (a.amount ?? 0), 0);
     return { swaps, totalSpent };
   }, [activities]);
 
@@ -184,17 +184,23 @@ export default function RiderActivity({
                   </div>
                 </div>
                 <div className="list-card-actions">
-                  <span
-                    className={`list-card-badge ${
-                      a.isPositive
-                        ? "list-card-badge--completed"
-                        : "list-card-badge--default"
-                    }`}
-                  >
-                    {a.isPositive ? "+" : "-"}
-                    {(a.currency || currency) ? `${a.currency || currency} ` : ''}
-                    {Math.abs(a.amount).toLocaleString()}
-                  </span>
+                  {a.energy ? (
+                    <span className="list-card-badge list-card-badge--default">
+                      {a.energy}
+                    </span>
+                  ) : a.amount !== undefined ? (
+                    <span
+                      className={`list-card-badge ${
+                        a.isPositive
+                          ? "list-card-badge--completed"
+                          : "list-card-badge--default"
+                      }`}
+                    >
+                      {a.isPositive ? "+" : "-"}
+                      {(a.currency || currency) ? `${a.currency || currency} ` : ''}
+                      {Math.abs(a.amount).toLocaleString()}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>

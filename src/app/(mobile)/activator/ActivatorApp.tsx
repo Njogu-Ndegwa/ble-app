@@ -16,9 +16,14 @@ import type { ServiceAccount } from '@/lib/sa-types';
 import AppHeader from '@/components/AppHeader';
 import type { OrderListItem } from '@/lib/odoo-api';
 
-const ActivatorFlow = dynamic(() => import('./ActivatorFlow'), { ssr: false });
-const ActivatorSessions = dynamic(() => import('./components/ActivatorSessions'), { ssr: false });
-const WorkflowProfile = dynamic(() => import('@/components/shared').then(m => ({ default: m.WorkflowProfile })), { ssr: false });
+const _loadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+    <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)' }} />
+  </div>
+);
+const ActivatorFlow = dynamic(() => import('./ActivatorFlow'), { ssr: false, loading: _loadingSpinner });
+const ActivatorSessions = dynamic(() => import('./components/ActivatorSessions'), { ssr: false, loading: _loadingSpinner });
+const WorkflowProfile = dynamic(() => import('@/components/shared').then(m => ({ default: m.WorkflowProfile })), { ssr: false, loading: _loadingSpinner });
 
 interface ActivatorAppProps {
   onLogout?: () => void;

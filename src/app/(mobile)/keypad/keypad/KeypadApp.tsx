@@ -11,6 +11,7 @@ import { connBleByMacAddress, initServiceBleData, disconnBleByMacAddress } from 
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import KeypadNav, { type KeypadTab } from './components/KeypadNav';
+import { keypadLog, keypadWarn } from './keypadLog';
 import DeviceManagerProfile from '../../assets/ble-devices/components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
 import { Power } from 'lucide-react';
@@ -18,10 +19,7 @@ import { clearAllAuth } from '@/lib/attendant-auth';
 
 type KeypadScreen = 'devices' | 'profile';
 
-let bridgeHasBeenInitialized = false;
-
 const EMA_ALPHA = 0.3;
-const SORT_THROTTLE_MS = 2500;
 
 export interface BleDevice {
   macAddress: string;
@@ -108,16 +106,17 @@ const KeypadApp: React.FC = () => {
     : undefined;
 
   const detectedDevicesRef = useRef(detectedDevices);
-  const lastSortRef = useRef<number>(0);
   const { bridge } = useBridge();
 
   // Throttle device list updates to avoid re-render storms when many BLE
   // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
   // ref and flushed to React state at most every 300 ms.
   const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
-    setDetectedDevices(detectedDevicesRef.current);
+    const list = detectedDevicesRef.current;
+    setDetectedDevices(list);
   }, []);
 
   const scheduleDeviceBatch = useCallback(() => {
@@ -132,6 +131,10 @@ const KeypadApp: React.FC = () => {
         clearTimeout(deviceBatchTimerRef.current);
         deviceBatchTimerRef.current = null;
       }
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -139,10 +142,6 @@ const KeypadApp: React.FC = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
@@ -173,7 +172,16 @@ const KeypadApp: React.FC = () => {
     setLoadingService(null);
     setProgress(0);
     setConnectingDeviceId(null);
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     setIsConnecting(false);
+    // Remove the fake pushState entry added when a device was selected so that
+    // hardware-back from the device list doesn't get stuck on the ghost entry.
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [t]);
 
   useEffect(() => {
@@ -199,10 +207,21 @@ const KeypadApp: React.FC = () => {
     if (macAddress === connectedDevice && attributeList.length > 0) {
       setSelectedDevice(macAddress);
     } else {
+      if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
+      keypadLog('startConnection — calling connBleByMacAddress', {
+        macRaw: macAddress,
+        macJson: JSON.stringify(macAddress),
+      });
       connBleByMacAddress(macAddress);
+      connectTimeoutRef.current = setTimeout(() => {
+        connectTimeoutRef.current = null;
+        setIsConnecting(false);
+        setProgress(0);
+        toast.error(t('Connection timed out. Please try again.'), { id: 'connect-toast' });
+      }, 30_000);
     }
   };
 
@@ -236,13 +255,9 @@ const KeypadApp: React.FC = () => {
       return () => bridge.registerHandler(name, noop);
     };
 
-    // NOTE: bridge.init() is already called in bridgeContext.tsx
-    // Do NOT call init() again here as it causes the app to hang / native
-    // force-close, especially when navigating between BLE/Keypad/MyDevices
-    // via the bottom nav (each mount used to re-init the bridge).
-    if (!bridgeHasBeenInitialized) {
-      bridgeHasBeenInitialized = true;
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx — do NOT
+    // call init() again here. Each mount re-initialising the bridge causes
+    // native force-closes when navigating BLE/Keypad/MyDevices via bottom nav.
 
     const offPrint = reg("print", (data: string, resp: any) => {
       try {
@@ -263,6 +278,9 @@ const KeypadApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
+            // Same normalization as connBleByMacAddress / session MAC so list rows match
+            // selectedDevice after connect (avoids hyphen vs colon mismatches).
+            d.macAddress = d.macAddress.trim().toUpperCase();
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
@@ -274,6 +292,10 @@ const KeypadApp: React.FC = () => {
               ? EMA_ALPHA * d.rawRssi + (1 - EMA_ALPHA) * existing.smoothedRssi
               : d.rawRssi;
 
+            if (!existing) {
+              keypadLog('BLE advertisement NEW device', d.name, d.macAddress, 'rawRssi=', raw, 'total=', prev.length + 1);
+            }
+
             const next = existing
               ? prev.map((p) =>
                   p.macAddress === d.macAddress
@@ -282,21 +304,20 @@ const KeypadApp: React.FC = () => {
                 )
               : [...prev, { ...d, smoothedRssi }];
 
-            const now = Date.now();
-            if (now - lastSortRef.current >= SORT_THROTTLE_MS) {
-              lastSortRef.current = now;
-              detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
-            } else {
-              detectedDevicesRef.current = next;
-            }
+            detectedDevicesRef.current = [...next].sort((a, b) => b.smoothedRssi - a.smoothedRssi);
             scheduleDeviceBatch();
 
             resp({ success: true });
           } else {
-            console.warn("Invalid device data format:", d);
+            keypadWarn('BLE advertisement rejected (needs OVES name + mac + rssi)', {
+              name: d?.name,
+              mac: d?.macAddress,
+              hasRssi: d?.rssi != null,
+            });
+            resp({ success: false, error: 'filtered' });
           }
         } catch (err: any) {
-          console.error("Error parsing BLE device data:", err);
+          keypadWarn('BLE advertisement JSON parse error:', err?.message ?? err, '| raw:', data);
           resp({ success: false, error: err.message });
         }
       }
@@ -305,6 +326,11 @@ const KeypadApp: React.FC = () => {
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
+        keypadWarn('BLE connect FAILED — native payload:', data);
         setIsConnecting(false);
         setProgress(0);
         toast.error(t('Connection failed! Please try reconnecting again.'), {
@@ -317,10 +343,19 @@ const KeypadApp: React.FC = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         setConnectedDevice(macAddress);
         setIsScanning(false);
         const d = { serviceName: "ATT", macAddress };
+        keypadLog('BLE connect success — MAC stored to sessionStorage', {
+          macRaw: macAddress,
+          macJson: JSON.stringify(macAddress),
+          macLength: macAddress?.length,
+        });
         setLoadingService("ATT");
         initServiceBleData(d);
         resp(macAddress);
@@ -331,8 +366,16 @@ const KeypadApp: React.FC = () => {
       "bleInitDataOnCompleteCallBack",
       (data: string, resp: any) => {
         const r = JSON.parse(data);
+        const list = r.dataList ?? [];
+        keypadLog(
+          'bleInitDataOnCompleteCallBack',
+          'service count=',
+          list.length,
+          'enums=',
+          list.map((s: any) => s.serviceNameEnum)
+        );
         setServiceAttrList(
-          r.dataList.map((s: any, i: any) => ({ ...s, index: i }))
+          list.map((s: any, i: any) => ({ ...s, index: i }))
         );
         resp(data);
       }
@@ -411,15 +454,31 @@ const KeypadApp: React.FC = () => {
       "bleInitServiceDataOnCompleteCallBack",
       (data: string, resp: any) => {
         const parsedData = JSON.parse(data);
+        const chars = parsedData.characteristicList ?? [];
+        keypadLog('bleInitServiceDataOnCompleteCallBack', {
+          serviceNameEnum: parsedData.serviceNameEnum,
+          uuid: parsedData.uuid,
+          characteristicCount: chars.length,
+          characteristicNames: chars.map((c: any) => c.name),
+        });
         setServiceAttrList((prev: any) => {
-          if (!prev || prev.length === 0) return [parsedData];
-          const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
-          if (idx >= 0) {
-            const u = [...prev];
-            u[idx] = parsedData;
-            return u;
+          let updated: any[];
+          if (!prev || prev.length === 0) {
+            updated = [parsedData];
+          } else {
+            const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
+            if (idx >= 0) {
+              updated = [...prev];
+              updated[idx] = parsedData;
+            } else {
+              updated = [...prev, parsedData];
+            }
           }
-          return [...prev, parsedData];
+          // Sync attrList immediately so DeviceDetailView gets the new service
+          // without waiting for the progress===100 effect, which can miss the
+          // update if the native side doesn't fire a final 100% progress callback.
+          setAtrrList(updated);
+          return updated;
         });
         setTimeout(() => setLoadingService(null), 100);
         resp(data);
@@ -505,7 +564,7 @@ const KeypadApp: React.FC = () => {
         pendingTimeout = setTimeout(() => {
           pendingTimeout = null;
           if (isScanning) {
-            console.info('Resetting scanning state - user returned without scanning');
+            keypadLog('visibility: returned to app after QR — clearing scanning flag');
             setIsScanning(false);
           }
           qrScanInitiatedRef.current = false;
@@ -542,11 +601,17 @@ const KeypadApp: React.FC = () => {
       macAddress: selectedDevice,
     };
 
+    keypadLog('initServiceBleData request (lazy service)', data);
     initServiceBleData(data);
   };
 
   useEffect(() => {
     if (progress === 100 && attributeList.length > 0 && connectingDeviceId) {
+      keypadLog('post-connect progress 100%', {
+        connectingDeviceId,
+        loadingService,
+        mergedServiceCount: attributeList.length,
+      });
       setIsConnecting(false);
       setSelectedDevice(connectingDeviceId);
       setAtrrList(attributeList);
@@ -555,10 +620,36 @@ const KeypadApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, attributeList]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  //
+  // We deliberately gate on `bridge` (the React state from useBridge()) and
+  // NOT on a module-level "bridgeHasBeenInitialized" flag. That flag pattern
+  // was broken: a plain `let` doesn't trigger a re-render when flipped, so
+  // the scan effect's deps never appeared to change on the render where
+  // setupBridge ran. The scan therefore couldn't start until some *other*
+  // setState happened to re-render the component — either setAndroidId
+  // (from readDeviceInfo's callback) or setIsMqttConnected (from the MQTT
+  // connect callback).
+  //
+  // Pre-d2e4d27 this never showed up because each applet's setupBridge
+  // also called bridge.init(), which flushes native→JS messages queued
+  // during page boot. Those flushed messages hit the freshly registered
+  // BLE/MQTT handlers and produced an immediate setState, masking the bug.
+  // After d2e4d27 moved bridge.init() into BridgeProvider (to fix native
+  // force-closes), the flush happens before per-applet handlers exist, so
+  // the messages go to BridgeProvider's no-op handler instead and the bug
+  // becomes visible: scan-start ends up tied to the MQTT handshake to
+  // mqtt.omnivoltaic.com:1883, which on a marginal cell connection can
+  // sit at 10–20s. That's the "list empty for 20s before any device
+  // shows" customer report.
+  //
+  // Gating on `bridge` makes React actually observe the change. Effects
+  // within a single render commit in declaration order, and the [bridge]
+  // setupBridge effect above runs before this one — so when `bridge`
+  // flips from null → non-null, handlers are registered first, then the
+  // scan starts in the same commit. Scan-start no longer waits on MQTT.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-
-    stopBleScan();
+    if (!bridge) return;
 
     const id = setTimeout(() => {
       startBleScan();
@@ -569,16 +660,19 @@ const KeypadApp: React.FC = () => {
       stopBleScan();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeHasBeenInitialized]);
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
+      keypadLog('startBleScan → native');
       window.WebViewJavascriptBridge.callHandler(
         "startBleScan",
         "",
         () => {}
       );
       setIsScanning(true);
+    } else {
+      keypadWarn('startBleScan: WebViewJavascriptBridge not available');
     }
   };
 
@@ -589,6 +683,7 @@ const KeypadApp: React.FC = () => {
       flushDeviceBatch();
     }
     if (window.WebViewJavascriptBridge) {
+      keypadLog('stopBleScan; devices in batch ref:', detectedDevicesRef.current.length);
       window.WebViewJavascriptBridge.callHandler("stopBleScan", "", () => {});
       setIsScanning(false);
     }
@@ -613,7 +708,7 @@ const KeypadApp: React.FC = () => {
 
   const handlePublish = (attributeList: any, serviceType: any) => {
     if (!window.WebViewJavascriptBridge) {
-      console.error("WebViewJavascriptBridge is not initialized.");
+      keypadWarn("MQTT publish skipped: WebViewJavascriptBridge not initialized");
       return;
     }
 
@@ -622,7 +717,7 @@ const KeypadApp: React.FC = () => {
       !Array.isArray(attributeList) ||
       attributeList.length === 0
     ) {
-      console.error("AttributeList is empty or invalid");
+      keypadWarn("MQTT publish skipped: attributeList empty");
       toast.error(t('Error: Device data not available yet'));
       return;
     }
@@ -632,7 +727,9 @@ const KeypadApp: React.FC = () => {
     );
 
     if (!attService) {
-      console.error("ATT_SERVICE not found in attributeList.");
+      keypadWarn("MQTT publish skipped: ATT_SERVICE missing", {
+        have: attributeList.map((s: any) => s.serviceNameEnum),
+      });
       toast.error(t('ATT service data is required but not available yet'));
       return;
     }
@@ -642,9 +739,9 @@ const KeypadApp: React.FC = () => {
     );
 
     if (!opidChar || !opidChar.realVal) {
-      console.error(
-        "opid characteristic not found or has no value in ATT_SERVICE."
-      );
+      keypadWarn("MQTT publish skipped: opid missing or empty on ATT_SERVICE", {
+        charNames: attService.characteristicList.map((c: any) => c.name),
+      });
       toast.error(t('Device ID not available'));
       return;
     }
@@ -666,7 +763,9 @@ const KeypadApp: React.FC = () => {
     );
 
     if (!requestedService) {
-      console.error(`${serviceNameEnum} not found in attributeList.`);
+      keypadWarn(`MQTT publish skipped: ${serviceNameEnum} not loaded yet`, {
+        have: attributeList.map((s: any) => s.serviceNameEnum),
+      });
       return;
     }
 
@@ -697,13 +796,18 @@ const KeypadApp: React.FC = () => {
     };
 
     try {
+      keypadLog('MQTT publish', {
+        topic: dataToPublish.topic,
+        serviceType,
+        keys: Object.keys(serviceData),
+      });
       window.WebViewJavascriptBridge.callHandler(
         "mqttPublishMsg",
         JSON.stringify(dataToPublish),
         () => {}
       );
     } catch (error) {
-      console.error(`Error publishing ${serviceType} data:`, error);
+      keypadWarn(`MQTT publish threw for ${serviceType}`, error);
       toast.error(t('Error publishing {service} data', { service: serviceType }));
     }
   };
@@ -745,9 +849,12 @@ const KeypadApp: React.FC = () => {
 
   const handleBLERescan = () => {
     if (isScanning && detectedDevices.length === 0) {
+      keypadLog('rescan: was scanning with 0 devices — stop then user can retry');
       stopBleScan();
     } else {
+      keypadLog('rescan: clearing list and restarting', detectedDevices.length, 'device(s)');
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setConnectingDeviceId(null);

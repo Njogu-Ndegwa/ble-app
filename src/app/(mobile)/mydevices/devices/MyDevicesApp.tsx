@@ -19,8 +19,6 @@ import { clearAllAuth } from '@/lib/attendant-auth';
 
 type MyDevicesScreen = 'devices' | 'profile';
 
-let bridgeHasBeenInitialized = false;
-
 export interface BleDevice {
   macAddress: string;
   name: string;
@@ -137,6 +135,7 @@ const MyDevicesApp: React.FC = () => {
   // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
   // ref and flushed to React state at most every 300 ms.
   const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
     setDetectedDevices(detectedDevicesRef.current);
@@ -155,15 +154,15 @@ const MyDevicesApp: React.FC = () => {
         clearTimeout(deviceBatchTimerRef.current);
         deviceBatchTimerRef.current = null;
       }
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
     };
   }, []);
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
@@ -186,6 +185,10 @@ const MyDevicesApp: React.FC = () => {
         }
       });
     }
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     setIgnoreProgressSet(true);
     setSelectedDevice(null);
     setConnectingDeviceId(null);
@@ -196,6 +199,9 @@ const MyDevicesApp: React.FC = () => {
     setConnectedDevice(null);
     setLoadingService(null);
     setProgress(0);
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, [t]);
 
   useEffect(() => {
@@ -221,10 +227,17 @@ const MyDevicesApp: React.FC = () => {
     if (macAddress === connectedDevice && attributeList.length > 0) {
       setSelectedDevice(macAddress);
     } else {
+      if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
       connBleByMacAddress(macAddress);
+      connectTimeoutRef.current = setTimeout(() => {
+        connectTimeoutRef.current = null;
+        setIsConnecting(false);
+        setProgress(0);
+        toast.error(t('Connection timed out. Please try again.'), { id: 'connect-toast' });
+      }, 30_000);
     }
   };
 
@@ -258,13 +271,9 @@ const MyDevicesApp: React.FC = () => {
       return () => bridge.registerHandler(name, noop);
     };
 
-    // NOTE: bridge.init() is already called in bridgeContext.tsx
-    // Do NOT call init() again here as it causes the app to hang / native
-    // force-close, especially when navigating between BLE/Keypad/MyDevices
-    // via the bottom nav (each mount used to re-init the bridge).
-    if (!bridgeHasBeenInitialized) {
-      bridgeHasBeenInitialized = true;
-    }
+    // NOTE: bridge.init() is already called in bridgeContext.tsx — do NOT
+    // call init() again here. Each mount re-initialising the bridge causes
+    // native force-closes when navigating BLE/Keypad/MyDevices via bottom nav.
 
     const offPrint = reg("print", (data: string, resp: any) => {
       try {
@@ -285,6 +294,7 @@ const MyDevicesApp: React.FC = () => {
         try {
           const d: BleDevice = JSON.parse(data);
           if (d.macAddress && d.name && d.rssi && d.name.includes("OVES")) {
+            d.macAddress = d.macAddress.trim().toUpperCase();
             const raw = Number(d.rssi);
             d.rawRssi = raw;
             d.rssi = convertRssiToFormattedString(raw);
@@ -316,6 +326,10 @@ const MyDevicesApp: React.FC = () => {
     const offBleConnectFail = reg(
       "bleConnectFailCallBack",
       (data: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         setIsConnecting(false);
         setProgress(0);
         toast.error(t("Connection failed! Please try reconnecting again."), {
@@ -328,6 +342,10 @@ const MyDevicesApp: React.FC = () => {
     const offBleConnectSuccess = reg(
       "bleConnectSuccessCallBack",
       (macAddress: string, resp: any) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         sessionStorage.setItem("connectedDeviceMac", macAddress);
         setConnectedDevice(macAddress);
         setIsScanning(false);
@@ -548,12 +566,10 @@ const MyDevicesApp: React.FC = () => {
     setLoadingService(serviceName);
     setProgress(0);
 
-    const data = {
+    initServiceBleData({
       serviceName,
       macAddress: selectedDevice,
-    };
-
-    initServiceBleData(data);
+    });
   };
 
   useEffect(() => {
@@ -571,10 +587,16 @@ const MyDevicesApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, attributeList, ignoreProgressSet, connectingDeviceId, loadingService]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  // See KeypadApp.tsx for the full rationale. Short version: the previous
+  // gate on a module-level `bridgeHasBeenInitialized` flag deferred scan-
+  // start until the first React state update (setAndroidId or
+  // setIsMqttConnected). After d2e4d27 moved bridge.init() into
+  // BridgeProvider, the buffered native messages that used to drive that
+  // setState no longer reach per-applet handlers, so scan-start ended up
+  // tied to MQTT — 10–20s on marginal cell connections.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-
-    stopBleScan();
+    if (!bridge) return;
 
     const id = setTimeout(() => {
       startBleScan();
@@ -585,7 +607,7 @@ const MyDevicesApp: React.FC = () => {
       stopBleScan();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeHasBeenInitialized]);
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
@@ -762,6 +784,7 @@ const MyDevicesApp: React.FC = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setConnectingDeviceId(null);

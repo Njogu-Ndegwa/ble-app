@@ -31,6 +31,7 @@ import {
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 import { BleProgressModal, SessionsHistory } from '@/components/shared';
 import SessionResumePrompt from '@/components/shared/SessionResumePrompt';
+import type { InputMode } from '@/components/shared/types';
 import { getCustomerDashboard, getOrdersList, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
@@ -197,7 +198,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   
   // Pending payment state restoration (stored temporarily until restorePaymentState is available)
   const [pendingPaymentRestore, setPendingPaymentRestore] = useState<{
-    inputMode: 'scan' | 'manual';
+    inputMode: InputMode;
     manualPaymentId: string;
     requestCreated: boolean;
     requestOrderId: number | null;
@@ -1095,6 +1096,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     paymentAmountRemaining,
     actualAmountPaid,
     paymentRequestCreated,
+    paymentRequestOrderId,
   } = paymentState;
 
   // Auto-poll for rider top-ups during the swap. Active on Steps 2–5 only,
@@ -1701,7 +1703,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     }
 
     if (!isMqttConnected) {
-      toast.error('MQTT not connected. Please wait a moment and try again.');
+      toast.error(
+        !navigator.onLine
+          ? 'Unable to connect. Please check your network connection.'
+          : 'MQTT not connected. Please wait a moment and try again.'
+      );
       console.error('Attempted to scan customer but MQTT is not connected');
       return;
     }
@@ -1981,6 +1987,18 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     confirmPayment(receipt);
   }, [confirmPayment]);
 
+  // Step 5: WeChat (Z-Pay) payment callbacks
+  const handleWechatPaid = useCallback((tradeNo: string, totalPaid: number) => {
+    console.info('[AttendantFlow] WeChat payment received', { tradeNo, totalPaid });
+    // Treat the Z-Pay trade_no as the payment reference and proceed with service completion
+    confirmPayment(tradeNo);
+  }, [confirmPayment]);
+
+  const handleWechatError = useCallback((message: string) => {
+    console.error('[AttendantFlow] WeChat payment error:', message);
+    toast.error(message);
+  }, []);
+
   // Step 6: Start new swap
   const handleNewSwap = useCallback(() => {
     setCurrentStep(1);
@@ -2078,12 +2096,16 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         handleProceedToPayment();
         break;
       case 5:
-        // Handle payment based on input mode
-        // In manual-payment workflow, always use manual entry (no QR scan)
-        if (paymentInputMode === 'scan' && workflowMode !== 'manual-payment') {
+        if (workflowMode === 'manual-payment') {
+          // Auto-generate reference — no user input needed
+          const manualRef = `MANUAL_${sessionOrderId || Date.now()}`;
+          handleManualPayment(manualRef);
+        } else if (paymentInputMode === 'wechat') {
+          // WeChat mode — the WeChatPayment component handles its own flow
+          break;
+        } else if (paymentInputMode === 'scan') {
           handleConfirmPayment();
         } else {
-          // Manual mode - call backend with manual payment ID
           if (manualPaymentId.trim()) {
             handleManualPayment(manualPaymentId.trim());
           } else {
@@ -2148,8 +2170,32 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           />
         );
       case 5:
+        if (workflowMode === 'manual-payment') {
+          return (
+            <div className="screen active">
+              <div className="payment-collection">
+                <div className="payment-header-compact">
+                  {customerData?.subscriptionId && (
+                    <div className="payment-customer-mini">
+                      <span className="payment-subscription-id">{customerData.subscriptionId}</span>
+                    </div>
+                  )}
+                  <div className="payment-amount-large">
+                    {swapData.currencySymbol} {Math.floor(swapData.cost).toLocaleString()}
+                  </div>
+                </div>
+                <div className="payment-scan">
+                  <h2 className="payment-title">{t('attendant.collectPayment') || 'Collect Payment'}</h2>
+                  <p className="scan-hint" style={{ marginTop: 16, textAlign: 'center' }}>
+                    {t('attendant.paymentCollectedExternally') || 'Payment is collected externally. Tap confirm to proceed.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
-          <Step5Payment 
+          <Step5Payment
             swapData={swapData}
             customerData={customerData}
             isProcessing={isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
@@ -2161,6 +2207,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             isScannerOpening={isScanning}
             amountRemaining={paymentAmountRemaining}
             amountPaid={actualAmountPaid}
+            wechatOrderId={paymentRequestOrderId}
+            wechatAuthToken={getSalesRoleToken() || undefined}
+            onWechatPaid={handleWechatPaid}
+            onWechatError={handleWechatError}
           />
         );
       case 6:

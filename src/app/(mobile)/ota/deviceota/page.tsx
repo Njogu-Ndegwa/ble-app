@@ -10,6 +10,9 @@ import { Toaster, toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 
+// Tracks whether THIS module has already triggered bridge.init() across mounts
+// (re-initialising it on every nav causes native force-close). Distinct from
+// the React-level scan gate, which uses the reactive `bridge` from useBridge().
 let bridgeHasBeenInitialized = false;
 
 // Define interfaces and types
@@ -93,6 +96,7 @@ const AppContainer = () => {
   // advertisements arrive (can be 10-50+/sec). Devices are accumulated in a
   // ref and flushed to React state at most every 300 ms.
   const deviceBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushDeviceBatch = useCallback(() => {
     deviceBatchTimerRef.current = null;
     setDetectedDevices(detectedDevicesRef.current);
@@ -110,6 +114,10 @@ const AppContainer = () => {
         clearTimeout(deviceBatchTimerRef.current);
         deviceBatchTimerRef.current = null;
       }
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -118,10 +126,6 @@ const AppContainer = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   useEffect(() => {
     if (selectedDevice) {
@@ -143,6 +147,10 @@ const AppContainer = () => {
   };
 
   const handleBackToList = () => {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     setSelectedDevice(null);
     sessionStorage.removeItem('connectedDeviceMac');
     setConnectedDevice(null);
@@ -152,16 +160,26 @@ const AppContainer = () => {
     setProgress(0);
     setConnectingDeviceId(null);
     setIsConnecting(false);
+    if (window.history.state?.bleDetail) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   };
 
   const startConnection = (macAddress: string) => {
     if (macAddress === connectedDevice && attributeList.length > 0) {
       setSelectedDevice(macAddress);
     } else {
+      if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
       setIsConnecting(true);
       setConnectingDeviceId(macAddress);
       setProgress(0);
       connBleByMacAddress(macAddress);
+      connectTimeoutRef.current = setTimeout(() => {
+        connectTimeoutRef.current = null;
+        setIsConnecting(false);
+        setProgress(0);
+        toast.error(t('Connection timed out. Please try again.'), { id: 'connect-toast' });
+      }, 30_000);
     }
   };
 
@@ -263,6 +281,10 @@ const AppContainer = () => {
     );
 
     const offBleConnectFail = reg('bleConnectFailCallBack', (data: string, resp: any) => {
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
       setIsConnecting(false);
       setProgress(0);
       toast.error(t('Connection failed! Please try reconnecting again.'), {
@@ -272,6 +294,10 @@ const AppContainer = () => {
     });
 
     const offBleConnectSuccess = reg('bleConnectSuccessCallBack', (macAddress: string, resp: any) => {
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
       sessionStorage.setItem('connectedDeviceMac', macAddress);
       setConnectedDevice(macAddress);
       setIsScanning(false);
@@ -445,9 +471,14 @@ const AppContainer = () => {
     }
   }, [progress, attributeList]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  // See KeypadApp.tsx for the full rationale. Short version: the previous
+  // gate on a module-level `bridgeHasBeenInitialized` flag didn't trigger
+  // a re-render when flipped, so scan-start was deferred until the first
+  // setState after setupBridge — which since d2e4d27 ends up tied to the
+  // MQTT handshake and can sit at 10–20s on marginal cell connections.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-    stopBleScan();
+    if (!bridge) return;
     const id = setTimeout(() => {
       startBleScan();
     }, 300);
@@ -455,7 +486,8 @@ const AppContainer = () => {
       clearTimeout(id);
       stopBleScan();
     };
-  }, [bridgeHasBeenInitialized]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
@@ -653,6 +685,7 @@ const AppContainer = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setLoadingService(null);

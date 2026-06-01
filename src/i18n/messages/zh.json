@@ -853,6 +853,7 @@
   "mqtt.reconnectingIn": "{{seconds}}秒后重连...",
   "mqtt.reconnected": "连接已恢复",
   "mqtt.reconnectFailed": "连接失败。点击重试。",
+  "mqtt.offlineError": "无法连接。请检查您的网络连接。",
   "mqtt.maxRetriesReached": "多次尝试后仍无法连接。请检查您的网络。",
   "mqtt.manualReconnect": "点击重新连接",
   "Please log in to find stations.": "请登录以查找站点。",
@@ -945,6 +946,10 @@
   "role.ordersDesc": "订单管理",
   "role.products": "产品",
   "role.productsDesc": "产品目录",
+  "role.rollup": "汇总",
+  "role.rollupDesc": "SA 浏览器",
+  "role.ticketing": "工单",
+  "role.ticketingDesc": "服务台",
   "role.comingSoon": "即将推出",
   "role.switchLanguage": "选择语言",
 

@@ -47,6 +47,7 @@ export type { BleProgressModalProps } from './BleProgressModal';
 // PAYMENT COMPONENTS
 // ============================================
 export { default as PaymentCollection } from './PaymentCollection';
+export { default as WeChatPayment } from './WeChatPayment';
 
 // ============================================
 // RECEIPT/SUCCESS COMPONENTS

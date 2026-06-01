@@ -3,13 +3,23 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 
-const LocationView = dynamic(() => import('./LocationView'), { ssr: false });
+const LocationView = dynamic(() => import('./LocationView'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-transparent" style={{ borderTopColor: 'var(--accent)' }} />
+    </div>
+  ),
+});
 import ProgressiveLoading from '../../../../components/loader/progressiveLoading';
 import { connBleByMacAddress, initServiceBleData } from "../../../utils"
 import { Toaster, toast } from 'react-hot-toast';
 import { useBridge } from '@/app/context/bridgeContext';
 import { useI18n } from '@/i18n';
 
+// Tracks whether THIS module has already triggered bridge.init() across mounts
+// (re-initialising it on every nav causes native force-close). Distinct from
+// the React-level scan gate, which uses the reactive `bridge` from useBridge().
 let bridgeHasBeenInitialized = false;
 
 // Define interfaces and types
@@ -105,10 +115,6 @@ const AppContainer = () => {
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
-
-  useEffect(() => {
-    detectedDevicesRef.current = detectedDevices;
-  }, [detectedDevices]);
 
   const handleDeviceSelect = (deviceId: string) => {
     setSelectedDevice(deviceId);
@@ -571,10 +577,14 @@ const AppContainer = () => {
     }
   }, [progress, attributeList]);
 
+  // Start the BLE scan as soon as the WebView bridge is available.
+  // See KeypadApp.tsx for the full rationale. Short version: the previous
+  // gate on a module-level `bridgeHasBeenInitialized` flag didn't trigger
+  // a re-render when flipped, so scan-start was deferred until the first
+  // setState after setupBridge — which since d2e4d27 ends up tied to the
+  // MQTT handshake and can sit at 10–20s on marginal cell connections.
   useEffect(() => {
-    if (!bridgeHasBeenInitialized) return;
-
-    stopBleScan();
+    if (!bridge) return;
 
     const id = setTimeout(() => {
       startBleScan();
@@ -584,7 +594,8 @@ const AppContainer = () => {
       clearTimeout(id);
       stopBleScan();
     };
-  }, [bridgeHasBeenInitialized]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge]);
 
   const startBleScan = () => {
     if (window.WebViewJavascriptBridge) {
@@ -794,6 +805,7 @@ const AppContainer = () => {
       stopBleScan();
     } else {
       setConnectedDevice(null);
+      detectedDevicesRef.current = [];
       setDetectedDevices([]);
       setSelectedDevice(null);
       setLoadingService(null);

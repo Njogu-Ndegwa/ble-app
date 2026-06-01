@@ -7,11 +7,10 @@ export interface PipelineStep {
 
 export const PIPELINE_STEPS: PipelineStep[] = [
   { label: 'Quotation', iconName: 'ClipboardList' },
-  { label: 'Revise',    iconName: 'RefreshCw'    },
-  { label: 'Approval',  iconName: 'ShieldCheck'  },
-  { label: 'Delivery',  iconName: 'Truck'        },
-  { label: 'Payment',   iconName: 'CreditCard'   },
-  { label: 'Invoice',   iconName: 'FileCheck'    },
+  { label: 'Approval',  iconName: 'ShieldCheck'   },
+  { label: 'Delivery',  iconName: 'Truck'          },
+  { label: 'Invoice',   iconName: 'FileText'       },
+  { label: 'Payment',   iconName: 'CreditCard'     },
 ];
 
 // Delivery is "done" when every delivery on the order is in state 'done',
@@ -38,38 +37,22 @@ export function getDeliveryState(order: OrderEntity): DeliveryState | null {
 }
 
 export function getOrderStepIndex(order: OrderEntity): number {
-  if (order.state === 'draft') return 0;
+  // Step 0 — draft/sent quotation with no approval action yet
+  if (
+    (order.state === 'draft' || order.state === 'sent') &&
+    order.approvalStatus === 'none'
+  ) return 0;
 
-  if (order.state === 'sent') {
-    if (order.approvalStatus === 'rejected') return 1;
-    if (order.approvalStatus === 'pending') return 2;
-    return 1;
-  }
+  // Step 1 — approval in flight (pending, approved-but-not-confirmed, or rejected)
+  if (order.state === 'draft' || order.state === 'sent') return 1;
 
+  // Order confirmed (state = sale / done)
   if (order.state === 'sale' || order.state === 'done') {
-    if (order.paymentStatus === 'paid') return 5;
-    if (order.paymentStatus === 'partial') return 4;
-    if (order.approvalStatus === 'approved') {
-      // After approval: show Delivery step unless delivery is complete
-      return isDeliveryDone(order) ? 4 : 3;
-    }
-    if (order.approvalStatus === 'rejected') return 1;
-    if (order.approvalStatus === 'pending') return 2;
-    // Confirmed but no explicit approval recorded — go to Delivery
-    return 3;
+    if (order.paymentStatus === 'paid') return 4;
+    if (order.invoices.some((inv) => inv.state === 'posted')) return 4; // payment step
+    if (isDeliveryDone(order)) return 3;                                // invoice step
+    return 2;                                                           // delivery step
   }
-
-  if (order.approvalStatus === 'approved') return 3;
-  if (order.approvalStatus === 'pending') return 2;
 
   return 0;
 }
-
-export const STEP_ACTIONS: { backLabel: string; nextLabel: string }[] = [
-  { backLabel: '',          nextLabel: 'Confirm Order'                 },
-  { backLabel: 'Quotation', nextLabel: 'Confirm & Submit for Approval' },
-  { backLabel: 'Revise',    nextLabel: ''                              },
-  { backLabel: 'Approval',  nextLabel: ''                              }, // delivery action handled inline
-  { backLabel: 'Delivery',  nextLabel: 'Create Final Invoice'          },
-  { backLabel: 'Payment',   nextLabel: 'Order Complete'                },
-];

@@ -17,6 +17,7 @@ import {
   type SubscriptionProduct,
 } from '@/lib/odoo-api';
 import { getEmployeeToken, getSalesRoleToken, getAttendantRoleToken } from '@/lib/attendant-auth';
+import { getSelectedSA } from '@/lib/sa-auth';
 
 // ============================================
 // Types
@@ -86,6 +87,13 @@ export interface PlanData {
   id: string;
   odooProductId: number;
   name: string;
+  /**
+   * Stable template identifier from Odoo (`x_template_id`). Use this — not
+   * `name` — for any client-side classification or filtering. The display
+   * `name` drifts on whitespace/punctuation across backend updates; the
+   * template id does not.
+   */
+  templateId?: string;
   description: string;
   price: number;
   period: string;
@@ -178,6 +186,10 @@ interface ProductServiceMapping {
   servicePatterns: string[];
 }
 
+// Patterns are matched against the plan's `x_template_id` (canonical) and
+// fall back to `name` if the template id isn't populated. Whitespace
+// formatting here follows the `x_template_id` convention from Odoo —
+// "kWh (N swp)" with a space.
 const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['S6', 'M3'],
@@ -190,17 +202,17 @@ const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['E-3H', 'E-3 Plus'],
     servicePatterns: [
-      'B45-1.2', 'B45-364 kWh', 'B45-3.3 kWh(1 swp)',
-      'B45-20', 'B45-351 kWh', 'B45-57 kWh(15 swp)',
-      'B45-68', 'B45-340 kWh', 'B45-200 kWh(60 swp)',
+      'B45-1.2', 'B45-364 kWh', 'B45-3.3 kWh (1 swp)',
+      'B45-20', 'B45-351 kWh', 'B45-57 kWh (15 swp)',
+      'B45-68', 'B45-340 kWh', 'B45-200 kWh (60 swp)',
     ],
   },
   {
     productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS', 'PET-3DRS'],
     servicePatterns: [
-      'B100-2.6', 'B100-342 kWh', 'B100-7.6 kWh(1 swp)',
-      'B100-40', 'B100-333 kWh', 'B100-120 kWh(15 swp)',
-      'B100-145', 'B100-322 kWh', 'B100-450 kWh(60 swp)',
+      'B100-2.6', 'B100-342 kWh', 'B100-7.6 kWh (1 swp)',
+      'B100-40', 'B100-333 kWh', 'B100-120 kWh (15 swp)',
+      'B100-145', 'B100-322 kWh', 'B100-450 kWh (60 swp)',
     ],
   },
 ];
@@ -211,6 +223,11 @@ const HIDDEN_PRODUCT_PATTERNS: string[] = ['PET1'];
  * Filters plans based on the selected package name.
  * If the package matches a known product pattern, only associated services are shown.
  * Otherwise returns all plans unfiltered.
+ *
+ * Matches plans against `x_template_id` (canonical) with a `name` fallback.
+ * If the filter would hide every plan, logs a warning and returns the
+ * unfiltered list so a backend rename can never silently produce an empty
+ * picker.
  */
 function getFilteredPlans(packageName: string | undefined, allPlans: PlanData[]): PlanData[] {
   if (!packageName) return allPlans;
@@ -223,10 +240,22 @@ function getFilteredPlans(packageName: string | undefined, allPlans: PlanData[])
 
   if (!matchedMapping) return allPlans;
 
-  return allPlans.filter((plan) => {
-    const planNameLower = plan.name.toLowerCase();
-    return matchedMapping.servicePatterns.some((sp) => planNameLower.includes(sp.toLowerCase()));
+  const filtered = allPlans.filter((plan) => {
+    const keyLower = (plan.templateId || plan.name || '').toLowerCase();
+    return matchedMapping.servicePatterns.some((sp) => keyLower.includes(sp.toLowerCase()));
   });
+
+  if (filtered.length === 0 && allPlans.length > 0) {
+    console.warn(
+      '[PRODUCT CATALOG] Plan filter matched zero plans for package',
+      packageName,
+      '— falling back to unfiltered list. Plan template ids present:',
+      allPlans.map((p) => p.templateId || p.name),
+    );
+    return allPlans;
+  }
+
+  return filtered;
 }
 
 // ============================================
@@ -302,6 +331,7 @@ function transformPlan(product: SubscriptionProduct): PlanData {
     id: product.id.toString(),
     odooProductId: product.id,
     name: product.name,
+    templateId: product.x_template_id,
     description: product.description || '',
     price: Number(product.list_price) || 0,
     period: '', // Will be determined from name by UI
@@ -418,6 +448,94 @@ export function useProductCatalog(
         packageCount: response.data?.packageProducts?.length ?? 0,
       });
 
+      // === DIAGNOSTIC ===========================================================
+      // Single high-signal log line for the phone-vs-browser plan divergence
+      // investigation. Captures the SA context AND every plan name + template id
+      // + company id the backend returned, so we can compare two devices side by
+      // side from one screenshot each. Remove once the cause is confirmed.
+      try {
+        const saUserType: 'attendant' | 'sales' =
+          workflowType === 'attendant' ? 'attendant' : 'sales';
+        const selectedSA = getSelectedSA(saUserType);
+        const tokenPreview = authToken
+          ? `${authToken.slice(0, 12)}…(${authToken.length} chars)`
+          : null;
+        let tokenClaims: Record<string, unknown> | null = null;
+        if (authToken) {
+          try {
+            const payload = authToken.split('.')[1];
+            if (payload) {
+              const decoded = JSON.parse(
+                decodeURIComponent(
+                  atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+                    .split('')
+                    .map((c) => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`)
+                    .join(''),
+                ),
+              ) as Record<string, unknown>;
+              // Only expose non-sensitive claims that help us spot company drift.
+              tokenClaims = {
+                company_id: decoded.company_id,
+                company_ids: decoded.company_ids,
+                user_id: decoded.user_id,
+                sub: decoded.sub,
+                iss: decoded.iss,
+                exp: decoded.exp,
+              };
+            }
+          } catch (err) {
+            tokenClaims = { decodeError: String(err) };
+          }
+        }
+        const platformHint =
+          typeof navigator !== 'undefined'
+            ? {
+                userAgent: navigator.userAgent,
+                hasWebViewBridge:
+                  typeof window !== 'undefined' && !!(window as any).WebViewJavascriptBridge,
+              }
+            : null;
+        console.warn('[CATALOG DIAGNOSTIC] capture this whole line per device', {
+          workflowType,
+          platform: platformHint,
+          selectedSA: selectedSA
+            ? {
+                id: selectedSA.id,
+                name: (selectedSA as any).name ?? null,
+                company_id: (selectedSA as any).company_id ?? null,
+                company_name: (selectedSA as any).company_name ?? null,
+              }
+            : null,
+          activeSAIdLocalStorage: {
+            sales: typeof window !== 'undefined' ? localStorage.getItem('oves-sales-sa-id') : null,
+            attendant:
+              typeof window !== 'undefined' ? localStorage.getItem('oves-attendant-sa-id') : null,
+          },
+          tokenPreview,
+          tokenClaims,
+          plansFromBackend: (response.data?.products ?? []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            x_template_id: p.x_template_id ?? null,
+            default_code: p.default_code ?? null,
+            list_price: p.list_price,
+            currency: p.currency_name,
+            company_id: p.company_id ?? null,
+            company_name: p.company_name ?? null,
+          })),
+          packagesFromBackend: (response.data?.mainServiceProducts ?? []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            x_template_id: p.x_template_id ?? null,
+            company_id: p.company_id ?? null,
+            company_name: p.company_name ?? null,
+          })),
+        });
+      } catch (diagErr) {
+        console.warn('[CATALOG DIAGNOSTIC] failed to emit diagnostic:', diagErr);
+      }
+      // === END DIAGNOSTIC =======================================================
+
       if (response.success && response.data) {
         // Extract data to avoid TypeScript narrowing issues in callbacks
         const data = response.data;
@@ -502,9 +620,27 @@ export function useProductCatalog(
           setErrors(prev => ({ ...prev, packages: 'No products available from server. Please try again or contact support.' }));
         }
 
-        // Process plans
+        // Process plans (backend: categories.service → SubscriptionProduct[])
         if (data.products?.length > 0) {
+          console.info('[PRODUCT CATALOG] Service plans from backend (raw Odoo / categories.service)', {
+            count: data.products.length,
+            items: data.products.map((p) => ({
+              id: p.id,
+              name: p.name,
+              default_code: p.default_code,
+              description: p.description,
+              list_price: p.list_price,
+              currency_name: p.currency_name,
+              currencySymbol: p.currencySymbol,
+              category_name: p.category_name,
+              recurring_invoice: p.recurring_invoice,
+              pu_category: p.pu_category,
+              pu_metric: p.pu_metric,
+              service_type: p.service_type,
+            })),
+          });
           const transformedPlans = data.products.map(transformPlan);
+          console.info('[PRODUCT CATALOG] Service plans after transformPlan (UI PlanData)', transformedPlans);
           transformedPlans.sort((a, b) => Number(a.price) - Number(b.price));
           setPlans(transformedPlans);
           setErrors(prev => ({ ...prev, plans: null }));

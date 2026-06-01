@@ -231,6 +231,114 @@ export const REPORT_PAYMENT_AND_SERVICE = gql`
 `;
 
 // ============================================================================
+// Service Top-Up (rider energy quota top-up, GraphQL mirror of MQTT quota_topup)
+// ============================================================================
+
+/**
+ * Input for the `serviceTopup` mutation. ABS computes the credited quota as
+ * `payment_amount / unit_price` and rounds to 4 decimals. To credit a fixed
+ * bundle of kWh declared by the catalog (Odoo product) — independent of the
+ * service-definition default unit price — pass `unit_price = payment_amount /
+ * declared_kwh` so the inverse arithmetic on the server lands on the declared
+ * value. See plan note in topup.md.
+ */
+export interface ServiceTopupInput {
+  plan_id: string;
+  service_id: string;
+  payment_amount: number;
+  unit_price: number;
+  /** PaymentAction idempotency key — pass the Odoo receipt id. */
+  payment_reference?: string;
+  /**
+   * Agent-layer idempotency key + trace correlation id. Mirrors the MQTT
+   * envelope's `correlation_id`. Pass the same value as `payment_reference`
+   * (or a separate stable id) so retries dedupe at the agent layer too.
+   */
+  correlation_id?: string;
+}
+
+export interface ServiceTopupResponse {
+  service_id: string;
+  additional_quota: number;
+  quota_before: number;
+  quota_after: number;
+  quota_calculation: string;
+  signals: string[];
+  metadata: string | Record<string, unknown>;
+}
+
+/**
+ * GraphQL mutation source kept in sync with the inline copy logged by the
+ * rider page (for GraphQL Playground replay). If you edit one, edit both.
+ */
+export const SERVICE_TOPUP = gql`
+  mutation ServiceTopup($input: ServiceTopupInput!) {
+    serviceTopup(input: $input) {
+      service_id
+      additional_quota
+      quota_before
+      quota_after
+      quota_calculation
+      signals
+      metadata
+    }
+  }
+`;
+
+// ============================================================================
+// Service Plan Template Query (catalog quota lookup)
+// ============================================================================
+
+export interface ServiceConfiguration {
+  serviceId: string;
+  initialQuota: number;
+  maxQuota: number;
+  rateLimitPerDay: number;
+  autoRenewal: boolean;
+  overageAllowed: boolean;
+  overageRate?: number | null;
+}
+
+export interface ServicePlanTemplate {
+  templateId: string;
+  name: string;
+  billingCurrency: string;
+  serviceConfigurations: ServiceConfiguration[];
+}
+
+export const GET_SERVICE_PLAN_TEMPLATE = gql`
+  query ServicePlanTemplate($id: String!) {
+    servicePlanTemplate(id: $id) {
+      templateId
+      name
+      billingCurrency
+      serviceConfigurations {
+        serviceId
+        initialQuota
+        maxQuota
+        rateLimitPerDay
+        autoRenewal
+        overageAllowed
+        overageRate
+      }
+    }
+  }
+`;
+
+export function extractEnergyConfiguration(
+  template: ServicePlanTemplate | null | undefined,
+): ServiceConfiguration | null {
+  const configs = template?.serviceConfigurations;
+  if (!configs || configs.length === 0) return null;
+  return (
+    configs.find((c) => {
+      const id = String(c.serviceId || '').toLowerCase();
+      return id.includes('service-energy') || id.includes('service-electricity');
+    }) || null
+  );
+}
+
+// ============================================================================
 // Type Guards and Helpers
 // ============================================================================
 
@@ -372,6 +480,76 @@ export const ERROR_SIGNALS = [
  */
 export function hasErrorSignals(signals: string[]): boolean {
   return signals.some(signal => ERROR_SIGNALS.includes(signal as (typeof ERROR_SIGNALS)[number]));
+}
+
+// ============================================================================
+// Asset Dependency Resolution Query (W1 — Get Required Asset IDs)
+// ============================================================================
+
+/**
+ * Input for `getRequiredAssetIds` — resolves the fleet IDs a service plan
+ * is allowed to swap at. Replaces the older MQTT round-trip on
+ * `call/uxi/service/plan/{planId}/get_assets`.
+ */
+export interface GetRequiredAssetIdsInput {
+  plan_id: string;
+  correlation_id: string;
+  rider_location?: { lat: number; lng: number } | null;
+  search_radius?: number;
+  location_id?: string;
+}
+
+/**
+ * Response from `getRequiredAssetIds`. Note that `fleet_ids`,
+ * `location_context`, and `fleet_dependencies` are JSON-encoded strings on
+ * the wire — see `parseGetRequiredAssetIdsFleetIds` for the typed shape.
+ */
+export interface GetRequiredAssetIdsResponse {
+  fleet_types: string[];
+  fleet_ids: string;
+  location_context: string;
+  fleet_dependencies: string;
+  signals: string[];
+  metadata: Record<string, unknown>;
+}
+
+export const GET_REQUIRED_ASSET_IDS = gql`
+  query GetRequiredAssetIds($input: GetRequiredAssetIdsInput!) {
+    getRequiredAssetIds(input: $input) {
+      fleet_types
+      fleet_ids
+      location_context
+      fleet_dependencies
+      signals
+      metadata
+    }
+  }
+`;
+
+/**
+ * Parse the JSON-encoded `fleet_ids` payload returned by
+ * `getRequiredAssetIds` and pull the `swap_station_fleet` list out. Returns
+ * an empty array if parsing fails or the field is absent — empty is a
+ * legitimate "no fleets configured for this plan" state, not an error.
+ */
+export function parseGetRequiredAssetIdsFleetIds(fleetIdsJson: string): {
+  swap_station_fleet: string[];
+} {
+  try {
+    if (!fleetIdsJson || !fleetIdsJson.trim()) {
+      return { swap_station_fleet: [] };
+    }
+    const parsed = JSON.parse(fleetIdsJson) as Record<string, unknown>;
+    const swap = parsed?.swap_station_fleet;
+    return {
+      swap_station_fleet: Array.isArray(swap)
+        ? swap.filter((id): id is string => typeof id === 'string')
+        : [],
+    };
+  } catch (err) {
+    console.warn('[parseGetRequiredAssetIdsFleetIds] Failed to parse fleet_ids:', err);
+    return { swap_station_fleet: [] };
+  }
 }
 
 // ============================================================================

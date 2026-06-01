@@ -338,8 +338,14 @@ export function useCustomerIdentification(config: UseCustomerIdentificationConfi
       }
 
       if (result.errors && result.errors.length > 0) {
-        const errorMsg = result.errors[0].message || 'Failed to identify customer';
+        let errorMsg = result.errors[0].message || 'Failed to identify customer';
         console.error('GraphQL errors:', result.errors);
+        // Translate technical backend signals into user-friendly messages
+        if (/service.plan.not.found|plan.not.found|subscription.not.found/i.test(errorMsg)) {
+          errorMsg = 'Customer not found. Please check the subscription ID.';
+        } else if (/customer.not.found/i.test(errorMsg)) {
+          errorMsg = 'Customer not found. Please check the subscription ID.';
+        }
         if (!silent) {
           toast.error(errorMsg);
         }

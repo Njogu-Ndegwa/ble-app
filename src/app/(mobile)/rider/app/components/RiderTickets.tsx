@@ -84,6 +84,9 @@ export default function RiderTickets({
   const [query, setQuery] = useState("");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({
@@ -105,37 +108,52 @@ export default function RiderTickets({
       return null;
     })();
 
-  const fetchTickets = useCallback(async () => {
+  const PAGE_SIZE = 20;
+
+  const fetchTickets = useCallback(async (pageNum = 1, append = false) => {
     if (!resolvedPartner) {
       setTickets([]);
       return;
     }
-    setLoading(true);
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError(null);
     try {
       const res = await fetch(
-        `${API_BASE}/tickets?partner_id=${resolvedPartner}&page=1&page_size=50`,
+        `${API_BASE}/tickets?partner_id=${resolvedPartner}&page=${pageNum}&page_size=${PAGE_SIZE}`,
         { headers: getHeaders() },
       );
       const data = await res.json();
       if (res.ok) {
-        const list = data.tickets || data.data?.tickets || data.data || [];
-        setTickets(Array.isArray(list) ? list : []);
-      } else {
-        setError(
-          data.message || t("rider.tickets.error") || "Failed to load tickets",
+        const list: Ticket[] = data.tickets || data.data?.tickets || data.data || [];
+        setTickets(prev => append ? [...prev, ...list] : list);
+        setPage(pageNum);
+        // Support both pagination shapes the API may return
+        const pagination = data.pagination || data.meta || {};
+        setHasMore(
+          pagination.has_next_page ??
+          pagination.hasNextPage ??
+          list.length === PAGE_SIZE
         );
+      } else {
+        setError(data.message || t("rider.tickets.error") || "Failed to load tickets");
       }
-    } catch (err) {
+    } catch {
       setError(t("rider.tickets.error") || "Failed to load tickets");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [resolvedPartner, t]);
 
+  const loadMore = useCallback(() => {
+    fetchTickets(page + 1, true);
+  }, [fetchTickets, page]);
+
   useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
+    fetchTickets(1, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedPartner]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -172,7 +190,7 @@ export default function RiderTickets({
       if (res.ok && data.success) {
         setForm({ subject: "", description: "", priority: "2" });
         setShowNew(false);
-        fetchTickets();
+        fetchTickets(1, false);
       } else {
         setError(data.message || t("rider.tickets.createError") || "Failed to create ticket");
       }
@@ -192,7 +210,7 @@ export default function RiderTickets({
         onSearchChange={setQuery}
         isLoading={loading}
         error={error || undefined}
-        onRefresh={fetchTickets}
+        onRefresh={() => fetchTickets(1, false)}
         isEmpty={filtered.length === 0}
         emptyIcon={<HelpCircle size={28} />}
         emptyMessage={t("rider.tickets.empty") || "No tickets yet"}
@@ -243,6 +261,20 @@ export default function RiderTickets({
             </div>
           );
         })}
+        {hasMore && !query.trim() && (
+          <div style={{ padding: '8px 0 4px', display: 'flex', justifyContent: 'center' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{ minWidth: 120 }}
+            >
+              {loadingMore
+                ? (t('common.loading') || 'Loading…')
+                : (t('common.loadMore') || 'Load more')}
+            </button>
+          </div>
+        )}
       </ListScreen>
 
       {showNew && (

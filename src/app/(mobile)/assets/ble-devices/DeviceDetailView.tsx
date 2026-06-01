@@ -581,11 +581,10 @@
 import React, { useState, useRef, useMemo } from "react";
 import { readBleCharacteristic, writeBleCharacteristic } from "../../../utils";
 import { Toaster, toast } from "react-hot-toast";
-import { RefreshCw, Clipboard } from "lucide-react";
+import { RefreshCw, Clipboard, Loader2 } from "lucide-react";
 import { AsciiStringModal, NumericModal } from "../../../modals";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
-
 export type DeviceDetailMode = 'technical' | 'overview';
 
 interface DeviceDetailProps {
@@ -749,21 +748,30 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     characteristicUuid: string,
     name: string
   ) => {
+    const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
+    if (!mac) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: true }));
     readBleCharacteristic(
       serviceUuid,
       characteristicUuid,
-      device.macAddress,
+      mac,
       (data: any, error: any) => {
         setLoadingStates((prev) => ({ ...prev, [characteristicUuid]: false }));
         if (data) {
-          if (userWrittenValues[characteristicUuid] === undefined) {
-            toast.success(`${name} read successfully`);
-            setUpdatedValues((prev) => ({
-              ...prev,
-              [characteristicUuid]: data.realVal,
-            }));
-          }
+          toast.success(`${name} read successfully`);
+          setUpdatedValues((prev) => ({
+            ...prev,
+            [characteristicUuid]: data.realVal,
+          }));
+          // Device read is ground truth — discard any stale user-written value
+          setUserWrittenValues((prev) => {
+            const next = { ...prev };
+            delete next[characteristicUuid];
+            return next;
+          });
         } else {
           toast.error(`Failed to read ${name}`);
         }
@@ -785,14 +793,22 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWrite = (value: string | number) => {
     if (!activeCharacteristic || !activeService) return;
-    
-    // Verify device is still connected before attempting write
-    const connectedMac = sessionStorage.getItem("connectedDeviceMac");
-    if (!connectedMac || connectedMac !== device.macAddress) {
+
+    const connectedMac =
+      typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem("connectedDeviceMac")
+        : null;
+    const targetMac = device.macAddress?.trim();
+
+    if (
+      !connectedMac ||
+      !targetMac ||
+      connectedMac.trim().toLowerCase() !== targetMac.toLowerCase()
+    ) {
       toast.error(t("Device not connected. Please reconnect and try again."));
       return;
     }
-    
+
     const isNapn = activeCharacteristic.name.toLowerCase().includes("napn");
     
     // Store exactly what the user wrote (for napn and all characteristics)
@@ -814,7 +830,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       activeService.uuid,
       activeCharacteristic.uuid,
       value,
-      device.macAddress,
+      connectedMac!.trim(),
       (responseData: any) => {
         setLoadingStates((prev) => ({ ...prev, [activeCharacteristic.uuid]: false }));
         
@@ -869,13 +885,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           setTimeout(() => {
             // Verify connection again before read
             const stillConnected = sessionStorage.getItem("connectedDeviceMac");
-            if (stillConnected === device.macAddress) {
+            if (
+              stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()
+            ) {
               handleRead(activeService.uuid, activeCharacteristic.uuid, activeCharacteristic.name);
             } else {
               toast.error(t("Device disconnected. Please reconnect."));
             }
           }, 2000); // Increased to 2000ms for better reliability with multiple devices
         } else {
+          // Write rejected — remove the optimistically stored value so the
+          // display reverts to the real device value and reads work normally
+          setUserWrittenValues((prev) => {
+            const next = { ...prev };
+            delete next[activeCharacteristic.uuid];
+            return next;
+          });
+          setUpdatedValues((prev) => {
+            const next = { ...prev };
+            delete next[activeCharacteristic.uuid];
+            return next;
+          });
           toast.error(
             t("Failed to write {name}: {error}", {
               name: activeCharacteristic.name,
@@ -1193,10 +1223,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
                         </button>
                         {activeTab === "CMD" && (
                           <button
-                            className="btn btn-primary text-xs"
-                            style={{ padding: '4px 12px', fontSize: '11px' }}
-                            onClick={() => handleWriteClick(char)}
+                            className="btn btn-primary text-xs flex items-center gap-1"
+                            style={{
+                              padding: '4px 12px',
+                              fontSize: '11px',
+                              opacity: loadingStates[char.uuid] ? 0.5 : 1,
+                              cursor: loadingStates[char.uuid] ? 'not-allowed' : 'pointer',
+                            }}
+                            onClick={() => { if (!loadingStates[char.uuid]) handleWriteClick(char); }}
+                            disabled={!!loadingStates[char.uuid]}
                           >
+                            {loadingStates[char.uuid] && (
+                              <Loader2 size={10} className="animate-spin" />
+                            )}
                             {t("ble.detail.write")}
                           </button>
                         )}

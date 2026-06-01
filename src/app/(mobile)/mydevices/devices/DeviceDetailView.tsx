@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { toast } from 'react-hot-toast';
@@ -60,13 +60,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [isIdentifying, setIsIdentifying] = useState(false);
 
   const [result, setResult] = useState<ResultState>(INITIAL_RESULT);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const isBusy = result.status === 'generating' || result.status === 'writing';
 
   const fetchItemId = useCallback(async () => {
     const attService = attributeList.find((service) => service.serviceNameEnum === 'ATT_SERVICE');
     if (!attService) {
-      console.info('[DeviceDetail] ATT_SERVICE not found in attributeList, skipping identification');
       return;
     }
 
@@ -89,9 +89,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
     // Clean arrow characters ("<", ">") that BLE ppid/opid values sometimes contain
     const oemItemId = cleanBatteryId(rawValue);
-    console.info('[DeviceDetail] Identifying device:', {
-      rawOpid, rawPpid, cleaned: oemItemId, source: rawOpid ? 'opid' : 'ppid'
-    });
 
     setIsIdentifying(true);
     setIdentifyError(null);
@@ -135,7 +132,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       if (fetchedItemId) {
         setItemId(fetchedItemId);
         setIdentifyError(null);
-        console.info('[DeviceDetail] Item identified:', fetchedItemId);
       } else {
         const msg = t('Device not found in system for OEM ID: ') + oemItemId;
         setIdentifyError(msg);
@@ -174,13 +170,25 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Clear refreshing indicator once both services finish reloading
+  useEffect(() => {
+    if (isRefreshing && isLoadingService === null) {
+      setIsRefreshing(false);
+    }
+  }, [isLoadingService, isRefreshing]);
+
   const handleRead = useCallback(() => {
     if (!cmdService || !pubkCharacteristic) return;
+    const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
+    if (!mac) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     setIsLoading(true);
     readBleCharacteristic(
       cmdService.uuid,
       pubkCharacteristic.uuid,
-      device.macAddress,
+      mac,
       (data: any) => {
         setIsLoading(false);
         if (data) {
@@ -189,14 +197,16 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         }
       }
     );
-  }, [cmdService, pubkCharacteristic, device.macAddress]);
+  }, [cmdService, pubkCharacteristic, device.macAddress, t]);
 
   const readRcrd = useCallback(() => {
     if (!stsService || !rcrdCharacteristic) return;
+    const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
+    if (!mac) return;
     readBleCharacteristic(
       stsService.uuid,
       rcrdCharacteristic.uuid,
-      device.macAddress,
+      mac,
       (data: any) => {
         if (data) {
           setUpdatedValues((prev) => ({ ...prev, [rcrdCharacteristic.uuid]: data.realVal }));
@@ -223,8 +233,14 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     setActiveCharacteristic(foundPubk);
     setUpdatedValue(codeDec);
 
-    const connectedMac = sessionStorage.getItem('connectedDeviceMac');
-    if (!connectedMac || connectedMac !== device.macAddress) {
+    const connectedMac =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    const targetMac = device.macAddress?.trim();
+    if (
+      !connectedMac ||
+      !targetMac ||
+      connectedMac.trim().toLowerCase() !== targetMac.toLowerCase()
+    ) {
       setResult((prev) => ({ ...prev, status: 'writeFailed', error: t('Device not connected') }));
       return;
     }
@@ -235,7 +251,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       foundCmdService.uuid,
       foundPubk.uuid,
       codeDec,
-      device.macAddress,
+      connectedMac!.trim(),
       (responseData: any) => {
         let writeSuccess = false;
         let errorMessage: string | null = null;
@@ -271,19 +287,34 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
         if (writeSuccess) {
           setResult((prev) => ({ ...prev, status: 'written' }));
+          // Wait 5 s — device needs time to process the code before its BLE
+          // characteristics reflect the new values
           setTimeout(() => {
             const stillConnected = sessionStorage.getItem('connectedDeviceMac');
-            if (stillConnected === device.macAddress) {
-              handleRead();
-              readRcrd();
+            if (stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()) {
+              // Clear stale local reads so fresh service data drives the display
+              setUpdatedValues((prev) => {
+                const next = { ...prev };
+                delete next[foundPubk.uuid];
+                if (rcrdCharacteristic) delete next[rcrdCharacteristic.uuid];
+                return next;
+              });
+              setUpdatedValue(null);
+              setIsRefreshing(true);
+              // Re-init CMD & STS so device returns freshly applied values
+              onRequestServiceDataRef.current?.('CMD');
+              onRequestServiceDataRef.current?.('STS');
             }
-          }, 2000);
+          }, 5000);
         } else {
           setResult((prev) => ({ ...prev, status: 'writeFailed', error: errorMessage || 'Write operation failed' }));
         }
       }
     );
   }, [attributeList, device.macAddress, handleRead, readRcrd, t]);
+
+  const onRequestServiceDataRef = useRef(onRequestServiceData);
+  useEffect(() => { onRequestServiceDataRef.current = onRequestServiceData; });
 
   const [daysInput, setDaysInput] = useState('');
 
@@ -322,12 +353,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     return responseData.data;
   };
 
+  // Trigger write only after React has re-rendered with the latest attributeList.
+  // Calling writeCodeToDevice directly inside the async runCodeOperation captures a
+  // stale closure: if CMD_SERVICE data finishes loading while the API call is in-flight,
+  // the captured writeCodeToDevice still sees the old attributeList and fails to find
+  // CMD_SERVICE, producing an intermittent "CMD service not available" writeFailed.
+  useEffect(() => {
+    if (result.status === 'generated' && result.codeDec) {
+      writeCodeToDevice(result.codeDec);
+    }
+  // writeCodeToDevice is a useCallback that depends on attributeList, so this
+  // always uses the freshest service data available at render time.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.status, result.codeDec]);
+
   const runCodeOperation = async (codeType: CodeType, apiCall: () => Promise<string>) => {
     setResult({ status: 'generating', codeType, codeDec: null, error: null });
     try {
       const codeDec = await apiCall();
+      // Setting 'generated' triggers the useEffect above to call writeCodeToDevice
+      // with the latest attributeList, avoiding the stale-closure race condition.
       setResult({ status: 'generated', codeType, codeDec, error: null });
-      writeCodeToDevice(codeDec);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred';
       setResult({ status: 'error', codeType, codeDec: null, error: message });
@@ -473,11 +519,22 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
   const handleWrite = (value: string) => {
     if (!activeCharacteristic || !cmdService) return;
+    const connectedMac =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac') : null;
+    const targetMac = device.macAddress?.trim();
+    if (
+      !connectedMac ||
+      !targetMac ||
+      connectedMac.trim().toLowerCase() !== targetMac.toLowerCase()
+    ) {
+      toast.error(t('Device not connected. Please reconnect and try again.'));
+      return;
+    }
     writeBleCharacteristic(
       cmdService.uuid,
       activeCharacteristic.uuid,
       value,
-      device.macAddress,
+      connectedMac!.trim(),
       (data: any) => {
         if (data) {
           toast.success(t(`Value written to ${activeCharacteristic.name}`));
@@ -548,14 +605,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         {/* Stat Row: Remaining Days + Current Code Value */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div
-            className="rounded-xl p-3"
+            className="rounded-xl p-3 relative overflow-hidden"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-1.5 mb-1">
               <Calendar size={14} style={{ color: 'var(--accent)' }} />
               <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Remaining Days')}</span>
             </div>
-            {rcrdCharacteristic ? (
+            {isRefreshing ? (
+              <div className="flex items-center gap-1.5">
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
+              </div>
+            ) : rcrdCharacteristic ? (
               <span className="text-2xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
                 {remainingDays ?? t('N/A')}
               </span>
@@ -564,14 +626,19 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
             )}
           </div>
           <div
-            className="rounded-xl p-3"
+            className="rounded-xl p-3 relative overflow-hidden"
             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-1.5 mb-1">
               <Clipboard size={14} style={{ color: 'var(--accent)' }} />
               <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Current Code')}</span>
             </div>
-            {pubkCharacteristic ? (
+            {isRefreshing ? (
+              <div className="flex items-center gap-1.5">
+                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
+              </div>
+            ) : pubkCharacteristic ? (
               <span
                 className="text-lg font-bold font-mono block truncate"
                 style={{ color: 'var(--text-primary)' }}

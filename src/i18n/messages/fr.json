@@ -931,6 +931,7 @@
   "mqtt.reconnectingIn": "Reconnexion dans {{seconds}}s...",
   "mqtt.reconnected": "Connexion rétablie",
   "mqtt.reconnectFailed": "Connexion échouée. Appuyez pour réessayer.",
+  "mqtt.offlineError": "Impossible de se connecter. Veuillez vérifier votre connexion réseau.",
   "mqtt.maxRetriesReached": "Impossible de se connecter après plusieurs tentatives. Veuillez vérifier votre réseau.",
   "mqtt.manualReconnect": "Appuyez pour vous reconnecter",
   "Please log in to find stations.": "Veuillez vous connecter pour trouver des stations.",
@@ -1032,6 +1033,10 @@
   "role.ordersDesc": "Gestion des commandes",
   "role.products": "Produits",
   "role.productsDesc": "Catalogue produits",
+  "role.rollup": "Rollup",
+  "role.rollupDesc": "Navigateur SA",
+  "role.ticketing": "Tickets",
+  "role.ticketingDesc": "Assistance",
   "role.comingSoon": "Bientôt",
   "role.switchLanguage": "Sélectionner la langue",
 
