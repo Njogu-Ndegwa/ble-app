@@ -51,6 +51,14 @@ export function buildOdooHeaders(authToken?: string): HeadersInit {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
+    // Pin the response language so translatable Odoo fields (notably
+    // product.template.name) come back identical regardless of the
+    // platform's system locale. Without this, Android WebView and desktop
+    // Chrome would send different defaults, and Odoo would serve different
+    // translations for the same record — see the [CATALOG DIAGNOSTIC]
+    // captures from Jun 2026 where the same plan id returned "B30-0.9" on
+    // a phone and "B30-2.2 kWh (1 swp)" on a browser.
+    'Accept-Language': 'en',
   };
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;

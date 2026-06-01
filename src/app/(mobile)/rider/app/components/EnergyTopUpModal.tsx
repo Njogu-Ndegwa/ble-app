@@ -340,8 +340,14 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
   const energyKwh = energyConfig?.initialQuota ?? null;
 
+  // Prefer the canonical `templateId` for display so the same plan looks
+  // identical on every device. See [CATALOG DIAGNOSTIC] — `name` is a
+  // translatable Odoo field and drifts between Android WebView and desktop.
+  const selectedPlanDisplayName = selectedPlan
+    ? (selectedPlan.templateId || selectedPlan.name)
+    : '';
   const selectedPlanLabel = selectedPlan
-    ? `${selectedPlan.name} — ${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`
+    ? `${selectedPlanDisplayName} — ${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`
     : '';
 
   return (
@@ -518,7 +524,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                     {currency} {Math.floor(selectedPlan.price).toLocaleString()}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {selectedPlan.name}
+                    {selectedPlanDisplayName}
                   </div>
                 </div>
 
@@ -646,7 +652,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                       <WeChatPayment
                         orderId={orderId}
                         amount={Math.floor(selectedPlan.price)}
-                        productName={selectedPlan.name}
+                        productName={selectedPlanDisplayName}
                         currencySymbol={currency}
                         authToken={token || undefined}
                         onPaid={handleWechatPaid}

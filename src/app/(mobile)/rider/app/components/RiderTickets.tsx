@@ -35,6 +35,9 @@ const getHeaders = (): HeadersInit => {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-API-KEY": API_KEY,
+    // Pin Odoo's response language so translatable fields are identical
+    // across devices. See buildOdooHeaders in odoo-api.ts for context.
+    "Accept-Language": "en",
   };
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("authToken_rider");

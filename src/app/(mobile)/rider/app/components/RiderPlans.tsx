@@ -8,6 +8,12 @@ import { getSubscriptionProducts } from "@/lib/odoo-api";
 
 export interface RiderPlan {
   name: string;
+  /**
+   * Stable canonical name from Odoo (`x_template_id`). Prefer this for
+   * display — `name` is translatable and drifts between devices for the
+   * same record (see [CATALOG DIAGNOSTIC] findings).
+   */
+  templateId?: string;
   description?: string;
   price: number;
   productId: number;
@@ -70,6 +76,7 @@ export default function RiderPlans({
           ...(res.data?.products || []),
         ].map<RiderPlan>((p) => ({
           name: p.name,
+          templateId: p.x_template_id,
           description: p.description || undefined,
           price: p.list_price,
           productId: p.id,
@@ -116,10 +123,8 @@ export default function RiderPlans({
         if (cat !== category) return false;
       }
       if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.default_code.toLowerCase().includes(q)
-      );
+      const searchable = `${p.templateId || ''} ${p.name} ${p.default_code}`.toLowerCase();
+      return searchable.includes(q);
     });
   }, [effectivePlans, query, category]);
 
@@ -210,7 +215,7 @@ export default function RiderPlans({
         >
           <div className="list-card-body">
             <div className="list-card-content">
-              <div className="list-card-primary">{p.name}</div>
+              <div className="list-card-primary">{p.templateId || p.name}</div>
               <div className="list-card-secondary">{p.description || p.default_code}</div>
               <div className="list-card-meta">
                 <Tag size={10} />

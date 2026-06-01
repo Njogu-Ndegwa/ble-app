@@ -50,6 +50,9 @@ export function useRiderSubscriptions(partnerId: number | undefined, token: stri
             'Content-Type': 'application/json',
             'X-API-KEY': API_KEY,
             Authorization: `Bearer ${token}`,
+            // Pin Odoo's response language so translatable product/plan
+            // fields are identical across phone and browser.
+            'Accept-Language': 'en',
           },
         },
       );

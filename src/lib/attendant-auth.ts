@@ -174,6 +174,8 @@ export async function employeeLogin(
       headers: {
         'Content-Type': 'application/json',
         'X-API-KEY': EMPLOYEE_API.API_KEY,
+        // Pin Odoo's response language for consistency across devices.
+        'Accept-Language': 'en',
       },
       body: JSON.stringify({
         email: email.trim(),

@@ -988,6 +988,9 @@ const RiderApp: React.FC = () => {
           'Content-Type': 'application/json',
           'X-API-KEY': API_KEY,
           'Authorization': `Bearer ${token}`,
+          // Pin language so translatable Odoo fields (e.g. product_name,
+          // package_product_name) come back identical on every device.
+          'Accept-Language': 'en',
         },
       });
 
@@ -2312,7 +2315,10 @@ const RiderApp: React.FC = () => {
             <RiderPlans
               token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
               onSelectPlan={(plan) => {
-                toast.success(t('rider.plans.selected', { name: plan.name }) || `Selected ${plan.name}`);
+                // Show the canonical plan name in the toast. `name` is a
+                // translatable Odoo field; `templateId` is stable.
+                const planName = plan.templateId || plan.name;
+                toast.success(t('rider.plans.selected', { name: planName }) || `Selected ${planName}`);
               }}
               defaultCurrency={currency}
             />

@@ -40,6 +40,8 @@ export async function fetchMyServiceAccounts(
       'Content-Type': 'application/json',
       'X-API-KEY': ODOO_API_KEY,
       Authorization: `Bearer ${authToken}`,
+      // Pin Odoo's response language for consistency across devices.
+      'Accept-Language': 'en',
     },
   })
 

@@ -42,6 +42,9 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
               headers: {
                 "Content-Type": "application/json",
                 "X-API-KEY": "abs_connector_secret_key_2024",
+                // Pin Odoo's response language so translatable fields are
+                // identical on every device. See buildOdooHeaders for context.
+                "Accept-Language": "en",
               },
             }
           );

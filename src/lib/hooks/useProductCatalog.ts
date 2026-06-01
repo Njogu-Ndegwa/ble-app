@@ -17,7 +17,6 @@ import {
   type SubscriptionProduct,
 } from '@/lib/odoo-api';
 import { getEmployeeToken, getSalesRoleToken, getAttendantRoleToken } from '@/lib/attendant-auth';
-import { getSelectedSA } from '@/lib/sa-auth';
 
 // ============================================
 // Types
@@ -448,93 +447,6 @@ export function useProductCatalog(
         packageCount: response.data?.packageProducts?.length ?? 0,
       });
 
-      // === DIAGNOSTIC ===========================================================
-      // Single high-signal log line for the phone-vs-browser plan divergence
-      // investigation. Captures the SA context AND every plan name + template id
-      // + company id the backend returned, so we can compare two devices side by
-      // side from one screenshot each. Remove once the cause is confirmed.
-      try {
-        const saUserType: 'attendant' | 'sales' =
-          workflowType === 'attendant' ? 'attendant' : 'sales';
-        const selectedSA = getSelectedSA(saUserType);
-        const tokenPreview = authToken
-          ? `${authToken.slice(0, 12)}…(${authToken.length} chars)`
-          : null;
-        let tokenClaims: Record<string, unknown> | null = null;
-        if (authToken) {
-          try {
-            const payload = authToken.split('.')[1];
-            if (payload) {
-              const decoded = JSON.parse(
-                decodeURIComponent(
-                  atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-                    .split('')
-                    .map((c) => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`)
-                    .join(''),
-                ),
-              ) as Record<string, unknown>;
-              // Only expose non-sensitive claims that help us spot company drift.
-              tokenClaims = {
-                company_id: decoded.company_id,
-                company_ids: decoded.company_ids,
-                user_id: decoded.user_id,
-                sub: decoded.sub,
-                iss: decoded.iss,
-                exp: decoded.exp,
-              };
-            }
-          } catch (err) {
-            tokenClaims = { decodeError: String(err) };
-          }
-        }
-        const platformHint =
-          typeof navigator !== 'undefined'
-            ? {
-                userAgent: navigator.userAgent,
-                hasWebViewBridge:
-                  typeof window !== 'undefined' && !!(window as any).WebViewJavascriptBridge,
-              }
-            : null;
-        console.warn('[CATALOG DIAGNOSTIC] capture this whole line per device', {
-          workflowType,
-          platform: platformHint,
-          selectedSA: selectedSA
-            ? {
-                id: selectedSA.id,
-                name: (selectedSA as any).name ?? null,
-                company_id: (selectedSA as any).company_id ?? null,
-                company_name: (selectedSA as any).company_name ?? null,
-              }
-            : null,
-          activeSAIdLocalStorage: {
-            sales: typeof window !== 'undefined' ? localStorage.getItem('oves-sales-sa-id') : null,
-            attendant:
-              typeof window !== 'undefined' ? localStorage.getItem('oves-attendant-sa-id') : null,
-          },
-          tokenPreview,
-          tokenClaims,
-          plansFromBackend: (response.data?.products ?? []).map((p) => ({
-            id: p.id,
-            name: p.name,
-            x_template_id: p.x_template_id ?? null,
-            default_code: p.default_code ?? null,
-            list_price: p.list_price,
-            currency: p.currency_name,
-            company_id: p.company_id ?? null,
-            company_name: p.company_name ?? null,
-          })),
-          packagesFromBackend: (response.data?.mainServiceProducts ?? []).map((p) => ({
-            id: p.id,
-            name: p.name,
-            x_template_id: p.x_template_id ?? null,
-            company_id: p.company_id ?? null,
-            company_name: p.company_name ?? null,
-          })),
-        });
-      } catch (diagErr) {
-        console.warn('[CATALOG DIAGNOSTIC] failed to emit diagnostic:', diagErr);
-      }
-      // === END DIAGNOSTIC =======================================================
 
       if (response.success && response.data) {
         // Extract data to avoid TypeScript narrowing issues in callbacks

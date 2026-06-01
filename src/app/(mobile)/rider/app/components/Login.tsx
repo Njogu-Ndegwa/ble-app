@@ -145,6 +145,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
             "Authorization": `Bearer ${token}`,
+            // Pin Odoo's response language so translatable fields are
+            // identical across devices. See buildOdooHeaders for context.
+            "Accept-Language": "en",
           },
         }
       );
@@ -400,6 +403,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": "abs_connector_secret_key_2024",
+            // Pin Odoo's response language for consistency across devices.
+            "Accept-Language": "en",
           },
           body: JSON.stringify(credential),
         }
@@ -547,6 +552,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         headers: {
           'Content-Type': 'application/json',
           'X-API-KEY': 'abs_connector_secret_key_2024',
+          // Pin Odoo's response language for consistency across devices.
+          'Accept-Language': 'en',
         },
         body: JSON.stringify(apiData),
       });

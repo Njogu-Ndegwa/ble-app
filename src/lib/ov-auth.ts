@@ -93,6 +93,8 @@ export async function odooEmployeeLogin(
     headers: {
       'Content-Type': 'application/json',
       'X-API-KEY': ODOO_API_KEY,
+      // Pin Odoo's response language for consistency across devices.
+      'Accept-Language': 'en',
     },
     body: JSON.stringify(credential),
   })
@@ -277,6 +279,8 @@ export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> 
         'Content-Type': 'application/json',
         'X-API-KEY': ODOO_API_KEY,
         Authorization: `Bearer ${token}`,
+        // Pin Odoo's response language for consistency across devices.
+        'Accept-Language': 'en',
       },
       signal: controller.signal,
     })
