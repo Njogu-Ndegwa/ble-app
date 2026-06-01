@@ -32,6 +32,7 @@ const Step7AssignBattery = dynamic(() => import('../customers/customerform/compo
 const Step8Success = dynamic(() => import('../customers/customerform/components').then(m => ({ default: m.Step8Success })), { ssr: false });
 const BleProgressModal = dynamic(() => import('@/components/shared').then(m => ({ default: m.BleProgressModal })), { ssr: false });
 const SessionsHistory = dynamic(() => import('@/components/shared').then(m => ({ default: m.SessionsHistory })), { ssr: false });
+const SessionResumePrompt = dynamic(() => import('@/components/shared/SessionResumePrompt'), { ssr: false });
 import { calculateSwapPayment } from '@/lib/swap-payment';
 
 import {
@@ -67,6 +68,12 @@ interface ActivatorFlowProps {
   initialSession?: OrderListItem | null;
   initialSessionReadOnly?: boolean;
   onInitialSessionConsumed?: () => void;
+  /** Skip the pending session check (re-entry via bottom nav after first check) */
+  skipSessionCheck?: boolean;
+  /** Callback after the initial session check completes */
+  onInitialSessionCheckComplete?: () => void;
+  /** Notify parent when this flow has an active in-progress session */
+  onSessionActiveChange?: (active: boolean) => void;
 }
 
 export default function ActivatorFlow({
@@ -76,6 +83,9 @@ export default function ActivatorFlow({
   initialSession,
   initialSessionReadOnly,
   onInitialSessionConsumed,
+  skipSessionCheck,
+  onInitialSessionCheckComplete,
+  onSessionActiveChange,
 }: ActivatorFlowProps) {
   const router = useRouter();
   const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
@@ -91,6 +101,13 @@ export default function ActivatorFlow({
   // Step management (6 steps)
   const [currentStep, setCurrentStep] = useState<ActivatorStep>(1);
   const [maxStepReached, setMaxStepReached] = useState<ActivatorStep>(1);
+
+  // Surface in-progress state so ActivatorApp can refuse bottom-nav switches.
+  // Active when past Step 1 and before Step 6 (success).
+  useEffect(() => {
+    const active = currentStep > 1 && currentStep < 6;
+    onSessionActiveChange?.(active);
+  }, [currentStep, onSessionActiveChange]);
 
   // Customer form (existing customer only)
   const [formData, setFormData] = useState<CustomerFormData>({
@@ -253,9 +270,13 @@ export default function ActivatorFlow({
   const {
     status: sessionStatus,
     orderId: sessionOrderId,
+    pendingSession,
     createSalesSession,
     updateSession,
     updateSessionWithProducts,
+    restoreSession,
+    discardPendingSession,
+    checkForPendingSession,
     clearSession,
     setOrderId: setSessionOrderId,
   } = useWorkflowSession({
@@ -284,6 +305,54 @@ export default function ActivatorFlow({
 
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
   const [isReadOnlySession, setIsReadOnlySession] = useState(false);
+
+  // Pending-session resume modal state
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
+
+  // Check for a pending session from the backend on first mount.
+  useEffect(() => {
+    if (initialSession) {
+      discardPendingSession();
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+      return;
+    }
+    if (skipSessionCheck) {
+      setSessionCheckComplete(true);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await checkForPendingSession();
+      } catch (err) {
+        console.warn('[ActivatorFlow] Pending session check failed (non-blocking):', err);
+      }
+      if (cancelled) return;
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+    })();
+
+    return () => { cancelled = true; };
+  }, [initialSession, skipSessionCheck, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete]);
+
+  const handleResumePendingSession = useCallback(async () => {
+    setIsRestoringSession(true);
+    try {
+      await restoreSession();
+    } catch (err) {
+      console.error('[ActivatorFlow] Failed to restore session:', err);
+      toast.error(t('session.resumeFailed') || 'Failed to resume session');
+    } finally {
+      setIsRestoringSession(false);
+    }
+  }, [restoreSession, t]);
+
+  const handleDiscardPendingSession = useCallback(() => {
+    discardPendingSession();
+  }, [discardPendingSession]);
 
   // Refs for vehicle assignment (to avoid stale closures)
   const assignVehicleRef = useRef<typeof assignVehicle | null>(null);
@@ -1195,6 +1264,14 @@ export default function ActivatorFlow({
         bleScanState={bleScanState}
         pendingBatteryId={pendingBatteryId}
         onCancel={cancelBleOperation}
+      />
+
+      <SessionResumePrompt
+        isVisible={sessionCheckComplete && !!pendingSession}
+        session={pendingSession}
+        onResume={handleResumePendingSession}
+        onDiscard={handleDiscardPendingSession}
+        isLoading={isRestoringSession}
       />
     </div>
   );

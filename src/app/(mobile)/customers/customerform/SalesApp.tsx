@@ -2,10 +2,12 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  getSalesRoleUser, 
+import { toast } from 'react-hot-toast';
+import { useI18n } from '@/i18n';
+import {
+  getSalesRoleUser,
   clearSalesRoleLogin,
-  type EmployeeUser 
+  type EmployeeUser
 } from '@/lib/attendant-auth';
 import { clearSalesSession } from '@/lib/sales-session';
 import SalesFlow from './SalesFlow';
@@ -26,12 +28,21 @@ interface SalesAppProps {
 
 export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
   const router = useRouter();
+  const { t } = useI18n();
   
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<SalesScreen>('sales');
   const [employee, setEmployee] = useState<EmployeeUser | null>(null);
   const [currentSA, setCurrentSA] = useState<ServiceAccount | null>(null);
-  
+
+  // Suppress the pending-session prompt on re-entry via bottom nav after the
+  // first check (same pattern as AttendantApp).
+  const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
+
+  // True while a sales registration is mid-flow — blocks bottom-nav tab
+  // switches so the salesperson can't abandon an in-progress registration.
+  const [isSalesInProgress, setIsSalesInProgress] = useState(false);
+
   // Session management for resuming
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
@@ -53,15 +64,23 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
     setCurrentSA(getSelectedSA('sales'));
   }, []);
 
-  // Handle navigation
+  // Handle navigation. Refuse to leave the sales screen mid-flow — the
+  // registration must be finished (it auto-saves and can be resumed later).
   const handleNavigate = useCallback((screen: SalesScreen) => {
+    if (isSalesInProgress && screen !== 'sales') {
+      toast.error(
+        t('session.finishBeforeSwitching') ||
+          'Finish the current registration before switching tabs.',
+      );
+      return;
+    }
     // Clear selected session when navigating away from sales
     if (screen !== 'sales') {
       setSelectedSession(null);
       setSelectedSessionReadOnly(false);
     }
     setCurrentScreen(screen);
-  }, []);
+  }, [isSalesInProgress, t]);
 
   // Handle logout
   const handleLogout = useCallback(() => {
@@ -86,14 +105,18 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
     setSelectedSession(null);
     setSelectedSessionReadOnly(false);
   }, []);
-  
+
+  const handleInitialSessionCheckComplete = useCallback(() => {
+    setHasCompletedInitialSessionCheck(true);
+  }, []);
+
   // If on 'sales' screen, show SalesFlow with full control
   if (currentScreen === 'sales') {
     return (
-      <SalesFlow 
+      <SalesFlow
         onLogout={handleLogout}
         renderBottomNav={() => (
-          <SalesNav 
+          <SalesNav
             currentScreen={currentScreen}
             onNavigate={handleNavigate}
           />
@@ -101,6 +124,9 @@ export default function SalesApp({ onLogout, onSwitchSA }: SalesAppProps) {
         initialSession={selectedSession}
         initialSessionReadOnly={selectedSessionReadOnly}
         onInitialSessionConsumed={handleSessionConsumed}
+        skipSessionCheck={hasCompletedInitialSessionCheck}
+        onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
+        onSessionActiveChange={setIsSalesInProgress}
       />
     );
   }

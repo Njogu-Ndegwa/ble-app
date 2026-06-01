@@ -1,7 +1,25 @@
 "use client";
 
 import React, { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
+
+// Mixx by Yas (Togo) merchant config. Placeholder values — swap for production
+// when the real merchant code is issued. The USSD format below assumes the
+// standard merchant-payment subtree on *155#; the in-app instructions also
+// walk the rider through it step-by-step in case the pre-built code differs
+// on their handset.
+const MIXX_MERCHANT_CODE = '4321';
+const MIXX_MERCHANT_NAME = 'OVES Energy';
+const MIXX_USSD_ROOT = '*155#';
+
+const formatFCFA = (amount: number): string => {
+  // Group thousands with thin spaces (Togo / French convention): 2 500.
+  return amount.toLocaleString('fr-FR').replace(/\s/g, ' ');
+};
+
+const buildMixxUssd = (amount: number): string =>
+  `*155*1*${MIXX_MERCHANT_CODE}*${Math.floor(amount)}#`;
 
 interface TopUpModalProps {
   isOpen: boolean;
@@ -21,9 +39,36 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [transactionId, setTransactionId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('mixx');
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmedAmount, setConfirmedAmount] = useState<number>(0);
+  // Track which copy-button most recently fired, so we can flash a "Copié" check.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopy = async (key: string, value: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        // Fallback for WebViews without the modern clipboard API.
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 1500);
+    } catch (err) {
+      console.warn('[TopUpModal] Clipboard copy failed:', err);
+    }
+  };
 
   const presetAmounts = [1000, 2000, 5000, 10000, 20000];
 
@@ -75,9 +120,10 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
     setSelectedAmount(null);
     setCustomAmount('');
     setTransactionId('');
-    setPaymentMethod('');
+    setPaymentMethod('mixx');
     setConfirmedAmount(0);
     setIsProcessing(false);
+    setCopiedKey(null);
     onClose();
   };
 
@@ -154,7 +200,7 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
                   <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
               </button>
-              <h3 className="topup-modal-title">{t('rider.topUpAccount') || 'Top Up Account'}</h3>
+              <h3 className="topup-modal-title">{t('rider.payWithMixx') || 'Payez avec Mixx by Yas'}</h3>
               <button className="topup-modal-close" onClick={handleClose}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12"/>
@@ -162,101 +208,78 @@ const TopUpModal: React.FC<TopUpModalProps> = ({
               </button>
             </div>
             <div className="topup-modal-body">
-              <h4 className="topup-section-title">{t('rider.paymentDetails') || 'Payment Details'}</h4>
-              <p className="topup-section-subtitle">{t('rider.sendPaymentDesc') || 'Send payment to any of these accounts'}</p>
-              <div className="topup-payment-methods">
-                <div className="topup-payment-method" onClick={() => handlePaymentMethodSelect('mtn')}>
-                  <div className="topup-payment-header">
-                    <div className="topup-payment-icon">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      </svg>
-                    </div>
-                    <div className="topup-payment-info">
-                      <div className="topup-payment-name">{t('rider.mtnMobileMoney') || 'MTN Mobile Money'}</div>
-                      <div className="topup-payment-type">{t('rider.instantTransfer') || 'Instant transfer'}</div>
-                    </div>
-                  </div>
-                  <div className="topup-payment-details">
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('rider.phone') || 'Phone Number'}</span>
-                      <span className="topup-payment-value">+228 90 123 456</span>
-                    </div>
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('rider.accountName') || 'Account Name'}</span>
-                      <span className="topup-payment-value">OVES Energy Ltd</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="topup-payment-method" onClick={() => handlePaymentMethodSelect('flooz')}>
-                  <div className="topup-payment-header">
-                    <div className="topup-payment-icon">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      </svg>
-                    </div>
-                    <div className="topup-payment-info">
-                      <div className="topup-payment-name">{t('rider.flooz') || 'Flooz (Moov)'}</div>
-                      <div className="topup-payment-type">{t('rider.instantTransfer') || 'Instant transfer'}</div>
-                    </div>
-                  </div>
-                  <div className="topup-payment-details">
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('rider.phone') || 'Phone Number'}</span>
-                      <span className="topup-payment-value">+228 97 654 321</span>
-                    </div>
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('rider.accountName') || 'Account Name'}</span>
-                      <span className="topup-payment-value">OVES Energy Ltd</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="topup-payment-method" onClick={() => handlePaymentMethodSelect('bank')}>
-                  <div className="topup-payment-header">
-                    <div className="topup-payment-icon">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      </svg>
-                    </div>
-                    <div className="topup-payment-info">
-                      <div className="topup-payment-name">{t('rider.bankTransfer') || 'Bank Transfer'}</div>
-                      <div className="topup-payment-type">{t('rider.processingTime') || '1-2 business days'}</div>
-                    </div>
-                  </div>
-                  <div className="topup-payment-details">
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('attendant.bankName') || 'Bank Name'}</span>
-                      <span className="topup-payment-value">Ecobank Togo</span>
-                    </div>
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('attendant.accountNumber') || 'Account Number'}</span>
-                      <span className="topup-payment-value">0051234567890</span>
-                    </div>
-                    <div className="topup-payment-detail">
-                      <span className="topup-payment-label">{t('rider.accountName') || 'Account Name'}</span>
-                      <span className="topup-payment-value">OVES Energy Ltd</span>
-                    </div>
-                  </div>
-                </div>
+              {/* Amount to pay — most important info, big and copyable. */}
+              <div className="topup-mixx-field">
+                <span className="topup-mixx-label">{t('rider.amountToPay') || 'Montant à payer'}</span>
+                <button
+                  type="button"
+                  className="topup-mixx-row topup-mixx-row-strong"
+                  onClick={() => handleCopy('amount', String(Math.floor(confirmedAmount)))}
+                  aria-label={t('rider.copyAmount') || 'Copy amount'}
+                >
+                  <span className="topup-mixx-value-strong">{formatFCFA(confirmedAmount)} F CFA</span>
+                  {copiedKey === 'amount' ? <Check size={16} /> : <Copy size={16} />}
+                </button>
               </div>
-              <div className="topup-instructions">
-                <h5 className="topup-instructions-title">{t('rider.howToPay') || 'How to pay'}</h5>
-                <ol className="topup-instructions-list">
-                  <li>{t('rider.payStep1') || 'Send the exact amount to one of the accounts above'}</li>
-                  <li>{t('rider.payStep2') || 'Note down your transaction/reference ID'}</li>
-                  <li>{t('rider.payStep3') || 'Click "I\'ve Made Payment" below to confirm'}</li>
-                </ol>
+
+              {/* Pre-built USSD — one tap copies, rider pastes into dialer. */}
+              <div className="topup-mixx-field">
+                <span className="topup-mixx-label">{t('rider.dialOnPhone') || 'Composez sur votre téléphone'}</span>
+                <button
+                  type="button"
+                  className="topup-mixx-row"
+                  onClick={() => handleCopy('ussd', buildMixxUssd(confirmedAmount))}
+                  aria-label={t('rider.copyUssd') || 'Copy USSD code'}
+                >
+                  <span className="topup-mixx-value-mono">{buildMixxUssd(confirmedAmount)}</span>
+                  {copiedKey === 'ussd' ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+                <span className="topup-mixx-hint">
+                  {t('rider.ussdHint') || 'Ou suivez les étapes ci-dessous si le code ne fonctionne pas.'}
+                </span>
               </div>
+
+              {/* Step-by-step fallback for handsets where the pre-built USSD
+                  isn't accepted. Walks through the standard Mixx merchant flow. */}
+              <ol className="topup-mixx-steps">
+                <li>
+                  {t('rider.mixxStep1Prefix') || 'Composez'}{' '}
+                  <button
+                    type="button"
+                    className="topup-mixx-inline-copy"
+                    onClick={() => handleCopy('root', MIXX_USSD_ROOT)}
+                  >
+                    <span>{MIXX_USSD_ROOT}</span>
+                    {copiedKey === 'root' ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+                </li>
+                <li>{t('rider.mixxStep2') || 'Choisissez « Paiement Marchand »'}</li>
+                <li>
+                  {t('rider.mixxStep3Prefix') || 'Code marchand :'}{' '}
+                  <button
+                    type="button"
+                    className="topup-mixx-inline-copy"
+                    onClick={() => handleCopy('merchant', MIXX_MERCHANT_CODE)}
+                  >
+                    <span>{MIXX_MERCHANT_CODE}</span>
+                    {copiedKey === 'merchant' ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+                  {' '}({MIXX_MERCHANT_NAME})
+                </li>
+                <li>{(t('rider.mixxStep4') || 'Montant : {amount} F CFA').replace('{amount}', formatFCFA(confirmedAmount))}</li>
+                <li>{t('rider.mixxStep5') || 'Validez avec votre code PIN Mixx'}</li>
+                <li>{t('rider.mixxStep6') || 'Notez le code de transaction reçu par SMS'}</li>
+              </ol>
+
               <div className="topup-modal-actions">
                 <button className="btn btn-secondary" onClick={handleClose}>
-                  {t('common.cancel') || 'Cancel'}
+                  {t('common.cancel') || 'Annuler'}
                 </button>
-                <button 
-                  className="btn btn-primary" 
+                <button
+                  className="btn btn-primary"
                   onClick={() => setStep('confirm')}
-                  disabled={!paymentMethod}
                 >
-                  {t('rider.madePayment') || 'I\'ve Made Payment'}
+                  {t('rider.madePayment') || "J'ai effectué le paiement"}
                 </button>
               </div>
             </div>

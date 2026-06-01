@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Eye, X } from 'lucide-react';
+import { Eye, X, RefreshCw } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getSalesRoleUser, clearSalesRoleLogin, getSalesRoleToken } from '@/lib/attendant-auth';
 import { useI18n } from '@/i18n';
@@ -30,6 +30,7 @@ import {
 } from './components';
 import ProgressiveLoading from '@/components/loader/progressiveLoading';
 import { BleProgressModal, SessionsHistory } from '@/components/shared';
+import SessionResumePrompt from '@/components/shared/SessionResumePrompt';
 import { getCustomerDashboard, getOrdersList, type OrderListItem } from '@/lib/odoo-api';
 
 // Import workflow session management
@@ -44,7 +45,7 @@ import type { WorkflowSessionData } from '@/lib/odoo-api';
 import { useFlowBatteryScan, type FlowBleScanState } from '@/lib/hooks/ble';
 
 // Import customer identification hook
-import { useCustomerIdentification, type CustomerIdentificationResult } from '@/lib/hooks/useCustomerIdentification';
+import { useCustomerIdentification, type CustomerIdentificationResult, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
 
 // Import payment collection hook (encapsulates Odoo payment + service completion)
 import { usePaymentCollection } from '@/lib/hooks/usePaymentCollection';
@@ -80,11 +81,17 @@ interface AttendantFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback to clear the initial session after it's been consumed */
   onInitialSessionConsumed?: () => void;
+  /** Skip the pending session check (e.g., when re-entering via bottom nav after the first check) */
+  skipSessionCheck?: boolean;
+  /** Callback after the initial session check completes, regardless of result */
+  onInitialSessionCheckComplete?: () => void;
+  /** Notify parent when this flow has an active in-progress session (used to gate tab switches) */
+  onSessionActiveChange?: (active: boolean) => void;
   /** Workflow mode - standard uses Odoo payment confirmation, manual-payment skips it */
   workflowMode?: AttendantWorkflowMode;
 }
 
-export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, workflowMode = 'standard' }: AttendantFlowProps) {
+export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, skipSessionCheck, onInitialSessionCheckComplete, onSessionActiveChange, workflowMode = 'standard' }: AttendantFlowProps) {
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { t } = useI18n();
@@ -118,6 +125,14 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   const [currentStep, setCurrentStep] = useState<AttendantStep>(1);
   // Track the furthest step reached to allow navigation back and forth without losing state
   const [maxStepReached, setMaxStepReached] = useState<AttendantStep>(1);
+
+  // Surface whether this flow has an active in-progress session, so the
+  // parent can refuse bottom-nav switches mid-swap. Active when past Step 1
+  // (customer identified) and before Step 6 (success screen).
+  useEffect(() => {
+    const active = currentStep > 1 && currentStep < 6;
+    onSessionActiveChange?.(active);
+  }, [currentStep, onSessionActiveChange]);
 
   // Helper to advance to a new step - updates maxStepReached if moving forward
   const advanceToStep = useCallback((step: AttendantStep) => {
@@ -173,7 +188,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
-  
+
+  // Pending-session resume modal state
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
+
   // Read-only mode for viewing completed sessions
   const [isReadOnlySession, setIsReadOnlySession] = useState(false);
   
@@ -195,9 +214,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   const {
     status: sessionStatus,
     orderId: sessionOrderId,
+    pendingSession,
     createSession,
     updateSession,
     updateSessionWithPayment,
+    restoreSession,
+    discardPendingSession,
+    checkForPendingSession,
     clearSession,
     setOrderId: setSessionOrderId,
   } = useWorkflowSession({
@@ -242,6 +265,54 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     },
   });
   
+  // Check for a pending session from the backend on first mount.
+  // Skip when:
+  //  - parent gave us an explicit initialSession (user picked from Sessions list)
+  //  - parent says skipSessionCheck (re-entry via bottom nav after first check)
+  // Failures are non-blocking and never toast — the user can't act on them.
+  useEffect(() => {
+    if (initialSession) {
+      discardPendingSession();
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+      return;
+    }
+    if (skipSessionCheck) {
+      setSessionCheckComplete(true);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await checkForPendingSession();
+      } catch (err) {
+        console.warn('[AttendantFlow] Pending session check failed (non-blocking):', err);
+      }
+      if (cancelled) return;
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+    })();
+
+    return () => { cancelled = true; };
+  }, [initialSession, skipSessionCheck, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete]);
+
+  const handleResumeSession = useCallback(async () => {
+    setIsRestoringSession(true);
+    try {
+      await restoreSession();
+    } catch (err) {
+      console.error('[AttendantFlow] Failed to restore session:', err);
+      toast.error(t('session.resumeFailed') || 'Failed to resume session');
+    } finally {
+      setIsRestoringSession(false);
+    }
+  }, [restoreSession, t]);
+
+  const handleDiscardPendingSession = useCallback(() => {
+    discardPendingSession();
+  }, [discardPendingSession]);
+
   // Handle selecting a session from history
   const handleSelectHistorySession = useCallback(async (order: OrderListItem, isReadOnly: boolean) => {
     if (!order.session?.session_data) {
@@ -491,14 +562,95 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   });
   
   // ============================================
+  // QUOTA POLLING — detect rider top-ups mid-swap
+  // ============================================
+  //
+  // While the attendant is on Steps 2–5 (pre-confirm), poll identifyCustomer
+  // every 20s to catch top-ups the rider made on their own phone. We use a
+  // SECOND silent useCustomerIdentification instance so its onSuccess never
+  // advances steps or trips toasts — it just records the new quota.
+  //
+  // When the energy quota changes, we surface a non-blocking banner with the
+  // recomputed cost and Apply / Keep buttons. Polling stops the moment the
+  // attendant presses Confirm Payment so an in-flight confirmation is never
+  // disturbed.
+
+  // Banner state for a detected top-up. null = no change pending.
+  const [pendingQuotaUpdate, setPendingQuotaUpdate] = useState<{
+    oldAvailableKwh: number;
+    newAvailableKwh: number;
+    newServiceStates: ServiceState[];
+    newCost: number | null;  // null when no battery yet to compute cost against
+  } | null>(null);
+
+  // Manual refresh button shows a brief spinner; auto-polls don't.
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  // Silent identification used for background polling and the manual refresh.
+  // No toasts, no step advance — only records the new state for the banner.
+  const handleSilentIdentificationResult = useCallback((result: CustomerIdentificationResult) => {
+    const energyService = result.serviceStates.find(
+      (s) => typeof s.service_id === 'string' &&
+        (s.service_id.includes('service-energy') || s.service_id.includes('service-electricity')),
+    );
+    if (!energyService) return;
+
+    const currentElec = electricityServiceRef.current;
+    const oldAvailable = (currentElec?.quota ?? 0) - (currentElec?.used ?? 0);
+    const newAvailable = (energyService.quota ?? 0) - (energyService.used ?? 0);
+
+    // Ignore noise (< 0.01 kWh delta). Equality means no rider top-up.
+    if (Math.abs(newAvailable - oldAvailable) < 0.01) {
+      return;
+    }
+
+    // Only top-ups (available went UP) are interesting — a decrease can come
+    // from another concurrent swap and shouldn't surprise the attendant.
+    if (newAvailable <= oldAvailable) {
+      return;
+    }
+
+    // If both batteries are scanned, recompute the cost against new quota.
+    const old = swapData.oldBattery;
+    const nw = swapData.newBattery;
+    let newCost: number | null = null;
+    if (old && nw) {
+      const recompute = calculateSwapPayment({
+        newBatteryEnergyWh: nw.energy,
+        oldBatteryEnergyWh: old.energy,
+        ratePerKwh: swapData.rate,
+        quotaTotal: energyService.quota ?? 0,
+        quotaUsed: energyService.used ?? 0,
+      });
+      newCost = recompute.cost;
+    }
+
+    setPendingQuotaUpdate({
+      oldAvailableKwh: oldAvailable,
+      newAvailableKwh: newAvailable,
+      newServiceStates: result.serviceStates,
+      newCost,
+    });
+  }, [swapData.oldBattery, swapData.newBattery, swapData.rate]);
+
+  const { identifyCustomer: identifyCustomerSilent } = useCustomerIdentification({
+    attendantInfo,
+    silent: true,
+    onSuccess: handleSilentIdentificationResult,
+    onError: () => {
+      // Silent on auto-polls. Manual refresh handles its own error toast below.
+    },
+  });
+
+  // ============================================
   // PAYMENT COLLECTION HOOK
   // ============================================
-  
-  
+
+
   // ============================================
   // BLE SCAN-TO-BIND HOOK (Modular BLE handling)
   // ============================================
-  
+
   // Ref for electricity service to use in callbacks without recreation
   const electricityServiceRef = useRef<typeof electricityService>(undefined);
   
@@ -699,7 +851,49 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   useEffect(() => {
     electricityServiceRef.current = electricityService;
   }, [electricityService]);
-  
+
+  // Quota-refresh trigger used by both the auto-poll and the manual button.
+  // Silent failure on auto-polls; manual surfaces a toast (handled by caller).
+  const refreshCustomerQuota = useCallback(async () => {
+    const subCode = customerData?.subscriptionId;
+    if (!subCode) return;
+    await identifyCustomerSilent({ subscriptionCode: subCode, source: 'manual' });
+  }, [customerData?.subscriptionId, identifyCustomerSilent]);
+
+  const handleManualRefreshQuota = useCallback(async () => {
+    if (isManualRefreshing) return;
+    setIsManualRefreshing(true);
+    try {
+      await refreshCustomerQuota();
+    } catch (err) {
+      console.warn('[Attendant] Manual quota refresh failed:', err);
+      toast.error(t('attendant.refreshFailed') || 'Could not refresh quota');
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [isManualRefreshing, refreshCustomerQuota, t]);
+
+  // Apply the detected top-up: write the new service states and the recomputed
+  // cost into the swap. Drops any stale pending payment input — the amount the
+  // attendant was about to collect changed.
+  const handleApplyQuotaUpdate = useCallback(() => {
+    if (!pendingQuotaUpdate) return;
+    setServiceStates(pendingQuotaUpdate.newServiceStates);
+    if (pendingQuotaUpdate.newCost !== null) {
+      setSwapData((prev) => ({ ...prev, cost: pendingQuotaUpdate.newCost! }));
+    }
+    setPendingQuotaUpdate(null);
+    toast.success(t('attendant.quotaUpdated') || 'Quota updated — cost refreshed');
+  }, [pendingQuotaUpdate, t]);
+
+  const handleKeepCurrentCost = useCallback(() => {
+    setPendingQuotaUpdate(null);
+  }, []);
+
+  // NOTE: The auto-poll effect is defined further down — it needs
+  // `isPaymentProcessing` and `paymentAndServiceStatus` from the payment hook,
+  // which is declared after this section.
+
   // Keep customerTypeRef and customerDataRef in sync for use in BLE hook callbacks
   // These refs allow the battery read callback to access current values without recreation
   useEffect(() => {
@@ -903,6 +1097,75 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     actualAmountPaid,
     paymentRequestCreated,
   } = paymentState;
+
+  // Auto-poll for rider top-ups during the swap. Active on Steps 2–5 only,
+  // suspends while the tab is hidden, stops the moment payment confirmation
+  // is in-flight, and backs off exponentially on consecutive failures so a
+  // bad network never floods the network or the UI.
+  useEffect(() => {
+    if (!customerData?.subscriptionId) return;
+    if (isReadOnlySession) return;
+    if (currentStep < 2 || currentStep > 5) return;
+    // Once Confirm has been pressed, do not poll — payment is mid-flight.
+    if (isPaymentProcessing || paymentAndServiceStatus === 'pending') return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let consecutiveErrors = 0;
+    const baseInterval = 20_000;
+    const maxInterval = 5 * 60_000;
+
+    const schedule = (delay: number) => {
+      if (cancelled) return;
+      timer = setTimeout(tick, delay);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        // Skip while hidden; the visibilitychange handler kicks one off on return.
+        schedule(baseInterval);
+        return;
+      }
+      try {
+        await refreshCustomerQuota();
+        consecutiveErrors = 0;
+        schedule(baseInterval);
+      } catch (err) {
+        consecutiveErrors += 1;
+        const backoff = Math.min(baseInterval * Math.pow(2, consecutiveErrors), maxInterval);
+        console.warn('[Attendant] Quota poll failed, backing off to', backoff, 'ms:', err);
+        schedule(backoff);
+      }
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden && !cancelled) {
+        // Immediate one-shot refresh on coming back to the tab.
+        refreshCustomerQuota().catch(() => { /* silent */ });
+      }
+    };
+
+    schedule(baseInterval);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+    };
+  }, [
+    customerData?.subscriptionId,
+    currentStep,
+    isPaymentProcessing,
+    paymentAndServiceStatus,
+    isReadOnlySession,
+    refreshCustomerQuota,
+  ]);
 
   // Apply pending payment state restoration (from session resume)
   // This runs after restorePaymentState is available from the hook
@@ -1934,10 +2197,44 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       />
 
       {/* Customer State Panel - Shows after customer identified, hidden on payment/success steps */}
-      <CustomerStatePanel 
-        customer={customerData} 
+      <CustomerStatePanel
+        customer={customerData}
         visible={currentStep > 1 && currentStep < 5}
       />
+
+      {/* Manual quota refresh — visible only while polling is active, never
+          on the customer-scan or success step. Lets the attendant pull a
+          fresh quota when the rider tells them "I just topped up." */}
+      {!isReadOnlySession && customerData?.subscriptionId && currentStep >= 2 && currentStep <= 5 && (
+        <button
+          type="button"
+          onClick={handleManualRefreshQuota}
+          disabled={isManualRefreshing}
+          aria-label={t('attendant.refreshQuota') || 'Refresh quota'}
+          title={t('attendant.refreshQuota') || 'Refresh quota'}
+          style={{
+            alignSelf: 'flex-end',
+            margin: '4px 12px 0',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '4px 10px',
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: 999,
+            color: 'inherit',
+            fontSize: 11,
+            opacity: isManualRefreshing ? 0.6 : 0.85,
+            cursor: isManualRefreshing ? 'wait' : 'pointer',
+          }}
+        >
+          <RefreshCw
+            size={12}
+            style={{ animation: isManualRefreshing ? 'spin 1s linear infinite' : undefined }}
+          />
+          {t('attendant.refreshQuota') || 'Refresh quota'}
+        </button>
+      )}
 
       {/* Read-only Mode Banner */}
       {isReadOnlySession && (
@@ -1954,6 +2251,76 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             <X size={14} />
             <span>{t('sessions.exitReview') || 'Exit'}</span>
           </button>
+        </div>
+      )}
+
+      {/* Rider-top-up banner — only renders when a quota change is detected. */}
+      {pendingQuotaUpdate && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 30,
+            margin: '8px 12px',
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: 'linear-gradient(180deg, rgba(34,197,94,0.16), rgba(34,197,94,0.08))',
+            border: '1px solid rgba(34,197,94,0.45)',
+            color: 'var(--text-primary, #fff)',
+            fontSize: 13,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ flex: 1, lineHeight: 1.35 }}>
+            <strong>{t('attendant.riderToppedUp') || 'Rider just topped up.'}</strong>
+            <div style={{ opacity: 0.85, marginTop: 2 }}>
+              {t('attendant.quotaAvailable') || 'Quota available'}: {pendingQuotaUpdate.oldAvailableKwh.toFixed(2)} → {pendingQuotaUpdate.newAvailableKwh.toFixed(2)} kWh
+              {pendingQuotaUpdate.newCost !== null && (
+                <>
+                  {' • '}
+                  {t('attendant.newCost') || 'New cost'}: {swapData.currencySymbol} {pendingQuotaUpdate.newCost.toFixed(2)}
+                </>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={handleApplyQuotaUpdate}
+              style={{
+                background: '#22c55e',
+                color: '#0a0a0a',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {t('common.apply') || 'Apply'}
+            </button>
+            <button
+              type="button"
+              onClick={handleKeepCurrentCost}
+              style={{
+                background: 'transparent',
+                color: 'inherit',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 6,
+                padding: '6px 10px',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              {t('common.keep') || 'Keep'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -2015,6 +2382,14 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         workflowType="attendant"
       />
 
+      {/* Resume-most-recent-session prompt — shown once after the check completes */}
+      <SessionResumePrompt
+        isVisible={sessionCheckComplete && !!pendingSession}
+        session={pendingSession}
+        onResume={handleResumeSession}
+        onDiscard={handleDiscardPendingSession}
+        isLoading={isRestoringSession}
+      />
     </div>
   );
 }

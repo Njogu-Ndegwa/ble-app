@@ -35,7 +35,18 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
   
   // Screen management
   const [currentScreen, setCurrentScreen] = useState<AttendantScreen>('swap');
-  
+
+  // Once the first pending-session check completes, suppress it on subsequent
+  // navigations back to the swap screen via the bottom nav — the user just
+  // came from another tab, they're not freshly entering the role.
+  const [hasCompletedInitialSessionCheck, setHasCompletedInitialSessionCheck] = useState(false);
+
+  // True while a swap is mid-flow — blocks bottom-nav tab switches so the
+  // attendant can't abandon an in-progress session to start another. The
+  // session itself is auto-saved, so it can be resumed (see #1) — just not
+  // bailed out of while it's open.
+  const [isSwapInProgress, setIsSwapInProgress] = useState(false);
+
   // Selected session to restore (from sessions screen)
   const [selectedSession, setSelectedSession] = useState<OrderListItem | null>(null);
   const [selectedSessionReadOnly, setSelectedSessionReadOnly] = useState(false);
@@ -99,10 +110,19 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
     }
   }, [onLogout, router, t]);
 
-  // Handle navigation
+  // Handle navigation. Refuse to leave the swap screen mid-flow — the
+  // attendant must finish (or the session auto-saves and they can resume
+  // later via the prompt on next entry).
   const handleNavigate = useCallback((screen: AttendantScreen) => {
+    if (isSwapInProgress && screen !== 'swap') {
+      toast.error(
+        t('session.finishBeforeSwitching') ||
+          'Finish the current swap before switching tabs.',
+      );
+      return;
+    }
     setCurrentScreen(screen);
-  }, []);
+  }, [isSwapInProgress, t]);
 
   // Handle session selection from sessions screen
   const handleSelectSession = useCallback((order: OrderListItem, isReadOnly: boolean) => {
@@ -118,15 +138,19 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
     setSelectedSession(null);
     setSelectedSessionReadOnly(false);
   }, []);
-  
+
+  const handleInitialSessionCheckComplete = useCallback(() => {
+    setHasCompletedInitialSessionCheck(true);
+  }, []);
+
   // For swap screen, render AttendantFlow with integrated bottom nav
   if (currentScreen === 'swap') {
     return (
-      <AttendantFlow 
+      <AttendantFlow
         onLogout={handleLogout}
         hideHeaderActions={false}
         renderBottomNav={() => (
-          <AttendantNav 
+          <AttendantNav
             currentScreen={currentScreen}
             onNavigate={handleNavigate}
           />
@@ -134,6 +158,9 @@ export default function AttendantApp({ onLogout, onSwitchSA, workflowMode = 'sta
         initialSession={selectedSession}
         initialSessionReadOnly={selectedSessionReadOnly}
         onInitialSessionConsumed={handleSessionConsumed}
+        skipSessionCheck={hasCompletedInitialSessionCheck}
+        onInitialSessionCheckComplete={handleInitialSessionCheckComplete}
+        onSessionActiveChange={setIsSwapInProgress}
         workflowMode={workflowMode}
       />
     );

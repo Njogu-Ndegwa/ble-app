@@ -42,6 +42,7 @@ import { useSalesCustomerIdentification, type IdentificationStatus } from '@/lib
 import type { ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { usePaymentAndService, useVehicleAssignment, type PublishPaymentAndServiceParams } from '@/lib/services/hooks';
 import { BleProgressModal, SessionsHistory } from '@/components/shared';
+import SessionResumePrompt from '@/components/shared/SessionResumePrompt';
 import type { OrderListItem } from '@/lib/odoo-api';
 import { PAYMENT } from '@/lib/constants';
 import { calculateSwapPayment } from '@/lib/swap-payment';
@@ -104,15 +105,24 @@ interface SalesFlowProps {
   initialSessionReadOnly?: boolean;
   /** Callback when initial session is consumed */
   onInitialSessionConsumed?: () => void;
+  /** Skip the pending session check (re-entry via bottom nav after first check) */
+  skipSessionCheck?: boolean;
+  /** Callback after the initial session check completes */
+  onInitialSessionCheckComplete?: () => void;
+  /** Notify parent when this flow has an active in-progress session */
+  onSessionActiveChange?: (active: boolean) => void;
 }
 
-export default function SalesFlow({ 
-  onBack, 
-  onLogout, 
+export default function SalesFlow({
+  onBack,
+  onLogout,
   renderBottomNav,
   initialSession,
   initialSessionReadOnly,
   onInitialSessionConsumed,
+  skipSessionCheck,
+  onInitialSessionCheckComplete,
+  onSessionActiveChange,
 }: SalesFlowProps) {
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
@@ -136,6 +146,13 @@ export default function SalesFlow({
   useEffect(() => {
     console.info(`🔵 [SalesFlow] currentStep state is now: ${currentStep}`, { currentStep, maxStepReached });
   }, [currentStep, maxStepReached]);
+
+  // Surface in-progress state so SalesApp can refuse bottom-nav switches.
+  // Active when past Step 1 and before Step 8 (success).
+  useEffect(() => {
+    const active = currentStep > 1 && currentStep < 8;
+    onSessionActiveChange?.(active);
+  }, [currentStep, onSessionActiveChange]);
 
   // Form data - fields for Odoo /api/auth/register (company_id from salesperson token)
   const [formData, setFormData] = useState<CustomerFormData>({
@@ -371,9 +388,13 @@ export default function SalesFlow({
   const {
     status: sessionStatus,
     orderId: sessionOrderId,
+    pendingSession,
     createSalesSession,
     updateSession,
     updateSessionWithProducts,
+    restoreSession,
+    discardPendingSession,
+    checkForPendingSession,
     clearSession,
     setOrderId: setSessionOrderId,
   } = useWorkflowSession({
@@ -440,6 +461,55 @@ export default function SalesFlow({
   // Sessions history modal state
   const [showSessionsHistory, setShowSessionsHistory] = useState(false);
   const [isReadOnlySession, setIsReadOnlySession] = useState(false);
+
+  // Pending-session resume modal state
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
+
+  // Check for a pending session from the backend on first mount.
+  // Same skip rules as AttendantFlow — explicit initialSession or bottom-nav re-entry suppress it.
+  useEffect(() => {
+    if (initialSession) {
+      discardPendingSession();
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+      return;
+    }
+    if (skipSessionCheck) {
+      setSessionCheckComplete(true);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await checkForPendingSession();
+      } catch (err) {
+        console.warn('[SalesFlow] Pending session check failed (non-blocking):', err);
+      }
+      if (cancelled) return;
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+    })();
+
+    return () => { cancelled = true; };
+  }, [initialSession, skipSessionCheck, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete]);
+
+  const handleResumePendingSession = useCallback(async () => {
+    setIsRestoringSession(true);
+    try {
+      await restoreSession();
+    } catch (err) {
+      console.error('[SalesFlow] Failed to restore session:', err);
+      toast.error(t('session.resumeFailed') || 'Failed to resume session');
+    } finally {
+      setIsRestoringSession(false);
+    }
+  }, [restoreSession, t]);
+
+  const handleDiscardPendingSession = useCallback(() => {
+    discardPendingSession();
+  }, [discardPendingSession]);
   
   // Process payment QR data ref
   const processPaymentQRDataRef = useRef<(paymentId: string) => void>(() => {});
@@ -2648,6 +2718,15 @@ export default function SalesFlow({
         bleScanState={bleScanState}
         pendingBatteryId={pendingBatteryId}
         onCancel={cancelBleOperation}
+      />
+
+      {/* Resume-most-recent-session prompt — one-shot after the check completes */}
+      <SessionResumePrompt
+        isVisible={sessionCheckComplete && !!pendingSession}
+        session={pendingSession}
+        onResume={handleResumePendingSession}
+        onDiscard={handleDiscardPendingSession}
+        isLoading={isRestoringSession}
       />
     </div>
   );
