@@ -258,6 +258,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
         headers: {
           'Content-Type': 'application/json',
           'X-API-KEY': 'abs_connector_secret_key_2024',
+          // Pin Odoo's response language so translatable fields are
+          // identical across devices. See buildOdooHeaders for context.
+          'Accept-Language': 'en',
         },
         body: JSON.stringify(apiData),
       });

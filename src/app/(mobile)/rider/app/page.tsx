@@ -988,6 +988,9 @@ const RiderApp: React.FC = () => {
           'Content-Type': 'application/json',
           'X-API-KEY': API_KEY,
           'Authorization': `Bearer ${token}`,
+          // Pin language so translatable Odoo fields (e.g. product_name,
+          // package_product_name) come back identical on every device.
+          'Accept-Language': 'en',
         },
       });
 

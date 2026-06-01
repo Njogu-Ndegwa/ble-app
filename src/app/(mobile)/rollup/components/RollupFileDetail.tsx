@@ -28,6 +28,9 @@ function buildDetailHeaders(): HeadersInit {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
+    // Pin Odoo's response language so translatable fields are identical
+    // across devices. See buildOdooHeaders in odoo-api.ts for context.
+    'Accept-Language': 'en',
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (saId) headers['X-SA-ID'] = saId;
