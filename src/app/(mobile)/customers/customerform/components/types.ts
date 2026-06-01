@@ -91,6 +91,12 @@ export interface PlanData {
   id: string;           // Will be product ID from Odoo
   odooProductId: number; // Original Odoo product ID
   name: string;
+  /**
+   * Stable canonical name from Odoo (`x_template_id`). Prefer this for
+   * display — `name` is translatable in Odoo and drifts between devices
+   * for the same record. See useProductCatalog for the source mapping.
+   */
+  templateId?: string;
   description: string;
   price: number;
   period: string;

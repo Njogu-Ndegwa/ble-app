@@ -82,9 +82,15 @@ export default function Step2SelectPlan({
       ) : (
         <Grid columns={1} gap={8}>
           {[...plans].sort((a, b) => Number(a.price) - Number(b.price)).map((plan) => {
-            const period = plan.period || getPeriodFromName(plan.name);
+            // Prefer the canonical `templateId` for both display and period
+            // detection. The display `name` is a translatable Odoo field and
+            // can drift between devices for the same record; `x_template_id`
+            // is the stable canonical form (see the [CATALOG DIAGNOSTIC]
+            // findings for plan ids 36677/36678 etc).
+            const displayName = plan.templateId || plan.name;
+            const period = plan.period || getPeriodFromName(displayName);
             const currencySymbol = plan.currencySymbol || 'KES';
-            
+
             return (
               <SelectableCard
                 key={plan.id}
@@ -95,27 +101,27 @@ export default function Step2SelectPlan({
                 className="plan-card"
                 style={{ padding: '12px' }}
               >
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '10px',
                   width: '100%',
                   minHeight: '32px', /* Consistent height for all cards */
                 }}>
-                  <div style={{ 
-                    flex: 1, 
+                  <div style={{
+                    flex: 1,
                     minWidth: 0,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
                   }}>
-                    <div style={{ 
-                      fontWeight: 500, 
+                    <div style={{
+                      fontWeight: 500,
                       fontSize: '12px',
                       lineHeight: '1.3',
                     }}>
-                      {plan.name}
+                      {displayName}
                     </div>
                     {plan.description && (
                       <div style={{ 

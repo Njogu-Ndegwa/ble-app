@@ -2312,7 +2312,10 @@ const RiderApp: React.FC = () => {
             <RiderPlans
               token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
               onSelectPlan={(plan) => {
-                toast.success(t('rider.plans.selected', { name: plan.name }) || `Selected ${plan.name}`);
+                // Show the canonical plan name in the toast. `name` is a
+                // translatable Odoo field; `templateId` is stable.
+                const planName = plan.templateId || plan.name;
+                toast.success(t('rider.plans.selected', { name: planName }) || `Selected ${planName}`);
               }}
               defaultCurrency={currency}
             />
