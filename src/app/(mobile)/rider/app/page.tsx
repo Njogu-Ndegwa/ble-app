@@ -13,9 +13,13 @@ import {
   IDENTIFY_CUSTOMER,
   parseIdentifyCustomerMetadata,
   SERVICE_TOPUP,
+  GET_REQUIRED_ASSET_IDS,
+  parseGetRequiredAssetIdsFleetIds,
   type IdentifyCustomerInput,
   type ServiceTopupInput,
   type ServiceTopupResponse,
+  type GetRequiredAssetIdsInput,
+  type GetRequiredAssetIdsResponse,
 } from '@/lib/graphql/mutations';
 import { round } from '@/lib/utils';
 import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
@@ -109,6 +113,13 @@ interface Subscription {
   status: string;
   product_id: number;
   product_name: string;
+  plan_product_id?: number;
+  plan_product_name?: string;
+  package_product_id?: number;
+  // The physical product name (e.g. "Test Bike", "E-Trike 3X"). Prefer this
+  // over `product_name` (which is the energy plan) when displaying what the
+  // rider physically owns.
+  package_product_name?: string;
   start_date: string;
   next_cycle_date: string;
   price_at_signup: number;
@@ -153,7 +164,6 @@ const RiderApp: React.FC = () => {
   const router = useRouter();
   const { t } = useI18n();
   const { bridge } = useBridge();
-  const stationsSubscriptionRef = useRef<(() => void) | null>(null);
   const lastStationsFleetKeyRef = useRef<string | null>(null);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
   // Monotonically-incrementing nonce that user-driven retries bump to force
@@ -199,7 +209,10 @@ const RiderApp: React.FC = () => {
   const [isLoadingBike, setIsLoadingBike] = useState(false);
   const [isBikeDataResolved, setIsBikeDataResolved] = useState(false);
   const [bike, setBike] = useState<BikeInfo>({
-    model: 'E-Trike 3X',
+    // Empty until the subscription resolves; we then fill from
+    // `package_product_name`. Never hardcode a real product name here —
+    // it leaks into the UI before data arrives.
+    model: '',
     vehicleId: null,
     totalSwaps: 0,
     lastSwap: null,
@@ -1036,9 +1049,13 @@ const RiderApp: React.FC = () => {
           });
           setSubscription(active);
 
-          // Update bike payment state with subscription status
+          // Update bike payment state and physical product name from the
+          // subscription. `package_product_name` is the physical bike the
+          // rider owns; `product_name` is the energy plan, so we only fall
+          // back to it (or the initial value) if the package name is absent.
           setBike(prev => ({
             ...prev,
+            model: active.package_product_name || prev.model,
             paymentState: active.status === 'active' ? 'active' : active.status,
           }));
 
@@ -1105,16 +1122,23 @@ const RiderApp: React.FC = () => {
     }
   };
 
-  // Fetch stations via MQTT - using direct bridge calls like serviceplan1
-  // Now also supports prefetching: triggers when prefetch started OR when logged in
+  // Fetch fleet IDs for this subscription via the ABS `getRequiredAssetIds`
+  // GraphQL query. This replaces the previous MQTT round-trip (which used
+  // `call/uxi/service/plan/{planId}/get_assets`), eliminating an entire class
+  // of intermittency: bridge-not-ready races, MQTT-connection drops,
+  // subscribe-then-publish ordering, single-global-handler collisions, and
+  // silent "publish-into-the-void" failures. The handler on the backend is
+  // identical to the one the MQTT call routed to, so the response shape is
+  // guaranteed to match.
   useEffect(() => {
-    // Allow MQTT to start if either: logged in, OR prefetch has started (welcome screen visible)
+    // Allow fetch to start if either: logged in, OR prefetch has started
+    // (welcome screen visible).
     const canFetch = isLoggedIn || prefetchStartedRef.current;
     const hasFleetIds = fleetIds.length > 0;
 
     if (!canFetch || !subscription?.subscription_code || !customer) {
       if (canFetch) {
-        console.warn('[PERF] ðŸ“¡ MQTT - Waiting for dependencies:', {
+        console.warn('[PERF] Stations - Waiting for dependencies:', {
           hasSubscription: !!subscription?.subscription_code,
           hasCustomer: !!customer,
           isPrefetch: prefetchStartedRef.current && !isLoggedIn,
@@ -1122,218 +1146,91 @@ const RiderApp: React.FC = () => {
       }
       return;
     }
-    // Fleet IDs already resolved, avoid re-subscribing and re-entering loading state.
+    // Fleet IDs already resolved, avoid re-fetching and re-entering loading state.
     if (hasFleetIds) {
       if (isLoggedIn) {
         setIsLoadingStations(false);
       }
       return;
     }
-    if (!bridge || typeof window === 'undefined' || !window.WebViewJavascriptBridge) {
-      console.warn('[PERF] ðŸ“¡ MQTT - Bridge NOT ready:', {
-        bridge: !!bridge,
-        webViewBridge: typeof window !== 'undefined' && !!window.WebViewJavascriptBridge,
-      });
-      if (isLoggedIn) {
-        setIsLoadingStations(false);
-      }
-      return;
-    }
 
-    // Only set loading state if user is logged in (not during prefetch - don't show loading on welcome screen)
     if (isLoggedIn) {
       setIsLoadingStations(true);
     }
 
     const planId = subscription.subscription_code;
-    const requestTopic = `call/uxi/service/plan/${planId}/get_assets`;
-    const responseTopic = `rtrn/abs/service/plan/${planId}/get_assets`;
-
-    const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 0;
-    console.warn(`[PERF] ðŸ“¡ MQTT - Starting at ${totalElapsed}ms from data load start`);
-    console.info('[STATIONS MQTT] Setting up MQTT request for plan:', planId);
-    const mqttStartTime = performance.now();
-    console.info('[PERF] ðŸ“¡ MQTT Fleet IDs Request - Starting...');
-
-    // Failsafe timeout: if MQTT never responds with fleet IDs, stop the loader
-    // so the user isn't stuck watching a spinner forever.
-    let fleetIdsReceived = false;
-    const mqttFailsafeTimer = window.setTimeout(() => {
-      if (fleetIdsReceived) return;
-      const waited = Math.round(performance.now() - mqttStartTime);
-      console.warn(`[PERF] â±ï¸ MQTT Fleet IDs - timeout after ${waited}ms, no response received. Stopping stations loader.`);
-      setIsLoadingStations(false);
-      setStations([]);
-      setStationsError('mqtt-timeout');
-    }, LOAD_FAILSAFE_TIMEOUT_MS);
-
-    // Generate unique correlation ID
     const correlationId = `asset-discovery-${Date.now()}`;
-    
-    // Format timestamp without milliseconds
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
-    
-    const content = {
-      timestamp: timestamp,
+    const startedAt = performance.now();
+    const totalElapsed = dataLoadStartRef.current > 0 ? Math.round(performance.now() - dataLoadStartRef.current) : 0;
+    console.warn(`[PERF] Stations - Fetching fleet IDs at ${totalElapsed}ms from data load start`);
+    console.info('[STATIONS] getRequiredAssetIds query - plan:', planId);
+
+    let cancelled = false;
+    const input: GetRequiredAssetIdsInput = {
       plan_id: planId,
       correlation_id: correlationId,
-      actor: {
-        type: "customer",
-        id: "CUST-RIDER-001"
-      },
-      data: {
-        action: "GET_REQUIRED_ASSET_IDS",
-        search_radius: 10
-      }
+      search_radius: 10,
     };
 
-    const dataToPublish = {
-      topic: requestTopic,
-      qos: 0,
-      content,
-    };
+    absApolloClient
+      .query<{ getRequiredAssetIds: GetRequiredAssetIdsResponse }>({
+        query: GET_REQUIRED_ASSET_IDS,
+        variables: { input },
+        // Always go to network. A stale Apollo cache can't be allowed to
+        // serve old fleet IDs after a plan switch or re-login.
+        fetchPolicy: 'network-only',
+      })
+      .then((result) => {
+        if (cancelled) return;
 
-    // Helper function to register handlers (same pattern as serviceplan1)
-    const reg = (name: string, handler: any) => {
-      bridge.registerHandler(name, handler);
-      return () => bridge.registerHandler(name, () => {});
-    };
-
-    // Register MQTT response handler FIRST (before subscribing/publishing)
-    console.info('[STATIONS MQTT] Registering mqttMsgArrivedCallBack handler');
-    const offResponseHandler = reg(
-      "mqttMsgArrivedCallBack",
-      (data: string, responseCallback: (response: any) => void) => {
-        try {
-          const parsedData = JSON.parse(data);
-          console.info('========================================');
-          console.info('[STATIONS MQTT] Received MQTT arrived callback data:', parsedData);
-
-          const message = parsedData;
-          const topic = message.topic;
-          const rawMessageContent = message.message;
-
-          console.info('[STATIONS MQTT] Topic:', topic);
-          console.info('[STATIONS MQTT] Expected topic:', responseTopic);
-          console.info('[STATIONS MQTT] Topic match:', topic === responseTopic);
-
-          if (topic === responseTopic) {
-            console.info('[STATIONS MQTT] âœ… Response received from rtrn topic!');
-            console.info('[STATIONS MQTT] Full message:', JSON.stringify(message, null, 2));
-            
-            let responseData;
-            try {
-              responseData = typeof rawMessageContent === 'string' ? JSON.parse(rawMessageContent) : rawMessageContent;
-            } catch (parseErr) {
-              console.error('[STATIONS MQTT] Error parsing message content:', parseErr);
-              responseData = rawMessageContent;
-            }
-
-            console.info('[STATIONS MQTT] Parsed response data:', JSON.stringify(responseData, null, 2));
-
-            // Extract fleet IDs from response
-            const fleetIdsData = responseData?.data?.metadata?.fleet_ids;
-            const swapStationFleetIds = fleetIdsData?.swap_station_fleet;
-
-            if (swapStationFleetIds && Array.isArray(swapStationFleetIds) && swapStationFleetIds.length > 0) {
-              const mqttElapsed = Math.round(performance.now() - mqttStartTime);
-              console.info(`[PERF] ðŸ“¡ MQTT Fleet IDs - Response received in ${mqttElapsed}ms`);
-              console.info('[STATIONS MQTT] âœ… Found swap station fleet IDs:', swapStationFleetIds);
-              fleetIdsReceived = true;
-              window.clearTimeout(mqttFailsafeTimer);
-              setStationsError(null);
-              setFleetIds(swapStationFleetIds);
-            } else {
-              console.warn('[STATIONS MQTT] No swap_station_fleet IDs found in response');
-              console.warn('[STATIONS MQTT] Response structure:', {
-                hasData: !!responseData?.data,
-                hasMetadata: !!responseData?.data?.metadata,
-                hasFleetIds: !!responseData?.data?.metadata?.fleet_ids,
-                fleetIds: responseData?.data?.metadata?.fleet_ids,
-                fullResponse: responseData,
-              });
-              fleetIdsReceived = true;
-              window.clearTimeout(mqttFailsafeTimer);
-              setIsLoadingStations(false);
-              setStations([]);
-              // Empty fleet list is a legitimate "no stations assigned" state,
-              // not a failure — clear any stale error so the user isn't shown
-              // a Retry card for an API response that came back correctly.
-              setStationsError(null);
-            }
-            responseCallback({ success: true });
-          } else {
-            console.info('[STATIONS MQTT] Topic mismatch, ignoring. Expected:', responseTopic, 'Got:', topic);
-            responseCallback({ success: true });
-          }
-        } catch (err) {
-          console.error('[STATIONS MQTT] Error parsing MQTT arrived callback:', err);
-          responseCallback({ success: false, error: err });
+        if (result.errors && result.errors.length > 0) {
+          console.error('[STATIONS] getRequiredAssetIds GraphQL errors:', result.errors);
+          setIsLoadingStations(false);
+          setStations([]);
+          setStationsError('graphql-errors');
+          return;
         }
-        console.info('========================================');
-      }
-    );
 
-    // Subscribe to response topic using mqttSubTopic (same as serviceplan1)
-    console.info('[STATIONS MQTT] Subscribing to response topic:', responseTopic);
-    if (!window.WebViewJavascriptBridge) {
-      console.error('[STATIONS MQTT] WebViewJavascriptBridge not available');
-      return;
-    }
-    
-    window.WebViewJavascriptBridge.callHandler(
-      "mqttSubTopic",
-      { topic: responseTopic, qos: 0 },
-      (subscribeResponse) => {
-        console.info('[STATIONS MQTT] Subscribe response:', subscribeResponse);
-        try {
-          const subResp = typeof subscribeResponse === 'string' ? JSON.parse(subscribeResponse) : subscribeResponse;
-          if (subResp.respCode === "200") {
-            console.info('[STATIONS MQTT] âœ… Subscribed to response topic successfully');
-            
-            // Publish request AFTER subscription is confirmed
-            console.info('[STATIONS MQTT] Publishing request:', JSON.stringify(dataToPublish, null, 2));
-            if (window.WebViewJavascriptBridge) {
-              window.WebViewJavascriptBridge.callHandler(
-                "mqttPublishMsg",
-                JSON.stringify(dataToPublish),
-                (publishResponse) => {
-                  console.info('[STATIONS MQTT] Publish response:', publishResponse);
-                  try {
-                    const pubResp = typeof publishResponse === 'string' ? JSON.parse(publishResponse) : publishResponse;
-                    if (pubResp.respCode === "200") {
-                      console.info('[STATIONS MQTT] âœ… Successfully published request');
-                    } else {
-                      console.error('[STATIONS MQTT] Publish failed:', pubResp.respDesc || pubResp.error);
-                    }
-                  } catch (err) {
-                    console.error('[STATIONS MQTT] Error parsing publish response:', err);
-                  }
-                }
-              );
-            }
-          } else {
-            console.error('[STATIONS MQTT] Subscribe failed:', subResp.respDesc || subResp.error);
-          }
-        } catch (err) {
-          console.error('[STATIONS MQTT] Error parsing subscribe response:', err);
+        const payload = result.data?.getRequiredAssetIds;
+        if (!payload) {
+          console.warn('[STATIONS] getRequiredAssetIds returned no data');
+          setIsLoadingStations(false);
+          setStations([]);
+          setStationsError('graphql-empty');
+          return;
         }
-      }
-    );
 
-    // Store cleanup function
-    stationsSubscriptionRef.current = offResponseHandler;
+        const elapsed = Math.round(performance.now() - startedAt);
+        console.info(`[PERF] Stations - Fleet IDs resolved in ${elapsed}ms`);
 
-    // Cleanup on unmount or when dependencies change
+        const { swap_station_fleet } = parseGetRequiredAssetIdsFleetIds(payload.fleet_ids);
+
+        if (swap_station_fleet.length > 0) {
+          console.info('[STATIONS] swap_station_fleet ids:', swap_station_fleet);
+          setStationsError(null);
+          setFleetIds(swap_station_fleet);
+        } else {
+          // Empty fleet list is a legitimate "no stations assigned to this
+          // plan" state, not a failure — show the no-stations badge, don't
+          // surface a retry card.
+          console.warn('[STATIONS] No swap_station_fleet ids returned for plan', planId, 'signals:', payload.signals);
+          setIsLoadingStations(false);
+          setStations([]);
+          setStationsError(null);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[STATIONS] getRequiredAssetIds request failed:', err);
+        setIsLoadingStations(false);
+        setStations([]);
+        setStationsError('graphql-network');
+      });
+
     return () => {
-      window.clearTimeout(mqttFailsafeTimer);
-      if (stationsSubscriptionRef.current) {
-        stationsSubscriptionRef.current();
-        stationsSubscriptionRef.current = null;
-      }
+      cancelled = true;
     };
-  }, [isLoggedIn, subscription?.subscription_code, customer, bridge, fleetIds.length, stationsRetryNonce]);
+  }, [isLoggedIn, subscription?.subscription_code, customer, fleetIds.length, stationsRetryNonce]);
 
   // Fetch stations from GraphQL when fleet IDs are available from MQTT response
   useEffect(() => {
@@ -1738,6 +1635,11 @@ const RiderApp: React.FC = () => {
       return;
     }
     setSubscription(sub);
+    setBike((prev) => ({
+      ...prev,
+      model: sub.package_product_name || prev.model,
+      paymentState: sub.status === 'active' ? 'active' : sub.status,
+    }));
     try {
       localStorage.setItem(ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY, sub.subscription_code);
     } catch {}

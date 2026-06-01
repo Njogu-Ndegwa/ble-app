@@ -184,7 +184,11 @@ export interface SubscriptionProduct {
   image_url?: string | null;  // Cloudinary URL for product images
   company_id?: number;
   company_name: string;
-  x_template_id?: string;          // Canonical service-plan template identifier
+  // Canonical template identifier. The display `name` drifts on whitespace
+  // and punctuation across backend updates (e.g. "B100-120 kWh(15 swp)" vs
+  // "B100-120 kWh (15 swp)"), so client-side classification must match against
+  // `x_template_id` to stay stable.
+  x_template_id?: string;
   x_is_swap_product?: boolean;
 }
 

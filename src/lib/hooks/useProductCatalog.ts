@@ -86,6 +86,13 @@ export interface PlanData {
   id: string;
   odooProductId: number;
   name: string;
+  /**
+   * Stable template identifier from Odoo (`x_template_id`). Use this — not
+   * `name` — for any client-side classification or filtering. The display
+   * `name` drifts on whitespace/punctuation across backend updates; the
+   * template id does not.
+   */
+  templateId?: string;
   description: string;
   price: number;
   period: string;
@@ -178,6 +185,10 @@ interface ProductServiceMapping {
   servicePatterns: string[];
 }
 
+// Patterns are matched against the plan's `x_template_id` (canonical) and
+// fall back to `name` if the template id isn't populated. Whitespace
+// formatting here follows the `x_template_id` convention from Odoo —
+// "kWh (N swp)" with a space.
 const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['S6', 'M3'],
@@ -190,17 +201,17 @@ const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['E-3H', 'E-3 Plus'],
     servicePatterns: [
-      'B45-1.2', 'B45-364 kWh', 'B45-3.3 kWh(1 swp)',
-      'B45-20', 'B45-351 kWh', 'B45-57 kWh(15 swp)',
-      'B45-68', 'B45-340 kWh', 'B45-200 kWh(60 swp)',
+      'B45-1.2', 'B45-364 kWh', 'B45-3.3 kWh (1 swp)',
+      'B45-20', 'B45-351 kWh', 'B45-57 kWh (15 swp)',
+      'B45-68', 'B45-340 kWh', 'B45-200 kWh (60 swp)',
     ],
   },
   {
     productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS', 'PET-3DRS'],
     servicePatterns: [
-      'B100-2.6', 'B100-342 kWh', 'B100-7.6 kWh(1 swp)',
-      'B100-40', 'B100-333 kWh', 'B100-120 kWh(15 swp)',
-      'B100-145', 'B100-322 kWh', 'B100-450 kWh(60 swp)',
+      'B100-2.6', 'B100-342 kWh', 'B100-7.6 kWh (1 swp)',
+      'B100-40', 'B100-333 kWh', 'B100-120 kWh (15 swp)',
+      'B100-145', 'B100-322 kWh', 'B100-450 kWh (60 swp)',
     ],
   },
 ];
@@ -211,6 +222,11 @@ const HIDDEN_PRODUCT_PATTERNS: string[] = ['PET1'];
  * Filters plans based on the selected package name.
  * If the package matches a known product pattern, only associated services are shown.
  * Otherwise returns all plans unfiltered.
+ *
+ * Matches plans against `x_template_id` (canonical) with a `name` fallback.
+ * If the filter would hide every plan, logs a warning and returns the
+ * unfiltered list so a backend rename can never silently produce an empty
+ * picker.
  */
 function getFilteredPlans(packageName: string | undefined, allPlans: PlanData[]): PlanData[] {
   if (!packageName) return allPlans;
@@ -223,10 +239,22 @@ function getFilteredPlans(packageName: string | undefined, allPlans: PlanData[])
 
   if (!matchedMapping) return allPlans;
 
-  return allPlans.filter((plan) => {
-    const planNameLower = plan.name.toLowerCase();
-    return matchedMapping.servicePatterns.some((sp) => planNameLower.includes(sp.toLowerCase()));
+  const filtered = allPlans.filter((plan) => {
+    const keyLower = (plan.templateId || plan.name || '').toLowerCase();
+    return matchedMapping.servicePatterns.some((sp) => keyLower.includes(sp.toLowerCase()));
   });
+
+  if (filtered.length === 0 && allPlans.length > 0) {
+    console.warn(
+      '[PRODUCT CATALOG] Plan filter matched zero plans for package',
+      packageName,
+      '— falling back to unfiltered list. Plan template ids present:',
+      allPlans.map((p) => p.templateId || p.name),
+    );
+    return allPlans;
+  }
+
+  return filtered;
 }
 
 // ============================================
@@ -302,6 +330,7 @@ function transformPlan(product: SubscriptionProduct): PlanData {
     id: product.id.toString(),
     odooProductId: product.id,
     name: product.name,
+    templateId: product.x_template_id,
     description: product.description || '',
     price: Number(product.list_price) || 0,
     period: '', // Will be determined from name by UI

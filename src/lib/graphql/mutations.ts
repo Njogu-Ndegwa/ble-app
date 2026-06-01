@@ -483,6 +483,76 @@ export function hasErrorSignals(signals: string[]): boolean {
 }
 
 // ============================================================================
+// Asset Dependency Resolution Query (W1 — Get Required Asset IDs)
+// ============================================================================
+
+/**
+ * Input for `getRequiredAssetIds` — resolves the fleet IDs a service plan
+ * is allowed to swap at. Replaces the older MQTT round-trip on
+ * `call/uxi/service/plan/{planId}/get_assets`.
+ */
+export interface GetRequiredAssetIdsInput {
+  plan_id: string;
+  correlation_id: string;
+  rider_location?: { lat: number; lng: number } | null;
+  search_radius?: number;
+  location_id?: string;
+}
+
+/**
+ * Response from `getRequiredAssetIds`. Note that `fleet_ids`,
+ * `location_context`, and `fleet_dependencies` are JSON-encoded strings on
+ * the wire — see `parseGetRequiredAssetIdsFleetIds` for the typed shape.
+ */
+export interface GetRequiredAssetIdsResponse {
+  fleet_types: string[];
+  fleet_ids: string;
+  location_context: string;
+  fleet_dependencies: string;
+  signals: string[];
+  metadata: Record<string, unknown>;
+}
+
+export const GET_REQUIRED_ASSET_IDS = gql`
+  query GetRequiredAssetIds($input: GetRequiredAssetIdsInput!) {
+    getRequiredAssetIds(input: $input) {
+      fleet_types
+      fleet_ids
+      location_context
+      fleet_dependencies
+      signals
+      metadata
+    }
+  }
+`;
+
+/**
+ * Parse the JSON-encoded `fleet_ids` payload returned by
+ * `getRequiredAssetIds` and pull the `swap_station_fleet` list out. Returns
+ * an empty array if parsing fails or the field is absent — empty is a
+ * legitimate "no fleets configured for this plan" state, not an error.
+ */
+export function parseGetRequiredAssetIdsFleetIds(fleetIdsJson: string): {
+  swap_station_fleet: string[];
+} {
+  try {
+    if (!fleetIdsJson || !fleetIdsJson.trim()) {
+      return { swap_station_fleet: [] };
+    }
+    const parsed = JSON.parse(fleetIdsJson) as Record<string, unknown>;
+    const swap = parsed?.swap_station_fleet;
+    return {
+      swap_station_fleet: Array.isArray(swap)
+        ? swap.filter((id): id is string => typeof id === 'string')
+        : [],
+    };
+  } catch (err) {
+    console.warn('[parseGetRequiredAssetIdsFleetIds] Failed to parse fleet_ids:', err);
+    return { swap_station_fleet: [] };
+  }
+}
+
+// ============================================================================
 // Vehicle Assignment Mutation (Update Asset Assignment Current Asset)
 // ============================================================================
 
