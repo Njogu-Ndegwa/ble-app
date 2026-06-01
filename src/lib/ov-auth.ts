@@ -14,6 +14,7 @@ import type {
 } from './sa-types'
 import type { EmployeeUser } from './attendant-auth'
 import { clearAttendantRoleLogin, clearSalesRoleLogin } from './attendant-auth'
+import { buildOdooHeaders } from './odoo-api'
 
 // ---------------------------------------------------------------------------
 // Storage key constants
@@ -38,7 +39,6 @@ const KEYS = {
 // ---------------------------------------------------------------------------
 
 const ODOO_BASE_URL = 'https://crm-omnivoltaic.odoo.com/api'
-const ODOO_API_KEY = 'abs_connector_secret_key_2024'
 
 // ---------------------------------------------------------------------------
 // JWT helpers (no external dependency)
@@ -90,12 +90,8 @@ export async function odooEmployeeLogin(
 
   const response = await fetch(`${ODOO_BASE_URL}/employee/login`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-KEY': ODOO_API_KEY,
-      // Pin Odoo's response language for consistency across devices.
-      'Accept-Language': 'en',
-    },
+    // Pre-auth login — no token, no SA scope.
+    headers: buildOdooHeaders(undefined, null),
     body: JSON.stringify(credential),
   })
 
@@ -275,13 +271,9 @@ export async function fetchAndCacheServiceAccounts(): Promise<ServiceAccount[]> 
 
   try {
     const resp = await fetch(`${ODOO_BASE_URL}/me/service-accounts`, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': ODOO_API_KEY,
-        Authorization: `Bearer ${token}`,
-        // Pin Odoo's response language for consistency across devices.
-        'Accept-Language': 'en',
-      },
+      // SA-selection lookup must NOT carry an X-SA-ID (we're discovering
+      // which SAs exist, not scoping to one).
+      headers: buildOdooHeaders(token, null),
       signal: controller.signal,
     })
     clearTimeout(timeoutId)

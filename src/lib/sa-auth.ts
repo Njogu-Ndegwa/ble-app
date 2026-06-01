@@ -1,9 +1,8 @@
 import type { ServiceAccount, MyServiceAccountsResponse } from './sa-types'
+import { buildOdooHeaders } from './odoo-api'
 
 const ODOO_BASE_URL =
   process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com'
-const ODOO_API_KEY =
-  process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024'
 
 const SA_STORAGE_KEYS = {
   ATTENDANT_SA_ID: 'oves-attendant-sa-id',
@@ -36,13 +35,9 @@ export async function fetchMyServiceAccounts(
 
   const response = await fetch(url, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-KEY': ODOO_API_KEY,
-      Authorization: `Bearer ${authToken}`,
-      // Pin Odoo's response language for consistency across devices.
-      'Accept-Language': 'en',
-    },
+    // SA-discovery — must NOT carry an X-SA-ID (we're listing available
+    // SAs, not scoping to a chosen one).
+    headers: buildOdooHeaders(authToken, null),
   })
 
   if (!response.ok) {

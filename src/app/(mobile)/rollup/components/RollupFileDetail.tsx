@@ -8,12 +8,10 @@ import Badge from '@/components/ui/Badge';
 import type { RollupFileType } from '@/lib/rollup/types';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getSAIdForHeaders } from '@/lib/sa-auth';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 
 const ODOO_BASE_URL =
   process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com';
-
-const ODOO_API_KEY =
-  process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024';
 
 interface RollupFileDetailProps {
   type: RollupFileType;
@@ -23,18 +21,13 @@ interface RollupFileDetailProps {
 }
 
 function buildDetailHeaders(): HeadersInit {
-  const token = getSalesRoleToken();
-  const saId = getSAIdForHeaders('sales');
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-    // Pin Odoo's response language so translatable fields are identical
-    // across devices. See buildOdooHeaders in odoo-api.ts for context.
-    'Accept-Language': 'en',
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (saId) headers['X-SA-ID'] = saId;
-  return headers;
+  // Rollup detail endpoints are sales-scoped — pin the sales SA id
+  // explicitly so the path-aware default in `buildOdooHeaders` can't
+  // accidentally substitute an attendant SA on shared routes.
+  return buildOdooHeaders(
+    getSalesRoleToken() ?? undefined,
+    getSAIdForHeaders('sales'),
+  );
 }
 
 function getDetailEndpoint(type: RollupFileType, id: number): string {

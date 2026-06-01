@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { HelpCircle, MessageCircle, Clock, X } from "lucide-react";
 import { useI18n } from "@/i18n";
 import ListScreen from "@/components/ui/ListScreen";
+import { buildOdooHeaders } from "@/lib/odoo-api";
 
 interface Ticket {
   id: number;
@@ -29,21 +30,16 @@ interface RiderTicketsProps {
 }
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
-const API_KEY = "abs_connector_secret_key_2024";
 
 const getHeaders = (): HeadersInit => {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-API-KEY": API_KEY,
-    // Pin Odoo's response language so translatable fields are identical
-    // across devices. See buildOdooHeaders in odoo-api.ts for context.
-    "Accept-Language": "en",
-  };
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("authToken_rider");
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-  }
-  return headers;
+  // Rider context — explicitly omit X-SA-ID. The rider applet is not
+  // SA-scoped and a stale SA id sitting in localStorage from a prior
+  // attendant/sales session would otherwise leak into rider requests.
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("authToken_rider") ?? undefined
+      : undefined;
+  return buildOdooHeaders(token, null);
 };
 
 const priorityBadge = (priority: string) => {

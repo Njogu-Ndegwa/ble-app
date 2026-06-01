@@ -1,26 +1,18 @@
 import { getSalesRoleToken } from '@/lib/attendant-auth';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 import type { RollupResponse, GetRollupParams } from './types';
 
 const ODOO_BASE_URL =
   process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com';
 
-const ODOO_API_KEY =
-  process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024';
-
 const MAX_RETRIES = 2;
 const BASE_DELAY = 1000;
 
 function buildHeaders(): HeadersInit {
-  const token = getSalesRoleToken();
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-    // Pin Odoo's response language so translatable fields are identical
-    // across devices. See buildOdooHeaders in odoo-api.ts for context.
-    'Accept-Language': 'en',
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return headers;
+  // Rollup endpoints are intentionally not SA-scoped (they roll up across
+  // service accounts). Pass `null` explicitly so the path-aware default
+  // can't quietly attach an X-SA-ID.
+  return buildOdooHeaders(getSalesRoleToken() ?? undefined, null);
 }
 
 async function fetchRetry(

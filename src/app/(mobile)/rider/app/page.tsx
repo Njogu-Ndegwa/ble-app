@@ -9,6 +9,7 @@ import { Fingerprint } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useBridge } from '@/app/context/bridgeContext';
 import { absApolloClient } from '@/lib/apollo-client';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 import {
   IDENTIFY_CUSTOMER,
   parseIdentifyCustomerMetadata,
@@ -69,7 +70,6 @@ const RiderMapProvider = dynamic(
 const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
 
 const API_BASE = "https://crm-omnivoltaic.odoo.com/api";
-const API_KEY = "abs_connector_secret_key_2024";
 const RIDER_IDENTIFICATION_CACHE_KEY = 'riderIdentificationCacheV1';
 const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 // Stations + activity caches: short TTL so a stale list never lingers more
@@ -984,14 +984,8 @@ const RiderApp: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': API_KEY,
-          'Authorization': `Bearer ${token}`,
-          // Pin language so translatable Odoo fields (e.g. product_name,
-          // package_product_name) come back identical on every device.
-          'Accept-Language': 'en',
-        },
+        // Rider context — no SA scope.
+        headers: buildOdooHeaders(token, null),
       });
 
       const elapsed = Math.round(performance.now() - startTime);

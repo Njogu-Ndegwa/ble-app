@@ -1,5 +1,6 @@
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import { getSAIdForHeaders } from '@/lib/sa-auth';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 import type {
   OrderEntity,
   OrderLineEntity,
@@ -20,9 +21,6 @@ import type {
 const ODOO_BASE_URL =
   process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com';
 
-const ODOO_API_KEY =
-  process.env.NEXT_PUBLIC_ODOO_API_KEY || 'abs_connector_secret_key_2024';
-
 const MAX_RETRIES = 2;
 const BASE_DELAY = 1000;
 
@@ -31,18 +29,13 @@ const BASE_DELAY = 1000;
 // ============================================================================
 
 function buildHeaders(): HeadersInit {
-  const token = getSalesRoleToken();
-  const saId = getSAIdForHeaders('sales');
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'X-API-KEY': ODOO_API_KEY,
-    // Pin Odoo's response language so translatable fields are identical
-    // across devices. See buildOdooHeaders in odoo-api.ts for context.
-    'Accept-Language': 'en',
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (saId) headers['X-SA-ID'] = saId;
-  return headers;
+  // Portal order endpoints are strictly sales-scoped — pass the sales SA
+  // id explicitly so the path-aware default in `buildOdooHeaders` can't
+  // accidentally fall back to an attendant SA on shared routes.
+  return buildOdooHeaders(
+    getSalesRoleToken() ?? undefined,
+    getSAIdForHeaders('sales'),
+  );
 }
 
 async function fetchRetry(

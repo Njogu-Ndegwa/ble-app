@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useI18n } from '@/i18n';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 
 interface Customer {
   id: number;
@@ -39,13 +40,9 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
             `https://crm-omnivoltaic.odoo.com/api/customers/${customer.id}/dashboard`,
             {
               method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                "X-API-KEY": "abs_connector_secret_key_2024",
-                // Pin Odoo's response language so translatable fields are
-                // identical on every device. See buildOdooHeaders for context.
-                "Accept-Language": "en",
-              },
+              // Attendant context — path-aware SA fallback is correct here
+              // (this component renders under /attendant/*).
+              headers: buildOdooHeaders(),
             }
           );
 

@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n';
 import { useBridge } from "@/app/context/bridgeContext";
 import { Fingerprint } from 'lucide-react';
 import { PhoneInputWithCountry } from '@/components/ui';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 // Define interfaces
 interface ServiceAccount {
   sa_id: number;
@@ -141,14 +142,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         "https://crm-omnivoltaic.odoo.com/api/customer/dashboard",
         {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-            "Authorization": `Bearer ${token}`,
-            // Pin Odoo's response language so translatable fields are
-            // identical across devices. See buildOdooHeaders for context.
-            "Accept-Language": "en",
-          },
+          // Rider context — no SA scope.
+          headers: buildOdooHeaders(token, null),
         }
       );
 
@@ -400,12 +395,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         "https://crm-omnivoltaic.odoo.com/api/employee/login",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-KEY": "abs_connector_secret_key_2024",
-            // Pin Odoo's response language for consistency across devices.
-            "Accept-Language": "en",
-          },
+          // Pre-auth — no token, no SA scope.
+          headers: buildOdooHeaders(undefined, null),
           body: JSON.stringify(credential),
         }
       );
@@ -549,12 +540,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       console.log('Registration endpoint: https://crm-omnivoltaic.odoo.com/api/auth/register');
       const response = await fetch('https://crm-omnivoltaic.odoo.com/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': 'abs_connector_secret_key_2024',
-          // Pin Odoo's response language for consistency across devices.
-          'Accept-Language': 'en',
-        },
+        // Pre-auth registration — no token, no SA scope.
+        headers: buildOdooHeaders(undefined, null),
         body: JSON.stringify(apiData),
       });
 

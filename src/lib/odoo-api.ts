@@ -45,9 +45,25 @@ function getActiveSAId(): string | null {
 }
 
 /**
- * Build standard Odoo headers with optional auth token and SA ID.
+ * Build standard Odoo request headers. Single source of truth for the
+ * Content-Type / API key / language / auth / SA-scope headers — every
+ * Odoo call in the app should route through this helper so future
+ * header-level changes land in exactly one place.
+ *
+ * @param authToken - Bearer token. Omit for unauthenticated endpoints.
+ * @param saIdOverride - Controls the `X-SA-ID` scope header.
+ *   - `undefined` (default): resolve via `getActiveSAId()` — path-aware,
+ *     prefers attendant on `/attendant/*` routes, sales elsewhere. Used
+ *     by attendant/sales workflows that follow the global URL convention.
+ *   - `null`: explicitly omit the header. Used by contexts that must NOT
+ *     be SA-scoped (rider applet, auth/login/register endpoints).
+ *   - `string`: use the given id verbatim. Used by helpers that always
+ *     want a specific scope regardless of URL (e.g. sales-only helpers).
  */
-export function buildOdooHeaders(authToken?: string): HeadersInit {
+export function buildOdooHeaders(
+  authToken?: string,
+  saIdOverride?: string | null,
+): HeadersInit {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-API-KEY': ODOO_API_KEY,
@@ -63,7 +79,9 @@ export function buildOdooHeaders(authToken?: string): HeadersInit {
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
-  const saId = getActiveSAId();
+  // saIdOverride === null means "explicitly omit"; undefined means
+  // "fall back to the path-aware default".
+  const saId = saIdOverride === undefined ? getActiveSAId() : saIdOverride;
   if (saId) {
     headers['X-SA-ID'] = saId;
   }

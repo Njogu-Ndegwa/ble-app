@@ -8,6 +8,8 @@
 // Each has its own storage keys and session management.
 // Backend returns role: "salesattendant" for attendants, "salesrep" for sales reps
 
+import { buildOdooHeaders } from './odoo-api';
+
 // User types for distinguishing between different login credentials
 export type UserType = 'attendant' | 'sales' | 'rider' | 'ble_device_manager';
 
@@ -171,12 +173,8 @@ export async function employeeLogin(
 
     const response = await fetch(`${EMPLOYEE_API.BASE_URL}${EMPLOYEE_API.LOGIN_ENDPOINT}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': EMPLOYEE_API.API_KEY,
-        // Pin Odoo's response language for consistency across devices.
-        'Accept-Language': 'en',
-      },
+      // Pre-auth employee login — no token, no SA scope.
+      headers: buildOdooHeaders(undefined, null),
       body: JSON.stringify({
         email: email.trim(),
         password: password,

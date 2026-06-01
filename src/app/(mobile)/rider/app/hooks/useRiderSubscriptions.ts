@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 import type { RiderSubscription } from '../types';
 
 const API_BASE = 'https://crm-omnivoltaic.odoo.com/api';
-const API_KEY = 'abs_connector_secret_key_2024';
 const ACTIVE_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
 
 /**
@@ -46,14 +46,8 @@ export function useRiderSubscriptions(partnerId: number | undefined, token: stri
         `${API_BASE}/customers/${partnerId}/subscriptions?page=1&limit=20`,
         {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': API_KEY,
-            Authorization: `Bearer ${token}`,
-            // Pin Odoo's response language so translatable product/plan
-            // fields are identical across phone and browser.
-            'Accept-Language': 'en',
-          },
+          // Rider context — no SA scope.
+          headers: buildOdooHeaders(token, null),
         },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

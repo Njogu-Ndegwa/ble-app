@@ -4,13 +4,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from 'next/navigation';
 import { toast } from "react-hot-toast";
 import { useI18n } from '@/i18n';
-import { 
-  employeeLogin, 
+import {
+  employeeLogin,
   getStoredRoleEmail,
   getMicrosoftAuthUrl,
   saveMicrosoftPendingContext,
-  type EmployeeUser 
+  type EmployeeUser
 } from '@/lib/attendant-auth';
+import { buildOdooHeaders } from '@/lib/odoo-api';
 // Define interfaces
 interface Customer {
   id: string;
@@ -255,13 +256,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
       console.log('Submitting registration:', apiData);
       const response = await fetch(`${API_BASE}/contacts`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': 'abs_connector_secret_key_2024',
-          // Pin Odoo's response language so translatable fields are
-          // identical across devices. See buildOdooHeaders for context.
-          'Accept-Language': 'en',
-        },
+        // Pre-auth contact creation — no token, no SA scope.
+        headers: buildOdooHeaders(undefined, null),
         body: JSON.stringify(apiData),
       });
 
