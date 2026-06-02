@@ -483,36 +483,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                   })}
                 </div>
 
-                {submitError && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 8,
-                      padding: 12,
-                      background: 'var(--error-soft, var(--bg-secondary))',
-                      color: 'var(--error, var(--text-primary))',
-                      border: '1px solid var(--error, var(--border))',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 12,
-                    }}
-                  >
-                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                    <span>{submitError}</span>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleProceedToPayment}
-                  disabled={!selectedPlan || isCreatingOrder || !subscriptionCode}
-                  style={{ width: '100%' }}
-                >
-                  {isCreatingOrder
-                    ? (t('common.processing') || 'Processing...')
-                    : (t('rider.proceedToPayment') || 'Continue to Payment')}
-                </button>
               </div>
             )}
 
@@ -749,6 +719,31 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Sticky footer for Step 1 — keeps the Continue CTA visible even
+              when many plans push the list past the modal height. The body
+              above scrolls; this section stays anchored at the bottom. */}
+          {step === 'plan' && (
+            <div className="energy-topup-footer">
+              {submitError && (
+                <div className="energy-topup-footer-error">
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span>{submitError}</span>
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleProceedToPayment}
+                disabled={!selectedPlan || isCreatingOrder || !subscriptionCode}
+                style={{ width: '100%' }}
+              >
+                {isCreatingOrder
+                  ? (t('common.processing') || 'Processing...')
+                  : (t('rider.proceedToPayment') || 'Continue to Payment')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
