@@ -126,9 +126,36 @@ export function hasSASelected(userType: 'attendant' | 'sales'): boolean {
 /**
  * Get the SA ID string for inclusion in API headers.
  * Returns null when no SA is selected for the given role.
+ * A scope override (e.g. set by the rollup applet when the user drills into a
+ * child SA) takes precedence over the role-scoped localStorage value.
  */
 export function getSAIdForHeaders(userType: 'attendant' | 'sales'): string | null {
   if (typeof window === 'undefined') return null
+  if (saScopeOverride != null) return saScopeOverride
   const keys = storageKeys(userType)
   return localStorage.getItem(keys.id)
+}
+
+// ---------------------------------------------------------------------------
+// Drill-down scope override
+// ---------------------------------------------------------------------------
+//
+// The rollup applet lets a user drill from the root SA into descendant SAs.
+// Embedded views (customer management, orders, etc.) reach the network layer
+// through helpers that resolve the SA-ID from localStorage — that value is the
+// *root* SA chosen at role login and does not change as the user drills.
+//
+// To keep those embedded views correctly scoped without prop-drilling an
+// override through every service call, the rollup wrapper pushes the currently
+// selected SA-ID here while it is mounted. `getSAIdForHeaders` and
+// `odoo-api.ts#getActiveSAId` check this value first.
+
+let saScopeOverride: string | null = null
+
+export function setSAScopeOverride(saId: number | string | null): void {
+  saScopeOverride = saId == null ? null : String(saId)
+}
+
+export function getSAScopeOverride(): string | null {
+  return saScopeOverride
 }

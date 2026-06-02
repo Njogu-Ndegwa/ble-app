@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import RollupDashboard from './components/RollupDashboard';
 import RollupFileDetail from './components/RollupFileDetail';
 import AppHeader from '@/components/AppHeader';
-import { getSelectedSA } from '@/lib/sa-auth';
+import { getSelectedSA, setSAScopeOverride } from '@/lib/sa-auth';
 import type { ServiceAccount } from '@/lib/sa-types';
 import type { RollupFileType } from '@/lib/rollup/types';
 
@@ -55,6 +55,16 @@ export default function RollupApp(_: RollupAppProps) {
   const rootSaId = currentSA?.id ?? null;
   const currentSaId = saStack.length > 0 ? saStack[saStack.length - 1] : rootSaId;
   const currentSaName = currentSaId != null ? saNameById[currentSaId] ?? currentSA?.name ?? '' : '';
+
+  // Embedded views (customer management, orders, etc.) reach the network
+  // layer through helpers that resolve the SA-ID from localStorage — that is
+  // the *root* SA chosen at login and does not change as the user drills.
+  // Mirror the drilled-in SA into the scope override so every X-SA-ID header
+  // sent from this applet targets the SA the user is actually viewing.
+  useEffect(() => {
+    setSAScopeOverride(currentSaId);
+    return () => setSAScopeOverride(null);
+  }, [currentSaId]);
 
   const handleOpenApplet = useCallback((type: string, label: string) => {
     setView({ kind: 'applet', type, label });

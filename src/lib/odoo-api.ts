@@ -9,6 +9,7 @@
  */
 
 import type { OdooProductsResponse } from '@/lib/portal/types';
+import { getSAScopeOverride } from '@/lib/sa-auth';
 
 // API Configuration
 const ODOO_BASE_URL = process.env.NEXT_PUBLIC_ODOO_API_URL || 'https://crm-omnivoltaic.odoo.com';
@@ -21,6 +22,15 @@ const DEFAULT_COMPANY_ID = 14; // OV Kenya (Test)
  */
 function getActiveSAId(): string | null {
   if (typeof window === 'undefined') return null;
+
+  // A scope override (e.g. set by the rollup applet when the user drills into
+  // a descendant SA) takes precedence over the role-scoped localStorage value.
+  const override = getSAScopeOverride();
+  if (override) {
+    console.warn('[SA-ID] getActiveSAId using scope override:', override);
+    return override;
+  }
+
   const attendantSaId = localStorage.getItem('oves-attendant-sa-id');
   const salesSaId = localStorage.getItem('oves-sales-sa-id');
 
