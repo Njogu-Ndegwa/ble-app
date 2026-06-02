@@ -15493,3 +15493,140 @@ html.keyboard-open .customer-panel-unified {
   vertical-align: middle;
 }
 .topup-mixx-inline-copy:hover { border-color: var(--accent); }
+
+/* ============================== */
+/* ENERGY TOP-UP — PLAN CARDS     */
+/* ============================== */
+/* Vertical list of tappable plan cards used by EnergyTopUpModal Step 1.
+   Replaces the old "Choose a Product" dropdown + secondary SelectSheet.
+   The cards ARE the selection — tap to highlight, tap Continue to advance. */
+
+.energy-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.energy-plan-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.05s ease;
+  position: relative;
+}
+.energy-plan-card:hover:not(:disabled) {
+  border-color: var(--accent-dark);
+  background: var(--bg-elevated);
+}
+.energy-plan-card:active:not(:disabled) {
+  transform: scale(0.995);
+}
+.energy-plan-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.energy-plan-card.is-selected {
+  border-color: var(--accent);
+  background: rgba(0, 229, 229, 0.08);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.energy-plan-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.energy-plan-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.energy-plan-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.energy-plan-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.energy-plan-energy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 6px;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+.energy-plan-price {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.energy-plan-card.is-selected .energy-plan-price {
+  color: var(--accent);
+}
+
+.energy-plan-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.energy-plan-skeleton {
+  height: 68px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-elevated) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: energy-plan-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes energy-plan-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

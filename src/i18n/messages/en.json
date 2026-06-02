@@ -1744,6 +1744,8 @@
   "rider.topUpEnergy": "Top Up Energy",
   "rider.confirmTopUp": "Confirm Top-Up",
   "rider.energyTopUp.energyOffered": "Energy you'll receive",
+  "rider.energyTopUp.pickPlanHint": "Tap a plan, then continue to pay.",
+  "rider.energyTopUp.noPlans": "No plans available right now.",
   "rider.energyTopUp.quotaUnavailable": "Could not load energy quota for this plan",
   "rider.energyTopUp.quotaUnknown": "Quota unavailable",
   "rider.energyTopUp.success": "Energy credited",

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, ChevronDown, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
+import { Zap, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
 import {
@@ -18,7 +18,6 @@ import {
   confirmPaymentManual,
   type WorkflowSessionData,
 } from '@/lib/odoo-api';
-import { SelectSheet } from '@/components/ui';
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
 
@@ -92,7 +91,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const [plansLoading, setPlansLoading] = useState(false);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
-  const [showPlanSheet, setShowPlanSheet] = useState(false);
   const [energyConfig, setEnergyConfig] = useState<ServiceConfiguration | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
@@ -346,9 +344,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const selectedPlanDisplayName = selectedPlan
     ? (selectedPlan.templateId || selectedPlan.name)
     : '';
-  const selectedPlanLabel = selectedPlan
-    ? `${selectedPlanDisplayName} — ${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`
-    : '';
 
   return (
     <>
@@ -387,103 +382,106 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
           <div className="select-sheet-body" style={{ flex: 1, overflowY: 'auto' }}>
             {/* ── STEP 1: PLAN SELECTION ─────────────────────────── */}
             {step === 'plan' && (
-              <div style={{ padding: '4px 0' }}>
-                {/* Plan Selector */}
-                <div style={{ marginBottom: 16 }}>
-                  <label className="form-label">
-                    {t('rider.energyTopUp.selectPlan') || 'Select Service Product'}
-                  </label>
-                  <button
-                    type="button"
-                    className="form-input"
-                    style={{
-                      textAlign: 'left',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      color: selectedPlan ? 'var(--text-primary)' : 'var(--text-muted)',
-                    }}
-                    onClick={() => setShowPlanSheet(true)}
-                    disabled={plansLoading}
-                  >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {plansLoading
-                        ? (t('common.loading') || 'Loading...')
-                        : selectedPlanLabel || (t('rider.energyTopUp.choosePlan') || 'Choose a product')}
-                    </span>
-                    <ChevronDown size={14} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
-                  </button>
+              <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {t('rider.energyTopUp.selectPlan') || 'Choose a plan'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {t('rider.energyTopUp.pickPlanHint') || 'Tap a plan, then continue to pay.'}
+                  </div>
+                </div>
+
+                {/* Plan list — the cards ARE the selection. Tapping highlights
+                    and triggers a quota lookup so the kWh shows under the name. */}
+                <div className="energy-plan-list">
+                  {plansLoading && plans.length === 0 && (
+                    <>
+                      <div className="energy-plan-skeleton" />
+                      <div className="energy-plan-skeleton" />
+                      <div className="energy-plan-skeleton" />
+                    </>
+                  )}
+
                   {plansError && (
-                    <div className="form-error" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <AlertCircle size={10} />
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                        padding: 12,
+                        background: 'var(--error-soft, var(--bg-secondary))',
+                        color: 'var(--error, var(--text-primary))',
+                        border: '1px solid var(--error, var(--border))',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 12,
+                      }}
+                    >
+                      <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
                       <span>{plansError}</span>
                     </div>
                   )}
+
+                  {!plansLoading && !plansError && plans.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-muted)', fontSize: 13 }}>
+                      {t('rider.energyTopUp.noPlans') || 'No plans available right now.'}
+                    </div>
+                  )}
+
+                  {plans.map((plan) => {
+                    const isSelected = selectedPlan?.productId === plan.productId;
+                    const displayName = plan.templateId || plan.name;
+                    const subtitle = plan.description || plan.category || plan.default_code;
+                    return (
+                      <button
+                        key={plan.productId}
+                        type="button"
+                        className={`energy-plan-card${isSelected ? ' is-selected' : ''}`}
+                        onClick={() => handlePlanSelect(plan)}
+                        disabled={isCreatingOrder}
+                        aria-pressed={isSelected}
+                      >
+                        <div className="energy-plan-icon">
+                          <Zap size={18} />
+                        </div>
+                        <div className="energy-plan-body">
+                          <div className="energy-plan-title">{displayName}</div>
+                          {subtitle && (
+                            <div className="energy-plan-subtitle">{subtitle}</div>
+                          )}
+                          {isSelected && (
+                            <div className="energy-plan-energy">
+                              {quotaLoading ? (
+                                <>
+                                  <Loader2 size={11} className="animate-spin" />
+                                  <span>{t('common.loading') || 'Loading...'}</span>
+                                </>
+                              ) : energyKwh !== null ? (
+                                <>
+                                  <Zap size={11} />
+                                  <span>{`+${energyKwh.toLocaleString()} kWh`}</span>
+                                </>
+                              ) : quotaError ? (
+                                <>
+                                  <AlertCircle size={11} />
+                                  <span>{t('rider.energyTopUp.quotaUnknown') || 'Quota unavailable'}</span>
+                                </>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                        <div className="energy-plan-price">
+                          {currency ? `${currency} ` : ''}{plan.price.toLocaleString()}
+                        </div>
+                        {isSelected && (
+                          <div className="energy-plan-check" aria-hidden="true">
+                            <Check size={14} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-
-                {/* Energy Quota */}
-                {selectedPlan && (
-                  <div
-                    className="list-card"
-                    style={{
-                      marginBottom: 16,
-                      padding: 14,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: 'var(--accent-soft)',
-                        color: 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Zap size={20} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        {t('rider.energyTopUp.energyOffered') || "Energy you'll receive"}
-                      </div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>
-                        {quotaLoading
-                          ? '...'
-                          : energyKwh !== null
-                            ? `${energyKwh.toLocaleString()} kWh`
-                            : (t('rider.energyTopUp.quotaUnknown') || 'Quota unavailable')}
-                      </div>
-                    </div>
-                    {quotaLoading && <Loader2 size={16} className="animate-spin" />}
-                  </div>
-                )}
-
-                {quotaError && !quotaLoading && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 8,
-                      padding: 10,
-                      background: 'var(--warning-soft, var(--accent-soft))',
-                      color: 'var(--warning, var(--text-secondary))',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 12,
-                      marginBottom: 16,
-                    }}
-                  >
-                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                    <span>{quotaError}</span>
-                  </div>
-                )}
 
                 {submitError && (
                   <div
@@ -497,7 +495,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                       border: '1px solid var(--error, var(--border))',
                       borderRadius: 'var(--radius-md)',
                       fontSize: 12,
-                      marginBottom: 12,
                     }}
                   >
                     <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -514,7 +511,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 >
                   {isCreatingOrder
                     ? (t('common.processing') || 'Processing...')
-                    : (t('rider.proceedToPayment') || 'Proceed to Payment')}
+                    : (t('rider.proceedToPayment') || 'Continue to Payment')}
                 </button>
               </div>
             )}
@@ -755,26 +752,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
         </div>
       </div>
 
-      {/* Plan SelectSheet */}
-      <SelectSheet
-        isOpen={showPlanSheet}
-        onClose={() => setShowPlanSheet(false)}
-        title={t('rider.energyTopUp.selectPlan') || 'Select Service Product'}
-        activeValue={selectedPlan ? String(selectedPlan.productId) : null}
-        loading={plansLoading}
-        error={plansError}
-        searchable={plans.length > 6}
-        items={plans.map((p) => ({
-          value: String(p.productId),
-          label: p.name,
-          description: p.description || p.category || p.default_code,
-          meta: `${currency ? `${currency} ` : ''}${p.price.toLocaleString()}`,
-        }))}
-        onSelect={(item) => {
-          const plan = plans.find((p) => String(p.productId) === item.value);
-          if (plan) handlePlanSelect(plan);
-        }}
-      />
     </>
   );
 };
