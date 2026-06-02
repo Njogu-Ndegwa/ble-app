@@ -40,8 +40,10 @@ const Dashboard: React.FC<DashboardProps> = ({ customer }) => {
             `https://crm-omnivoltaic.odoo.com/api/customers/${customer.id}/dashboard`,
             {
               method: "GET",
-              // Attendant context — path-aware SA fallback is correct here
-              // (this component renders under /attendant/*).
+              // Attendant context — path-aware SA fallback is correct here.
+              // (This component renders under /attendant/*. The pre-refactor
+              // code was missing X-SA-ID, which was a latent bug; sending it
+              // now matches how every other attendant endpoint behaves.)
               headers: buildOdooHeaders(),
             }
           );
