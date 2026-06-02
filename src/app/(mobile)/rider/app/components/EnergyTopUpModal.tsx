@@ -1,7 +1,7 @@
 // trigger CI
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Zap, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
@@ -20,6 +20,7 @@ import {
 } from '@/lib/odoo-api';
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
+import { filterPlansByPackage } from '@/lib/plan-filter';
 
 // Mixx by Yas (Togo) merchant config. Placeholder values — swap for production
 // when the real merchant code is issued. The USSD format below assumes the
@@ -74,6 +75,13 @@ interface EnergyTopUpModalProps {
   currency?: string;
   token?: string | null;
   subscriptionCode?: string | null;
+  /**
+   * Name of the rider's current subscription product (e.g. "S6 Tuk-Tuk
+   * Monthly"). When provided, the plan list is narrowed to only the
+   * services that apply to this package — same mapping used in Sales /
+   * Activator step 3. Falsy → show all plans.
+   */
+  packageName?: string | null;
   onSubmit: (args: EnergyTopUpSubmitArgs) => Promise<EnergyTopUpResult>;
 }
 
@@ -83,6 +91,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   currency = '',
   token,
   subscriptionCode,
+  packageName,
   onSubmit,
 }) => {
   const { t } = useI18n();
@@ -345,6 +354,15 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     ? (selectedPlan.templateId || selectedPlan.name)
     : '';
 
+  // Narrow the plan list to those that apply to the rider's current package.
+  // If packageName is not provided (or doesn't match any mapping), the helper
+  // returns the full list. If a match would yield zero plans, it logs and
+  // also falls back to the full list — so the picker is never silently empty.
+  const visiblePlans = useMemo(
+    () => filterPlansByPackage(packageName, plans),
+    [packageName, plans],
+  );
+
   return (
     <>
       <div
@@ -395,7 +413,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 {/* Plan list — the cards ARE the selection. Tapping highlights
                     and triggers a quota lookup so the kWh shows under the name. */}
                 <div className="energy-plan-list">
-                  {plansLoading && plans.length === 0 && (
+                  {plansLoading && visiblePlans.length === 0 && (
                     <>
                       <div className="energy-plan-skeleton" />
                       <div className="energy-plan-skeleton" />
@@ -422,13 +440,13 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                     </div>
                   )}
 
-                  {!plansLoading && !plansError && plans.length === 0 && (
+                  {!plansLoading && !plansError && visiblePlans.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--text-muted)', fontSize: 13 }}>
                       {t('rider.energyTopUp.noPlans') || 'No plans available right now.'}
                     </div>
                   )}
 
-                  {plans.map((plan) => {
+                  {visiblePlans.map((plan) => {
                     const isSelected = selectedPlan?.productId === plan.productId;
                     const displayName = plan.templateId || plan.name;
                     const subtitle = plan.description || plan.category || plan.default_code;
@@ -571,7 +589,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                       </ol>
                     </div>
 
-                    <div style={{ marginBottom: 16 }}>
+                    <div>
                       <label className="form-label">
                         {t('rider.txnIdRef') || 'Transaction ID / Reference'}
                       </label>
@@ -584,38 +602,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                         disabled={isProcessing}
                       />
                     </div>
-
-                    {submitError && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 8,
-                          padding: 12,
-                          background: 'var(--error-soft, var(--bg-secondary))',
-                          color: 'var(--error, var(--text-primary))',
-                          border: '1px solid var(--error, var(--border))',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 12,
-                          marginBottom: 12,
-                        }}
-                      >
-                        <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                        <span>{submitError}</span>
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={handleConfirm}
-                      disabled={!transactionId.trim() || isProcessing}
-                      style={{ width: '100%' }}
-                    >
-                      {isProcessing
-                        ? (t('common.processing') || 'Verifying...')
-                        : (t('rider.madePayment') || "Confirm Payment")}
-                    </button>
                   </div>
                 )}
 
@@ -638,47 +624,8 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                         Order not ready. Please go back and try again.
                       </div>
                     )}
-
-                    {submitError && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 8,
-                          padding: 12,
-                          background: 'var(--error-soft, var(--bg-secondary))',
-                          color: 'var(--error, var(--text-primary))',
-                          border: '1px solid var(--error, var(--border))',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 12,
-                          marginTop: 12,
-                        }}
-                      >
-                        <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                        <span>{submitError}</span>
-                      </div>
-                    )}
                   </div>
                 )}
-
-                {/* Back button */}
-                <button
-                  type="button"
-                  style={{
-                    width: '100%',
-                    marginTop: 12,
-                    padding: '10px 0',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => { setStep('plan'); setSubmitError(null); }}
-                  disabled={isProcessing}
-                >
-                  {t('sales.back') || 'Back'}
-                </button>
               </div>
             )}
 
@@ -720,9 +667,10 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
             )}
           </div>
 
-          {/* Sticky footer for Step 1 — keeps the Continue CTA visible even
-              when many plans push the list past the modal height. The body
-              above scrolls; this section stays anchored at the bottom. */}
+          {/* Sticky footer — sits outside .select-sheet-body so CTAs stay
+              visible no matter how tall the body content gets. Plan step
+              keeps Continue pinned even with many plans; payment step
+              keeps Confirm + Back pinned even with long Mixx instructions. */}
           {step === 'plan' && (
             <div className="energy-topup-footer">
               {submitError && (
@@ -741,6 +689,48 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 {isCreatingOrder
                   ? (t('common.processing') || 'Processing...')
                   : (t('rider.proceedToPayment') || 'Continue to Payment')}
+              </button>
+            </div>
+          )}
+
+          {step === 'payment' && selectedPlan && (
+            <div className="energy-topup-footer">
+              {submitError && (
+                <div className="energy-topup-footer-error">
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span>{submitError}</span>
+                </div>
+              )}
+              {/* Confirm only renders for manual / scan; the WeChatPayment
+                  widget has its own pay button inside the body. */}
+              {(paymentMode === 'manual' || paymentMode === 'scan') && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleConfirm}
+                  disabled={!transactionId.trim() || isProcessing}
+                  style={{ width: '100%' }}
+                >
+                  {isProcessing
+                    ? (t('common.processing') || 'Verifying...')
+                    : (t('rider.madePayment') || 'Confirm Payment')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setStep('plan'); setSubmitError(null); }}
+                disabled={isProcessing}
+                style={{
+                  width: '100%',
+                  padding: '8px 0',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('sales.back') || 'Back'}
               </button>
             </div>
           )}

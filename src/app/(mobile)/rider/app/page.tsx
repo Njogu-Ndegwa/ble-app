@@ -2409,6 +2409,10 @@ const RiderApp: React.FC = () => {
         currency={currency}
         token={typeof window !== 'undefined' ? localStorage.getItem('authToken_rider') : null}
         subscriptionCode={subscription?.subscription_code || null}
+        // Pass the rider's current package so the modal narrows the plan
+        // list to services that apply to it — same mapping Sales / Activator
+        // step 3 use to filter their plan picker.
+        packageName={subscription?.product_name || null}
         onSubmit={handleEnergyTopUp}
       />
 
