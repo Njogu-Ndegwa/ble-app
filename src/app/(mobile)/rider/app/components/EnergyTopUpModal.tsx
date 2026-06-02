@@ -22,22 +22,18 @@ import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
 import { filterPlansByPackage } from '@/lib/plan-filter';
 
-// Mixx by Yas (Togo) merchant config. Placeholder values — swap for production
-// when the real merchant code is issued. The USSD format below assumes the
-// standard merchant-payment subtree on *155#; the in-app instructions also
-// walk the rider through it step-by-step in case the pre-built code differs
-// on their handset.
-const MIXX_MERCHANT_CODE = '4321';
-const MIXX_MERCHANT_NAME = 'OVES Energy';
-const MIXX_USSD_ROOT = '*155#';
-
-const formatFCFA = (amount: number): string => {
-  // Thin-space grouping per Togo/French convention: 2 500.
-  return amount.toLocaleString('fr-FR').replace(/\s/g, ' ');
-};
+// Real merchant-payment USSD codes (Togo). The amount ("Montant") is embedded
+// directly in the string, so the rider can dial the whole code as-is.
+//   Mixx by Yas : *145*5*<amount>*1088722#
+//   Flooz       : *155*2*2*22879392818*22879392818*<amount>#
+const MIXX_MERCHANT_NUMBER = '1088722';
+const FLOOZ_RECIPIENT_NUMBER = '22879392818';
 
 const buildMixxUssd = (amount: number): string =>
-  `*155*1*${MIXX_MERCHANT_CODE}*${Math.floor(amount)}#`;
+  `*145*5*${Math.floor(amount)}*${MIXX_MERCHANT_NUMBER}#`;
+
+const buildFloozUssd = (amount: number): string =>
+  `*155*2*2*${FLOOZ_RECIPIENT_NUMBER}*${FLOOZ_RECIPIENT_NUMBER}*${Math.floor(amount)}#`;
 
 export type EnergyTopUpStep = 'plan' | 'payment' | 'success';
 
@@ -534,8 +530,8 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 {/* Manual / Scan entry */}
                 {(paymentMode === 'manual' || paymentMode === 'scan') && (
                   <div style={{ marginTop: 16 }}>
-                    {/* Mixx by Yas guidance — shown above the TX ID field so the
-                        rider can dial, pay, and then paste the SMS reference. */}
+                    {/* Pre-built USSD codes — the amount is already embedded, so the
+                        rider dials the whole code, pays, then pastes the SMS reference. */}
                     <div className="topup-mixx-field" style={{ marginBottom: 16 }}>
                       <span className="topup-mixx-label">
                         {t('rider.payWithMixx') || 'Pay with Mixx by Yas'}
@@ -543,51 +539,33 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                       <button
                         type="button"
                         className="topup-mixx-row"
-                        onClick={() => handleCopy('ussd', buildMixxUssd(selectedPlan.price))}
+                        onClick={() => handleCopy('mixx', buildMixxUssd(selectedPlan.price))}
                         aria-label={t('rider.copyUssd') || 'Copy USSD code'}
                       >
-                        <span className="topup-mixx-value-mono">
+                        <span className="topup-mixx-value-mono" style={{ wordBreak: 'break-all', textAlign: 'left' }}>
                           {buildMixxUssd(selectedPlan.price)}
                         </span>
-                        {copiedKey === 'ussd' ? <Check size={16} /> : <Copy size={16} />}
+                        {copiedKey === 'mixx' ? <Check size={16} /> : <Copy size={16} />}
                       </button>
-                      <span className="topup-mixx-hint">
-                        {t('rider.ussdHint') || "Or follow the steps below if the pre-built code doesn't work on your handset."}
+
+                      <span className="topup-mixx-label" style={{ marginTop: 10 }}>
+                        {t('rider.payWithFlooz') || 'Pay with Flooz'}
                       </span>
-                      <ol className="topup-mixx-steps" style={{ marginTop: 8 }}>
-                        <li>
-                          {t('rider.mixxStep1Prefix') || 'Dial'}{' '}
-                          <button
-                            type="button"
-                            className="topup-mixx-inline-copy"
-                            onClick={() => handleCopy('root', MIXX_USSD_ROOT)}
-                          >
-                            <span>{MIXX_USSD_ROOT}</span>
-                            {copiedKey === 'root' ? <Check size={12} /> : <Copy size={12} />}
-                          </button>
-                        </li>
-                        <li>{t('rider.mixxStep2') || 'Choose "Merchant Payment"'}</li>
-                        <li>
-                          {t('rider.mixxStep3Prefix') || 'Merchant code:'}{' '}
-                          <button
-                            type="button"
-                            className="topup-mixx-inline-copy"
-                            onClick={() => handleCopy('merchant', MIXX_MERCHANT_CODE)}
-                          >
-                            <span>{MIXX_MERCHANT_CODE}</span>
-                            {copiedKey === 'merchant' ? <Check size={12} /> : <Copy size={12} />}
-                          </button>
-                          {' '}({MIXX_MERCHANT_NAME})
-                        </li>
-                        <li>
-                          {(t('rider.mixxStep4') || 'Amount: {amount} F CFA').replace(
-                            '{amount}',
-                            formatFCFA(selectedPlan.price),
-                          )}
-                        </li>
-                        <li>{t('rider.mixxStep5') || 'Confirm with your Mixx PIN'}</li>
-                        <li>{t('rider.mixxStep6') || 'Note the transaction code received by SMS'}</li>
-                      </ol>
+                      <button
+                        type="button"
+                        className="topup-mixx-row"
+                        onClick={() => handleCopy('flooz', buildFloozUssd(selectedPlan.price))}
+                        aria-label={t('rider.copyUssd') || 'Copy USSD code'}
+                      >
+                        <span className="topup-mixx-value-mono" style={{ wordBreak: 'break-all', textAlign: 'left' }}>
+                          {buildFloozUssd(selectedPlan.price)}
+                        </span>
+                        {copiedKey === 'flooz' ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+
+                      <span className="topup-mixx-hint">
+                        {t('rider.ussdHintShort') || 'Dial the code for your operator, pay, then paste the SMS confirmation reference below.'}
+                      </span>
                     </div>
 
                     <div>
