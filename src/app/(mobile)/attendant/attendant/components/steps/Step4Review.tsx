@@ -8,20 +8,30 @@ interface Step4Props {
   swapData: SwapData;
   customerData: CustomerData | null;
   hasSufficientQuota?: boolean;
+  /** Top-up-only attendant (SA-ID gated): hide the payable amount and ask the rider to top up instead */
+  requireRiderTopUp?: boolean;
+  /** Re-check quota (picks up a rider top-up); wired to the shared manual-refresh handler */
+  onRefreshQuota?: () => void;
+  /** Whether a manual refresh is currently in flight */
+  isRefreshing?: boolean;
 }
 
-export default function Step4Review({ swapData, customerData, hasSufficientQuota = false }: Step4Props) {
+export default function Step4Review({ swapData, customerData, hasSufficientQuota = false, requireRiderTopUp = false, onRefreshQuota, isRefreshing = false }: Step4Props) {
   const { t } = useI18n();
-  
+
   // Round down the cost for display and payment decision - customers can't pay decimals
   const displayCost = Math.floor(swapData.cost);
-  
+
   // Check if rounded cost is zero or negative (no payment needed regardless of quota status)
   const isZeroCost = displayCost <= 0;
-  
+
   // Should skip payment: either has sufficient quota OR rounded cost is zero
   const shouldSkipPayment = hasSufficientQuota || isZeroCost;
-  
+
+  // Top-up-only flow: a differential is owed but this attendant must not collect
+  // it. Hide the exact amount and steer the rider to top up + refresh instead.
+  const topUpRequired = requireRiderTopUp && !shouldSkipPayment;
+
   // Determine why payment is being skipped (for display purposes)
   // - isQuotaBased: Customer has available quota that will be deducted (NOT free - quota is used)
   // - isZeroCostOnly: Actual cost is zero or negative (genuinely no charge)
@@ -61,17 +71,21 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <div className="review-customer-info">
             <span className="review-customer-name">{customerData?.name || 'Customer'}</span>
             <span className="review-label">
-              {isQuotaBased 
-                ? (t('attendant.quotaAvailable') || 'Quota Available')
-                : isZeroCostOnly
-                  ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
-                  : (t('attendant.customerPays') || 'Amount Due')}
+              {topUpRequired
+                ? (t('attendant.topUpNeeded') || 'Top-up needed')
+                : isQuotaBased
+                  ? (t('attendant.quotaAvailable') || 'Quota Available')
+                  : isZeroCostOnly
+                    ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
+                    : (t('attendant.customerPays') || 'Amount Due')}
             </span>
           </div>
         </div>
-        
-        <div className={`review-amount ${shouldSkipPayment ? 'free' : ''}`}>
-          {isQuotaBased ? (
+
+        <div className={`review-amount ${shouldSkipPayment ? 'free' : ''} ${topUpRequired ? 'topup' : ''}`}>
+          {topUpRequired ? (
+            <span className="topup-pill">{t('attendant.topUpRequired') || 'Top-up required'}</span>
+          ) : isQuotaBased ? (
             <>
               <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
@@ -147,13 +161,58 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         <div className="energy-info">
           {/* swapData.energyDiff is already floored to 2 decimals */}
           <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
-          <span className="energy-money">
-            {currency} {grossEnergyCost.toFixed(2)}
-          </span>
+          {/* Hide the monetary value entirely for top-up-only attendants — they
+              must never see an exact payable amount. */}
+          {!topUpRequired && (
+            <span className="energy-money">
+              {currency} {grossEnergyCost.toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Pricing Summary - Full Calculation Breakdown */}
+      {topUpRequired ? (
+        /* Top-up-only attendants: no payable amount is shown. The message is on
+           the attendant's screen but is meant for the rider standing there. */
+        <div className="topup-notice">
+          <div className="topup-notice-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span>{t('attendant.topUpRequiredTitle') || 'Insufficient quota for this swap'}</span>
+          </div>
+          <p className="topup-notice-body">
+            {t('attendant.topUpRequiredDesc') || 'Ask the rider to top up in the Rider app, then tap Refresh.'}
+          </p>
+          <div className="topup-notice-short">
+            {t('attendant.topUpShortfall') || 'Top-up needed'}:{' '}
+            <strong>{swapData.chargeableEnergy.toFixed(2)} kWh</strong>
+          </div>
+          <button
+            type="button"
+            className="topup-refresh-btn"
+            onClick={onRefreshQuota}
+            disabled={isRefreshing || !onRefreshQuota}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              width="15"
+              height="15"
+              style={{ animation: isRefreshing ? 'topup-spin 1s linear infinite' : undefined }}
+            >
+              <path d="M23 4v6h-6M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+            <span>{isRefreshing ? (t('attendant.refreshing') || 'Refreshing…') : (t('attendant.refreshQuota') || 'Refresh quota')}</span>
+          </button>
+        </div>
+      ) : (
+      /* Pricing Summary - Full Calculation Breakdown */
       <div className="review-summary">
         {/* Header with rate info */}
         <div className="summary-header">
@@ -225,6 +284,7 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           </div>
         )}
       </div>
+      )}
 
       <style jsx>{`
         .review-screen {
@@ -293,6 +353,89 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         .review-amount.free {
           color: #10b981;
           font-size: 14px;
+        }
+
+        .review-amount.topup {
+          font-size: 12px;
+        }
+
+        .topup-pill {
+          font-size: 11px;
+          font-weight: 700;
+          color: #f59e0b;
+          background: rgba(245, 158, 11, 0.14);
+          border: 1px solid rgba(245, 158, 11, 0.4);
+          padding: 4px 10px;
+          border-radius: 999px;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          font-family: var(--font-mono);
+        }
+
+        /* Top-up notice (replaces the cost breakdown for top-up-only attendants) */
+        .topup-notice {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 12px;
+          background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.05));
+          border: 1px solid rgba(245, 158, 11, 0.4);
+          border-radius: 10px;
+        }
+
+        .topup-notice-head {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #f59e0b;
+        }
+
+        .topup-notice-head svg {
+          flex-shrink: 0;
+        }
+
+        .topup-notice-body {
+          margin: 0;
+          font-size: 12px;
+          line-height: 1.4;
+          color: var(--text-secondary);
+        }
+
+        .topup-notice-short {
+          font-size: 12px;
+          color: var(--text-primary);
+          font-family: var(--font-mono);
+        }
+
+        .topup-notice-short strong {
+          color: #f59e0b;
+        }
+
+        .topup-refresh-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          margin-top: 2px;
+          padding: 9px 12px;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--bg-primary);
+          background: #f59e0b;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+
+        .topup-refresh-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        @keyframes topup-spin {
+          to { transform: rotate(360deg); }
         }
 
         /* Batteries */

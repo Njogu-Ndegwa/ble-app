@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Eye, X, RefreshCw } from 'lucide-react';
 import { useBridge } from '@/app/context/bridgeContext';
 import { getSalesRoleUser, clearSalesRoleLogin, getSalesRoleToken } from '@/lib/attendant-auth';
+import { getSelectedSAId } from '@/lib/sa-auth';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 
@@ -69,6 +70,12 @@ declare global {
 
 export type AttendantWorkflowMode = 'standard' | 'manual-payment';
 
+// Service Accounts whose attendants must NOT collect a cash differential at the
+// counter. For these attendants the person swapping is treated as a rider: when
+// quota is short we hide the payable amount and instead tell them to top up in
+// the Rider app, then refresh quota. Exclusive, per-SA permission.
+const TOPUP_ONLY_SA_IDS = [10];
+
 interface AttendantFlowProps {
   onBack?: () => void;
   onLogout?: () => void;
@@ -101,6 +108,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     station: 'STATION_001',
   });
 
+  // True when the logged-in attendant operates under a top-up-only Service
+  // Account (see TOPUP_ONLY_SA_IDS): no cash differential is collected — the
+  // rider is asked to top up instead. Resolved on mount (client-only).
+  const [requireRiderTopUp, setRequireRiderTopUp] = useState(false);
+
   // Lock body overflow for fixed container
   useEffect(() => {
     document.body.classList.add('overflow-locked');
@@ -118,6 +130,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         station: `STATION_${user.id}`,
       });
     }
+    setRequireRiderTopUp(TOPUP_ONLY_SA_IDS.includes(getSelectedSAId('attendant') ?? -1));
   }, []);
   
   // Step management
@@ -1921,7 +1934,15 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         skipPayment(hasSufficientQuota, isZeroCostRounding);
         return;
       }
-      
+
+      // Top-up-only attendants (SA-ID in TOPUP_ONLY_SA_IDS) never collect a cash
+      // differential. There's nothing to advance to — re-check quota instead so a
+      // rider top-up made in their own app is picked up (surfacing the Apply banner).
+      if (requireRiderTopUp) {
+        await handleManualRefreshQuota();
+        return;
+      }
+
       // NEW FLOW: Report payment amount via session update FIRST
       // This uses the /api/sessions/by-order/{orderId} endpoint with amount_required
       // The backend will create/update the payment ticket based on the session
@@ -1959,7 +1980,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2163,10 +2184,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         );
       case 4:
         return (
-          <Step4Review 
-            swapData={swapData} 
+          <Step4Review
+            swapData={swapData}
             customerData={customerData}
             hasSufficientQuota={hasSufficientQuota}
+            requireRiderTopUp={requireRiderTopUp}
+            onRefreshQuota={handleManualRefreshQuota}
+            isRefreshing={isManualRefreshing}
           />
         );
       case 5:
@@ -2449,11 +2473,12 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           currentStep={currentStep}
           onBack={handleBack}
           onMainAction={handleMainAction}
-          isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending'}
+          isLoading={isScanning || isProcessing || isPaymentProcessing || paymentAndServiceStatus === 'pending' || isManualRefreshing}
           inputMode={inputMode}
           paymentInputMode={paymentInputMode}
           hasSufficientQuota={hasSufficientQuota}
           swapCost={swapData.cost}
+          requireRiderTopUp={requireRiderTopUp}
           readOnly={isReadOnlySession}
         />
 
