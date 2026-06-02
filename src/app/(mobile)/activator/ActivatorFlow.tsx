@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
@@ -1241,10 +1241,26 @@ export default function ActivatorFlow({
     }
   };
 
+  // End session lives in the AppHeader kebab — only available mid-flow,
+  // never on the welcome step or success step.
+  const headerOverflowItems = useMemo(() => {
+    if (isReadOnlySession) return [];
+    if (currentStep <= 1 || currentStep >= 6) return [];
+    return [
+      {
+        key: 'end-session',
+        label: t('activator.endSession') || 'End session',
+        icon: <X size={14} />,
+        onClick: () => setShowEndSessionConfirm(true),
+        danger: true,
+      } as import('@/components/AppHeader').OverflowMenuItem,
+    ];
+  }, [isReadOnlySession, currentStep, t]);
+
   return (
     <div className="sales-flow-container">
       <div className="sales-bg-gradient" />
-      <AppHeader showBack />
+      <AppHeader showBack overflowMenu={headerOverflowItems} />
 
       <ActivatorTimeline
         currentStep={currentStep}
@@ -1266,24 +1282,6 @@ export default function ActivatorFlow({
           >
             <X size={14} />
             <span>{t('sessions.exitReview') || 'Exit'}</span>
-          </button>
-        </div>
-      )}
-
-      {!isReadOnlySession && currentStep > 1 && currentStep < 6 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 12px 0' }}>
-          <button
-            type="button"
-            onClick={() => setShowEndSessionConfirm(true)}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '4px 10px', background: 'transparent',
-              border: '1px solid rgba(239,68,68,0.55)', borderRadius: 999,
-              color: '#f87171', fontSize: 11, cursor: 'pointer',
-            }}
-          >
-            <X size={12} />
-            {t('activator.endSession') || 'End session'}
           </button>
         </div>
       )}

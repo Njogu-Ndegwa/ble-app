@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn, ArrowLeft } from 'lucide-react';
+import { Globe, LogOut, RefreshCw, Layers, Menu, LogIn, ArrowLeft, MoreVertical } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import {
@@ -12,6 +12,21 @@ import {
   clearSelectedSA,
 } from '@/lib/ov-auth';
 import { clearAllAuth } from '@/lib/attendant-auth';
+
+export interface OverflowMenuItem {
+  /** Stable key for React. */
+  key: string;
+  /** Visible label. */
+  label: string;
+  /** Optional icon (Lucide icon node). */
+  icon?: React.ReactNode;
+  /** Click handler. The menu closes automatically after the click. */
+  onClick: () => void;
+  /** Render the item in destructive (red) styling. */
+  danger?: boolean;
+  /** Disable the item. */
+  disabled?: boolean;
+}
 
 interface AppHeaderProps {
   /**
@@ -45,9 +60,16 @@ interface AppHeaderProps {
    * Use this to surface contextual actions (e.g. disconnect button) on sub-pages.
    */
   actions?: React.ReactNode;
+  /**
+   * Items for a workflow-scope overflow menu (kebab) rendered to the LEFT of
+   * the avatar. Use this for screen/flow actions like "End session" or
+   * "Refresh quota" — keeping them in the header chrome instead of floating
+   * pills above the workflow content. Empty array hides the kebab.
+   */
+  overflowMenu?: OverflowMenuItem[];
 }
 
-export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack, title, actions }: AppHeaderProps) {
+export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack = false, onBack, title, actions, overflowMenu }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { locale, setLocale, t } = useI18n();
@@ -57,6 +79,12 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
   const avatarBtnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number }>({ top: 0, right: 16 });
+  // Overflow (kebab) menu state — separate from the avatar dropdown so the
+  // workflow-scope actions don't get hidden under the account menu.
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowBtnRef = useRef<HTMLButtonElement>(null);
+  const overflowDropdownRef = useRef<HTMLDivElement>(null);
+  const [overflowPos, setOverflowPos] = useState<{ top: number; right: number }>({ top: 0, right: 16 });
 
   const employee = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -109,6 +137,33 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Overflow (kebab) menu: anchor to its own button, close on outside click.
+  const handleOverflowClick = useCallback(() => {
+    if (overflowBtnRef.current) {
+      const rect = overflowBtnRef.current.getBoundingClientRect();
+      setOverflowPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOverflowOpen(v => !v);
+  }, []);
+
+  useEffect(() => {
+    if (!overflowOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        overflowDropdownRef.current && !overflowDropdownRef.current.contains(target) &&
+        overflowBtnRef.current && !overflowBtnRef.current.contains(target)
+      ) {
+        setOverflowOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [overflowOpen]);
 
   const initial = (employee?.name || employee?.email || 'U').charAt(0).toUpperCase();
 
@@ -194,6 +249,19 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
               </button>
             )}
             <ThemeToggle />
+            {overflowMenu && overflowMenu.length > 0 && (
+              <button
+                ref={overflowBtnRef}
+                type="button"
+                className="app-header-overflow-btn"
+                onClick={handleOverflowClick}
+                aria-label={t('common.moreActions') || 'More actions'}
+                aria-haspopup="menu"
+                aria-expanded={overflowOpen}
+              >
+                <MoreVertical size={18} />
+              </button>
+            )}
             {actions != null ? actions : onSignIn ? (
               <button
                 className="flow-header-lang"
@@ -276,6 +344,36 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
               <span>{t('sa.signOut') || 'Sign Out'}</span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Overflow (workflow-scope) dropdown */}
+      {overflowOpen && overflowMenu && overflowMenu.length > 0 && (
+        <div
+          ref={overflowDropdownRef}
+          className="app-header-dropdown app-header-dropdown--overflow"
+          role="menu"
+          style={{ top: overflowPos.top, right: overflowPos.right }}
+        >
+          {overflowMenu.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              className={
+                'app-header-dropdown-item' +
+                (item.danger ? ' app-header-dropdown-item--danger' : '')
+              }
+              onClick={() => {
+                setOverflowOpen(false);
+                item.onClick();
+              }}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
         </div>
       )}
     </>

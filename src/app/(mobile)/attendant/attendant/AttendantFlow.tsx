@@ -2231,11 +2231,44 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     }
   };
 
+  // Workflow-scope actions exposed via the AppHeader kebab. Refresh quota is
+  // only meaningful while polling is active (steps 2–5 with a known customer);
+  // End session is only available mid-flow, never on the customer-scan or
+  // success steps. Both used to be floating pills above the step content.
+  const headerOverflowItems = useMemo(() => {
+    if (isReadOnlySession) return [];
+    const items: import('@/components/AppHeader').OverflowMenuItem[] = [];
+    if (customerData?.subscriptionId && currentStep >= 2 && currentStep <= 5) {
+      items.push({
+        key: 'refresh-quota',
+        label: t('attendant.refreshQuota') || 'Refresh quota',
+        icon: (
+          <RefreshCw
+            size={14}
+            style={{ animation: isManualRefreshing ? 'spin 1s linear infinite' : undefined }}
+          />
+        ),
+        onClick: handleManualRefreshQuota,
+        disabled: isManualRefreshing,
+      });
+    }
+    if (currentStep > 1 && currentStep < 6) {
+      items.push({
+        key: 'end-session',
+        label: t('attendant.endSession') || 'End session',
+        icon: <X size={14} />,
+        onClick: () => setShowEndSessionConfirm(true),
+        danger: true,
+      });
+    }
+    return items;
+  }, [isReadOnlySession, customerData?.subscriptionId, currentStep, t, isManualRefreshing, handleManualRefreshQuota]);
+
   return (
     <div className={`attendant-container ${renderBottomNav ? 'has-bottom-nav' : ''}`}>
       <div className="attendant-bg-gradient" />
-      
-      <AppHeader showBack />
+
+      <AppHeader showBack overflowMenu={headerOverflowItems} />
       {/* Interactive Timeline */}
       <Timeline 
         currentStep={currentStep} 
@@ -2251,40 +2284,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         visible={currentStep > 1 && currentStep < 5}
       />
 
-      {/* Manual quota refresh — visible only while polling is active, never
-          on the customer-scan or success step. Lets the attendant pull a
-          fresh quota when the rider tells them "I just topped up." */}
-      {!isReadOnlySession && customerData?.subscriptionId && currentStep >= 2 && currentStep <= 5 && (
-        <button
-          type="button"
-          onClick={handleManualRefreshQuota}
-          disabled={isManualRefreshing}
-          aria-label={t('attendant.refreshQuota') || 'Refresh quota'}
-          title={t('attendant.refreshQuota') || 'Refresh quota'}
-          style={{
-            alignSelf: 'flex-end',
-            margin: '4px 12px 0',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 10px',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.18)',
-            borderRadius: 999,
-            color: 'inherit',
-            fontSize: 11,
-            opacity: isManualRefreshing ? 0.6 : 0.85,
-            cursor: isManualRefreshing ? 'wait' : 'pointer',
-          }}
-        >
-          <RefreshCw
-            size={12}
-            style={{ animation: isManualRefreshing ? 'spin 1s linear infinite' : undefined }}
-          />
-          {t('attendant.refreshQuota') || 'Refresh quota'}
-        </button>
-      )}
-
       {/* Read-only Mode Banner */}
       {isReadOnlySession && (
         <div className="readonly-banner">
@@ -2299,34 +2298,6 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           >
             <X size={14} />
             <span>{t('sessions.exitReview') || 'Exit'}</span>
-          </button>
-        </div>
-      )}
-
-      {/* End-session affordance — visible only while mid-flow. Lets the
-          attendant explicitly abandon the current swap to start a new one,
-          which the lockless bottom-nav alone can't do (just switching tabs
-          leaves the session pending and resumable). */}
-      {!isReadOnlySession && currentStep > 1 && currentStep < 6 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 12px 0' }}>
-          <button
-            type="button"
-            onClick={() => setShowEndSessionConfirm(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 10px',
-              background: 'transparent',
-              border: '1px solid rgba(239,68,68,0.55)',
-              borderRadius: 999,
-              color: '#f87171',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            <X size={12} />
-            {t('attendant.endSession') || 'End session'}
           </button>
         </div>
       )}
