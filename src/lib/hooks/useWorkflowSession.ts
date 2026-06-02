@@ -17,13 +17,13 @@ import {
   createWorkflowSession,
   updateWorkflowSession,
   updateWorkflowSessionWithPayment,
-  getLatestPendingSession,
+  getOrdersList,
   createSalesWorkflowSession,
   updateWorkflowSessionWithProducts,
   type WorkflowSessionData,
   type CreateSessionResponse,
   type UpdateSessionResponse,
-  type LatestPendingSessionResponse,
+  type OrderListItem,
 } from '@/lib/odoo-api';
 import { getEmployeeToken, getSalesRoleToken } from '@/lib/attendant-auth';
 import { PAYMENT } from '@/lib/constants';
@@ -147,6 +147,14 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   // Refs for auto-save
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedDataRef = useRef<string>('');
+  // Full payload of the pending session surfaced by checkForPendingSession.
+  // Kept in a ref so restoreSession can hydrate without a second backend trip
+  // and — more importantly — so we restore the *exact* order we matched, not
+  // whatever happens to be the latest by the time the user clicks Resume.
+  const pendingOrderRef = useRef<{
+    orderId: number;
+    sessionData: WorkflowSessionData;
+  } | null>(null);
   
   // Get auth token based on workflow type
   // All employee workflows (attendant, salesperson, activator) use the sales role token
@@ -171,6 +179,13 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   
   /**
    * Check for pending session from backend
+   *
+   * Scans the user's recent orders (not just the single latest one) and picks
+   * the first active session that matches this workflow. The old single-order
+   * fetch silently lost resumable sessions whenever the most recent order
+   * happened to be (a) already completed, or (b) from a different workflow —
+   * e.g. an attendant finishes a swap while their activator session sits
+   * half-done, and the activator prompt never appears on return.
    */
   const checkForPendingSession = useCallback(async (): Promise<boolean> => {
     const authToken = getAuthToken();
@@ -178,58 +193,72 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       console.warn('[useWorkflowSession] No auth token - cannot check for pending session');
       return false;
     }
-    
+
     setStatus('checking');
     setError(null);
-    
+
     try {
-      const response = await getLatestPendingSession(authToken);
-      
-      // Note: Session is nested inside order.session, not at top level
-      // Check if we have a valid pending session
-      const session = response.order?.session;
-      const isActiveSession = session?.state === 'active';
-      
-      if (response.success && response.order && session && isActiveSession) {
-        // Check if the pending session is for the correct workflow type
-        const sessionDataFromServer = session.session_data;
-        
-        // If session has workflow type and it doesn't match, ignore it
-        if (sessionDataFromServer?.workflowType && sessionDataFromServer.workflowType !== workflowType) {
-          setStatus('idle');
-          return false;
-        }
-        
-        // Check if the session is "effectively complete" and should not be resumed
-        // This handles edge cases where the session was saved just before completion
-        // (e.g., user was at Review step, clicked "Proceed", and app closed before MQTT response)
-        if (isSessionEffectivelyComplete(sessionDataFromServer, workflowType)) {
-          setStatus('idle');
-          return false;
-        }
-        
-        // Build session summary for UI
-        const summary: SessionSummary = {
-          orderId: response.order.id,
-          orderName: response.order.name,
-          currentStep: sessionDataFromServer?.currentStep || 1,
-          maxStepReached: sessionDataFromServer?.maxStepReached || 1,
-          customerName: sessionDataFromServer?.customerData?.name || session.partner_name,
-          subscriptionCode: response.order.subscription_code || sessionDataFromServer?.dynamicPlanId,
-          savedAt: sessionDataFromServer?.savedAt 
-            ? formatTimestamp(sessionDataFromServer.savedAt) 
-            : session.start_date,
-          workflowType: sessionDataFromServer?.workflowType || workflowType,
-        };
-        
-        setPendingSession(summary);
-        setStatus('has_pending');
-        
-        return true;
+      const response = await getOrdersList({ mine: true, limit: 10 }, authToken);
+
+      if (!response.success || !response.orders || response.orders.length === 0) {
+        setStatus('idle');
+        return false;
       }
-      
-      setStatus('idle');
-      return false;
+
+      const match = response.orders.find((order: OrderListItem) => {
+        const session = order.session;
+        if (!session || session.state !== 'active') return false;
+
+        const sessionDataFromServer = session.session_data;
+        if (!sessionDataFromServer) return false;
+
+        // Reject sessions tagged with a different workflow. Sessions saved
+        // before workflowType was tracked are accepted (legacy data).
+        if (
+          sessionDataFromServer.workflowType &&
+          sessionDataFromServer.workflowType !== workflowType
+        ) {
+          return false;
+        }
+
+        // Reject sessions saved just before completion (e.g. user was at
+        // Review, clicked Proceed, app closed before the MQTT ack).
+        if (isSessionEffectivelyComplete(sessionDataFromServer, workflowType)) {
+          return false;
+        }
+
+        return true;
+      });
+
+      if (!match || !match.session?.session_data) {
+        setStatus('idle');
+        return false;
+      }
+
+      const session = match.session;
+      const sessionDataFromServer = session.session_data as WorkflowSessionData;
+
+      const summary: SessionSummary = {
+        orderId: match.id,
+        orderName: match.name,
+        currentStep: sessionDataFromServer.currentStep || 1,
+        maxStepReached: sessionDataFromServer.maxStepReached || 1,
+        customerName: sessionDataFromServer.customerData?.name || session.partner_name,
+        subscriptionCode: match.subscription_code || sessionDataFromServer.dynamicPlanId,
+        savedAt: sessionDataFromServer.savedAt
+          ? formatTimestamp(sessionDataFromServer.savedAt)
+          : session.start_date,
+        workflowType: sessionDataFromServer.workflowType || workflowType,
+      };
+
+      pendingOrderRef.current = {
+        orderId: match.id,
+        sessionData: sessionDataFromServer,
+      };
+      setPendingSession(summary);
+      setStatus('has_pending');
+
+      return true;
     } catch (err: any) {
       console.error('[useWorkflowSession] Error checking for pending session:', err);
       // Don't treat as fatal error - just means no pending session
@@ -393,56 +422,41 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
   
   /**
    * Restore a pending session
+   *
+   * Uses the payload captured by checkForPendingSession rather than refetching
+   * — otherwise we'd risk picking up a different order than the one the user
+   * was just shown in the prompt.
    */
   const restoreSession = useCallback(async (): Promise<WorkflowSessionData | null> => {
-    if (!pendingSession) {
+    const pending = pendingOrderRef.current;
+    if (!pending) {
       console.warn('[useWorkflowSession] No pending session to restore');
       return null;
     }
-    
-    const authToken = getAuthToken();
-    if (!authToken) {
-      console.warn('[useWorkflowSession] No auth token - cannot restore session');
-      return null;
-    }
-    
-    try {
-      const response = await getLatestPendingSession(authToken);
-      
-      // Note: Session is nested inside order.session, not at top level
-      const session = response.order?.session;
-      
-      if (response.success && response.order && session?.session_data) {
-        const restoredData = session.session_data;
-        
-        setOrderId(response.order.id);
-        setSessionData(restoredData);
-        setPendingSession(null);
-        setStatus('active');
-        lastSavedDataRef.current = JSON.stringify(restoredData);
-        
-        // Notify callback
-        onSessionRestored?.(restoredData, response.order.id);
-        
-        return restoredData;
-      }
-      
-      return null;
-    } catch (err: any) {
-      console.error('[useWorkflowSession] Error restoring session:', err);
-      handleError(err.message || 'Failed to restore session');
-      return null;
-    }
-  }, [pendingSession, getAuthToken, onSessionRestored, handleError]);
+
+    const { orderId: pendingOrderId, sessionData: restoredData } = pending;
+
+    setOrderId(pendingOrderId);
+    setSessionData(restoredData);
+    setPendingSession(null);
+    pendingOrderRef.current = null;
+    setStatus('active');
+    lastSavedDataRef.current = JSON.stringify(restoredData);
+
+    onSessionRestored?.(restoredData, pendingOrderId);
+
+    return restoredData;
+  }, [onSessionRestored]);
   
   /**
    * Discard pending session (start fresh)
    */
   const discardPendingSession = useCallback(() => {
     setPendingSession(null);
+    pendingOrderRef.current = null;
     setStatus('idle');
   }, []);
-  
+
   /**
    * Clear current session (workflow completed or cancelled)
    */
@@ -451,6 +465,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     setOrderId(null);
     setSessionData(null);
     setPendingSession(null);
+    pendingOrderRef.current = null;
     setStatus('idle');
     setError(null);
     lastSavedDataRef.current = '';
@@ -488,14 +503,18 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     setError(null);
     
     try {
-      // Ensure workflow type is set
+      // Tag the session with the workflow that's actually running. Activator
+      // and Salesperson both go through createSalesSession; hardcoding
+      // 'salesperson' here used to silently mis-tag activator sessions, which
+      // then went invisible to the activator's resume prompt because the
+      // workflowType filter rejected them.
       const sessionPayload: WorkflowSessionData = {
         ...initialData,
-        workflowType: 'salesperson',
+        workflowType,
         savedAt: Date.now(),
         version: 1,
       };
-      
+
       const response = await createSalesWorkflowSession({
         customer_id: customerId,
         company_id: companyId,
@@ -517,7 +536,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       handleError(err.message || 'Failed to create sales session');
       return null;
     }
-  }, [getAuthToken, handleError]);
+  }, [getAuthToken, workflowType, handleError]);
   
   /**
    * Update session with products (Sales workflow Step 4 - payment step)

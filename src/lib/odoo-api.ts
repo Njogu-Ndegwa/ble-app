@@ -1550,66 +1550,6 @@ export interface UpdateSessionResponse {
 }
 
 /**
- * Response from fetching the latest pending session
- * Note: The session data is nested inside order.session, not at top level
- */
-export interface LatestPendingSessionResponse {
-  success: boolean;
-  message?: string;
-  sales_rep?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  order?: {
-    id: number;
-    name: string;
-    state: string;
-    date_order?: string;
-    amount_total: number;
-    amount_untaxed?: number;
-    expected_amount: number;
-    paid_amount: number;
-    remaining_amount: number;
-    currency?: string;
-    client_order_ref?: string;
-    invoice_status?: string;
-    partner_id?: number;
-    partner_name?: string;
-    channel_partner_id?: number | null;
-    channel_partner_name?: string | null;
-    outlet_id?: number | null;
-    outlet_name?: string | null;
-    sales_rep_id?: number;
-    sales_rep_name?: string;
-    line_count?: number;
-    subscription_code?: string;
-    /** Session is nested inside order */
-    session?: {
-      id: number;
-      name: string;
-      session_code: string | null;
-      state: string;
-      partner_id?: number;
-      partner_name?: string;
-      sales_rep_id?: number;
-      sales_rep_name?: string;
-      channel_partner_id?: number | null;
-      channel_partner_name?: string | null;
-      outlet_id?: number | null;
-      outlet_name?: string | null;
-      start_date: string;
-      pause_date?: string | null;
-      resume_date?: string | null;
-      completed_date?: string | null;
-      cancelled_date?: string | null;
-      session_data: WorkflowSessionData | null;
-      payment_attempt_count?: number;
-    };
-  };
-}
-
-/**
  * Create a new workflow session
  * Called after customer identification (Step 1)
  * 
@@ -1742,42 +1682,6 @@ export async function updateWorkflowSessionWithPayment(
     return data as UpdateSessionResponse;
   } catch (error: any) {
     console.error('=== UPDATE SESSION WITH PAYMENT - ERROR ===');
-    console.error('Error:', error);
-    throw error;
-  }
-}
-
-/**
- * Fetch the latest pending session for the current sales rep
- * Used to resume an interrupted workflow
- * 
- * Uses the /api/orders endpoint with latest_updated=true to get the most recently updated order
- * 
- * @param authToken - Employee/salesperson token for authorization (required)
- */
-export async function getLatestPendingSession(
-  authToken: string
-): Promise<LatestPendingSessionResponse> {
-  const url = `${ODOO_BASE_URL}/api/orders?latest_updated=true&limit=1`;
-  
-  const headers: HeadersInit = buildOdooHeaders(authToken);
-  
-  try {
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      headers,
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error('Get pending session error (HTTP):', data);
-      throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
-    }
-    
-    return data as LatestPendingSessionResponse;
-  } catch (error: any) {
-    console.error('=== GET LATEST SESSION - ERROR ===');
     console.error('Error:', error);
     throw error;
   }
@@ -2082,6 +1986,7 @@ export interface OrderListItem {
   sales_rep_id: number;
   sales_rep_name: string;
   line_count: number;
+  subscription_code?: string;
   session: OrderSession | null;
 }
 
