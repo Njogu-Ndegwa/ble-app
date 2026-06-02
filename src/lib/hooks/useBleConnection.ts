@@ -1117,6 +1117,7 @@ export function useBleConnection(options: BleConnectionOptions = {}) {
         }
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearAllTimeouts, clearOperationTimeout, clearGlobalTimeout, log, flushDeviceBatch]);
 
   // ============================================

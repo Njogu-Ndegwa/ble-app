@@ -567,7 +567,7 @@ export function usePaymentCollection(
 
       callPublishRef.current(skipReference, isQuotaBased, isZeroCostRounding);
     },
-    [swapData.cost]
+    []
   );
 
   // ============================================================================

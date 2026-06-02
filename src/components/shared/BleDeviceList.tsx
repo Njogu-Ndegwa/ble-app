@@ -370,6 +370,7 @@ export default function BleDeviceList({
               {/* Device Image - only show if we have a mapped image */}
               {deviceImageUrl && (
                 <div className="ble-device-image-container">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={deviceImageUrl}
                     alt={device.name}

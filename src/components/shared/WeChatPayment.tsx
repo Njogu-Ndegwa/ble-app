@@ -198,6 +198,7 @@ export default function WeChatPayment({
             marginBottom: 16,
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrSrc}
               alt="Scan with WeChat"

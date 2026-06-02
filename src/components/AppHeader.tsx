@@ -91,10 +91,15 @@ export default function AppHeader({ onSwitchSA, onMenuOpen, onSignIn, showBack =
     return getOdooEmployee();
   }, []);
 
-  /** Re-read when routes change so the chip updates after SA selection / switch. */
+  /**
+   * Re-read when routes change so the chip updates after SA selection / switch.
+   * pathname is an intentional trigger — the body doesn't read it but a route
+   * change is the signal that the underlying storage may have changed.
+   */
   const selectedSA = useMemo(() => {
     if (typeof window === 'undefined') return null;
     return getSelectedSA();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const handleBack = useCallback(() => {

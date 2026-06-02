@@ -156,11 +156,11 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
     sessionData: WorkflowSessionData;
   } | null>(null);
   
-  // Get auth token based on workflow type
-  // All employee workflows (attendant, salesperson, activator) use the sales role token
+  // All employee workflows (attendant, salesperson, activator) share the same
+  // sales role token; no per-workflow branching needed.
   const getAuthToken = useCallback((): string | undefined => {
     return getSalesRoleToken() || getEmployeeToken() || undefined;
-  }, [workflowType]);
+  }, []);
   
   // Clear auto-save timer
   const clearAutoSaveTimer = useCallback(() => {
@@ -597,7 +597,7 @@ export function useWorkflowSession(config: UseWorkflowSessionConfig): UseWorkflo
       handleError(err.message || 'Failed to update session with products');
       return { success: false };
     }
-  }, [orderId, getAuthToken, handleError]);
+  }, [orderId, getAuthToken, workflowType, handleError]);
   
   // Auto-save effect
   useEffect(() => {

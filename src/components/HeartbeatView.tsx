@@ -143,6 +143,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
       refreshAllServices();
       initialDataLoadedRef.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualRefresh]);
 
   // Publish heartbeat after data is fetched
@@ -156,6 +157,7 @@ const HeartbeatView: React.FC<HeartbeatViewProps> = ({
     ) {
       handlePublishHeartbeat();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, manualRefresh]);
 
   const refreshAllServices = async () => {

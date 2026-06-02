@@ -518,6 +518,7 @@ export function useProductCatalog(
       console.log('[PRODUCT CATALOG] ====== REFETCH COMPLETE ======');
       setIsLoading({ products: false, packages: false, plans: false });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflowType]);
 
   // Restore selections (for session restore)

@@ -343,6 +343,16 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     setSubmitError(message);
   }, []);
 
+  // Narrow the plan list to those that apply to the rider's current package.
+  // If packageName is not provided (or doesn't match any mapping), the helper
+  // returns the full list. If a match would yield zero plans, it logs and
+  // also falls back to the full list — so the picker is never silently empty.
+  // MUST be declared above any early return — React hooks rule.
+  const visiblePlans = useMemo(
+    () => filterPlansByPackage(packageName, plans),
+    [packageName, plans],
+  );
+
   if (!isOpen) return null;
 
   const energyKwh = energyConfig?.initialQuota ?? null;
@@ -353,15 +363,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const selectedPlanDisplayName = selectedPlan
     ? (selectedPlan.templateId || selectedPlan.name)
     : '';
-
-  // Narrow the plan list to those that apply to the rider's current package.
-  // If packageName is not provided (or doesn't match any mapping), the helper
-  // returns the full list. If a match would yield zero plans, it logs and
-  // also falls back to the full list — so the picker is never silently empty.
-  const visiblePlans = useMemo(
-    () => filterPlansByPackage(packageName, plans),
-    [packageName, plans],
-  );
 
   return (
     <>

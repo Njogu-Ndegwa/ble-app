@@ -365,7 +365,7 @@ export function forceDisconnectAll(log?: (...args: unknown[]) => void): void {
 // EXPORTS
 // ============================================
 
-export default {
+const bleErrors = {
   parseBleResponse,
   requiresBluetoothReset,
   getDisplayMessage,
@@ -373,3 +373,5 @@ export default {
   forceDisconnectAll,
   BLE_RESP_CODES,
 };
+
+export default bleErrors;

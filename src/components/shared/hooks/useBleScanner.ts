@@ -484,6 +484,7 @@ export function useBleScanner(): UseBleScanner {
         deviceBatchTimerRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearBleOperationTimeout, clearBleGlobalTimeout]);
 
   return {
