@@ -8,9 +8,18 @@
  *
  * Matches are case-insensitive substrings. Filter keys come from the
  * canonical `templateId` (`x_template_id` in Odoo); `name` is a fallback
- * because old products may not have a template id populated. The display
- * `name` drifts on whitespace/punctuation across backend updates, the
- * template id does not.
+ * because old products may not have a template id populated.
+ *
+ * The three product families map 1:1 onto the three battery prefixes:
+ *   S6/M3            → B30
+ *   E-3H / E-3 Plus  → B45
+ *   CET3-B / PET-3   → B100
+ * so we match on that prefix alone. The kWh/swp tier suffix is NOT a
+ * reliable discriminator: backend template ids drift on whitespace and
+ * punctuation (e.g. `B45-200 kWh(60 swp)` has no space before the paren
+ * while `B30-130 kWh (60 swp)` does), and enumerating every tier meant a
+ * single formatting change silently hid plans. The battery prefix is
+ * stable and unambiguous (B30/B45/B100 never collide as substrings).
  *
  * If the filter would eliminate every plan, the helper logs and returns
  * the unfiltered list so a backend rename can never silently produce an
@@ -25,31 +34,32 @@ interface ProductServiceMapping {
 export const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
   {
     productPatterns: ['S6', 'M3'],
-    servicePatterns: [
-      'B30-0.9', 'B30-409 kWh', 'B30-2.2 kWh (1 swp)',
-      'B30-10', 'B30-400 kWh', 'B30-25 kWh (15 swp)',
-      'B30-50', 'B30-385 kWh', 'B30-130 kWh (60 swp)',
-    ],
+    servicePatterns: ['B30-'],
   },
   {
     productPatterns: ['E-3H', 'E-3 Plus'],
-    servicePatterns: [
-      'B45-1.2', 'B45-364 kWh', 'B45-3.3 kWh (1 swp)',
-      'B45-20', 'B45-351 kWh', 'B45-57 kWh (15 swp)',
-      'B45-68', 'B45-340 kWh', 'B45-200 kWh (60 swp)',
-    ],
+    servicePatterns: ['B45-'],
   },
   {
     productPatterns: ['CET3-B', 'PET-3-SRS', 'PET-3-DRS', 'PET-3DRS'],
-    servicePatterns: [
-      'B100-2.6', 'B100-342 kWh', 'B100-7.6 kWh (1 swp)',
-      'B100-40', 'B100-333 kWh', 'B100-120 kWh (15 swp)',
-      'B100-145', 'B100-322 kWh', 'B100-450 kWh (60 swp)',
-    ],
+    servicePatterns: ['B100-'],
   },
 ];
 
 export const HIDDEN_PRODUCT_PATTERNS: string[] = ['PET1'];
+
+/**
+ * Canonicalize a string for matching: lowercase and strip ALL whitespace.
+ *
+ * Backend template ids and display names are formatted inconsistently — the
+ * same tier ships as both `B45-200 kWh(60 swp)` and `B30-130 kWh (60 swp)`
+ * (note the space before the paren in one but not the other). Removing
+ * whitespace on both the pattern and the candidate before `includes()` makes
+ * the filter immune to that drift, so a future formatting change in Odoo can
+ * never silently hide a plan again. Keep patterns whitespace-tolerant by
+ * design: never rely on an exact space being present.
+ */
+const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, '');
 
 /** Minimum shape needed to apply the package filter. */
 export interface PlanLike {
@@ -72,15 +82,15 @@ export function filterPlansByPackage<T extends PlanLike>(
 ): T[] {
   if (!packageName) return allPlans;
 
-  const nameLower = packageName.toLowerCase();
+  const name = norm(packageName);
   const matched = PRODUCT_SERVICE_MAP.find((mapping) =>
-    mapping.productPatterns.some((p) => nameLower.includes(p.toLowerCase())),
+    mapping.productPatterns.some((p) => name.includes(norm(p))),
   );
   if (!matched) return allPlans;
 
   const filtered = allPlans.filter((plan) => {
-    const key = (plan.templateId || plan.name || '').toLowerCase();
-    return matched.servicePatterns.some((sp) => key.includes(sp.toLowerCase()));
+    const key = norm(plan.templateId || plan.name || '');
+    return matched.servicePatterns.some((sp) => key.includes(norm(sp)));
   });
 
   if (filtered.length === 0 && allPlans.length > 0) {
