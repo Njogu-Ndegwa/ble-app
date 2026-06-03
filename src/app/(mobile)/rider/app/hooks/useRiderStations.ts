@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RiderStation } from '../types';
+import { getStationDisplayName } from '@/lib/station-names';
 
 interface Bridge {
   registerHandler: (name: string, handler: (data: string, cb: (r: any) => void) => void) => void;
@@ -188,6 +189,9 @@ export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRider
               (s: any) =>
                 s?.chst === 0 && s?.btid && String(s.btid).trim() !== '' && s?.rsoc === 100,
             ).length;
+            const charging = slots.filter(
+              (s: any) => s?.chst === 1 && s?.btid && String(s.btid).trim() !== '',
+            ).length;
             const opid = item.opid || item.oemItemID || '';
             const stationId =
               Math.abs(
@@ -197,10 +201,15 @@ export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRider
               ) % 100000;
             parsed.push({
               id: stationId,
-              name: opid ? `Station ${opid}` : `Swap Station ${idx + 1}`,
+              name: getStationDisplayName(
+                opid,
+                opid ? `Station ${opid}` : `Swap Station ${idx + 1}`,
+              ),
+              rcuSn: opid || undefined,
               address: `${c.slat.toFixed(4)}, ${c.slon.toFixed(4)}`,
               distance: 'N/A',
               batteries: available,
+              charging,
               batteriesTotal: slots.length || undefined,
               waitTime: '~5 min',
               lat: c.slat,

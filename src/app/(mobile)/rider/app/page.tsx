@@ -23,6 +23,7 @@ import {
   type GetRequiredAssetIdsResponse,
 } from '@/lib/graphql/mutations';
 import { round } from '@/lib/utils';
+import { getStationDisplayName } from '@/lib/station-names';
 import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
 import {
   RiderNav,
@@ -1370,27 +1371,41 @@ const RiderApp: React.FC = () => {
             }
 
             const chargeSlots = stationData.Charge_slot || [];
-            // Only count batteries with rsoc = 100
-            const availableBatteries = chargeSlots.filter((slot: any) => 
-              slot.chst === 0 && 
-              slot.btid && 
+            // Fully-charged, swap-ready batteries (rsoc = 100, not charging).
+            const availableBatteries = chargeSlots.filter((slot: any) =>
+              slot.chst === 0 &&
+              slot.btid &&
               slot.btid.trim() !== '' &&
               slot.rsoc === 100
+            ).length;
+            // Batteries currently charging (chst = 1) — shown alongside the
+            // ready count so riders can tell a station will replenish soon.
+            const chargingBatteries = chargeSlots.filter((slot: any) =>
+              slot.chst === 1 &&
+              slot.btid &&
+              slot.btid.trim() !== ''
             ).length;
 
             const opid = stationData.opid || stationData.oemItemID || '';
             const stationId = Math.abs(
-              parseInt(fleetId.substring(fleetId.length - 8), 36) + 
-              (opid ? parseInt(opid.substring(opid.length - 4), 36) : 0) + 
+              parseInt(fleetId.substring(fleetId.length - 8), 36) +
+              (opid ? parseInt(opid.substring(opid.length - 4), 36) : 0) +
               index
             ) % 100000;
 
             allStations.push({
               id: stationId,
-              name: opid ? `Station ${opid}` : `Swap Station ${index + 1}`,
+              // Friendly site name from the RCU-SN map; falls back to the raw
+              // serial when a station isn't mapped yet (see station-names.ts).
+              name: getStationDisplayName(
+                opid,
+                opid ? `Station ${opid}` : `Swap Station ${index + 1}`,
+              ),
+              rcuSn: opid || undefined,
               address: `${coordinates.slat.toFixed(4)}, ${coordinates.slon.toFixed(4)}`,
               distance: 'N/A',
               batteries: availableBatteries,
+              charging: chargingBatteries,
               waitTime: '~5 min',
               lat: coordinates.slat,
               lng: coordinates.slon,
@@ -2265,8 +2280,10 @@ const RiderApp: React.FC = () => {
               nearbyStations={stations.map(s => ({
                 id: s.id,
                 name: s.name,
+                rcuSn: s.rcuSn,
                 distance: s.distance,
                 batteries: s.batteries,
+                charging: s.charging,
                 lat: s.lat,
                 lng: s.lng,
               }))}

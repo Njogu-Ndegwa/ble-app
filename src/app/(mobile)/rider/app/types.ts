@@ -55,9 +55,16 @@ export interface RiderBikeInfo {
 export interface RiderStation {
   id: number;
   name: string;
+  /** RCU serial number (oemItemID / opid), e.g. "SR151625050005". The stable
+   *  key we join site name + hours onto (see `src/lib/station-names.ts`). */
+  rcuSn?: string;
   address?: string;
   distance: string;
+  /** Count of fully-charged, swap-ready batteries (chst=0, rsoc=100). */
   batteries: number;
+  /** Count of batteries currently charging (chst=1) — shown alongside, and
+   *  distinguished from, the ready count on station cards. */
+  charging?: number;
   batteriesTotal?: number;
   waitTime?: string;
   lat?: number;

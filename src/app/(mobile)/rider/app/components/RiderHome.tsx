@@ -14,6 +14,7 @@ import { useI18n } from "@/i18n";
 import { useGeolocation } from "../hooks/useGeolocation";
 import type { RiderStation } from "../types";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import StationCards from "./StationCards";
 
 // Google Maps is client-only; load dynamically to avoid SSR errors and reuse
 // the same component used by the full-screen Stations screen.
@@ -22,8 +23,10 @@ const RiderMap = dynamic(() => import("../map/RiderMap"), { ssr: false });
 interface Station {
   id: number;
   name: string;
+  rcuSn?: string;
   distance: string;
   batteries: number;
+  charging?: number;
   lat?: number;
   lng?: number;
 }
@@ -469,6 +472,19 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               </div>
             )}
           </div>
+
+          {/* Station cards — proximity-sorted list beneath the map (hybrid
+              map-on-top + cards-below pattern). Each card leads with the
+              availability-colored ready-battery count, then charging count,
+              distance, and an open/closed badge from the hard-coded hours.
+              Tapping a card opens the full Stations map on that station. */}
+          {nearbyStations.length > 0 && (
+            <StationCards
+              stations={nearbyStations}
+              userLocation={userLocation}
+              onSelectStation={onSelectStation}
+            />
+          )}
 
           {!hasSubscription && nearbyStations.length === 0 ? (
             /* Without an active subscription the rider can't use stations,
