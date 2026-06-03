@@ -909,6 +909,25 @@ export async function getSubscriptionProducts(
       mainServiceProducts = rawData.categories.physical || [];
       subscriptionProducts = rawData.categories.service || [];
       batterySwapProducts = rawData.categories.contract || [];
+
+      // Some energy plans (e.g. B45-2.5 kWh, B100-6 kWh) are mis-categorized by
+      // the backend as "other" (pu_category=false, x_template_id=null) instead
+      // of "service", so they never reached the plan picker. Recover any "other"
+      // item whose code/name starts with a battery prefix (B30-/B45-/B100-) and
+      // fold it into the subscription list — the package filter then routes it
+      // to the right product group by that same prefix. The battery-prefix test
+      // deliberately excludes the genuine non-plan junk in "other" (Retail
+      // Product, Test Package, test-plan-0-quota).
+      const isEnergyPlan = (p: SubscriptionProduct) =>
+        /^\s*b\d+-/i.test(p.default_code || '') || /^\s*b\d+-/i.test(p.name || '');
+      const recoveredPlans = (rawData.categories.other || []).filter(isEnergyPlan);
+      if (recoveredPlans.length > 0) {
+        console.info(
+          '[ODOO API] Recovered energy plans mis-categorized as "other":',
+          recoveredPlans.map((p: SubscriptionProduct) => ({ id: p.id, name: p.name, code: p.default_code })),
+        );
+        subscriptionProducts = [...subscriptionProducts, ...recoveredPlans];
+      }
     } else {
       const apiMessage = (rawData as any).message;
       console.error('[PRODUCTS DEBUG] No categories! API message:', apiMessage);

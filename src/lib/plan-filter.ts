@@ -37,7 +37,7 @@ export const PRODUCT_SERVICE_MAP: ProductServiceMapping[] = [
     servicePatterns: ['B30-'],
   },
   {
-    productPatterns: ['E-3H', 'E-3 Plus'],
+    productPatterns: ['E-3H', 'E-3 Plus', 'E-3 PRO'],
     servicePatterns: ['B45-'],
   },
   {
