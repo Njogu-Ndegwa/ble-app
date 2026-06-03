@@ -339,6 +339,16 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               </dd>
             </div>
             <div className="rh-bike__cell">
+              <dt>{t("rider.batteryId") || "Battery"}</dt>
+              <dd>
+                {isLoadingBike ? (
+                  <span className="rider-skeleton rider-skeleton-value" />
+                ) : (
+                  bike.currentBatteryId || "—"
+                )}
+              </dd>
+            </div>
+            <div className="rh-bike__cell">
               <dt>{t("rider.totalSwaps") || "Swaps"}</dt>
               <dd>
                 {isLoadingBike ? (

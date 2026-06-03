@@ -8060,8 +8060,8 @@ html.theme-transition *::after {
 
 .rh-bike__grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 12px;
   margin: 0;
 }
 .rh-bike__cell {

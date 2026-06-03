@@ -131,6 +131,7 @@ interface Subscription {
 interface IdentificationCache {
   subscriptionCode: string;
   vehicleId: string | null;
+  currentBatteryId?: string;
   totalSwaps: number;
   paymentState?: string;
   balance: number;
@@ -567,6 +568,7 @@ const RiderApp: React.FC = () => {
     setBike((prev) => ({
       ...prev,
       vehicleId: cached.vehicleId,
+      currentBatteryId: cached.currentBatteryId,
       totalSwaps: Math.floor(cached.totalSwaps || 0),
       paymentState: cached.paymentState || prev.paymentState,
     }));
@@ -649,6 +651,13 @@ const RiderApp: React.FC = () => {
       );
       const vehicleId = assetAssignmentService?.current_asset || null;
 
+      // Extract the battery the rider currently holds from service-battery-fleet-*
+      // (same `current_asset` convention as the asset-assignment service above).
+      const batteryFleetService = serviceStates.find(
+        (service: any) => service.service_id?.includes('service-battery-fleet')
+      );
+      const currentBatteryId = batteryFleetService?.current_asset || undefined;
+
       // Extract total swaps from service-swap-count-togo-001
       // Fallback: search for any service with "swap-count" in the service_id
       let swapCountService = serviceStates.find(
@@ -723,6 +732,7 @@ const RiderApp: React.FC = () => {
         const updated = {
           ...prev,
           vehicleId,
+          currentBatteryId,
           totalSwaps: Math.floor(totalSwaps), // Ensure it's an integer
           paymentState: paymentState || prev.paymentState,
         };
@@ -734,6 +744,7 @@ const RiderApp: React.FC = () => {
       setIdentificationCache({
         subscriptionCode: planId,
         vehicleId,
+        currentBatteryId,
         totalSwaps: Math.floor(totalSwaps || 0),
         paymentState: paymentState || undefined,
         balance: energyValue,
