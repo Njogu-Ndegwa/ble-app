@@ -13543,51 +13543,66 @@ html.keyboard-open .customer-panel-unified {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  height: 22px;
-  min-width: 36px;
-  padding: 0 7px 0 6px;
-  border-radius: 11px;
-  background: var(--rm-fill, #10b981);
+  gap: 4px;
+  height: 26px;
+  min-width: 42px;
+  padding: 0 9px 0 8px;
+  border-radius: 13px;
+  /* Vertical gradient gives the marker depth instead of reading as a flat
+     blob; the brand/availability color is passed in as --rm-fill and we
+     darken it slightly toward the bottom via a layered overlay. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(0, 0, 0, 0.12)),
+    var(--rm-fill, #10b981);
   color: #ffffff;
+  /* Crisp white keyline + soft elevation + inner top highlight = a polished,
+     "lifted" chip rather than a plain colored dot. */
   box-shadow:
-    0 0 0 2px #ffffff,
-    0 2px 4px rgba(0, 0, 0, 0.22),
-    0 4px 10px rgba(0, 0, 0, 0.12);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 0 1.5px rgba(255, 255, 255, 0.95),
+    0 2px 5px rgba(0, 0, 0, 0.28),
+    0 6px 14px rgba(0, 0, 0, 0.16);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .rm-pill-marker:hover {
-  transform: scale(1.1);
+  transform: scale(1.12) translateY(-1px);
   box-shadow:
-    0 0 0 2px #ffffff,
-    0 3px 8px rgba(0, 0, 0, 0.28),
-    0 6px 14px rgba(0, 0, 0, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1.5px #ffffff,
+    0 4px 10px rgba(0, 0, 0, 0.32),
+    0 10px 20px rgba(0, 0, 0, 0.18);
 }
 
-/* Empty stations recede visually so available ones stand out */
+/* Empty stations recede so available ones pop: flatten the gradient, drop the
+   elevation, and dim — they read as "present but nothing to grab here". */
 .rm-pill-marker--empty {
-  opacity: 0.78;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.1)),
+    var(--rm-fill, #94a3b8);
+  opacity: 0.82;
   box-shadow:
-    0 0 0 2px #ffffff,
-    0 1px 3px rgba(0, 0, 0, 0.18);
+    0 0 0 1.5px rgba(255, 255, 255, 0.92),
+    0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .rm-marker-bolt {
-  width: 10px;
-  height: 12px;
+  width: 11px;
+  height: 13px;
   flex-shrink: 0;
   display: block;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
 }
 
 .rm-pill-marker-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.01em;
   user-select: none;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
 }
 
 /* Selected state — teardrop pin with tail for precise pinpoint + pulsing halo */
@@ -14422,6 +14437,127 @@ html.keyboard-open .customer-panel-unified {
   z-index: 400;
   pointer-events: none;
 }
+
+/* ---------- Home-screen station cards (list under the map preview) ----------
+   Box-sizing + min-width:0 + truncation throughout keep every card inside the
+   viewport on narrow phones (the old inline-styled cards overflowed the right
+   edge). Colors are passed per-card via the --c / --cbg custom properties. */
+.rh-stn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rh-stn-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  text-align: left;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--c, var(--border));
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+}
+.rh-stn-card:hover { background: var(--bg-elevated); }
+.rh-stn-card:active { transform: scale(0.99); }
+
+.rh-stn-gauge {
+  flex-shrink: 0;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: var(--cbg, var(--bg-tertiary));
+  color: var(--c, var(--text-primary));
+}
+.rh-stn-gauge__icon { opacity: 0.9; }
+.rh-stn-gauge__num {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.rh-stn-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rh-stn-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.rh-stn-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.rh-stn-avail { font-weight: 700; color: var(--c, var(--text-secondary)); }
+.rh-stn-open { font-weight: 600; }
+.rh-stn-sep { opacity: 0.4; }
+.rh-stn-dist { white-space: nowrap; }
+.rh-stn-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.rh-stn-sn { letter-spacing: 0.2px; white-space: nowrap; }
+.rh-stn-charging {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #f59e0b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rh-stn-chev { flex-shrink: 0; color: var(--text-muted); }
+
+.rh-stn-all {
+  box-sizing: border-box;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rh-stn-all:hover { color: var(--text-primary); background: var(--bg-elevated); }
 
 /* Transparent full-bleed button layered over the preview map. Absorbs all
    pointer events so taps never reach Google's embedded logo / "Terms" links

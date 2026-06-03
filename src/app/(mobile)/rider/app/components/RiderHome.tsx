@@ -483,6 +483,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               stations={nearbyStations}
               userLocation={userLocation}
               onSelectStation={onSelectStation}
+              onViewAll={onViewAllStations}
             />
           )}
 

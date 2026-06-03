@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Zap, BatteryCharging, MapPin, Clock, ChevronRight } from "lucide-react";
+import { Zap, BatteryCharging, ChevronRight, MapPin } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { haversineKm, formatDistance } from "../hooks/useGeolocation";
 import type { GeoLocation } from "../types";
@@ -32,14 +32,21 @@ interface StationCardsProps {
   userLocation: GeoLocation | null;
   /** Tapping a card hands off to the full Stations map with this id selected. */
   onSelectStation: (stationId: number) => void;
-  /** "See all" / footer affordance → full Stations screen. */
+  /** Footer "view all on map" → full Stations screen. */
   onViewAll?: () => void;
+  /**
+   * Cap the number of cards rendered on the home screen. With a large network
+   * (hundreds of stations) we never want an endless list under the map — show
+   * the best few and push the rest to the full map (which clusters). The cap
+   * is applied AFTER sorting, so it's always the most relevant stations.
+   */
+  maxItems?: number;
 }
 
 type Availability = "available" | "low" | "empty";
 
 const AVAIL_COLOR: Record<Availability, string> = {
-  // Same palette as the map markers (StationMarker.tsx) so the two views agree.
+  // Same palette as the map markers so the two views agree.
   available: "#10b981",
   low: "#f59e0b",
   empty: "#94a3b8",
@@ -52,24 +59,33 @@ function availabilityOf(batteries: number): Availability {
   return "available";
 }
 
+/** Sort rank: available (2) → low (1) → empty (0). Higher sorts first. */
+function tierRank(batteries: number): number {
+  if (batteries === 0) return 0;
+  if (batteries <= 2) return 1;
+  return 2;
+}
+
+const DEFAULT_MAX_ITEMS = 6;
+
 /**
- * Proximity-sorted station cards for the Rider home screen.
- *
- * Sits beneath the map preview (hybrid map-on-top + cards-below pattern). Each
- * card leads with the availability-colored ready-battery count — the single
- * most load-bearing field for a swap rider — then the charging count, distance,
- * and an open/closed badge derived from the hard-coded site hours.
+ * Station list for the Rider home screen — sits beneath the map preview
+ * (hybrid map-on-top + cards-below). Stations with charged batteries are
+ * surfaced first (then nearest within a tier), each card leads with the
+ * ready-battery count, and the list is capped so a large network degrades to
+ * "best few + view all" instead of an infinite scroll.
  */
 export default function StationCards({
   stations,
   userLocation,
   onSelectStation,
   onViewAll,
+  maxItems = DEFAULT_MAX_ITEMS,
 }: StationCardsProps) {
   const { t } = useI18n();
 
-  // Attach distance and sort closest-first. Stations without coordinates (or
-  // before we have a GPS fix) sort to the end but still render.
+  // Available-first, then nearest. Distance is the in-tier tiebreaker so a
+  // close empty station never outranks an available one further away.
   const ordered = useMemo(() => {
     const withDistance = stations.map((s) => {
       const km =
@@ -79,19 +95,24 @@ export default function StationCards({
       return { station: s, km };
     });
     withDistance.sort((a, b) => {
+      const tier = tierRank(b.station.batteries) - tierRank(a.station.batteries);
+      if (tier !== 0) return tier; // available first
       if (a.km == null && b.km == null) return 0;
       if (a.km == null) return 1;
       if (b.km == null) return -1;
-      return a.km - b.km;
+      return a.km - b.km; // nearest first within a tier
     });
     return withDistance;
   }, [stations, userLocation]);
 
   if (stations.length === 0) return null;
 
+  const visible = ordered.slice(0, maxItems);
+  const hidden = ordered.length - visible.length;
+
   return (
-    <div className="rh-station-cards" style={{ marginTop: 12, display: "grid", gap: 10 }}>
-      {ordered.map(({ station, km }) => (
+    <div className="rh-stn-list">
+      {visible.map(({ station, km }) => (
         <StationCard
           key={station.id}
           station={station}
@@ -101,27 +122,15 @@ export default function StationCards({
         />
       ))}
 
-      {onViewAll && (
-        <button
-          type="button"
-          onClick={onViewAll}
-          className="rh-station-cards__all"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            height: 40,
-            borderRadius: "var(--radius-lg, 12px)",
-            border: "1px solid var(--border)",
-            background: "var(--bg-tertiary)",
-            color: "var(--text-secondary)",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          <span>{t("rider.map.openFullMap") || "Open full map"}</span>
+      {onViewAll && (hidden > 0 || stations.length > 0) && (
+        <button type="button" onClick={onViewAll} className="rh-stn-all">
+          <MapPin size={14} />
+          <span>
+            {hidden > 0
+              ? t("rider.stationCard.viewAllMore", { count: stations.length }) ||
+                `View all ${stations.length} on map`
+              : t("rider.stationCard.viewAll") || "View all on map"}
+          </span>
           <ChevronRight size={15} />
         </button>
       )}
@@ -155,159 +164,58 @@ function StationCard({ station, distanceKm, onSelect, t }: StationCardProps) {
     <button
       type="button"
       onClick={onSelect}
-      className="rh-station-card"
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
-        width: "100%",
-        textAlign: "left",
-        padding: 12,
-        borderRadius: "var(--radius-lg, 12px)",
-        border: "1px solid var(--border)",
-        background: "var(--bg-secondary)",
-        cursor: "pointer",
-      }}
+      className="rh-stn-card"
+      style={
+        {
+          "--c": color,
+          "--cbg": `${color}1f`,
+        } as React.CSSProperties
+      }
     >
-      {/* Availability-colored icon tile — instant read of station health. */}
-      <span
-        aria-hidden="true"
-        style={{
-          flexShrink: 0,
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: `${color}26`,
-          color,
-        }}
-      >
-        <Zap size={18} />
+      {/* Battery gauge — the hero. Count of swap-ready batteries, colored by
+          availability so a glance tells the rider where to go. */}
+      <span className="rh-stn-gauge" aria-hidden="true">
+        <Zap size={14} className="rh-stn-gauge__icon" />
+        <span className="rh-stn-gauge__num">{station.batteries}</span>
       </span>
 
-      <span style={{ flex: 1, minWidth: 0 }}>
-        {/* Name + availability badge */}
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 15,
-              fontWeight: 600,
-              color: "var(--text-primary)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {station.name}
-          </span>
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: 10,
-              fontWeight: 600,
-              padding: "2px 6px",
-              borderRadius: 6,
-              backgroundColor: `${color}26`,
-              color,
-            }}
-          >
-            {availLabel}
-          </span>
-        </span>
+      <span className="rh-stn-body">
+        <span className="rh-stn-name">{station.name}</span>
 
-        {/* RCU SN — secondary, monospace-ish small text */}
-        {station.rcuSn && (
-          <span
-            style={{
-              display: "block",
-              marginTop: 2,
-              fontSize: 11,
-              color: "var(--text-muted)",
-              letterSpacing: 0.2,
-            }}
-          >
-            {station.rcuSn}
-          </span>
-        )}
-
-        {/* Battery counts — ready (hero) + charging (distinct, muted/amber) */}
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginTop: 6,
-            flexWrap: "wrap",
-          }}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontSize: 13,
-              color: "var(--text-primary)",
-            }}
-          >
-            <Zap size={13} color={color} />
-            <span style={{ fontWeight: 700 }}>{station.batteries}</span>
-            <span style={{ color: "var(--text-secondary)" }}>
-              {t("rider.stationCard.ready") || "charged"}
-            </span>
-          </span>
-
-          {charging > 0 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 13,
-                color: "var(--text-muted)",
-              }}
-            >
-              <BatteryCharging size={13} color="#f59e0b" />
-              <span style={{ fontWeight: 600 }}>{charging}</span>
-              <span>{t("rider.stationCard.charging") || "charging"}</span>
-            </span>
-          )}
-        </span>
-
-        {/* Distance + hours / open status */}
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginTop: 4,
-            fontSize: 12,
-            color: "var(--text-secondary)",
-            flexWrap: "wrap",
-          }}
-        >
-          {distanceKm != null && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <MapPin size={11} />
-              {formatDistance(distanceKm)}
-            </span>
-          )}
+        <span className="rh-stn-meta">
+          <span className="rh-stn-avail">{availLabel}</span>
           {site && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Clock size={11} />
-              {site.open}–{site.close}
-              {openState && (
-                <span style={{ color: openStateColor(openState), fontWeight: 600 }}>
-                  · {openStateLabel(openState, t)}
-                </span>
-              )}
+            <>
+              <span className="rh-stn-sep">·</span>
+              <span
+                className="rh-stn-open"
+                style={openState ? { color: openStateColor(openState) } : undefined}
+              >
+                {openState ? openStateLabel(openState, t) : `${site.open}–${site.close}`}
+              </span>
+            </>
+          )}
+          {distanceKm != null && (
+            <>
+              <span className="rh-stn-sep">·</span>
+              <span className="rh-stn-dist">{formatDistance(distanceKm)}</span>
+            </>
+          )}
+        </span>
+
+        <span className="rh-stn-sub">
+          {station.rcuSn && <span className="rh-stn-sn">{station.rcuSn}</span>}
+          {charging > 0 && (
+            <span className="rh-stn-charging">
+              <BatteryCharging size={12} />
+              {t("rider.stationCard.chargingCount", { count: charging }) ||
+                `${charging} charging`}
             </span>
           )}
         </span>
       </span>
+
+      <ChevronRight size={18} className="rh-stn-chev" aria-hidden="true" />
     </button>
   );
 }

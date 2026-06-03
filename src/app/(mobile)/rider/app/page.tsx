@@ -23,7 +23,7 @@ import {
   type GetRequiredAssetIdsResponse,
 } from '@/lib/graphql/mutations';
 import { round } from '@/lib/utils';
-import { getStationDisplayName } from '@/lib/station-names';
+import { getStationDisplayName, stationNumericId } from '@/lib/station-names';
 import { getOdooEmployeeToken, getStoredServiceAccounts, getActiveSAApplets } from '@/lib/ov-auth';
 import {
   RiderNav,
@@ -1387,11 +1387,10 @@ const RiderApp: React.FC = () => {
             ).length;
 
             const opid = stationData.opid || stationData.oemItemID || '';
-            const stationId = Math.abs(
-              parseInt(fleetId.substring(fleetId.length - 8), 36) +
-              (opid ? parseInt(opid.substring(opid.length - 4), 36) : 0) +
-              index
-            ) % 100000;
+            // Stable, collision-free id derived from fleetId + RCU SN. The old
+            // arithmetic hash collided (see stationNumericId docs), which made
+            // tapping one station resolve to another.
+            const stationId = stationNumericId(fleetId, opid, index);
 
             allStations.push({
               id: stationId,

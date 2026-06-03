@@ -81,6 +81,35 @@ export function getStationDisplayName(
   return rcuSn ? `Station ${rcuSn}` : 'Swap Station';
 }
 
+/**
+ * Stable, collision-free numeric id for a station.
+ *
+ * The previous scheme — `parseInt(fleetId.slice(-8),36) + parseInt(opid.slice(-4),36)
+ * + index` — collided badly: every site in one fleet shares the same fleetId
+ * term, so the id reduced to `const + smallSerialValue + arrayIndex`. Two
+ * stations whose `(serialValue + index)` summed equally got the SAME id (e.g.
+ * serial …0005 at index 0 and …0002 at index 3 both → +5), so tapping one
+ * resolved to the other via `find(s => s.id === id)`. The RCU SN is globally
+ * unique, so we hash the full `fleetId|rcuSn` key with FNV-1a (32-bit) for an
+ * id that is unique per physical station AND stable across refetches and
+ * across the home / full-map screens (so the tap-through always resolves the
+ * station the rider actually saw). Index is only a last-resort tiebreaker when
+ * a station reports no serial at all.
+ */
+export function stationNumericId(
+  fleetId: string,
+  rcuSn?: string | null,
+  index = 0,
+): number {
+  const key = `${fleetId}|${rcuSn && rcuSn.trim() ? rcuSn.trim() : `idx${index}`}`;
+  let h = 0x811c9dc5; // FNV-1a 32-bit offset basis
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193); // FNV prime
+  }
+  return h >>> 0; // unsigned 32-bit — positive, stable, effectively unique
+}
+
 export type StationOpenState = 'open' | 'closed' | 'closes-soon';
 
 /** Minutes-since-midnight from `"HH:MM"`, or `null` if malformed. */

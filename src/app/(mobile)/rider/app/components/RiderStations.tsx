@@ -22,7 +22,14 @@ import {
   LocateFixed,
   Clipboard,
   Check,
+  BatteryCharging,
+  Clock,
 } from "lucide-react";
+import {
+  getStationSite,
+  getStationOpenState,
+  type StationOpenState,
+} from "@/lib/station-names";
 import { toast } from "react-hot-toast";
 import { useI18n } from "@/i18n";
 import {
@@ -764,11 +771,22 @@ function StationPeekCard({
           </div>
           <div className="mt-0.5 text-xs text-text-secondary flex items-center gap-1.5 flex-wrap">
             <span className="inline-flex items-center gap-1">
-              <Zap size={11} />
+              <Zap size={11} color={statusColor} />
               <span className="font-semibold text-text-primary">
                 {station.batteries}
               </span>
+              <span>{t("rider.stationCard.ready") || "charged"}</span>
             </span>
+            {(station.charging ?? 0) > 0 && (
+              <>
+                <span className="opacity-40">·</span>
+                <span className="inline-flex items-center gap-1 text-text-muted">
+                  <BatteryCharging size={11} color="#f59e0b" />
+                  <span className="font-semibold">{station.charging}</span>
+                  <span>{t("rider.stationCard.charging") || "charging"}</span>
+                </span>
+              </>
+            )}
             {station.distanceKm != null && (
               <>
                 <span className="opacity-40">·</span>
@@ -789,12 +807,9 @@ function StationPeekCard({
               </>
             )}
           </div>
-          {station.address && (
-            <div className="mt-1 text-[11px] text-text-muted flex items-center gap-1 truncate">
-              <MapPin size={10} />
-              <span className="truncate">{station.address}</span>
-            </div>
-          )}
+          {/* Hours + open status and the RCU SN — replaces the old raw
+              lat/lng line, which was meaningless to riders. */}
+          <StationMetaRow station={station} t={t} />
         </div>
         <button
           onClick={onClose}
@@ -850,6 +865,57 @@ function StationPeekCard({
 }
 
 // ---------- helpers ----------
+
+/**
+ * Hours + open/closed badge + RCU SN for the peek card. Replaces the old raw
+ * lat/lng "address" line. Renders nothing if we have neither mapped hours nor
+ * a serial, so an unmapped station simply omits the row instead of showing junk.
+ */
+function StationMetaRow({
+  station,
+  t,
+}: {
+  station: RiderStation;
+  t: (key: string, vars?: any) => string | null | undefined;
+}) {
+  const site = getStationSite(station.rcuSn);
+  const openState = getStationOpenState(site);
+  if (!site && !station.rcuSn) return null;
+  return (
+    <div className="mt-1 text-[11px] text-text-muted flex items-center gap-2 flex-wrap">
+      {site && (
+        <span className="inline-flex items-center gap-1">
+          <Clock size={10} />
+          <span>
+            {site.open}–{site.close}
+          </span>
+          {openState && (
+            <span style={{ color: peekOpenColor(openState), fontWeight: 600 }}>
+              · {peekOpenLabel(openState, t)}
+            </span>
+          )}
+        </span>
+      )}
+      {station.rcuSn && <span>{station.rcuSn}</span>}
+    </div>
+  );
+}
+
+function peekOpenColor(state: StationOpenState): string {
+  if (state === "open") return "#10b981";
+  if (state === "closes-soon") return "#f59e0b";
+  return "#ef4444";
+}
+
+function peekOpenLabel(
+  state: StationOpenState,
+  t: (key: string, vars?: any) => string | null | undefined,
+): string {
+  if (state === "open") return t("rider.stationCard.open") || "Open";
+  if (state === "closes-soon")
+    return t("rider.stationCard.closesSoon") || "Closes soon";
+  return t("rider.stationCard.closed") || "Closed";
+}
 
 /** Human-friendly ETA from duration in minutes. */
 function formatEta(minutes: number): string {

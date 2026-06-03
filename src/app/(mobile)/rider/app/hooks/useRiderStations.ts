@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RiderStation } from '../types';
-import { getStationDisplayName } from '@/lib/station-names';
+import { getStationDisplayName, stationNumericId } from '@/lib/station-names';
 
 interface Bridge {
   registerHandler: (name: string, handler: (data: string, cb: (r: any) => void) => void) => void;
@@ -193,12 +193,10 @@ export function useRiderStations({ bridge, subscriptionCode, enabled }: UseRider
               (s: any) => s?.chst === 1 && s?.btid && String(s.btid).trim() !== '',
             ).length;
             const opid = item.opid || item.oemItemID || '';
-            const stationId =
-              Math.abs(
-                parseInt(fleet.fleetId.slice(-8), 36) +
-                  (opid ? parseInt(String(opid).slice(-4), 36) : 0) +
-                  idx,
-              ) % 100000;
+            // Stable, collision-free id (see stationNumericId). Must match the
+            // scheme used in page.tsx so the home→full-map handoff resolves the
+            // same physical station.
+            const stationId = stationNumericId(fleet.fleetId, opid, idx);
             parsed.push({
               id: stationId,
               name: getStationDisplayName(
