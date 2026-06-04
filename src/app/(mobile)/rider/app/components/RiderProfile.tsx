@@ -319,7 +319,9 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
               {t("rider.myVehicle") || "My Vehicle"}
             </div>
             <div className="menu-item-subtitle">
-              {profile.vehicleInfo || "Oves Tuk-Tuk • REG-2024-KE"}
+              {/* No placeholder vehicle — show a dash until a real vehicle is
+                  actually assigned to the rider. */}
+              {profile.vehicleInfo || "—"}
             </div>
           </div>
           <div className="menu-item-arrow">

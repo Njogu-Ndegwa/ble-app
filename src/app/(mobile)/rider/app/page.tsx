@@ -2392,6 +2392,11 @@ const RiderApp: React.FC = () => {
                 planValidity: subscription?.next_cycle_date
                   ? new Date(subscription.next_cycle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   : '',
+                // Real assigned vehicle only — left undefined (→ "—") when no
+                // vehicle has been assigned yet. Never a hardcoded placeholder.
+                vehicleInfo: bike.vehicleId
+                  ? [bike.model, bike.vehicleId].filter(Boolean).join(' • ')
+                  : undefined,
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'active',
               }}
               bikeImageUrl="/assets/E-3-one.png"
