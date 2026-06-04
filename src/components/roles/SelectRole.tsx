@@ -44,6 +44,7 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   sales: 'customers',
   attendant: 'attendant',
   manualSwap: 'externalswap',
+  topUpSwap: 'topupswap',
   keypad: 'keypad',
   // Both 'assets' and 'mydevices' grant access to the Device Manager tile.
   bleDeviceManager: ['assets', 'mydevices'],
@@ -111,6 +112,23 @@ const ALL_ROLES: RoleConfig[] = [
     icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
     path: '/attendant/manual-swap',
     appletSlug: 'externalswap',
+  },
+  {
+    // Simulation harness for Manual Swap — walks the real flow on demo data
+    // (no backend, no device). Gated by the same applet as Manual Swap.
+    id: 'manualSwapDemo',
+    labelKey: 'role.manualSwapDemo',
+    badgeKey: 'role.demoBadge',
+    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    path: '/attendant/manual-swap-demo',
+    appletSlug: 'externalswap',
+  },
+  {
+    id: 'topUpSwap',
+    labelKey: 'role.topUpSwap',
+    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    path: '/attendant/topup-swap',
+    appletSlug: 'topupswap',
   },
   {
     id: 'keypad',

@@ -55,6 +55,10 @@ import { PAYMENT } from '@/lib/constants';
 import { round } from '@/lib/utils';
 import { calculateSwapPayment } from '@/lib/swap-payment';
 
+// Demo / simulation mode (Manual Swap test harness). Inert on the real route.
+import { useDemoMode } from '@/lib/demo/DemoModeContext';
+import { getDemoScenarioData, DEMO_OLD_BATTERY, DEMO_NEW_BATTERY } from '@/lib/demo/manualSwapScenarios';
+
 // Define WebViewJavascriptBridge type for window
 interface WebViewJavascriptBridge {
   init: (callback: (message: any, responseCallback: (response: any) => void) => void) => void;
@@ -68,12 +72,16 @@ declare global {
   }
 }
 
-export type AttendantWorkflowMode = 'standard' | 'manual-payment';
+// 'topup-only' is the dedicated Top-Up Swap app: it forces the rider-top-up
+// behaviour on for every SA (see requireRiderTopUp) and drops the Pay step from
+// the timeline entirely, since a cash differential is never collected here.
+export type AttendantWorkflowMode = 'standard' | 'manual-payment' | 'topup-only';
 
 // Service Accounts whose attendants must NOT collect a cash differential at the
 // counter. For these attendants the person swapping is treated as a rider: when
 // quota is short we hide the payable amount and instead tell them to top up in
 // the Rider app, then refresh quota. Exclusive, per-SA permission.
+// NOTE: the 'topup-only' workflow mode forces this same behaviour regardless of SA.
 const TOPUP_ONLY_SA_IDS = [10];
 
 interface AttendantFlowProps {
@@ -101,6 +109,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   const router = useRouter();
   const { bridge, isMqttConnected, isBridgeReady } = useBridge();
   const { t } = useI18n();
+
+  // Demo / simulation mode. `isDemo` is false on the real route (no provider),
+  // so all the `if (isDemo)` branches below are inert in production.
+  const { isDemo, scenario: demoScenario } = useDemoMode();
   
   // Attendant info from login
   const [attendantInfo, setAttendantInfo] = useState<{ id: string; station: string }>({
@@ -130,8 +142,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         station: `STATION_${user.id}`,
       });
     }
-    setRequireRiderTopUp(TOPUP_ONLY_SA_IDS.includes(getSelectedSAId('attendant') ?? -1));
-  }, []);
+    // The dedicated Top-Up Swap app ('topup-only') always forces this on; the
+    // standard app enables it only for the gated top-up-only Service Accounts.
+    setRequireRiderTopUp(
+      workflowMode === 'topup-only' ||
+      TOPUP_ONLY_SA_IDS.includes(getSelectedSAId('attendant') ?? -1)
+    );
+  }, [workflowMode]);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<AttendantStep>(1);
@@ -294,6 +311,12 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       setSessionCheckComplete(true);
       return;
     }
+    if (isDemo) {
+      // Demo: no backend — never prompt to resume a pending session.
+      setSessionCheckComplete(true);
+      onInitialSessionCheckComplete?.();
+      return;
+    }
 
     let cancelled = false;
     (async () => {
@@ -308,7 +331,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     })();
 
     return () => { cancelled = true; };
-  }, [initialSession, skipSessionCheck, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete]);
+  }, [initialSession, skipSessionCheck, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete, isDemo]);
 
   const handleResumeSession = useCallback(async () => {
     setIsRestoringSession(true);
@@ -917,6 +940,69 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     customerDataRef.current = customerData;
   }, [customerData]);
 
+  // ============================================
+  // DEMO / SIMULATION APPLY HELPERS
+  // ============================================
+  // These feed scenario-driven mock data straight into the same state the real
+  // backend/BLE success paths would set — no network, no device. They only run
+  // when `isDemo` is true (the dedicated /attendant/manual-swap-demo route).
+
+  const applyDemoCustomer = useCallback(() => {
+    const data = getDemoScenarioData(demoScenario);
+    setCustomerData(data.customerData);
+    setServiceStates(data.serviceStates);
+    setCustomerType(data.customerType);
+    setDynamicPlanId(data.customerData.subscriptionId);
+    setSwapData((prev) => ({
+      ...prev,
+      rate: data.rate,
+      currencySymbol: data.currencySymbol,
+    }));
+    setFlowError(null);
+    advanceToStep(2);
+    setIsScanning(false);
+    setIsProcessing(false);
+  }, [demoScenario, advanceToStep]);
+
+  const applyDemoOldBattery = useCallback(() => {
+    setFlowError(null);
+    setSwapData((prev) => ({ ...prev, oldBattery: DEMO_OLD_BATTERY }));
+    advanceToStep(3);
+    setIsScanning(false);
+    toast.success(`Old battery: ${(DEMO_OLD_BATTERY.energy / 1000).toFixed(3)} kWh (${DEMO_OLD_BATTERY.chargeLevel}%)`);
+  }, [advanceToStep]);
+
+  const applyDemoNewBattery = useCallback(() => {
+    setFlowError(null);
+    // Mirror onNewBatteryRead: run the shared calculation off the synced service ref.
+    setSwapData((prev) => {
+      const oldEnergy = prev.oldBattery?.energy || 0;
+      const rate = electricityServiceRef.current?.usageUnitPrice || prev.rate;
+      const elecQuota = Number(electricityServiceRef.current?.quota ?? 0);
+      const elecUsed = Number(electricityServiceRef.current?.used ?? 0);
+      const paymentCalc = calculateSwapPayment({
+        newBatteryEnergyWh: DEMO_NEW_BATTERY.energy,
+        oldBatteryEnergyWh: oldEnergy,
+        ratePerKwh: rate,
+        quotaTotal: elecQuota,
+        quotaUsed: elecUsed,
+      });
+      return {
+        ...prev,
+        newBattery: DEMO_NEW_BATTERY,
+        energyDiff: paymentCalc.energyDiff,
+        quotaDeduction: paymentCalc.quotaDeduction,
+        chargeableEnergy: paymentCalc.chargeableEnergy,
+        grossEnergyCost: paymentCalc.grossEnergyCost,
+        quotaCreditValue: paymentCalc.quotaCreditValue,
+        cost: paymentCalc.cost,
+      };
+    });
+    advanceToStep(4);
+    setIsScanning(false);
+    toast.success(`New battery: ${(DEMO_NEW_BATTERY.energy / 1000).toFixed(3)} kWh (${DEMO_NEW_BATTERY.chargeLevel}%)`);
+  }, [advanceToStep]);
+
   // NOTE: Auto-save effect is defined after saveSessionData callback (below usePaymentCollection)
 
   // Get swap-count service from service states
@@ -1117,6 +1203,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // is in-flight, and backs off exponentially on consecutive failures so a
   // bad network never floods the network or the UI.
   useEffect(() => {
+    if (isDemo) return; // Demo: no backend polling.
     if (!customerData?.subscriptionId) return;
     if (isReadOnlySession) return;
     if (currentStep < 2 || currentStep > 5) return;
@@ -1179,6 +1266,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     paymentAndServiceStatus,
     isReadOnlySession,
     refreshCustomerQuota,
+    isDemo,
   ]);
 
   // Apply pending payment state restoration (from session resume)
@@ -1709,6 +1797,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
   // Step 1: Scan Customer QR - with MQTT identify_customer
   const handleScanCustomer = useCallback(async () => {
+    if (isDemo) {
+      applyDemoCustomer();
+      return;
+    }
     if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please wait for initialization...');
       console.error('Attempted to scan customer but bridge is not ready');
@@ -1728,12 +1820,16 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     setIsScanning(true);
     scanTypeRef.current = 'customer';
     startQrCodeScan();
-  }, [isMqttConnected, startQrCodeScan]);
+  }, [isMqttConnected, startQrCodeScan, isDemo, applyDemoCustomer]);
 
   // Step 1: Manual lookup - delegates to identification hook
   const handleManualLookup = useCallback(async () => {
+    if (isDemo) {
+      applyDemoCustomer();
+      return;
+    }
     const subscriptionCode = manualSubscriptionId.trim();
-    
+
     if (!subscriptionCode) {
       toast.error('Please enter a Subscription ID');
       return;
@@ -1750,10 +1846,14 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       subscriptionCode,
       source: 'manual',
     });
-  }, [manualSubscriptionId, identifyCustomer]);
+  }, [manualSubscriptionId, identifyCustomer, isDemo, applyDemoCustomer]);
 
   // Step 2: Scan Old Battery with Scan-to-Bind
   const handleScanOldBattery = useCallback(async () => {
+    if (isDemo) {
+      applyDemoOldBattery();
+      return;
+    }
     if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please restart the app.');
       return;
@@ -1787,10 +1887,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     // - QR scanned successfully → processOldBatteryQRData handles it
     // - BLE connection after QR scan → handled by BleProgressModal (60s) + BLE hooks
     clearScanTimeout();
-    
+
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning]);
+  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning, isDemo, applyDemoOldBattery]);
 
   // Step 2: Handle device selection for old battery (manual mode)
   const handleOldBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
@@ -1855,6 +1955,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
   // Step 3: Scan New Battery with Scan-to-Bind
   const handleScanNewBattery = useCallback(async () => {
+    if (isDemo) {
+      applyDemoNewBattery();
+      return;
+    }
     if (!window.WebViewJavascriptBridge) {
       toast.error('Bridge not available. Please restart the app.');
       return;
@@ -1888,10 +1992,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     // - QR scanned successfully → processNewBatteryQRData handles it
     // - BLE connection after QR scan → handled by BleProgressModal (60s) + BLE hooks
     clearScanTimeout();
-    
+
     // Start QR code scan - BLE devices should already be discovered
     startQrCodeScan();
-  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning]);
+  }, [startQrCodeScan, clearScanTimeout, bleHandlersReady, bleScanState.isScanning, isDemo, applyDemoNewBattery]);
 
   // Step 3: Handle device selection for new battery (manual mode)
   const handleNewBatteryDeviceSelect = useCallback((device: { macAddress: string; name: string }) => {
@@ -1920,14 +2024,26 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Step 4: Proceed to payment - report payment via session update, then initiate local payment state
   // OR skip payment if customer has sufficient quota OR rounded cost is zero
   const handleProceedToPayment = useCallback(async () => {
+    if (isDemo) {
+      // Demo: no backend. Sufficient quota / zero cost → straight to success;
+      // otherwise show the manual payment-collection step (which auto-completes).
+      const roundedCost = Math.floor(swapData.cost);
+      if (hasSufficientQuota || roundedCost <= 0) {
+        advanceToStep(6);
+        toast.success('Swap completed! (demo)');
+      } else {
+        advanceToStep(5);
+      }
+      return;
+    }
     setIsProcessing(true);
     try {
       // Calculate rounded cost - customers can't pay decimals so we round down
       const roundedCost = Math.floor(swapData.cost);
-      
+
       // Check if we should skip payment collection
       const shouldSkipPayment = hasSufficientQuota || roundedCost <= 0;
-      
+
       if (shouldSkipPayment) {
         const isZeroCostRounding = !hasSufficientQuota && roundedCost <= 0;
         // Delegate to hook's skipPayment function
@@ -1980,7 +2096,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota]);
+  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota, isDemo]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2005,8 +2121,16 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
   // Step 5: Manual payment confirmation - delegate to hook
   const handleManualPayment = useCallback((receipt: string) => {
+    if (isDemo) {
+      // Demo: no service-completion backend call — just land on the success step.
+      advanceToStep(6);
+      toast.success('Swap completed! (demo)');
+      setIsScanning(false);
+      setIsProcessing(false);
+      return;
+    }
     confirmPayment(receipt);
-  }, [confirmPayment]);
+  }, [confirmPayment, isDemo, advanceToStep]);
 
   // Step 5: WeChat (Z-Pay) payment callbacks
   const handleWechatPaid = useCallback((tradeNo: string, totalPaid: number) => {
@@ -2158,27 +2282,27 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         );
       case 2:
         return (
-          <Step2OldBattery 
+          <Step2OldBattery
             onScanOldBattery={handleScanOldBattery}
             onDeviceSelect={handleOldBatteryDeviceSelect}
             detectedDevices={bleScanState.detectedDevices}
             isScanning={bleScanState.isScanning}
-            onStartScan={hookStartScanning}
-            onStopScan={hookStopScanning}
+            onStartScan={isDemo ? undefined : hookStartScanning}
+            onStopScan={isDemo ? undefined : hookStopScanning}
             isFirstTimeCustomer={customerType === 'first-time'}
             isScannerOpening={isScanning}
           />
         );
       case 3:
         return (
-          <Step3NewBattery 
-            oldBattery={swapData.oldBattery} 
+          <Step3NewBattery
+            oldBattery={swapData.oldBattery}
             onScanNewBattery={handleScanNewBattery}
             onDeviceSelect={handleNewBatteryDeviceSelect}
             detectedDevices={bleScanState.detectedDevices}
             isScanning={bleScanState.isScanning}
-            onStartScan={hookStartScanning}
-            onStopScan={hookStopScanning}
+            onStartScan={isDemo ? undefined : hookStartScanning}
+            onStopScan={isDemo ? undefined : hookStopScanning}
             isScannerOpening={isScanning}
           />
         );
@@ -2189,6 +2313,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
             customerData={customerData}
             hasSufficientQuota={hasSufficientQuota}
             requireRiderTopUp={requireRiderTopUp}
+            planTopUpOnBalance={workflowMode === 'manual-payment'}
             onRefreshQuota={handleManualRefreshQuota}
             isRefreshing={isManualRefreshing}
           />
@@ -2294,12 +2419,13 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
 
       <AppHeader showBack overflowMenu={headerOverflowItems} />
       {/* Interactive Timeline */}
-      <Timeline 
-        currentStep={currentStep} 
+      <Timeline
+        currentStep={currentStep}
         maxStepReached={maxStepReached}
         onStepClick={handleTimelineClick}
         flowError={flowError}
         readOnly={isReadOnlySession}
+        hidePaymentStep={workflowMode === 'topup-only'}
       />
 
       {/* Customer State Panel - Shows after customer identified, hidden on payment/success steps */}

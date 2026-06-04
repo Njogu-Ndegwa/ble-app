@@ -10,13 +10,18 @@ interface Step4Props {
   hasSufficientQuota?: boolean;
   /** Top-up-only attendant (SA-ID gated): hide the payable amount and ask the rider to top up instead */
   requireRiderTopUp?: boolean;
+  /**
+   * Manual-swap mode: when a balance is owed, hide the payable amount and steer the
+   * customer to purchase a new subscription plan instead (completion stays allowed).
+   */
+  planTopUpOnBalance?: boolean;
   /** Re-check quota (picks up a rider top-up); wired to the shared manual-refresh handler */
   onRefreshQuota?: () => void;
   /** Whether a manual refresh is currently in flight */
   isRefreshing?: boolean;
 }
 
-export default function Step4Review({ swapData, customerData, hasSufficientQuota = false, requireRiderTopUp = false, onRefreshQuota, isRefreshing = false }: Step4Props) {
+export default function Step4Review({ swapData, customerData, hasSufficientQuota = false, requireRiderTopUp = false, planTopUpOnBalance = false, onRefreshQuota, isRefreshing = false }: Step4Props) {
   const { t } = useI18n();
 
   // Round down the cost for display and payment decision - customers can't pay decimals
@@ -31,6 +36,17 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
   // Top-up-only flow: a differential is owed but this attendant must not collect
   // it. Hide the exact amount and steer the rider to top up + refresh instead.
   const topUpRequired = requireRiderTopUp && !shouldSkipPayment;
+
+  // Manual-swap "buy a new subscription plan" flow: a balance is owed, but instead
+  // of showing the attendant a payable amount we steer the customer to purchase a
+  // new subscription plan (then Refresh to pick up the new quota). Unlike the
+  // top-up-only flow, completion is still allowed downstream — this only changes
+  // what the Review page displays.
+  const planTopUp = planTopUpOnBalance && !shouldSkipPayment && !topUpRequired;
+
+  // Whichever top-up variant is active, the payable amount is hidden and the cost
+  // breakdown is replaced by an instructional notice + Refresh-quota button.
+  const hideAmount = topUpRequired || planTopUp;
 
   // Determine why payment is being skipped (for display purposes)
   // - isQuotaBased: Customer has available quota that will be deducted (NOT free - quota is used)
@@ -71,19 +87,23 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
           <div className="review-customer-info">
             <span className="review-customer-name">{customerData?.name || 'Customer'}</span>
             <span className="review-label">
-              {topUpRequired
-                ? (t('attendant.topUpNeeded') || 'Top-up needed')
-                : isQuotaBased
-                  ? (t('attendant.quotaAvailable') || 'Quota Available')
-                  : isZeroCostOnly
-                    ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
-                    : (t('attendant.customerPays') || 'Amount Due')}
+              {planTopUp
+                ? (t('attendant.planTopUpNeeded') || 'New plan needed')
+                : topUpRequired
+                  ? (t('attendant.topUpNeeded') || 'Top-up needed')
+                  : isQuotaBased
+                    ? (t('attendant.quotaAvailable') || 'Quota Available')
+                    : isZeroCostOnly
+                      ? (t('attendant.noPaymentNeeded') || 'No Payment Needed')
+                      : (t('attendant.customerPays') || 'Amount Due')}
             </span>
           </div>
         </div>
 
-        <div className={`review-amount ${shouldSkipPayment ? 'free' : ''} ${topUpRequired ? 'topup' : ''}`}>
-          {topUpRequired ? (
+        <div className={`review-amount ${shouldSkipPayment ? 'free' : ''} ${hideAmount ? 'topup' : ''}`}>
+          {planTopUp ? (
+            <span className="topup-pill">{t('attendant.planTopUpPill') || 'Subscription needed'}</span>
+          ) : topUpRequired ? (
             <span className="topup-pill">{t('attendant.topUpRequired') || 'Top-up required'}</span>
           ) : isQuotaBased ? (
             <>
@@ -161,9 +181,9 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         <div className="energy-info">
           {/* swapData.energyDiff is already floored to 2 decimals */}
           <span className="energy-value">+{swapData.energyDiff.toFixed(2)} kWh</span>
-          {/* Hide the monetary value entirely for top-up-only attendants — they
-              must never see an exact payable amount. */}
-          {!topUpRequired && (
+          {/* Hide the monetary value entirely whenever a top-up variant is active —
+              the attendant must not see an exact payable amount. */}
+          {!hideAmount && (
             <span className="energy-money">
               {currency} {grossEnergyCost.toFixed(2)}
             </span>
@@ -171,9 +191,10 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
         </div>
       </div>
 
-      {topUpRequired ? (
-        /* Top-up-only attendants: no payable amount is shown. The message is on
-           the attendant's screen but is meant for the rider standing there. */
+      {hideAmount ? (
+        /* No payable amount is shown. For top-up-only attendants the message
+           steers the rider to top up in their app; for manual swap it steers the
+           customer to buy a new subscription plan. Either way: top up, then Refresh. */
         <div className="topup-notice">
           <div className="topup-notice-head">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
@@ -182,7 +203,9 @@ export default function Step4Review({ swapData, customerData, hasSufficientQuota
             <span>{t('attendant.topUpRequiredTitle') || 'Insufficient quota for this swap'}</span>
           </div>
           <p className="topup-notice-body">
-            {t('attendant.topUpRequiredDesc') || 'Ask the rider to top up in the Rider app, then tap Refresh.'}
+            {planTopUp
+              ? (t('attendant.planTopUpDesc') || 'Ask the customer to purchase a new subscription plan to cover this swap, then tap Refresh.')
+              : (t('attendant.topUpRequiredDesc') || 'Ask the rider to top up in the Rider app, then tap Refresh.')}
           </p>
           <div className="topup-notice-short">
             {t('attendant.topUpShortfall') || 'Top-up needed'}:{' '}
