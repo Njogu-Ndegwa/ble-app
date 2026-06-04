@@ -124,7 +124,7 @@ export default function SalesFlow({
   const router = useRouter();
   // Use global MQTT connection from bridgeContext (connects at splash screen)
   // This leverages the auto-reconnection mechanism for unstable networks
-  const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
+  const { bridge, isBridgeReady } = useBridge();
   const { t } = useI18n();
   
   // Lock body overflow for fixed container
@@ -311,7 +311,6 @@ export default function SalesFlow({
   } = useSalesCustomerIdentification({
     bridge: bridge as any,
     isBridgeReady,
-    isMqttConnected,
     attendantInfo: {
       id: `salesperson-${getSalesRoleUser()?.id || '001'}`,
       station: SALESPERSON_STATION,
@@ -2088,17 +2087,8 @@ export default function SalesFlow({
   // Sales flow customers have already paid via Odoo (M-Pesa/manual) for their subscription,
   // so we need to report this payment to BSS for accurate tracking.
   const handleCompleteService = useCallback(async () => {
-    // Guard: Check MQTT connection before proceeding
-    if (!isMqttConnected) {
-      toast.error(
-        !navigator.onLine
-          ? (t('mqtt.offlineError') || 'Unable to connect. Please check your network connection.')
-          : t('MQTT not connected. Please wait a moment and try again.')
-      );
-      console.error('[SALES SERVICE] Cannot complete service - MQTT not connected');
-      return;
-    }
-
+    // Payment + service are reported over GraphQL (REPORT_PAYMENT_AND_SERVICE).
+    // No MQTT dependency, so there's no connection precondition to gate on.
     if (!scannedBatteryPending) {
       toast.error('No battery scanned');
       return;
@@ -2218,10 +2208,9 @@ export default function SalesFlow({
     // Publish via the hook - callbacks handle success/error
     await publishPaymentAndService(params);
   }, [
-    scannedBatteryPending, 
-    confirmedSubscriptionCode, 
-    subscriptionData, 
-    isMqttConnected,
+    scannedBatteryPending,
+    confirmedSubscriptionCode,
+    subscriptionData,
     t,
     customerIdentified,
     isIdentifying,

@@ -107,7 +107,7 @@ interface AttendantFlowProps {
 
 export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = false, renderBottomNav, initialSession, initialSessionReadOnly, onInitialSessionConsumed, skipSessionCheck, onInitialSessionCheckComplete, workflowMode = 'standard' }: AttendantFlowProps) {
   const router = useRouter();
-  const { bridge, isMqttConnected, isBridgeReady } = useBridge();
+  const { bridge, isBridgeReady } = useBridge();
   const { t } = useI18n();
 
   // Demo / simulation mode. `isDemo` is false on the real route (no provider),
@@ -1795,7 +1795,9 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     }
   }, [currentStep, bleHandlersReady, startBleScan, stopBleScan]);
 
-  // Step 1: Scan Customer QR - with MQTT identify_customer
+  // Step 1: Scan Customer QR. Identification runs over GraphQL
+  // (IDENTIFY_CUSTOMER) — no MQTT dependency, so the only precondition for
+  // opening the scanner is that the native bridge (camera) is available.
   const handleScanCustomer = useCallback(async () => {
     if (isDemo) {
       applyDemoCustomer();
@@ -1807,20 +1809,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       return;
     }
 
-    if (!isMqttConnected) {
-      toast.error(
-        !navigator.onLine
-          ? 'Unable to connect. Please check your network connection.'
-          : 'MQTT not connected. Please wait a moment and try again.'
-      );
-      console.error('Attempted to scan customer but MQTT is not connected');
-      return;
-    }
-
     setIsScanning(true);
     scanTypeRef.current = 'customer';
     startQrCodeScan();
-  }, [isMqttConnected, startQrCodeScan, isDemo, applyDemoCustomer]);
+  }, [startQrCodeScan, isDemo, applyDemoCustomer]);
 
   // Step 1: Manual lookup - delegates to identification hook
   const handleManualLookup = useCallback(async () => {

@@ -85,7 +85,7 @@ export default function ActivatorFlow({
   onInitialSessionCheckComplete,
 }: ActivatorFlowProps) {
   const router = useRouter();
-  const { bridge, isBridgeReady, isMqttConnected, mqttReconnectionState, reconnectMqtt } = useBridge();
+  const { bridge, isBridgeReady } = useBridge();
   const { t } = useI18n();
 
   useEffect(() => {
@@ -207,7 +207,6 @@ export default function ActivatorFlow({
   } = useSalesCustomerIdentification({
     bridge: bridge as any,
     isBridgeReady,
-    isMqttConnected,
     attendantInfo: {
       id: `activator-${getSalesRoleUser()?.id || '001'}`,
       station: ACTIVATOR_STATION,
@@ -713,16 +712,9 @@ export default function ActivatorFlow({
     }
   }, [confirmedSubscriptionCode, identificationStatus, identifyCustomer, manualIdentifyCustomer]);
 
-  // Complete service - report via MQTT
+  // Complete service - reported over GraphQL (REPORT_PAYMENT_AND_SERVICE).
+  // No MQTT dependency.
   const handleCompleteService = useCallback(async () => {
-    if (!isMqttConnected) {
-      toast.error(
-        !navigator.onLine
-          ? (t('mqtt.offlineError') || 'Unable to connect. Please check your network connection.')
-          : (t('activator.mqttNotConnected') || 'MQTT not connected. Please wait a moment and try again.')
-      );
-      return;
-    }
     if (!scannedBatteryPending) {
       toast.error('No battery scanned');
       return;
@@ -810,7 +802,7 @@ export default function ActivatorFlow({
     await publishPaymentAndService(params);
   }, [
     scannedBatteryPending, confirmedSubscriptionCode,
-    isMqttConnected, t, customerIdentified, isIdentifying,
+    t, customerIdentified, isIdentifying,
     identificationFailed, customerRate, customerCurrencySymbol,
     customerServiceStates, identifyCustomer, publishPaymentAndService,
   ]);
