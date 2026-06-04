@@ -11,6 +11,8 @@ interface TimelineProps {
   flowError?: FlowError | null;
   /** Whether the session is in read-only mode (viewing completed session) */
   readOnly?: boolean;
+  /** Drop the "Pay" step from the timeline (Top-Up Swap app never collects payment) */
+  hidePaymentStep?: boolean;
 }
 
 // Map step icons to translation keys
@@ -71,8 +73,15 @@ const StepIcons = {
   ),
 };
 
-export default function Timeline({ currentStep, maxStepReached = currentStep, onStepClick, flowError, readOnly }: TimelineProps) {
+export default function Timeline({ currentStep, maxStepReached = currentStep, onStepClick, flowError, readOnly, hidePaymentStep }: TimelineProps) {
   const { t } = useI18n();
+
+  // The Top-Up Swap app never collects a cash differential, so the Pay step
+  // (step 5) is dropped from the timeline entirely. The flow still numbers
+  // steps 1–6 internally; step 5 is simply never displayed or reached.
+  const steps = hidePaymentStep
+    ? STEP_CONFIGS.filter((config) => config.step !== 5)
+    : STEP_CONFIGS;
   
   const getStepClass = (step: number): string => {
     // If there's a flow error at this step, show it as failed
@@ -118,7 +127,7 @@ export default function Timeline({ currentStep, maxStepReached = currentStep, on
   return (
     <div className={`flow-timeline ${readOnly ? 'flow-timeline-readonly' : ''}`}>
       <div className="timeline-track">
-        {STEP_CONFIGS.map((config, index) => {
+        {steps.map((config, index) => {
           const stepClass = getStepClass(config.step);
           const isFailed = stepClass === 'failed';
           const labelKey = STEP_LABEL_KEYS[config.icon];
@@ -136,8 +145,8 @@ export default function Timeline({ currentStep, maxStepReached = currentStep, on
                   {isFailed ? t('attendant.step.failed') : (labelKey ? t(labelKey) : config.label)}
                 </span>
               </div>
-              {index < STEP_CONFIGS.length - 1 && (
-                <div 
+              {index < steps.length - 1 && (
+                <div
                   className={`timeline-connector ${getConnectorClass(config.step)}`}
                 />
               )}
