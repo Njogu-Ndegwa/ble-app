@@ -1064,7 +1064,7 @@ const RiderApp: React.FC = () => {
           // back to it (or the initial value) if the package name is absent.
           setBike(prev => ({
             ...prev,
-            model: active.package_product_name || prev.model,
+            model: active.package_product_name || active.product_name || prev.model,
             paymentState: active.status === 'active' ? 'active' : active.status,
           }));
 
@@ -1657,19 +1657,34 @@ const RiderApp: React.FC = () => {
       return;
     }
     setSubscription(sub);
+    // Full reset for the new plan: wipe every per-asset field so nothing from
+    // the previous plan lingers while fresh data loads. `vehicleId`, battery,
+    // swaps and `lastSwap` are all re-populated by the identification + activity
+    // fetches kicked off below; `model` is the only field sourced from the
+    // subscription itself, so set it from the new sub (package name, then plan
+    // name) — never keep the old name.
     setBike((prev) => ({
       ...prev,
-      model: sub.package_product_name || prev.model,
+      model: sub.package_product_name || sub.product_name || '',
+      vehicleId: null,
+      currentBatteryId: undefined,
+      totalSwaps: 0,
+      lastSwap: null,
       paymentState: sub.status === 'active' ? 'active' : sub.status,
     }));
     try {
       localStorage.setItem(ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY, sub.subscription_code);
     } catch {}
+    // Stations: reset the fleet pipeline so the driving effects re-run and
+    // refetch (network-only) for the new plan.
     setFleetIds([]);
     lastStationsFleetKeyRef.current = null;
     setStations([]);
     setIsLoadingStations(true);
     setStationsError(null);
+    // Activity: clear immediately so a stale feed from the old plan can't show
+    // on the Activity tab before the refetch lands.
+    setActivities([]);
     setIsBikeDataResolved(false);
     setIsLoadingBike(true);
     fetchActivityData(sub.subscription_code);
@@ -2274,6 +2289,13 @@ const RiderApp: React.FC = () => {
               subscriptionCode={subscription?.subscription_code ?? null}
               bike={{
                 ...bike,
+                // Derive the vehicle name straight from the active subscription
+                // so it can never lag behind a plan switch. `package_product_name`
+                // is the physical bike; fall back to the plan's `product_name`
+                // (never the previously-cached `bike.model`, which was the
+                // stale-vehicle-name bug) so the strip always reflects the plan
+                // that is currently selected.
+                model: subscription?.package_product_name || subscription?.product_name || bike.model,
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || bike.paymentState,
               }}
               nearbyStations={stations.map(s => ({
