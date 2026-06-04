@@ -17,6 +17,8 @@ interface ActionBarProps {
   swapCost?: number;
   /** Top-up-only attendant (SA-ID gated): replace "Collect Payment" with "Refresh quota" */
   requireRiderTopUp?: boolean;
+  /** Manual Swap: no payment step — the Review action completes the swap directly. */
+  noPaymentStep?: boolean;
   readOnly?: boolean;
 }
 
@@ -64,7 +66,7 @@ interface StepActionConfig {
   mainClass?: string;
 }
 
-const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficientQuota?: boolean, paymentInputMode?: InputMode, swapCost?: number, requireRiderTopUp?: boolean): StepActionConfig => {
+const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficientQuota?: boolean, paymentInputMode?: InputMode, swapCost?: number, requireRiderTopUp?: boolean, noPaymentStep?: boolean): StepActionConfig => {
   switch (step) {
     case 1:
       // Show different text/icon based on input mode
@@ -91,6 +93,11 @@ const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficient
       if (requireRiderTopUp) {
         return { showBack: true, mainTextKey: 'attendant.refreshQuota', mainIcon: 'refresh' };
       }
+      // Manual Swap has no payment step — the Review action records and completes
+      // the swap directly, so show "Complete Swap" rather than "Collect Payment".
+      if (noPaymentStep) {
+        return { showBack: true, mainTextKey: 'attendant.completeSwap', mainIcon: 'check', mainClass: 'btn-success' };
+      }
       return { showBack: true, mainTextKey: 'attendant.collectPayment', mainIcon: 'arrow' };
     case 5:
       // Show appropriate icon based on payment input mode (scan QR or manual entry)
@@ -106,9 +113,9 @@ const getStepConfig = (step: AttendantStep, inputMode?: InputMode, hasSufficient
   }
 };
 
-export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost, requireRiderTopUp, readOnly }: ActionBarProps) {
+export default function ActionBar({ currentStep, onBack, onMainAction, isLoading, inputMode, paymentInputMode, hasSufficientQuota, swapCost, requireRiderTopUp, noPaymentStep, readOnly }: ActionBarProps) {
   const { t } = useI18n();
-  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode, swapCost, requireRiderTopUp);
+  const config = getStepConfig(currentStep, inputMode, hasSufficientQuota, paymentInputMode, swapCost, requireRiderTopUp, noPaymentStep);
 
   // Don't show the action bar button for step 1 in manual mode - button is in the form
   const hideMainButton = currentStep === 1 && inputMode === 'manual';

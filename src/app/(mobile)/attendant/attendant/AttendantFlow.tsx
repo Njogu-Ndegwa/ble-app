@@ -2017,15 +2017,10 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // OR skip payment if customer has sufficient quota OR rounded cost is zero
   const handleProceedToPayment = useCallback(async () => {
     if (isDemo) {
-      // Demo: no backend. Sufficient quota / zero cost → straight to success;
-      // otherwise show the manual payment-collection step (which auto-completes).
-      const roundedCost = Math.floor(swapData.cost);
-      if (hasSufficientQuota || roundedCost <= 0) {
-        advanceToStep(6);
-        toast.success('Swap completed! (demo)');
-      } else {
-        advanceToStep(5);
-      }
+      // Demo: no backend, and Manual Swap has no payment step — always complete
+      // straight to success from Review (covers both quota-covered and balance).
+      advanceToStep(6);
+      toast.success('Swap completed! (demo)');
       return;
     }
     setIsProcessing(true);
@@ -2048,6 +2043,32 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       // rider top-up made in their own app is picked up (surfacing the Apply banner).
       if (requireRiderTopUp) {
         await handleManualRefreshQuota();
+        return;
+      }
+
+      // MANUAL SWAP: there is no payment-collection step. The Review page already
+      // steers the customer to buy a new subscription plan; completion stays
+      // allowed. Report the amount to the session (as before), then record the
+      // swap with a manual reference and complete directly (Review → Done),
+      // skipping the now-removed Pay step.
+      if (workflowMode === 'manual-payment') {
+        if (sessionOrderId) {
+          const paymentDescription = `Battery swap - ${customerData?.name || 'Customer'} - ${swapData.energyDiff.toFixed(2)} kWh`;
+          try {
+            await saveSessionData(5, 5, {
+              withPayment: true,
+              paymentDescription,
+              paymentAmount: roundedCost,
+            });
+          } catch (err) {
+            console.error('Failed to report payment via session update (non-blocking):', err);
+          }
+        }
+        // Record completion with a manual reference. confirmPayment (manual mode)
+        // skips Odoo and uses Math.floor(swapData.cost) directly, then publishes
+        // payment_and_service; its onSuccess advances to the success step.
+        const manualRef = `MANUAL_${sessionOrderId || Date.now()}`;
+        await confirmPayment(manualRef);
         return;
       }
 
@@ -2088,7 +2109,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     } finally {
       setIsProcessing(false);
     }
-  }, [advanceToStep, initiateOdooPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota, isDemo]);
+  }, [advanceToStep, initiateOdooPayment, confirmPayment, hasSufficientQuota, swapData.cost, swapData.energyDiff, skipPayment, sessionOrderId, customerData?.name, saveSessionData, requireRiderTopUp, handleManualRefreshQuota, isDemo, workflowMode]);
 
   // Step 5: Confirm Payment via QR scan
   const handleConfirmPayment = useCallback(async () => {
@@ -2417,7 +2438,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
         onStepClick={handleTimelineClick}
         flowError={flowError}
         readOnly={isReadOnlySession}
-        hidePaymentStep={workflowMode === 'topup-only'}
+        hidePaymentStep={workflowMode === 'topup-only' || workflowMode === 'manual-payment'}
       />
 
       {/* Customer State Panel - Shows after customer identified, hidden on payment/success steps */}
@@ -2597,6 +2618,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
           hasSufficientQuota={hasSufficientQuota}
           swapCost={swapData.cost}
           requireRiderTopUp={requireRiderTopUp}
+          noPaymentStep={workflowMode === 'manual-payment'}
           readOnly={isReadOnlySession}
         />
 
