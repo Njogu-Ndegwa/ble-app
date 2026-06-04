@@ -114,16 +114,6 @@ const ALL_ROLES: RoleConfig[] = [
     appletSlug: 'externalswap',
   },
   {
-    // Simulation harness for Manual Swap — walks the real flow on demo data
-    // (no backend, no device). Gated by the same applet as Manual Swap.
-    id: 'manualSwapDemo',
-    labelKey: 'role.manualSwapDemo',
-    badgeKey: 'role.demoBadge',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
-    path: '/attendant/manual-swap-demo',
-    appletSlug: 'externalswap',
-  },
-  {
     id: 'topUpSwap',
     labelKey: 'role.topUpSwap',
     icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },

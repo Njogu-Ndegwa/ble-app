@@ -1027,8 +1027,6 @@
   "role.selectDescription": "Pick an applet to get started with your task.",
   "role.attendant": "Swap Attendant",
   "role.manualSwap": "Manual Swap",
-  "role.manualSwapDemo": "Manual Swap Demo",
-  "role.demoBadge": "DEMO",
   "role.topUpSwap": "Top-Up Swap",
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",
