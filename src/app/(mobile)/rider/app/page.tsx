@@ -138,6 +138,8 @@ interface IdentificationCache {
   balance: number;
   energyKwh: number;
   currency: string;
+  /** Customer's actual energy service instance id, for top-ups. */
+  energyServiceId?: string | null;
   cachedAt: number;
 }
 
@@ -201,6 +203,11 @@ const RiderApp: React.FC = () => {
   const [balance, setBalance] = useState(0);
   const [energyKwh, setEnergyKwh] = useState(0);
   const [currency, setCurrency] = useState('');
+  // The customer's ACTUAL energy service instance id (e.g. "service-energy-togo-004"),
+  // taken from the identifyCustomer serviceStates. This — not the plan template's
+  // generic serviceId (e.g. "service-energy-togo-real") — is what a top-up must
+  // credit, since we're topping up the service *on this customer*.
+  const [energyServiceId, setEnergyServiceId] = useState<string | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
@@ -566,6 +573,7 @@ const RiderApp: React.FC = () => {
     setBalance(cached.balance);
     setEnergyKwh(cached.energyKwh || 0);
     setCurrency(cached.currency);
+    setEnergyServiceId(cached.energyServiceId || null);
     setBike((prev) => ({
       ...prev,
       vehicleId: cached.vehicleId,
@@ -727,6 +735,9 @@ const RiderApp: React.FC = () => {
       setBalance(energyValue);
       setEnergyKwh(energyRemaining);
       setCurrency(billingCurrency);
+      // Remember the customer's actual energy service id so top-ups credit the
+      // real service instance, not the plan template's placeholder id.
+      setEnergyServiceId(energyServiceState?.service_id || null);
 
       // Update bike state with real data
       setBike((prev) => {
@@ -751,6 +762,7 @@ const RiderApp: React.FC = () => {
         balance: energyValue,
         energyKwh: energyRemaining,
         currency: billingCurrency,
+        energyServiceId: energyServiceState?.service_id || null,
         cachedAt: Date.now(),
       });
 
@@ -1816,10 +1828,22 @@ const RiderApp: React.FC = () => {
       if (!planId) {
         return { success: false, error: 'No active subscription' };
       }
-      const serviceId = args.energyConfig?.serviceId;
+      // Credit the customer's ACTUAL energy service instance (from identifyCustomer,
+      // e.g. "service-energy-togo-004"), not the plan template's generic placeholder
+      // (e.g. "service-energy-togo-real"). We're topping up the service on this
+      // customer. Fall back to the template id only if identification didn't surface
+      // a real service id.
+      const serviceId = energyServiceId || args.energyConfig?.serviceId;
       const declaredKwh = args.energyConfig?.initialQuota ?? 0;
       if (!serviceId || declaredKwh <= 0) {
         return { success: false, error: 'Top-up plan is missing a declared quota' };
+      }
+      if (!energyServiceId) {
+        console.warn(
+          '[RIDER] No customer energy service id from identification; ' +
+          'falling back to plan template serviceId for top-up:',
+          args.energyConfig?.serviceId,
+        );
       }
 
       // Money → 2 dp (matches swap-payment.ts conventions).
@@ -1908,7 +1932,7 @@ const RiderApp: React.FC = () => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [subscription?.subscription_code, customer?.partner_id],
+    [subscription?.subscription_code, customer?.partner_id, energyServiceId],
   );
 
   const handleNavigateToStation = (station: Station) => {
