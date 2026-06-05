@@ -215,7 +215,7 @@ export default function RiderPlans({
         >
           <div className="list-card-body">
             <div className="list-card-content">
-              <div className="list-card-primary">{p.templateId || p.name}</div>
+              <div className="list-card-primary">{p.name || p.templateId}</div>
               <div className="list-card-secondary">{p.description || p.default_code}</div>
               <div className="list-card-meta">
                 <Tag size={10} />

@@ -181,7 +181,8 @@ export default function Step4Preview({
                   {t('sales.subscription') || 'Plan'}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: '14px' }}>
-                  {selectedPlan.templateId || selectedPlan.name}
+                  {/* Display name, not the internal x_template_id code. */}
+                  {selectedPlan.name || selectedPlan.templateId}
                 </div>
               </div>
               <div style={{ 

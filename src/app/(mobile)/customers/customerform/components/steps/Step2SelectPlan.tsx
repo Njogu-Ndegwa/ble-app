@@ -82,13 +82,13 @@ export default function Step2SelectPlan({
       ) : (
         <Grid columns={1} gap={8}>
           {[...plans].sort((a, b) => Number(a.price) - Number(b.price)).map((plan) => {
-            // Prefer the canonical `templateId` for both display and period
-            // detection. The display `name` is a translatable Odoo field and
-            // can drift between devices for the same record; `x_template_id`
-            // is the stable canonical form (see the [CATALOG DIAGNOSTIC]
-            // findings for plan ids 36677/36678 etc).
-            const displayName = plan.templateId || plan.name;
-            const period = plan.period || getPeriodFromName(displayName);
+            // Show the human-readable product `name` to the user. The stable
+            // `templateId` (x_template_id) is for logic only — here, period
+            // detection — and must never be displayed (it's an internal code
+            // like "B45-2.5", not the "B45-2.5 KWh" name customers expect).
+            const matchKey = plan.templateId || plan.name;
+            const displayName = plan.name || plan.templateId;
+            const period = plan.period || getPeriodFromName(matchKey);
             const currencySymbol = plan.currencySymbol || 'KES';
 
             return (

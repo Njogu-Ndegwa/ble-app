@@ -353,11 +353,11 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
   const energyKwh = energyConfig?.initialQuota ?? null;
 
-  // Prefer the canonical `templateId` for display so the same plan looks
-  // identical on every device. See [CATALOG DIAGNOSTIC] — `name` is a
-  // translatable Odoo field and drifts between Android WebView and desktop.
+  // Display the human-readable product `name`. The `templateId`
+  // (x_template_id) is an internal code used for lookups/filtering only and
+  // must never be shown to users.
   const selectedPlanDisplayName = selectedPlan
-    ? (selectedPlan.templateId || selectedPlan.name)
+    ? (selectedPlan.name || selectedPlan.templateId)
     : '';
 
   return (
@@ -445,7 +445,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
 
                   {visiblePlans.map((plan) => {
                     const isSelected = selectedPlan?.productId === plan.productId;
-                    const displayName = plan.templateId || plan.name;
+                    const displayName = plan.name || plan.templateId;
                     const subtitle = plan.description || plan.category || plan.default_code;
                     return (
                       <button
