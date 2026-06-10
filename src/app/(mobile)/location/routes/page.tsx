@@ -155,8 +155,8 @@ const AppContainer = () => {
     "HOME": "https://res.cloudinary.com/oves/image/upload/v1724910821/OVES-PRODUCTS/OFF-GRID/LUMN-HOME%20SERIES/LUMN-HOME%20SHARED%20COMPONENTS/LumnHome%20battery%20hub/lumn-home-battery-hub_front_NBG_HDR.png",
     "BATT": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1731146523/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_bxwpf9.png",
     "Batt": "https://res.cloudinary.com/oves/image/upload/t_ovEgo1000x1000/v1731146523/OVES-PRODUCTS/E-MOBILITY/Electric%20Battery%20Solutions/E-Mob-Bat45Ah/E-Mob-Bat45Ah_bxwpf9.png",
-    "UBP1": "https://res.cloudinary.com/oves/image/upload/t_BLE%20APP%20500X500/v1743147157/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-1K/UBP1K_AC_Output_250W_ee1ar3.png",
-    "UBP2": "https://res.cloudinary.com/oves/image/upload/t_BLE%20APP%20500X500/v1743155669/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP-2K/UBP_2_AC_Output_._ottb1j.png"
+    "UBP1": "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1765354880/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP1K%20PRO/UBP1K_Pro_Downside_ttpyxk.png",
+    "UBP2": "https://res.cloudinary.com/oves/image/upload/t_product1000x1000/v1765419960/OVES-PRODUCTS/CROSS-GRID/Unicell%20Boost%20Pulsar/UBP2K%20Plus%20and%20Pro/UBP2K_Pro_Downside_e3nhnm.png"
   }
 
   // Get device image - returns undefined for unmapped devices (show nothing rather than confuse users)
