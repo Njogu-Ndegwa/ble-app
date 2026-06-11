@@ -2021,5 +2021,7 @@
   "Confirm": "Confirm",
   "Copy code": "Copy code",
   "Refresh CMD service": "Refresh CMD service",
-  "Copy to clipboard": "Copy to clipboard"
+  "Copy to clipboard": "Copy to clipboard",
+  "Current Code": "Current Code",
+  "Updating...": "Updating..."
 }

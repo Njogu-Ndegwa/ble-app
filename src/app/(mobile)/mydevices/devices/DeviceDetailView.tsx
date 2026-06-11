@@ -708,7 +708,10 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         <StatusCard
           hasRcrd={!!rcrdCharacteristic}
           remainingDays={remainingDays != null ? String(remainingDays) : null}
+          hasPubk={!!pubkCharacteristic}
+          pubkValue={pubkValue != null ? String(pubkValue) : null}
           isRefreshing={isRefreshing}
+          onCopy={handleCopyCode}
         />
 
         {/* Device Identification Status */}

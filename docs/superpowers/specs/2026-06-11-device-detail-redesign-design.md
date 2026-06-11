@@ -25,7 +25,7 @@ The Details page (My Devices → connect → Details) works but reads as unconsi
 
 Top to bottom (hero unchanged above all this):
 
-1. **Status card** — single card: calendar icon, "Remaining days" label, big mono number (`rcrd` value). Spinner + "Updating…" while the post-write verify loop runs. "Current Code" is removed from this row (it lives in the result zone and Advanced panel).
+1. **Status card** — single card: calendar icon, "Remaining days" label, big mono number (`rcrd` value). Spinner + "Updating…" while the post-write verify loop runs. **Revised 2026-06-11 (Dennis):** the current `pubk` (code on device) is critical at-a-glance info, so the card gains a second full-width row under a dashed divider — key icon, "Current Code" label, chunked mono value with copy button. Full width prevents the truncation the old half-width stat card suffered; both rows show the updating spinner during the verify loop.
 2. **Identification banner** — unchanged behavior (shows only while `!itemId`: identifying spinner / error + Retry / waiting), restyled to match the new cards.
 3. **Add Days card (primary)** — accent-bordered card with soft glow (`--accent` border + shadow). Contents: "Add days" label; quick-pick chips **7 / 14 / 30 / 90 / Custom** (Custom reveals the numeric input, same digit-only validation); full-width gradient button **"Generate & Write to Device"**. Disabled when busy, no duration selected, or device unidentified.
 4. **Result zone (fixed slot)** — always rendered in this position; never moves. States:

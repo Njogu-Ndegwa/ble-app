@@ -6,8 +6,7 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import type { CodeType, LastCode, ResultState } from './types';
-
-const chunk3 = (code: string) => code.replace(/(\d{3})(?=\d)/g, '$1 ');
+import { chunk3 } from './format';
 
 interface ResultZoneProps {
   result: ResultState;
