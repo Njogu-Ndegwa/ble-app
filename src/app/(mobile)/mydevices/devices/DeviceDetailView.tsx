@@ -4,24 +4,17 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation';
 import { readBleCharacteristic, writeBleCharacteristic } from '../../../utils';
 import { toast } from 'react-hot-toast';
-import {
-  Clipboard, RefreshCw, Calendar,
-  Unlock, RotateCcw, Clock, CheckCircle, AlertCircle, Loader2, Download,
-} from 'lucide-react';
-import { AsciiStringModal } from '../../../modals';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { AsciiStringModal, ConfirmModal } from '../../../modals';
 import { apiUrl } from '@/lib/apollo-client';
 import { useI18n } from '@/i18n';
 import { cleanBatteryId } from '@/lib/hooks/ble/energyUtils';
-
-type CodeType = 'days' | 'free' | 'reset' | 'retrieve';
-type ResultStatus = 'idle' | 'generating' | 'generated' | 'writing' | 'written' | 'writeFailed' | 'error';
-
-interface ResultState {
-  status: ResultStatus;
-  codeType: CodeType | null;
-  codeDec: string | null;
-  error: string | null;
-}
+import StatusCard from './components/StatusCard';
+import AddDaysCard from './components/AddDaysCard';
+import ResultZone from './components/ResultZone';
+import OtherCodes from './components/OtherCodes';
+import AdvancedPanel from './components/AdvancedPanel';
+import type { CodeType, ResultState, LastCode } from './components/types';
 
 const INITIAL_RESULT: ResultState = { status: 'idle', codeType: null, codeDec: null, error: null };
 
@@ -387,11 +380,25 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     );
   }, [attributeList, device.macAddress, stsService, rcrdCharacteristic, verifyWriteApplied, t]);
 
-  const [daysInput, setDaysInput] = useState('');
+  const [customDays, setCustomDays] = useState('');
+  const [selectedChip, setSelectedChip] = useState<number | 'custom' | null>(null);
+  const [lastCode, setLastCode] = useState<LastCode | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [confirmFor, setConfirmFor] = useState<'free' | 'reset' | null>(null);
 
-  const handleDaysInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, '');
-    setDaysInput(val);
+  const handleSelectChip = (chip: number | 'custom') => {
+    setSelectedChip(chip);
+    if (chip === 'custom') {
+      const parsed = parseInt(customDays, 10);
+      setDuration(parsed > 0 ? parsed : null);
+    } else {
+      setDuration(chip);
+    }
+  };
+
+  const handleCustomChange = (raw: string) => {
+    const val = raw.replace(/\D/g, '');
+    setCustomDays(val);
     const parsed = parseInt(val, 10);
     setDuration(parsed > 0 ? parsed : null);
   };
@@ -437,6 +444,16 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   // always uses the freshest service data available at render time.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result.status, result.codeDec]);
+
+  // After a confirmed write, remember the code and let the result card settle
+  // into the compact "last code" row after a short dwell.
+  useEffect(() => {
+    if (result.status === 'written' && result.codeDec && result.codeType) {
+      setLastCode({ codeDec: result.codeDec, codeType: result.codeType, at: Date.now() });
+      const id = setTimeout(() => setResult(INITIAL_RESULT), 10_000);
+      return () => clearTimeout(id);
+    }
+  }, [result.status, result.codeDec, result.codeType]);
 
   const runCodeOperation = async (codeType: CodeType, apiCall: () => Promise<string>) => {
     setResult({ status: 'generating', codeType, codeDec: null, error: null });
@@ -582,6 +599,29 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     }
   };
 
+  const handleConfirmOtherCode = () => {
+    if (confirmFor === 'free') handleGenerateFreeCode();
+    else if (confirmFor === 'reset') handleGenerateResetCode();
+  };
+
+  const handleTryAgain = () => {
+    if (result.codeType === 'days') handleGenerateDaysCode();
+    else if (result.codeType === 'free') handleGenerateFreeCode();
+    else if (result.codeType === 'reset') handleGenerateResetCode();
+    else if (result.codeType === 'retrieve') handleRetrieveCodes();
+  };
+
+  // Re-write the last known code through the normal generated→write pathway
+  const handleResend = () => {
+    if (!lastCode || isBusy) return;
+    setResult({ status: 'generated', codeType: lastCode.codeType, codeDec: lastCode.codeDec, error: null });
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success(t('Code copied to clipboard'));
+  };
+
   const handleWriteClick = () => {
     if (!pubkCharacteristic) return;
     setActiveCharacteristic(pubkCharacteristic);
@@ -629,24 +669,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     return t(desc);
   };
 
-  const codeTypeLabel = (ct: CodeType | null) => {
-    switch (ct) {
-      case 'days': return t('Days Code');
-      case 'free': return t('Free Code');
-      case 'reset': return t('Reset Code');
-      case 'retrieve': return t('Retrieved Code');
-      default: return t('Code');
-    }
-  };
-
-  const codeTypeColor = (ct: CodeType | null) => {
-    switch (ct) {
-      case 'free': return '#10b981';
-      case 'reset': return '#f59e0b';
-      default: return 'var(--accent)';
-    }
-  };
-
   const remainingDays = rcrdCharacteristic
     ? (updatedValues[rcrdCharacteristic.uuid] ?? rcrdCharacteristic.realVal ?? null)
     : null;
@@ -663,6 +685,16 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || t('Public Key / Last Code / GPRS Carrier APN Name')}
       />
+      <ConfirmModal
+        isOpen={confirmFor !== null}
+        onClose={() => setConfirmFor(null)}
+        onConfirm={handleConfirmOtherCode}
+        title={confirmFor === 'free' ? t('Generate Free Code?') : t('Generate Reset Code?')}
+        message={confirmFor === 'free'
+          ? t('A Free Code unlocks the device permanently, removing all payment restrictions. Continue?')
+          : t('A Reset Code restores the device to its default locked state. Continue?')}
+        confirmLabel={t('Generate')}
+      />
 
 
       {/* Device Info */}
@@ -673,55 +705,11 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       </div>
 
       <div className="p-4 max-w-md mx-auto">
-        {/* Stat Row: Remaining Days + Current Code Value */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div
-            className="rounded-xl p-3 relative overflow-hidden"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              <Calendar size={14} style={{ color: 'var(--accent)' }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Remaining Days')}</span>
-            </div>
-            {isRefreshing ? (
-              <div className="flex items-center gap-1.5">
-                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
-              </div>
-            ) : rcrdCharacteristic ? (
-              <span className="text-2xl font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
-                {remainingDays ?? t('N/A')}
-              </span>
-            ) : (
-              <span className="text-sm animate-pulse" style={{ color: 'var(--text-muted)' }}>{t('Loading...')}</span>
-            )}
-          </div>
-          <div
-            className="rounded-xl p-3 relative overflow-hidden"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              <Clipboard size={14} style={{ color: 'var(--accent)' }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('Current Code')}</span>
-            </div>
-            {isRefreshing ? (
-              <div className="flex items-center gap-1.5">
-                <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('Updating...')}</span>
-              </div>
-            ) : pubkCharacteristic ? (
-              <span
-                className="text-lg font-bold font-mono block truncate"
-                style={{ color: 'var(--text-primary)' }}
-                title={pubkValue || 'N/A'}
-              >
-                {pubkValue || t('N/A')}
-              </span>
-            ) : (
-              <span className="text-sm animate-pulse" style={{ color: 'var(--text-muted)' }}>{t('Loading...')}</span>
-            )}
-          </div>
-        </div>
+        <StatusCard
+          hasRcrd={!!rcrdCharacteristic}
+          remainingDays={remainingDays != null ? String(remainingDays) : null}
+          isRefreshing={isRefreshing}
+        />
 
         {/* Device Identification Status */}
         {!itemId && (
@@ -758,437 +746,50 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           </div>
         )}
 
-        {/* Code Operations */}
-        <div className="space-y-3 mb-4">
-          {/* Days Code */}
-          <div
-            className="rounded-xl p-4"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent-soft)' }}>
-                <Clock size={18} style={{ color: 'var(--accent)' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Days Code')}</p>
-                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Time-limited access')}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="flex items-center gap-1.5 flex-1">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className="form-input"
-                  style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600, width: '70px', flexShrink: 0 }}
-                  placeholder="0"
-                  value={daysInput}
-                  onChange={handleDaysInputChange}
-                />
-                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                  {t('days')}
-                </span>
-              </div>
-              <button
-                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
-                style={{
-                  minHeight: 40,
-                  padding: '10px 18px',
-                  fontSize: 14,
-                  background: isBusy || !duration
-                    ? 'var(--bg-tertiary)'
-                    : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
-                  color: isBusy || !duration ? 'var(--text-muted)' : '#fff',
-                  opacity: isBusy || !duration ? 0.5 : 1,
-                  border: isBusy || !duration ? '1px solid var(--border)' : 'none',
-                  cursor: isBusy || !duration ? 'not-allowed' : 'pointer',
-                }}
-                onClick={handleGenerateDaysCode}
-                disabled={isBusy || !duration}
-              >
-                {isBusy && result.codeType === 'days' ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 size={14} className="animate-spin" />
-                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
-                  </span>
-                ) : (
-                  t('Generate')
-                )}
-              </button>
-            </div>
-          </div>
+        <AddDaysCard
+          selectedChip={selectedChip}
+          customDays={customDays}
+          duration={duration}
+          isBusy={isBusy}
+          busyActive={isBusy && result.codeType === 'days'}
+          onSelectChip={handleSelectChip}
+          onCustomChange={handleCustomChange}
+          onGenerate={handleGenerateDaysCode}
+        />
 
-          {/* Free Code */}
-          <div
-            className="rounded-xl p-4"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#10b98118' }}>
-                <Unlock size={18} style={{ color: '#10b981' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Free Code')}</p>
-                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Unlock without time limit')}</p>
-              </div>
-              <button
-                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
-                style={{
-                  minHeight: 40,
-                  padding: '10px 18px',
-                  fontSize: 14,
-                  background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  color: isBusy ? 'var(--text-muted)' : '#fff',
-                  opacity: isBusy ? 0.5 : 1,
-                  border: isBusy ? '1px solid var(--border)' : 'none',
-                  cursor: isBusy ? 'not-allowed' : 'pointer',
-                }}
-                onClick={handleGenerateFreeCode}
-                disabled={isBusy}
-              >
-                {isBusy && result.codeType === 'free' ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 size={14} className="animate-spin" />
-                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
-                  </span>
-                ) : (
-                  t('Generate')
-                )}
-              </button>
-            </div>
-          </div>
+        <ResultZone
+          result={result}
+          lastCode={lastCode}
+          remainingDays={remainingDays != null ? String(remainingDays) : null}
+          isRefreshing={isRefreshing}
+          onRetrieve={handleRetrieveCodes}
+          onRetryWrite={handleRetryWrite}
+          onTryAgain={handleTryAgain}
+          onResend={handleResend}
+          onCopy={handleCopyCode}
+        />
 
-          {/* Reset Code */}
-          <div
-            className="rounded-xl p-4"
-            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#f59e0b18' }}>
-                <RotateCcw size={18} style={{ color: '#f59e0b' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('Reset Code')}</p>
-                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Restore to default state')}</p>
-              </div>
-              <button
-                className="rounded-lg font-semibold transition-all duration-200 flex-shrink-0 flex items-center justify-center"
-                style={{
-                  minHeight: 40,
-                  padding: '10px 18px',
-                  fontSize: 14,
-                  background: isBusy ? 'var(--bg-tertiary)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  color: isBusy ? 'var(--text-muted)' : '#fff',
-                  opacity: isBusy ? 0.5 : 1,
-                  border: isBusy ? '1px solid var(--border)' : 'none',
-                  cursor: isBusy ? 'not-allowed' : 'pointer',
-                }}
-                onClick={handleGenerateResetCode}
-                disabled={isBusy}
-              >
-                {isBusy && result.codeType === 'reset' ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 size={14} className="animate-spin" />
-                    {result.status === 'writing' ? t('Writing...') : t('Generating...')}
-                  </span>
-                ) : (
-                  t('Generate')
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <OtherCodes
+          isBusy={isBusy}
+          busyType={isBusy ? result.codeType : null}
+          onRequest={setConfirmFor}
+        />
 
-        {/* Result Card */}
-        {result.status !== 'idle' && (
-          <div
-            className="rounded-xl overflow-hidden mb-4 transition-all duration-300"
-            style={{
-              border: `1px solid ${
-                result.status === 'error' ? 'var(--color-error)'
-                : result.status === 'writeFailed' ? '#f59e0b'
-                : result.status === 'written' ? 'var(--color-success)'
-                : result.status === 'generating' ? 'var(--border)'
-                : codeTypeColor(result.codeType) + '66'
-              }`,
-              background: result.status === 'error' ? 'var(--color-error-soft, rgba(239,68,68,0.08))'
-                : result.status === 'writeFailed' ? 'rgba(245,158,11,0.08)'
-                : result.status === 'written' ? 'var(--color-success-soft, rgba(16,185,129,0.08))'
-                : 'var(--bg-secondary)',
-            }}
-          >
-            {/* Generating state */}
-            {result.status === 'generating' && (
-              <div className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'var(--bg-tertiary)' }}>
-                  <Loader2 size={20} className="animate-spin" style={{ color: codeTypeColor(result.codeType) }} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {result.codeType === 'retrieve' ? t('Retrieving last code...') : t('Generating code...')}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{codeTypeLabel(result.codeType)}</p>
-                </div>
-              </div>
-            )}
+        <AdvancedPanel
+          open={advancedOpen}
+          onToggle={() => setAdvancedOpen((v) => !v)}
+          cmdService={cmdService}
+          pubkCharacteristic={pubkCharacteristic}
+          pubkValue={pubkValue != null ? String(pubkValue) : null}
+          isLoadingService={isLoadingService ?? null}
+          serviceLoadingProgress={serviceLoadingProgress}
+          isReading={isLoading}
+          onRead={handleRead}
+          onWrite={handleWriteClick}
+          onRefreshService={handleRefreshService}
+          translateDescription={translateDescription}
+        />
 
-            {/* Generated / Writing / Written states */}
-            {(result.status === 'generated' || result.status === 'writing' || result.status === 'written' || result.status === 'writeFailed') && result.codeDec && (
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-md"
-                      style={{
-                        background: codeTypeColor(result.codeType) + '22',
-                        color: codeTypeColor(result.codeType),
-                      }}
-                    >
-                      {codeTypeLabel(result.codeType)}
-                    </span>
-                  </div>
-                  <button
-                    className="p-1.5 rounded-lg transition-colors"
-                    style={{ color: 'var(--text-secondary)' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                    onClick={() => {
-                      if (result.codeDec) {
-                        navigator.clipboard.writeText(result.codeDec);
-                        toast.success(t('Code copied to clipboard'));
-                      }
-                    }}
-                  >
-                    <Clipboard size={16} />
-                  </button>
-                </div>
-                <p
-                  className="text-3xl font-bold font-mono tracking-wider mb-3 text-center"
-                  style={{ color: codeTypeColor(result.codeType) }}
-                >
-                  {result.codeDec}
-                </p>
-                {/* Write status */}
-                <div
-                  className="flex items-center gap-2 rounded-lg px-3 py-2"
-                  style={{ background: 'var(--bg-tertiary)' }}
-                >
-                  {result.status === 'writing' && (
-                    <>
-                      <Loader2 size={14} className="animate-spin" style={{ color: 'var(--accent)' }} />
-                      <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                        {t('Writing code to device...')}
-                      </span>
-                    </>
-                  )}
-                  {result.status === 'generated' && (
-                    <>
-                      <CheckCircle size={14} style={{ color: 'var(--accent)' }} />
-                      <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                        {t('Code generated successfully')}
-                      </span>
-                    </>
-                  )}
-                  {result.status === 'written' && (
-                    <>
-                      <CheckCircle size={14} style={{ color: 'var(--color-success, #10b981)' }} />
-                      <span className="text-xs font-medium" style={{ color: 'var(--color-success, #10b981)' }}>
-                        {t('Written to device successfully')}
-                      </span>
-                    </>
-                  )}
-                  {result.status === 'writeFailed' && (
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle size={14} style={{ color: '#f59e0b' }} />
-                        <span className="text-xs font-medium" style={{ color: '#f59e0b' }}>
-                          {result.error || t('Failed to write to device')}
-                        </span>
-                      </div>
-                      <button
-                        className="text-xs font-semibold px-2 py-1 rounded-md transition-colors"
-                        style={{ color: 'var(--accent)', background: 'var(--bg-secondary)' }}
-                        onClick={handleRetryWrite}
-                      >
-                        {t('Retry')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Error state */}
-            {result.status === 'error' && (
-              <div className="p-4 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
-                  <AlertCircle size={20} style={{ color: 'var(--color-error)' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--color-error)' }}>
-                    {result.codeType === 'retrieve' ? t('Failed to retrieve code') : t('Failed to generate code')}
-                  </p>
-                  <p className="text-xs break-words" style={{ color: 'var(--text-secondary)' }}>{result.error}</p>
-                </div>
-                <button
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors"
-                  style={{
-                    color: 'var(--color-error)',
-                    background: 'rgba(239,68,68,0.1)',
-                    border: '1px solid rgba(239,68,68,0.2)',
-                  }}
-                  onClick={() => {
-                    if (result.codeType === 'days') handleGenerateDaysCode();
-                    else if (result.codeType === 'free') handleGenerateFreeCode();
-                    else if (result.codeType === 'reset') handleGenerateResetCode();
-                    else if (result.codeType === 'retrieve') handleRetrieveCodes();
-                  }}
-                >
-                  {t('Try Again')}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Retrieve Last Code */}
-        <button
-          className="w-full rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 mb-6"
-          style={{
-            minHeight: 44,
-            padding: '12px 16px',
-            fontSize: 14,
-            background: 'transparent',
-            color: isBusy ? 'var(--text-muted)' : 'var(--text-secondary)',
-            border: '1px dashed var(--border)',
-            cursor: isBusy ? 'not-allowed' : 'pointer',
-            opacity: isBusy ? 0.5 : 1,
-          }}
-          onMouseEnter={(e) => {
-            if (!isBusy) {
-              e.currentTarget.style.borderColor = 'var(--accent)';
-              e.currentTarget.style.color = 'var(--accent)';
-              e.currentTarget.style.background = 'var(--bg-secondary)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isBusy) {
-              e.currentTarget.style.borderColor = 'var(--border)';
-              e.currentTarget.style.color = 'var(--text-secondary)';
-              e.currentTarget.style.background = 'transparent';
-            }
-          }}
-          onClick={handleRetrieveCodes}
-          disabled={isBusy}
-        >
-          {isBusy && result.codeType === 'retrieve' ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              {t('Retrieving...')}
-            </>
-          ) : (
-            <>
-              <Download size={16} />
-              {t('Retrieve Last Code')}
-            </>
-          )}
-        </button>
-
-        {/* CMD Service */}
-        {isLoadingService === 'CMD' && (
-          <div className="w-full h-1 mb-4 rounded-full overflow-hidden" style={{ background: 'var(--bg-tertiary)' }}>
-            <div
-              className="h-full transition-all duration-300 ease-in-out"
-              style={{ width: `${serviceLoadingProgress}%`, background: 'var(--accent)' }}
-            />
-          </div>
-        )}
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>{t('CMD Service')}</h3>
-          <div
-            onClick={handleRefreshService}
-            className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all ${isLoadingService ? 'animate-spin' : ''}`}
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-secondary)',
-              cursor: isLoadingService ? 'not-allowed' : 'pointer',
-              opacity: isLoadingService ? 0.5 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!isLoadingService) {
-                e.currentTarget.style.color = 'var(--accent)';
-                e.currentTarget.style.borderColor = 'var(--accent)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isLoadingService) {
-                e.currentTarget.style.color = 'var(--text-secondary)';
-                e.currentTarget.style.borderColor = 'var(--border)';
-              }
-            }}
-          >
-            <RefreshCw size={14} />
-          </div>
-        </div>
-        {cmdService && pubkCharacteristic ? (
-          <div className="rounded-xl overflow-hidden mb-4" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-            <div className="flex justify-between items-center px-4 py-2" style={{ background: 'var(--bg-tertiary)' }}>
-              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{pubkCharacteristic.name}</span>
-              <div className="flex space-x-2">
-                <button
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, flex: '0 0 auto' }}
-                  onClick={handleRead}
-                  disabled={isLoading}
-                >
-                  {isLoading ? t('Reading...') : t('Read')}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, flex: '0 0 auto' }}
-                  onClick={handleWriteClick}
-                >
-                  {t('Write')}
-                </button>
-              </div>
-            </div>
-            <div className="p-3 space-y-2">
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Description')}</p>
-                <p className="text-xs" style={{ color: 'var(--text-primary)' }}>{translateDescription(pubkCharacteristic.desc)}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex-grow min-w-0">
-                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{t('Current Value')}</p>
-                  <p className="text-sm font-mono truncate" style={{ color: 'var(--text-primary)' }}>{pubkValue || 'N/A'}</p>
-                </div>
-                <button
-                  className="p-1.5 transition-colors flex-shrink-0"
-                  style={{ color: 'var(--text-secondary)' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(String(pubkValue || 'N/A'));
-                    toast.success(t('Value copied to clipboard'));
-                  }}
-                  aria-label="Copy to clipboard"
-                >
-                  <Clipboard size={14} />
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 text-center mb-4" style={{ color: 'var(--text-secondary)' }}>
-            {isLoadingService === 'CMD' ? (
-              <p className="text-sm">{t('Loading CMD service data...')}</p>
-            ) : (
-              <p className="text-sm">{t('No data available for CMD service')}</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
