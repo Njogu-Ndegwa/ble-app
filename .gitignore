@@ -51,4 +51,4 @@ bun.lock
 
 env.collect.ts
 
-core
+core.superpowers/
