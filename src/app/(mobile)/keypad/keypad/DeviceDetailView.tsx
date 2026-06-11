@@ -49,7 +49,6 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [digitInput, setDigitInput] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const reloadRequestedRef = useRef(false);
   
   /* Values we may want to display although they have their own cards */
   const [pubkValue, setPubkValue] = useState<string | null>(null);
@@ -125,16 +124,6 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []); // ← FIXED: Empty array - runs only once on mount
 
-  // Clear refreshing indicator once the service reload we requested has finished.
-  // reloadRequestedRef guards against clearing on the initial null state (before
-  // onRequestServiceData is ever called).
-  useEffect(() => {
-    if (isRefreshing && reloadRequestedRef.current && isLoadingService === null) {
-      setIsRefreshing(false);
-      reloadRequestedRef.current = false;
-    }
-  }, [isLoadingService, isRefreshing]);
-
   /* ----------------- hydrate initial pubk / rcrd ------------------- */
   useEffect(() => {
     // Fixed: removed ATT from loadingStates check since it's not being set in loadingStates
@@ -198,6 +187,88 @@ useEffect(() => {
         }
       }
     );
+  };
+
+  // Promisified single-characteristic read. Resolves null on timeout so a
+  // missing native callback can't hang the post-submit verify loop.
+  const readCharValue = (serviceUuid: string, charUuid: string) =>
+    new Promise<string | null>((resolve) => {
+      const mac = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('connectedDeviceMac')?.trim() : null;
+      if (!mac) { resolve(null); return; }
+      let settled = false;
+      const settle = (val: string | null) => {
+        if (!settled) { settled = true; resolve(val); }
+      };
+      const timer = setTimeout(() => settle(null), 4000);
+      try {
+        readBleCharacteristic(serviceUuid, charUuid, mac, (data: any) => {
+          clearTimeout(timer);
+          settle(data?.realVal !== null && data?.realVal !== undefined ? String(data.realVal) : null);
+        });
+      } catch {
+        clearTimeout(timer);
+        settle(null);
+      }
+    });
+
+  // Guards against overlapping verify loops when the user submits twice quickly.
+  const verifyRunIdRef = useRef(0);
+
+  // After a successful code submit, read pubk/rcrd back from the device until
+  // the values change (= device applied the code) or attempts run out, then
+  // clear the spinner. Direct reads replace the old CMD+STS service re-init,
+  // whose two concurrent requests raced each other and could leave the Days
+  // card stale until reconnect.
+  const verifyWriteApplied = async (prevPubk: string | null, prevRcrd: string | null) => {
+    const runId = ++verifyRunIdRef.current;
+    // writeCharacteristic already waited 2 s before its success callback, so
+    // the first read goes out almost immediately; retries cover slow firmware.
+    const delays = [250, 1250, 2500];
+    const targetMac = device.macAddress?.trim().toLowerCase();
+
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+      if (verifyRunIdRef.current !== runId) return;
+
+      const still = sessionStorage.getItem('connectedDeviceMac')?.trim().toLowerCase();
+      if (!still || still !== targetMac) {
+        keypadWarn('verify: device disconnected during read-back');
+        setIsRefreshing(false);
+        return;
+      }
+
+      const [pubkVal, rcrdVal] = await Promise.all([
+        cmdService && pubkCharacteristic
+          ? readCharValue(cmdService.uuid, pubkCharacteristic.uuid)
+          : Promise.resolve<string | null>(null),
+        stsService && rcrdCharacteristic
+          ? readCharValue(stsService.uuid, rcrdCharacteristic.uuid)
+          : Promise.resolve<string | null>(null),
+      ]);
+      if (verifyRunIdRef.current !== runId) return;
+
+      // Show whatever the device reported, even if unchanged
+      setUpdatedValues((prev) => {
+        const next = { ...prev };
+        if (pubkCharacteristic && pubkVal !== null) next[pubkCharacteristic.uuid] = pubkVal;
+        if (rcrdCharacteristic && rcrdVal !== null) next[rcrdCharacteristic.uuid] = rcrdVal;
+        return next;
+      });
+
+      const applied =
+        (pubkVal !== null && pubkVal !== prevPubk) ||
+        (rcrdVal !== null && rcrdVal !== prevRcrd);
+      keypadLog('verify: read-back attempt', {
+        attempt: attempt + 1,
+        applied,
+        gotPubk: pubkVal !== null,
+        gotRcrd: rcrdVal !== null,
+      });
+      if (applied || attempt === delays.length - 1) {
+        setIsRefreshing(false);
+        return;
+      }
+    }
   };
 
   const writeCharacteristic = (
@@ -461,36 +532,27 @@ useEffect(() => {
       hasSts: !!stsService,
     });
 
-    // Show spinner immediately — the user has to wait ~5 s total for the
-    // device to process the token and for us to reload CMD + STS services.
+    // Show spinner immediately — the verify loop clears it once the device
+    // reports the freshly applied values (typically ~2-3 s after submit).
     setIsRefreshing(true);
-    reloadRequestedRef.current = false;
+
+    // Capture pre-write values so the verify loop can detect the change
+    const prevPubk = pubkCharacteristic
+      ? String(updatedValues[pubkCharacteristic.uuid] ?? pubkCharacteristic.realVal ?? '')
+      : null;
+    const prevRcrd = rcrdCharacteristic
+      ? String(updatedValues[rcrdCharacteristic.uuid] ?? rcrdCharacteristic.realVal ?? '')
+      : null;
 
     writeCharacteristic(
       pubkCharacteristic,
       payloadFormatted,
       () => {
-        // Clear stale local reads so the service reload drives the display
-        const pubkUuid = pubkCharacteristic.uuid;
-        const rcrdUuid = rcrdCharacteristic?.uuid;
-        setUpdatedValues((prev) => {
-          const next = { ...prev };
-          delete next[pubkUuid];
-          if (rcrdUuid) delete next[rcrdUuid];
-          return next;
-        });
-        // Wait 3 s more (2 s already elapsed in writeCharacteristic = 5 s total)
-        // before re-init so the device has time to process the code
-        setTimeout(() => {
-          reloadRequestedRef.current = true;
-          onRequestServiceData?.('CMD');
-          onRequestServiceData?.('STS');
-        }, 3000);
+        verifyWriteApplied(prevPubk, prevRcrd);
       },
       () => {
         // Write failed — clear the spinner immediately
         setIsRefreshing(false);
-        reloadRequestedRef.current = false;
       }
     );
     setDigitInput('');

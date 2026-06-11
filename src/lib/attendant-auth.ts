@@ -970,6 +970,7 @@ export function clearAllAuth(): void {
   localStorage.removeItem(STORAGE_KEYS.BLE_DISTRIBUTOR_ID);
   localStorage.removeItem(STORAGE_KEYS.BLE_USER);
   localStorage.removeItem('ble-dm-token');
+  localStorage.removeItem('ble-dm-refresh-token');
   localStorage.removeItem('ble-dm-user');
 
   // Clear remaining rider / misc keys that could mark a returning user

@@ -14,9 +14,11 @@ import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
 import DeviceManagerProfile from './components/DeviceManagerProfile';
 import AppHeader from '@/components/AppHeader';
-import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
+import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_REFRESH_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
 import { Power } from 'lucide-react';
 import { clearAllAuth } from '@/lib/attendant-auth';
+import apolloClient from '@/lib/apollo-client';
+import { REFRESH_TOKEN } from '@/app/(auth)/mutations';
 
 type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
 
@@ -110,13 +112,53 @@ const BleDevicesApp: React.FC = () => {
     return isDmTokenExpired(token) ? null : token;
   });
 
+  // True while we silently renew an expired DM session with its refresh token,
+  // so the login form doesn't flash before the renewal settles.
+  const [restoringSession, setRestoringSession] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      isDmTokenExpired(localStorage.getItem(BLE_DM_TOKEN_KEY)) &&
+      !!localStorage.getItem(BLE_DM_REFRESH_KEY)
+    );
+  });
+
   useEffect(() => {
     const token = localStorage.getItem(BLE_DM_TOKEN_KEY);
-    if (isDmTokenExpired(token)) {
+    if (!isDmTokenExpired(token)) return;
+
+    const dmRefreshToken = localStorage.getItem(BLE_DM_REFRESH_KEY);
+    if (!dmRefreshToken) {
+      // Nothing to renew with — require a fresh Device Manager login
       setBleToken(null);
       localStorage.removeItem(BLE_DM_TOKEN_KEY);
       localStorage.removeItem(BLE_DM_USER_KEY);
+      return;
     }
+
+    // Access token expired but we hold a DM refresh token — renew the session
+    // silently instead of bouncing the user to the login screen on every
+    // access-token expiry.
+    setRestoringSession(true);
+    apolloClient
+      .mutate({ mutation: REFRESH_TOKEN, variables: { refreshToken: dmRefreshToken } })
+      .then(({ data }) => {
+        const { accessToken, refreshToken: newRefreshToken } = data.refreshClientAccessToken;
+        localStorage.setItem(BLE_DM_TOKEN_KEY, accessToken);
+        localStorage.setItem(BLE_DM_REFRESH_KEY, newRefreshToken);
+        // Mirror into the shared keys so the applet's GraphQL calls (which
+        // read access_token directly) use the renewed session
+        localStorage.setItem('access_token', accessToken);
+        localStorage.setItem('refresh_token', newRefreshToken);
+        setBleToken(accessToken);
+      })
+      .catch((err) => {
+        console.warn('[BLE DevMgr] silent session renewal failed:', String(err));
+        localStorage.removeItem(BLE_DM_TOKEN_KEY);
+        localStorage.removeItem(BLE_DM_REFRESH_KEY);
+        localStorage.removeItem(BLE_DM_USER_KEY);
+        setBleToken(null);
+      })
+      .finally(() => setRestoringSession(false));
   }, []);
 
   const [currentScreen, setCurrentScreen] = useState<BleDevicesScreen>('all-devices');
@@ -457,14 +499,26 @@ const BleDevicesApp: React.FC = () => {
           console.warn('[BLE DevMgr] characteristicList:', JSON.stringify(parsedData.characteristicList, null, 2));
         }
         setServiceAttrList((prev: any) => {
-          if (!prev || prev.length === 0) return [parsedData];
-          const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
-          if (idx >= 0) {
-            const u = [...prev];
-            u[idx] = parsedData;
-            return u;
+          let updated: any[];
+          if (!prev || prev.length === 0) {
+            updated = [parsedData];
+          } else {
+            const idx = prev.findIndex((s: any) => s.uuid === parsedData.uuid);
+            if (idx >= 0) {
+              updated = [...prev];
+              updated[idx] = parsedData;
+            } else {
+              updated = [...prev, parsedData];
+            }
           }
-          return [...prev, parsedData];
+          // Sync attrList immediately so the detail views get the new service
+          // data without waiting for the progress===100 effect, which can miss
+          // the update if the native side doesn't fire a final 100% progress
+          // callback. (Same fix as KeypadApp — without it, post-write reloads
+          // land in serviceAttrList but the screen keeps rendering stale data
+          // until the user reconnects.)
+          setAtrrList(updated);
+          return updated;
         });
         setTimeout(() => setLoadingService(null), 100);
         resp(data);
@@ -792,6 +846,7 @@ const BleDevicesApp: React.FC = () => {
     // Clear the BLE Device Manager applet session
     try {
       localStorage.removeItem(BLE_DM_TOKEN_KEY);
+      localStorage.removeItem(BLE_DM_REFRESH_KEY);
       localStorage.removeItem(BLE_DM_USER_KEY);
     } catch {
       /* ignore storage errors */
@@ -824,6 +879,21 @@ const BleDevicesApp: React.FC = () => {
     currentScreen === 'profile' ? 'profile' :
     currentScreen === 'my-devices' ? 'my-devices' :
     'all-devices';
+
+  if (restoringSession) {
+    return (
+      <div className="login-page-container">
+        <div className="login-bg-gradient" />
+        <AppHeader showBack onBack={handleBackToRoles} />
+        <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh' }}>
+          <div className="loading-spinner" />
+          <p className="text-sm mt-3" style={{ color: 'var(--text-secondary)' }}>
+            {t('Restoring session...') || 'Restoring session...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!bleToken) {
     return (

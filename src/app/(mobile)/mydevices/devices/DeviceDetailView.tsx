@@ -170,12 +170,83 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Clear refreshing indicator once both services finish reloading
-  useEffect(() => {
-    if (isRefreshing && isLoadingService === null) {
-      setIsRefreshing(false);
+  // Promisified single-characteristic read. Resolves null on timeout so a
+  // missing native callback can't hang the post-write verify loop.
+  const readCharValue = useCallback((serviceUuid: string, charUuid: string, mac: string) =>
+    new Promise<string | null>((resolve) => {
+      let settled = false;
+      const settle = (val: string | null) => {
+        if (!settled) { settled = true; resolve(val); }
+      };
+      const timer = setTimeout(() => settle(null), 4000);
+      try {
+        readBleCharacteristic(serviceUuid, charUuid, mac, (data: any) => {
+          clearTimeout(timer);
+          settle(data?.realVal !== null && data?.realVal !== undefined ? String(data.realVal) : null);
+        });
+      } catch {
+        clearTimeout(timer);
+        settle(null);
+      }
+    }), []);
+
+  // Guards against overlapping verify loops when the user writes twice quickly.
+  const verifyRunIdRef = useRef(0);
+
+  // After a successful write, read pubk/rcrd back from the device until the
+  // values change (= device applied the code) or attempts run out. The device
+  // applies a valid code as soon as the BLE write is acknowledged, so the
+  // first read at 1 s usually succeeds; the retries cover slower firmware.
+  const verifyWriteApplied = useCallback(async (params: {
+    mac: string;
+    cmdServiceUuid: string;
+    pubkUuid: string;
+    stsServiceUuid: string | null;
+    rcrdUuid: string | null;
+    writtenCode: string;
+    prevPubk: string | null;
+    prevRcrd: string | null;
+  }) => {
+    const runId = ++verifyRunIdRef.current;
+    const { mac, cmdServiceUuid, pubkUuid, stsServiceUuid, rcrdUuid, writtenCode, prevPubk, prevRcrd } = params;
+    const delays = [1000, 2000, 4000];
+
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+      if (verifyRunIdRef.current !== runId) return;
+
+      const still = sessionStorage.getItem('connectedDeviceMac');
+      if (still?.trim().toLowerCase() !== mac.toLowerCase()) {
+        setIsRefreshing(false);
+        return;
+      }
+
+      const [pubkVal, rcrdVal] = await Promise.all([
+        readCharValue(cmdServiceUuid, pubkUuid, mac),
+        stsServiceUuid && rcrdUuid
+          ? readCharValue(stsServiceUuid, rcrdUuid, mac)
+          : Promise.resolve<string | null>(null),
+      ]);
+      if (verifyRunIdRef.current !== runId) return;
+
+      // Show whatever the device reported, even if unchanged
+      setUpdatedValues((prev) => {
+        const next = { ...prev };
+        if (pubkVal !== null) next[pubkUuid] = pubkVal;
+        if (rcrdUuid && rcrdVal !== null) next[rcrdUuid] = rcrdVal;
+        return next;
+      });
+      if (pubkVal !== null) setUpdatedValue(pubkVal);
+
+      const applied =
+        (pubkVal !== null && (pubkVal === writtenCode || pubkVal !== prevPubk)) ||
+        (rcrdVal !== null && rcrdVal !== prevRcrd);
+      if (applied || attempt === delays.length - 1) {
+        setIsRefreshing(false);
+        return;
+      }
     }
-  }, [isLoadingService, isRefreshing]);
+  }, [readCharValue]);
 
   const handleRead = useCallback(() => {
     if (!cmdService || !pubkCharacteristic) return;
@@ -228,6 +299,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
       setResult((prev) => ({ ...prev, status: 'writeFailed', error: t('pubk characteristic not found') }));
       return;
     }
+
+    // Capture pre-write values before the optimistic update below, so the
+    // verify loop can detect when the device has actually applied the code
+    const prevPubkValue = foundPubk.realVal !== null && foundPubk.realVal !== undefined
+      ? String(foundPubk.realVal) : null;
+    const prevRcrdValue = rcrdCharacteristic?.realVal !== null && rcrdCharacteristic?.realVal !== undefined
+      ? String(rcrdCharacteristic.realVal) : null;
 
     setUpdatedValues((prev) => ({ ...prev, [foundPubk.uuid]: codeDec }));
     setActiveCharacteristic(foundPubk);
@@ -287,34 +365,27 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
 
         if (writeSuccess) {
           setResult((prev) => ({ ...prev, status: 'written' }));
-          // Wait 5 s — device needs time to process the code before its BLE
-          // characteristics reflect the new values
-          setTimeout(() => {
-            const stillConnected = sessionStorage.getItem('connectedDeviceMac');
-            if (stillConnected?.trim().toLowerCase() === targetMac.toLowerCase()) {
-              // Clear stale local reads so fresh service data drives the display
-              setUpdatedValues((prev) => {
-                const next = { ...prev };
-                delete next[foundPubk.uuid];
-                if (rcrdCharacteristic) delete next[rcrdCharacteristic.uuid];
-                return next;
-              });
-              setUpdatedValue(null);
-              setIsRefreshing(true);
-              // Re-init CMD & STS so device returns freshly applied values
-              onRequestServiceDataRef.current?.('CMD');
-              onRequestServiceDataRef.current?.('STS');
-            }
-          }, 5000);
+          // Show the updating spinner immediately, then read pubk/rcrd back
+          // directly. Direct characteristic reads avoid the full service
+          // re-init path, whose two concurrent CMD+STS requests raced each
+          // other and could leave Remaining Days stale until reconnect.
+          setIsRefreshing(true);
+          verifyWriteApplied({
+            mac: targetMac,
+            cmdServiceUuid: foundCmdService.uuid,
+            pubkUuid: foundPubk.uuid,
+            stsServiceUuid: stsService?.uuid ?? null,
+            rcrdUuid: rcrdCharacteristic?.uuid ?? null,
+            writtenCode: codeDec,
+            prevPubk: prevPubkValue,
+            prevRcrd: prevRcrdValue,
+          });
         } else {
           setResult((prev) => ({ ...prev, status: 'writeFailed', error: errorMessage || 'Write operation failed' }));
         }
       }
     );
-  }, [attributeList, device.macAddress, handleRead, readRcrd, t]);
-
-  const onRequestServiceDataRef = useRef(onRequestServiceData);
-  useEffect(() => { onRequestServiceDataRef.current = onRequestServiceData; });
+  }, [attributeList, device.macAddress, stsService, rcrdCharacteristic, verifyWriteApplied, t]);
 
   const [daysInput, setDaysInput] = useState('');
 

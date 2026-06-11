@@ -8,6 +8,7 @@ import { SIGN_IN_USER } from '@/app/(auth)/mutations';
 
 // localStorage keys scoped to this applet (persist across restarts)
 export const BLE_DM_TOKEN_KEY = 'ble-dm-token';
+export const BLE_DM_REFRESH_KEY = 'ble-dm-refresh-token';
 export const BLE_DM_USER_KEY = 'ble-dm-user';
 
 interface BleDevicesLoginProps {
@@ -24,9 +25,13 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
     onCompleted: (data) => {
       const { accessToken, refreshToken, _id, name, email: userEmail } = data.signInUser;
 
-      // Persist the fresh token in localStorage so it survives app restarts
-      // and the user does not have to re-authenticate on every launch.
+      // Persist the fresh tokens in localStorage so they survive app restarts
+      // and the user does not have to re-authenticate on every launch. The
+      // refresh token gets its own DM-scoped key (the shared 'refresh_token'
+      // is overwritten by the main app login) so the Device Manager session
+      // can be renewed silently when the access token expires.
       localStorage.setItem(BLE_DM_TOKEN_KEY, accessToken);
+      localStorage.setItem(BLE_DM_REFRESH_KEY, refreshToken);
       localStorage.setItem(
         BLE_DM_USER_KEY,
         JSON.stringify({ id: _id, name, email: userEmail }),

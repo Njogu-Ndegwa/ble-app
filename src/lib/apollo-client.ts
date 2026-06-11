@@ -29,9 +29,12 @@ const authLink = setContext((_, { headers }) => {
 });
 
 // Operations that perform authentication themselves — UNAUTHENTICATED errors from
-// these mean "wrong credentials", not an expired session, so the error must reach
-// the caller's onError handler unchanged.
-const AUTH_OPERATIONS = new Set(["SignInUser"]);
+// these mean "wrong credentials" or "invalid refresh token", not an expired
+// session, so the error must reach the caller's onError handler unchanged.
+// RefreshClientAccessToken in particular must be listed: otherwise a failed
+// refresh would be intercepted by this link and trigger another refresh,
+// looping forever.
+const AUTH_OPERATIONS = new Set(["SignInUser", "RefreshClientAccessToken"]);
 
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   console.warn('[Apollo errorLink] operation:', operation.operationName);
@@ -57,7 +60,10 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
             variables: { refreshToken },
           })
           .then(({ data }) => {
-            const { accessToken, refreshToken: newRefreshToken } = data.refreshToken;
+            // The mutation is named RefreshClientAccessToken — the payload field
+            // is refreshClientAccessToken, NOT refreshToken. Reading the wrong
+            // field made every silent refresh throw and force a logout.
+            const { accessToken, refreshToken: newRefreshToken } = data.refreshClientAccessToken;
             localStorage.setItem("access_token", accessToken);
             localStorage.setItem("refresh_token", newRefreshToken);
             operation.setContext(({ headers = {} }) => ({
