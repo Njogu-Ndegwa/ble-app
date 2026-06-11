@@ -160,17 +160,53 @@ export const NumericModal = ({
           />
         </div>
         <div className="flex justify-end space-x-3">
-          <button 
+          <button
             onClick={onClose}
             className="btn btn-secondary"
           >
             {t('Cancel')}
           </button>
-          <button 
+          <button
             onClick={handleSubmit}
             className="btn btn-primary"
           >
             {t('Submit')}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// Confirmation Modal
+export const ConfirmModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmLabel,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+}) => {
+  const { t } = useI18n();
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="p-5 pt-0">
+        <h3 className="text-xl font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>{message}</p>
+        <div className="flex justify-end space-x-3">
+          <button onClick={onClose} className="btn btn-secondary">
+            {t('Cancel')}
+          </button>
+          <button onClick={() => { onConfirm(); onClose(); }} className="btn btn-primary">
+            {confirmLabel || t('Confirm')}
           </button>
         </div>
       </div>
