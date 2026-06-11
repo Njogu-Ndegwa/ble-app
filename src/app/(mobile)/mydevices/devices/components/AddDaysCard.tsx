@@ -23,6 +23,36 @@ const AddDaysCard: React.FC<AddDaysCardProps> = ({
 }) => {
   const { t } = useI18n();
   const disabled = isBusy || !duration;
+  const isCustom = selectedChip === 'custom';
+
+  const generateButton = (
+    <button
+      className={`${isCustom ? 'flex-1' : 'w-full'} rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2`}
+      style={{
+        minHeight: 44,
+        padding: '12px 18px',
+        fontSize: 14,
+        background: disabled
+          ? 'var(--bg-tertiary)'
+          : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
+        color: disabled ? 'var(--text-muted)' : '#fff',
+        opacity: disabled ? 0.5 : 1,
+        border: disabled ? '1px solid var(--border)' : 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+      onClick={onGenerate}
+      disabled={disabled}
+    >
+      {busyActive ? (
+        <>
+          <Loader2 size={16} className="animate-spin" />
+          {t('Working...')}
+        </>
+      ) : (
+        t('Generate & Write')
+      )}
+    </button>
+  );
 
   return (
     <div
@@ -62,9 +92,9 @@ const AddDaysCard: React.FC<AddDaysCardProps> = ({
           className="rounded-lg text-sm font-semibold py-2 px-3 transition-colors"
           style={{
             flex: '1.3 1 0%',
-            background: selectedChip === 'custom' ? 'var(--accent-soft)' : 'transparent',
-            border: `1px solid ${selectedChip === 'custom' ? 'var(--accent)' : 'var(--border)'}`,
-            color: selectedChip === 'custom' ? 'var(--accent)' : 'var(--text-secondary)',
+            background: isCustom ? 'var(--accent-soft)' : 'transparent',
+            border: `1px solid ${isCustom ? 'var(--accent)' : 'var(--border)'}`,
+            color: isCustom ? 'var(--accent)' : 'var(--text-secondary)',
           }}
           onClick={() => onSelectChip('custom')}
           disabled={isBusy}
@@ -72,50 +102,24 @@ const AddDaysCard: React.FC<AddDaysCardProps> = ({
           {t('Custom')}
         </button>
       </div>
-      {selectedChip === 'custom' && (
-        <div className="flex items-center gap-2 mb-3">
+      {isCustom ? (
+        <div className="flex items-center gap-2">
           <input
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
             className="form-input"
-            style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600, width: '90px', flexShrink: 0 }}
-            placeholder="0"
+            style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600, width: '80px', flexShrink: 0 }}
+            placeholder={t('days')}
             value={customDays}
             onChange={(e) => onCustomChange(e.target.value)}
             autoFocus
           />
-          <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-            {t('days')}
-          </span>
+          {generateButton}
         </div>
+      ) : (
+        generateButton
       )}
-      <button
-        className="w-full rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2"
-        style={{
-          minHeight: 44,
-          padding: '12px 18px',
-          fontSize: 14,
-          background: disabled
-            ? 'var(--bg-tertiary)'
-            : 'linear-gradient(135deg, var(--accent) 0%, #00a0a0 100%)',
-          color: disabled ? 'var(--text-muted)' : '#fff',
-          opacity: disabled ? 0.5 : 1,
-          border: disabled ? '1px solid var(--border)' : 'none',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-        }}
-        onClick={onGenerate}
-        disabled={disabled}
-      >
-        {busyActive ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            {t('Working...')}
-          </>
-        ) : (
-          t('Generate & Write to Device')
-        )}
-      </button>
     </div>
   );
 };
