@@ -90,6 +90,7 @@ const APPLET_MENU_IDS: Record<string, string[]> = {
   ticketing: ['ticketing', 'support'],
   location: ['location', 'routes'],
   rollup: ['rollup'],
+  topup: ['topup'],
 };
 
 // Always-visible menu items regardless of applet config

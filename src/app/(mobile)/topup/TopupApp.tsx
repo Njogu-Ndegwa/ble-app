@@ -9,23 +9,19 @@ import AppHeader from '@/components/AppHeader';
 import TopupFlow from './TopupFlow';
 
 interface TopupAppProps {
+  // Retained for page-shell parity with the other applets; AppHeader owns sign-out.
   onLogout?: () => void;
   onSwitchSA?: () => void;
 }
 
 export default function TopupApp({ onSwitchSA }: TopupAppProps) {
-  const [employee, setEmployee] = useState<EmployeeUser | null>(null);
+  const [employee] = useState<EmployeeUser | null>(() => getSalesRoleUser());
 
   useEffect(() => {
     document.body.classList.add('overflow-locked');
     return () => {
       document.body.classList.remove('overflow-locked');
     };
-  }, []);
-
-  useEffect(() => {
-    const user = getSalesRoleUser();
-    if (user) setEmployee(user);
   }, []);
 
   return (

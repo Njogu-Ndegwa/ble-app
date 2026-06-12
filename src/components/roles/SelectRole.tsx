@@ -52,6 +52,7 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   ota: 'ota',
   ticketing: 'ticketing',
   rollup: 'rollup',
+  topup: 'topup',
 };
 
 const ALL_ROLES: RoleConfig[] = [
@@ -150,6 +151,13 @@ const ALL_ROLES: RoleConfig[] = [
     icon: { type: 'lucide', el: <LifeBuoy size={28} color="#fff" />, gradient: 'role-grad-ticketing' },
     path: '/ticketing/app',
     appletSlug: 'ticketing',
+  },
+  {
+    id: 'topup',
+    labelKey: 'role.topup',
+    icon: { type: 'lucide', el: <Zap size={28} color="#fff" />, gradient: 'role-grad-activator' },
+    path: '/topup',
+    appletSlug: 'topup',
   },
 ];
 
