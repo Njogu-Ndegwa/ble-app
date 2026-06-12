@@ -915,6 +915,14 @@ export async function getSubscriptionProducts(
       throw new Error(apiMessage || 'Authentication required. Please log out and log back in.');
     }
 
+    if (rawData.pagination && rawData.pagination.total_pages > 1) {
+      console.warn(
+        '[ODOO API] getSubscriptionProducts: catalog spans',
+        rawData.pagination.total_pages,
+        'pages but only one page was fetched — some plans may be missing from pickers.',
+      );
+    }
+
     return {
       success: rawData.success,
       data: {

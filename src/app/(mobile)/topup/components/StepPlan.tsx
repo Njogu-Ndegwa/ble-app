@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Zap, AlertCircle, Loader2, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
@@ -43,9 +43,10 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
   const [plansLoading, setPlansLoading] = useState(true);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PlanOption | null>(null);
-  const [declaredKwh, setDeclaredKwh] = useState<number | null>(null);
+  const [quota, setQuota] = useState<{ productId: number; kwh: number } | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const seqRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,8 +83,9 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
   );
 
   const handleSelect = useCallback(async (plan: PlanOption) => {
+    const seq = ++seqRef.current;
     setSelected(plan);
-    setDeclaredKwh(null);
+    setQuota(null);
     setQuotaError(null);
     setQuotaLoading(true);
     try {
@@ -91,20 +93,29 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
       const result = await absApolloClient.query<{ servicePlanTemplate: ServicePlanTemplate | null }>({
         query: GET_SERVICE_PLAN_TEMPLATE,
         variables: { id: lookupId },
-        fetchPolicy: 'network-only',
+        fetchPolicy: "network-only",
       });
+      if (seq !== seqRef.current) return; // stale response - a newer selection owns the UI
+      if (result.errors && result.errors.length > 0) {
+        setQuotaError(result.errors[0].message || t("topup.quotaUnavailable") || "Could not load this plan’s energy quota.");
+        return;
+      }
       const energy = extractEnergyConfiguration(result.data?.servicePlanTemplate);
       if (energy && energy.initialQuota > 0) {
-        setDeclaredKwh(energy.initialQuota);
+        setQuota({ productId: plan.productId, kwh: energy.initialQuota });
       } else {
-        setQuotaError(t('topup.quotaUnavailable') || 'Could not load this plan’s energy quota.');
+        setQuotaError(t("topup.quotaUnavailable") || "Could not load this plan’s energy quota.");
       }
     } catch {
-      setQuotaError(t('topup.quotaUnavailable') || 'Could not load this plan’s energy quota.');
+      if (seq === seqRef.current) {
+        setQuotaError(t("topup.quotaUnavailable") || "Could not load this plan’s energy quota.");
+      }
     } finally {
-      setQuotaLoading(false);
+      if (seq === seqRef.current) setQuotaLoading(false);
     }
   }, [t]);
+
+  const declaredKwh = selected && quota?.productId === selected.productId ? quota.kwh : null;
 
   const canContinue = !!selected && !!declaredKwh && declaredKwh > 0 && !quotaLoading;
 
@@ -168,7 +179,7 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
                   <div className="energy-plan-subtitle">{plan.description || plan.default_code}</div>
                 )}
                 {isSelected && (
-                  <div className="energy-plan-energy">
+                  <div className="energy-plan-energy" role="status">
                     {quotaLoading ? (
                       <>
                         <Loader2 size={11} className="animate-spin" />
