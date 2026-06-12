@@ -70,22 +70,41 @@ export interface PlanLike {
 /**
  * Narrow `allPlans` to those associated with `packageName`.
  *
- * - `packageName` falsy → returns the full list (caller didn't pick yet).
- * - No mapping matches the package → returns the full list (unrecognized
+ * `packageName` may be a single name or an ordered list of candidates —
+ * the first candidate that resolves to a product family wins. The Rider
+ * top-up flow passes `[package_product_name, product_name]`: the physical
+ * bike name is the map's native key, but when it's absent or not in the
+ * map (e.g. "Test Bike") the rider's current plan name still identifies
+ * the family via its battery prefix.
+ *
+ * A candidate resolves by matching either a `productPatterns` entry (bike
+ * names — S6, E-3H, CET3-B…) or a `servicePatterns` entry (B30-/B45-/B100-),
+ * so a service-plan name like `B45-200 kWh(60 swp)` maps to its own family.
+ *
+ * - No truthy candidate → returns the full list (caller didn't pick yet).
+ * - No mapping matches any candidate → returns the full list (unrecognized
  *   package, don't hide options).
  * - Matched mapping but zero plans pass the service filter → logs a
  *   warning and returns the full list (defensive fallback).
  */
 export function filterPlansByPackage<T extends PlanLike>(
-  packageName: string | undefined | null,
+  packageName: string | undefined | null | Array<string | undefined | null>,
   allPlans: T[],
 ): T[] {
-  if (!packageName) return allPlans;
-
-  const name = norm(packageName);
-  const matched = PRODUCT_SERVICE_MAP.find((mapping) =>
-    mapping.productPatterns.some((p) => name.includes(norm(p))),
+  const candidates = (Array.isArray(packageName) ? packageName : [packageName]).filter(
+    (c): c is string => !!c,
   );
+
+  let matched: ProductServiceMapping | undefined;
+  for (const candidate of candidates) {
+    const name = norm(candidate);
+    matched = PRODUCT_SERVICE_MAP.find(
+      (mapping) =>
+        mapping.productPatterns.some((p) => name.includes(norm(p))) ||
+        mapping.servicePatterns.some((sp) => name.includes(norm(sp))),
+    );
+    if (matched) break;
+  }
   if (!matched) return allPlans;
 
   const filtered = allPlans.filter((plan) => {

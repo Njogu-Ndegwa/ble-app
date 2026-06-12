@@ -72,12 +72,14 @@ interface EnergyTopUpModalProps {
   token?: string | null;
   subscriptionCode?: string | null;
   /**
-   * Name of the rider's current subscription product (e.g. "S6 Tuk-Tuk
-   * Monthly"). When provided, the plan list is narrowed to only the
-   * services that apply to this package — same mapping used in Sales /
-   * Activator step 3. Falsy → show all plans.
+   * Name of the rider's current package, or an ordered list of candidate
+   * names (first match wins — e.g. `[package_product_name, product_name]`
+   * so the physical bike is tried before the current plan). When provided,
+   * the plan list is narrowed to only the services that apply to this
+   * package — same mapping used in Sales / Activator step 3. Falsy / no
+   * match → show all plans.
    */
-  packageName?: string | null;
+  packageName?: string | Array<string | undefined | null> | null;
   onSubmit: (args: EnergyTopUpSubmitArgs) => Promise<EnergyTopUpResult>;
 }
 

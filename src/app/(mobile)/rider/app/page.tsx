@@ -2490,8 +2490,11 @@ const RiderApp: React.FC = () => {
         subscriptionCode={subscription?.subscription_code || null}
         // Pass the rider's current package so the modal narrows the plan
         // list to services that apply to it — same mapping Sales / Activator
-        // step 3 use to filter their plan picker.
-        packageName={subscription?.product_name || null}
+        // step 3 use to filter their plan picker. `package_product_name` is
+        // the physical bike (the map's native key); `product_name` is the
+        // current energy plan, whose B30-/B45-/B100- prefix identifies the
+        // family when the bike name is absent or unmapped (e.g. "Test Bike").
+        packageName={[subscription?.package_product_name, subscription?.product_name]}
         onSubmit={handleEnergyTopUp}
       />
 
