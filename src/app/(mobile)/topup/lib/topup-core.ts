@@ -97,3 +97,83 @@ export function appendRecentTopup(entry: RecentTopup, storage?: Storage): Recent
   }
   return list;
 }
+
+// ── Response assessment (mirrors rider's signal gate) ───────────────────────
+
+export interface TopupAssessment {
+  ok: boolean;
+  isIdempotent: boolean;
+  reason?: string;
+}
+
+/**
+ * ABS reports rejections as non-error responses distinguished only by
+ * `signals`. Success requires SERVICE_QUOTA_UPDATED; IDEMPOTENT_OPERATION_DETECTED
+ * means a retry of an already-applied credit (also success, but the quota
+ * figures in the response may not reflect the original credit).
+ */
+export function assessTopupResponse(resp: {
+  signals?: string[] | null;
+  metadata?: string | Record<string, unknown> | null;
+}): TopupAssessment {
+  const signals = resp.signals || [];
+  const isIdempotent = signals.includes('IDEMPOTENT_OPERATION_DETECTED');
+  if (signals.includes('SERVICE_QUOTA_UPDATED') || isIdempotent) {
+    return { ok: true, isIdempotent };
+  }
+  let md: Record<string, unknown> | null = null;
+  if (typeof resp.metadata === 'string') {
+    try { md = JSON.parse(resp.metadata); } catch { md = null; }
+  } else {
+    md = resp.metadata ?? null;
+  }
+  const reason =
+    (md && typeof md.reason === 'string' && md.reason) ||
+    (md && typeof md.message === 'string' && md.message) ||
+    undefined;
+  return { ok: false, isIdempotent: false, reason };
+}
+
+// ── Pending reference (survives unmount and refresh until success) ──────────
+
+const PENDING_REF_KEY = 'topup-pending-ref-v1';
+
+/**
+ * The idempotency reference must survive Back-navigation and even a page
+ * refresh after a timed-out commit: retrying the SAME subscription+plan must
+ * reuse the SAME reference so ABS dedupe can absorb a credit that actually
+ * landed server-side. A different subscription or plan gets a fresh
+ * reference, and success clears it so deliberate repeat top-ups work.
+ */
+export function getOrCreatePendingReference(
+  employeeId: string | number,
+  subscriptionCode: string,
+  productId: number,
+  storage?: Storage,
+): string {
+  const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
+  const key = `${subscriptionCode}::${productId}`;
+  try {
+    const raw = s?.getItem(PENDING_REF_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.key === key && typeof parsed.reference === 'string') {
+        return parsed.reference;
+      }
+    }
+  } catch {
+    // fall through to regenerate
+  }
+  const reference = buildStaffTopupReference(employeeId);
+  try {
+    s?.setItem(PENDING_REF_KEY, JSON.stringify({ key, reference }));
+  } catch {
+    // private mode/quota — in-memory flow still works for same-screen retries
+  }
+  return reference;
+}
+
+export function clearPendingReference(storage?: Storage): void {
+  const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
+  try { s?.removeItem(PENDING_REF_KEY); } catch { /* ignore */ }
+}

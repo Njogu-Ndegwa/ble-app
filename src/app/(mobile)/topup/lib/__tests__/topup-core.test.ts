@@ -4,6 +4,9 @@ import {
   buildServiceTopupInput,
   loadRecentTopups,
   appendRecentTopup,
+  assessTopupResponse,
+  getOrCreatePendingReference,
+  clearPendingReference,
   type RecentTopup,
 } from '../topup-core';
 
@@ -78,6 +81,60 @@ function memStorage(): Storage {
     get length() { return m.size; },
   } as Storage;
 }
+
+describe('assessTopupResponse', () => {
+  it('accepts SERVICE_QUOTA_UPDATED', () => {
+    expect(assessTopupResponse({ signals: ['SERVICE_QUOTA_UPDATED', 'PAYMENT_PROCESSED'] }))
+      .toEqual({ ok: true, isIdempotent: false });
+  });
+
+  it('accepts idempotent replays and flags them', () => {
+    expect(assessTopupResponse({ signals: ['IDEMPOTENT_OPERATION_DETECTED'] }))
+      .toEqual({ ok: true, isIdempotent: true });
+  });
+
+  it('rejects anything else and surfaces metadata reason', () => {
+    const out = assessTopupResponse({
+      signals: ['QUOTA_POLICY_VIOLATION'],
+      metadata: JSON.stringify({ reason: 'Plan not active' }),
+    });
+    expect(out.ok).toBe(false);
+    expect(out.reason).toBe('Plan not active');
+  });
+
+  it('handles missing signals and unparseable metadata', () => {
+    expect(assessTopupResponse({})).toEqual({ ok: false, isIdempotent: false, reason: undefined });
+    expect(assessTopupResponse({ signals: [], metadata: '{broken' }).ok).toBe(false);
+  });
+});
+
+describe('pending reference lifecycle', () => {
+  it('reuses the reference for the same sub+plan, regenerates for different', () => {
+    const s = memStorage();
+    const ref1 = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    const ref2 = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    expect(ref2).toBe(ref1);
+    const ref3 = getOrCreatePendingReference(42, 'SUB-1', 8, s);
+    expect(ref3).not.toBe(ref1);
+    const ref4 = getOrCreatePendingReference(42, 'SUB-2', 7, s);
+    expect(ref4).not.toBe(ref3);
+  });
+
+  it('clear() forces a fresh reference for an intentional repeat', () => {
+    const s = memStorage();
+    const ref1 = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    clearPendingReference(s);
+    const ref2 = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    expect(ref2).not.toBe(ref1);
+  });
+
+  it('survives corrupt storage payloads', () => {
+    const s = memStorage();
+    s.setItem('topup-pending-ref-v1', '{nope');
+    const ref = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    expect(ref).toMatch(/^staff-topup-42-/);
+  });
+});
 
 describe('recent top-ups persistence', () => {
   const entry: RecentTopup = {

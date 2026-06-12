@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Zap, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
@@ -11,9 +11,11 @@ import {
 import type { EmployeeUser } from '@/lib/attendant-auth';
 import { round } from '@/lib/utils';
 import {
-  buildStaffTopupReference,
   buildServiceTopupInput,
   appendRecentTopup,
+  assessTopupResponse,
+  getOrCreatePendingReference,
+  clearPendingReference,
 } from '../lib/topup-core';
 import type { IdentifiedSub } from './StepIdentify';
 import type { SelectedPlan } from './StepPlan';
@@ -27,6 +29,7 @@ export interface TopupReceipt {
   planName: string;
   currency: string;
   price: number;
+  wasRetry?: boolean;
 }
 
 interface StepConfirmProps {
@@ -39,8 +42,12 @@ interface StepConfirmProps {
 
 export default function StepConfirm({ employee, sub, plan, onBack, onDone }: StepConfirmProps) {
   const { t } = useI18n();
-  // One reference per confirm screen — retries reuse it so ABS can dedupe.
-  const referenceRef = useRef<string>(buildStaffTopupReference(employee.id ?? 'unknown'));
+  // Reference survives unmount/refresh until the credit SUCCEEDS — retrying
+  // the same sub+plan (even after Back navigation) reuses it so ABS dedupes.
+  const reference = useMemo(
+    () => getOrCreatePendingReference(employee.id, sub.subscriptionCode, plan.productId),
+    [employee.id, sub.subscriptionCode, plan.productId],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +63,7 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
         energyServiceId: sub.energyServiceId,
         planPrice: plan.price,
         declaredKwh: plan.declaredKwh,
-        reference: referenceRef.current,
+        reference,
       });
 
       const result = await absApolloClient.mutate<{ serviceTopup: ServiceTopupResponse }>({
@@ -65,37 +72,49 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
       });
 
       if (result.errors && result.errors.length > 0) {
-        throw new Error(result.errors[0].message || 'Top-up failed');
+        throw new Error(result.errors[0].message || t('topup.failed') || 'Top-up failed');
       }
       const resp = result.data?.serviceTopup;
       if (!resp) {
-        throw new Error('No response from server');
+        throw new Error(t('topup.noResponse') || 'No response from server');
       }
 
+      const assessment = assessTopupResponse(resp);
+      if (!assessment.ok) {
+        throw new Error(
+          assessment.reason
+            || t('topup.rejected')
+            || 'Top-up was rejected by the service. Nothing was credited.',
+        );
+      }
+      const kwhCredited = assessment.isIdempotent ? plan.declaredKwh : resp.additional_quota;
+
       const receipt: TopupReceipt = {
-        reference: referenceRef.current,
-        kwhCredited: resp.additional_quota,
+        reference,
+        kwhCredited,
         quotaBefore: resp.quota_before,
         quotaAfter: resp.quota_after,
         subscriptionCode: sub.subscriptionCode,
         planName: plan.name,
         currency: sub.currency,
         price: plan.price,
+        wasRetry: assessment.isIdempotent,
       };
+      clearPendingReference();
       appendRecentTopup({
         subscriptionCode: sub.subscriptionCode,
         planName: plan.name,
-        kwh: resp.additional_quota,
-        reference: referenceRef.current,
+        kwh: kwhCredited,
+        reference,
         timestamp: new Date().toISOString(),
       });
       onDone(receipt);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Top-up failed');
+      setError(err instanceof Error ? err.message : (t('topup.failed') || 'Top-up failed'));
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, sub, plan, onDone]);
+  }, [submitting, sub, plan, reference, onDone, t]);
 
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
@@ -155,6 +174,11 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
           <span>{error}</span>
         </div>
       )}
+      {error && (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
+          {t('topup.retryHint') || 'If this was a network problem, tap the credit button again from this screen — the retry is safe and cannot double-credit.'}
+        </p>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <button
@@ -162,6 +186,7 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
           className="btn btn-primary"
           onClick={handleCommit}
           disabled={submitting}
+          aria-busy={submitting}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
           <Zap size={16} />
