@@ -210,6 +210,14 @@ export const menuConfig: {
       ],
     },
     {
+      id: 'support',
+      labelKey: 'nav.support',
+      icon: 'help',
+      children: [
+        { id: 'support', labelKey: 'nav.support.app', href: '/support/app' },
+      ],
+    },
+    {
       id: 'keypad',
       labelKey: 'nav.keypad',
       icon: 'keypad',

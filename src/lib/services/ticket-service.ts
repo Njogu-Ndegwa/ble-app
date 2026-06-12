@@ -25,6 +25,8 @@ import type {
   TicketUpdateBody,
 } from '@/lib/tickets-types';
 import { priorityKey } from '@/lib/tickets-types';
+import { getSalesRoleUser } from '@/lib/attendant-auth';
+import { getOdooEmployee } from '@/lib/ov-auth';
 
 // ============================================================================
 // Types
@@ -144,6 +146,42 @@ export async function getAllTickets(
   };
 }
 
+export interface ListTicketsOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  stage?: TicketStageFilter;
+  priority?: TicketPriority;
+}
+
+/**
+ * Options-object list call used by the Support applet — surfaces the `search`
+ * and `priority` params `fetchTickets` already accepts alongside paging and
+ * the stage filter. The positional functions above are kept untouched for the
+ * agent Ticketing applet.
+ */
+export async function listTickets(
+  opts: ListTicketsOptions,
+  authToken: string,
+): Promise<TicketListResponse> {
+  const { page = 1, limit = 20, search, stage = 'all', priority } = opts;
+  const params: ListTicketsParams = {
+    page,
+    limit,
+    ...(search && search.trim() ? { search: search.trim() } : {}),
+    ...(typeof stage === 'number' ? { stage_id: stage } : {}),
+    ...(priority ? { priority } : {}),
+  };
+  const result = await apiFetchTickets(params, authToken);
+  return {
+    success: true,
+    tickets: result.tickets.map(mapTicket),
+    total: result.total,
+    page: result.page,
+    limit: result.limit,
+  };
+}
+
 /**
  * Get a single ticket by ID.
  * Uses GET /api/tickets/:id
@@ -229,11 +267,36 @@ export async function deleteTicket(
 }
 
 /**
- * Pipeline stages (kanban columns).
+ * Move a ticket to another stage. Thin wrapper over updateTicket — the
+ * Support applet uses it to close a ticket (first folded stage).
+ */
+export async function moveTicketStage(
+  id: number,
+  stageId: number,
+  authToken: string,
+): Promise<TicketDetailResponse> {
+  return updateTicket(id, { stageId }, authToken);
+}
+
+/**
+ * Pipeline stages (kanban columns), sorted by sequence so "the first folded
+ * stage" (the close target in the Support applet) is deterministic.
  * Uses GET /api/helpdesk/stages
  */
 export async function getHelpdeskStages(authToken: string): Promise<HelpdeskStage[]> {
-  return apiFetchStages(authToken);
+  const stages = await apiFetchStages(authToken);
+  return [...stages].sort((a, b) => a.sequence - b.sequence);
+}
+
+/**
+ * The logged-in user's res.partner id — what marks a ticket as "mine" in the
+ * Support applet (ticket.customerId === partner id). Client-side only; null
+ * when the session predates partner capture or has no partner record.
+ */
+export function getSessionPartnerId(): number | null {
+  const salesUser = getSalesRoleUser();
+  if (salesUser?.partnerId != null) return salesUser.partnerId;
+  return getOdooEmployee()?.partner_id ?? null;
 }
 
 /**
