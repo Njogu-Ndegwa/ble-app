@@ -126,7 +126,7 @@ export default function ActivatorApp({ onLogout, onSwitchSA }: ActivatorAppProps
             <WorkflowProfile
               employee={employee}
               onLogout={handleLogout}
-              roleIconSrc="/assets/Activator.svg"
+              roleIconSrc="/assets/optimized/Activator.png"
               roleLabel={t('role.activator') || 'Activator'}
               employeeIdLabel={t('sales.profile.employeeId') || 'Employee ID'}
               fallbackInitials="AC"

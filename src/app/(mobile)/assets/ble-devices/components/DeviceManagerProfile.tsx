@@ -59,7 +59,7 @@ const DeviceManagerProfile: React.FC<DeviceManagerProfileProps> = ({ onLogout })
     <WorkflowProfile
       employee={employee}
       onLogout={onLogout}
-      roleIconSrc="/assets/BleDeviceAttendant.svg"
+      roleIconSrc="/assets/optimized/BleDeviceAttendant.png"
       roleLabel={t('role.bleDeviceManager') || 'Device Manager'}
       employeeIdLabel={t('profile.employeeId') || 'Employee ID'}
       fallbackInitials="DM"

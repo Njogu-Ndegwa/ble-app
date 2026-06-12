@@ -27,7 +27,7 @@ export default function PublicLanding({ onSignIn }: Props) {
             <div className="role-hero-card-bg" />
             <div className="role-hero-card-img">
               <Image
-                src="/assets/Bikes Oves.png"
+                src="/assets/optimized/Bikes Oves.png"
                 alt="Electric Bikes"
                 width={320}
                 height={200}
@@ -55,7 +55,7 @@ export default function PublicLanding({ onSignIn }: Props) {
               <div className="role-app-icon role-grad-keypad">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/assets/Keypad2.svg"
+                  src="/assets/optimized/Keypad2.png"
                   alt={t('role.keypad')}
                   className="role-app-icon-img"
                   draggable={false}

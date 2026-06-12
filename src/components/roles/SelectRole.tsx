@@ -59,28 +59,28 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'customerManagement',
     labelKey: 'role.customerManagement',
-    icon: { type: 'image', src: '/assets/Customer.svg', gradient: 'role-grad-customer' },
+    icon: { type: 'image', src: '/assets/optimized/Customer.png', gradient: 'role-grad-customer' },
     path: '/customer-management',
     appletSlug: 'customer-management',
   },
   {
     id: 'products',
     labelKey: 'role.products',
-    icon: { type: 'image', src: '/assets/Products.svg', gradient: 'role-grad-products' },
+    icon: { type: 'image', src: '/assets/optimized/Products.png', gradient: 'role-grad-products' },
     path: '/products',
     appletSlug: 'products',
   },
   {
     id: 'orders',
     labelKey: 'role.orders',
-    icon: { type: 'image', src: '/assets/Orders.svg', gradient: 'role-grad-orders' },
+    icon: { type: 'image', src: '/assets/optimized/Orders.png', gradient: 'role-grad-orders' },
     path: '/orders',
     appletSlug: 'orders',
   },
   {
     id: 'rider',
     labelKey: 'role.rider',
-    icon: { type: 'image', src: '/assets/Rider.svg', gradient: 'role-grad-rider' },
+    icon: { type: 'image', src: '/assets/optimized/Rider.png', gradient: 'role-grad-rider' },
     path: '/rider/app',
     appletSlug: 'rider',
   },
@@ -88,42 +88,42 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'activator',
     labelKey: 'role.activator',
-    icon: { type: 'image', src: '/assets/Activator.svg', gradient: 'role-grad-activator' },
+    icon: { type: 'image', src: '/assets/optimized/Activator.png', gradient: 'role-grad-activator' },
     path: '/activator',
     appletSlug: 'activator',
   },
   {
     id: 'sales',
     labelKey: 'role.salesRep',
-    icon: { type: 'image', src: '/assets/Salesperson.svg', gradient: 'role-grad-sales' },
+    icon: { type: 'image', src: '/assets/optimized/Salesperson.png', gradient: 'role-grad-sales' },
     path: '/customers/customerform',
     appletSlug: 'customers',
   },
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/optimized/Attendant2.png', gradient: 'role-grad-attendant' },
     path: '/attendant/attendant',
     appletSlug: 'attendant',
   },
   {
     id: 'manualSwap',
     labelKey: 'role.manualSwap',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/optimized/Attendant2.png', gradient: 'role-grad-attendant' },
     path: '/attendant/manual-swap',
     appletSlug: 'externalswap',
   },
   {
     id: 'topUpSwap',
     labelKey: 'role.topUpSwap',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/optimized/Attendant2.png', gradient: 'role-grad-attendant' },
     path: '/attendant/topup-swap',
     appletSlug: 'topupswap',
   },
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    icon: { type: 'image', src: '/assets/Keypad2.svg', gradient: 'role-grad-keypad' },
+    icon: { type: 'image', src: '/assets/optimized/Keypad2.png', gradient: 'role-grad-keypad' },
     path: '/keypad/keypad',
     appletSlug: 'keypad',
   },
@@ -131,7 +131,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
+    icon: { type: 'image', src: '/assets/optimized/BleDeviceAttendant.png', gradient: 'role-grad-ble' },
     path: '/assets/ble-devices',
     // Visible when the SA has either 'assets' OR 'mydevices' in its applet list.
     appletSlug: ['assets', 'mydevices'],
@@ -237,8 +237,9 @@ export default function SelectRole({ onSwitchSA }: Props) {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
+  const prefetchTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
+    const timers = prefetchTimersRef.current;
     let delay = PREFETCH_INITIAL_DELAY_MS;
     for (const role of visibleRoles) {
       if (!role.disabled) {
@@ -262,6 +263,14 @@ export default function SelectRole({ onSwitchSA }: Props) {
 
   const handleRoleClick = useCallback((role: RoleConfig) => {
     if (role.disabled || navigatingRole) return;
+
+    // The tapped applet is now the ONLY download that matters: cancel every
+    // prefetch not yet started so its chunks don't have to share a slow
+    // mobile pipe with a dozen background downloads. (Measured under Fast-3G
+    // throttle: with prefetches competing, tap-to-open took 11-17s; without,
+    // the navigation gets the full link.)
+    prefetchTimersRef.current.forEach(clearTimeout);
+    prefetchTimersRef.current = [];
 
     setNavigatingRole(role);
 
@@ -359,7 +368,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
             <div className="role-hero-card-bg" />
             <div className="role-hero-card-img">
               <Image
-                src="/assets/Bikes Oves.png"
+                src="/assets/optimized/Bikes Oves.png"
                 alt="Electric Bikes"
                 width={320}
                 height={200}

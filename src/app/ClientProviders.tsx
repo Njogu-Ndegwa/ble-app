@@ -18,6 +18,21 @@ export default function ClientProviders({ children }: { children: React.ReactNod
     navigator.storage?.persist?.().catch(() => {});
   }, []);
 
+  // Deferred service-worker registration (next.config sets register: false).
+  // The SW's install precaches every route; on a first launch those downloads
+  // saturate the connection pool exactly when the user's first applet tap
+  // needs it. 12s in, the tap has happened and the role grid's staggered
+  // prefetches have already warmed the HTTP cache, so the precache is cheap.
+  // On every later launch the SW is already installed and controls the page
+  // from the start — registration here is a no-op then.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const id = setTimeout(() => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }, 12000);
+    return () => clearTimeout(id);
+  }, []);
+
   return (
     <ThemeProvider>
       <ApolloProvider client={apolloClient}>

@@ -29,16 +29,16 @@ export default function RootLayout({
         <link rel="preconnect" href="https://dev-federated-graphql-api.omnivoltaic.com" />
         <link rel="preconnect" href="https://abs-platform-dev.omnivoltaic.com" />
         {/* Preload applet grid assets so icons are ready when SelectRole renders */}
-        <link rel="preload" as="image" href="/assets/Bikes Oves.png" />
-        <link rel="preload" as="image" href="/assets/Customer.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Products.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Orders.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Rider.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Activator.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Salesperson.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Attendant2.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/Keypad2.svg" type="image/svg+xml" />
-        <link rel="preload" as="image" href="/assets/BleDeviceAttendant.svg" type="image/svg+xml" />
+        <link rel="preload" as="image" href="/assets/optimized/Bikes Oves.png" />
+        <link rel="preload" as="image" href="/assets/optimized/Customer.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Products.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Orders.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Rider.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Activator.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Salesperson.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Attendant2.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/Keypad2.png" type="image/png" />
+        <link rel="preload" as="image" href="/assets/optimized/BleDeviceAttendant.png" type="image/png" />
         <style
           dangerouslySetInnerHTML={{
             __html: `

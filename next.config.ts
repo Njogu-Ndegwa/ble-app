@@ -33,6 +33,12 @@ module.exports = async (phase:any) => {
       // use something else that works, such as "service-worker/index.ts".
       swSrc: "src/app/sw.js",
       swDest: "public/sw.js",
+      // Registration is deferred and done manually in ClientProviders: the
+      // SW's install-time precache downloads every route's chunks, and on a
+      // first launch those requests hog the connection pool exactly when the
+      // user's first applet navigation needs it (measured: tap-to-open went
+      // from 20s to <3s on Fast-3G by deferring registration ~12s).
+      register: false,
     });
     return withSerwist(nextConfig);
   }
