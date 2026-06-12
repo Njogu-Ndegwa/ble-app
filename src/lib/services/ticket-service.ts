@@ -27,6 +27,7 @@ import type {
 import { priorityKey } from '@/lib/tickets-types';
 import { getSalesRoleUser } from '@/lib/attendant-auth';
 import { getOdooEmployee } from '@/lib/ov-auth';
+import { appendAttribution } from '@/lib/note-attribution';
 
 // ============================================================================
 // Types
@@ -311,7 +312,9 @@ export async function getTicketMessages(
 }
 
 /**
- * Chatter — post a comment on a ticket.
+ * Chatter — post a comment on a ticket. Appends the note-attribution marker
+ * (the backend records every chatter post as "OdooBot" regardless of token —
+ * see note-attribution.ts); displayMessage() parses it back out for the UI.
  * Uses POST /api/tickets/:id/messages
  */
 export async function postTicketMessage(
@@ -319,5 +322,7 @@ export async function postTicketMessage(
   message: string,
   authToken: string,
 ): Promise<{ message_id: number }> {
-  return apiPostMessage(id, message, authToken);
+  // Same resolution order as the session partner id (sales store first).
+  const name = getSalesRoleUser()?.name ?? getOdooEmployee()?.name ?? null;
+  return apiPostMessage(id, appendAttribution(message, name), authToken);
 }

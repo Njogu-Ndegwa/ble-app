@@ -23,7 +23,11 @@ import { FormInput, FormSection, FormRow } from '@/components/ui';
 import ListScreen, { type ListPeriod } from '@/components/ui/ListScreen';
 import FilterChips from '@/components/ui/FilterChips';
 import SelectSheet, { type SelectSheetItem } from '@/components/ui/SelectSheet';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import TicketAssignees from './TicketAssignees';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
+import { displayMessage } from '@/lib/note-attribution';
+import type { TicketActor } from '@/lib/ticket-actors-api';
 import {
   searchTickets,
   getAllTickets,
@@ -108,6 +112,10 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [composing, setComposing] = useState('');
   const [isPosting, setIsPosting] = useState(false);
+
+  // Governance actors, reported up by TicketAssignees — the Assigned-to row
+  // derives from them (the backend never dual-writes legacy assigned_to).
+  const [detailActors, setDetailActors] = useState<TicketActor[]>([]);
 
   // Form pickers
   const [priorityOpen, setPriorityOpen] = useState(false);
@@ -225,6 +233,7 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
       const token = getSalesRoleToken() || '';
       await postTicketMessage(selectedTicket.id, body, token);
       setComposing('');
+      toast.success(t('ticketing.detail.noteLogged') || 'Note logged');
       await loadMessages(selectedTicket.id);
     } catch (err: any) {
       toast.error(err?.message || t('ticketing.detail.postError') || 'Failed to post note');
@@ -242,6 +251,7 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
     setSubView('detail');
     setMessages([]);
     setComposing('');
+    setDetailActors([]);
     try {
       const token = getSalesRoleToken() || '';
       const result = await getTicketById(ticket.id, token);
@@ -284,6 +294,7 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
     setFormErrors({});
     setMessages([]);
     setComposing('');
+    setDetailActors([]);
   }, []);
 
   const goBackToDetail = useCallback(() => {
@@ -398,51 +409,20 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
   // ------------------------------------------------------------------
   // DELETE CONFIRMATION MODAL
   // ------------------------------------------------------------------
-  const deleteConfirmModal = showDeleteConfirm && selectedTicket && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isDeleting && setShowDeleteConfirm(false)} />
-      <div
-        className="relative w-full max-w-sm rounded-2xl p-6 border"
-        style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
-      >
-        <div className="flex flex-col items-center text-center gap-3">
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center"
-            style={{ background: 'var(--color-error-soft)' }}
-          >
-            <AlertTriangle size={24} style={{ color: 'var(--color-error)' }} />
-          </div>
-          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {t('ticketing.detail.deleteConfirmTitle') || 'Delete Ticket?'}
-          </h3>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {t('ticketing.detail.deleteConfirmMessage') || `Delete "${selectedTicket.subject}"? This cannot be undone.`}
-          </p>
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={() => setShowDeleteConfirm(false)}
-            disabled={isDeleting}
-            className="flex-1 py-3 rounded-xl border font-medium text-sm transition-colors active:scale-[0.98]"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}
-          >
-            {t('common.cancel') || 'Cancel'}
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="flex-1 py-3 rounded-xl font-medium text-sm text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-50"
-            style={{ background: 'var(--color-error)' }}
-          >
-            {isDeleting ? (
-              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t('common.deleting') || 'Deleting...'}</>
-            ) : (
-              <><Trash2 size={16} />{t('common.delete') || 'Delete'}</>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+  const deleteConfirmModal = selectedTicket && (
+    <ConfirmDialog
+      open={showDeleteConfirm}
+      title={t('ticketing.detail.deleteConfirmTitle') || 'Delete Ticket?'}
+      message={t('ticketing.detail.deleteConfirmMessage') || `Delete "${selectedTicket.subject}"? This cannot be undone.`}
+      confirmLabel={t('common.delete') || 'Delete'}
+      icon={<AlertTriangle size={24} style={{ color: 'var(--color-error)' }} />}
+      iconBackground="var(--color-error-soft)"
+      danger
+      busy={isDeleting}
+      cancelLabel={t('common.cancel') || 'Cancel'}
+      onCancel={() => setShowDeleteConfirm(false)}
+      onConfirm={handleDelete}
+    />
   );
 
   // ------------------------------------------------------------------
@@ -633,7 +613,34 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
         title: t('ticketing.detail.people') || 'People',
         fields: [
           { icon: <User size={15} />, label: t('ticketing.detail.customer') || 'Customer', value: selectedTicket.customerName || '--' },
-          { icon: <User size={15} />, label: t('ticketing.detail.assignedTo') || 'Assigned to', value: selectedTicket.assigneeName || '--' },
+          {
+            icon: <User size={15} />,
+            label: t('ticketing.detail.assignedTo') || 'Assigned to',
+            // Primary actor → any actor → legacy assigned_to → "--". The
+            // backend never dual-writes assigned_to when actors change, so
+            // the governance actors list is the source of truth.
+            value:
+              (detailActors.find((a) => a.isPrimary)?.name
+                ?? detailActors[0]?.name
+                ?? selectedTicket.assigneeName) || '--',
+          },
+        ],
+      },
+      {
+        title: t('ticketing.detail.assignees') || 'Assignees',
+        fields: [
+          {
+            icon: undefined,
+            label: '',
+            value: '',
+            renderValue: (
+              <TicketAssignees
+                ticketId={selectedTicket.id}
+                saId={selectedTicket.saId}
+                onActorsChange={setDetailActors}
+              />
+            ),
+          },
         ],
       },
       {
@@ -677,17 +684,20 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
                   </p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {messages.map((m) => (
-                      <div key={m.id} className="rounded-lg border border-border bg-bg-surface p-2.5">
-                        <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-                          <span className="font-semibold text-text-primary">{m.author}</span>
-                          <span>{m.date}</span>
+                    {messages.map((m) => {
+                      const dm = displayMessage(m);
+                      return (
+                        <div key={m.id} className="rounded-lg border border-border bg-bg-surface p-2.5">
+                          <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                            <span className="font-semibold text-text-primary">{dm.author}</span>
+                            <span>{m.date}</span>
+                          </div>
+                          <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
+                            {dm.body}
+                          </p>
                         </div>
-                        <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
-                          {stripHtml(m.body)}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -849,17 +859,6 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
       </div>
     </div>
   );
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function stripHtml(html: string): string {
-  if (typeof document === 'undefined') return html;
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return div.textContent || div.innerText || '';
 }
 
 // ============================================================================

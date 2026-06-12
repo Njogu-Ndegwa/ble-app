@@ -34,6 +34,7 @@ import {
   type ExistingTicket,
   type TicketStageFilter,
 } from '@/lib/services/ticket-service';
+import { displayMessage, htmlToText } from '@/lib/note-attribution';
 import type { HelpdeskStage, TicketMessage, TicketPriority } from '@/lib/tickets-types';
 
 // ============================================================================
@@ -301,7 +302,7 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
     if (!isMine(ticket) || !stagesLoaded || isTerminal(ticket)) return;
     setFormData({
       subject: ticket.subject,
-      description: stripHtml(ticket.description),
+      description: htmlToText(ticket.description),
       priority: ticket.priority === 'none' ? 'medium' : ticket.priority,
     });
     setFormErrors({});
@@ -667,7 +668,7 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
     const mine = isMine(selectedTicket);
     const terminal = isTerminal(selectedTicket);
     const canAct = mine && stagesLoaded && !terminal;
-    const description = stripHtml(selectedTicket.description);
+    const description = htmlToText(selectedTicket.description);
 
     const detailSections: DetailSectionType[] = [
       {
@@ -750,17 +751,20 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
                   </p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {messages.map((m) => (
-                      <div key={m.id} className="rounded-lg border border-border bg-bg-surface p-2.5">
-                        <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-                          <span className="font-semibold text-text-primary">{m.author}</span>
-                          <span>{m.date}</span>
+                    {messages.map((m) => {
+                      const dm = displayMessage(m);
+                      return (
+                        <div key={m.id} className="rounded-lg border border-border bg-bg-surface p-2.5">
+                          <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                            <span className="font-semibold text-text-primary">{dm.author}</span>
+                            <span>{m.date}</span>
+                          </div>
+                          <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
+                            {dm.body}
+                          </p>
                         </div>
-                        <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
-                          {stripHtml(m.body)}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -881,17 +885,6 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
       </div>
     </div>
   );
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function stripHtml(html: string): string {
-  if (typeof document === 'undefined') return html;
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return div.textContent || div.innerText || '';
 }
 
 // ============================================================================
