@@ -42,7 +42,7 @@ export function buildServiceTopupInput(p: StaffTopupParams): ServiceTopupInput {
 
   const unitPrice = paymentAmount / p.declaredKwh;
   const previewKwh = Math.round((paymentAmount / unitPrice) * 10000) / 10000;
-  if (Math.abs(previewKwh - p.declaredKwh) > 0.0001) {
+  if (!(Math.abs(previewKwh - p.declaredKwh) <= 0.0001)) {
     throw new Error('Top-up precision check failed');
   }
 
@@ -76,7 +76,12 @@ export function loadRecentTopups(storage?: Storage): RecentTopup[] {
     const raw = s.getItem(RECENT_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e): e is RecentTopup =>
+        !!e && typeof e.reference === 'string' && typeof e.kwh === 'number'
+        && typeof e.subscriptionCode === 'string' && typeof e.timestamp === 'string',
+    );
   } catch {
     return [];
   }

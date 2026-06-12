@@ -57,6 +57,14 @@ describe('buildServiceTopupInput', () => {
   it('rejects non-positive price', () => {
     expect(() => buildServiceTopupInput({ ...base, planPrice: 0 })).toThrow(/price/i);
   });
+
+  it('rejects non-finite declared kWh', () => {
+    expect(() => buildServiceTopupInput({ ...base, declaredKwh: Infinity })).toThrow();
+  });
+
+  it('rejects non-finite price', () => {
+    expect(() => buildServiceTopupInput({ ...base, planPrice: Infinity })).toThrow();
+  });
 });
 
 function memStorage(): Storage {
@@ -95,5 +103,13 @@ describe('recent top-ups persistence', () => {
     const list = loadRecentTopups(s);
     expect(list).toHaveLength(20);
     expect(list[0].reference).toBe('ref-24');
+  });
+
+  it('drops malformed entries and non-array payloads', () => {
+    const s = memStorage();
+    s.setItem('topup-recent-v1', '{}');
+    expect(loadRecentTopups(s)).toEqual([]);
+    s.setItem('topup-recent-v1', JSON.stringify([1, { ...entry }, { bad: true }]));
+    expect(loadRecentTopups(s)).toEqual([{ ...entry }]);
   });
 });
