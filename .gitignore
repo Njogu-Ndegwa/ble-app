@@ -52,3 +52,6 @@ bun.lock
 env.collect.ts
 
 core.superpowers/
+
+# Brainstorm visual-companion sessions
+.superpowers/
