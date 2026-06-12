@@ -959,6 +959,12 @@
   "role.comingSoon": "即将推出",
   "role.switchLanguage": "选择语言",
 
+  "ticketing.detail.summary": "摘要",
+  "ticketing.detail.created": "创建时间",
+  "ticketing.detail.people": "相关人员",
+  "ticketing.form.basics": "基本信息",
+  "ticketing.form.subjectRequired": "主题为必填项",
+
   "support.title": "客户支持",
   "support.itemSingular": "工单",
   "support.itemPlural": "工单",

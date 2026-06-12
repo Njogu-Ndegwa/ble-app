@@ -98,6 +98,10 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
   const [stageFilter, setStageFilter] = useState<TicketStageFilter>('all');
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority | null>(null);
   const [stages, setStages] = useState<HelpdeskStage[]>([]);
+  // Distinguishes "stage fetch failed" (edit/close suppressed — we can't tell
+  // whether a ticket is closed) from "team has no stages" (nothing can be
+  // folded, so edit is legitimately available).
+  const [stagesLoaded, setStagesLoaded] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // The session's partner id — what "mine" means everywhere in this applet.
@@ -127,7 +131,10 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
     const token = getSalesRoleToken() || '';
     if (!token) return;
     getHelpdeskStages(token)
-      .then(setStages)
+      .then((list) => {
+        setStages(list);
+        setStagesLoaded(true);
+      })
       .catch(err => {
         console.error('[Support] Failed to load stages:', err);
         toast.error(err?.message || t('support.error.stages') || 'Failed to load stages');
@@ -289,8 +296,9 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
   }, [t, loadMessages]);
 
   const openEdit = useCallback((ticket: ExistingTicket) => {
-    // Only the ticket's owner can edit, and only while it's open.
-    if (!isMine(ticket) || isTerminal(ticket)) return;
+    // Only the ticket's owner can edit, and only while it's open. Requires a
+    // successful stage load — otherwise we can't tell open from closed.
+    if (!isMine(ticket) || !stagesLoaded || isTerminal(ticket)) return;
     setFormData({
       subject: ticket.subject,
       description: stripHtml(ticket.description),
@@ -299,7 +307,7 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
     setFormErrors({});
     setSelectedTicket(ticket);
     setSubView('edit');
-  }, [isMine, isTerminal]);
+  }, [isMine, isTerminal, stagesLoaded]);
 
   const openCreate = useCallback(() => {
     setFormData(EMPTY_FORM);
@@ -532,20 +540,22 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
           : (t('support.itemPlural') || 'tickets')
         }
         headerExtra={
-          stages.length > 0 ? (
-            <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
+            {stages.length > 0 && (
               <FilterChips
                 items={STAGE_FILTER_ITEMS}
                 activeKey={stageFilter === 'all' ? 'all' : String(stageFilter)}
                 onSelect={(key) => setStageFilter(key === 'all' ? 'all' : Number(key))}
               />
-              <FilterChips
-                items={PRIORITY_FILTER_ITEMS}
-                activeKey={priorityFilter ?? 'any'}
-                onSelect={(key) => setPriorityFilter(key === 'any' ? null : (key as TicketPriority))}
-              />
-            </div>
-          ) : undefined
+            )}
+            {/* Priority filtering doesn't depend on stages — keep it available
+                even when the stage list is empty or failed to load. */}
+            <FilterChips
+              items={PRIORITY_FILTER_ITEMS}
+              activeKey={priorityFilter ?? 'any'}
+              onSelect={(key) => setPriorityFilter(key === 'any' ? null : (key as TicketPriority))}
+            />
+          </div>
         }
         fabAction={openCreate}
         fabLabel={t('support.new') || 'Raise Ticket'}
@@ -656,7 +666,7 @@ export default function Support({ onLogout: _onLogout }: SupportProps) {
     const stageName = selectedTicket.stageName || (t('ticketing.stage.unknown') || '(no stage)');
     const mine = isMine(selectedTicket);
     const terminal = isTerminal(selectedTicket);
-    const canAct = mine && !terminal;
+    const canAct = mine && stagesLoaded && !terminal;
     const description = stripHtml(selectedTicket.description);
 
     const detailSections: DetailSectionType[] = [

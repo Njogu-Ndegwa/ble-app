@@ -1046,6 +1046,12 @@
   "role.comingSoon": "Bientôt",
   "role.switchLanguage": "Sélectionner la langue",
 
+  "ticketing.detail.summary": "Résumé",
+  "ticketing.detail.created": "Créé",
+  "ticketing.detail.people": "Personnes",
+  "ticketing.form.basics": "Essentiels",
+  "ticketing.form.subjectRequired": "Le sujet est requis",
+
   "support.title": "Support",
   "support.itemSingular": "ticket",
   "support.itemPlural": "tickets",

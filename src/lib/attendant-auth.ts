@@ -310,10 +310,10 @@ export function parseMicrosoftCallback(
 
   const jwt = decodeJwtPayload(token);
   const companyId = jwt?.company_id as number | undefined;
-  const partnerIdParam = params.get('partner_id');
-  const partnerId = partnerIdParam
-    ? Number(partnerIdParam)
-    : (jwt?.partner_id as number | undefined);
+  // partner_id may arrive as a query param or a JWT claim, either of which
+  // can be a numeric string — coerce both paths.
+  const rawPartnerId = params.get('partner_id') ?? jwt?.partner_id;
+  const partnerId = rawPartnerId != null ? Number(rawPartnerId) : NaN;
 
   const user: EmployeeUser = {
     id: Number(employeeId),
