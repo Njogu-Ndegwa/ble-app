@@ -1130,7 +1130,7 @@
   "topup.rejected": "Top-up was rejected by the service. Nothing was credited.",
   "topup.retryHint": "If this was a network problem, tap the credit button again from this screen — the retry is safe and cannot double-credit.",
   "topup.doneDesc": "{sub} now has {after} kWh (was {before}).",
-  "topup.doneDescRetry": "{sub} current balance: {after} kWh.",
+  "topup.doneDescRetry": "Credit applied to {sub}.",
   "topup.alreadyCredited": "This credit had already been applied — the retry was detected and no double charge occurred.",
   "topup.reference": "Reference",
   "topup.copyReference": "Copy reference",
@@ -1138,6 +1138,7 @@
   "topup.copyFailed": "Couldn't copy automatically — note the reference manually.",
   "topup.topUpAnother": "Top up another",
   "topup.recentTitle": "Recent top-ups (this device)",
+  "topup.notAuthorized": "This account does not have access to the Top-Up applet.",
 
   "customerMgmt.title": "Customer Management",
   "customerMgmt.deleteCustomer": "Delete Customer",

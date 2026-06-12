@@ -1075,7 +1075,7 @@
   "topup.rejected": "La recharge a été refusée par le service. Rien n'a été crédité.",
   "topup.retryHint": "S'il s'agissait d'un problème réseau, appuyez à nouveau sur le bouton de crédit depuis cet écran — la nouvelle tentative est sûre et ne peut pas créditer deux fois.",
   "topup.doneDesc": "{sub} a maintenant {after} kWh (avant : {before}).",
-  "topup.doneDescRetry": "{sub} solde actuel : {after} kWh.",
+  "topup.doneDescRetry": "Crédit appliqué à {sub}.",
   "topup.alreadyCredited": "Ce crédit avait déjà été appliqué — la nouvelle tentative a été détectée et aucun double débit n'a eu lieu.",
   "topup.reference": "Référence",
   "topup.copyReference": "Copier la référence",
@@ -1083,6 +1083,7 @@
   "topup.copyFailed": "Copie automatique impossible — notez la référence manuellement.",
   "topup.topUpAnother": "Recharger un autre",
   "topup.recentTitle": "Recharges récentes (cet appareil)",
+  "topup.notAuthorized": "Ce compte n'a pas accès à l'applet Recharge.",
 
   "customerMgmt.title": "Gestion des clients",
   "customerMgmt.deleteCustomer": "Supprimer le client",

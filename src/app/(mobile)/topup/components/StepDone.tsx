@@ -43,8 +43,7 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
           {receipt.wasRetry
             ? (t('topup.doneDescRetry', {
                 sub: receipt.subscriptionCode,
-                after: receipt.quotaAfter.toLocaleString(),
-              }) || `${receipt.subscriptionCode} current balance: ${receipt.quotaAfter.toLocaleString()} kWh.`)
+              }) || `Credit applied to ${receipt.subscriptionCode}.`)
             : (t('topup.doneDesc', {
                 sub: receipt.subscriptionCode,
                 after: receipt.quotaAfter.toLocaleString(),

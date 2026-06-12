@@ -66,6 +66,11 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
           if (s) {
             packageName = s.product_name || null;
             odooStatus = (s.status || '').toLowerCase() || null;
+          } else {
+            setWarning(
+              t('topup.statusUnverified')
+                || 'Subscription status could not be verified — confirm with the customer before continuing.',
+            );
           }
         } catch (err) {
           console.warn('[TOPUP] Odoo status lookup failed — proceeding without package filter:', err);

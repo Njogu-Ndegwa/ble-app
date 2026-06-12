@@ -92,8 +92,8 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
       const receipt: TopupReceipt = {
         reference,
         kwhCredited,
-        quotaBefore: resp.quota_before,
-        quotaAfter: resp.quota_after,
+        quotaBefore: sub.energyRemaining,
+        quotaAfter: round(sub.energyRemaining + resp.additional_quota, 2),
         subscriptionCode: sub.subscriptionCode,
         planName: plan.name,
         currency: sub.currency,

@@ -988,7 +988,7 @@
   "topup.rejected": "充值被服务拒绝，未入账任何额度。",
   "topup.retryHint": "如果是网络问题，请在本屏幕再次点按充值按钮 — 重试是安全的，不会重复入账。",
   "topup.doneDesc": "{sub} 现有 {after} kWh（原 {before}）。",
-  "topup.doneDescRetry": "{sub} 当前余额：{after} kWh。",
+  "topup.doneDescRetry": "{sub} 的额度已入账。",
   "topup.alreadyCredited": "该额度此前已入账 — 系统已识别此次重试，不会重复扣费。",
   "topup.reference": "参考号",
   "topup.copyReference": "复制参考号",
@@ -996,6 +996,7 @@
   "topup.copyFailed": "无法自动复制 — 请手动记录参考号。",
   "topup.topUpAnother": "再充值一笔",
   "topup.recentTitle": "近期充值（本设备）",
+  "topup.notAuthorized": "该账户无权使用能源充值应用。",
 
   "customerMgmt.title": "客户管理",
   "customerMgmt.deleteCustomer": "删除客户",
