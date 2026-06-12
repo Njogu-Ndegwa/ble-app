@@ -89,7 +89,7 @@ export function loadRecentTopups(storage?: Storage): RecentTopup[] {
 
 export function appendRecentTopup(entry: RecentTopup, storage?: Storage): RecentTopup[] {
   const s = storage ?? (typeof window !== 'undefined' ? window.localStorage : undefined);
-  const list = [entry, ...loadRecentTopups(s)].slice(0, RECENT_MAX);
+  const list = [entry, ...loadRecentTopups(s).filter((e) => e.reference !== entry.reference)].slice(0, RECENT_MAX);
   try {
     s?.setItem(RECENT_KEY, JSON.stringify(list));
   } catch {

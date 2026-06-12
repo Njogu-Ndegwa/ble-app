@@ -3,6 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { Zap, Copy, Check, Info } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { copyToClipboard } from '@/lib/clipboard';
 import type { TopupReceipt } from './StepConfirm';
 
 interface StepDoneProps {
@@ -13,27 +14,13 @@ interface StepDoneProps {
 export default function StepDone({ receipt, onRestart }: StepDoneProps) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(receipt.reference);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = receipt.reference;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'absolute';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
-      console.warn('[TOPUP] Clipboard copy failed:', err);
-    }
+    const ok = await copyToClipboard(receipt.reference);
+    setCopied(ok);
+    setCopyFailed(!ok);
+    if (ok) window.setTimeout(() => setCopied(false), 1500);
   }, [receipt.reference]);
 
   return (
@@ -53,11 +40,16 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
           {`+${receipt.kwhCredited.toLocaleString()} kWh`}
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-          {t('topup.doneDesc', {
-            sub: receipt.subscriptionCode,
-            after: receipt.quotaAfter.toLocaleString(),
-            before: receipt.quotaBefore.toLocaleString(),
-          }) || `${receipt.subscriptionCode} now has ${receipt.quotaAfter.toLocaleString()} kWh (was ${receipt.quotaBefore.toLocaleString()}).`}
+          {receipt.wasRetry
+            ? (t('topup.doneDescRetry', {
+                sub: receipt.subscriptionCode,
+                after: receipt.quotaAfter.toLocaleString(),
+              }) || `${receipt.subscriptionCode} current balance: ${receipt.quotaAfter.toLocaleString()} kWh.`)
+            : (t('topup.doneDesc', {
+                sub: receipt.subscriptionCode,
+                after: receipt.quotaAfter.toLocaleString(),
+                before: receipt.quotaBefore.toLocaleString(),
+              }) || `${receipt.subscriptionCode} now has ${receipt.quotaAfter.toLocaleString()} kWh (was ${receipt.quotaBefore.toLocaleString()}).`)}
         </p>
       </div>
 
@@ -83,6 +75,7 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
           border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
           background: 'var(--bg-secondary)', padding: 12, textAlign: 'left',
           display: 'flex', flexDirection: 'column', gap: 6,
+          position: 'relative',
         }}
       >
         <span className="form-label" style={{ margin: 0 }}>
@@ -101,6 +94,14 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
           <span style={{ textAlign: 'left' }}>{receipt.reference}</span>
           {copied ? <Check size={15} /> : <Copy size={15} />}
         </button>
+        {copyFailed && (
+          <span role="status" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {t('topup.copyFailed') || 'Couldn’t copy automatically — note the reference manually.'}
+          </span>
+        )}
+        <span aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+          {copied ? (t('topup.copied') || 'Copied') : ''}
+        </span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

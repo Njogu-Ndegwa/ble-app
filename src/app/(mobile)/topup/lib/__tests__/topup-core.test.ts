@@ -193,4 +193,13 @@ describe('recent top-ups persistence', () => {
     s.setItem('topup-recent-v1', JSON.stringify([1, { ...entry }, { bad: true }]));
     expect(loadRecentTopups(s)).toEqual([{ ...entry }]);
   });
+
+  it('re-appending the same reference replaces rather than duplicates', () => {
+    const s = memStorage();
+    appendRecentTopup(entry, s);
+    appendRecentTopup({ ...entry, kwh: 999 }, s);
+    const list = loadRecentTopups(s);
+    expect(list).toHaveLength(1);
+    expect(list[0].kwh).toBe(999);
+  });
 });

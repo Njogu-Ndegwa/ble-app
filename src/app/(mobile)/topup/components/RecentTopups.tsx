@@ -6,7 +6,7 @@ import { useI18n } from '@/i18n';
 import { loadRecentTopups, type RecentTopup } from '../lib/topup-core';
 
 export default function RecentTopups() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [items, setItems] = useState<RecentTopup[]>([]);
 
   // localStorage is browser-only — load after mount to stay SSR-safe.
@@ -42,7 +42,7 @@ export default function RecentTopups() {
                 {item.subscriptionCode}
               </div>
               <div style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {new Date(item.timestamp).toLocaleString()} · {item.reference}
+                {new Date(item.timestamp).toLocaleString(locale)} · {item.reference}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>
