@@ -33,7 +33,7 @@ export default function TopupFlow({ employee }: TopupFlowProps) {
   const stepIndex = STEP_ORDER.indexOf(step);
 
   return (
-    <div className="page-content" style={{ paddingBottom: 24 }}>
+    <div style={{ paddingBottom: 24 }}>
       {/* Stepper dots */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
         {STEP_ORDER.map((s, i) => (
