@@ -34,7 +34,6 @@ import {
   RiderPlans,
   RiderTransactions,
   RiderTickets,
-  QRCodeModal,
   EnergyTopUpModal,
 } from './components';
 import type { EnergyTopUpSubmitArgs, EnergyTopUpResult } from './components';
@@ -67,6 +66,10 @@ const RiderMapProvider = dynamic(
     ),
   },
 );
+
+// The QR code generator library is only needed once the user opens the QR
+// modal — keep it out of the rider page's first-load bundle.
+const QRCodeModal = dynamic(() => import('./components/QRCodeModal'), { ssr: false });
 
 const ACTIVE_SUBSCRIPTION_CODE_STORAGE_KEY = 'activeSubscriptionCode_rider';
 

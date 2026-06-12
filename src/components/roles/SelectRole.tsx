@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Zap, FolderTree, LifeBuoy } from 'lucide-react';
@@ -154,8 +154,19 @@ const ALL_ROLES: RoleConfig[] = [
 ];
 
 const IDLE_THRESHOLD_MS = 2 * 60 * 1000;
-const NAV_TIMEOUT_MS = 3000;
+// Last-resort full-reload timeout for a stalled SPA navigation. Must be
+// generous: on a first launch over a slow network the navigation legitimately
+// takes several seconds while applet chunks download, and a premature
+// window.location.href ABANDONS that in-flight download and restarts the whole
+// document (HTML + every shared chunk + providers + hydration) — turning a
+// slow open into a 20s one. The user sees the loading overlay meanwhile.
+const NAV_TIMEOUT_MS = 15000;
 const ROLE_SEEN_KEY = 'oves-role-seen';
+// Delay before the first background prefetch and spacing between each one.
+// Firing all ~13 prefetches at once on first launch competes with the
+// service-worker precache and the user's first tap for mobile bandwidth.
+const PREFETCH_INITIAL_DELAY_MS = 800;
+const PREFETCH_STAGGER_MS = 350;
 
 export default function SelectRole({ onSwitchSA }: Props) {
   const router = useRouter();
@@ -227,11 +238,15 @@ export default function SelectRole({ onSwitchSA }: Props) {
   }, []);
 
   useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let delay = PREFETCH_INITIAL_DELAY_MS;
     for (const role of visibleRoles) {
       if (!role.disabled) {
-        router.prefetch(role.path);
+        timers.push(setTimeout(() => router.prefetch(role.path), delay));
+        delay += PREFETCH_STAGGER_MS;
       }
     }
+    return () => timers.forEach(clearTimeout);
   }, [router, visibleRoles]);
 
   useEffect(() => {
@@ -240,8 +255,15 @@ export default function SelectRole({ onSwitchSA }: Props) {
     };
   }, []);
 
+  // The applet being navigated to, if any. Drives the instant loading overlay
+  // and ignores further taps (rage-click guard) until navigation completes —
+  // SelectRole unmounts on success, which also clears the fallback timer.
+  const [navigatingRole, setNavigatingRole] = useState<RoleConfig | null>(null);
+
   const handleRoleClick = useCallback((role: RoleConfig) => {
-    if (role.disabled) return;
+    if (role.disabled || navigatingRole) return;
+
+    setNavigatingRole(role);
 
     if (wasIdleRef.current) {
       window.location.href = role.path;
@@ -254,7 +276,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
     navFallbackRef.current = setTimeout(() => {
       window.location.href = role.path;
     }, NAV_TIMEOUT_MS);
-  }, [router]);
+  }, [router, navigatingRole]);
 
   // Don't flash the grid while the single-applet redirect is in progress
   if (visibleRoles.length === 1 && !visibleRoles[0].disabled) {
@@ -294,6 +316,38 @@ export default function SelectRole({ onSwitchSA }: Props) {
   return (
     <div className="select-role-container">
       <div className="select-role-bg-gradient" />
+
+      {/* Instant feedback while the tapped applet loads. Painted within one
+          frame of the tap so even a slow first-launch navigation never looks
+          frozen (the #1 rage-click trigger). */}
+      {navigatingRole && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 20,
+            background: 'var(--bg-primary)',
+          }}
+        >
+          <div className={`role-app-icon ${navigatingRole.icon.gradient}`}>
+            {navigatingRole.icon.type === 'image' ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={navigatingRole.icon.src}
+                alt=""
+                className="role-app-icon-img"
+                draggable={false}
+              />
+            ) : (
+              navigatingRole.icon.el
+            )}
+          </div>
+          <span className="role-app-label" style={{ fontSize: 15 }}>
+            {t(navigatingRole.labelKey)}
+          </span>
+          <div className="loading-spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+        </div>
+      )}
 
       {/* Unified app header with SA switching */}
       <AppHeader onSwitchSA={onSwitchSA} />

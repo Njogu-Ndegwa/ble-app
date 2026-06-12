@@ -1,18 +1,40 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "react-hot-toast";
 
 import MobileListView from "./MobileListView";
-import DeviceDetailView from "./DeviceDetailView";
-import MyDevicesDetailView from "../../mydevices/devices/DeviceDetailView";
 import ProgressiveLoading from "../../../../components/loader/progressiveLoading";
+
+// Detail views and the profile tab only render after the user connects to a
+// device or opens the profile — keep them out of the applet's first-load
+// bundle so the scan list paints sooner on a cold start. A warmup effect
+// below fetches their chunks right after mount, so by the time a device is
+// connected they are already cached.
+const detailLoading = () => (
+  <div className="flex items-center justify-center" style={{ minHeight: "40vh" }}>
+    <div className="loading-spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+  </div>
+);
+const DeviceDetailView = dynamic(() => import("./DeviceDetailView"), {
+  ssr: false,
+  loading: detailLoading,
+});
+const MyDevicesDetailView = dynamic(
+  () => import("../../mydevices/devices/DeviceDetailView"),
+  { ssr: false, loading: detailLoading },
+);
 import { connBleByMacAddress, initServiceBleData, disconnBleByMacAddress } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
-import DeviceManagerProfile from './components/DeviceManagerProfile';
+
+const DeviceManagerProfile = dynamic(() => import('./components/DeviceManagerProfile'), {
+  ssr: false,
+  loading: detailLoading,
+});
 import AppHeader from '@/components/AppHeader';
 import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_REFRESH_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
 import { Power } from 'lucide-react';
@@ -214,6 +236,18 @@ const BleDevicesApp: React.FC = () => {
         connectTimeoutRef.current = null;
       }
     };
+  }, []);
+
+  // Warm the lazily-split detail/profile chunks shortly after mount so they
+  // are already cached by the time a device connects or the profile opens.
+  // 2.5s leaves the initial paint, BLE scan start and login flow undisturbed.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      import("./DeviceDetailView");
+      import("../../mydevices/devices/DeviceDetailView");
+      import("./components/DeviceManagerProfile");
+    }, 2500);
+    return () => clearTimeout(id);
   }, []);
 
   const connectedDeviceRef = useRef<string | null>(null);
