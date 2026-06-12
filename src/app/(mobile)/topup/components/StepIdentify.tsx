@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, AlertCircle, Zap, CheckCircle2 } from 'lucide-react';
+import { Search, AlertCircle, Zap, CheckCircle2, Loader2 } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { useCustomerIdentification, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { getSubscriptionStatus } from '@/lib/odoo-api';
-import { round } from '@/lib/utils';
 import RecentTopups from './RecentTopups';
 
 /** Everything later steps need about the validated subscription. */
@@ -25,8 +24,6 @@ interface StepIdentifyProps {
   onIdentified: (sub: IdentifiedSub) => void;
 }
 
-const INFINITE_QUOTA_THRESHOLD = 100000;
-
 export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
   const { t } = useI18n();
   const [subInput, setSubInput] = useState('');
@@ -40,74 +37,82 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
     silent: true,
     onError: (msg) => { setError(msg); setLoading(false); },
     onSuccess: async (result) => {
-      const states: ServiceState[] = result.serviceStates;
-      const energy = states.find(
-        (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity'),
-      );
-
-      // Gate: this applet only credits energy.
-      if (!energy) {
-        setError(t('topup.noEnergyService') || 'This subscription has no energy service to top up.');
-        setLoading(false);
-        return;
-      }
-      // Gate: unlimited-energy plans have nothing to top up.
-      if ((energy.quota || 0) > INFINITE_QUOTA_THRESHOLD) {
-        setError(t('topup.infiniteQuota') || 'This subscription has unlimited energy — nothing to top up.');
-        setLoading(false);
-        return;
-      }
-
-      const code = result.customer.subscriptionId;
-
-      // Odoo status/package lookup — degrades gracefully (package unknown →
-      // plan filter falls back to the full list).
-      let packageName: string | null = null;
-      let odooStatus: string | null = null;
       try {
-        const statusRes = await getSubscriptionStatus(code);
-        const s = statusRes.data?.subscription;
-        if (s) {
-          packageName = s.product_name || null;
-          odooStatus = (s.status || '').toLowerCase() || null;
+        const states: ServiceState[] = result.serviceStates;
+        const energy = states.find(
+          (s) => s.service_id?.includes('service-energy') || s.service_id?.includes('service-electricity'),
+        );
+
+        // Gate: this applet only credits energy.
+        if (!energy) {
+          setError(t('topup.noEnergyService') || 'This subscription has no energy service to top up.');
+          return;
         }
+        // Gate: unlimited-energy plans have nothing to top up.
+        if (result.customer.hasInfiniteEnergyQuota) {
+          setError(t('topup.infiniteQuota') || 'This subscription has unlimited energy — nothing to top up.');
+          return;
+        }
+
+        const code = result.customer.subscriptionId;
+
+        // Odoo status/package lookup — degrades gracefully (package unknown →
+        // plan filter falls back to the full list).
+        let packageName: string | null = null;
+        let odooStatus: string | null = null;
+        try {
+          const statusRes = await getSubscriptionStatus(code);
+          const s = statusRes.data?.subscription;
+          if (s) {
+            packageName = s.product_name || null;
+            odooStatus = (s.status || '').toLowerCase() || null;
+          }
+        } catch (err) {
+          console.warn('[TOPUP] Odoo status lookup failed — proceeding without package filter:', err);
+          setWarning(
+            t('topup.statusUnverified')
+              || 'Subscription status could not be verified — confirm with the customer before continuing.',
+          );
+        }
+
+        // Gate: cancelled subs are blocked outright.
+        if (odooStatus && /cancel|closed|terminated/.test(odooStatus)) {
+          setError(
+            t('topup.subCancelled', { status: odooStatus })
+              || `This subscription is ${odooStatus} — top-up is not allowed.`,
+          );
+          return;
+        }
+        // Paused → allowed, but staff must see it.
+        if (odooStatus && /pause|hold|suspend/.test(odooStatus)) {
+          setWarning(
+            t('topup.subPaused', { status: odooStatus })
+              || `This subscription is ${odooStatus}. Top-up is allowed, but check with the customer.`,
+          );
+        }
+
+        setCandidate({
+          subscriptionCode: code,
+          packageName,
+          odooStatus,
+          energyServiceId: energy.service_id,
+          energyRemaining: result.customer.energyRemaining ?? 0,
+          energyTotal: result.customer.energyTotal ?? 0,
+          currency: result.currencySymbol,
+        });
       } catch (err) {
-        console.warn('[TOPUP] Odoo status lookup failed — proceeding without package filter:', err);
-      }
-
-      // Gate: cancelled subs are blocked outright.
-      if (odooStatus && /cancel|closed|terminated/.test(odooStatus)) {
-        setError(
-          (t('topup.subCancelled') || 'This subscription is {status} — top-up is not allowed.')
-            .replace('{status}', odooStatus),
-        );
+        console.error('[TOPUP] identify post-processing failed:', err);
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      } finally {
         setLoading(false);
-        return;
       }
-      // Paused → allowed, but staff must see it.
-      if (odooStatus && /pause|hold|suspend/.test(odooStatus)) {
-        setWarning(
-          (t('topup.subPaused') || 'This subscription is {status}. Top-up is allowed, but check with the customer.')
-            .replace('{status}', odooStatus),
-        );
-      }
-
-      setCandidate({
-        subscriptionCode: code,
-        packageName,
-        odooStatus,
-        energyServiceId: energy.service_id,
-        energyRemaining: round((energy.quota || 0) - (energy.used || 0), 2),
-        energyTotal: energy.quota || 0,
-        currency: result.currencySymbol,
-      });
-      setLoading(false);
     },
   });
 
   useEffect(() => () => cancelIdentification(), [cancelIdentification]);
 
   const handleValidate = useCallback(() => {
+    if (loading) return;
     const code = subInput.trim();
     if (!code) return;
     setError(null);
@@ -115,7 +120,7 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
     setCandidate(null);
     setLoading(true);
     identifyCustomer({ subscriptionCode: code, source: 'manual' });
-  }, [subInput, identifyCustomer]);
+  }, [loading, subInput, identifyCustomer]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -150,7 +155,7 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
             style={{ paddingInline: 16 }}
           >
             {loading
-              ? (t('common.loading') || 'Loading...')
+              ? <Loader2 size={16} className="animate-spin" />
               : <Search size={16} />}
           </button>
         </div>
@@ -209,14 +214,15 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-primary)' }}>
             <Zap size={14} style={{ color: 'var(--accent)' }} />
             <span>
-              {(t('topup.energyBalance') || 'Energy: {remaining} of {total} kWh left')
-                .replace('{remaining}', candidate.energyRemaining.toLocaleString())
-                .replace('{total}', candidate.energyTotal.toLocaleString())}
+              {t('topup.energyBalance', {
+                remaining: candidate.energyRemaining.toLocaleString(),
+                total: candidate.energyTotal.toLocaleString(),
+              }) || `Energy: ${candidate.energyRemaining.toLocaleString()} of ${candidate.energyTotal.toLocaleString()} kWh left`}
             </span>
           </div>
 
           {warning && (
-            <div style={{ display: 'flex', gap: 6, fontSize: 12, color: 'var(--warning, #eab308)' }}>
+            <div role="status" style={{ display: 'flex', gap: 6, fontSize: 12, color: 'var(--warning, #eab308)' }}>
               <AlertCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
               <span>{warning}</span>
             </div>
