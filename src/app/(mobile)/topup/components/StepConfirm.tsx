@@ -100,7 +100,7 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
         price: plan.price,
         wasRetry: assessment.isIdempotent,
       };
-      clearPendingReference();
+      clearPendingReference(sub.subscriptionCode, plan.productId);
       appendRecentTopup({
         subscriptionCode: sub.subscriptionCode,
         planName: plan.name,

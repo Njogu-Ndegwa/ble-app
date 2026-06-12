@@ -136,14 +136,34 @@ export function assessTopupResponse(resp: {
 
 // ── Pending reference (survives unmount and refresh until success) ──────────
 
-const PENDING_REF_KEY = 'topup-pending-ref-v1';
+const PENDING_REFS_KEY = 'topup-pending-refs-v1';
+const PENDING_REFS_MAX = 10;
+
+function loadPendingRefs(s?: Storage): Record<string, string> {
+  if (!s) return {};
+  try {
+    const raw = s.getItem(PENDING_REFS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string') out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 
 /**
  * The idempotency reference must survive Back-navigation and even a page
  * refresh after a timed-out commit: retrying the SAME subscription+plan must
  * reuse the SAME reference so ABS dedupe can absorb a credit that actually
- * landed server-side. A different subscription or plan gets a fresh
- * reference, and success clears it so deliberate repeat top-ups work.
+ * landed server-side. Each sub+plan combination is stored independently in a
+ * map so viewing a different plan's confirm screen never overwrites another
+ * plan's pending reference. Success clears the specific entry so deliberate
+ * repeat top-ups work.
  */
 export function getOrCreatePendingReference(
   employeeId: string | number,
@@ -153,27 +173,37 @@ export function getOrCreatePendingReference(
 ): string {
   const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
   const key = `${subscriptionCode}::${productId}`;
-  try {
-    const raw = s?.getItem(PENDING_REF_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.key === key && typeof parsed.reference === 'string') {
-        return parsed.reference;
-      }
-    }
-  } catch {
-    // fall through to regenerate
-  }
+  const map = loadPendingRefs(s);
+  const existing = map[key];
+  if (existing) return existing;
+
   const reference = buildStaffTopupReference(employeeId);
+  // Cap the map so an abandoned session can't grow it unboundedly; insertion
+  // order makes the first key the oldest pending entry.
+  const keys = Object.keys(map);
+  if (keys.length >= PENDING_REFS_MAX) delete map[keys[0]];
+  map[key] = reference;
   try {
-    s?.setItem(PENDING_REF_KEY, JSON.stringify({ key, reference }));
+    s?.setItem(PENDING_REFS_KEY, JSON.stringify(map));
   } catch {
-    // private mode/quota — in-memory flow still works for same-screen retries
+    // private mode/quota — in-memory flow still covers same-screen retries
   }
   return reference;
 }
 
-export function clearPendingReference(storage?: Storage): void {
+/** Clear ONLY this sub+plan's pending reference (called on confirmed success). */
+export function clearPendingReference(
+  subscriptionCode: string,
+  productId: number,
+  storage?: Storage,
+): void {
   const s = storage ?? (typeof window !== 'undefined' ? window.sessionStorage : undefined);
-  try { s?.removeItem(PENDING_REF_KEY); } catch { /* ignore */ }
+  if (!s) return;
+  try {
+    const map = loadPendingRefs(s);
+    delete map[`${subscriptionCode}::${productId}`];
+    s.setItem(PENDING_REFS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
 }

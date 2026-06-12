@@ -123,16 +123,40 @@ describe('pending reference lifecycle', () => {
   it('clear() forces a fresh reference for an intentional repeat', () => {
     const s = memStorage();
     const ref1 = getOrCreatePendingReference(42, 'SUB-1', 7, s);
-    clearPendingReference(s);
+    clearPendingReference('SUB-1', 7, s);
     const ref2 = getOrCreatePendingReference(42, 'SUB-1', 7, s);
     expect(ref2).not.toBe(ref1);
   });
 
   it('survives corrupt storage payloads', () => {
     const s = memStorage();
-    s.setItem('topup-pending-ref-v1', '{nope');
+    s.setItem('topup-pending-refs-v1', '{nope');
     const ref = getOrCreatePendingReference(42, 'SUB-1', 7, s);
     expect(ref).toMatch(/^staff-topup-42-/);
+  });
+
+  it("keeps plan A's pending reference when plan B's confirm is merely viewed", () => {
+    const s = memStorage();
+    const refA = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    getOrCreatePendingReference(42, 'SUB-1', 8, s); // staff views plan B
+    expect(getOrCreatePendingReference(42, 'SUB-1', 7, s)).toBe(refA);
+  });
+
+  it('clearing one key leaves other pending references intact', () => {
+    const s = memStorage();
+    const refA = getOrCreatePendingReference(42, 'SUB-1', 7, s);
+    const refB = getOrCreatePendingReference(42, 'SUB-1', 8, s);
+    clearPendingReference('SUB-1', 8, s);
+    expect(getOrCreatePendingReference(42, 'SUB-1', 7, s)).toBe(refA);
+    expect(getOrCreatePendingReference(42, 'SUB-1', 8, s)).not.toBe(refB);
+  });
+
+  it('caps the pending map at 10 entries, evicting the oldest', () => {
+    const s = memStorage();
+    const ref0 = getOrCreatePendingReference(42, 'SUB-0', 1, s);
+    for (let i = 1; i <= 10; i++) getOrCreatePendingReference(42, `SUB-${i}`, 1, s);
+    expect(getOrCreatePendingReference(42, 'SUB-0', 1, s)).not.toBe(ref0); // evicted → regenerated
+    expect(getOrCreatePendingReference(42, 'SUB-10', 1, s)).toBeDefined();
   });
 });
 
