@@ -26,7 +26,7 @@ import SelectSheet, { type SelectSheetItem } from '@/components/ui/SelectSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import TicketAssignees from './TicketAssignees';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import { displayMessage } from '@/lib/note-attribution';
+import { displayMessage, htmlToText } from '@/lib/note-attribution';
 import type { TicketActor } from '@/lib/ticket-actors-api';
 import {
   searchTickets,
@@ -268,7 +268,7 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
   const openEdit = useCallback((ticket: ExistingTicket) => {
     setFormData({
       subject: ticket.subject,
-      description: ticket.description,
+      description: htmlToText(ticket.description),
       priority: ticket.priority === 'none' ? 'medium' : ticket.priority,
       stageId: ticket.stageId,
       partnerId: ticket.customerId,
@@ -576,6 +576,7 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
 
   if (subView === 'detail' && selectedTicket) {
     const stageName = selectedTicket.stageName || (t('ticketing.stage.unknown') || '(no stage)');
+    const description = htmlToText(selectedTicket.description);
     const detailSections: DetailSectionType[] = [
       {
         title: t('ticketing.detail.summary') || 'Summary',
@@ -594,16 +595,16 @@ export default function Ticketing({ onLogout: _onLogout }: TicketingProps) {
           { icon: <Calendar size={15} />, label: t('ticketing.detail.created') || 'Created', value: formatDate(selectedTicket.createdAt) },
         ],
       },
-      ...(selectedTicket.description ? [{
+      ...(description ? [{
         title: t('ticketing.new.description') || 'Description',
         fields: [
           {
             icon: undefined,
             label: '',
-            value: selectedTicket.description,
+            value: description,
             renderValue: (
               <p className="text-sm text-text-primary whitespace-pre-wrap break-words">
-                {selectedTicket.description}
+                {description}
               </p>
             ),
           },

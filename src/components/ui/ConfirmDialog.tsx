@@ -39,7 +39,9 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Above SelectSheet (z-index 2000) so a confirm staged from a sheet can
+    // never render underneath it.
+    <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={busy ? undefined : onCancel}
@@ -68,7 +70,7 @@ export default function ConfirmDialog({
           <button
             onClick={onCancel}
             disabled={busy}
-            className="flex-1 py-3 rounded-xl border font-medium text-sm transition-colors active:scale-[0.98]"
+            className="flex-1 py-3 rounded-xl border font-medium text-sm transition-colors active:scale-[0.98] disabled:opacity-50"
             style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}
           >
             {cancelLabel}

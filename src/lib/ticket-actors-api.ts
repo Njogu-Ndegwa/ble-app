@@ -128,14 +128,19 @@ export async function getServiceAccountMembers(saId: number): Promise<TicketMemb
   const body = await parse(response, endpoint);
   const arr = body.members ?? body.data ?? [];
   if (!Array.isArray(arr)) return [];
-  return arr.map((m: Record<string, any>) => {
-    const person = m.person ?? {};
-    const partnerId = person.id ?? m.partner_id ?? m.id;
-    const email = person.email ?? m.email;
-    return {
-      partnerId,
-      name: person.name ?? m.name ?? `Partner #${partnerId}`,
-      email: typeof email === 'string' ? email : undefined,
-    };
-  });
+  // person.id / partner_id are partner ids; a bare m.id would be the
+  // membership-record id (the same id-confusion mapActor guards against),
+  // so members without a partner id are dropped rather than mis-mapped.
+  return arr
+    .map((m: Record<string, any>) => {
+      const person = m.person ?? {};
+      const partnerId = person.id ?? m.partner_id;
+      const email = person.email ?? m.email;
+      return {
+        partnerId,
+        name: person.name ?? m.name ?? `Partner #${partnerId}`,
+        email: typeof email === 'string' ? email : undefined,
+      };
+    })
+    .filter((m: TicketMember) => m.partnerId != null);
 }
