@@ -24,6 +24,11 @@ type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
 
 const EMA_ALPHA = 0.3;
 
+// Delays between silent re-reads of the ATT service when the device ID (opid)
+// arrives without a value — the native GATT read can race other callbacks or
+// time out, delivering structurally complete service data with realVal null.
+const OPID_RETRY_DELAYS_MS = [1000, 2000, 4000];
+
 export interface BleDevice {
   macAddress: string;
   name: string;
@@ -216,6 +221,11 @@ const BleDevicesApp: React.FC = () => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
 
+  // Bounded silent retries for a missing device ID (opid); reset per connection
+  // so the error toast shows at most once per connection.
+  const opidRetryCountRef = useRef(0);
+  const opidToastShownRef = useRef(false);
+
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
     selectedDeviceRef.current = selectedDevice;
@@ -401,6 +411,8 @@ const BleDevicesApp: React.FC = () => {
         }
         console.warn('[BLE DevMgr] Connected to device:', macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
+        opidRetryCountRef.current = 0;
+        opidToastShownRef.current = false;
         setConnectedDevice(macAddress);
         setIsScanning(false);
         const d = { serviceName: "ATT", macAddress };
@@ -713,9 +725,31 @@ const BleDevicesApp: React.FC = () => {
     );
 
     if (!opidChar || !opidChar.realVal) {
-      toast.error(t('Device ID not available'));
+      // The native layer can deliver ATT data before the opid GATT read has
+      // actually returned a value. Quietly re-request the ATT service before
+      // bothering the user — the value normally lands on the first retry.
+      const mac = connectedDeviceRef.current;
+      if (mac && opidRetryCountRef.current < OPID_RETRY_DELAYS_MS.length) {
+        const delay = OPID_RETRY_DELAYS_MS[opidRetryCountRef.current];
+        opidRetryCountRef.current += 1;
+        setTimeout(() => {
+          // Skip if the device disconnected meanwhile, or a publish already
+          // succeeded (counter resets to 0) and this retry is stale.
+          if (connectedDeviceRef.current === mac && opidRetryCountRef.current > 0) {
+            setLoadingService("ATT");
+            initServiceBleData({ serviceName: "ATT", macAddress: mac });
+          }
+        }, delay);
+        return;
+      }
+      if (!opidToastShownRef.current) {
+        opidToastShownRef.current = true;
+        toast.error(t('Device ID not available'));
+      }
       return;
     }
+
+    opidRetryCountRef.current = 0;
 
     const opidRealVal = opidChar.realVal;
 
