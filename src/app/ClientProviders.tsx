@@ -16,7 +16,10 @@ export default function ClientProviders({ children }: { children: React.ReactNod
     // counter restores the watchdog's budget for a future broken cold start.
     (window as Window & { __appBooted?: boolean }).__appBooted = true;
     try {
+      // Restore both watchdogs' one-shot reload budgets now that we know the
+      // app boots, so a future broken cold start gets a fresh recovery attempt.
       sessionStorage.removeItem("oves-boot-retries");
+      sessionStorage.removeItem("oves-chunk-reload");
     } catch {}
 
     // Ask the browser to exempt this origin's storage (service-worker caches,
