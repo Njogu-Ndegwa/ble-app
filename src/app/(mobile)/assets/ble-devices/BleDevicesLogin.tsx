@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { useMutation } from '@apollo/client';
 import { useI18n } from '@/i18n';
 import { SIGN_IN_USER } from '@/app/(auth)/mutations';
+import {
+  readRememberedCredentials,
+  saveRememberedCredentials,
+} from './remember-credentials';
 
 // localStorage keys scoped to this applet (persist across restarts)
 export const BLE_DM_TOKEN_KEY = 'ble-dm-token';
@@ -20,6 +24,16 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Pre-fill the email & password the user signed in with last time. Done in an
+  // effect (not lazy useState) so the server-rendered markup stays empty and we
+  // avoid a hydration mismatch on the controlled inputs; the fields populate on
+  // the first client render. See remember-credentials.ts.
+  useEffect(() => {
+    const remembered = readRememberedCredentials();
+    if (remembered.email) setEmail(remembered.email);
+    if (remembered.password) setPassword(remembered.password);
+  }, []);
 
   const [signInUser, { loading }] = useMutation(SIGN_IN_USER, {
     onCompleted: (data) => {
@@ -101,16 +115,31 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
     },
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.warn('[BleDevicesLogin] handleLogin fired — email:', email.trim(), '| password length:', password.length);
-    if (!email.trim() || !password) {
+    const trimmedEmail = email.trim();
+    console.warn('[BleDevicesLogin] handleLogin fired — email:', trimmedEmail, '| password length:', password.length);
+    if (!trimmedEmail || !password) {
       console.warn('[BleDevicesLogin] handleLogin — missing credentials, showing toast');
       toast.error(t('auth.error.missingCredentials'));
       return;
     }
     console.warn('[BleDevicesLogin] calling signInUser mutation');
-    signInUser({ variables: { signInCredentials: { email: email.trim(), password } } });
+    try {
+      const result = await signInUser({
+        variables: { signInCredentials: { email: trimmedEmail, password } },
+      });
+      // Only remember the credentials once the server has accepted them, so we
+      // never store a wrong password from a failed attempt. (onCompleted above
+      // handles the token persistence.) These pre-fill the form next time —
+      // see the prefill effect and remember-credentials.ts.
+      if (result.data?.signInUser) {
+        saveRememberedCredentials(trimmedEmail, password);
+      }
+    } catch {
+      // onError (configured on the mutation) has already surfaced the toast;
+      // swallow the rejected promise so it doesn't bubble as unhandled.
+    }
   };
 
   return (
