@@ -10,11 +10,19 @@ import { ThemeProvider } from './context/themeContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
-  // Ask the browser to exempt this origin's storage (service-worker caches,
-  // IndexedDB) from automatic LRU eviction. Without this, leaving the app
-  // unused for months can silently delete the offline shell, turning the next
-  // cold launch into a full network download. No-op where unsupported.
   useEffect(() => {
+    // Signal to the inline boot watchdog in layout.tsx that the JS bundle
+    // executed and React is alive, so it won't reload us. Clearing the retry
+    // counter restores the watchdog's budget for a future broken cold start.
+    (window as Window & { __appBooted?: boolean }).__appBooted = true;
+    try {
+      sessionStorage.removeItem("oves-boot-retries");
+    } catch {}
+
+    // Ask the browser to exempt this origin's storage (service-worker caches,
+    // IndexedDB) from automatic LRU eviction. Without this, leaving the app
+    // unused for months can silently delete the offline shell, turning the next
+    // cold launch into a full network download. No-op where unsupported.
     navigator.storage?.persist?.().catch(() => {});
   }, []);
 

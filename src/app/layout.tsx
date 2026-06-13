@@ -63,6 +63,16 @@ export default function RootLayout({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/Logo-Oves.png" alt="" />
         </div>
+        {/* Boot watchdog: the static splash above is all the user sees until the
+            JS bundle runs and React hydrates. If a cold-start chunk load stalls,
+            this is the only thing that can recover the screen — it runs with no
+            app code. If React hasn't booted in 10s, reload once (a warm SW cache
+            usually fixes it); if it's still stuck, show an actionable retry. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var KEY='oves-boot-retries',MAX=1,WAIT=10000;function retryUI(){var el=document.getElementById('html-splash');if(!el)return;el.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:16px;font-family:sans-serif;color:#B0BEC5;padding:24px;text-align:center"><img src="/assets/Logo-Oves.png" alt="" style="height:40px;width:auto"/><div style="font-size:14px;line-height:1.4;max-width:280px">Could not load the app. Check your connection and try again.</div><button id="oves-retry" style="background:#22c55e;color:#04130b;border:0;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:600">Retry</button></div>';var b=document.getElementById('oves-retry');if(b)b.onclick=function(){try{sessionStorage.removeItem(KEY);}catch(e){}location.reload();};}setTimeout(function(){if(window.__appBooted)return;var n=0;try{n=parseInt(sessionStorage.getItem(KEY)||'0',10)||0;}catch(e){}if(n<MAX){try{sessionStorage.setItem(KEY,String(n+1));}catch(e){}location.reload();}else{retryUI();}},WAIT);})();`,
+          }}
+        />
         <ClientProviders>
           {children}
         </ClientProviders>
