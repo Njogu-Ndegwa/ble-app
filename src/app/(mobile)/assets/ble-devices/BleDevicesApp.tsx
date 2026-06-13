@@ -1,18 +1,40 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Toaster, toast } from "react-hot-toast";
 
 import MobileListView from "./MobileListView";
-import DeviceDetailView from "./DeviceDetailView";
-import MyDevicesDetailView from "../../mydevices/devices/DeviceDetailView";
 import ProgressiveLoading from "../../../../components/loader/progressiveLoading";
+
+// Detail views and the profile tab only render after the user connects to a
+// device or opens the profile — keep them out of the applet's first-load
+// bundle so the scan list paints sooner on a cold start. A warmup effect
+// below fetches their chunks right after mount, so by the time a device is
+// connected they are already cached.
+const detailLoading = () => (
+  <div className="flex items-center justify-center" style={{ minHeight: "40vh" }}>
+    <div className="loading-spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+  </div>
+);
+const DeviceDetailView = dynamic(() => import("./DeviceDetailView"), {
+  ssr: false,
+  loading: detailLoading,
+});
+const MyDevicesDetailView = dynamic(
+  () => import("../../mydevices/devices/DeviceDetailView"),
+  { ssr: false, loading: detailLoading },
+);
 import { connBleByMacAddress, initServiceBleData, disconnBleByMacAddress } from "../../../utils";
 import { useBridge } from "@/app/context/bridgeContext";
 import { useI18n } from "@/i18n";
 import BleDevicesNav, { type BleDevicesTab } from './components/BleDevicesNav';
-import DeviceManagerProfile from './components/DeviceManagerProfile';
+
+const DeviceManagerProfile = dynamic(() => import('./components/DeviceManagerProfile'), {
+  ssr: false,
+  loading: detailLoading,
+});
 import AppHeader from '@/components/AppHeader';
 import BleDevicesLogin, { BLE_DM_TOKEN_KEY, BLE_DM_REFRESH_KEY, BLE_DM_USER_KEY } from './BleDevicesLogin';
 import { Power } from 'lucide-react';
@@ -23,6 +45,11 @@ import { REFRESH_TOKEN } from '@/app/(auth)/mutations';
 type BleDevicesScreen = 'all-devices' | 'my-devices' | 'profile';
 
 const EMA_ALPHA = 0.3;
+
+// Delays between silent re-reads of the ATT service when the device ID (opid)
+// arrives without a value — the native GATT read can race other callbacks or
+// time out, delivering structurally complete service data with realVal null.
+const OPID_RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 export interface BleDevice {
   macAddress: string;
@@ -211,10 +238,27 @@ const BleDevicesApp: React.FC = () => {
     };
   }, []);
 
+  // Warm the lazily-split detail/profile chunks shortly after mount so they
+  // are already cached by the time a device connects or the profile opens.
+  // 2.5s leaves the initial paint, BLE scan start and login flow undisturbed.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      import("./DeviceDetailView");
+      import("../../mydevices/devices/DeviceDetailView");
+      import("./components/DeviceManagerProfile");
+    }, 2500);
+    return () => clearTimeout(id);
+  }, []);
+
   const connectedDeviceRef = useRef<string | null>(null);
   useEffect(() => {
     connectedDeviceRef.current = connectedDevice;
   }, [connectedDevice]);
+
+  // Bounded silent retries for a missing device ID (opid); reset per connection
+  // so the error toast shows at most once per connection.
+  const opidRetryCountRef = useRef(0);
+  const opidToastShownRef = useRef(false);
 
   const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
@@ -401,6 +445,8 @@ const BleDevicesApp: React.FC = () => {
         }
         console.warn('[BLE DevMgr] Connected to device:', macAddress);
         sessionStorage.setItem("connectedDeviceMac", macAddress);
+        opidRetryCountRef.current = 0;
+        opidToastShownRef.current = false;
         setConnectedDevice(macAddress);
         setIsScanning(false);
         const d = { serviceName: "ATT", macAddress };
@@ -713,9 +759,31 @@ const BleDevicesApp: React.FC = () => {
     );
 
     if (!opidChar || !opidChar.realVal) {
-      toast.error(t('Device ID not available'));
+      // The native layer can deliver ATT data before the opid GATT read has
+      // actually returned a value. Quietly re-request the ATT service before
+      // bothering the user — the value normally lands on the first retry.
+      const mac = connectedDeviceRef.current;
+      if (mac && opidRetryCountRef.current < OPID_RETRY_DELAYS_MS.length) {
+        const delay = OPID_RETRY_DELAYS_MS[opidRetryCountRef.current];
+        opidRetryCountRef.current += 1;
+        setTimeout(() => {
+          // Skip if the device disconnected meanwhile, or a publish already
+          // succeeded (counter resets to 0) and this retry is stale.
+          if (connectedDeviceRef.current === mac && opidRetryCountRef.current > 0) {
+            setLoadingService("ATT");
+            initServiceBleData({ serviceName: "ATT", macAddress: mac });
+          }
+        }, delay);
+        return;
+      }
+      if (!opidToastShownRef.current) {
+        opidToastShownRef.current = true;
+        toast.error(t('Device ID not available'));
+      }
       return;
     }
+
+    opidRetryCountRef.current = 0;
 
     const opidRealVal = opidChar.realVal;
 

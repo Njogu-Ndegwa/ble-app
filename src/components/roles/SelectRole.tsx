@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap, FolderTree, LifeBuoy } from 'lucide-react';
+import { Zap, FolderTree, LifeBuoy, MessagesSquare } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
@@ -51,6 +51,9 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   location: 'location',
   ota: 'ota',
   ticketing: 'ticketing',
+  // End-user Support applet — separate slug so SAs can get the lightweight
+  // experience without the agent Ticketing board (mirrors the desktop portal).
+  support: 'ticketing-customer',
   rollup: 'rollup',
   topup: 'topup',
 };
@@ -60,28 +63,28 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'customerManagement',
     labelKey: 'role.customerManagement',
-    icon: { type: 'image', src: '/assets/Customer.svg', gradient: 'role-grad-customer' },
+    icon: { type: 'image', src: '/assets/optimized/Customer.png', gradient: 'role-grad-customer' },
     path: '/customer-management',
     appletSlug: 'customer-management',
   },
   {
     id: 'products',
     labelKey: 'role.products',
-    icon: { type: 'image', src: '/assets/Products.svg', gradient: 'role-grad-products' },
+    icon: { type: 'image', src: '/assets/optimized/Products.png', gradient: 'role-grad-products' },
     path: '/products',
     appletSlug: 'products',
   },
   {
     id: 'orders',
     labelKey: 'role.orders',
-    icon: { type: 'image', src: '/assets/Orders.svg', gradient: 'role-grad-orders' },
+    icon: { type: 'image', src: '/assets/optimized/Orders.png', gradient: 'role-grad-orders' },
     path: '/orders',
     appletSlug: 'orders',
   },
   {
     id: 'rider',
     labelKey: 'role.rider',
-    icon: { type: 'image', src: '/assets/Rider.svg', gradient: 'role-grad-rider' },
+    icon: { type: 'image', src: '/assets/optimized/Rider.png', gradient: 'role-grad-rider' },
     path: '/rider/app',
     appletSlug: 'rider',
   },
@@ -89,42 +92,42 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'activator',
     labelKey: 'role.activator',
-    icon: { type: 'image', src: '/assets/Activator.svg', gradient: 'role-grad-activator' },
+    icon: { type: 'image', src: '/assets/optimized/Activator.png', gradient: 'role-grad-activator' },
     path: '/activator',
     appletSlug: 'activator',
   },
   {
     id: 'sales',
     labelKey: 'role.salesRep',
-    icon: { type: 'image', src: '/assets/Salesperson.svg', gradient: 'role-grad-sales' },
+    icon: { type: 'image', src: '/assets/optimized/Salesperson.png', gradient: 'role-grad-sales' },
     path: '/customers/customerform',
     appletSlug: 'customers',
   },
   {
     id: 'attendant',
     labelKey: 'role.attendant',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/optimized/Attendant2.png', gradient: 'role-grad-attendant' },
     path: '/attendant/attendant',
     appletSlug: 'attendant',
   },
   {
     id: 'manualSwap',
     labelKey: 'role.manualSwap',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/optimized/Attendant2.png', gradient: 'role-grad-attendant' },
     path: '/attendant/manual-swap',
     appletSlug: 'externalswap',
   },
   {
     id: 'topUpSwap',
     labelKey: 'role.topUpSwap',
-    icon: { type: 'image', src: '/assets/Attendant2.svg', gradient: 'role-grad-attendant' },
+    icon: { type: 'image', src: '/assets/optimized/Attendant2.png', gradient: 'role-grad-attendant' },
     path: '/attendant/topup-swap',
     appletSlug: 'topupswap',
   },
   {
     id: 'keypad',
     labelKey: 'role.keypad',
-    icon: { type: 'image', src: '/assets/Keypad2.svg', gradient: 'role-grad-keypad' },
+    icon: { type: 'image', src: '/assets/optimized/Keypad2.png', gradient: 'role-grad-keypad' },
     path: '/keypad/keypad',
     appletSlug: 'keypad',
   },
@@ -132,7 +135,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'bleDeviceManager',
     labelKey: 'role.bleDeviceManager',
-    icon: { type: 'image', src: '/assets/BleDeviceAttendant.svg', gradient: 'role-grad-ble' },
+    icon: { type: 'image', src: '/assets/optimized/BleDeviceAttendant.png', gradient: 'role-grad-ble' },
     path: '/assets/ble-devices',
     // Visible when the SA has either 'assets' OR 'mydevices' in its applet list.
     appletSlug: ['assets', 'mydevices'],
@@ -153,6 +156,13 @@ const ALL_ROLES: RoleConfig[] = [
     appletSlug: 'ticketing',
   },
   {
+    id: 'support',
+    labelKey: 'role.support',
+    icon: { type: 'lucide', el: <MessagesSquare size={28} color="#fff" />, gradient: 'role-grad-support' },
+    path: '/support/app',
+    appletSlug: 'ticketing-customer',
+  },
+  {
     id: 'topup',
     labelKey: 'role.topup',
     icon: { type: 'lucide', el: <Zap size={28} color="#fff" />, gradient: 'role-grad-activator' },
@@ -162,8 +172,19 @@ const ALL_ROLES: RoleConfig[] = [
 ];
 
 const IDLE_THRESHOLD_MS = 2 * 60 * 1000;
-const NAV_TIMEOUT_MS = 3000;
+// Last-resort full-reload timeout for a stalled SPA navigation. Must be
+// generous: on a first launch over a slow network the navigation legitimately
+// takes several seconds while applet chunks download, and a premature
+// window.location.href ABANDONS that in-flight download and restarts the whole
+// document (HTML + every shared chunk + providers + hydration) — turning a
+// slow open into a 20s one. The user sees the loading overlay meanwhile.
+const NAV_TIMEOUT_MS = 15000;
 const ROLE_SEEN_KEY = 'oves-role-seen';
+// Delay before the first background prefetch and spacing between each one.
+// Firing all ~13 prefetches at once on first launch competes with the
+// service-worker precache and the user's first tap for mobile bandwidth.
+const PREFETCH_INITIAL_DELAY_MS = 800;
+const PREFETCH_STAGGER_MS = 350;
 
 export default function SelectRole({ onSwitchSA }: Props) {
   const router = useRouter();
@@ -234,12 +255,17 @@ export default function SelectRole({ onSwitchSA }: Props) {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
+  const prefetchTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
+    const timers = prefetchTimersRef.current;
+    let delay = PREFETCH_INITIAL_DELAY_MS;
     for (const role of visibleRoles) {
       if (!role.disabled) {
-        router.prefetch(role.path);
+        timers.push(setTimeout(() => router.prefetch(role.path), delay));
+        delay += PREFETCH_STAGGER_MS;
       }
     }
+    return () => timers.forEach(clearTimeout);
   }, [router, visibleRoles]);
 
   useEffect(() => {
@@ -248,8 +274,23 @@ export default function SelectRole({ onSwitchSA }: Props) {
     };
   }, []);
 
+  // The applet being navigated to, if any. Drives the instant loading overlay
+  // and ignores further taps (rage-click guard) until navigation completes —
+  // SelectRole unmounts on success, which also clears the fallback timer.
+  const [navigatingRole, setNavigatingRole] = useState<RoleConfig | null>(null);
+
   const handleRoleClick = useCallback((role: RoleConfig) => {
-    if (role.disabled) return;
+    if (role.disabled || navigatingRole) return;
+
+    // The tapped applet is now the ONLY download that matters: cancel every
+    // prefetch not yet started so its chunks don't have to share a slow
+    // mobile pipe with a dozen background downloads. (Measured under Fast-3G
+    // throttle: with prefetches competing, tap-to-open took 11-17s; without,
+    // the navigation gets the full link.)
+    prefetchTimersRef.current.forEach(clearTimeout);
+    prefetchTimersRef.current = [];
+
+    setNavigatingRole(role);
 
     if (wasIdleRef.current) {
       window.location.href = role.path;
@@ -262,7 +303,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
     navFallbackRef.current = setTimeout(() => {
       window.location.href = role.path;
     }, NAV_TIMEOUT_MS);
-  }, [router]);
+  }, [router, navigatingRole]);
 
   // Don't flash the grid while the single-applet redirect is in progress
   if (visibleRoles.length === 1 && !visibleRoles[0].disabled) {
@@ -303,6 +344,38 @@ export default function SelectRole({ onSwitchSA }: Props) {
     <div className="select-role-container">
       <div className="select-role-bg-gradient" />
 
+      {/* Instant feedback while the tapped applet loads. Painted within one
+          frame of the tap so even a slow first-launch navigation never looks
+          frozen (the #1 rage-click trigger). */}
+      {navigatingRole && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 20,
+            background: 'var(--bg-primary)',
+          }}
+        >
+          <div className={`role-app-icon ${navigatingRole.icon.gradient}`}>
+            {navigatingRole.icon.type === 'image' ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={navigatingRole.icon.src}
+                alt=""
+                className="role-app-icon-img"
+                draggable={false}
+              />
+            ) : (
+              navigatingRole.icon.el
+            )}
+          </div>
+          <span className="role-app-label" style={{ fontSize: 15 }}>
+            {t(navigatingRole.labelKey)}
+          </span>
+          <div className="loading-spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+        </div>
+      )}
+
       {/* Unified app header with SA switching */}
       <AppHeader onSwitchSA={onSwitchSA} />
 
@@ -313,7 +386,7 @@ export default function SelectRole({ onSwitchSA }: Props) {
             <div className="role-hero-card-bg" />
             <div className="role-hero-card-img">
               <Image
-                src="/assets/Bikes Oves.png"
+                src="/assets/optimized/Bikes Oves.png"
                 alt="Electric Bikes"
                 width={320}
                 height={200}

@@ -1169,6 +1169,10 @@ html.theme-transition *::after {
   background: linear-gradient(155deg, #E879F9 0%, #C026D3 100%);
 }
 
+.role-grad-support {
+  background: linear-gradient(155deg, #38BDF8 0%, #0284C7 100%);
+}
+
 /* ------- Light theme (slightly brighter stops) ------- */
 [data-theme="light"] .select-role-bg-gradient {
   background:
@@ -1224,6 +1228,10 @@ html.theme-transition *::after {
 
 [data-theme="light"] .role-grad-ticketing {
   background: linear-gradient(155deg, #F0ABFC 0%, #D946EF 100%);
+}
+
+[data-theme="light"] .role-grad-support {
+  background: linear-gradient(155deg, #7DD3FC 0%, #38BDF8 100%);
 }
 
 /* ------- Compact screens (small phones / landscape) ------- */

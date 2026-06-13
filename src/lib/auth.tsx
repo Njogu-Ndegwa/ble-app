@@ -87,7 +87,10 @@ const APPLET_MENU_IDS: Record<string, string[]> = {
   orders: ['orders'],
   products: ['products'],
   activator: ['activator'],
-  ticketing: ['ticketing', 'support'],
+  ticketing: ['ticketing'],
+  // End-user Support applet — gated independently of the agent ticketing
+  // board so the two SA grants stay separate (mirrors the desktop portal).
+  'ticketing-customer': ['support'],
   location: ['location', 'routes'],
   rollup: ['rollup'],
   topup: ['topup'],

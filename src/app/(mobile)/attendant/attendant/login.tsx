@@ -680,15 +680,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, userType = 'attendant', m
             const authUrl = getMicrosoftAuthUrl();
             saveMicrosoftPendingContext(microsoftReturnPath, userType);
 
-            // Unregister service worker so the redirect from Odoo
-            // hits the network instead of a stale SW cache
-            if ('serviceWorker' in navigator) {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              for (const reg of regs) {
-                await reg.unregister();
-              }
-            }
-
+            // The OAuth callback (?token=...) is forced to the network by the
+            // NetworkOnly rule in sw.js — do NOT unregister the service worker
+            // here, or the next cold app launch loses its offline shell and
+            // hangs on a white screen until the network delivers.
             window.location.href = authUrl;
           }}
           disabled={isSigningIn}

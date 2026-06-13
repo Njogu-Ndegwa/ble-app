@@ -87,6 +87,7 @@ export interface EmployeeUser {
   userType: UserType;
   employeeId?: number;
   companyId?: number;
+  partnerId?: number; // res.partner id — marks "own" tickets in the Support applet
   odooUserType?: string; // e.g., "abs.employee"
 }
 
@@ -114,6 +115,7 @@ export interface EmployeeLoginResponse {
       name: string;
       email: string;
       company_id: number;
+      partner_id?: number;
       role: BackendRole; // "salesattendant" for attendants, "salesrep" for sales
       user_type: string; // e.g., "abs.employee"
     };
@@ -207,6 +209,7 @@ export async function employeeLogin(
         backendRole: backendRole,
         employeeId: employee.id,
         companyId: employee.company_id,
+        partnerId: employee.partner_id,
         odooUserType: employee.user_type,
       };
 
@@ -307,6 +310,10 @@ export function parseMicrosoftCallback(
 
   const jwt = decodeJwtPayload(token);
   const companyId = jwt?.company_id as number | undefined;
+  // partner_id may arrive as a query param or a JWT claim, either of which
+  // can be a numeric string — coerce both paths.
+  const rawPartnerId = params.get('partner_id') ?? jwt?.partner_id;
+  const partnerId = rawPartnerId != null ? Number(rawPartnerId) : NaN;
 
   const user: EmployeeUser = {
     id: Number(employeeId),
@@ -317,6 +324,7 @@ export function parseMicrosoftCallback(
     userType,
     employeeId: Number(employeeId),
     companyId,
+    partnerId: Number.isFinite(partnerId) ? partnerId : undefined,
   };
 
   saveRoleLogin(user);

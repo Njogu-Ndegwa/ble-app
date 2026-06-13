@@ -4,16 +4,16 @@
  * before SelectRole mounts — eliminating the visible icon-pop-in on the grid.
  */
 const ROLE_ICON_URLS = [
-  '/assets/Customer.svg',
-  '/assets/Products.svg',
-  '/assets/Orders.svg',
-  '/assets/Rider.svg',
-  '/assets/Activator.svg',
-  '/assets/Salesperson.svg',
-  '/assets/Attendant2.svg',
-  '/assets/Keypad2.svg',
-  '/assets/BleDeviceAttendant.svg',
-  '/assets/Bikes Oves.png',
+  '/assets/optimized/Customer.png',
+  '/assets/optimized/Products.png',
+  '/assets/optimized/Orders.png',
+  '/assets/optimized/Rider.png',
+  '/assets/optimized/Activator.png',
+  '/assets/optimized/Salesperson.png',
+  '/assets/optimized/Attendant2.png',
+  '/assets/optimized/Keypad2.png',
+  '/assets/optimized/BleDeviceAttendant.png',
+  '/assets/optimized/Bikes Oves.png',
 ] as const;
 
 let preloaded = false;
