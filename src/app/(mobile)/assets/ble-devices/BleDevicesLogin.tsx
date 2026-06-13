@@ -45,6 +45,22 @@ const BleDevicesLogin: React.FC<BleDevicesLoginProps> = ({ onLoginSuccess }) => 
       localStorage.setItem('distributorId', _id);
       localStorage.setItem('user', JSON.stringify({ name }));
 
+      // Give the WebView/browser password manager the same "login succeeded"
+      // signal the main login produces. The main login calls router.replace('/')
+      // after a successful submit; that navigation is what triggers the
+      // "Save password?" prompt and lets the credentials be autofilled next time.
+      // This applet instead swaps a React state flag (onLoginSuccess →
+      // setBleToken) with NO navigation, so the save flow never runs and nothing
+      // is ever stored to autofill. Firing a same-document navigation here —
+      // while the login form is still mounted — supplies that missing signal.
+      // (preventDefault() in handleLogin stops the native submit, so without
+      // this the password manager only sees an unconfirmed submit attempt.)
+      try {
+        window.history.replaceState(window.history.state, '', window.location.href);
+      } catch {
+        /* history unavailable — ignore, login still proceeds */
+      }
+
       onLoginSuccess(accessToken);
     },
     onError: (err) => {
