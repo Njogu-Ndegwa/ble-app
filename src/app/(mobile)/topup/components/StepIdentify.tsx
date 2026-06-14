@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, AlertCircle, Zap, CheckCircle2, Loader2 } from 'lucide-react';
+import { Search, AlertCircle, Zap, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { ScannerArea } from '@/components/shared';
 import { useCustomerIdentification, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
+import { useQrScan } from '@/lib/hooks/useQrScan';
+import type { ParsedCustomerQr } from '@/lib/qr/parseCustomerQr';
 import { getSubscriptionStatus } from '@/lib/odoo-api';
 import RecentTopups from './RecentTopups';
 
@@ -24,8 +27,11 @@ interface StepIdentifyProps {
   onIdentified: (sub: IdentifiedSub) => void;
 }
 
+type InputMode = 'scan' | 'manual';
+
 export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
   const { t } = useI18n();
+  const [inputMode, setInputMode] = useState<InputMode>('scan');
   const [subInput, setSubInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,16 +122,60 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
 
   useEffect(() => () => cancelIdentification(), [cancelIdentification]);
 
+  // Single identify kickoff shared by the scan and manual paths. Both feed the
+  // same useCustomerIdentification hook the swap workflow uses — only `source`
+  // (and any QR-supplied name/phone) differs.
+  const runIdentify = useCallback(
+    (
+      code: string,
+      source: 'qr' | 'manual',
+      extra?: { name?: string; phone?: string; customerId?: string },
+    ) => {
+      if (loading) return;
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      setError(null);
+      setWarning(null);
+      setCandidate(null);
+      setLoading(true);
+      identifyCustomer({ subscriptionCode: trimmed, source, ...extra });
+    },
+    [loading, identifyCustomer],
+  );
+
   const handleValidate = useCallback(() => {
-    if (loading) return;
-    const code = subInput.trim();
-    if (!code) return;
-    setError(null);
-    setWarning(null);
-    setCandidate(null);
-    setLoading(true);
-    identifyCustomer({ subscriptionCode: code, source: 'manual' });
-  }, [loading, subInput, identifyCustomer]);
+    runIdentify(subInput, 'manual');
+  }, [runIdentify, subInput]);
+
+  const handleScanned = useCallback(
+    (data: ParsedCustomerQr) => {
+      // Reflect the scanned code in the manual field so the user can see / edit
+      // it, then identify straight away.
+      setSubInput(data.subscriptionCode);
+      runIdentify(data.subscriptionCode, 'qr', {
+        name: data.name,
+        phone: data.phone,
+        customerId: data.customerId,
+      });
+    },
+    [runIdentify],
+  );
+
+  const { startScan, isScannerOpening, scannerAvailable } = useQrScan({
+    onScanned: handleScanned,
+    onUnreadable: () =>
+      setError(
+        t('topup.qrUnreadable')
+          || 'Couldn’t read that QR code. Try again or enter the ID manually.',
+      ),
+    onUnavailable: () => {
+      setInputMode('manual');
+      setError(
+        t('topup.scannerUnavailable')
+          || 'Scanner needs the mobile app — enter the subscription ID manually below.',
+      );
+    },
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -134,37 +184,92 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
           {t('topup.identifyTitle') || 'Find subscription'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-          {t('topup.identifyHint') || 'Enter the customer’s subscription ID to begin.'}
+          {t('topup.identifyHint') || 'Scan or enter the customer’s subscription ID to begin.'}
         </p>
       </div>
 
-      <div>
-        <label className="form-label">{t('topup.subscriptionId') || 'Subscription ID'}</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="text"
-            className="form-input manual-id-input"
-            placeholder={t('topup.subscriptionIdPlaceholder') || 'e.g. SUB12345'}
-            value={subInput}
-            onChange={(e) => setSubInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleValidate(); }}
-            disabled={loading}
-            style={{ flex: 1 }}
-          />
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleValidate}
-            disabled={!subInput.trim() || loading}
-            aria-label={t('topup.validate') || 'Validate'}
-            style={{ paddingInline: 16 }}
-          >
-            {loading
-              ? <Loader2 size={16} className="animate-spin" />
-              : <Search size={16} />}
-          </button>
-        </div>
+      {/* Scan / Manual toggle — mirrors the swap (attendant) identify screen. */}
+      <div className="input-toggle">
+        <button
+          type="button"
+          className={`toggle-btn ${inputMode === 'scan' ? 'active' : ''}`}
+          onClick={() => setInputMode('scan')}
+          disabled={loading}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+          {t('topup.scanTab') || 'Scan QR'}
+        </button>
+        <button
+          type="button"
+          className={`toggle-btn ${inputMode === 'manual' ? 'active' : ''}`}
+          onClick={() => setInputMode('manual')}
+          disabled={loading}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+          {t('topup.manualTab') || 'Enter ID'}
+        </button>
       </div>
+
+      {inputMode === 'scan' ? (
+        <div className="customer-input-mode">
+          <p className="scan-subtitle">
+            {t('topup.scanInstruction') || 'Scan the customer’s subscription QR code'}
+          </p>
+          <ScannerArea onClick={startScan} type="qr" disabled={isScannerOpening || loading} />
+          {scannerAvailable ? (
+            <p className="scan-hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              {t('topup.scanShowQr') || 'Ask the customer to show their subscription QR'}
+            </p>
+          ) : (
+            <p className="scan-hint">
+              <Info size={14} />
+              {t('topup.scannerNeedsApp')
+                || 'Scanning needs the mobile app. Use Enter ID to type the subscription ID.'}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="customer-input-mode">
+          <label className="form-label">{t('topup.subscriptionId') || 'Subscription ID'}</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              className="form-input manual-id-input"
+              placeholder={t('topup.subscriptionIdPlaceholder') || 'e.g. SUB12345'}
+              value={subInput}
+              onChange={(e) => setSubInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleValidate(); }}
+              disabled={loading}
+              autoComplete="off"
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleValidate}
+              disabled={!subInput.trim() || loading}
+              aria-label={t('topup.validate') || 'Validate'}
+              style={{ paddingInline: 16 }}
+            >
+              {loading
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Search size={16} />}
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div
