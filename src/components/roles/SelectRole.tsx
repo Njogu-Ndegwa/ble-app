@@ -55,7 +55,9 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   // experience without the agent Ticketing board (mirrors the desktop portal).
   support: 'ticketing-customer',
   rollup: 'rollup',
-  topup: 'topup',
+  // NOTE: `topup` intentionally omitted — the Top-Up tile is shown to every
+  // staff member without requiring the SA to be granted a `topup` slug
+  // (no backend provisioning available). See the slug-less entry in ALL_ROLES.
 };
 
 const ALL_ROLES: RoleConfig[] = [
@@ -167,7 +169,8 @@ const ALL_ROLES: RoleConfig[] = [
     labelKey: 'role.topup',
     icon: { type: 'lucide', el: <Zap size={28} color="#fff" />, gradient: 'role-grad-activator' },
     path: '/topup',
-    appletSlug: 'topup',
+    // No appletSlug: the Top-Up tile is visible to every staff member without
+    // an SA grant (a role with no slug always passes the visibility filter).
   },
 ];
 
