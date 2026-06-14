@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useCallback, useState } from 'react';
-import { Zap, Copy, Check, Info } from 'lucide-react';
+import React from 'react';
+import { Zap, Info } from 'lucide-react';
 import { useI18n } from '@/i18n';
-import { copyToClipboard } from '@/lib/clipboard';
 import type { TopupReceipt } from './StepConfirm';
 
 interface StepDoneProps {
@@ -13,37 +12,47 @@ interface StepDoneProps {
 
 export default function StepDone({ receipt, onRestart }: StepDoneProps) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
 
-  const handleCopy = useCallback(async () => {
-    const ok = await copyToClipboard(receipt.reference);
-    setCopied(ok);
-    setCopyFailed(!ok);
-    if (ok) window.setTimeout(() => setCopied(false), 1500);
-  }, [receipt.reference]);
-
-  return (
-    <div style={{ textAlign: 'center', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div
+  // Summary rows focus on what changed for the customer — the energy credited
+  // and, most importantly, the new balance — rather than an opaque reference id.
+  const row = (label: string, value: React.ReactNode, emphasize = false) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <span
         style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: 'var(--accent-soft)', color: 'var(--accent)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto',
+          color: emphasize ? 'var(--accent)' : 'var(--text-primary)',
+          fontWeight: emphasize ? 700 : 600,
+          textAlign: 'right',
         }}
       >
-        <Zap size={32} />
-      </div>
+        {value}
+      </span>
+    </div>
+  );
 
-      <div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
+  const balanceValue = receipt.wasRetry
+    ? `${receipt.quotaAfter.toLocaleString()} kWh`
+    : `${receipt.quotaBefore.toLocaleString()} → ${receipt.quotaAfter.toLocaleString()} kWh`;
+
+  return (
+    <div style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: 'var(--accent-soft)', color: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+          }}
+        >
+          <Zap size={32} />
+        </div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>
           {`+${receipt.kwhCredited.toLocaleString()} kWh`}
         </div>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
           {receipt.wasRetry
-            ? (t('topup.doneDescRetry', {
-                sub: receipt.subscriptionCode,
-              }) || `Credit applied to ${receipt.subscriptionCode}.`)
+            ? (t('topup.doneDescRetry', { sub: receipt.subscriptionCode })
+                || `Credit applied to ${receipt.subscriptionCode}.`)
             : (t('topup.doneDesc', {
                 sub: receipt.subscriptionCode,
                 after: receipt.quotaAfter.toLocaleString(),
@@ -56,7 +65,7 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
         <div
           role="status"
           style={{
-            display: 'flex', gap: 8, alignItems: 'flex-start', textAlign: 'left',
+            display: 'flex', gap: 8, alignItems: 'flex-start',
             padding: 12, fontSize: 12, borderRadius: 'var(--radius-md)',
             background: 'var(--accent-soft)', color: 'var(--text-primary)',
             border: '1px solid var(--accent)',
@@ -69,45 +78,32 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
         </div>
       )}
 
+      {/* What changed — the values staff (and the customer) care about. */}
       <div
         style={{
           border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-          background: 'var(--bg-secondary)', padding: 12, textAlign: 'left',
-          display: 'flex', flexDirection: 'column', gap: 6,
-          position: 'relative',
+          background: 'var(--bg-secondary)', padding: 16,
+          display: 'flex', flexDirection: 'column', gap: 10,
         }}
       >
-        <span className="form-label" style={{ margin: 0 }}>
-          {t('topup.reference') || 'Reference'}
-        </span>
-        <button
-          type="button"
-          onClick={handleCopy}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-            background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
-            color: 'var(--text-primary)', fontSize: 13, fontFamily: 'monospace', wordBreak: 'break-all',
-          }}
-          aria-label={t('topup.copyReference') || 'Copy reference'}
-        >
-          <span style={{ textAlign: 'left' }}>{receipt.reference}</span>
-          {copied ? <Check size={15} /> : <Copy size={15} />}
-        </button>
-        {copyFailed && (
-          <span role="status" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            {t('topup.copyFailed') || 'Couldn’t copy automatically — note the reference manually.'}
-          </span>
+        {row(t('topup.subscriptionId') || 'Subscription ID', receipt.subscriptionCode)}
+        {receipt.planName && row(t('topup.plan') || 'Plan', receipt.planName)}
+        {row(
+          t('topup.energyCredit') || 'Energy credit',
+          <span style={{ color: 'var(--accent)' }}>{`+${receipt.kwhCredited.toLocaleString()} kWh`}</span>,
         )}
-        <span aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
-          {copied ? (t('topup.copied') || 'Copied') : ''}
-        </span>
+        {receipt.price > 0 && row(
+          t('topup.planValue') || 'Plan value',
+          `${receipt.currency ? `${receipt.currency} ` : ''}${receipt.price.toLocaleString()}`,
+        )}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+          {row(t('topup.balanceChange') || 'Balance after top-up', balanceValue, true)}
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button type="button" className="btn btn-primary" onClick={onRestart} style={{ width: '100%' }}>
-          {t('topup.topUpAnother') || 'Top up another'}
-        </button>
-      </div>
+      <button type="button" className="btn btn-primary" onClick={onRestart} style={{ width: '100%' }}>
+        {t('topup.topUpAnother') || 'Top up another'}
+      </button>
     </div>
   );
 }

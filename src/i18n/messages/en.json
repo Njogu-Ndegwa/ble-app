@@ -1159,6 +1159,7 @@
   "topup.planTitle": "Choose a plan",
   "topup.planHint": "All available plans.",
   "topup.planHintFiltered": "Plans for {package}.",
+  "topup.planHintMatched": "Plans matched to the customer's package.",
   "topup.noPlans": "No plans available right now.",
   "topup.quotaUnavailable": "Could not load this plan's energy quota.",
   "topup.confirmTitle": "Review top-up",

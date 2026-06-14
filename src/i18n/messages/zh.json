@@ -989,6 +989,7 @@
   "topup.planTitle": "选择套餐",
   "topup.planHint": "所有可用套餐。",
   "topup.planHintFiltered": "适用于 {package} 的套餐。",
+  "topup.planHintMatched": "已根据客户的套餐筛选。",
   "topup.noPlans": "当前没有可用套餐。",
   "topup.quotaUnavailable": "无法加载该套餐的能源配额。",
   "topup.confirmTitle": "确认充值",

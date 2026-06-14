@@ -76,10 +76,12 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // Same package → plan narrowing as Sales / Activator / Rider.
+  // Same package → plan narrowing as Sales / Activator / Rider, using the
+  // multi-candidate filter (template id + product name) so the picker stays
+  // narrowed even when the Odoo status lookup didn't return a product name.
   const visiblePlans = useMemo(
-    () => filterPlansByPackage(sub.packageName, plans),
-    [sub.packageName, plans],
+    () => filterPlansByPackage(sub.packageFilter, plans),
+    [sub.packageFilter, plans],
   );
 
   const handleSelect = useCallback(async (plan: PlanOption) => {
@@ -126,9 +128,11 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
           {t('topup.planTitle') || 'Choose a plan'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-          {(sub.packageName
+          {sub.packageName
             ? (t('topup.planHintFiltered', { package: sub.packageName }) || `Plans for ${sub.packageName}.`)
-            : (t('topup.planHint') || 'All available plans.'))}
+            : sub.packageFilter.length > 0
+              ? (t('topup.planHintMatched') || "Plans matched to the customer's package.")
+              : (t('topup.planHint') || 'All available plans.')}
         </p>
       </div>
 

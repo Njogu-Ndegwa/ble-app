@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, AlertCircle, Zap, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { AlertCircle, Zap, CheckCircle2, Info } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { ScannerArea } from '@/components/shared';
 import { useCustomerIdentification, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
@@ -13,8 +13,16 @@ import RecentTopups from './RecentTopups';
 /** Everything later steps need about the validated subscription. */
 export interface IdentifiedSub {
   subscriptionCode: string;
-  /** Odoo product_name — drives the PRODUCT_SERVICE_MAP plan filter. Null if Odoo lookup failed. */
+  /** Human-readable package/plan name for display (Odoo product_name). Null if the status lookup failed. */
   packageName: string | null;
+  /**
+   * Ordered candidates used to narrow the plan list to the customer's package
+   * (same multi-candidate approach as the rider): [service-plan template id,
+   * product name]. The template id (B30-/B45-/B100-…) comes from identify and is
+   * present even when the Odoo status lookup fails, so the picker stays filtered.
+   * See filterPlansByPackage.
+   */
+  packageFilter: string[];
   /** Raw Odoo subscription status, lowercased ('active' | 'paused' | ...). Null if lookup failed. */
   odooStatus: string | null;
   energyServiceId: string;
@@ -102,9 +110,17 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
           );
         }
 
+        // Plan-filter candidates, same as the rider: the service-plan template
+        // id (from identify — present even if the status lookup above failed,
+        // and the value the map matches on) plus the Odoo product name.
+        const packageFilter = [result.customer.subscriptionType, packageName].filter(
+          (c): c is string => !!c,
+        );
+
         setCandidate({
           subscriptionCode: code,
           packageName,
+          packageFilter,
           odooStatus,
           energyServiceId: energy.service_id,
           energyRemaining: result.customer.energyRemaining ?? 0,
@@ -241,33 +257,46 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
           )}
         </div>
       ) : (
+        // Literally mirrors the swap (attendant) Step1CustomerScan manual entry:
+        // same markup, classes, icons, and copy (reuses the attendant.* strings
+        // so the wording and translations stay identical across the two screens).
         <div className="customer-input-mode">
-          <label className="form-label">{t('topup.subscriptionId') || 'Subscription ID'}</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              className="form-input manual-id-input"
-              placeholder={t('topup.subscriptionIdPlaceholder') || 'e.g. SUB12345'}
-              value={subInput}
-              onChange={(e) => setSubInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleValidate(); }}
-              disabled={loading}
-              autoComplete="off"
-              style={{ flex: 1 }}
-            />
+          <p className="scan-subtitle">{t('attendant.enterSubIdManually') || 'Enter Subscription ID manually'}</p>
+          <div className="manual-entry-form">
+            <div className="form-group">
+              <label className="form-label">{t('attendant.subscriptionId') || 'Subscription ID'}</label>
+              <input
+                type="text"
+                className="form-input manual-id-input"
+                placeholder="e.g. SUB-8847-KE"
+                value={subInput}
+                onChange={(e) => setSubInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleValidate(); }}
+                disabled={loading}
+                autoComplete="off"
+              />
+            </div>
             <button
               type="button"
               className="btn btn-primary"
+              style={{ width: '100%', marginTop: '8px' }}
               onClick={handleValidate}
-              disabled={!subInput.trim() || loading}
-              aria-label={t('topup.validate') || 'Validate'}
-              style={{ paddingInline: 16 }}
+              disabled={loading}
             >
-              {loading
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Search size={16} />}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+              {loading ? (t('attendant.lookingUp') || 'Looking up...') : (t('attendant.lookUpCustomer') || 'Look Up Customer')}
             </button>
           </div>
+          <p className="scan-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" />
+            </svg>
+            {t('attendant.findIdOnReceipt') || "Find ID on customer's account or receipt"}
+          </p>
         </div>
       )}
 

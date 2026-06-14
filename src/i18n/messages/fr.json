@@ -1076,6 +1076,7 @@
   "topup.planTitle": "Choisissez un forfait",
   "topup.planHint": "Tous les forfaits disponibles.",
   "topup.planHintFiltered": "Forfaits pour {package}.",
+  "topup.planHintMatched": "Forfaits correspondant au forfait du client.",
   "topup.noPlans": "Aucun forfait disponible pour le moment.",
   "topup.quotaUnavailable": "Impossible de charger le quota d'énergie de ce forfait.",
   "topup.confirmTitle": "Vérifier la recharge",
