@@ -93,7 +93,8 @@ const APPLET_MENU_IDS: Record<string, string[]> = {
   'ticketing-customer': ['support'],
   location: ['location', 'routes'],
   rollup: ['rollup'],
-  topup: ['topup'],
+  // Top-Up app is granted via the `energytopup` slug from the backend.
+  energytopup: ['topup'],
 };
 
 // Always-visible menu items regardless of applet config
