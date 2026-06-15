@@ -29,6 +29,10 @@ export interface TopupReceipt {
   planName: string;
   currency: string;
   price: number;
+  /** Customer name shown on the receipt. Null when unknown (row is hidden). */
+  customerName: string | null;
+  /** Assigned vehicle ("bike") code shown on the receipt. Null when none (row is hidden). */
+  vehicleId: string | null;
   wasRetry?: boolean;
 }
 
@@ -98,6 +102,8 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
         planName: plan.name,
         currency: sub.currency,
         price: plan.price,
+        customerName: sub.customerName,
+        vehicleId: sub.vehicleId,
         wasRetry: assessment.isIdempotent,
       };
       clearPendingReference(sub.subscriptionCode, plan.productId);
@@ -141,6 +147,8 @@ export default function StepConfirm({ employee, sub, plan, onBack, onDone }: Ste
           display: 'flex', flexDirection: 'column', gap: 10,
         }}
       >
+        {sub.customerName && row(t('topup.customer') || 'Customer', sub.customerName)}
+        {sub.vehicleId && row(t('topup.bike') || 'Bike', sub.vehicleId)}
         {row(t('topup.subscriptionId') || 'Subscription ID', sub.subscriptionCode)}
         {sub.packageName && row(t('topup.package') || 'Package', sub.packageName)}
         {row(t('topup.plan') || 'Plan', plan.name)}

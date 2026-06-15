@@ -207,3 +207,45 @@ export function clearPendingReference(
     // ignore
   }
 }
+
+// ── Identity enrichment (customer name + assigned vehicle) ──────────────────
+
+/** Minimal shape of an identify service-state entry read by extractVehicleId. */
+export interface VehicleServiceState {
+  service_id?: string | null;
+  current_asset?: string | null;
+}
+
+/**
+ * The customer's assigned vehicle ("bike") is the `current_asset` of the
+ * asset-assignment service — the same convention the rider app uses. Prefer the
+ * canonical `service-asset-assignment-access-001`, falling back to any
+ * asset-assignment service so a deployment-specific suffix still resolves.
+ * Returns null when no vehicle is assigned (the row is then hidden).
+ */
+export function extractVehicleId(
+  serviceStates: ReadonlyArray<VehicleServiceState> | null | undefined,
+): string | null {
+  if (!serviceStates || serviceStates.length === 0) return null;
+  const svc =
+    serviceStates.find((s) => s?.service_id === 'service-asset-assignment-access-001')
+    ?? serviceStates.find(
+      (s) => typeof s?.service_id === 'string' && s.service_id.includes('service-asset-assignment'),
+    );
+  const asset = svc?.current_asset;
+  return typeof asset === 'string' && asset.trim() ? asset.trim() : null;
+}
+
+/**
+ * The Odoo customer/partner id needed to fetch customer details. identify
+ * surfaces it in a few shapes ("customer-303025", "303025", a bare number, or —
+ * when the lookup failed — the subscription code). Normalize to the positive
+ * integer the dashboard endpoint expects, or null when it isn't a usable id.
+ */
+export function parsePartnerId(customerId: string | number | null | undefined): number | null {
+  if (customerId == null) return null;
+  const raw = String(customerId).replace(/^customer-/i, '').trim();
+  if (!/^\d+$/.test(raw)) return null;
+  const n = parseInt(raw, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}

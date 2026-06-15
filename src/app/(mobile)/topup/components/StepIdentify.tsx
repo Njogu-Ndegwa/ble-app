@@ -7,7 +7,9 @@ import { ScannerArea } from '@/components/shared';
 import { useCustomerIdentification, type ServiceState } from '@/lib/hooks/useCustomerIdentification';
 import { useQrScan } from '@/lib/hooks/useQrScan';
 import type { ParsedCustomerQr } from '@/lib/qr/parseCustomerQr';
-import { getSubscriptionStatus } from '@/lib/odoo-api';
+import { getSubscriptionStatus, getCustomerDashboard } from '@/lib/odoo-api';
+import { getSalesRoleToken } from '@/lib/attendant-auth';
+import { extractVehicleId, parsePartnerId } from '../lib/topup-core';
 import RecentTopups from './RecentTopups';
 
 /** Everything later steps need about the validated subscription. */
@@ -29,6 +31,10 @@ export interface IdentifiedSub {
   energyRemaining: number;
   energyTotal: number;
   currency: string;
+  /** Real customer name (Odoo dashboard, falling back to a QR-supplied name). Null if unknown. */
+  customerName: string | null;
+  /** Assigned vehicle ("bike") code from the asset-assignment service. Null if none assigned. */
+  vehicleId: string | null;
 }
 
 interface StepIdentifyProps {
@@ -70,13 +76,21 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
 
         const code = result.customer.subscriptionId;
 
-        // Odoo status/package lookup — degrades gracefully (package unknown →
-        // plan filter falls back to the full list).
+        // Status/package lookup and customer-details enrichment run in parallel
+        // so the echo-back card isn't slowed by a second sequential Odoo
+        // round-trip. Both degrade gracefully: an unknown package falls back to
+        // the full plan list, and a missing name/vehicle simply hides that row.
+        const partnerId = parsePartnerId(result.customer.id);
+        const token = getSalesRoleToken();
+        const [statusOutcome, dashboardOutcome] = await Promise.allSettled([
+          getSubscriptionStatus(code),
+          partnerId ? getCustomerDashboard(partnerId, token ?? undefined) : Promise.resolve(null),
+        ]);
+
         let packageName: string | null = null;
         let odooStatus: string | null = null;
-        try {
-          const statusRes = await getSubscriptionStatus(code);
-          const s = statusRes.data?.subscription;
+        if (statusOutcome.status === 'fulfilled') {
+          const s = statusOutcome.value.data?.subscription;
           if (s) {
             packageName = s.product_name || null;
             odooStatus = (s.status || '').toLowerCase() || null;
@@ -86,13 +100,29 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
                 || 'Subscription status could not be verified — confirm with the customer before continuing.',
             );
           }
-        } catch (err) {
-          console.warn('[TOPUP] Odoo status lookup failed — proceeding without package filter:', err);
+        } else {
+          console.warn('[TOPUP] Odoo status lookup failed — proceeding without package filter:', statusOutcome.reason);
           setWarning(
             t('topup.statusUnverified')
               || 'Subscription status could not be verified — confirm with the customer before continuing.',
           );
         }
+
+        // Real customer name from Odoo (works for both scan and manual entry).
+        // Fall back to a name carried in the QR payload, then to nothing — the
+        // row is hidden rather than showing the 'Customer' placeholder.
+        const qrName = result.customer.name && result.customer.name !== 'Customer'
+          ? result.customer.name
+          : null;
+        let customerName: string | null = qrName;
+        if (dashboardOutcome.status === 'fulfilled' && dashboardOutcome.value?.success) {
+          customerName = dashboardOutcome.value.customer?.name?.trim() || customerName;
+        } else if (dashboardOutcome.status === 'rejected') {
+          console.warn('[TOPUP] Customer dashboard lookup failed — name may be unavailable:', dashboardOutcome.reason);
+        }
+
+        // Assigned vehicle ("bike") — same asset-assignment convention as the rider.
+        const vehicleId = extractVehicleId(result.serviceStates);
 
         // Gate: cancelled subs are blocked outright.
         if (odooStatus && /cancel|closed|terminated/.test(odooStatus)) {
@@ -126,6 +156,8 @@ export default function StepIdentify({ onIdentified }: StepIdentifyProps) {
           energyRemaining: result.customer.energyRemaining ?? 0,
           energyTotal: result.customer.energyTotal ?? 0,
           currency: result.currencySymbol,
+          customerName,
+          vehicleId,
         });
       } catch (err) {
         console.error('[TOPUP] identify post-processing failed:', err);

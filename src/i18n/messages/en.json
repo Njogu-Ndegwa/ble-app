@@ -1139,6 +1139,8 @@
   "topup.identifyTitle": "Find subscription",
   "topup.identifyHint": "Scan or enter the customer's subscription ID to begin.",
   "topup.subscriptionId": "Subscription ID",
+  "topup.customer": "Customer",
+  "topup.bike": "Bike",
   "topup.subscriptionIdPlaceholder": "e.g. SUB12345",
   "topup.validate": "Validate",
   "topup.scanTab": "Scan QR",

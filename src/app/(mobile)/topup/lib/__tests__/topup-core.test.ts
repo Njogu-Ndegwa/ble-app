@@ -7,6 +7,8 @@ import {
   assessTopupResponse,
   getOrCreatePendingReference,
   clearPendingReference,
+  extractVehicleId,
+  parsePartnerId,
   type RecentTopup,
 } from '../topup-core';
 
@@ -157,6 +159,45 @@ describe('pending reference lifecycle', () => {
     for (let i = 1; i <= 10; i++) getOrCreatePendingReference(42, `SUB-${i}`, 1, s);
     expect(getOrCreatePendingReference(42, 'SUB-0', 1, s)).not.toBe(ref0); // evicted → regenerated
     expect(getOrCreatePendingReference(42, 'SUB-10', 1, s)).toBeDefined();
+  });
+});
+
+describe('extractVehicleId', () => {
+  it('reads current_asset from the canonical asset-assignment service', () => {
+    expect(extractVehicleId([
+      { service_id: 'service-energy-togo-004', current_asset: null },
+      { service_id: 'service-asset-assignment-access-001', current_asset: 'OVES-TG-0042' },
+    ])).toBe('OVES-TG-0042');
+  });
+
+  it('falls back to any asset-assignment service and trims whitespace', () => {
+    expect(extractVehicleId([
+      { service_id: 'service-asset-assignment-foo', current_asset: '  BIKE-9 ' },
+    ])).toBe('BIKE-9');
+  });
+
+  it('returns null when no vehicle is assigned or input is empty', () => {
+    expect(extractVehicleId([
+      { service_id: 'service-asset-assignment-access-001', current_asset: null },
+      { service_id: 'service-energy', current_asset: 'meter-1' },
+    ])).toBeNull();
+    expect(extractVehicleId([])).toBeNull();
+    expect(extractVehicleId(null)).toBeNull();
+  });
+});
+
+describe('parsePartnerId', () => {
+  it('strips the customer- prefix and returns a positive int', () => {
+    expect(parsePartnerId('customer-303025')).toBe(303025);
+    expect(parsePartnerId('303025')).toBe(303025);
+    expect(parsePartnerId(303025)).toBe(303025);
+  });
+
+  it('returns null for non-numeric or unusable ids', () => {
+    expect(parsePartnerId('SUB-8847-KE')).toBeNull();
+    expect(parsePartnerId('')).toBeNull();
+    expect(parsePartnerId(null)).toBeNull();
+    expect(parsePartnerId(0)).toBeNull();
   });
 });
 

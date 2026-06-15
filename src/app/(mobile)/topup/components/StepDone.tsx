@@ -86,6 +86,8 @@ export default function StepDone({ receipt, onRestart }: StepDoneProps) {
           display: 'flex', flexDirection: 'column', gap: 10,
         }}
       >
+        {receipt.customerName && row(t('topup.customer') || 'Customer', receipt.customerName)}
+        {receipt.vehicleId && row(t('topup.bike') || 'Bike', receipt.vehicleId)}
         {row(t('topup.subscriptionId') || 'Subscription ID', receipt.subscriptionCode)}
         {receipt.planName && row(t('topup.plan') || 'Plan', receipt.planName)}
         {row(

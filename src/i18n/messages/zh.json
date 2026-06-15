@@ -969,6 +969,8 @@
   "topup.identifyTitle": "查找订阅",
   "topup.identifyHint": "扫描或输入客户的订阅 ID 开始。",
   "topup.subscriptionId": "订阅 ID",
+  "topup.customer": "客户",
+  "topup.bike": "车辆",
   "topup.subscriptionIdPlaceholder": "例如 SUB12345",
   "topup.validate": "验证",
   "topup.scanTab": "扫描二维码",
