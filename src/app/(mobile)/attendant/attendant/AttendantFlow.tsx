@@ -291,6 +291,9 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Skip when:
   //  - parent gave us an explicit initialSession (user picked from Sessions list)
   //  - parent says skipSessionCheck (re-entry via bottom nav after first check)
+  //  - this is Manual Swap (workflowMode 'manual-payment') — a one-off manual
+  //    swap that should never offer to resume a prior session. Normal Swap
+  //    (workflowMode 'standard') keeps the resume prompt.
   // Failures are non-blocking and never toast — the user can't act on them.
   useEffect(() => {
     if (initialSession) {
@@ -299,7 +302,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
       onInitialSessionCheckComplete?.();
       return;
     }
-    if (skipSessionCheck) {
+    if (skipSessionCheck || workflowMode === 'manual-payment') {
       setSessionCheckComplete(true);
       return;
     }
@@ -317,7 +320,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     })();
 
     return () => { cancelled = true; };
-  }, [initialSession, skipSessionCheck, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete]);
+  }, [initialSession, skipSessionCheck, workflowMode, checkForPendingSession, discardPendingSession, onInitialSessionCheckComplete]);
 
   const handleResumeSession = useCallback(async () => {
     setIsRestoringSession(true);
