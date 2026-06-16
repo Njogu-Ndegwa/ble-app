@@ -18,6 +18,10 @@ const EmbeddedCustomers = dynamic(
   () => import('./components/EmbeddedCustomers'),
   { ssr: false },
 );
+const EmbeddedTickets = dynamic(
+  () => import('./components/EmbeddedTickets'),
+  { ssr: false },
+);
 
 type View =
   | { kind: 'dashboard' }
@@ -125,6 +129,8 @@ export default function RollupApp(_: RollupAppProps) {
             return <EmbeddedOrders onBack={handleBack} />;
           case 'customer':
             return <EmbeddedCustomers onBack={handleBack} />;
+          case 'ticket':
+            return <EmbeddedTickets onBack={handleBack} />;
           default:
             return (
               <RollupFileDetail

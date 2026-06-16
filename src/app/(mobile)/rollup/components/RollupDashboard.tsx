@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  FolderTree, Users, ShoppingCart, ShoppingBag, Target,
+  Users, ShoppingCart, Target, Ticket,
   ChevronRight, RefreshCw, FolderOpen, Loader2,
 } from 'lucide-react';
-import { StatCard } from '@/components/ui/Card';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/State';
@@ -24,6 +23,7 @@ const STACK_CONFIG: Record<string, {
   customer:   { icon: Users,        color: 'var(--color-brand)',   bg: 'rgba(0, 229, 229, 0.1)' },
   sale_order: { icon: ShoppingCart,  color: 'var(--color-success)', bg: 'var(--color-success-soft)' },
   lead:       { icon: Target,        color: 'var(--color-warning)', bg: 'var(--color-warning-soft)' },
+  ticket:     { icon: Ticket,        color: 'var(--color-info)',    bg: 'var(--color-info-soft)' },
 };
 
 function getStackConfig(type: string) {
@@ -144,27 +144,31 @@ export default function RollupDashboard({
         <RollupBreadcrumb segments={data.path.breadcrumb} onNavigate={handleBreadcrumbNavigate} />
       )}
 
-      {/* Greeting + SA name */}
-      <div style={{ padding: 'var(--space-1) 0' }}>
+      {/* Greeting + SA name (large-title) */}
+      <div style={{ padding: 'var(--space-1) 0 var(--space-2)' }}>
         {data?.path?.breadcrumb && data.path.breadcrumb.length <= 1 && (
           <div className="text-caption text-muted">{greeting}</div>
         )}
-        <div className="text-h4" style={{ marginTop: 'var(--space-0-5)' }}>
+        <div
+          className="text-h1"
+          style={{ marginTop: 'var(--space-1)', letterSpacing: '-0.02em' } as React.CSSProperties}
+        >
           {data?.path?.name ?? saName}
         </div>
         {data?.sa_manager && (
-          <div className="text-caption text-muted" style={{ marginTop: 'var(--space-0-5)' }}>
-            Manager: {data.sa_manager.display_name}
+          <div className="text-caption text-muted" style={{ marginTop: 'var(--space-1)' }}>
+            {data.sa_manager.display_name}
           </div>
         )}
       </div>
 
-      {/* Initial loading (first page only) */}
+      {/* Initial loading (first page only) — hero + chips skeleton */}
       {loading && page === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} style={{ height: 80, borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--bg-surface)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div style={{ height: 120, borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--bg-surface)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-2)' }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ height: 68, borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-surface)', animation: 'pulse 1.5s ease-in-out infinite' }} />
             ))}
           </div>
           {[1, 2, 3].map((i) => (
@@ -209,12 +213,20 @@ export default function RollupDashboard({
 
         return (
           <>
-            {/* Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-2)' }}>
-              <StatCard value={metrics.descendant_sa_count} label="Service Accounts" icon={<FolderTree size={20} />} />
-              <StatCard value={metrics.customer} label="Customers" icon={<Users size={20} />} />
-              <StatCard value={metrics.sale_order} label="Total Orders" icon={<ShoppingCart size={20} />} />
-              <StatCard value={metrics.orders_open} label="Open Orders" icon={<ShoppingBag size={20} />} />
+            {/* Hero KPI — Open Orders is the operational signal */}
+            <HeroKPI
+              value={metrics.orders_open}
+              label="Open Orders"
+              context={metrics.sale_order > 0
+                ? `of ${metrics.sale_order.toLocaleString()} total`
+                : undefined}
+            />
+
+            {/* Supporting metrics — numbers lead, no icons */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-2)' }}>
+              <ChipStat value={metrics.descendant_sa_count} label="Accounts" />
+              <ChipStat value={metrics.customer} label="Customers" />
+              <ChipStat value={metrics.sale_order} label="Orders" />
             </div>
 
             {/* Service Accounts */}
@@ -289,11 +301,14 @@ function SectionHeader({ label, count, shown }: { label: string; count?: number;
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: 'var(--space-2) 0', marginBottom: 'var(--space-1)',
+      padding: 'var(--space-2) 0 var(--space-2) var(--space-3)',
+      marginTop: 'var(--space-2)',
+      marginBottom: 'var(--space-2)',
+      borderLeft: '2px solid var(--color-brand)',
     }}>
       <span className="text-caption" style={{
         fontWeight: 'var(--weight-semibold)', color: 'var(--text-secondary)',
-        textTransform: 'uppercase', letterSpacing: '0.05em',
+        textTransform: 'uppercase', letterSpacing: '0.08em',
       } as React.CSSProperties}>
         {label}
       </span>
@@ -302,6 +317,94 @@ function SectionHeader({ label, count, shown }: { label: string; count?: number;
           {shown != null && shown < count ? `${shown} of ${count}` : count}
         </span>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// HeroKPI — oversized number that answers "what should I look at first?"
+// Size = rank. No icon — the number is the icon.
+// ============================================================================
+function HeroKPI({ value, label, context }: { value: number; label: string; context?: string }) {
+  return (
+    <div style={{
+      padding: 'var(--space-4)',
+      backgroundColor: 'var(--bg-surface)',
+      border: '1px solid var(--border-subtle)',
+      borderRadius: 'var(--radius-lg)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'var(--space-1)',
+    }}>
+      <div style={{
+        fontSize: '36px',
+        fontWeight: 'var(--weight-bold)',
+        lineHeight: 1.05,
+        letterSpacing: '-0.025em',
+        fontFamily: 'var(--font-sans)',
+        color: 'var(--text-primary)',
+      } as React.CSSProperties}>
+        {value.toLocaleString()}
+      </div>
+      <div style={{
+        fontSize: 'var(--font-sm)',
+        color: 'var(--text-secondary)',
+        fontWeight: 'var(--weight-medium)',
+      } as React.CSSProperties}>
+        {label}
+      </div>
+      {context && (
+        <div style={{
+          fontSize: 'var(--font-xs)',
+          color: 'var(--text-muted)',
+          marginTop: 'var(--space-2)',
+          paddingTop: 'var(--space-2)',
+          borderTop: '1px solid var(--border-subtle)',
+        }}>
+          {context}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// ChipStat — supporting metric. Smaller number, uppercase micro-label.
+// ============================================================================
+function ChipStat({ value, label }: { value: number; label: string }) {
+  return (
+    <div style={{
+      padding: 'var(--space-3)',
+      backgroundColor: 'var(--bg-surface)',
+      border: '1px solid var(--border-subtle)',
+      borderRadius: 'var(--radius-md)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'var(--space-0-5)',
+      minWidth: 0,
+    }}>
+      <div style={{
+        fontSize: 'var(--font-2xl)',
+        fontWeight: 'var(--weight-semibold)',
+        lineHeight: 1.1,
+        letterSpacing: '-0.015em',
+        fontFamily: 'var(--font-sans)',
+        color: 'var(--text-primary)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      } as React.CSSProperties}>
+        {value.toLocaleString()}
+      </div>
+      <div style={{
+        fontSize: 'var(--font-2xs)',
+        color: 'var(--text-muted)',
+        fontWeight: 'var(--weight-medium)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      } as React.CSSProperties}>
+        {label}
+      </div>
     </div>
   );
 }
