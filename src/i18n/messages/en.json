@@ -1041,6 +1041,8 @@
   "role.salesRep": "Sales Rep",
   "role.keypad": "Keypad",
   "role.rider": "Rider",
+  "role.riderBasic": "Rider Basic",
+  "role.riderBasicDesc": "Ride & Navigate (No Top-Up)",
   "role.bleDeviceManager": "Device Manager",
   "role.attendantDesc": "Station Operations",
   "role.manualSwapDesc": "Manual Swap Recording",

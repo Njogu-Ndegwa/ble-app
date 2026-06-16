@@ -81,6 +81,9 @@ const APPLET_MENU_IDS: Record<string, string[]> = {
   ota: ['ota', 'deviceota', 'upload'],
   keypad: ['keypad'],
   rider: ['rider', 'app', 'serviceplan1'],
+  // Rider without self-service energy top-up (standalone Energy Top-Up applet
+  // handles purchases). Same menu visibility as the full rider applet.
+  'rider-basic': ['rider', 'app', 'serviceplan1'],
   attendant: ['attendant'],
   customers: ['customers', 'myportfolio', 'payments'],
   'customer-management': ['customer-management'],

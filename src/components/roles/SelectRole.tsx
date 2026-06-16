@@ -40,6 +40,7 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   products: 'products',
   orders: 'orders',
   rider: 'rider',
+  riderBasic: 'rider-basic',
   activator: 'activator',
   sales: 'customers',
   attendant: 'attendant',
@@ -88,6 +89,16 @@ const ALL_ROLES: RoleConfig[] = [
     icon: { type: 'image', src: '/assets/optimized/Rider.png', gradient: 'role-grad-rider' },
     path: '/rider/app',
     appletSlug: 'rider',
+  },
+  {
+    // Rider without the self-service energy Top-Up button — same applet,
+    // separate slug so SAs that use the standalone Energy Top-Up applet can
+    // grant it independently of the full rider experience.
+    id: 'riderBasic',
+    labelKey: 'role.riderBasic',
+    icon: { type: 'image', src: '/assets/optimized/Rider.png', gradient: 'role-grad-rider' },
+    path: '/rider-basic/app',
+    appletSlug: 'rider-basic',
   },
   // Row 2: Field operations
   {

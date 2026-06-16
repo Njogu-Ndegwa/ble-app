@@ -941,6 +941,8 @@
   "role.salesRep": "销售代表",
   "role.keypad": "键盘",
   "role.rider": "骑手",
+  "role.riderBasic": "基础骑手",
+  "role.riderBasicDesc": "骑行导航（无充值）",
   "role.bleDeviceManager": "设备管理",
   "role.attendantDesc": "换电站运营",
   "role.manualSwapDesc": "手动记录换电",
