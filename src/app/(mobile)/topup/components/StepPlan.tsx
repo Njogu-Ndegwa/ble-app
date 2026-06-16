@@ -79,8 +79,15 @@ export default function StepPlan({ sub, onBack, onSelected }: StepPlanProps) {
   // Same package → plan narrowing as Sales / Activator / Rider, using the
   // multi-candidate filter (template id + product name) so the picker stays
   // narrowed even when the Odoo status lookup didn't return a product name.
+  // Sorted cheapest-first to match the Activator / Sales plan pickers.
+  // Spread before sorting: filterPlansByPackage returns the input array by
+  // reference on its no-match / fallback paths, so an in-place sort would
+  // mutate the `plans` state.
   const visiblePlans = useMemo(
-    () => filterPlansByPackage(sub.packageFilter, plans),
+    () =>
+      [...filterPlansByPackage(sub.packageFilter, plans)].sort(
+        (a, b) => Number(a.price) - Number(b.price),
+      ),
     [sub.packageFilter, plans],
   );
 
