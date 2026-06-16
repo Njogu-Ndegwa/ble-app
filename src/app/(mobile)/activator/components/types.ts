@@ -13,7 +13,7 @@ export interface StepConfig {
 
 export const STEP_CONFIGS: StepConfig[] = [
   { step: 1, label: 'Customer', icon: 'customer' },
-  { step: 2, label: 'Package', icon: 'package' },
+  { step: 2, label: 'Vehicle Model', icon: 'package' },
   { step: 3, label: 'Plan', icon: 'plan' },
   { step: 4, label: 'Vehicle', icon: 'vehicle' },
   { step: 5, label: 'Battery', icon: 'battery' },

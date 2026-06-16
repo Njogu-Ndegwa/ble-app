@@ -49,8 +49,8 @@ export default function Step2SelectPackage({
   return (
     <Screen>
       <PageHeader 
-        title={t('sales.selectPackage') || 'Select Package'} 
-        subtitle={t('sales.choosePackage') || 'Choose the best deal for this customer'}
+        title={t('sales.selectPackage') || 'Select Vehicle Model'}
+        subtitle={t('sales.choosePackage') || 'Choose the vehicle model for this customer'}
         align="center"
       />
 
@@ -70,8 +70,8 @@ export default function Step2SelectPackage({
         />
       ) : packages.length === 0 ? (
         <EmptyState
-          title={t('sales.noPackagesTitle') || 'No Packages Available'}
-          description={t('sales.noPackagesDescription') || "Packages couldn't be loaded from the server. This might be a temporary issue."}
+          title={t('sales.noPackagesTitle') || 'No Vehicle Models Available'}
+          description={t('sales.noPackagesDescription') || "Vehicle models couldn't be loaded from the server. This might be a temporary issue."}
           icon={<PackageIcon size={40} />}
           action={onRetryLoad ? {
             label: t('common.tryAgain') || 'Try Again',

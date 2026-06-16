@@ -155,7 +155,7 @@ export interface BleScanState {
   requiresBluetoothReset: boolean;
 }
 
-// Sales flow now has 8 steps: Customer -> Package -> Subscription -> Preview -> Payment -> Vehicle -> Battery -> Done
+// Sales flow now has 8 steps: Customer -> Vehicle Model -> Subscription -> Preview -> Payment -> Vehicle -> Battery -> Done
 export type SalesStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export interface StepConfig {
@@ -166,7 +166,7 @@ export interface StepConfig {
 
 export const STEP_CONFIGS: StepConfig[] = [
   { step: 1, label: 'Customer', icon: 'customer' },
-  { step: 2, label: 'Package', icon: 'package' },
+  { step: 2, label: 'Vehicle Model', icon: 'package' },
   { step: 3, label: 'Subscription', icon: 'plan' },
   { step: 4, label: 'Preview', icon: 'preview' },
   { step: 5, label: 'Payment', icon: 'payment' },

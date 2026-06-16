@@ -927,7 +927,7 @@ export default function ActivatorFlow({
       }
       case 2: {
         if (!selectedPackageId) {
-          toast.error(t('activator.pleaseSelectPackage') || 'Please select a package');
+          toast.error(t('activator.pleaseSelectPackage') || 'Please select a vehicle model');
           return;
         }
         advanceToStep(3);
