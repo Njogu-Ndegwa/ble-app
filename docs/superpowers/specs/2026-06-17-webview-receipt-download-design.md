@@ -3,8 +3,10 @@
 - **Date:** 2026-06-17
 - **Status:** Approved (design) — pending spec review
 - **Author:** Dennis + Claude
-- **Repos in scope:** `ble-app` (web) and `HTML5_WebView_APP` (Android WebView host, package `com.example.myapplication`, the build on Dennis's phone)
-- **Explicitly out of scope:** `oves-app` (not the production build)
+- **Repos in scope:** `ble-app` (web) and **`oves-app`** (the real Android backend app, package `com.oves.app`, default branch `main`)
+- **Explicitly out of scope:** `HTML5_WebView_APP` (not the production build)
+
+> **Correction note:** An earlier draft of this spec targeted `HTML5_WebView_APP`. That was wrong — `oves-app` is the real app. This spec targets `oves-app`, which conveniently already contains the prior (half-built) download attempt to repair rather than rebuild.
 
 ## 1. Problem
 
@@ -17,9 +19,14 @@ Two independent failures combine to make every download a no-op:
    - Top-up (`StepDone`) and Rider render their own custom receipt UI, also with no download.
    The only PDF download anywhere is the Orders invoice/proforma.
 
-2. **The one existing download dies in the WebView.** `src/lib/portal/generate-invoice-pdf.ts` builds the PDF client-side as a jsPDF `blob`, then tries, in order: `navigator.share` → open a `data:` URL in a new tab → `<a download>.click()`. Inside the Android WebView all three silently fail: file sharing via `navigator.canShare({files})` is unsupported, `window.open` is blocked, and a `blob:` anchor download has no `DownloadListener` to handle it. Nothing happens and no error surfaces.
+2. **The one existing download dies in the WebView.** `src/lib/portal/generate-invoice-pdf.ts` builds the PDF client-side as a jsPDF `blob`, then tries, in order: `navigator.share` → open a `data:` URL in a new tab → `<a download>.click()`. Inside the Android WebView all three silently fail: file sharing via `navigator.canShare({files})` is unsupported, `window.open` is blocked, and a `blob:` anchor download has no handler. Nothing happens and no error surfaces.
 
-A prior attempt (in `oves-app`, now out of scope) added an OkHttp-based `downloadFile` bridge handler that can only fetch an HTTP URL — useless for a client-generated `blob:` — plus a `saveFile(base64)` handler the web side never called that wrote to app-private storage (invisible to the user). It was never ported to `HTML5_WebView_APP`. That approach is abandoned.
+### Prior attempt (in `oves-app`, to be repaired)
+The `fix/download-functionality` worktree (`C:\Users\pc\oves-app\.claude\worktrees\fix-download`, branch behind `origin/dev` by ~12 commits) already added, uncommitted, to `BaseWebViewActivity.java`:
+- A `setupDownloadListener()` + a `downloadFile` bridge handler that use **OkHttp to fetch an HTTP URL** — useless for a client-generated `blob:`. **Dead path; will be dropped.**
+- A correct-shaped **`saveFile(base64, fileName)` bridge handler** — but the web side never calls it, and it writes to **app-private** storage (`Android/data/com.oves.app/files/Download/`, invisible to the user). **This is the piece to keep and fix** (write to public Downloads + notify).
+
+So the work is: wire the web side to call `saveFile`, and fix `saveFile` to save to public Downloads with a tap-to-open notification.
 
 ## 2. Goals / Non-Goals
 
@@ -27,15 +34,15 @@ A prior attempt (in `oves-app`, now out of scope) added an OkHttp-based `downloa
 - Add a working **Download receipt** action to every flow's success screen: Attendant, Sales, Top-up, Rider.
 - Make the existing **Orders invoice/proforma** download work inside the WebView.
 - Files land in the phone's **public Downloads** folder, visible in the file manager.
-- After a save: a **toast** ("Saved to Downloads") plus a **notification whose tap opens the file** in the user's default viewer.
-- A **generic** Android mechanism so any current or future download (including the OTA file download) "just works" with no per-feature native code.
-- Graceful fallback to normal browser behaviour when the app runs in a regular browser (not the WebView).
+- After a save: a **toast** ("Saved to Downloads") plus a **notification whose tap opens the file**.
+- A **generic** Android safety-net so any other anchor-based download (e.g. the OTA file) also works without per-feature native code.
+- Graceful fallback to normal browser behaviour outside the WebView.
 
 **Non-Goals**
 - No server-side PDF generation (receipts stay client-side).
-- No download-progress UI for v1 (receipts are small; the notification is the completion signal).
-- No changes to `oves-app`.
-- No pixel-perfect screenshot of the on-screen card (we render a clean PDF from structured data — no `html2canvas` dependency).
+- No download-progress UI for v1 (the notification is the completion signal).
+- No changes to `HTML5_WebView_APP`.
+- No pixel-perfect screenshot of the on-screen card (clean PDF from structured data — no `html2canvas`).
 
 ## 3. Architecture Overview
 
@@ -44,33 +51,31 @@ A prior attempt (in `oves-app`, now out of scope) added an OkHttp-based `downloa
    └─ "Download receipt" button
         └─ generateReceiptPdf({title, receiptId, rows}) ──► Blob
               └─ saveFile(blob, filename, mimeType)         ← single shared entry point
-                    ├─ in WebView?  →  anchor download (blob:)  ─┐
-                    └─ in browser? →  navigator.share / anchor   │
+                    ├─ in WebView?  →  FileReader→base64 → bridge.callHandler('saveFile', {base64, fileName})
+                    └─ in browser? →  navigator.share / anchor
                                                                  ▼
-   ANDROID (HTML5_WebView_APP / WebViewFragment)
-        ├─ injected JS shim: intercepts <a download> blob:/data: clicks
-        │     → FileReader → base64 → AndroidFileSaver.save(base64, name, mime)
-        ├─ setDownloadListener: routes http(s): downloads → system DownloadManager
-        └─ AndroidFileSaver.save():
-              → DownloadSaver.saveToPublicDownloads()  (MediaStore 29+ / legacy+scan 26–28)
-              → Toast "Saved to Downloads"
-              → Notification (tap = ACTION_VIEW on content Uri)
+   ANDROID (oves-app, com.oves.app)
+        ├─ saveFile bridge handler (REPAIR existing):
+        │     base64 → DownloadSaver.saveToPublicDownloads() → toast + notification
+        ├─ JS shim (safety net, injected onPageFinished):
+        │     intercept <a download> blob:/data: clicks → base64 → same saveFile handler
+        └─ setDownloadListener: route http(s): downloads → system DownloadManager
 ```
 
 ### Design principles
 - **One web entry point** (`saveFile`) so no flow re-implements share/anchor logic.
 - **One PDF generator** keyed on the existing `{title, receiptId, rows[]}` receipt model.
-- **Generic native capture**: the Android side never knows what a "receipt" is — it captures any download the WebView emits.
+- **Reuse the existing bridge** (`window.WebViewJavascriptBridge`) — the same channel BLE/MQTT already use; no new `@JavascriptInterface`.
+- **Generic native safety net**: the JS shim captures any anchor download not routed through `saveFile` (e.g. OTA).
 
 ## 4. Web Side (`ble-app`)
 
-### 4.1 `saveFile` util — `src/lib/download/saveFile.ts` (new)
-Single WebView-aware download entry point.
+The bridge is already exposed via `src/app/context/bridgeContext.tsx`: `window.WebViewJavascriptBridge.callHandler(name, data, cb)`, ready after the `WebViewJavascriptBridgeReady` event. The `saveFile` util reuses this — no new bridge plumbing.
 
+### 4.1 `saveFile` util — `src/lib/download/saveFile.ts` (new)
 ```ts
 export function isOvesWebView(): boolean
-// true when running inside HTML5_WebView_APP — detected via the bridge/JS interface
-// presence (e.g. window.WebViewJavascriptBridge or window.AndroidFileSaver) and/or UA marker.
+// true when window.WebViewJavascriptBridge is present.
 
 export async function saveFile(
   blob: Blob,
@@ -78,143 +83,126 @@ export async function saveFile(
   mimeType?: string,
 ): Promise<void>
 ```
-
 Behaviour:
-- **In the WebView:** create an object URL and trigger an `<a download={filename}>` click. The Android JS shim intercepts this, reads the blob, and saves natively. (Anchor is used rather than a direct bridge call so the *same* path also covers any other anchor-based download; the shim is the universal catch.) Skip `navigator.share`/`window.open` entirely here — they only swallow the flow.
-- **In a normal browser:** keep today's behaviour — `navigator.share({files})` when available, else anchor download.
+- **In the WebView:** `FileReader.readAsDataURL(blob)` → strip prefix → `window.WebViewJavascriptBridge.callHandler('saveFile', JSON.stringify({ base64, fileName: filename }), cb)`. Deterministic; does not depend on the shim. Skip `navigator.share`/`window.open`.
+- **In a normal browser:** today's behaviour — `navigator.share({files})` when available, else anchor download.
 
-This replaces the bespoke logic currently inlined at the end of `generate-invoice-pdf.ts`.
+Replaces the bespoke logic currently inlined at the end of `generate-invoice-pdf.ts`.
 
 ### 4.2 Receipt → PDF generator — `src/lib/receipt/generate-receipt-pdf.ts` (new)
 ```ts
 import type { ReceiptRow } from '@/components/shared/SuccessReceipt';
 
 export interface ReceiptPdfInput {
-  title: string;          // e.g. "Swap Complete"
-  receiptId?: string;     // e.g. "TXN-12345"
-  receiptTitle?: string;  // e.g. "Transaction Receipt"
+  title: string;          // "Swap Complete"
+  receiptId?: string;     // "TXN-12345"
+  receiptTitle?: string;  // "Transaction Receipt"
   rows: ReceiptRow[];     // existing label/value model
   brandLogoUrl?: string;  // '/assets/Logo-Oves.png'
 }
-
 export function generateReceiptPdf(input: ReceiptPdfInput): Blob;
 ```
-- Uses `jspdf` (already a dependency via the invoice generator). Renders header (logo + title + receipt id), then a label/value table from `rows`, then a footer/timestamp.
-- Reuses the styling constants from `generate-invoice-pdf.ts` (fonts, colors, margins) — extract shared bits if cleanly possible; otherwise mirror them.
-- Filename convention: `<receiptId || title-slug>-<yyyymmdd-hhmm>.pdf`.
+- Uses `jspdf` (already a dependency). Header (logo + title + id), label/value table from `rows`, footer/timestamp.
+- Reuses styling constants from `generate-invoice-pdf.ts` (extract shared bits if clean, else mirror).
+- Filename: `<receiptId || title-slug>-<yyyymmdd-hhmm>.pdf`.
 
 ### 4.3 `SuccessReceipt` button — `src/components/shared/SuccessReceipt.tsx`
-- Add an optional **Download** button in the receipt card header/footer, shown when downloadable (default on).
-- On click: `saveFile(generateReceiptPdf({title, receiptId, receiptTitle, rows}), filename, 'application/pdf')`, with a toast on success and on failure.
-- Because Attendant `Step6Success` and Sales `Step5Success` already pass `title`/`receiptId`/`rows`, **both get download for free**.
+- Add an optional **Download** button (default on). On click: `saveFile(generateReceiptPdf({title, receiptId, receiptTitle, rows}), filename, 'application/pdf')`, with success/failure toasts.
+- Attendant `Step6Success` and Sales `Step5Success` already pass `title`/`receiptId`/`rows` → both get download for free.
 
 ### 4.4 Top-up — `src/app/(mobile)/topup/components/StepDone.tsx`
-- It builds rows inline via a local `row()` helper against a `TopupReceipt`. Add a Download button that maps the `TopupReceipt` into `ReceiptRow[]` (or refactors `StepDone` to render through `SuccessReceipt`) and calls `generateReceiptPdf` + `saveFile`. Recommended: reuse `SuccessReceipt` if the layout matches; otherwise a thin local mapping.
+- Map its `TopupReceipt` into `ReceiptRow[]` (or render through `SuccessReceipt`) and add the Download button → `generateReceiptPdf` + `saveFile`.
 
 ### 4.5 Rider — `src/app/(mobile)/rider/app/RiderApp.tsx`
-- Identify the success/receipt render point and add a Download button wired to `generateReceiptPdf` + `saveFile`, mapping the rider transaction data into `ReceiptRow[]`. (Rider is the largest component; the change is localized to its success surface.)
+- Add a Download button at the success/receipt render point, mapping rider transaction data into `ReceiptRow[]`. Change localized to that surface.
 
 ### 4.6 Orders invoice — `src/lib/portal/generate-invoice-pdf.ts` + `OrderDetail.tsx`
-- Refactor the tail of `generateInvoicePdf` to produce the blob and delegate to the shared `saveFile`. Removes the WebView-dead share/new-tab/anchor block. Invoice + proforma then work in the WebView via the same path.
+- Refactor the tail of `generateInvoicePdf` to build the blob and delegate to shared `saveFile`. Invoice + proforma then work in the WebView.
 
 ### 4.7 OTA download — `src/app/(mobile)/ota/upload/page.tsx`
-- No web change required: it already uses a raw `<a download>` anchor, which the Android shim captures. Verify only.
+- No web change required: its raw `<a download>` is captured by the Android shim. Verify only.
 
-## 5. Android Side (`HTML5_WebView_APP`, package `com.example.myapplication`)
+## 5. Android Side (`oves-app`, `com.oves.app`)
 
-Live WebView host: **`activity/fragment/WebViewFragment.java`** — `BridgeWebView bridgeWebView`, bridge lib `com.github.lzyzsd.jsbridge`, `onPageFinished` at ~L163-167. (`BaseWebViewActivity.java` also hosts a bridge instance; wire whichever instance loads the applet — confirmed during planning. Apply to the fragment's WebView, which loads the applet.)
+Hosts: `activity/BaseWebViewActivity.java` (registers bridge handlers, `bridgeWebView`, `onCreate` already calls the prior `setupDownloadListener()`); WebView clients with `onPageFinished` in `activity/WebViewActivity.java` (L215) and `activity/fragment/WebViewFragment.java` (L165). Bridge lib `com.github.lzyzsd.jsbridge`. minSdk 26 / targetSdk 34. Confirm during planning which host loads the applet and inject the shim there (likely both for safety).
 
-### 5.1 `AndroidFileSaver` (new `@JavascriptInterface` class)
-Registered via `bridgeWebView.addJavascriptInterface(new AndroidFileSaver(context), "AndroidFileSaver")` during WebView init.
-```java
-@JavascriptInterface
-public void save(String base64, String fileName, String mimeType)
-```
-- Decodes base64 (strips any `data:...;base64,` prefix) on a background thread (`ThreadPool`).
-- Delegates to `DownloadSaver.saveToPublicDownloads(...)`.
-- On success: post toast + notification on the UI thread. On failure: toast "Download failed" + log.
-- Guards: empty/oversized payload rejected with a logged error + toast.
+### 5.1 Repair the `saveFile` bridge handler (`BaseWebViewActivity.java`)
+- Keep the existing `registerHandler("saveFile", …)` shape `{base64, fileName}`; decode base64 (strip any `data:…;base64,` prefix) on a background thread.
+- Replace the app-private write with `DownloadSaver.saveToPublicDownloads(...)`.
+- On success: toast + notification (UI thread); callback `Result.ok(uri)`. On failure: toast "Download failed" + `Result.fail`.
+- Drop the dead OkHttp `downloadFile` handler and the URL-based `setupDownloadListener`→OkHttp path (replaced by 5.3).
 
-### 5.2 JS shim (injected in `onPageFinished` via `evaluateJavascript`)
-Adds a **capturing** document click listener (idempotent — guard with a `window.__ovesDownloadHooked` flag):
-- On click, walk to the nearest `<a download>` (or element with `download` attr).
-- If its `href` starts with `blob:` or `data:` → `preventDefault()`, `fetch(href)` → `blob()` → `FileReader.readAsDataURL` → call `AndroidFileSaver.save(dataUrl, downloadName, blob.type)`.
-- `http(s):` anchors fall through to the native `DownloadListener` (5.3).
-- Catches programmatic `a.click()` (synthetic clicks bubble to the capturing listener).
+### 5.2 JS shim (safety net) — injected in `onPageFinished` via `evaluateJavascript`
+Capturing-phase document click listener (idempotent via `window.__ovesDownloadHooked`):
+- Walk to nearest `<a download>`; if `href` starts with `blob:`/`data:` → `preventDefault()`, `fetch(href)` → `blob()` → `FileReader.readAsDataURL` → `window.WebViewJavascriptBridge.callHandler('saveFile', JSON.stringify({base64, fileName}), …)`.
+- Catches programmatic `a.click()` (synthetic clicks bubble). `http(s):` anchors fall through to 5.3.
 
-### 5.3 `setDownloadListener` (WebView init)
-- For `http(s):` URLs: enqueue a `DownloadManager.Request` into public Downloads with `setNotificationVisibility(VISIBLE_NOTIFY_COMPLETED)` and cookies forwarded via `CookieManager`. DownloadManager provides its own visible notification + open-on-tap.
-- For `data:` top-level downloads: decode and route to `DownloadSaver`.
+### 5.3 `setDownloadListener` (replace prior OkHttp version)
+- `http(s):` URLs → `DownloadManager.Request` into public Downloads, cookies via `CookieManager`, `VISIBLE_NOTIFY_COMPLETED` (its own notification + open-on-tap).
+- `data:` top-level → decode → `DownloadSaver`.
 
 ### 5.4 `DownloadSaver` (new util)
 ```java
 static Uri saveToPublicDownloads(Context ctx, byte[] bytes, String fileName, String mimeType)
 ```
-- **API 29+ (primary, minSdk is 26 / targetSdk 34):** `MediaStore.Downloads.EXTERNAL_CONTENT_URI` insert (`IS_PENDING` write then clear) → public Downloads, no storage permission. Returns the content Uri.
-- **API 26–28:** write to `Environment.DIRECTORY_DOWNLOADS` (have `WRITE_EXTERNAL_STORAGE`) + `MediaScannerConnection.scanFile` so it appears in file managers. Build an openable Uri via the existing/added `FileProvider`.
-- Collision-safe naming: `name (1).pdf`, `name (2).pdf`, …
+- **API 29+ (primary):** `MediaStore.Downloads.EXTERNAL_CONTENT_URI` insert (`IS_PENDING` then clear) → public Downloads, no storage permission → content Uri.
+- **API 26–28:** write to `Environment.DIRECTORY_DOWNLOADS` (have `WRITE_EXTERNAL_STORAGE`) + `MediaScannerConnection.scanFile`; openable Uri via FileProvider.
+- Collision-safe naming: `name (1).pdf`, ….
 
 ### 5.5 Notification (tap-to-open)
-- Create a notification channel (once). Post a notification "Saved to Downloads — <filename>".
-- Tap → `PendingIntent` with `ACTION_VIEW` on the saved Uri + `FLAG_GRANT_READ_URI_PERMISSION` + the file's MIME type → opens the default viewer.
-- If no viewer handles the MIME, the notification still confirms the save; toast guides the user to Downloads.
+- One notification channel. Notification "Saved to Downloads — <filename>"; tap → `PendingIntent` `ACTION_VIEW` on the Uri + `FLAG_GRANT_READ_URI_PERMISSION` + MIME → default viewer. No viewer → notification still confirms save.
 
 ### 5.6 Permissions / manifest
-- Add `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>`.
-- Runtime-request `POST_NOTIFICATIONS` on API 33+ at an appropriate point; if denied, degrade to **toast-only** (still saves the file).
-- Confirm a `FileProvider` exists for the legacy (<29) open path; add one (`@xml/file_paths` with the Downloads dir) if absent. Not needed for the 29+ MediaStore Uri.
+- Add `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>` (absent today).
+- Runtime-request `POST_NOTIFICATIONS` on API 33+; if denied, degrade to **toast-only** (still saves).
+- Add a `FileProvider` (absent today) for the legacy (<29) open path; not needed for 29+ MediaStore Uri.
 
 ## 6. Data Flow (happy path, in WebView)
-
-1. User taps **Download receipt** on a success screen.
-2. `generateReceiptPdf(...)` returns a PDF `Blob`.
-3. `saveFile(blob, name, 'application/pdf')` creates a `blob:` URL and clicks a hidden `<a download>`.
-4. JS shim intercepts → reads blob → base64 → `AndroidFileSaver.save(...)`.
-5. `DownloadSaver` writes to public Downloads (MediaStore) → content Uri.
-6. Toast "Saved to Downloads" + notification posted.
-7. User taps notification → PDF opens in their viewer.
+1. User taps **Download receipt**.
+2. `generateReceiptPdf(...)` → PDF `Blob`.
+3. `saveFile(blob, name, 'application/pdf')` → base64 → `callHandler('saveFile', {base64, fileName})`.
+4. Android `saveFile` handler → `DownloadSaver.saveToPublicDownloads` → public Downloads → content Uri.
+5. Toast "Saved to Downloads" + notification.
+6. Tap notification → PDF opens.
 
 ## 7. Error Handling
 
 | Failure | Handling |
 |---|---|
 | PDF generation throws | Web toast "Failed to generate receipt"; nothing saved. |
-| Not in WebView | Browser fallback (share/anchor); unchanged behaviour. |
-| Blob read fails in shim | No native call; logged; web flow unbroken. |
-| base64 decode / IO error | Native toast "Download failed" + log; no notification. |
+| Not in WebView | Browser fallback (share/anchor); unchanged. |
+| base64 read fails (web) | No bridge call; logged; flow unbroken. |
+| base64 decode / IO error (native) | Toast "Download failed" + log; no notification; `Result.fail`. |
 | `POST_NOTIFICATIONS` denied (33+) | File still saved; toast only. |
 | No viewer for MIME on tap | Notification confirms save; no crash. |
 
 ## 8. Testing & Verification
 
 **Android (primary — on Dennis's phone):**
-1. Build debug APK of `HTML5_WebView_APP`, install on the phone (Gradle needs JDK 17 — see `dev-tools/jdk17` per project notes).
+1. Build debug APK of `oves-app` (Gradle needs JDK 17 — `dev-tools/jdk17` per project notes), install.
 2. Run each flow to completion and tap Download:
-   - Attendant swap → receipt PDF in Downloads, opens on tap.
-   - Sales registration → same.
-   - Top-up → same.
-   - Rider → same.
+   - Attendant swap, Sales registration, Top-up, Rider → receipt PDF in Downloads, opens on tap.
    - Orders → invoice **and** proforma.
-   - OTA upload page download → file lands in Downloads.
+   - OTA upload page download → file in Downloads.
 3. Confirm toast + tap-to-open notification each time.
-4. Verify on API 33+ (notification-permission path); if a ≤28 device is available, verify the legacy path.
+4. Verify on API 33+ (notification-permission path); if a ≤28 device exists, verify legacy path.
 
 **Web:**
-- In a desktop browser, confirm downloads still work via the browser fallback (no regression).
-- Type-check / lint / existing test suite pass.
+- Desktop browser: downloads still work via browser fallback (no regression).
+- Type-check / lint / existing tests pass.
 
 ## 9. Rollout — isolated worktrees
 
-- **`ble-app`** — new git worktree off the current `dev` branch; branch e.g. `feat/webview-receipt-download`.
-- **`HTML5_WebView_APP`** — new git worktree off `master`; branch e.g. `feat/webview-download`. Primary, since this is the phone build.
+- **`ble-app`** — new git worktree off `dev` (current local branch); branch e.g. `feat/webview-receipt-download`.
+- **`oves-app`** — **reuse the existing `fix/download-functionality` worktree** at `C:\Users\pc\oves-app\.claude\worktrees\fix-download` (update it: it's ~12 commits behind `origin/dev`/`main`); keep the good `saveFile` handler, drop the OkHttp paths.
 - Web and Android land together (the contract spans both); verify end-to-end before merging either.
 
 ## 10. Risks & Mitigations
-
-- **Shim misses a programmatic download** → mitigated by capturing-phase listener that catches synthetic `a.click()`; `setDownloadListener` covers http(s).
+- **Shim misses a programmatic download** → capturing-phase listener catches synthetic `a.click()`; `setDownloadListener` covers http(s); receipts/invoice use the deterministic direct bridge call anyway.
 - **`BridgeWebViewClient` re-injection on navigation** → idempotent shim guard; inject after `super.onPageFinished`.
-- **MediaStore quirks across OEMs** → standard `IS_PENDING` insert pattern; legacy fallback for <29.
-- **Large base64 across the bridge** → receipts are small (tens of KB); acceptable. Future large files can use the http(s) DownloadManager path instead.
+- **MediaStore OEM quirks** → standard `IS_PENDING` pattern + legacy fallback for <29.
+- **Large base64 across bridge** → receipts are small (tens of KB); large files can use the http(s) DownloadManager path.
+- **Stale oves-app worktree** → rebase/update onto current `main` before adding work.
 
 ## 11. Open Questions
-- None blocking. The exact `ble-app` base branch (`dev` vs `master`) and whether Top-up/Rider should be migrated onto `SuccessReceipt` vs a thin local mapping will be finalized in the implementation plan.
+- None blocking. Final items for the plan: confirm which oves-app host (`WebViewActivity` vs `WebViewFragment`) loads the applet (inject shim there / both); whether Top-up/Rider reuse `SuccessReceipt` vs a thin local mapping.
