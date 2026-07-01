@@ -13541,6 +13541,32 @@ html.keyboard-open .customer-panel-unified {
   background: #e9eef3;
 }
 
+/* ---------- Leaflet (China / OSM) backend ---------- */
+
+/* The Leaflet map fills the same wrap as the Google map. A dark base color
+   shows through before tiles paint so the dark basemap doesn't flash light. */
+.rm-map-wrap .leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+  font-family: inherit;
+}
+
+/* divIcon reset: Leaflet frames divIcons with a white box + border by
+   default. Strip it so our custom pill / teardrop / cluster chip HTML renders
+   exactly like on the Google map. */
+.rm-leaflet-divicon {
+  background: transparent;
+  border: none;
+}
+
+/* Approximate the app's dark Google basemap by inverting ONLY the tile
+   pixels. Markers, the route line, and controls live in other Leaflet panes,
+   so they keep their true colors. */
+.rm-leaflet-dark .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+
 /* ---------- Station markers (pill + selected teardrop + cluster) --------- */
 
 /* Default unselected marker: compact pill with ⚡ glyph + battery count.

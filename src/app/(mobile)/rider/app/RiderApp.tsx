@@ -40,7 +40,8 @@ import type { EnergyTopUpSubmitArgs, EnergyTopUpResult } from './components';
 import { SelectSheet, type SelectSheetItem } from '@/components/ui';
 import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
-import { googleMapsUrl, openExternalMap } from './map/deepLinks';
+import { bestDirectionsUrl, openExternalMap } from './map/deepLinks';
+import { isChina } from './map/isChina';
 import { groupServiceActions } from './hooks/useRiderActivity';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
@@ -1951,8 +1952,13 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
   const handleNavigateToStation = (station: Station) => {
     if (station.lat && station.lng) {
+      // In China, Google Maps is blocked — route the deep-link to Amap
+      // instead (bestDirectionsUrl picks the right target + coordinate datum).
       openExternalMap(
-        googleMapsUrl({ lat: station.lat, lng: station.lng }, station.name),
+        bestDirectionsUrl(
+          { lat: station.lat, lng: station.lng },
+          { isChina: isChina(), label: station.name },
+        ),
         (msg) => toast.error(msg),
       );
     } else {

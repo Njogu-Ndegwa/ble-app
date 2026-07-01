@@ -7,6 +7,8 @@
  * The caller decides how to open the URL (window.open, WebView bridge, etc.).
  */
 
+import { wgs84ToGcj02 } from "./gcj02";
+
 export interface Coords {
   lat: number;
   lng: number;
@@ -21,6 +23,49 @@ export function googleMapsUrl(dest: Coords, label?: string): string {
   });
   if (label) params.set("destination_place_id", label);
   return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+/**
+ * Opens Amap (高德地图) driving navigation to a destination — the China
+ * equivalent of `googleMapsUrl`, since `www.google.com/maps` is blocked by the
+ * Great Firewall.
+ *
+ * Uses the `uri.amap.com` web endpoint, which opens the installed Amap app via
+ * `callnative=1` and gracefully falls back to Amap's web map when the app is
+ * absent — the "most convenient" single target for Android users in China.
+ *
+ * `dest` is expected in WGS-84 (our app-wide datum); we convert to GCJ-02 here
+ * (`coordinate=gaode`) because Amap expects the Chinese offset datum — without
+ * this the pin lands ~500 m off.
+ */
+export function amapUrl(dest: Coords, label?: string): string {
+  const g = wgs84ToGcj02(dest.lat, dest.lng);
+  const to = label
+    ? `${g.lng},${g.lat},${label}`
+    : `${g.lng},${g.lat}`;
+  const params = new URLSearchParams({
+    to,
+    mode: "car",
+    coordinate: "gaode",
+    callnative: "1",
+    src: "oves",
+  });
+  return `https://uri.amap.com/navigation?${params.toString()}`;
+}
+
+/**
+ * Picks the right external navigation URL for the rider's environment.
+ * In China → Amap (Google Maps is blocked); everywhere else → Google Maps.
+ * The caller passes `isChina` (from `map/isChina`) so this stays a pure,
+ * testable selector with no global reads.
+ */
+export function bestDirectionsUrl(
+  dest: Coords,
+  opts: { isChina: boolean; label?: string },
+): string {
+  return opts.isChina
+    ? amapUrl(dest, opts.label)
+    : googleMapsUrl(dest, opts.label);
 }
 
 /** Opens Apple Maps driving directions (iOS). */

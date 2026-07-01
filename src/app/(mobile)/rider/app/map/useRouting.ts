@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import type { Coords } from "./deepLinks";
 import { MAPS_API_KEY } from "./config";
+import { isChina } from "./isChina";
 
 export interface RouteSummary {
   distanceKm: number;
@@ -127,6 +128,13 @@ export function useRouting(
   // Routes API. Must be in the APIProvider's libraries array.
   const geometryLib = useMapsLibrary("geometry");
 
+  // Inside China the Google Routes API (`routes.googleapis.com`) is blocked by
+  // the Great Firewall. Calling it there just hangs and then floods the UI
+  // with "couldn't compute route" toasts. The Leaflet backend shows a
+  // straight-line to the selected station instead, so we short-circuit to an
+  // empty result and never issue the request. Evaluated once per mount.
+  const inChina = useMemo(() => isChina(), []);
+
   const [summary, setSummary] = useState<RouteSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +148,7 @@ export function useRouting(
   const errorForDestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (inChina) return; // Routes API is blocked in China — no-op, empty result.
     if (!enabled || !from || !to || !geometryLib) {
       if (!enabled || !from || !to) {
         // Cleared destination or disabled: wipe local state so stale paths
@@ -321,7 +330,7 @@ export function useRouting(
     // callers recreating `{lat,lng}` literals per render don't re-trigger the
     // effect. Internal throttling further suppresses GPS jitter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, from?.lat, from?.lng, to?.lat, to?.lng, geometryLib]);
+  }, [enabled, from?.lat, from?.lng, to?.lat, to?.lng, geometryLib, inChina]);
 
   return { summary, isLoading, error, path, bounds, destKey };
 }
