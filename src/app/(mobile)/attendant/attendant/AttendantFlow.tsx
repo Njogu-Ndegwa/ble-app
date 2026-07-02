@@ -1039,6 +1039,7 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
     setManualPaymentId,
     initiatePayment: initiateOdooPayment,
     confirmPayment,
+    confirmWechatPayment,
     skipPayment,
     resetPayment,
     restorePaymentState,
@@ -2041,9 +2042,11 @@ export default function AttendantFlow({ onBack, onLogout, hideHeaderActions = fa
   // Step 5: WeChat (Z-Pay) payment callbacks
   const handleWechatPaid = useCallback((tradeNo: string, totalPaid: number) => {
     console.info('[AttendantFlow] WeChat payment received', { tradeNo, totalPaid });
-    // Treat the Z-Pay trade_no as the payment reference and proceed with service completion
-    confirmPayment(tradeNo);
-  }, [confirmPayment]);
+    // Z-Pay already verified this payment against the Odoo order — publish
+    // service completion directly. confirmPayment would re-check the trade_no
+    // via the LiPay endpoint, which rejects Z-Pay references.
+    confirmWechatPayment(tradeNo, totalPaid);
+  }, [confirmWechatPayment]);
 
   const handleWechatError = useCallback((message: string) => {
     console.error('[AttendantFlow] WeChat payment error:', message);

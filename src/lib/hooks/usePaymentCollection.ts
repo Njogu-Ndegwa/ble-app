@@ -132,6 +132,15 @@ export interface UsePaymentCollectionReturn {
   initiatePayment: () => Promise<boolean>;
   /** Confirm payment with receipt (QR scan result or manual entry) */
   confirmPayment: (receipt: string) => Promise<void>;
+  /**
+   * Confirm a WeChat (Z-Pay) payment that Odoo has already verified.
+   * Z-Pay payments are registered against the order before the widget's
+   * onPaid fires (webhook + order-status polling), so the trade_no must NOT
+   * be re-confirmed via confirmPaymentManual — that is the LiPay/M-Pesa
+   * receipt endpoint and rejects Z-Pay references. Publishes service
+   * completion directly with the verified amount.
+   */
+  confirmWechatPayment: (receipt: string, totalPaid: number) => void;
   /** Skip payment (for quota-based or zero-cost swaps) */
   skipPayment: (isQuotaBased: boolean, isZeroCostRounding: boolean) => void;
   /** Reset all payment state for new swap */
@@ -553,6 +562,29 @@ export function usePaymentCollection(
   );
 
   // ============================================================================
+  // Confirm WeChat (Z-Pay) Payment — already verified by Odoo
+  // ============================================================================
+
+  const confirmWechatPayment = useCallback(
+    (receipt: string, totalPaid: number) => {
+      setIsProcessing(true);
+
+      // Z-Pay orders are created for the expected amount; guard against a 0
+      // from order-status edge cases so downstream reporting never sees 0.
+      const requiredAmount = expectedPaymentAmount || Math.floor(swapData.cost);
+      setActualAmountPaid(totalPaid > 0 ? totalPaid : requiredAmount);
+      setPaymentAmountRemaining(0);
+      setPaymentConfirmed(true);
+      setPaymentReceipt(receipt);
+      setTransactionId(receipt);
+      toast.success('Payment confirmed successfully');
+
+      callPublishRef.current(receipt, false);
+    },
+    [expectedPaymentAmount, swapData.cost]
+  );
+
+  // ============================================================================
   // Skip Payment (Quota-based or Zero-cost)
   // ============================================================================
 
@@ -647,6 +679,7 @@ export function usePaymentCollection(
     setManualPaymentId,
     initiatePayment,
     confirmPayment,
+    confirmWechatPayment,
     skipPayment,
     resetPayment,
     restorePaymentState,

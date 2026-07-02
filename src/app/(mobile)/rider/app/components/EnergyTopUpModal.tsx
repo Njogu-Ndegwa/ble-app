@@ -332,10 +332,43 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
     await verifyAndSubmit(transactionId.trim(), 'mobile_money');
   }, [selectedPlan, transactionId, verifyAndSubmit]);
 
-  // WeChat payment success handler
-  const handleWechatPaid = useCallback(async (tradeNo: string, _totalPaid: number) => {
-    await verifyAndSubmit(tradeNo, 'wechat_pay');
-  }, [verifyAndSubmit]);
+  // WeChat payment success handler. Z-Pay payments are already verified
+  // against the Odoo order by the time onPaid fires (webhook + order-status
+  // polling, or zpay/verify). Do NOT round-trip the trade_no through
+  // confirmPaymentManual — that is the LiPay/M-Pesa receipt endpoint and
+  // rejects Z-Pay references (or reports total_paid 0), which blocked the
+  // ABS credit. Report straight to ABS with the verified amount.
+  const handleWechatPaid = useCallback(async (tradeNo: string, totalPaid: number) => {
+    if (!selectedPlan || !orderId) return;
+
+    setIsProcessing(true);
+    setSubmitError(null);
+
+    try {
+      // Guard against a 0 from getOrderStatus edge cases: the Z-Pay order was
+      // created for the plan price, so fall back to it rather than sending a
+      // zero payment_amount to ABS (which would credit nothing).
+      const paidAmount = totalPaid > 0 ? totalPaid : Math.floor(selectedPlan.price);
+      const result = await onSubmit({
+        plan: selectedPlan,
+        energyConfig,
+        transactionId: tradeNo,
+        paymentMethod: 'wechat_pay',
+        orderId,
+        totalPaid: paidAmount,
+      });
+
+      if (result.success) {
+        setStep('success');
+      } else {
+        setSubmitError(result.error || 'Top-up failed');
+      }
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Top-up failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedPlan, orderId, energyConfig, onSubmit]);
 
   const handleWechatError = useCallback((message: string) => {
     setSubmitError(message);
