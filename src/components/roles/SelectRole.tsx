@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap, FolderTree, LifeBuoy, MessagesSquare } from 'lucide-react';
+import { Zap, FolderTree, LifeBuoy, MessagesSquare, Factory, Boxes } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA } from '@/lib/ov-auth';
@@ -49,6 +49,11 @@ const APPLET_SLUG_MAP: Record<string, string | string[]> = {
   keypad: 'keypad',
   // Both 'assets' and 'mydevices' grant access to the Device Manager tile.
   bleDeviceManager: ['assets', 'mydevices'],
+  // Fleet/asset management — same slug the desktop portal maps to its
+  // Fleets applet, so one SA grant lights up both surfaces.
+  fleets: 'assets',
+  // Assembly Cell (Build Records on MOs) — mirrors the desktop portal.
+  assembly: 'assembly-cell',
   location: 'location',
   ota: 'ota',
   ticketing: 'ticketing',
@@ -151,6 +156,22 @@ const ALL_ROLES: RoleConfig[] = [
     path: '/assets/ble-devices',
     // Visible when the SA has either 'assets' OR 'mydevices' in its applet list.
     appletSlug: ['assets', 'mydevices'],
+  },
+  {
+    id: 'fleets',
+    labelKey: 'role.fleets',
+    icon: { type: 'lucide', el: <Boxes size={28} color="#fff" />, gradient: 'role-grad-customer' },
+    path: '/fleets',
+    // Same slug as the desktop portal's Fleets applet. The BLE Device
+    // Manager tile also matches 'assets', so SAs with that grant see both.
+    appletSlug: 'assets',
+  },
+  {
+    id: 'assembly',
+    labelKey: 'role.assembly',
+    icon: { type: 'lucide', el: <Factory size={28} color="#fff" />, gradient: 'role-grad-orders' },
+    path: '/assembly',
+    appletSlug: 'assembly-cell',
   },
   // Row 4: Management
   {
