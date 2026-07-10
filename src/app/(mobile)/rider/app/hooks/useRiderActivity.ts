@@ -5,6 +5,29 @@ import type { RiderActivityItem } from '../types';
 
 const GRAPHQL_ENDPOINT = 'https://abs-platform-dev.omnivoltaic.com/graphql';
 
+/**
+ * True when a service action is the energy-usage half of a battery swap.
+ * ABS emits TWO naming families for the energy service depending on the plan
+ * template generation: "service-electricity-*" (older) and "service-energy-*"
+ * (newer). Matching only "electricity" made grouping fail on energy-* plans,
+ * so every swap rendered as two duplicate rows — keep this predicate in sync
+ * with the identifyCustomer extraction in RiderApp.
+ */
+export function isEnergyServiceType(serviceType: unknown): boolean {
+  const t = String(serviceType || '').toLowerCase();
+  return t.includes('electricity') || t.includes('energy');
+}
+
+/**
+ * True when a payment action credits the customer (top-up / initial deposit).
+ * ABS sends "TOP_UP" (with underscore) and "DEPOSIT"; normalize separators so
+ * both spellings ("TOP_UP"/"TOPUP") classify identically.
+ */
+export function isTopUpPaymentType(paymentType: unknown): boolean {
+  const t = String(paymentType || '').toUpperCase().replace(/[^A-Z]/g, '');
+  return t === 'TOPUP' || t === 'DEPOSIT';
+}
+
 interface UseRiderActivityParams {
   subscriptionCode: string | undefined;
   currency: string;
@@ -99,11 +122,11 @@ export function useRiderActivity(params: UseRiderActivityParams) {
           minute: '2-digit',
           hour12: false,
         });
-        const isTopUp = a.paymentType === 'DEPOSIT' || a.paymentType === 'TOPUP';
+        const isTopUp = isTopUpPaymentType(a.paymentType);
         const isSub = a.paymentType === 'SUBSCRIPTION_PAYMENT';
         items.push({
           id: a.paymentActionId || `payment-${d.getTime()}`,
-          type: 'payment',
+          type: isTopUp ? 'topup' : 'payment',
           title: isTopUp ? tTopUp : isSub ? tSubPayment : tPayment,
           subtitle: a.paymentType || '',
           amount: Math.abs(a.paymentAmount || 0),
@@ -111,6 +134,13 @@ export function useRiderActivity(params: UseRiderActivityParams) {
           isPositive: isTopUp,
           time: timeStr,
           date: dateStr,
+          records: [{
+            id: a.paymentActionId || '',
+            kind: 'payment',
+            type: a.paymentType || '',
+            amount: a.paymentAmount || 0,
+            createdAt: a.createdAt,
+          }],
         });
       });
 
@@ -119,12 +149,8 @@ export function useRiderActivity(params: UseRiderActivityParams) {
       const serviceGroups = groupServiceActions(data.serviceActions || []);
 
       serviceGroups.forEach((group) => {
-        const hasElec = group.some((g) =>
-          String(g.serviceType || '').includes('electricity')
-        );
-        const hasSwap = group.some(
-          (g) => !String(g.serviceType || '').includes('electricity')
-        );
+        const hasElec = group.some((g) => isEnergyServiceType(g.serviceType));
+        const hasSwap = group.some((g) => !isEnergyServiceType(g.serviceType));
 
         const d = new Date(group[0].createdAt);
         if (!latestSwap || d > latestSwap) latestSwap = d;
@@ -135,11 +161,17 @@ export function useRiderActivity(params: UseRiderActivityParams) {
           hour12: false,
         });
 
+        const toRecord = (a: any) => ({
+          id: a.serviceActionId || '',
+          kind: 'service' as const,
+          type: a.serviceType || '',
+          amount: a.serviceAmount || 0,
+          createdAt: a.createdAt,
+        });
+
         if (hasElec && hasSwap && group.length === 2) {
           // Unified battery swap row — show energy, no price.
-          const elecAction = group.find((g) =>
-            String(g.serviceType || '').includes('electricity')
-          )!;
+          const elecAction = group.find((g) => isEnergyServiceType(g.serviceType))!;
           items.push({
             id: elecAction.serviceActionId || `swap-${d.getTime()}`,
             type: 'swap',
@@ -149,11 +181,12 @@ export function useRiderActivity(params: UseRiderActivityParams) {
             isPositive: false,
             time: timeStr,
             date: dateStr,
+            records: group.map(toRecord),
           });
         } else {
           // Fallback: render each action individually.
           group.forEach((a) => {
-            const isElec = String(a.serviceType || '').includes('electricity');
+            const isElec = isEnergyServiceType(a.serviceType);
             items.push({
               id: a.serviceActionId || `service-${d.getTime()}-${Math.random()}`,
               type: 'swap',
@@ -164,6 +197,7 @@ export function useRiderActivity(params: UseRiderActivityParams) {
               isPositive: false,
               time: timeStr,
               date: dateStr,
+              records: [toRecord(a)],
             });
           });
         }
@@ -216,17 +250,13 @@ export function groupServiceActions(actions: any[]): any[][] {
 
   for (const action of sorted) {
     const actionTime = new Date(action.createdAt).getTime();
-    const isElec = String(action.serviceType || '').includes('electricity');
+    const isElec = isEnergyServiceType(action.serviceType);
 
     let added = false;
     for (const group of groups) {
       const groupTime = new Date(group[0].createdAt).getTime();
-      const hasElec = group.some((g) =>
-        String(g.serviceType || '').includes('electricity')
-      );
-      const hasSwap = group.some(
-        (g) => !String(g.serviceType || '').includes('electricity')
-      );
+      const hasElec = group.some((g) => isEnergyServiceType(g.serviceType));
+      const hasSwap = group.some((g) => !isEnergyServiceType(g.serviceType));
 
       if (Math.abs(actionTime - groupTime) <= 2 * 60 * 1000) {
         if ((isElec && !hasElec) || (!isElec && !hasSwap)) {

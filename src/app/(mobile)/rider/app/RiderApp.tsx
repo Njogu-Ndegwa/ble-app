@@ -42,7 +42,7 @@ import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 import { bestDirectionsUrl, openExternalMap } from './map/deepLinks';
 import { isChina } from './map/isChina';
-import { groupServiceActions } from './hooks/useRiderActivity';
+import { groupServiceActions, isEnergyServiceType, isTopUpPaymentType } from './hooks/useRiderActivity';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
 
@@ -81,7 +81,9 @@ const IDENTIFICATION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 // than a couple of minutes, but long enough that re-entering the home screen
 // after a quick detour paints instantly.
 const RIDER_STATIONS_CACHE_KEY = 'riderStationsCacheV1';
-const RIDER_ACTIVITY_CACHE_KEY = 'riderActivityCacheV1';
+// V2: cache shape gained `records` and the 'topup' item type; bumping the key
+// discards V1 entries whose swap rows were mis-grouped (duplicate rows bug).
+const RIDER_ACTIVITY_CACHE_KEY = 'riderActivityCacheV2';
 const STATIONS_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const ACTIVITY_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const LOAD_FAILSAFE_TIMEOUT_MS = 15000;
@@ -855,30 +857,35 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 hour12: false 
               });
 
+              // ABS sends "TOP_UP" (underscore) and "DEPOSIT" — the helper
+              // normalizes both spellings so top-ups land on the Top-ups tab.
+              const isTopUp = isTopUpPaymentType(action.paymentType);
               let title = '';
-              let isPositive = false;
-              
-              if (action.paymentType === 'DEPOSIT' || action.paymentType === 'TOPUP') {
+              if (isTopUp) {
                 title = t('rider.balanceTopUp') || 'Balance Top-up';
-                isPositive = true;
               } else if (action.paymentType === 'SUBSCRIPTION_PAYMENT') {
                 title = t('rider.subscriptionPayment') || 'Subscription Payment';
-                isPositive = false;
               } else {
                 title = t('common.payment') || 'Payment';
-                isPositive = action.paymentType === 'DEPOSIT' || action.paymentType === 'TOPUP';
               }
 
               mappedActivities.push({
                 id: action.paymentActionId || `payment-${Date.now()}`,
-                type: 'payment',
+                type: isTopUp ? 'topup' : 'payment',
                 title: title,
                 subtitle: action.paymentType || '',
                 amount: Math.abs(action.paymentAmount || 0),
                 currency: currency,
-                isPositive: isPositive,
+                isPositive: isTopUp,
                 time: timeStr,
                 date: formattedDate,
+                records: [{
+                  id: action.paymentActionId || '',
+                  kind: 'payment',
+                  type: action.paymentType || '',
+                  amount: action.paymentAmount || 0,
+                  createdAt: action.createdAt,
+                }],
               });
             });
           }
@@ -899,12 +906,8 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
             const serviceGroups = groupServiceActions(serviceActions);
 
             serviceGroups.forEach((group) => {
-              const hasElec = group.some((g: any) =>
-                String(g.serviceType || '').includes('electricity')
-              );
-              const hasSwap = group.some(
-                (g: any) => !String(g.serviceType || '').includes('electricity')
-              );
+              const hasElec = group.some((g: any) => isEnergyServiceType(g.serviceType));
+              const hasSwap = group.some((g: any) => !isEnergyServiceType(g.serviceType));
 
               const date = new Date(group[0].createdAt);
               const formattedDate = date.toISOString().split('T')[0];
@@ -914,10 +917,18 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 hour12: false,
               });
 
+              const toRecord = (a: any) => ({
+                id: a.serviceActionId || '',
+                kind: 'service' as const,
+                type: a.serviceType || '',
+                amount: a.serviceAmount || 0,
+                createdAt: a.createdAt,
+              });
+
               if (hasElec && hasSwap && group.length === 2) {
                 // Unified battery swap row — show energy, no price.
                 const elecAction = group.find((g: any) =>
-                  String(g.serviceType || '').includes('electricity')
+                  isEnergyServiceType(g.serviceType)
                 )!;
                 mappedActivities.push({
                   id: elecAction.serviceActionId || `swap-${Date.now()}`,
@@ -928,11 +939,12 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                   isPositive: false,
                   time: timeStr,
                   date: formattedDate,
+                  records: group.map(toRecord),
                 });
               } else {
                 // Fallback: render each action individually.
                 group.forEach((action: any) => {
-                  const isElec = String(action.serviceType || '').includes('electricity');
+                  const isElec = isEnergyServiceType(action.serviceType);
                   mappedActivities.push({
                     id: action.serviceActionId || `service-${Date.now()}`,
                     type: 'swap',
@@ -945,6 +957,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                     isPositive: false,
                     time: timeStr,
                     date: formattedDate,
+                    records: [toRecord(action)],
                   });
                 });
               }

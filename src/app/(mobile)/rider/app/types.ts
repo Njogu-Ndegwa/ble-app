@@ -72,6 +72,20 @@ export interface RiderStation {
   fleetId?: string;
 }
 
+/**
+ * Raw backend action underlying an activity row. A unified "Battery Swap" row
+ * carries two records (energy usage + swap count); payment rows carry one.
+ */
+export interface RiderActivityRecord {
+  /** serviceActionId / paymentActionId from ABS. */
+  id: string;
+  kind: 'service' | 'payment';
+  /** serviceType (e.g. "service-energy-togo-001") or paymentType (e.g. "TOP_UP"). */
+  type: string;
+  amount: number;
+  createdAt: string;
+}
+
 export interface RiderActivityItem {
   id: string;
   type: 'swap' | 'topup' | 'payment';
@@ -84,6 +98,8 @@ export interface RiderActivityItem {
   date: string;
   /** Energy info (e.g. "3.5 kWh") to show instead of a price badge on swap rows. */
   energy?: string;
+  /** Underlying ABS action records — shown in the tap-to-open detail sheet. */
+  records?: RiderActivityRecord[];
 }
 
 export interface RiderTicket {
