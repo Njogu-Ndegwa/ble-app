@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   BadgeCheck,
   CheckCircle2,
+  ChevronDown,
   Loader2,
   PackageCheck,
   Plus,
@@ -18,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import { useI18n } from '@/i18n';
 import { LoadingState } from '@/components/ui/State';
+import SelectSheet, { type SelectSheetItem } from '@/components/ui/SelectSheet';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
 import {
   AssemblyApiError,
@@ -60,6 +62,14 @@ const COMPONENT_LABEL: Record<ComponentKind, string> = {
   motor: 'Motor',
   vcu: 'VCU',
   other: 'Other',
+};
+
+const COMPONENT_DESC_FALLBACK: Record<ComponentKind, string> = {
+  chassis: 'Vehicle frame',
+  mcu: 'Motor control unit',
+  motor: 'Drive motor',
+  vcu: 'Vehicle control unit',
+  other: 'Other tracked component',
 };
 
 const READINESS_LABEL: Record<string, string> = {
@@ -126,7 +136,7 @@ function payloadFingerprint(rows: ComponentDraft[]): string {
   return JSON.stringify(componentPayload(rows));
 }
 
-const selectStyle: React.CSSProperties = {
+const kindTriggerStyle: React.CSSProperties = {
   backgroundColor: 'var(--bg-surface)',
   border: '1px solid var(--border-default)',
   borderRadius: 'var(--radius-md)',
@@ -134,8 +144,6 @@ const selectStyle: React.CSSProperties = {
   height: '40px',
   padding: '8px 8px',
   fontSize: '12px',
-  // Inline width because .form-input's `width: 100%` (globals.css) outranks
-  // Tailwind utilities and would swallow the whole flex row.
   width: '104px',
   flexShrink: 0,
 };
@@ -173,6 +181,9 @@ export default function AssemblyDetail({ mo: initialMo, onBack }: AssemblyDetail
 
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
+
+  // Which component row's kind picker sheet is open (null = closed).
+  const [kindPickerRowId, setKindPickerRowId] = useState<string | null>(null);
 
   const errorMessage = useCallback(
     (error: unknown): string => {
@@ -501,24 +512,18 @@ export default function AssemblyDetail({ mo: initialMo, onBack }: AssemblyDetail
           <div className="p-3 flex flex-col gap-2">
             {componentRows.map((row, index) => (
               <div key={row.localId} className="flex gap-2">
-                <select
-                  className="form-input"
-                  style={selectStyle}
-                  value={row.component_kind}
+                <button
+                  type="button"
+                  style={kindTriggerStyle}
+                  className="flex items-center justify-between gap-1 text-left focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 active:scale-[0.98] transition-transform"
                   disabled={!canEditComponents}
-                  onChange={(e) =>
-                    updateComponentRow(row.localId, {
-                      component_kind: e.target.value as ComponentKind,
-                    })
-                  }
+                  onClick={() => setKindPickerRowId(row.localId)}
                   aria-label={`Component kind ${index + 1}`}
+                  aria-haspopup="dialog"
                 >
-                  {ASSEMBLY_COMPONENT_KINDS.map((kind) => (
-                    <option key={kind} value={kind}>
-                      {COMPONENT_LABEL[kind]}
-                    </option>
-                  ))}
-                </select>
+                  <span className="truncate">{COMPONENT_LABEL[row.component_kind]}</span>
+                  <ChevronDown size={14} className="shrink-0 text-text-muted" />
+                </button>
                 <input
                   type="text"
                   className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-bg-surface text-text-primary text-sm font-mono placeholder:font-sans placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all disabled:opacity-50"
@@ -566,6 +571,28 @@ export default function AssemblyDetail({ mo: initialMo, onBack }: AssemblyDetail
             </div>
           </div>
         </div>
+
+        <SelectSheet<ComponentKind>
+          isOpen={kindPickerRowId !== null}
+          onClose={() => setKindPickerRowId(null)}
+          title={t('assembly.components.kindTitle') || 'Component type'}
+          activeValue={
+            componentRows.find((row) => row.localId === kindPickerRowId)?.component_kind ?? null
+          }
+          items={ASSEMBLY_COMPONENT_KINDS.map(
+            (kind): SelectSheetItem<ComponentKind> => ({
+              value: kind,
+              label: COMPONENT_LABEL[kind],
+              description:
+                t(`assembly.components.${kind}Desc`) || COMPONENT_DESC_FALLBACK[kind],
+            }),
+          )}
+          onSelect={(item) => {
+            if (kindPickerRowId) {
+              updateComponentRow(kindPickerRowId, { component_kind: item.value });
+            }
+          }}
+        />
 
         {/* Manager sign-off */}
         <div className="rounded-xl border border-border bg-bg-tertiary overflow-hidden">
