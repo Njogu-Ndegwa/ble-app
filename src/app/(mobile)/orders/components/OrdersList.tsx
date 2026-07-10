@@ -7,11 +7,13 @@ import FilterChips from '@/components/ui/FilterChips';
 import { getOrders, formatCurrency, type GetOrdersParams } from '@/lib/portal/order-api';
 import type { OrderEntity, OrderState, PaginationMeta } from '@/lib/portal/types';
 
+// Odoo's own sale.order state selection labels — kept in sync with the
+// desktop portal so both apps speak Odoo's language.
 const STATE_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  sent: 'Sent',
-  sale: 'Confirmed',
-  done: 'Done',
+  draft: 'Quotation',
+  sent: 'Quotation Sent',
+  sale: 'Sales Order',
+  done: 'Locked',
   cancel: 'Cancelled',
 };
 
@@ -24,8 +26,8 @@ const STATE_BADGE_CLASS: Record<string, string> = {
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
-  not_paid: 'Unpaid',
-  partial: 'Partial',
+  not_paid: 'Not Paid',
+  partial: 'Partially Paid',
   paid: 'Paid',
 };
 
@@ -86,10 +88,10 @@ export default function OrdersList({ onSelect, onCreateNew }: OrdersListProps) {
 
   const statePills: { key: StateFilter; label: string }[] = [
     { key: 'all', label: 'All' },
-    { key: 'draft', label: 'Draft' },
-    { key: 'sent', label: 'Sent' },
-    { key: 'sale', label: 'Confirmed' },
-    { key: 'done', label: 'Done' },
+    { key: 'draft', label: 'Quotation' },
+    { key: 'sent', label: 'Quotation Sent' },
+    { key: 'sale', label: 'Sales Order' },
+    { key: 'done', label: 'Locked' },
     { key: 'cancel', label: 'Cancelled' },
   ];
 

@@ -840,7 +840,7 @@ export default function CreateOrder({ onCreated, onCancel }: CreateOrderProps) {
           className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl border border-dashed border-border text-text-muted transition-colors hover:bg-bg-elevated hover:border-text-muted active:scale-[0.99] mb-3"
         >
           <Plus size={16} />
-          <span className="text-sm">Add product</span>
+          <span className="text-sm">Add a product</span>
           {hasActiveDiscount && (
             <span
               className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"

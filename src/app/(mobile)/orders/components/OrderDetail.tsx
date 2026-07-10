@@ -76,21 +76,23 @@ const FALLBACK_JOURNALS: OdooJournal[] = [
   { id: 0, name: 'Mobile', type: 'cash' },
 ];
 
+// Odoo's own sale.order state selection labels (matches the desktop portal).
 const ORDER_STATE_META: Record<string, { label: string; variant: 'default' | 'warning' | 'success' | 'error' }> = {
-  draft:  { label: 'Draft',     variant: 'default'  },
-  sent:   { label: 'Sent',      variant: 'warning'  },
-  sale:   { label: 'Confirmed', variant: 'success'  },
-  done:   { label: 'Done',      variant: 'success'  },
-  cancel: { label: 'Cancelled', variant: 'error'    },
+  draft:  { label: 'Quotation',      variant: 'default'  },
+  sent:   { label: 'Quotation Sent', variant: 'warning'  },
+  sale:   { label: 'Sales Order',    variant: 'success'  },
+  done:   { label: 'Locked',         variant: 'success'  },
+  cancel: { label: 'Cancelled',      variant: 'error'    },
 };
 
+// Odoo's stock.picking state selection labels, verified against the live DB.
 const DELIVERY_STATE_META: Record<string, { label: string; variant: 'default' | 'warning' | 'success' | 'error' }> = {
-  draft:     { label: 'Draft',            variant: 'default'  },
-  waiting:   { label: 'Waiting',          variant: 'warning'  },
-  confirmed: { label: 'Confirmed',        variant: 'warning'  },
-  assigned:  { label: 'Ready to Deliver', variant: 'success'  },
-  done:      { label: 'Delivered',        variant: 'success'  },
-  cancel:    { label: 'Cancelled',        variant: 'default'  },
+  draft:     { label: 'Draft',                     variant: 'default'  },
+  waiting:   { label: 'Waiting Another Operation', variant: 'warning'  },
+  confirmed: { label: 'Waiting',                   variant: 'warning'  },
+  assigned:  { label: 'Ready',                     variant: 'success'  },
+  done:      { label: 'Done',                      variant: 'success'  },
+  cancel:    { label: 'Cancelled',                 variant: 'default'  },
 };
 
 interface OrderDetailProps {
@@ -943,7 +945,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 {order.partnerEmail && <p className="text-xs text-text-secondary">{order.partnerEmail}</p>}
                 {order.partnerPhone && <p className="text-xs text-text-secondary">{order.partnerPhone}</p>}
                 {order.clientOrderRef && (
-                  <p className="text-xs text-text-muted mt-1">Ref: {order.clientOrderRef}</p>
+                  <p className="text-xs text-text-muted mt-1">Customer Reference: {order.clientOrderRef}</p>
                 )}
               </div>
 
@@ -1341,7 +1343,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                       </div>
                       <p className="text-xs text-text-secondary">
                         Total: {formatCurrency(inv.amountTotal)}
-                        {inv.amountResidual > 0 && ` · Due: ${formatCurrency(inv.amountResidual)}`}
+                        {inv.amountResidual > 0 && ` · Amount Due: ${formatCurrency(inv.amountResidual)}`}
                       </p>
                       {inv.state !== 'posted' && !isViewingPastStep && (
                         <Button
@@ -1424,7 +1426,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                   })()}
                   {/* Payment method selector */}
                   <div>
-                    <p className="text-xs font-medium text-text-secondary mb-2">Payment Method</p>
+                    <p className="text-xs font-medium text-text-secondary mb-2">Journal</p>
                     <div className="grid grid-cols-3 gap-2">
                       {(journals.length > 0 ? journals : FALLBACK_JOURNALS).map((j) => {
                         const isSelected = j.id !== 0 ? payJournalId === j.id : payJournalId === null && journals.length === 0;
@@ -1446,12 +1448,15 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                     </div>
                   </div>
                   {/* Payment date */}
-                  <input
-                    type="date"
-                    value={payDate}
-                    onChange={(e) => setPayDate(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none"
-                  />
+                  <label className="block">
+                    <span className="text-xs font-medium text-text-secondary block mb-1">Payment Date</span>
+                    <input
+                      type="date"
+                      value={payDate}
+                      onChange={(e) => setPayDate(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-bg-tertiary p-2.5 text-sm text-text-primary outline-none"
+                    />
+                  </label>
                   <input
                     type="number"
                     placeholder={`Amount (remaining: ${formatCurrency(order.remainingAmount)})`}
@@ -1696,7 +1701,7 @@ function DeliveryStep({
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <p className="text-sm font-semibold text-text-primary">Create backorder?</p>
+              <p className="text-sm font-semibold text-text-primary">Create Backorder?</p>
               <p className="text-xs text-text-muted mt-1">
                 You are dispatching less than the full order. Odoo can open a new picking for the remaining units, or close this one and forget the shortfall.
               </p>
@@ -1818,7 +1823,7 @@ function DeliveryStep({
             <div className="min-w-0">
               <p className="text-sm font-semibold text-text-primary">{selectedDelivery.name}</p>
               {selectedDelivery.origin && (
-                <p className="text-[11px] text-text-muted">Origin: {selectedDelivery.origin}</p>
+                <p className="text-[11px] text-text-muted">Source Document: {selectedDelivery.origin}</p>
               )}
             </div>
             {(() => {
@@ -1841,7 +1846,7 @@ function DeliveryStep({
           <div className="grid grid-cols-2 gap-2">
             {selectedDelivery.scheduled_date && (
               <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                <p className="text-[10px] uppercase font-medium text-text-muted">Scheduled</p>
+                <p className="text-[10px] uppercase font-medium text-text-muted">Scheduled Date</p>
                 <p className="text-xs font-semibold text-text-primary mt-0.5">
                   {new Date(selectedDelivery.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
@@ -1849,7 +1854,7 @@ function DeliveryStep({
             )}
             {selectedDelivery.date_done && (
               <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--color-success-soft)' }}>
-                <p className="text-[10px] uppercase font-medium" style={{ color: 'var(--color-success)' }}>Delivered</p>
+                <p className="text-[10px] uppercase font-medium" style={{ color: 'var(--color-success)' }}>Date of Transfer</p>
                 <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--color-success)' }}>
                   {new Date(selectedDelivery.date_done).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
@@ -1902,7 +1907,7 @@ function DeliveryStep({
                 style={{ backgroundColor: 'var(--bg-elevated)' }}>
                 <Package size={13} className="text-text-muted" />
                 <span className="text-xs font-semibold text-text-secondary">
-                  Products ({selectedDelivery.lines.length})
+                  Operations ({selectedDelivery.lines.length})
                 </span>
                 {canEdit && (
                   <span className="ml-auto text-[10px] text-text-muted">Set qty dispatched →</span>
@@ -1942,7 +1947,7 @@ function DeliveryStep({
                             }}>
                             <p className="text-[9px] uppercase font-medium"
                               style={{ color: isDone ? 'var(--color-success)' : isShort ? 'var(--color-warning)' : 'var(--text-muted)' }}>
-                              {canEdit ? 'Dispatching' : 'Done'}
+                              Quantity
                             </p>
                             {canEdit ? (
                               <input
@@ -1989,7 +1994,7 @@ function DeliveryStep({
                       {/* Serial / lot chips */}
                       {line.lot_names.length > 0 && (
                         <div className="space-y-1">
-                          <p className="text-[9px] uppercase font-medium text-text-muted">Assigned serials</p>
+                          <p className="text-[9px] uppercase font-medium text-text-muted">Serial Numbers</p>
                           <div className="flex flex-wrap gap-1">
                             {line.lot_names.map((sn) => (
                               <span
@@ -2044,7 +2049,7 @@ function OrderLines({ lines }: { lines: OrderLineEntity[] }) {
     <div>
       <div className="px-4 py-2 border-b border-border flex items-center gap-2">
         <Package size={15} className="text-text-muted" />
-        <span className="text-sm font-semibold text-text-primary">Lines ({lines.length})</span>
+        <span className="text-sm font-semibold text-text-primary">Order Lines ({lines.length})</span>
       </div>
       <div className="divide-y divide-border">
         {lines.map((line) => (
@@ -2104,7 +2109,7 @@ function EditableOrderLines({
     <div>
       <div className="px-4 py-2 border-b border-border flex items-center gap-2">
         <Package size={15} className="text-text-muted" />
-        <span className="text-sm font-semibold text-text-primary">Lines ({lines.length})</span>
+        <span className="text-sm font-semibold text-text-primary">Order Lines ({lines.length})</span>
       </div>
       <div className="divide-y divide-border">
         {lines.map((line) => {
@@ -2192,13 +2197,13 @@ function OrderSummary({ order }: { order: OrderEntity }) {
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-xs">
-        <span className="text-text-secondary">Subtotal</span>
+        <span className="text-text-secondary">Untaxed Amount</span>
         <span className="font-semibold text-text-primary" style={{ fontFamily: 'var(--font-mono)' }}>
           {formatCurrency(order.amountUntaxed)}
         </span>
       </div>
       <div className="flex justify-between text-xs">
-        <span className="text-text-secondary">Tax</span>
+        <span className="text-text-secondary">Taxes</span>
         <span className="font-semibold text-text-primary" style={{ fontFamily: 'var(--font-mono)' }}>
           {formatCurrency(order.amountTax)}
         </span>
