@@ -3,6 +3,7 @@ import {
   groupServiceActions,
   isEnergyServiceType,
   isTopUpPaymentType,
+  isDepositPaymentType,
 } from '../useRiderActivity';
 
 describe('isEnergyServiceType', () => {
@@ -32,6 +33,16 @@ describe('isTopUpPaymentType', () => {
     expect(isTopUpPaymentType('SUBSCRIPTION_PAYMENT')).toBe(false);
     expect(isTopUpPaymentType('')).toBe(false);
     expect(isTopUpPaymentType(undefined)).toBe(false);
+  });
+});
+
+describe('isDepositPaymentType', () => {
+  it('matches only the activation deposit', () => {
+    expect(isDepositPaymentType('DEPOSIT')).toBe(true);
+    expect(isDepositPaymentType('TOP_UP')).toBe(false);
+    expect(isDepositPaymentType('TOPUP')).toBe(false);
+    expect(isDepositPaymentType('SUBSCRIPTION_PAYMENT')).toBe(false);
+    expect(isDepositPaymentType(undefined)).toBe(false);
   });
 });
 

@@ -42,7 +42,12 @@ import type { ActivityItem, Station } from './components';
 import Login from './components/Login';
 import { bestDirectionsUrl, openExternalMap } from './map/deepLinks';
 import { isChina } from './map/isChina';
-import { groupServiceActions, isEnergyServiceType, isTopUpPaymentType } from './hooks/useRiderActivity';
+import {
+  groupServiceActions,
+  isEnergyServiceType,
+  isTopUpPaymentType,
+  isDepositPaymentType,
+} from './hooks/useRiderActivity';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
 
@@ -862,9 +867,15 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
               // ABS sends "TOP_UP" (underscore) and "DEPOSIT" — the helper
               // normalizes both spellings so top-ups land on the Top-ups tab.
+              // The activation DEPOSIT (energy credited with the first
+              // battery) gets its own label so it isn't read as a manual
+              // balance top-up.
               const isTopUp = isTopUpPaymentType(action.paymentType);
+              const isDeposit = isDepositPaymentType(action.paymentType);
               let title = '';
-              if (isTopUp) {
+              if (isDeposit) {
+                title = t('rider.activationDeposit') || 'Activation Deposit';
+              } else if (isTopUp) {
                 title = t('rider.balanceTopUp') || 'Balance Top-up';
               } else if (action.paymentType === 'SUBSCRIPTION_PAYMENT') {
                 title = t('rider.subscriptionPayment') || 'Subscription Payment';
@@ -876,7 +887,9 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 id: action.paymentActionId || `payment-${Date.now()}`,
                 type: isTopUp ? 'topup' : 'payment',
                 title: title,
-                subtitle: action.paymentType || '',
+                subtitle: isDeposit
+                  ? t('rider.activationDepositDesc') || 'Energy credited with your first battery'
+                  : action.paymentType || '',
                 amount: Math.abs(action.paymentAmount || 0),
                 currency: currency,
                 isPositive: isTopUp,

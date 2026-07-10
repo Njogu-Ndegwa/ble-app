@@ -28,12 +28,27 @@ export function isTopUpPaymentType(paymentType: unknown): boolean {
   return t === 'TOPUP' || t === 'DEPOSIT';
 }
 
+/**
+ * True for the activation DEPOSIT specifically — the payment made when the
+ * plan is activated, covering the energy already inside the first battery
+ * handed over. Shown as its own "Activation Deposit" row so it isn't mistaken
+ * for a manual balance top-up (both live on the Top-ups tab).
+ */
+export function isDepositPaymentType(paymentType: unknown): boolean {
+  const t = String(paymentType || '').toUpperCase().replace(/[^A-Z]/g, '');
+  return t === 'DEPOSIT';
+}
+
 interface UseRiderActivityParams {
   subscriptionCode: string | undefined;
   currency: string;
   enabled: boolean;
   /** Translated label for payment top-ups. */
   tTopUp?: string;
+  /** Translated label for the activation deposit. */
+  tDeposit?: string;
+  /** Translated subtitle for the activation deposit. */
+  tDepositSubtitle?: string;
   /** Translated label for subscription payments. */
   tSubPayment?: string;
   /** Translated label for payment fallback. */
@@ -58,6 +73,8 @@ export function useRiderActivity(params: UseRiderActivityParams) {
     currency,
     enabled,
     tTopUp = 'Balance Top-up',
+    tDeposit = 'Activation Deposit',
+    tDepositSubtitle = 'Energy credited with your first battery',
     tSubPayment = 'Subscription Payment',
     tPayment = 'Payment',
     tBatterySwap = 'Battery Swap',
@@ -123,12 +140,13 @@ export function useRiderActivity(params: UseRiderActivityParams) {
           hour12: false,
         });
         const isTopUp = isTopUpPaymentType(a.paymentType);
+        const isDeposit = isDepositPaymentType(a.paymentType);
         const isSub = a.paymentType === 'SUBSCRIPTION_PAYMENT';
         items.push({
           id: a.paymentActionId || `payment-${d.getTime()}`,
           type: isTopUp ? 'topup' : 'payment',
-          title: isTopUp ? tTopUp : isSub ? tSubPayment : tPayment,
-          subtitle: a.paymentType || '',
+          title: isDeposit ? tDeposit : isTopUp ? tTopUp : isSub ? tSubPayment : tPayment,
+          subtitle: isDeposit ? tDepositSubtitle : a.paymentType || '',
           amount: Math.abs(a.paymentAmount || 0),
           currency,
           isPositive: isTopUp,
@@ -223,6 +241,8 @@ export function useRiderActivity(params: UseRiderActivityParams) {
     subscriptionCode,
     currency,
     tTopUp,
+    tDeposit,
+    tDepositSubtitle,
     tSubPayment,
     tPayment,
     tBatterySwap,
