@@ -134,6 +134,10 @@ const selectStyle: React.CSSProperties = {
   height: '40px',
   padding: '8px 8px',
   fontSize: '12px',
+  // Inline width because .form-input's `width: 100%` (globals.css) outranks
+  // Tailwind utilities and would swallow the whole flex row.
+  width: '104px',
+  flexShrink: 0,
 };
 
 interface AssemblyDetailProps {
@@ -498,7 +502,7 @@ export default function AssemblyDetail({ mo: initialMo, onBack }: AssemblyDetail
             {componentRows.map((row, index) => (
               <div key={row.localId} className="flex gap-2">
                 <select
-                  className="form-input shrink-0 w-[104px]"
+                  className="form-input"
                   style={selectStyle}
                   value={row.component_kind}
                   disabled={!canEditComponents}
