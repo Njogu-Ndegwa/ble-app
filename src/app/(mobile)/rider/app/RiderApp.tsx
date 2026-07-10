@@ -2471,31 +2471,8 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'active',
               }}
               bikeImageUrl="/assets/E-3-one.png"
-              onPlanDetails={openSelectSubscription}
               onSupport={() => setCurrentScreen('tickets')}
               onLogout={handleLogout}
-              isFingerprintEnabled={isFingerprintEnabled}
-              onToggleFingerprint={() => {
-                if (isFingerprintEnabled) {
-                  localStorage.setItem('fingerprintEnabled_rider', 'false');
-                  setIsFingerprintEnabled(false);
-                  toast.success(t('auth.fingerprintDisabled') || 'Fingerprint login disabled');
-                } else {
-                  if (bridge) {
-                    setIsEnablingFingerprint(true);
-                    isEnablingFingerprintRef.current = true;
-                    bridge.callHandler(
-                      'fingerprintVerification',
-                      '',
-                      (responseData: any) => {
-                        console.info('[FINGERPRINT] Settings toggle - verification initiated:', responseData);
-                      }
-                    );
-                  } else {
-                    toast.error(t('common.bridgeNotInitialized') || 'Bridge not initialized');
-                  }
-                }
-              }}
               onSwitchSubscription={openSelectSubscription}
               subscriptionCode={subscription?.subscription_code}
               subscriptionStatus={subscription?.status}

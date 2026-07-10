@@ -4,7 +4,6 @@ import React from "react";
 import Image from "next/image";
 import { CreditCard, ArrowLeftRight } from "lucide-react";
 import { useI18n } from "@/i18n";
-import { Fingerprint } from "lucide-react";
 
 // Temporarily hidden — flip to true to restore the Help & Support entry
 // (opens the in-app tickets screen) once the support flow is signed off.
@@ -29,11 +28,8 @@ interface ProfileData {
 interface RiderProfileProps {
   profile: ProfileData;
   bikeImageUrl?: string;
-  onPlanDetails: () => void;
   onSupport: () => void;
   onLogout: () => void;
-  isFingerprintEnabled?: boolean;
-  onToggleFingerprint?: () => void;
   onSwitchSubscription?: () => void;
   subscriptionCode?: string | null;
   subscriptionStatus?: string | null;
@@ -42,11 +38,8 @@ interface RiderProfileProps {
 const RiderProfile: React.FC<RiderProfileProps> = ({
   profile,
   bikeImageUrl,
-  onPlanDetails,
   onSupport,
   onLogout,
-  isFingerprintEnabled = false,
-  onToggleFingerprint,
   onSwitchSubscription,
   subscriptionCode,
   subscriptionStatus,
@@ -247,100 +240,17 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
           <button
             className="rm-sub-chip-btn"
             onClick={onSwitchSubscription}
-            aria-label={t("rider.switchPlan") || "Switch plan"}
+            aria-label={t("rider.switchPlan") || "Change plan"}
           >
             <ArrowLeftRight size={13} />
-            <span>{t("rider.switchPlan") || "Switch"}</span>
+            <span>{t("rider.switchPlan") || "Change plan"}</span>
           </button>
         </div>
       )}
 
-      {/* Menu — only fully-implemented actions */}
+      {/* Menu — only fully-implemented actions. Plan switching lives in the
+          subscription chip above, so no duplicate row here. */}
       <div className="menu-list">
-        {/* Subscription Plan */}
-        <div className="menu-item" onClick={onPlanDetails}>
-          <div className="menu-item-icon">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-              <path d="M16 13H8M16 17H8M10 9H8" />
-            </svg>
-          </div>
-          <div className="menu-item-content">
-            <div className="menu-item-title">
-              {t("rider.subscriptionPlan") || "Subscription Plan"}
-            </div>
-            <div className="menu-item-subtitle">
-              {t("rider.managePlanDesc") || "Manage your plan & billing"}
-            </div>
-          </div>
-          <div className="menu-item-arrow">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Fingerprint Login */}
-        {onToggleFingerprint && (
-          <div className="menu-item" onClick={onToggleFingerprint}>
-            <div className="menu-item-icon">
-              <Fingerprint size={20} />
-            </div>
-            <div className="menu-item-content">
-              <div className="menu-item-title">
-                {t("auth.fingerprintLogin") || "Fingerprint Login"}
-              </div>
-              <div className="menu-item-subtitle">
-                {isFingerprintEnabled 
-                  ? (t("common.enabled") || "Enabled") 
-                  : (t("common.disabled") || "Disabled")}
-              </div>
-            </div>
-            <div className="menu-item-arrow" style={{ display: 'flex', alignItems: 'center' }}>
-              <div 
-                style={{
-                  width: '44px',
-                  height: '24px',
-                  borderRadius: '12px',
-                  background: isFingerprintEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
-                  position: 'relative',
-                  transition: 'background 0.2s ease',
-                  border: '1px solid var(--border)',
-                }}
-              >
-                <div 
-                  style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    background: 'white',
-                    position: 'absolute',
-                    top: '1px',
-                    left: isFingerprintEnabled ? '22px' : '1px',
-                    transition: 'left 0.2s ease',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Help & Support — hidden behind SHOW_SUPPORT for now */}
         {SHOW_SUPPORT && (
         <div className="menu-item" onClick={onSupport}>
