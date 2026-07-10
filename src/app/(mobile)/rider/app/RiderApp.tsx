@@ -2468,18 +2468,10 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 planValidity: subscription?.next_cycle_date
                   ? new Date(subscription.next_cycle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   : '',
-                // Real assigned vehicle only — left undefined (→ "—") when no
-                // vehicle has been assigned yet. Never a hardcoded placeholder.
-                vehicleInfo: bike.vehicleId
-                  ? [bike.model, bike.vehicleId].filter(Boolean).join(' • ')
-                  : undefined,
                 paymentState: subscription?.status === 'active' ? 'active' : subscription?.status || 'active',
               }}
               bikeImageUrl="/assets/E-3-one.png"
-              onAccountDetails={() => toast.success(t('rider.accountDetailsSoon') || 'Account details coming soon')}
-              onVehicle={() => toast.success(t('rider.vehicleDetailsSoon') || 'Vehicle details coming soon')}
               onPlanDetails={openSelectSubscription}
-              onPaymentMethods={() => toast.success(t('rider.paymentMethodsSoon') || 'Payment methods coming soon')}
               onSupport={() => setCurrentScreen('tickets')}
               onLogout={handleLogout}
               isFingerprintEnabled={isFingerprintEnabled}
