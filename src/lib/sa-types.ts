@@ -27,6 +27,11 @@ export interface ServiceAccount {
   my_role: SARoleCode
   my_scope_policy: boolean
   applets: string[]
+  // Membership-level manager signals (same /api/me/service-accounts contract
+  // the desktop portal consumes). Optional: absent on older backend payloads
+  // and on SA JSON cached in localStorage before the fields shipped.
+  is_sa_manager?: boolean
+  is_platform_admin?: boolean
   // legacy fields kept for backwards compatibility
   membership_state?: SAMembershipState
   scope_policy?: string

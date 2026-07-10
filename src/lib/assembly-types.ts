@@ -39,6 +39,22 @@ export type AssemblyMoRow = {
   responsible: AssemblyRef | null;
   company: AssemblyRef | null;
   create_date: string;
+  // Present from abs_connector >= 18.0.1.24.0. True when this MO has an
+  // active ov.sa_production row for the context SA; false on company-scope
+  // rows a root-SA manager can see.
+  governed_to_context_sa?: boolean;
+};
+
+export type AssemblyListScope = 'company' | 'sa_queue';
+
+// context block on the MO list response (>= 18.0.1.24.0). Tells the UI
+// whether it is viewing the whole company pool (root SA manager) or one
+// SA's queue — and whether the caller is an SA manager.
+export type AssemblyListContext = {
+  sa_id: number;
+  sa_name: string;
+  list_scope: AssemblyListScope;
+  is_sa_manager: boolean;
 };
 
 export type BuildRecordComponent = {
@@ -91,6 +107,7 @@ export type AssemblyMoListResponse = {
   success: boolean;
   mos: AssemblyMoRow[];
   pagination: AssemblyPagination;
+  context?: AssemblyListContext;
 };
 
 export type AssemblyMoDetailResponse = {
@@ -151,6 +168,25 @@ export type SignOffBody = {
   oem_id: string;
   govern_lot?: boolean;
   fleet_id?: number | null;
+};
+
+export type CreateAssemblyMoBody = {
+  product_id: number;
+  product_qty: number;
+};
+
+// POST /api/assembly/mos. Creates an mrp.production in draft and governs it
+// to the SA in X-SA-ID. Callable by staff/agents/managers with an active
+// membership on that SA (not anonymous/API-key-only).
+export type CreateAssemblyMoResponse = {
+  success: boolean;
+  mo: AssemblyMoDetail;
+  governance?: {
+    assignment_id: number;
+    sa_id: number;
+    sa_name: string;
+  };
+  build_record?: BuildRecord | null;
 };
 
 export type GovernanceProductionAssignment = {

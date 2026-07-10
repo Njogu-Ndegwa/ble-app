@@ -15,6 +15,8 @@ import type {
   AssemblyMoListResponse,
   BuildRecord,
   BuildRecordResponse,
+  CreateAssemblyMoBody,
+  CreateAssemblyMoResponse,
   GovernProductionResponse,
   GovernedLot,
   ListAssemblyMosParams,
@@ -96,6 +98,23 @@ export async function listAssemblyMos(
     headers: buildOdooHeaders(authToken),
   });
   return parseJson<AssemblyMoListResponse>(response, endpoint);
+}
+
+/**
+ * Create a draft MO governed to the selected Production Location SA.
+ * Manager-only in the UI; the backend also enforces active SA membership.
+ */
+export async function createAssemblyMo(
+  body: CreateAssemblyMoBody,
+  authToken?: string,
+): Promise<CreateAssemblyMoResponse> {
+  const endpoint = '/api/assembly/mos';
+  const response = await fetch(`${ODOO_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: buildOdooHeaders(authToken),
+    body: JSON.stringify(body),
+  });
+  return parseJson<CreateAssemblyMoResponse>(response, endpoint);
 }
 
 export async function lookupAssemblyMoByCkd(

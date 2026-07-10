@@ -1,17 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Factory, FileSearch, ShieldCheck } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Factory } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import ListScreen from '@/components/ui/ListScreen';
 import FilterChips from '@/components/ui/FilterChips';
 import { getSalesRoleToken } from '@/lib/attendant-auth';
-import {
-  listAssemblyMos,
-  lookupAssemblyMoByCkd,
-  governMoToSa,
-} from '@/lib/assembly-api';
+import { getSelectedSA } from '@/lib/sa-auth';
+import { listAssemblyMos } from '@/lib/assembly-api';
 import type { AssemblyMoRow, AssemblyMoState, AssemblyPagination } from '@/lib/assembly-types';
 
 type StateFilter = '' | AssemblyMoState;
@@ -57,12 +53,14 @@ function formatDate(value?: string | null): string {
 }
 
 interface AssemblyQueueProps {
-  onSelect: (mo: AssemblyMoRow, foundByCkd?: string | null) => void;
+  onSelect: (mo: AssemblyMoRow) => void;
+  /** Opens the manager-only Create MO screen. */
+  onCreate: () => void;
   /** Bumped by the parent when a detail action changed MO state. */
   reloadKey: number;
 }
 
-export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProps) {
+export default function AssemblyQueue({ onSelect, onCreate, reloadKey }: AssemblyQueueProps) {
   const { t } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,10 +73,16 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [ckdInput, setCkdInput] = useState('');
-  const [ckdLoading, setCkdLoading] = useState(false);
-  const [claimInput, setClaimInput] = useState('');
-  const [claiming, setClaiming] = useState(false);
+  // Manager signal gating the Create MO FAB. Seeded from the stored SA
+  // membership after mount (localStorage — keeps SSR/first paint stable),
+  // then overridden by the authoritative list `context` when the backend
+  // returns one.
+  const [canCreateMo, setCanCreateMo] = useState(false);
+
+  useEffect(() => {
+    const sa = getSelectedSA('sales');
+    setCanCreateMo(sa?.is_sa_manager === true || sa?.is_platform_admin === true);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
@@ -105,6 +109,7 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
       );
       setMos(res.mos ?? []);
       setPagination(res.pagination ?? null);
+      if (res.context) setCanCreateMo(res.context.is_sa_manager);
     } catch (err: any) {
       setMos([]);
       setPagination(null);
@@ -118,50 +123,6 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
     fetchQueue();
   }, [fetchQueue, reloadKey]);
 
-  const handleCkdLookup = useCallback(async () => {
-    const lot = ckdInput.trim();
-    if (!lot || ckdLoading) return;
-    setCkdLoading(true);
-    try {
-      const token = getSalesRoleToken() || '';
-      const res = await lookupAssemblyMoByCkd(lot, token);
-      toast.success(
-        (t('assembly.queue.ckdMatched') || 'CKD lot matched {mo}').replace('{mo}', res.mo.name),
-      );
-      setCkdInput('');
-      onSelect(res.mo, res.ckd_lot || lot);
-    } catch (err: any) {
-      toast.error(err?.message || t('assembly.queue.ckdError') || 'CKD lot not found');
-    } finally {
-      setCkdLoading(false);
-    }
-  }, [ckdInput, ckdLoading, onSelect, t]);
-
-  const handleClaim = useCallback(async () => {
-    const moId = Number(claimInput.trim());
-    if (!Number.isInteger(moId) || moId <= 0) {
-      toast.error(t('assembly.queue.claimInvalid') || 'Enter a valid MO ID');
-      return;
-    }
-    if (claiming) return;
-    setClaiming(true);
-    try {
-      const token = getSalesRoleToken() || '';
-      const res = await governMoToSa(moId, token);
-      toast.success(
-        res.already_assigned
-          ? (t('assembly.queue.claimAlready') || 'MO #{id} was already assigned to this SA').replace('{id}', String(moId))
-          : (t('assembly.queue.claimed') || 'MO #{id} assigned to this SA').replace('{id}', String(moId)),
-      );
-      setClaimInput('');
-      fetchQueue();
-    } catch (err: any) {
-      toast.error(err?.message || t('assembly.queue.claimError') || 'Failed to claim MO');
-    } finally {
-      setClaiming(false);
-    }
-  }, [claimInput, claiming, fetchQueue, t]);
-
   const stateChips = [
     { key: '', label: t('assembly.state.all') || 'All' },
     { key: 'confirmed', label: t('assembly.state.ready') || 'Ready' },
@@ -171,67 +132,11 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
   ];
 
   const headerExtra = (
-    <div className="flex flex-col gap-2">
-      <FilterChips
-        items={stateChips}
-        activeKey={stateFilter}
-        onSelect={(key) => setStateFilter(key as StateFilter)}
-      />
-
-      {/* CKD lot lookup — the primary entry point for assembly operators. */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <FileSearch size={14} className="text-text-muted" />
-          </div>
-          <input
-            type="text"
-            value={ckdInput}
-            onChange={(e) => setCkdInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCkdLookup()}
-            placeholder={t('assembly.queue.ckdPlaceholder') || 'Scan or enter CKD lot'}
-            className="w-full pl-8 pr-3 py-2 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm font-mono placeholder:font-sans placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-          />
-        </div>
-        <button
-          onClick={handleCkdLookup}
-          disabled={ckdLoading || !ckdInput.trim()}
-          style={{ backgroundColor: 'var(--color-brand)' }}
-          className="shrink-0 px-4 py-2 rounded-xl text-black font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform"
-        >
-          {ckdLoading
-            ? (t('assembly.queue.finding') || 'Finding...')
-            : (t('assembly.queue.findMo') || 'Find MO')}
-        </button>
-      </div>
-
-      {/* Claim a known MO into this Production Location SA. */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <ShieldCheck size={14} className="text-text-muted" />
-          </div>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={claimInput}
-            onChange={(e) => setClaimInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleClaim()}
-            placeholder={t('assembly.queue.claimPlaceholder') || 'MO ID to claim'}
-            className="w-full pl-8 pr-3 py-2 rounded-xl border border-border bg-bg-tertiary text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-          />
-        </div>
-        <button
-          onClick={handleClaim}
-          disabled={claiming || !claimInput.trim()}
-          className="shrink-0 px-4 py-2 rounded-xl border border-border bg-bg-tertiary text-text-primary font-medium text-sm disabled:opacity-50 active:scale-[0.98] transition-transform"
-        >
-          {claiming
-            ? (t('assembly.queue.claiming') || 'Claiming...')
-            : (t('assembly.queue.claim') || 'Claim')}
-        </button>
-      </div>
-    </div>
+    <FilterChips
+      items={stateChips}
+      activeKey={stateFilter}
+      onSelect={(key) => setStateFilter(key as StateFilter)}
+    />
   );
 
   const total = pagination?.total ?? mos.length;
@@ -251,7 +156,7 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
       emptyMessage={t('assembly.queue.empty') || 'No MOs in this queue'}
       emptyHint={
         t('assembly.queue.emptyHint') ||
-        'Enter a CKD lot, change the state filter, or claim a known MO into this Production Location.'
+        'Change the state filter or search. An SA manager can create a new MO for this Production Location.'
       }
       itemCount={total}
       itemLabel={
@@ -260,6 +165,8 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
           : (t('assembly.queue.itemLabelPlural') || 'orders')
       }
       headerExtra={headerExtra}
+      fabAction={canCreateMo ? onCreate : undefined}
+      fabLabel={t('assembly.queue.createMo') || 'Create MO'}
       page={page}
       totalPages={totalPages}
       onNextPage={() => page < totalPages && setPage((p) => p + 1)}
@@ -303,6 +210,11 @@ export default function AssemblyQueue({ onSelect, reloadKey }: AssemblyQueueProp
               <span className={moStateBadgeClass(mo.state)}>
                 {MO_STATE_LABEL[mo.state] ?? mo.state}
               </span>
+              {mo.governed_to_context_sa === false && (
+                <span className="list-card-badge list-card-badge--default">
+                  {t('assembly.queue.unclaimed') || 'Unclaimed'}
+                </span>
+              )}
             </div>
           </div>
         </button>

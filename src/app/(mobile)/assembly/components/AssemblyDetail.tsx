@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   BadgeCheck,
   CheckCircle2,
-  FileSearch,
   Loader2,
   PackageCheck,
   Plus,
@@ -139,12 +138,11 @@ const selectStyle: React.CSSProperties = {
 
 interface AssemblyDetailProps {
   mo: AssemblyMoRow;
-  ckdLot?: string | null;
-  /** `changed` is true when the MO state moved (claim / sign-off). */
+  /** `changed` is true when the MO state moved (sign-off). */
   onBack: (changed?: boolean) => void;
 }
 
-export default function AssemblyDetail({ mo: initialMo, ckdLot, onBack }: AssemblyDetailProps) {
+export default function AssemblyDetail({ mo: initialMo, onBack }: AssemblyDetailProps) {
   const { t } = useI18n();
 
   const [mo, setMo] = useState<AssemblyMoDetail | AssemblyMoRow>(initialMo);
@@ -458,12 +456,6 @@ export default function AssemblyDetail({ mo: initialMo, ckdLot, onBack }: Assemb
               <span className="list-card-badge list-card-badge--default">
                 {(t('assembly.detail.build') || 'Build')} {buildStatus}
               </span>
-              {ckdLot && (
-                <span className="inline-flex items-center gap-1 text-xs text-text-muted">
-                  <FileSearch size={12} />
-                  <span className="font-mono">{ckdLot}</span>
-                </span>
-              )}
             </div>
           </div>
           <div className="grid grid-cols-3 divide-x divide-border text-center">

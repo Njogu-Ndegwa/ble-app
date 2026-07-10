@@ -4,9 +4,10 @@ import React, { useState, useCallback, useEffect } from 'react';
 import AppHeader from '@/components/AppHeader';
 import AssemblyQueue from './components/AssemblyQueue';
 import AssemblyDetail from './components/AssemblyDetail';
+import AssemblyCreate from './components/AssemblyCreate';
 import type { AssemblyMoRow } from '@/lib/assembly-types';
 
-type Screen = 'queue' | 'detail';
+type Screen = 'queue' | 'detail' | 'create';
 
 interface AssemblyAppProps {
   onLogout?: () => void;
@@ -16,10 +17,8 @@ interface AssemblyAppProps {
 export default function AssemblyApp(_: AssemblyAppProps) {
   const [screen, setScreen] = useState<Screen>('queue');
   const [selectedMo, setSelectedMo] = useState<AssemblyMoRow | null>(null);
-  // Optional CKD lot the MO was found by — shown on the detail screen.
-  const [ckdLot, setCkdLot] = useState<string | null>(null);
-  // Bumped whenever the detail screen changes MO state (sign-off / claim) so
-  // the queue refetches on back-navigation.
+  // Bumped whenever the detail screen changes MO state (sign-off) or an MO is
+  // created, so the queue refetches on back-navigation.
   const [queueReloadKey, setQueueReloadKey] = useState(0);
 
   useEffect(() => {
@@ -29,9 +28,18 @@ export default function AssemblyApp(_: AssemblyAppProps) {
     };
   }, []);
 
-  const handleSelectMo = useCallback((mo: AssemblyMoRow, foundByCkd?: string | null) => {
+  const handleSelectMo = useCallback((mo: AssemblyMoRow) => {
     setSelectedMo(mo);
-    setCkdLot(foundByCkd ?? null);
+    setScreen('detail');
+  }, []);
+
+  const handleCreate = useCallback(() => {
+    setScreen('create');
+  }, []);
+
+  const handleCreated = useCallback((mo: AssemblyMoRow) => {
+    setQueueReloadKey((k) => k + 1);
+    setSelectedMo(mo);
     setScreen('detail');
   }, []);
 
@@ -39,7 +47,6 @@ export default function AssemblyApp(_: AssemblyAppProps) {
     if (changed) setQueueReloadKey((k) => k + 1);
     setScreen('queue');
     setSelectedMo(null);
-    setCkdLot(null);
   }, []);
 
   return (
@@ -50,10 +57,17 @@ export default function AssemblyApp(_: AssemblyAppProps) {
       <main className="sales-main sales-main-screen">
         <div className="sales-screen-container">
           {screen === 'queue' && (
-            <AssemblyQueue onSelect={handleSelectMo} reloadKey={queueReloadKey} />
+            <AssemblyQueue
+              onSelect={handleSelectMo}
+              onCreate={handleCreate}
+              reloadKey={queueReloadKey}
+            />
+          )}
+          {screen === 'create' && (
+            <AssemblyCreate onDone={handleCreated} onCancel={() => setScreen('queue')} />
           )}
           {screen === 'detail' && selectedMo && (
-            <AssemblyDetail mo={selectedMo} ckdLot={ckdLot} onBack={handleBack} />
+            <AssemblyDetail mo={selectedMo} onBack={handleBack} />
           )}
         </div>
       </main>
