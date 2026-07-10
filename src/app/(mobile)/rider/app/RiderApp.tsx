@@ -226,6 +226,8 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
   // credit, since we're topping up the service *on this customer*.
   const [energyServiceId, setEnergyServiceId] = useState<string | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  // Drives the Activity screen's refresh spinner (pull-to-refresh + post-top-up refetch).
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
   // Set whenever any step of the map fetch fails (MQTT timeout, empty fleet,
@@ -799,6 +801,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
   // Fetch activity data from GraphQL
   const fetchActivityData = async (subscriptionCode: string) => {
     const startTime = performance.now();
+    setIsActivityLoading(true);
     console.info('[PERF] ðŸ“ ServicePlanActions GraphQL - Starting...');
     try {
       const graphqlEndpoint = 'https://abs-platform-dev.omnivoltaic.com/graphql';
@@ -1012,6 +1015,8 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     } catch (error) {
       console.error('Error fetching activity data:', error);
       setActivities([]);
+    } finally {
+      setIsActivityLoading(false);
     }
   };
 
@@ -1952,6 +1957,10 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
 
         if (subscription?.subscription_code) {
           fetchCustomerIdentificationData(subscription.subscription_code);
+          // Also refresh the activity feed so the new TOP_UP payment action
+          // appears immediately — previously only the balance refetched and
+          // the top-up event stayed invisible until an app restart.
+          fetchActivityData(subscription.subscription_code);
         }
         return { success: true };
       } catch (err: any) {
@@ -2378,7 +2387,16 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
           )}
           
           {currentScreen === 'activity' && (
-            <RiderActivity activities={activities} currency={currency} />
+            <RiderActivity
+              activities={activities}
+              currency={currency}
+              isLoading={isActivityLoading}
+              onRefresh={() => {
+                if (subscription?.subscription_code) {
+                  fetchActivityData(subscription.subscription_code);
+                }
+              }}
+            />
           )}
           
           {currentScreen === 'stations' && (
