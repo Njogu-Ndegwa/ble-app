@@ -17,7 +17,6 @@ interface ProfileData {
   /** Remaining energy in kWh — shown as the headline of the balance stat. */
   energyKwh?: number;
   currency?: string;
-  swapsThisMonth: number;
   planName: string;
   planValidity: string;
   paymentState: "PAID" | "RENEWAL_DUE" | "OVERDUE" | "PENDING" | string;
@@ -178,28 +177,6 @@ const RiderProfile: React.FC<RiderProfileProps> = ({
             </div>
           </div>
 
-          {/* Swaps This Month */}
-          <div className="energy-stat-row">
-            <div className="energy-stat-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="M3 17l6-6 4 4 8-8" />
-                <path d="M17 7h4v4" />
-              </svg>
-            </div>
-            <div className="energy-stat-content">
-              <div className="energy-stat-value">{profile.swapsThisMonth}</div>
-              <div className="energy-stat-label">
-                {profile.swapsThisMonth === 1
-                  ? t("rider.swapThisMonth") || "Swap This Month"
-                  : t("rider.swapsThisMonth") || "Swaps This Month"}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Plan Info Footer - name on left, validity on right */}

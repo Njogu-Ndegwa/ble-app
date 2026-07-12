@@ -1798,21 +1798,6 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     };
   }, [isLoggedIn, stationsError, refetchStations]);
 
-  // Derive "Swaps This Month" from the activity feed so the profile reflects
-  // real data instead of a plan-lifetime counter. Falls back to 0 when the
-  // activity list hasn't loaded yet.
-  const swapsThisMonth = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    return activities.filter((a) => {
-      if (a.type !== 'swap') return false;
-      const d = new Date(a.date);
-      if (isNaN(d.getTime())) return false;
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    }).length;
-  }, [activities]);
-
   const planSheetItems: SelectSheetItem<string>[] = useMemo(
     () =>
       subscriptions.map((s) => {
@@ -2476,7 +2461,6 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
                 balance: balance,
                 energyKwh: energyKwh,
                 currency: currency,
-                swapsThisMonth: swapsThisMonth,
                 planName: subscription?.product_name || '',
                 planValidity: subscription?.next_cycle_date
                   ? new Date(subscription.next_cycle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

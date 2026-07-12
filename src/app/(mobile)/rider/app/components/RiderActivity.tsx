@@ -78,12 +78,14 @@ export default function RiderActivity({
     return groups;
   }, [filtered, t]);
 
+  // Swap count intentionally NOT summarized here — the Home bike card is the
+  // single place that shows it, backed by the swap-count service state. A
+  // count derived from this feed (servicePlanActions, limit 20) undercounts.
   const summary = useMemo(() => {
-    const swaps = activities.filter((a) => a.type === "swap").length;
     const totalSpent = activities
       .filter((a) => a.type === "payment" && !a.isPositive)
       .reduce((s, a) => s + (a.amount ?? 0), 0);
-    return { swaps, totalSpent };
+    return { totalSpent };
   }, [activities]);
 
   const filterOptions: { key: FilterKey; label: string }[] = [
@@ -95,16 +97,7 @@ export default function RiderActivity({
 
   const renderHeaderExtra = () => (
     <div className="flex flex-col gap-2.5">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rm-summary-tile">
-          <Zap size={14} />
-          <div>
-            <div className="rm-summary-tile-value">{summary.swaps}</div>
-            <div className="rm-summary-tile-label">
-              {t("rider.swaps") || "Swaps"}
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-2">
         <div className="rm-summary-tile">
           <Wallet size={14} />
           <div>
