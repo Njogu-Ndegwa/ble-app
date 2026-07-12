@@ -8097,6 +8097,82 @@ html.theme-transition *::after {
   text-overflow: ellipsis;
 }
 
+/* Battery charge strip — SoC of the rider's own battery inside the bike card.
+   Charge is drawn ON a battery glyph (NIU/Gogoro convention). */
+.rh-batt {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.rh-batt__icon {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 15px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 4px;
+  padding: 2px;
+  align-self: center;
+  flex-shrink: 0;
+}
+/* Battery terminal nub */
+.rh-batt__icon::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 7px;
+  border-radius: 0 2px 2px 0;
+  background: var(--text-muted);
+}
+.rh-batt__icon-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--success, #22c55e);
+  transition: width 0.4s ease;
+}
+.rh-batt__icon[data-level='mid'] .rh-batt__icon-fill {
+  background: var(--warning, #f59e0b);
+}
+.rh-batt__icon[data-level='low'] .rh-batt__icon-fill {
+  background: var(--danger, #ef4444);
+}
+.rh-batt__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rh-batt__pct {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  color: var(--success, #22c55e);
+}
+.rh-batt__pct[data-level='mid'] {
+  color: var(--warning, #f59e0b);
+}
+.rh-batt__pct[data-level='low'] {
+  color: var(--danger, #ef4444);
+}
+.rh-batt__stat {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.rh-batt__meta {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Stations wrapper — only animates entrance; inner classes are reused */
 .rh-stations {
   /* No extra styling beyond the rh-anim-in entrance. */

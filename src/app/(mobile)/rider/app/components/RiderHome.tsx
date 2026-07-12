@@ -13,6 +13,7 @@ import {
 import { useI18n } from "@/i18n";
 import { useGeolocation } from "../hooks/useGeolocation";
 import type { RiderStation } from "../types";
+import type { RiderBatteryStatus } from "../hooks/useRiderBattery";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import StationCards from "./StationCards";
 
@@ -54,6 +55,9 @@ interface RiderHomeProps {
   nearbyStations: Station[];
   isLoadingStations?: boolean;
   isLoadingBike?: boolean;
+  /** Charge state of the rider's own battery (cloud avatar or last slot
+   *  sighting); null when neither source has ever reported it. */
+  batteryStatus?: RiderBatteryStatus | null;
   /** Opaque error code from the page-level stations pipeline; truthy = fetch failed. */
   stationsError?: string | null;
   /** Whether the rider actually has an active subscription; drives the empty-state copy. */
@@ -76,6 +80,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   nearbyStations,
   isLoadingStations = false,
   isLoadingBike = false,
+  batteryStatus = null,
   stationsError = null,
   hasSubscription = true,
   onRefreshStations,
@@ -175,6 +180,24 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const energyDisplay = energyKwh.toLocaleString(undefined, {
     maximumFractionDigits: 1,
   });
+
+  // "Updated 5 min ago" stamp for the battery reading. Telemetry arrives over
+  // the battery's GSM link, so honesty about age matters more than the number
+  // itself — a stale 90% is worse than a fresh 40%.
+  const formatBatteryAge = (iso: string | null): string | null => {
+    if (!iso) return null;
+    const ageMs = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(ageMs) || ageMs < 0) return null;
+    const mins = Math.floor(ageMs / 60_000);
+    if (mins < 1) return t("rider.battJustNow") || "just now";
+    if (mins < 60) return `${mins} ${t("rider.battMinAgo") || "min ago"}`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} ${t("rider.battHrAgo") || "hr ago"}`;
+    return `${Math.floor(hours / 24)} ${t("rider.battDaysAgo") || "d ago"}`;
+  };
+  const battAge = batteryStatus ? formatBatteryAge(batteryStatus.updatedAt) : null;
+  const battSoc = batteryStatus?.socPercent ?? null;
+  const battLevel = battSoc == null ? "ok" : battSoc < 20 ? "low" : battSoc < 50 ? "mid" : "ok";
   const energyAriaLabel = isLoadingBike
     ? t("common.loading") || "Loading"
     : `${t("rider.energyRemaining") || "Energy remaining"} ${energyKwh.toLocaleString(
@@ -372,6 +395,45 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               </dd>
             </div>
           </dl>
+
+          {/* Battery charge — rendered only once some source (cloud avatar or
+              station slot) has actually reported this battery. Follows the
+              NIU/Gogoro convention: charge shown ON a battery glyph, with
+              percentage, energy and estimated range beside it. */}
+          {battSoc != null && (
+            <div
+              className="rh-batt"
+              role="group"
+              aria-label={`${t("rider.batteryCharge") || "Battery charge"} ${battSoc}%`}
+            >
+              <div className="rh-batt__row">
+                <span className="rh-batt__icon" data-level={battLevel} aria-hidden="true">
+                  <span
+                    className="rh-batt__icon-fill"
+                    style={{ width: `${Math.max(6, Math.min(100, battSoc))}%` }}
+                  />
+                </span>
+                <span className="rh-batt__pct" data-level={battLevel}>
+                  {battSoc}%
+                </span>
+                {batteryStatus?.energyKwh != null && (
+                  <span className="rh-batt__stat">
+                    {batteryStatus.energyKwh.toFixed(2)} kWh
+                  </span>
+                )}
+                {batteryStatus?.rangeKm != null && (
+                  <span className="rh-batt__stat">
+                    ≈ {batteryStatus.rangeKm} km
+                  </span>
+                )}
+                <span className="rh-batt__meta">
+                  {batteryStatus?.source === "station"
+                    ? `${t("rider.battAtLastDock") || "at last dock"}${battAge ? ` · ${battAge}` : ""}`
+                    : battAge || ""}
+                </span>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

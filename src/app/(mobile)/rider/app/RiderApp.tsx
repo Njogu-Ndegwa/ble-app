@@ -48,6 +48,11 @@ import {
   isTopUpPaymentType,
   isDepositPaymentType,
 } from './hooks/useRiderActivity';
+import {
+  useRiderBattery,
+  estimateRangeKm,
+  type RiderBatteryStatus,
+} from './hooks/useRiderBattery';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import AppHeader from '@/components/AppHeader';
 
@@ -234,6 +239,13 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
   // Drives the Activity screen's refresh spinner (pull-to-refresh + post-top-up refetch).
   const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
+  // Last time each battery was seen in a station slot: btid → charge reading.
+  // Never pruned within a session — after a swap the rider's new battery just
+  // left a slot, so its most recent sighting is exactly the reading we want
+  // when the battery has no cloud avatar of its own yet.
+  const [slotSightings, setSlotSightings] = useState<
+    Record<string, { rsoc: number; recaKwh: number; seenAt: string }>
+  >({});
   const [isLoadingStations, setIsLoadingStations] = useState(false);
   // Set whenever any step of the map fetch fails (MQTT timeout, empty fleet,
   // GraphQL error). Cleared on every successful load. Drives the retry/refresh
@@ -253,6 +265,30 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
     currentBatteryId: undefined,
   });
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  // Live charge state of the rider's own battery, cloud-first with a
+  // station-slot fallback: the battery's avatar (works mid-ride, needs the
+  // battery registered in the thing micro-service) wins over the last time
+  // a station slot reported it (fresh right after a swap).
+  const { status: cloudBatteryStatus } = useRiderBattery({
+    batteryId: bike.currentBatteryId,
+    enabled: !!bike.currentBatteryId,
+  });
+  const batteryStatus = useMemo<RiderBatteryStatus | null>(() => {
+    if (cloudBatteryStatus) return cloudBatteryStatus;
+    const sighting = bike.currentBatteryId
+      ? slotSightings[bike.currentBatteryId]
+      : undefined;
+    if (!sighting) return null;
+    return {
+      socPercent: sighting.rsoc,
+      energyKwh: sighting.recaKwh > 0 ? sighting.recaKwh : null,
+      rangeKm: estimateRangeKm(sighting.recaKwh > 0 ? sighting.recaKwh : null),
+      updatedAt: sighting.seenAt,
+      source: 'station',
+    };
+  }, [cloudBatteryStatus, bike.currentBatteryId, slotSightings]);
+
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
@@ -1418,6 +1454,8 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
         // Process all fleet responses
         const allStations: Station[] = [];
 
+        const newSightings: Record<string, { rsoc: number; recaKwh: number; seenAt: string }> = {};
+
         data.fleets.forEach((fleet: any) => {
           const fleetId = fleet.fleetId;
           const items = fleet.items || [];
@@ -1429,6 +1467,18 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
             }
 
             const chargeSlots = stationData.Charge_slot || [];
+            // Record a charge reading for every docked battery. The rider's
+            // own battery is looked up in these sightings when it has no
+            // cloud avatar (see the batteryStatus merge near <RiderHome>).
+            chargeSlots.forEach((slot: any) => {
+              const btid = typeof slot?.btid === 'string' ? slot.btid.trim() : '';
+              if (!btid || typeof slot.rsoc !== 'number') return;
+              newSightings[btid] = {
+                rsoc: slot.rsoc,
+                recaKwh: typeof slot.reca === 'number' ? slot.reca : 0,
+                seenAt: new Date().toISOString(),
+              };
+            });
             // Fully-charged, swap-ready batteries (rsoc = 100, not charging).
             const availableBatteries = chargeSlots.filter((slot: any) =>
               slot.chst === 0 &&
@@ -1479,6 +1529,11 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
           }
           lastStationsFleetKeyRef.current = fleetKey;
           setStationsError(null);
+          if (Object.keys(newSightings).length > 0) {
+            // Merge, never replace: batteries that left their slot keep the
+            // reading from the last time a station saw them.
+            setSlotSightings((prev) => ({ ...prev, ...newSightings }));
+          }
         } else {
           console.warn('[STATIONS] No stations found in GraphQL response');
           setStations([]);
@@ -2374,6 +2429,7 @@ const RiderApp: React.FC<RiderAppProps> = ({ showTopUp = true }) => {
               }))}
               isLoadingStations={isLoadingStations}
               isLoadingBike={isLoadingBike}
+              batteryStatus={batteryStatus}
               stationsError={stationsError}
               hasSubscription={!!subscription?.subscription_code}
               onRefreshStations={refetchStations}
