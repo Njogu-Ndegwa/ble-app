@@ -198,6 +198,36 @@ const RiderHome: React.FC<RiderHomeProps> = ({
   const battAge = batteryStatus ? formatBatteryAge(batteryStatus.updatedAt) : null;
   const battSoc = batteryStatus?.socPercent ?? null;
   const battLevel = battSoc == null ? "ok" : battSoc < 20 ? "low" : battSoc < 50 ? "mid" : "ok";
+
+  // Adaptive hero (benchmark pattern — Tesla/NIU/Battery Smart): the ring
+  // shows the BATTERY when a real reading exists; otherwise it falls back to
+  // the plan quota and a muted chip advertises that battery data is pending.
+  const batteryHero = hasSubscription && !isLoadingBike && battSoc != null;
+  const LEVEL_COLORS: Record<string, { color: string; glow: string }> = {
+    ok: { color: "var(--success, #22c55e)", glow: "rgba(34, 197, 94, 0.35)" },
+    mid: { color: "var(--warning, #f59e0b)", glow: "rgba(245, 158, 11, 0.35)" },
+    low: { color: "var(--danger, #ef4444)", glow: "rgba(239, 68, 68, 0.35)" },
+  };
+  const battGaugeStyle = batteryHero
+    ? ({
+        ["--gauge-offset" as string]: String(100 - Math.max(0, Math.min(100, battSoc))),
+        ["--gauge-color" as string]: LEVEL_COLORS[battLevel].color,
+        ["--gauge-glow" as string]: LEVEL_COLORS[battLevel].glow,
+      } as React.CSSProperties)
+    : undefined;
+  const battSub = [
+    batteryStatus?.rangeKm != null ? `≈ ${batteryStatus.rangeKm} km` : null,
+    batteryStatus?.energyKwh != null ? `${batteryStatus.energyKwh.toFixed(2)} kWh` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const battMeta = batteryStatus
+    ? batteryStatus.source === "station"
+      ? `${t("rider.battAtLastDock") || "at last dock"}${battAge ? ` · ${battAge}` : ""}`
+      : battAge
+        ? `${t("rider.battUpdated") || "updated"} ${battAge}`
+        : null
+    : null;
   const energyAriaLabel = isLoadingBike
     ? t("common.loading") || "Loading"
     : `${t("rider.energyRemaining") || "Energy remaining"} ${energyKwh.toLocaleString(
@@ -208,7 +238,7 @@ const RiderHome: React.FC<RiderHomeProps> = ({
     ? "rh-gauge--locked"
     : isLoadingBike
       ? "rh-gauge--loading"
-      : energyKwh === 0
+      : energyKwh === 0 && battSoc == null
         ? "rh-gauge--empty"
         : "";
 
@@ -230,12 +260,15 @@ const RiderHome: React.FC<RiderHomeProps> = ({
         aria-busy={isLoadingBike}
       >
         <div
-          className={`rh-gauge ${gaugeStateClass}`.trim()}
+          className={`rh-gauge ${gaugeStateClass}${batteryHero ? " rh-gauge--batt" : ""}`.trim()}
           role="img"
+          style={battGaugeStyle}
           aria-label={
             !hasSubscription
               ? t("rider.noSubscription") || "No active subscription"
-              : energyAriaLabel
+              : batteryHero
+                ? `${t("rider.batteryCharge") || "Battery charge"} ${battSoc}%`
+                : energyAriaLabel
           }
         >
           <svg className="rh-gauge__svg" viewBox="0 0 200 200" aria-hidden="true">
@@ -266,6 +299,19 @@ const RiderHome: React.FC<RiderHomeProps> = ({
               </>
             ) : isLoadingBike ? (
               <span className="rider-skeleton rh-gauge__skeleton" />
+            ) : batteryHero ? (
+              <>
+                <span className="rh-gauge__value">{battSoc}%</span>
+                <span className="rh-gauge__unit">
+                  {t("rider.battery") || "Battery"}
+                </span>
+                {battSub && <span className="rh-gauge__sub">{battSub}</span>}
+                {energyKwh === 0 && (
+                  <span className="rh-gauge__caption">
+                    {t("rider.topUpToRide") || "Top up to ride"}
+                  </span>
+                )}
+              </>
             ) : (
               <>
                 <span className="rh-gauge__value">{energyDisplay}</span>
@@ -283,6 +329,28 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             )}
           </div>
         </div>
+
+        {/* Under-gauge chip: the OTHER metric stays one glance away.
+            Battery mode → plan balance; fallback mode with an assigned
+            battery → honest "no signal yet" (no fake numbers, ever). */}
+        {batteryHero ? (
+          <span className="rh-hero__chip">
+            {t("rider.planBalance") || "Plan balance"}{" "}
+            <b>{energyDisplay} kWh</b>
+            {" · "}
+            <b>
+              {currency ? `${currency} ` : ""}
+              {balance.toLocaleString()}
+            </b>
+          </span>
+        ) : hasSubscription && !isLoadingBike && bike.currentBatteryId ? (
+          <span className="rh-hero__chip rh-hero__chip--muted">
+            <span className="rh-batt__icon" aria-hidden="true">
+              <span className="rh-batt__icon-fill" style={{ width: 0 }} />
+            </span>
+            {t("rider.battNoSignal") || "Battery — no signal yet"}
+          </span>
+        ) : null}
 
         <div className="rh-hero__cta">
           {onShowEnergyTopUp && (
@@ -318,6 +386,10 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             <span>{t("rider.myQrCode") || "My QR"}</span>
           </button>
         </div>
+
+        {batteryHero && battMeta && (
+          <p className="rh-hero__meta">{battMeta}</p>
+        )}
       </section>
 
       {/* BIKE strip — demoted metadata. Hidden when there's no subscription. */}
@@ -396,44 +468,6 @@ const RiderHome: React.FC<RiderHomeProps> = ({
             </div>
           </dl>
 
-          {/* Battery charge — rendered only once some source (cloud avatar or
-              station slot) has actually reported this battery. Follows the
-              NIU/Gogoro convention: charge shown ON a battery glyph, with
-              percentage, energy and estimated range beside it. */}
-          {battSoc != null && (
-            <div
-              className="rh-batt"
-              role="group"
-              aria-label={`${t("rider.batteryCharge") || "Battery charge"} ${battSoc}%`}
-            >
-              <div className="rh-batt__row">
-                <span className="rh-batt__icon" data-level={battLevel} aria-hidden="true">
-                  <span
-                    className="rh-batt__icon-fill"
-                    style={{ width: `${Math.max(6, Math.min(100, battSoc))}%` }}
-                  />
-                </span>
-                <span className="rh-batt__pct" data-level={battLevel}>
-                  {battSoc}%
-                </span>
-                {batteryStatus?.energyKwh != null && (
-                  <span className="rh-batt__stat">
-                    {batteryStatus.energyKwh.toFixed(2)} kWh
-                  </span>
-                )}
-                {batteryStatus?.rangeKm != null && (
-                  <span className="rh-batt__stat">
-                    ≈ {batteryStatus.rangeKm} km
-                  </span>
-                )}
-                <span className="rh-batt__meta">
-                  {batteryStatus?.source === "station"
-                    ? `${t("rider.battAtLastDock") || "at last dock"}${battAge ? ` · ${battAge}` : ""}`
-                    : battAge || ""}
-                </span>
-              </div>
-            </div>
-          )}
         </section>
       )}
 

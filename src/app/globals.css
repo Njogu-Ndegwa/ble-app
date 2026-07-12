@@ -7946,6 +7946,46 @@ html.theme-transition *::after {
   filter: none;
 }
 
+/* Battery-first hero mode: the ring sweeps to the battery SoC instead of a
+   full circle, colored by charge level (see --gauge-* inline vars). */
+.rh-gauge--batt .rh-gauge__ring {
+  stroke: var(--gauge-color, var(--success, #22c55e));
+  filter: drop-shadow(0 0 14px var(--gauge-glow, rgba(34, 197, 94, 0.35)));
+  animation: rh-sweep-batt 950ms var(--ease-out, ease-out) 280ms forwards;
+}
+@keyframes rh-sweep-batt {
+  to { stroke-dashoffset: var(--gauge-offset, 0); }
+}
+
+/* Chip under the hero gauge: plan balance (battery mode) or muted
+   "battery — no signal yet" (fallback mode). */
+.rh-hero__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  background: var(--bg-tertiary);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.rh-hero__chip b {
+  font-family: var(--font-mono, 'DM Mono', monospace);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.rh-hero__chip--muted {
+  color: var(--text-muted);
+}
+.rh-hero__meta {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* Hero CTAs (Top Up + QR) — equal width */
 .rh-hero__cta {
   display: grid;
@@ -8097,13 +8137,7 @@ html.theme-transition *::after {
   text-overflow: ellipsis;
 }
 
-/* Battery charge strip — SoC of the rider's own battery inside the bike card.
-   Charge is drawn ON a battery glyph (NIU/Gogoro convention). */
-.rh-batt {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-subtle);
-}
+/* Battery glyph (NIU/Gogoro convention) — used in the hero fallback chip. */
 .rh-batt__icon {
   position: relative;
   display: inline-block;
@@ -8139,38 +8173,6 @@ html.theme-transition *::after {
 }
 .rh-batt__icon[data-level='low'] .rh-batt__icon-fill {
   background: var(--danger, #ef4444);
-}
-.rh-batt__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.rh-batt__pct {
-  font-size: 14px;
-  font-weight: 700;
-  font-family: var(--font-mono, 'DM Mono', monospace);
-  color: var(--success, #22c55e);
-}
-.rh-batt__pct[data-level='mid'] {
-  color: var(--warning, #f59e0b);
-}
-.rh-batt__pct[data-level='low'] {
-  color: var(--danger, #ef4444);
-}
-.rh-batt__stat {
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--font-mono, 'DM Mono', monospace);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.rh-batt__meta {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Stations wrapper — only animates entrance; inner classes are reused */
