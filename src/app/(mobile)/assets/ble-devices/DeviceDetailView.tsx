@@ -584,6 +584,7 @@ import { Toaster, toast } from "react-hot-toast";
 import { RefreshCw, Clipboard, Loader2, UploadCloud } from "lucide-react";
 import { AsciiStringModal, NumericModal } from "../../../modals";
 import OtaUpdateModal from "./components/OtaUpdateModal";
+import { useFirmwareUpdateCheck } from "@/lib/hooks/ble/useFirmwareUpdateCheck";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
 export type DeviceDetailMode = 'technical' | 'overview';
@@ -942,6 +943,18 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     ? String(fwCharacteristic.realVal)
     : null;
 
+  // Auto-check the cloud catalog once opid + fwv are known; silent unless a
+  // matching, strictly-newer version exists (see useFirmwareUpdateCheck).
+  const opidValue = opidCharacteristic?.realVal != null
+    ? String(opidCharacteristic.realVal)
+    : null;
+  const { updateAvailable, dismiss: dismissUpdate } = useFirmwareUpdateCheck(
+    device.macAddress,
+    opidValue,
+    currentFirmware,
+  );
+  const [otaPreselect, setOtaPreselect] = useState<string | null>(null);
+
   // ── Overview mode (My Devices) ──────────────────────────────────────────
   if (mode === 'overview') {
     const attService = attributeList.find(
@@ -1121,6 +1134,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         device={{ macAddress: device.macAddress, name: deviceDisplayName }}
         currentFirmware={currentFirmware}
         onSuccess={onBack}
+        preselectVersion={otaPreselect}
       />
       <div className="flex flex-col items-center p-6 pb-2 max-w-md mx-auto">
         <img
@@ -1144,12 +1158,49 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
           <button
             className="btn btn-secondary text-xs flex items-center gap-1"
             style={{ padding: '4px 12px', fontSize: '11px' }}
-            onClick={() => setOtaModalOpen(true)}
+            onClick={() => { setOtaPreselect(null); setOtaModalOpen(true); }}
           >
             <UploadCloud size={12} />
             {t("ble.ota.updateButton")}
           </button>
         </div>
+        {updateAvailable && (
+          <div
+            className="w-full mt-3 rounded-lg px-3 py-2"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--accent)' }}
+          >
+            <div className="flex items-start gap-2">
+              <UploadCloud size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--accent)' }} />
+              <div className="flex-1">
+                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {t("ble.ota.availableTitle", { version: updateAvailable.version })}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                  {t("ble.ota.availableBody", { current: currentFirmware || t("N/A") })}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                className="btn btn-secondary flex-1 text-xs"
+                style={{ padding: '4px 12px', fontSize: '11px' }}
+                onClick={dismissUpdate}
+              >
+                {t("ble.ota.notNow")}
+              </button>
+              <button
+                className="btn btn-primary flex-1 text-xs"
+                style={{ padding: '4px 12px', fontSize: '11px' }}
+                onClick={() => {
+                  setOtaPreselect(updateAvailable.version);
+                  setOtaModalOpen(true);
+                }}
+              >
+                {t("ble.ota.updateNow")}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       <div className="border-b max-w-md mx-auto" style={{ borderColor: 'var(--border)' }}>
         <div className="flex justify-between px-1">

@@ -63,3 +63,21 @@ export const GET_FILE_OBJECTS_FOR_FIRMWARE_VERSION = gql`
     }
   }
 `;
+
+/**
+ * Device avatar snapshot + GATT metadata, keyed by the device's OEM item id
+ * (the `opid` characteristic read over BLE). `gatt_meta` is the DeviceGatt
+ * document; its `firmware` field names the firmware family this device runs —
+ * the link used to match catalog entries to a physical device.
+ */
+export const GET_DEVICE_SNAPSHOT_WITH_GATT_META = gql`
+  query GetDeviceSnapshotWithGattMeta($oemItemId: String!) {
+    getDeviceSnapshotWithGattMeta(oemItemId: $oemItemId) {
+      snapshot {
+        device_id
+        fields
+      }
+      gatt_meta
+    }
+  }
+`;

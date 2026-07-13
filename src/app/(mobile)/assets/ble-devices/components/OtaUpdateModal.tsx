@@ -20,6 +20,8 @@ interface OtaUpdateModalProps {
   currentFirmware?: string | null;
   /** Called after a successful update is acknowledged (device rebooted; needs reconnect) */
   onSuccess?: () => void;
+  /** Auto-select this cloud version on open (from the update-available prompt) */
+  preselectVersion?: string | null;
 }
 
 type Step = "pick" | "confirm" | "updating";
@@ -51,6 +53,7 @@ const OtaUpdateModal: React.FC<OtaUpdateModalProps> = ({
   device,
   currentFirmware,
   onSuccess,
+  preselectVersion,
 }) => {
   const { t } = useI18n();
   const { state, startOta, cancelOta, reset } = useOtaUpdate(device.macAddress);
@@ -63,6 +66,7 @@ const OtaUpdateModal: React.FC<OtaUpdateModalProps> = ({
   const [selected, setSelected] = useState<SelectedFirmware | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const autoPickedRef = useRef(false);
 
   // Load cloud firmware list each time the modal opens
   useEffect(() => {
@@ -70,6 +74,7 @@ const OtaUpdateModal: React.FC<OtaUpdateModalProps> = ({
     setStep("pick");
     setSelected(null);
     setPickError(null);
+    autoPickedRef.current = false;
     reset();
     setFirmwaresLoading(true);
     setFirmwaresError(null);
@@ -125,6 +130,16 @@ const OtaUpdateModal: React.FC<OtaUpdateModalProps> = ({
     },
     [t]
   );
+
+  // When opened from the "update available" prompt, jump straight to that version
+  useEffect(() => {
+    if (!isOpen || !preselectVersion || autoPickedRef.current || firmwaresLoading) return;
+    const fw = firmwares.find((f) => f.version === preselectVersion);
+    if (fw) {
+      autoPickedRef.current = true;
+      pickCloudVersion(fw);
+    }
+  }, [isOpen, preselectVersion, firmwares, firmwaresLoading, pickCloudVersion]);
 
   const pickLocalFile = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
