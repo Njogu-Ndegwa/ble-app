@@ -581,8 +581,9 @@
 import React, { useState, useRef, useMemo } from "react";
 import { readBleCharacteristic, writeBleCharacteristic } from "../../../utils";
 import { Toaster, toast } from "react-hot-toast";
-import { RefreshCw, Clipboard, Loader2 } from "lucide-react";
+import { RefreshCw, Clipboard, Loader2, UploadCloud } from "lucide-react";
 import { AsciiStringModal, NumericModal } from "../../../modals";
+import OtaUpdateModal from "./components/OtaUpdateModal";
 import HeartbeatView from "@/components/HeartbeatView";
 import { useI18n } from "@/i18n";
 export type DeviceDetailMode = 'technical' | 'overview';
@@ -646,6 +647,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   }>({});
   const [asciiModalOpen, setAsciiModalOpen] = useState(false);
   const [numericModalOpen, setNumericModalOpen] = useState(false);
+  const [otaModalOpen, setOtaModalOpen] = useState(false);
   const [activeCharacteristic, setActiveCharacteristic] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("ATT");
 
@@ -926,6 +928,20 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const deviceDisplayName =
     getDisplayValue(opidCharacteristic) || device.name || t("Unknown Device");
 
+  // Current firmware version from the ATT service (fwv, fallback fw)
+  const attServiceForFw = attributeList.find(
+    (s: any) => s.serviceNameEnum === "ATT_SERVICE",
+  );
+  const fwCharacteristic = attServiceForFw?.characteristicList?.find(
+    (c: any) => {
+      const n = c.name?.toLowerCase();
+      return n === "fwv" || n === "fw";
+    },
+  );
+  const currentFirmware = fwCharacteristic?.realVal != null
+    ? String(fwCharacteristic.realVal)
+    : null;
+
   // ── Overview mode (My Devices) ──────────────────────────────────────────
   if (mode === 'overview') {
     const attService = attributeList.find(
@@ -1099,6 +1115,13 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         onSubmit={(value) => handleWrite(value)}
         title={activeCharacteristic?.name || t("Read")}
       />
+      <OtaUpdateModal
+        isOpen={otaModalOpen}
+        onClose={() => setOtaModalOpen(false)}
+        device={{ macAddress: device.macAddress, name: deviceDisplayName }}
+        currentFirmware={currentFirmware}
+        onSuccess={onBack}
+      />
       <div className="flex flex-col items-center p-6 pb-2 max-w-md mx-auto">
         <img
           src={device.imageUrl}
@@ -1112,6 +1135,21 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           {device.rssi || t("Unknown RSSI")}
         </p>
+        <div className="flex items-center gap-3 mt-2">
+          {currentFirmware && (
+            <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>
+              {t("ble.ota.firmwareLabel")}: {currentFirmware}
+            </span>
+          )}
+          <button
+            className="btn btn-secondary text-xs flex items-center gap-1"
+            style={{ padding: '4px 12px', fontSize: '11px' }}
+            onClick={() => setOtaModalOpen(true)}
+          >
+            <UploadCloud size={12} />
+            {t("ble.ota.updateButton")}
+          </button>
+        </div>
       </div>
       <div className="border-b max-w-md mx-auto" style={{ borderColor: 'var(--border)' }}>
         <div className="flex justify-between px-1">

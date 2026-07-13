@@ -59,11 +59,12 @@ Mockups live in `.superpowers/brainstorm/` (gitignored); use the app's real them
 - `gcj02.ts` + `deepLinks.ts`: external nav → Amap (GCJ-02) in China, Google Maps elsewhere. Called from `RiderApp.handleNavigateToStation`.
 - Leaflet backend is Scope 1 (find/locate/deep-link out). No route polyline or follow-tilt in China.
 
-## OTA firmware upgrade (in-progress feature)
+## OTA firmware upgrade (wired end-to-end, pending on-device verification)
 - **Firmware version**: characteristic `fwv` (fallback `fw`) in `ATT_SERVICE`; read via `.realVal` — already shown in `DeviceDetailView.tsx:948`
 - **Cloud API** (federated GraphQL): `getSpecificItemFirmware`, `getFileObjectsForFirmwareVersion` (→ S3 `downloadUrl`), `getAllItemFirmwares`, `getDeviceGattByFirmware`; mutations: `createItemFirmware`, `updateItemFirmware`, `deleteItemFirmware`, `uploadItemFirmwaresDockerStandalone`
 - **Native OTA SDK**: `oves-app/ota66_sdk2` is a Telink BLE OTA SDK. Entry point: `OTASDKUtils(context, cb).updateFirware(mac, filePath)` with `onProcess(float)` / `onUpdateComplete()` / `onError(code)` callbacks. Firmware file format is **Intel HEX**.
-- **Blocked items**: (1) `app/build.gradle:114` has the dep commented out; (2) no `startOtaUpgrade` bridge handler in BaseWebViewActivity; (3) no JS progress channel. Bridge glue follows the same `saveFile`/`downloadFile` handler pattern.
+- **Native bridge** (oves-app branch `feat/ble-ota`): dep enabled in `app/build.gradle`; handlers `startOtaUpdate` {macAddress, fileName, base64} and `cancelOtaUpdate` in `BaseWebViewActivity`; events to web: `otaProgressCallBack` {macAddress, progress} / `otaErrorCallBack` {macAddress, code: ota66_sdk2 ErrorCode 1000-1009} / `otaCompleteCallBack`. Before the OTA SDK takes over, native stops scanning and fully releases the app GATT via `BleDeviceUtil.destroyAndClose()` (disconnect + close, unlike `destroy()`), then waits 800 ms.
+- **Web side**: `src/lib/hooks/ble/useOtaUpdate.ts` (state machine idle→starting→transferring→rebooting→success/error), `src/lib/graphql/firmware.ts` (ops verified by schema introspection on the dev federated endpoint), `OtaUpdateModal.tsx` in the Device Manager — launched from `DeviceDetailView` technical mode (All Devices details). Firmware source: cloud version list → S3 `downloadUrl` fetch, or local `.hex`/`.hex16` file pick.
 - **Constraint**: WebView cannot use `ftp://` URLs (Chrome dropped FTP in v95) — firmware must come from S3 presigned HTTPS URLs. Do not use the FTP server for firmware delivery.
 - **Open question**: whether all `codeSystem` values (ACP1/ACP2/OPENTOKEN) map to Telink chips — if not, need additional vendor OTA SDKs.
 
