@@ -929,14 +929,16 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
   const deviceDisplayName =
     getDisplayValue(opidCharacteristic) || device.name || t("Unknown Device");
 
-  // Current firmware version from the ATT service (fwv, fallback fw)
+  // Current firmware version from the ATT service. Characteristic naming
+  // varies by device family: fwv (batteries), frmv (VCU, verified on
+  // OVES E-3P hardware), fw (legacy).
   const attServiceForFw = attributeList.find(
     (s: any) => s.serviceNameEnum === "ATT_SERVICE",
   );
   const fwCharacteristic = attServiceForFw?.characteristicList?.find(
     (c: any) => {
       const n = c.name?.toLowerCase();
-      return n === "fwv" || n === "fw";
+      return n === "fwv" || n === "frmv" || n === "fw";
     },
   );
   const currentFirmware = fwCharacteristic?.realVal != null
@@ -974,7 +976,7 @@ const DeviceDetailView: React.FC<DeviceDetailProps> = ({
     const opidVal = getDisplayValue(opidCharacteristic);
     if (opidVal) overviewStats.push({ label: t('Device ID'), value: String(opidVal), icon: '🔑' });
 
-    const fwChar = getAttr(attService, 'fwv') ?? getAttr(attService, 'fw');
+    const fwChar = getAttr(attService, 'fwv') ?? getAttr(attService, 'frmv') ?? getAttr(attService, 'fw');
     if (fwChar) overviewStats.push({ label: t('Firmware'), value: String(fwChar.realVal ?? t('N/A')), icon: '📦' });
 
     const soc = getAttr(stsService, 'soc') ?? getAttr(attService, 'soc');
