@@ -126,7 +126,7 @@ export function useOtaUpdate(macAddress: string) {
     };
   }, []);
 
-  const startOta = useCallback((fileName: string, hexContent: string) => {
+  const startOta = useCallback((fileName: string, hexContent: string, secretKey?: string) => {
     const bridge = (window as any).WebViewJavascriptBridge;
     if (!bridge) {
       setState({
@@ -154,7 +154,9 @@ export function useOtaUpdate(macAddress: string) {
     setState({ phase: "starting", progress: 0, errorCode: null, errorDetail: null });
     bridge.callHandler(
       "startOtaUpdate",
-      JSON.stringify({ macAddress: macRef.current, fileName, base64 }),
+      // secretKey drives the Telink secure-OTA key handshake; without it a
+      // secure device ignores the OTA-start command and never enters OTA mode.
+      JSON.stringify({ macAddress: macRef.current, fileName, base64, secretKey: secretKey ?? "" }),
       (responseData: string) => {
         const parsed = parseBridgeJson(responseData);
         const respCode = parsed?.respCode ?? parsed?.responseData?.respCode;

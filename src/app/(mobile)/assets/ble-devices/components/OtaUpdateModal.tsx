@@ -9,6 +9,7 @@ import {
   GET_FILE_OBJECTS_FOR_FIRMWARE_VERSION,
   ItemFirmware,
   S3FileObject,
+  OTA_SECRET_KEY,
 } from "@/lib/graphql/firmware";
 import { useOtaUpdate, OTA_ERROR_KEYS } from "@/lib/hooks/ble/useOtaUpdate";
 
@@ -179,7 +180,7 @@ const OtaUpdateModal: React.FC<OtaUpdateModalProps> = ({
   const handleStart = useCallback(() => {
     if (!selected) return;
     setStep("updating");
-    startOta(selected.fileName, selected.hexContent);
+    startOta(selected.fileName, selected.hexContent, OTA_SECRET_KEY);
   }, [selected, startOta]);
 
   const updating =

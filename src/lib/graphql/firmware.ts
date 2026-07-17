@@ -17,6 +17,21 @@
 
 import { gql } from '@apollo/client';
 
+/**
+ * Telink secure-OTA key ("secretKey" in the legacy native handler).
+ *
+ * The VCU firmware requires this key handshake before it will act on the
+ * OTA-start command — verified on-device 2026-07-17: without a key the device
+ * connects, accepts the 0x0102 start command, but never reboots into OTA mode
+ * (transfer stalls at 0%). The legacy oves-app frontend supplied this per-flash
+ * as `secretKey`; the value is a firmware secret held by R&D.
+ *
+ * The native `startOtaUpdate` handler now reads this and calls
+ * OTASDKUtils.setOtaKey(...), so changing this value is a web-only redeploy —
+ * no APK rebuild needed. TODO(esther/bob): set the real E-3P VCU OTA key here.
+ */
+export const OTA_SECRET_KEY = "";
+
 export interface ItemFirmware {
   _id: string;
   version: string;
