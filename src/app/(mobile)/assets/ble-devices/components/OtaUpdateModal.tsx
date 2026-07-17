@@ -79,10 +79,14 @@ const OtaUpdateModal: React.FC<OtaUpdateModalProps> = ({
     setFirmwaresLoading(true);
     setFirmwaresError(null);
     apolloClient
-      .query({ query: GET_ALL_ITEM_FIRMWARES, variables: { first: 50 }, fetchPolicy: "network-only" })
+      .query({ query: GET_ALL_ITEM_FIRMWARES, variables: { first: 100 }, fetchPolicy: "network-only" })
       .then((res) => {
         const edges = res.data?.getAllItemFirmwares?.page?.edges ?? [];
-        setFirmwares(edges.map((e: any) => e.node).filter(Boolean));
+        const nodes: ItemFirmware[] = edges.map((e: any) => e.node).filter(Boolean);
+        // Newest first so recently-uploaded firmware (the one the user is most
+        // likely reaching for) is at the top, not buried at the end of the list.
+        nodes.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
+        setFirmwares(nodes);
       })
       .catch((err) => {
         setFirmwaresError(err?.message ?? String(err));

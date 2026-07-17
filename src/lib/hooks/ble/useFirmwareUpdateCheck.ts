@@ -103,7 +103,7 @@ export function useFirmwareUpdateCheck(
 
         const listRes = await apolloClient.query({
           query: GET_ALL_ITEM_FIRMWARES,
-          variables: { first: 50 },
+          variables: { first: 100 },
           fetchPolicy: "network-only",
         });
         if (cancelled) return;
