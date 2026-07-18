@@ -28,9 +28,9 @@ import { gql } from '@apollo/client';
  *
  * The native `startOtaUpdate` handler now reads this and calls
  * OTASDKUtils.setOtaKey(...), so changing this value is a web-only redeploy —
- * no APK rebuild needed. TODO(esther/bob): set the real E-3P VCU OTA key here.
+ * no APK rebuild needed. Value provided by R&D (Esther) for the E-3P VCU.
  */
-export const OTA_SECRET_KEY = "";
+export const OTA_SECRET_KEY = "0000000002";
 
 export interface ItemFirmware {
   _id: string;
