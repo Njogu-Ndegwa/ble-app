@@ -156,7 +156,8 @@ export function useOtaUpdate(macAddress: string) {
       "startOtaUpdate",
       // secretKey drives the Telink secure-OTA key handshake; without it a
       // secure device ignores the OTA-start command and never enters OTA mode.
-      JSON.stringify({ macAddress: macRef.current, fileName, base64, secretKey: secretKey ?? "" }),
+      // buildStamp: deploy-verification marker (native ignores it) — remove after cache issue resolved.
+      JSON.stringify({ macAddress: macRef.current, fileName, base64, secretKey: secretKey ?? "", buildStamp: "OTABUILD-KX7Q9" }),
       (responseData: string) => {
         const parsed = parseBridgeJson(responseData);
         const respCode = parsed?.respCode ?? parsed?.responseData?.respCode;
