@@ -966,6 +966,7 @@ html.theme-transition *::after {
 
 /* Each app: icon stacked above label */
 .role-app {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1102,6 +1103,139 @@ html.theme-transition *::after {
   z-index: 5;
   border: 2px solid var(--bg-primary);
   line-height: 1;
+}
+
+/* ---- Launcher sections: My Apps + categorized catalog ---- */
+
+.role-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 6px 10px;
+}
+
+.role-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.role-section-count {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.role-edit-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: none;
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.role-edit-btn.active {
+  color: var(--bg-primary);
+  background: var(--accent);
+}
+
+/* Dashed outline signals the pinned row is editable while in edit mode */
+.role-fav-zone {
+  border: 1px dashed transparent;
+  border-radius: 16px;
+  padding: 6px 0 2px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.role-fav-zone.editing {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.role-fav-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 16px 16px;
+  margin: 0;
+}
+
+/* Catalog copy of an already-pinned app while editing */
+.role-app.pinned-dim {
+  opacity: 0.35;
+}
+
+/* Original tile while its ghost is being dragged */
+.role-app.dragging {
+  opacity: 0.3;
+}
+
+/* Pinned tiles in edit mode are drag handles — stop the browser from
+   turning the drag into a page scroll (Android WebView). */
+.role-app.pin-editing {
+  touch-action: none;
+}
+
+/* + / − pin toggles, sized for touch, outside the icon's overflow clip */
+.role-pin-badge {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  cursor: pointer;
+  z-index: 6;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.role-pin-badge.minus {
+  background: #FF3B30;
+}
+
+.role-pin-badge.plus {
+  background: #34C759;
+}
+
+/* Icon clone following the pointer while reordering My Apps */
+.role-drag-ghost {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(1.1);
+  opacity: 0.95;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
+}
+
+.role-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  z-index: 300;
+  background: #FF3B30;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
 }
 
 /*
