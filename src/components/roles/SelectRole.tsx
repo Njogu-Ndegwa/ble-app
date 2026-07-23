@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Zap, FolderTree, LifeBuoy, MessagesSquare, Factory, Boxes } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import AppHeader from '@/components/AppHeader';
 import { getActiveSAApplets, getSelectedSA, getSelectedSAId } from '@/lib/ov-auth';
@@ -184,7 +184,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'fleets',
     labelKey: 'role.fleets',
-    icon: { type: 'lucide', el: <Boxes size={28} color="#fff" />, gradient: 'role-grad-customer' },
+    icon: { type: 'image', src: '/assets/optimized/Fleets.png', gradient: 'role-grad-customer' },
     path: '/fleets',
     // Same slug as the desktop portal's Fleets applet. The BLE Device
     // Manager tile also matches 'assets', so SAs with that grant see both.
@@ -194,7 +194,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'assembly',
     labelKey: 'role.assembly',
-    icon: { type: 'lucide', el: <Factory size={28} color="#fff" />, gradient: 'role-grad-orders' },
+    icon: { type: 'image', src: '/assets/optimized/Assembly.png', gradient: 'role-grad-orders' },
     path: '/assembly',
     appletSlug: 'assembly-cell',
     category: 'mgmt',
@@ -202,7 +202,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'rollup',
     labelKey: 'role.rollup',
-    icon: { type: 'lucide', el: <FolderTree size={28} color="#fff" />, gradient: 'role-grad-rollup' },
+    icon: { type: 'image', src: '/assets/optimized/Rollup.png', gradient: 'role-grad-rollup' },
     path: '/rollup',
     appletSlug: 'rollup',
     category: 'mgmt',
@@ -210,7 +210,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'ticketing',
     labelKey: 'role.ticketing',
-    icon: { type: 'lucide', el: <LifeBuoy size={28} color="#fff" />, gradient: 'role-grad-ticketing' },
+    icon: { type: 'image', src: '/assets/optimized/Ticketing.png', gradient: 'role-grad-ticketing' },
     path: '/ticketing/app',
     appletSlug: 'ticketing',
     category: 'support',
@@ -219,7 +219,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'support',
     labelKey: 'role.support',
-    icon: { type: 'lucide', el: <MessagesSquare size={28} color="#fff" />, gradient: 'role-grad-support' },
+    icon: { type: 'image', src: '/assets/optimized/Support.png', gradient: 'role-grad-support' },
     path: '/support/app',
     appletSlug: 'ticketing-customer',
     category: 'support',
@@ -227,7 +227,7 @@ const ALL_ROLES: RoleConfig[] = [
   {
     id: 'topup',
     labelKey: 'role.topup',
-    icon: { type: 'lucide', el: <Zap size={28} color="#fff" />, gradient: 'role-grad-activator' },
+    icon: { type: 'image', src: '/assets/optimized/TopUp.png', gradient: 'role-grad-activator' },
     path: '/topup',
     // Shown only when the SA grants the `energytopup` slug.
     appletSlug: 'energytopup',

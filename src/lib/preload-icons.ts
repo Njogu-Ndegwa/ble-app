@@ -13,6 +13,12 @@ const ROLE_ICON_URLS = [
   '/assets/optimized/Attendant2.png',
   '/assets/optimized/Keypad2.png',
   '/assets/optimized/BleDeviceAttendant.png',
+  '/assets/optimized/Fleets.png',
+  '/assets/optimized/Assembly.png',
+  '/assets/optimized/Rollup.png',
+  '/assets/optimized/Ticketing.png',
+  '/assets/optimized/Support.png',
+  '/assets/optimized/TopUp.png',
   '/assets/optimized/Bikes Oves.png',
 ] as const;
 
