@@ -33,6 +33,7 @@ import {
   createCustomer,
   type ExistingCustomer,
 } from '@/lib/services/customer-service';
+import { isValidPhone } from '@/lib/phone';
 import { resetPassword } from '@/lib/odoo-api';
 
 type SubView = 'list' | 'detail' | 'edit' | 'create';
@@ -249,7 +250,7 @@ export default function SalesCustomers() {
       if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
         errors.email = t('sales.invalidEmail') || 'Invalid email';
       }
-      if (hasPhone && phoneDigits.length < 10) {
+      if (hasPhone && !isValidPhone(formData.phone)) {
         errors.phone = t('sales.invalidPhone') || 'Invalid phone number';
       }
     }

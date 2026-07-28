@@ -35,6 +35,7 @@ import {
 // Import customer service for existing customer selection and creation
 import type { ExistingCustomer } from '@/lib/services/customer-service';
 import { createCustomer } from '@/lib/services/customer-service';
+import { isValidPhone } from '@/lib/phone';
 
 // Import modular BLE hook for battery scanning
 import { useFlowBatteryScan } from '@/lib/hooks/ble';
@@ -1273,8 +1274,8 @@ export default function SalesFlow({
       if (hasEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
         errors.email = 'Please enter a valid email address';
       }
-      // Validate phone format if provided - must have 10+ digits for a valid international number
-      if (hasPhone && phoneDigits.length < 10) {
+      // Validate phone format if provided, per the number's own country rules
+      if (hasPhone && !isValidPhone(formData.phone)) {
         errors.phone = 'Please enter a valid phone number';
       }
     }

@@ -14,6 +14,7 @@ import {
   type OdooContact,
   type ContactWritePayload,
 } from '@/lib/odoo-api';
+import { toBackendPhone } from '@/lib/phone';
 
 // ============================================================================
 // Types
@@ -58,21 +59,6 @@ export interface CustomerUpdateResponse {
 // ============================================================================
 // Mapping helper
 // ============================================================================
-
-/**
- * Reduce a phone field to the digits the backend wants, or `undefined` when the
- * field is blank. `undefined` keys are dropped by `JSON.stringify`, so a phone
- * the user never entered is not sent at all — the backend answers PHONE_EXISTS
- * if it receives a value that any other contact already happens to hold.
- *
- * Whether a number was entered is decided by `PhoneInputWithCountry`, which
- * reports '' for an untouched field; there is deliberately no length threshold
- * here, since valid number lengths differ by country.
- */
-export function toBackendPhone(phone: string | undefined): string | undefined {
-  const digits = (phone || '').replace(/\D/g, '');
-  return digits || undefined;
-}
 
 function mapContact(c: OdooContact): ExistingCustomer {
   return {
