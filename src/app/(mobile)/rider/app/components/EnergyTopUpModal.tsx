@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Zap, AlertCircle, Loader2, Check } from 'lucide-react';
+import { Zap, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
 import {
@@ -21,6 +21,31 @@ import {
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
 import { filterPlansByPackage } from '@/lib/plan-filter';
+
+// Merchant-payment USSD codes for Togo. The amount ("Montant") is embedded
+// directly in the string, so the rider can dial the whole code as-is.
+//   Mixx by Yas : *145*5*<amount>*1088722#
+//   Flooz       : *155*2*2*22879392818*22879392818*<amount>#
+//
+// These are Togo rails and must only ever reach Togo riders — see
+// isTogoCurrency below. They used to render unconditionally, which told
+// riders in other markets to pay a Togo merchant.
+const MIXX_MERCHANT_NUMBER = '1088722';
+const FLOOZ_RECIPIENT_NUMBER = '22879392818';
+
+const buildMixxUssd = (amount: number): string =>
+  `*145*5*${Math.floor(amount)}*${MIXX_MERCHANT_NUMBER}#`;
+
+const buildFloozUssd = (amount: number): string =>
+  `*155*2*2*${FLOOZ_RECIPIENT_NUMBER}*${FLOOZ_RECIPIENT_NUMBER}*${Math.floor(amount)}#`;
+
+// Whether this rider is billed in Togo's currency, which is what decides
+// whether the Togo rails apply. The plan's own currency is the signal: it is
+// the one field that stayed correct for the Kenyan rider who surfaced this bug
+// (plan currency KES, while the plan's *terms* and *template* were both Togo).
+// The backend stores the CFA franc as both "XOF" and "CFA", so accept either.
+const isTogoCurrency = (cur?: string): boolean =>
+  /^(XOF|CFA)$/i.test((cur || '').trim());
 
 export type EnergyTopUpStep = 'plan' | 'payment' | 'success';
 
@@ -102,6 +127,33 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Flashes a "Copied" check next to whichever Mixx field was last copied.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const handleCopy = useCallback(async (key: string, value: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        // Fallback for WebViews without the modern clipboard API.
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 1500);
+    } catch (err) {
+      console.warn('[EnergyTopUpModal] Clipboard copy failed:', err);
+    }
+  }, []);
 
   // Fetch plans when modal opens
   useEffect(() => {
@@ -545,14 +597,50 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 {/* Manual / Scan entry */}
                 {(paymentMode === 'manual' || paymentMode === 'scan') && (
                   <div style={{ marginTop: 16 }}>
-                    {/* Payment instructions are intentionally not rendered here.
-                        They used to be hardcoded Mixx by Yas / Flooz USSD codes —
-                        Togo merchant rails — shown to every rider regardless of
-                        which service account or country they belong to, so riders
-                        elsewhere were told to pay a Togo merchant. Until the
-                        backend serves the payment methods that apply to a given
-                        plan, show none and let the rider enter the reference for
-                        however they actually paid. */}
+                    {/* Pre-built USSD codes — the amount is already embedded, so the
+                        rider dials the whole code, pays, then pastes the SMS reference.
+                        Togo rails only: riders billed in any other currency get no
+                        payment instructions until the backend serves the methods that
+                        apply to their plan, and enter the reference for however they
+                        actually paid. */}
+                    {isTogoCurrency(planCurrency(selectedPlan)) && (
+                      <div className="topup-mixx-field" style={{ marginBottom: 16 }}>
+                        <span className="topup-mixx-label">
+                          {t('rider.payWithMixx') || 'Pay with Mixx by Yas'}
+                        </span>
+                        <button
+                          type="button"
+                          className="topup-mixx-row"
+                          onClick={() => handleCopy('mixx', buildMixxUssd(selectedPlan.price))}
+                          aria-label={t('rider.copyUssd') || 'Copy USSD code'}
+                        >
+                          <span className="topup-mixx-value-mono" style={{ wordBreak: 'break-all', textAlign: 'left' }}>
+                            {buildMixxUssd(selectedPlan.price)}
+                          </span>
+                          {copiedKey === 'mixx' ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+
+                        <span className="topup-mixx-label" style={{ marginTop: 10 }}>
+                          {t('rider.payWithFlooz') || 'Pay with Flooz'}
+                        </span>
+                        <button
+                          type="button"
+                          className="topup-mixx-row"
+                          onClick={() => handleCopy('flooz', buildFloozUssd(selectedPlan.price))}
+                          aria-label={t('rider.copyUssd') || 'Copy USSD code'}
+                        >
+                          <span className="topup-mixx-value-mono" style={{ wordBreak: 'break-all', textAlign: 'left' }}>
+                            {buildFloozUssd(selectedPlan.price)}
+                          </span>
+                          {copiedKey === 'flooz' ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+
+                        <span className="topup-mixx-hint">
+                          {t('rider.ussdHintShort') || 'Dial the code for your operator, pay, then paste the SMS confirmation reference below.'}
+                        </span>
+                      </div>
+                    )}
+
                     <div>
                       <label className="form-label">
                         {t('rider.txnIdRef') || 'Transaction ID / Reference'}
