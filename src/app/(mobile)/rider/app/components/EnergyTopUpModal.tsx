@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Zap, AlertCircle, Loader2, Copy, Check } from 'lucide-react';
+import { Zap, AlertCircle, Loader2, Check } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { absApolloClient } from '@/lib/apollo-client';
 import {
@@ -21,19 +21,6 @@ import {
 import { InputModeToggle, WeChatPayment } from '@/components/shared';
 import type { InputMode } from '@/components/shared/types';
 import { filterPlansByPackage } from '@/lib/plan-filter';
-
-// Real merchant-payment USSD codes (Togo). The amount ("Montant") is embedded
-// directly in the string, so the rider can dial the whole code as-is.
-//   Mixx by Yas : *145*5*<amount>*1088722#
-//   Flooz       : *155*2*2*22879392818*22879392818*<amount>#
-const MIXX_MERCHANT_NUMBER = '1088722';
-const FLOOZ_RECIPIENT_NUMBER = '22879392818';
-
-const buildMixxUssd = (amount: number): string =>
-  `*145*5*${Math.floor(amount)}*${MIXX_MERCHANT_NUMBER}#`;
-
-const buildFloozUssd = (amount: number): string =>
-  `*155*2*2*${FLOOZ_RECIPIENT_NUMBER}*${FLOOZ_RECIPIENT_NUMBER}*${Math.floor(amount)}#`;
 
 export type EnergyTopUpStep = 'plan' | 'payment' | 'success';
 
@@ -63,6 +50,12 @@ interface PlanOption {
   // look up quota — the product's display `name` can drift (extra spaces,
   // translations) from the template id the GraphQL endpoint expects.
   templateId?: string;
+  // Currency as Odoo prices the product ("KES" / "KSh"). This is what the rider
+  // is actually charged, so it is what we display. The `currency` prop comes
+  // from the ABS contract terms, which can belong to a different region than
+  // the customer's plan — a Kenyan rider on Togo terms reads back "XOF".
+  currencyName?: string;
+  currencySymbol?: string;
 }
 
 interface EnergyTopUpModalProps {
@@ -110,33 +103,6 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Flashes a "Copied" check next to whichever Mixx field was last copied.
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const handleCopy = useCallback(async (key: string, value: string) => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(value);
-      } else {
-        // Fallback for WebViews without the modern clipboard API.
-        const ta = document.createElement('textarea');
-        ta.value = value;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'absolute';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      setCopiedKey(key);
-      window.setTimeout(() => {
-        setCopiedKey((prev) => (prev === key ? null : prev));
-      }, 1500);
-    } catch (err) {
-      console.warn('[EnergyTopUpModal] Clipboard copy failed:', err);
-    }
-  }, []);
-
   // Fetch plans when modal opens
   useEffect(() => {
     if (!isOpen) return;
@@ -155,6 +121,8 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
           default_code: p.default_code || `P-${p.id}`,
           category: p.category_name || p.pu_category || undefined,
           templateId: p.x_template_id || undefined,
+          currencyName: p.currency_name || undefined,
+          currencySymbol: p.currencySymbol || undefined,
         }));
         setPlans(list);
       } catch (err: any) {
@@ -297,8 +265,10 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
       const remainingToPay = paymentData.remaining_to_pay ?? paymentData.amount_remaining ?? 0;
 
       if (totalPaid < Math.floor(selectedPlan.price) && remainingToPay > 0) {
+        // Same rule as the price displays: quote Odoo's currency for the product.
+        const cur = selectedPlan.currencySymbol || selectedPlan.currencyName || currency || '';
         setSubmitError(
-          `Insufficient payment: ${currency} ${totalPaid.toLocaleString()} paid of ${currency} ${Math.floor(selectedPlan.price).toLocaleString()}. Remaining: ${currency} ${remainingToPay.toLocaleString()}`
+          `Insufficient payment: ${cur} ${totalPaid.toLocaleString()} paid of ${cur} ${Math.floor(selectedPlan.price).toLocaleString()}. Remaining: ${cur} ${remainingToPay.toLocaleString()}`
         );
         setIsProcessing(false);
         return;
@@ -385,6 +355,12 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
   );
 
   if (!isOpen) return null;
+
+  // Currency to show against a price. Odoo prices the product, so Odoo's
+  // currency is the one the rider is actually charged in; the `currency` prop
+  // (ABS contract terms) is only a fallback for products that carry none.
+  const planCurrency = (p?: PlanOption | null): string =>
+    p?.currencySymbol || p?.currencyName || currency || '';
 
   const energyKwh = energyConfig?.initialQuota ?? null;
 
@@ -521,7 +497,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                           )}
                         </div>
                         <div className="energy-plan-price">
-                          {currency ? `${currency} ` : ''}{plan.price.toLocaleString()}
+                          {planCurrency(plan) ? `${planCurrency(plan)} ` : ''}{plan.price.toLocaleString()}
                         </div>
                         {isSelected && (
                           <div className="energy-plan-check" aria-hidden="true">
@@ -545,7 +521,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                     {t('rider.amountToPay') || 'Amount to pay'}
                   </div>
                   <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {currency} {Math.floor(selectedPlan.price).toLocaleString()}
+                    {planCurrency(selectedPlan)} {Math.floor(selectedPlan.price).toLocaleString()}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                     {selectedPlanDisplayName}
@@ -565,44 +541,14 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 {/* Manual / Scan entry */}
                 {(paymentMode === 'manual' || paymentMode === 'scan') && (
                   <div style={{ marginTop: 16 }}>
-                    {/* Pre-built USSD codes — the amount is already embedded, so the
-                        rider dials the whole code, pays, then pastes the SMS reference. */}
-                    <div className="topup-mixx-field" style={{ marginBottom: 16 }}>
-                      <span className="topup-mixx-label">
-                        {t('rider.payWithMixx') || 'Pay with Mixx by Yas'}
-                      </span>
-                      <button
-                        type="button"
-                        className="topup-mixx-row"
-                        onClick={() => handleCopy('mixx', buildMixxUssd(selectedPlan.price))}
-                        aria-label={t('rider.copyUssd') || 'Copy USSD code'}
-                      >
-                        <span className="topup-mixx-value-mono" style={{ wordBreak: 'break-all', textAlign: 'left' }}>
-                          {buildMixxUssd(selectedPlan.price)}
-                        </span>
-                        {copiedKey === 'mixx' ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
-
-                      <span className="topup-mixx-label" style={{ marginTop: 10 }}>
-                        {t('rider.payWithFlooz') || 'Pay with Flooz'}
-                      </span>
-                      <button
-                        type="button"
-                        className="topup-mixx-row"
-                        onClick={() => handleCopy('flooz', buildFloozUssd(selectedPlan.price))}
-                        aria-label={t('rider.copyUssd') || 'Copy USSD code'}
-                      >
-                        <span className="topup-mixx-value-mono" style={{ wordBreak: 'break-all', textAlign: 'left' }}>
-                          {buildFloozUssd(selectedPlan.price)}
-                        </span>
-                        {copiedKey === 'flooz' ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
-
-                      <span className="topup-mixx-hint">
-                        {t('rider.ussdHintShort') || 'Dial the code for your operator, pay, then paste the SMS confirmation reference below.'}
-                      </span>
-                    </div>
-
+                    {/* Payment instructions are intentionally not rendered here.
+                        They used to be hardcoded Mixx by Yas / Flooz USSD codes —
+                        Togo merchant rails — shown to every rider regardless of
+                        which service account or country they belong to, so riders
+                        elsewhere were told to pay a Togo merchant. Until the
+                        backend serves the payment methods that apply to a given
+                        plan, show none and let the rider enter the reference for
+                        however they actually paid. */}
                     <div>
                       <label className="form-label">
                         {t('rider.txnIdRef') || 'Transaction ID / Reference'}
@@ -627,7 +573,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                         orderId={orderId}
                         amount={Math.floor(selectedPlan.price)}
                         productName={selectedPlanDisplayName}
-                        currencySymbol={currency}
+                        currencySymbol={planCurrency(selectedPlan)}
                         authToken={token || undefined}
                         onPaid={handleWechatPaid}
                         onError={handleWechatError}
@@ -664,7 +610,7 @@ const EnergyTopUpModal: React.FC<EnergyTopUpModalProps> = ({
                 <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
                   {energyKwh !== null
                     ? `+${energyKwh.toLocaleString()} kWh`
-                    : `+${currency ? `${currency} ` : ''}${selectedPlan.price.toLocaleString()}`}
+                    : `+${planCurrency(selectedPlan) ? `${planCurrency(selectedPlan)} ` : ''}${selectedPlan.price.toLocaleString()}`}
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
                   {t('rider.energyTopUp.creditedDesc') || 'Your energy quota has been credited successfully'}
